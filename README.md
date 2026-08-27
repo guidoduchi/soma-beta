@@ -15,7 +15,7 @@ No application code, database schema, or Alpha data migration is approved by thi
 1. **Overview** — configurable Daily, Weekly, and Monthly progress summaries plus an operational narrative.
 2. **Tickets** — Service Requests and Requests for Change.
 3. **Objectives** — Maintenance Windows composed of Tasks, including WFM Tasks.
-4. **Inventory** — Spare Needs, Spare Requests, RMAs, and physical Spare Part Units.
+4. **Inventory** — Stock, Spare Requests, and Fault Tags, including Spare Need, RMA, and physical-unit lifecycles.
 5. **Infrastructure** — customer, cloud, datacenter, rack, Network Element, and component history.
 6. **Settings** — the Local User Profile, registered people, sites, and installation-wide configuration.
 

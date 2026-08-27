@@ -15,7 +15,7 @@ Product Line classification and SLA control are a core reason SOMA exists. This 
 
 ## 2. Milestone policy
 
-Milestones are whole calendar days from the effective SLA start after cumulative suspension.
+Milestone values are configured in whole days. SLA running duration remains continuous exact elapsed time from the effective start after cumulative suspension; it is not rounded into calendar-day buckets.
 
 | Product Line | Severity | 85% milestone | 100% milestone |
 |---|---|---:|---:|

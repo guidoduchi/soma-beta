@@ -1,6 +1,6 @@
 # SOMA Beta Product Contract
 
-Status: **Foundation draft v0.1**  
+Status: **Foundation review v0.2**  
 Target: **SOMA Beta 1.0.0**  
 Authority: confirmed product decisions; unresolved items are listed in `DECISIONS.md` and are not implementation permission.
 
@@ -67,8 +67,8 @@ Reporting uses `America/Guayaquil` for operator-facing dates, a Monday–Sunday 
 
 Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**.
 
-- An SR may link to many RFCs; an SR view shows those RFCs nested beneath it.
-- An RFC may link to an SR and contains its WFM Tasks.
+- An SR may link directly to many **master RFCs**; an SR view shows their complete RFC/WFM branches nested beneath it.
+- An RFC may link to many SRs through its master branch and owns its WFM Tasks.
 - A record is stored once even when presented through several related views.
 - Everything may exist without an SR, except entities whose rules explicitly require one. When an SR exists, it is the pivotal connection between work, spares, and infrastructure evidence.
 
@@ -82,7 +82,10 @@ Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**.
 ### 6.2 Requests for Change
 
 - Official RFC identity is `NC` followed by fourteen digits.
-- Master/subordinate RFC rules are preserved. SR relationships normally attach to the master RFC and are inherited by its subordinate view where applicable.
+- RFC hierarchy is exactly two levels: one master RFC may own direct subordinate RFCs.
+- A subordinate RFC cannot own another RFC, contain subordinate RFCs, or act as a master.
+- Direct SR↔RFC links target master RFCs only. Subordinate RFC and WFM context is derived through the master branch.
+- A Local Task may link directly to master RFCs only; subordinate context is derived rather than duplicated.
 - Correcting a provisional, manually created RFC identity must not rewrite historical identity silently.
 
 ### 6.3 WFM Tasks
@@ -90,30 +93,35 @@ Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**.
 - A WFM is a Huawei-generated **Task subtype**, never a third top-level Ticket type.
 - Official WFM Task identity is `TK` followed by fourteen digits.
 - A WFM belongs to exactly one RFC and at most one Objective.
+- A WFM owned by a master RFC acts as the **master WFM** for that operational branch/timeframe. A WFM owned by a subordinate RFC acts as a subordinate WFM. This role is derived from RFC ownership and is not an independently editable flag.
 - Registering a WFM requires Task No. and RFC No. If the RFC exists, Task Name is inherited from the RFC Summary. If it does not exist, Task Name is also required and creates a provisional parent RFC with that summary.
 - Correcting the parent RFC of a manually registered WFM prompts the operator either to remove the now-unused provisional RFC or leave it orphaned; no silent deletion occurs.
-- Deleting a WFM deletes only that WFM. Deleting an RFC requires explicit confirmation and deletes its assigned WFMs.
+- Hard deletion is available only for manually created RFCs/WFMs that were never imported or adopted and have no executed Objective, communication, review, spare-use, lifecycle, or other protected operational evidence.
+- Deleting a manual RFC may cascade only through WFMs that are independently eligible for hard deletion. Otherwise SOMA uses termination/archive/cancellation and preserves history.
 
 ## 7. Objectives and Tasks
 
-An **Objective** is a Maintenance Window composed of Tasks in one reviewed timeframe.
+An **Objective** is a Maintenance Window composed of Tasks in one reviewed planned timeframe.
 
-- A new Objective requires a timeframe.
-- A draft Objective may be temporarily empty; a non-draft Objective has one or more Tasks.
-- A Task is first-class and has its own identity.
-- A local Task requires only a Task Name from the operator; it may be standalone or link to an SR, RFC, Infrastructure item, Inventory item, or a valid combination.
-- A local Task created inside an Objective inherits the Objective **timeframe**, not its identity.
-- Every Task assigned to an Objective uses the Objective timeframe.
-- A Task belongs to at most one Objective.
-- Cloning a local Task creates a new Task identity and may place it in a new timeframe/Objective.
+- Every Objective requires one reviewed planned timeframe and at least one Task from creation; there is no empty Objective state.
+- A Task is first-class, has its own identity, and is either a Local Task or a WFM Task.
+- A Local Task requires only a Task Name from the operator. It may link independently to zero or many SRs, zero or many master RFCs, zero or many Spare Part Units, and zero or many Network Elements.
+- A WFM Task retains its one owning RFC. Its master/subordinate branch and SR context are derived through that RFC hierarchy rather than copied as independent Objective relationships.
+- A local Task created inside an Objective inherits the Objective **planned timeframe**, not its identity.
+- Every Task assigned to an Objective uses the Objective planned timeframe.
+- A Task belongs to at most one Objective, but one SR may participate through different Tasks in multiple unfinished Objectives.
+- There is no independent Objective↔SR authority: an Objective's effective SR context is derived exclusively through its Local and WFM Tasks.
+- Cloning a Local Task creates a new Task identity. Retrying an Objective creates a new Objective; a WFM reschedule/retry requiring a new external attempt uses a new WFM Task No.
 
-When an Objective timeframe is selected, SOMA locates available WFM Tasks whose authoritative WFM planned windows overlap it. An unplanned WFM may inherit the Objective window. A WFM with a conflicting established window requires explicit rescheduling review; SOMA never overwrites it silently.
+When an Objective timeframe is selected, SOMA locates available WFM Tasks whose authoritative WFM planned windows overlap it. An unplanned WFM may inherit the Objective window. A WFM with a conflicting established window requires explicit review and, when it represents another attempt, a new Task No.; SOMA never overwrites an established attempt silently.
 
-Task outcomes are reviewed individually. Retrying work preserves the original attempt and outcome; the exact retry decision table remains a low-level design item.
+Planned and actual Objective intervals are distinct. Task outcomes and actual Spare Part Unit use are reviewed individually. Corrections preserve prior actor/time/reason evidence; the exact outcome transition table remains a low-level design item.
 
 If one or more Tasks link to SRs, the Objective suggests the union of spares related to those SRs. The operator may also attach any other eligible spare to the Objective.
 
 ## 8. Inventory
+
+Inventory has three principal views: **Stock**, **Spare Requests**, and **Fault Tags**. Spare Needs and RMAs appear inside the workflows where they provide operational context rather than becoming additional primary navigation.
 
 ### 8.1 Catalog and physical identity
 
@@ -131,9 +139,10 @@ A Spare Need is mandatorily linked to an open or registered SR and may target a 
 
 - Official Spare Request identity is `SR` followed by seven digits.
 - Every official Spare Request is linked to a Service Request.
-- One Spare Request has one or more RMAs.
+- For a requested quantity `N`, one Spare Request may receive `M` accepted C10 RMA positions where `M ≤ N`.
+- Every requested position remains explainable. Positions without a C10 record their rejected/unfulfilled outcome and reason, such as EOS, unavailable, incompatible, or another reviewed status; they do not disappear from history.
 - An RMA identity is `C` followed by ten digits.
-- One RMA belongs to exactly one Spare Request and represents exactly one ordered BOM position.
+- One RMA belongs to exactly one Spare Request, represents exactly one accepted ordered BOM position, and is never a quantity container.
 - Before receipt, an RMA may have no physical serial. At Received state it has exactly one received serial number and the resulting unit initially has condition `new`.
 - An RMA can record the serial number returned to the supplier.
 - The return serial equals the received serial only when that same unit is returned, such as unused, incompatible, or dead-on-arrival stock.
@@ -142,13 +151,24 @@ A Spare Need is mandatorily linked to an open or registered SR and may target a 
 
 Contradictory Service Request relationships are blocked or corrected through an audited review. A manually registered Spare Part Unit may be confirmed installed without an SR, but SOMA shows a warning and requires explicit acknowledgment.
 
+### 8.4 Fault Tags
+
+A Fault Tag is the return leg of the Spare Request lifecycle and groups one or more physical units that must be returned or dispositioned.
+
+- Fault Tags retain their related Spare Request, RMA, SR, unit, and Infrastructure context without duplicating identity.
+- Sending the first Fault Tag locks its membership and sent identity. A later correction cancels/replaces the tag rather than rewriting what was sent.
+- Pickup/location evidence uses an immutable logistics snapshot.
+- Warehouse confirmation requires evidence for the affected units plus explicit operator confirmation.
+- A closed Fault Tag is terminal. Hard deletion is limited to an untouched, unsent manual draft with no dependent evidence.
+
 ## 9. Infrastructure
 
 The physical/organizational model is:
 
 - Customer Organization owns Clouds.
-- Clouds and Sites have a many-to-many relationship: a Cloud may span Sites and a Site may host Clouds.
-- A Site means a datacenter.
+- A Site is a customer-neutral physical datacenter.
+- Clouds and Sites have a many-to-many relationship: a Cloud may span Sites and a Site may host Clouds from one or more Customer Organizations.
+- Customer/Cloud responsibility for a Network Element is explicit and independent from its physical placement; a Site alone never assigns customer ownership.
 - Site contains Rooms; Room contains Racks; Rack records row and column.
 - A Network Element is an installed device instance and may be standalone/unplaced or located in a Rack.
 - A Network Element Model is reusable across customers and device instances.
@@ -205,6 +225,8 @@ Product Line classification, SLA calculation, warnings, and reporting are core p
 - Material manual changes record when, what, and why.
 - Derived states are recalculated from source facts and policy rather than silently persisted as independent truth.
 - Destructive cascades require impact preview and confirmation.
+- Hard deletion is restricted to untouched manual records with no imported/adopted provenance, executed Objective, communication, review, spare-use, lifecycle, or dependent history.
+- Removing a Task from an unexecuted Objective is allowed only when the Objective retains at least one Task, or when the complete untouched Objective is removed atomically.
 - Business history is preserved when a relationship changes.
 
 ## 15. 1.0.0 acceptance boundary

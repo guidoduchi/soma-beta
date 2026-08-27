@@ -10,19 +10,25 @@ This glossary is normative product language. UI copy, schemas, imports, and docu
 | Product | Descriptive source text on operational records; it never silently selects a Product Line. |
 | Product Line | Operator-controlled classification within one Customer Organization that selects the SLA policy. |
 | Service Request (SR) | A pivotal Ticket that connects service work, RFCs, spares, and infrastructure evidence. Official identity: exactly 8 digits. |
-| Request for Change (RFC) | A change Ticket that owns WFM Tasks and may participate in master/subordinate structure. Official identity: `NC` + 14 digits. |
-| Task | A first-class unit of work with its own identity, optionally linked to Tickets, Inventory, Infrastructure, and at most one Objective. |
-| Local Task | A manually registered Task. Task Name is its only required user-supplied field. It is not a WFM. |
+| Request for Change (RFC) | A change Ticket that owns WFM Tasks. Official identity: `NC` + 14 digits. RFC hierarchy is exactly two levels. |
+| Master RFC | An RFC that may own direct subordinate RFCs and receive direct SR/Local Task links. |
+| Subordinate RFC | An RFC owned by exactly one master RFC. It cannot own another RFC or act as a master. |
+| Task | A first-class unit of work with its own identity, classified as either a Local Task or WFM Task and belonging to at most one Objective. |
+| Local Task | A manually registered Task whose only required user-supplied field is Task Name. It may link to zero or many SRs, master RFCs, Spare Part Units, and Network Elements. |
 | WFM Task | A Huawei-generated Task subtype imported or registered with external identity `TK` + 14 digits; it belongs to exactly one RFC. |
-| Objective | A Maintenance Window with one reviewed timeframe and one or more Tasks when non-draft. |
+| Master WFM | The WFM owned by a master RFC for an operational branch/timeframe. The role is derived, not independently assigned. |
+| Subordinate WFM | A WFM owned by a subordinate RFC; its master/SR context is derived through the RFC hierarchy. |
+| Objective | A Maintenance Window with one reviewed planned timeframe and at least one Task from creation. |
 | Spare Need | A need for a replacement/part, always linked to an open or registered Service Request. |
-| Spare Request | The logistics order grouping one or more RMAs. Official identity: `SR` + 7 digits; always linked to a Service Request. |
-| RMA | One ordered BOM position within exactly one Spare Request. Identity: `C` + 10 digits. It becomes associated with exactly one received serial at receipt. |
+| Stock | The Inventory view of physical Spare Part Units grouped by BOM and state while retaining unit serial/history. |
+| Spare Request | The official `SR` + 7 logistics request linked to one Service Request. Requested quantity `N` may yield `M ≤ N` accepted C10 RMA positions; every rejected/unfulfilled position retains a reason. |
+| RMA | One accepted ordered BOM position within exactly one Spare Request. Identity: `C` + 10 digits. It is not a quantity container and becomes associated with exactly one received serial at receipt. |
+| Fault Tag | The return-lifecycle record grouping physical units for pickup, warehouse confirmation, and terminal closure. |
 | Part Number / BOM code | The catalog, compatibility, and inventory grouping identifier for a type of component. |
 | Spare Part Unit | One physical component tracked by serial number, condition, location, and lifecycle history. |
 | Infrastructure | Installed organizational, physical, device, and component structure plus its history. |
 | Cloud | A logical platform belonging to a Customer Organization that may span Sites. |
-| Site | A datacenter. It may host multiple Clouds and automatically has one exclusive Dispatch Location. |
+| Site | A customer-neutral physical datacenter. It may host Clouds from multiple Customer Organizations and automatically has one exclusive Dispatch Location. |
 | Dispatch Location | A physical logistics address. A standalone location owns its address; a site-bound location inherits the Site address. |
 | Network Element Model | A reusable device type/model definition. |
 | Network Element | A specific device instance whose components may differ from other instances of the same model. |

@@ -32,8 +32,8 @@ The browser UI is a client of a local application boundary. Domain rules do not 
 |---|---|
 | Identity and Settings | Local User Profile, registered people, installation configuration, themes |
 | Tickets | SRs, RFCs, hierarchy, Product Line assignment, source observations |
-| Objectives | Maintenance Windows, Tasks, WFM scheduling, task review and attempts |
-| Inventory | BOM catalog, Spare Needs, Spare Requests, RMAs, serialized units, logistics |
+| Objectives | Maintenance Windows, Local/WFM Tasks, RFC branches, scheduling, planned/actual time, review and attempts |
+| Inventory | Stock, BOM catalog, Spare Needs, Spare Requests, RMAs, serialized units, Fault Tags and logistics |
 | Infrastructure | customer/cloud/site hierarchy, device models and instances, installed components, replacement history |
 | SLA Policy | milestone policies, suspension, endpoint, derived state, cohorts, warnings |
 | Overview and Reporting | curated metrics, narrative queues, filters, Excel snapshots |
@@ -50,12 +50,18 @@ The clean Beta schema must distinguish:
 - stable local identity from external/official identity;
 - current accepted facts from source observations and import proposals;
 - SOMA-owned relationships/notes from source-owned population fields;
+- exact two-level RFC hierarchy and derived master/subordinate WFM roles;
+- Objective identity from Task identity and Task-derived SR context;
+- Local Task many-to-many context from WFM Task single-RFC ownership;
+- planned Objective time from actual execution evidence;
+- requested quantity/position outcomes from accepted C10 RMA positions;
 - physical unit identity from catalog/BOM identity;
 - RMA logistics state from unit condition and location;
+- customer-neutral Site placement from explicit Customer/Cloud/Network Element responsibility;
 - current device composition from immutable installation/replacement events; and
 - derived SLA/reporting state from the accepted facts used to calculate it.
 
-Audit history is a first-class persistence concern. Cascades may remove active records only under the product contract; their material effects remain explainable.
+Audit history is a first-class persistence concern. Hard deletion is a narrow operation for untouched manual records only. Imported/adopted or operationally evidenced records transition through archive, termination, cancellation, replacement, and append-only correction so their material effects remain explainable.
 
 ## 5. Local security envelope
 
@@ -113,6 +119,6 @@ A local Python runtime and local web UI are the current direction. The exact sup
 
 ## 9. Release boundaries
 
-1.0.0 includes all six modules, security, official imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
+1.0.0 includes all six modules, Inventory Stock/Spare Request/Fault Tag lifecycles, security, official imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
 
 1.x.0 may add SSH/device operations, connectivity/topology, and language switching. Shared multi-user databases, direct email, cloud services, arbitrary report builders, and Alpha database migration require a later product decision.

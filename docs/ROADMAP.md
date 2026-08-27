@@ -11,7 +11,7 @@ Deliverables:
 - high-level architecture and module boundaries;
 - brand/UX contract;
 - decision ledger and explicit release boundary; and
-- review against representative SR, RFC, WFM, inventory, and mail artifacts.
+- two-pass Alpha/Beta contradiction and coverage review against representative SR, RFC, WFM, Inventory/Fault Tag, infrastructure, and mail artifacts.
 
 Exit criteria: confirmed rules are internally consistent, open decisions have owners/order, and no unresolved ambiguity blocks schema design.
 
@@ -20,7 +20,7 @@ Exit criteria: confirmed rules are internally consistent, open decisions have ow
 Deliverables:
 
 - clean relational/domain schema and migration-free initialization;
-- state machines and invariants for Tickets, Tasks/Objectives, Inventory, and Infrastructure;
+- state machines and invariants for Tickets, RFC hierarchy, Tasks/Objectives, Stock, Spare Requests/RMAs/Fault Tags, and Infrastructure;
 - import mapping contracts for each official Excel source;
 - SLA calculation specification and golden test vectors;
 - encryption, key lifecycle, backup, recovery, and export threat model;
@@ -39,7 +39,7 @@ Minimum integrated scope:
 1. secure local bootstrap, login, optional auto-login, settings, backup/recovery;
 2. Tickets with manual registration, population, relationships, Product Line, and SLA;
 3. Objectives with Task/WFM scheduling, conflicts, outcomes, and review;
-4. Inventory with BOM counts, Spare Needs, Spare Requests, RMAs, serialized units, and dispatch history;
+4. Inventory with Stock/BOM counts, Spare Needs, quantity-position outcomes, Spare Requests, RMAs, serialized units, Fault Tags, dispatch, return, and warehouse-confirmation history;
 5. Infrastructure with customer/cloud/site placement, device models/instances, components, and replacement history;
 6. Overview with configurable period summaries, timeline, attention queues, filters, and Excel output;
 7. read-only PST/OST evidence indexing and MSG draft generation;
