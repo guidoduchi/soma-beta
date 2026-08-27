@@ -1,2 +1,45 @@
-# soma-beta
-Service Operations Management Application (Beta Dev)
+# SOMA Beta
+
+**Service Operations Management Application**
+
+SOMA Beta is a local, offline-first operations workspace for service tickets, maintenance work, spare-parts logistics, infrastructure history, and SLA control. It is a clean product and schema lineage: Zeus and SOMA Alpha are historical checkpoints and selective sources, not codebases or databases to migrate wholesale.
+
+## Product status
+
+This repository is in the **product-foundation phase**. The documents below define the Beta 1.0.0 contract and high-level architecture before low-level design or implementation begins.
+
+No application code, database schema, or Alpha data migration is approved by this commit.
+
+## Canonical work areas
+
+1. **Overview** — configurable Daily, Weekly, and Monthly progress summaries plus an operational narrative.
+2. **Tickets** — Service Requests and Requests for Change.
+3. **Objectives** — Maintenance Windows composed of Tasks, including WFM Tasks.
+4. **Inventory** — Spare Needs, Spare Requests, RMAs, and physical Spare Part Units.
+5. **Infrastructure** — customer, cloud, datacenter, rack, Network Element, and component history.
+6. **Settings** — the Local User Profile, registered people, sites, and installation-wide configuration.
+
+These names and this order are product language. `Settings` must not be renamed to `Administration`.
+
+## Foundation documents
+
+- [Product contract](docs/PRODUCT_CONTRACT.md)
+- [Domain glossary](docs/GLOSSARY.md)
+- [Product Line and SLA contract](docs/PRODUCT_LINE_SLA.md)
+- [High-level architecture](docs/ARCHITECTURE.md)
+- [Brand and UX contract](docs/BRANDING.md)
+- [Decision ledger](docs/DECISIONS.md)
+- [Release roadmap](docs/ROADMAP.md)
+
+## Foundation principles
+
+- Fully usable without internet, cloud services, or an email server.
+- One authenticating Local User Profile per installation; people recorded in the business domain are not login accounts.
+- Source imports populate operational records without erasing local relationships, notes, history, or review state—the “soul of SOMA.”
+- Product Line classification and SLA behavior remain a core purpose of SOMA.
+- Dependencies are deliberately few, pinned, auditable, and isolated behind SOMA-owned adapters.
+- Game-inspired information architecture makes work legible; the visual identity remains precise and restrained.
+
+## Version intent
+
+`1.0.0` delivers the six functional work areas, local security, supported imports, PST/OST reading, MSG draft generation, Excel exports, SLA control, responsive light/dark UI, and Windows tray behavior. Device operations such as SSH, topology, and language switching belong to `1.x.0`.
