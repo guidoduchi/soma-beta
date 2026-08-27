@@ -1,6 +1,6 @@
 # SOMA Beta High-Level Architecture
 
-Status: **HLD foundation v0.1**. This document establishes boundaries and quality attributes. It intentionally does not select a final database schema, cryptographic library, PST/OST adapter, or packaging implementation; those belong to low-level design and architecture decision records.
+Status: **HLD foundation v0.2**. This document establishes boundaries and quality attributes. It intentionally does not select a final database schema, cryptographic library, PST/OST adapter, or packaging implementation; those belong to low-level design and architecture decision records.
 
 ## 1. Architectural drivers
 

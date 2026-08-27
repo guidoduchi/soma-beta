@@ -15,24 +15,36 @@ Deliverables:
 
 Exit criteria: confirmed rules are internally consistent, open decisions have owners/order, and no unresolved ambiguity blocks schema design.
 
-## Phase 1 — Low-level design
+## Phase 1 — High-level design
 
 Deliverables:
 
-- clean relational/domain schema and migration-free initialization;
-- state machines and invariants for Tickets, RFC hierarchy, Tasks/Objectives, Stock, Spare Requests/RMAs/Fault Tags, and Infrastructure;
+- one conceptual domain model covering the six workspaces and their cross-workspace relationships;
+- aggregate boundaries and invariants for Tickets, RFC hierarchy, Tasks/Objectives, Stock, Spare Requests/RMAs/Fault Tags, and Infrastructure;
+- conceptual lifecycle/state diagrams without database or framework coupling;
+- local deployment, process, encryption, backup, import, communications, and trust-boundary flows;
+- responsive information architecture and primary workflow prototypes; and
+- selective Alpha asset/capability reuse inventory, including canonical brand files.
+
+Exit criteria: every accepted product rule has one unambiguous conceptual owner, relationship, lifecycle, and trust boundary.
+
+## Phase 2 — Low-level design
+
+Deliverables:
+
+- clean relational schema and migration-free initialization;
+- concrete state-transition tables, constraints, indexes, and concurrency rules;
 - import mapping contracts for each official Excel source;
 - SLA calculation specification and golden test vectors;
 - encryption, key lifecycle, backup, recovery, and export threat model;
 - offline PST/OST and MSG feasibility ADR;
-- API/application boundary and local process lifecycle;
-- packaging/support matrix and Windows tray behavior;
-- responsive information architecture and primary workflow prototypes; and
-- selective Alpha asset/reuse inventory, including canonical brand files.
+- API/application contracts and local process lifecycle;
+- packaging/support matrix and Windows tray behavior; and
+- implementation test strategy for every 1.0.0 acceptance rule.
 
-Exit criteria: every 1.0.0 acceptance rule maps to a design, test strategy, and owned module.
+Exit criteria: every 1.0.0 acceptance rule maps to an implementable contract, test strategy, and owned module.
 
-## Phase 2 — Beta 1.0.0 implementation
+## Phase 3 — Beta 1.0.0 implementation
 
 Minimum integrated scope:
 
@@ -48,7 +60,7 @@ Minimum integrated scope:
 
 Quality gates include invariant tests, import golden files, SLA golden calculations, encryption/recovery tests, destructive-impact tests, accessibility checks, and an offline installation acceptance run.
 
-## Phase 3 — Beta 1.x.0
+## Phase 4 — Beta 1.x.0
 
 Planned candidates:
 
