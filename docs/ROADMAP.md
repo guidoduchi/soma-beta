@@ -1,279 +1,297 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Foundation and traceability in progress**
+Status: **Roadmap reviewed; combined product-foundation phase in progress**
 
-This roadmap takes SOMA Beta from historical requirement recovery to a complete, responsive local web application. It is contract-first, use-case-driven, and incrementally executable.
+This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 
-Dates are intentionally absent until the product foundation, use cases, HLD, and LLD make the remaining work estimable. Existing foundation documents are working baselines, not automatic acceptance of the phases below.
+Dates are intentionally absent until the Product Contract, use cases, HLD, and complete Beta 1.0.0 LLD make the remaining work estimable. No production code may begin before the entire LLD is accepted.
 
 ## Delivery chain
 
 ~~~mermaid
 flowchart TD
-    A["0. Alpha traceability"] --> B["1. Product stabilization"]
-    B --> C["2. Use cases and HLD"]
-    C --> D["3. Low-level design"]
-    D --> E["4. Engineering foundation"]
-    E --> F["5. Domain vertical slices"]
-    F --> G["6. Integrated UI and UX"]
+    A["0. Traceability and product stabilization"] --> B["1. Use cases and HLD"]
+    B --> C["2. Complete Beta 1.0 LLD"]
+    C --> D["3. Synthetic-data Tickets and Objectives MVP"]
+    D --> E["4. Security and recovery"]
+    E --> F["5. Remaining domains and integration"]
+    F --> G["6. Overview and complete UI/UX"]
     G --> H["7. Beta 1.0.0 acceptance"]
 ~~~
 
-A later phase may expose a missing product decision. When that happens, the decision returns to the Product Contract and traceability record before implementation continues. The LLD, schema, services, and UI must never silently invent business policy.
+A later phase may expose a disproven assumption. When this happens, SOMA uses controlled design correction: reopen the owning accepted artifact, record the reason and impact, update downstream traceability, and reaccept the affected design before implementation continues. Product behavior always returns to Phase 0; implementation must never silently invent policy.
 
-## Phase 0 — Historical traceability and foundation correction (current)
-
-### Purpose
-
-Turn SOMA Alpha into a controlled historical source instead of relying on memory or prose summaries.
-
-### Deliverables
-
-- 'ALPHA_TRACEABILITY.md' covering:
-  - every requirement and decision accepted on Alpha 'main';
-  - every additional rule from paused or unmerged Alpha work;
-  - the authority and merge status of each source;
-  - a Beta disposition of **Retain**, **Replace**, **Defer**, **Reject**, or **Open**;
-  - the Beta document and requirement ID that owns every retained or replaced outcome; and
-  - a rationale for every replacement, deferral, or rejection.
-- A selective reuse inventory for Alpha code, tests, fixtures, canonical brand assets, and operational contracts.
-- A contradiction and omission register separating:
-  - confirmed Beta contradictions;
-  - missing Beta rules;
-  - intentional replacements;
-  - candidate-only Alpha proposals requiring owner confirmation; and
-  - implementation details reserved for LLD.
-- Stable Beta requirement identifiers suitable for later use-case, design, and test references.
-- An explicit license, attribution, and asset-provenance decision before Alpha code or assets are copied.
-
-### Exit gate
-
-- Every accepted Alpha requirement and decision has a recorded disposition.
-- No unmerged Alpha proposal is treated as accepted merely because code or tests exist.
-- Every retained or replaced rule has one authoritative Beta destination.
-- All product-shaping gaps discovered by the audits are either resolved or explicitly open with a required decision phase.
-
-## Phase 1 — Product contract stabilization
+## Phase 0 — Requirement traceability and product stabilization (current)
 
 ### Purpose
 
-Complete the business truth that SOMA Beta 1.0.0 must implement.
+Turn SOMA Alpha into a controlled historical source and establish the complete normative business truth for SOMA Beta 1.0.0.
 
-### Deliverables
+### Historical scope and traceability
 
-- Stabilized Product Contract, glossary, decision ledger, and release boundary.
-- Focused product contracts where the main contract would become ambiguous or excessively dense:
+- Create ALPHA_TRACEABILITY.md with one row per Alpha requirement or decision ID.
+- Catalogue:
+  - every requirement and decision accepted on Alpha main; and
+  - every paused or unmerged Alpha proposal, clearly marked as non-normative historical material until disposition.
+- Do not treat Alpha code, schemas, migrations, tests, fixtures, or safeguards as normative requirements.
+- Record for each Alpha ID:
+  - source and authority;
+  - merge or proposal status;
+  - Beta disposition: **Retain**, **Replace**, **Defer**, **Reject**, or **Open**;
+  - rationale where the outcome is not Retain;
+  - immutable Beta requirement reference where applicable; and
+  - destination layer, kept separate from release disposition.
+- Destination layers include Product Contract, use case, HLD, LLD, implementation, and acceptance evidence. **Defer** means a later release; it never means “belongs in LLD.”
+- Assign neutral immutable normative identifiers in the form **BETA-REQ-0001**. Workspace, domain, release, status, and destination remain metadata rather than part of the identifier.
+
+### Gaps and product contracts
+
+- Maintain contradictions and omissions separately in FOUNDATION_GAPS.md.
+- Give every gap a stable ID that traceability rows can reference.
+- Resolve all discovered Beta product questions, including candidate Alpha proposals, before Phase 0 closes.
+- Stabilize the Product Contract, glossary, decision ledger, release boundary, and focused contracts for:
   - Service Request identity, notes, source population, lifecycle, episodes, finalization, and retention;
-  - RFC hierarchy, WFM ownership, adoption, correction, attempts, archive, tracking, and terminal cascade behavior;
+  - RFC master/subordinate hierarchy, WFM ownership, adoption, correction, attempts, archive, tracking, and terminal cascade behavior;
   - Objective and Task composition, scheduling, execution, review, correction, cloning, and retry;
-  - Inventory lifecycle covering Spare Needs, request lines and quantities, C10 positions, physical units, allocation, installation, return, and Fault Tags;
-  - Infrastructure identity, placement, component compatibility, installation, replacement, and operational scope;
-  - registered people, Customer Organizations, Local User Profile, Product Lines, Sites, and Dispatch Locations;
+  - Inventory lifecycle covering Stock, Spare Needs, request lines and quantities, Spare Requests, C10 RMA positions, physical units, allocation, installation, return, and Fault Tags;
+  - Infrastructure identity, placement, component compatibility, installation, replacement, and history;
+  - registered people, Customer Organizations, Local User Profile, Product Lines, Clouds, Sites, Rooms, Racks, and Dispatch Locations;
   - source-specific import and population behavior;
-  - offline communications evidence and MSG draft behavior; and
-  - Product Line/SLA classification, calculations, cohorts, warnings, and Overview presentation.
-- Explicit resolution of current product gaps, including:
-  - Customer Contact versus Requester versus Local User Profile;
-  - Spare Request multi-BOM/request-line cardinality;
-  - RFC/WFM hierarchy correction and terminal consequences;
-  - SR same-number reappearance and manually created SR adoption;
-  - minimum Network Element facts and direct operational scope;
-  - Fault Tag item eligibility and evidence;
-  - Overview treatment of SLA and Infrastructure; and
-  - retention outcomes for each operational family.
-- Product-level deletion, correction, archive, replacement, and historical-evidence rules.
-- Confirmed Beta 1.0.0 acceptance scope and explicit 1.x deferrals.
+  - offline PST/OST evidence and MSG draft behavior; and
+  - Product Line and SLA classification, calculations, cohorts, warnings, and Overview presentation.
+- Define product-level deletion, correction, archive, replacement, restoration, and historical-evidence rules.
+- Confirm Beta 1.0.0 acceptance scope and explicit Beta 1.x.0 deferrals.
+
+### Reuse, ownership, and licensing
+
+- The only Phase 0 Alpha reuse candidates are canonical SOMA brand assets.
+- Alpha code, schemas, migrations, adapters, fixtures, and tests may inform historical analysis but are not migration or reuse candidates.
+- SOMA Beta is a private proprietary project for the internal team only.
+- Preserve required Apache-2.0 origin attribution for reused Alpha brand assets through a narrowly scoped origin/third-party notice unless sole-rights relicensing is established.
+- Do not imply that the proprietary Beta codebase as a whole is Apache-2.0.
 
 ### Exit gate
 
-- No unresolved business ambiguity blocks a use case, lifecycle, identity, or relationship.
-- Every open item is genuinely an implementation choice assigned to HLD or LLD—not an undecided product behavior.
-- Terminology and cardinalities agree across all foundation documents.
+- Every merged Alpha ID and every unmerged proposal has a final recorded disposition.
+- No row remains **Open**.
+- Every retained or replaced outcome maps to an authoritative BETA-REQ identifier and normative Beta destination.
+- Every gap is resolved in an accepted product contract or deliberately rejected or deferred.
+- No product question, identity rule, lifecycle, cardinality, relationship, deletion consequence, or release-scope ambiguity remains.
+- Terminology and rules agree across all foundation documents.
+- The proprietary boundary, internal-team restriction, brand provenance, and required notices are accepted.
 
-## Phase 2 — Business use cases and high-level design
+## Phase 1 — Complete business use cases and high-level design
 
 ### Purpose
 
-Prove that the Product Contract supports complete operator workflows and give every workflow an architectural owner.
+Prove that the accepted Product Contract supports every Beta 1.0.0 operator goal and system-triggered behavior, then assign each flow to explicit architectural boundaries.
 
-### 2A. Use-case catalogue
+### 1A. Business use-case catalogue
 
-Each use case records:
+- Catalogue **all** Beta 1.0.0 business use cases before HLD acceptance.
+- Define one use case per meaningful operator goal, not per screen action or individual lifecycle command.
+- Model scheduled and background behavior as separate system-triggered use cases.
+- Each use case records:
+  - stable ID and goal;
+  - human or system actor, trigger, and preconditions;
+  - main success flow;
+  - applicable warning, conflict, correction, cancellation, retry, and failure flows;
+  - postconditions and preserved evidence;
+  - affected workspaces and domain owners;
+  - Product Contract and BETA-REQ references; and
+  - acceptance scenarios without prescribing tables, classes, or libraries.
+- Cover setup, login, automatic login, locking, backup, recovery, Settings, Tickets, Product Line/SLA, Objectives, Inventory, Infrastructure, offline communications, Overview, reporting, archive, retention, destructive previews, and restoration.
 
-- stable ID and goal;
-- primary actor, trigger, and preconditions;
-- main success flow;
-- alternative, warning, conflict, correction, and cancellation flows;
-- postconditions and preserved historical evidence;
-- affected workspaces and domain owners;
-- Product Contract and traceability references; and
-- acceptance scenarios without prescribing tables, classes, or libraries.
+### 1B. High-level design
 
-The initial catalogue covers at least:
-
-- local setup, login, automatic login, locking, backup, and recovery;
-- Settings and registered-reference maintenance;
-- manual SR creation, official-ID reconciliation, Advanced Search population, notes, and lifecycle;
-- RFC creation, hierarchy, linking, import adoption, correction, archive, and termination;
-- WFM registration/import, RFC ownership, planning, attempts, and Objective participation;
-- Objective creation, Task composition, collision discovery, execution, review, correction, and retry;
-- Spare Need creation and repeated procurement attempts;
-- Spare Request creation, request lines, C10 outcomes, receipt, dispatch, installation, return, and completion;
-- Fault Tag creation, first send, evidence, replacement, warehouse confirmation, and closure;
-- Network Element registration, placement, component installation/replacement, and history;
-- PST/OST scanning, evidence matching, backfill, and MSG draft generation;
-- Overview filtering, attention queues, SLA progress, and Excel reporting; and
-- archive, retention, restoration, destructive preview, and recovery workflows.
-
-### 2B. High-level architecture
-
-- Conceptual domain model spanning all six workspaces.
-- Aggregate ownership and cross-module relationship rules.
-- Lifecycle and state diagrams expressed in business vocabulary.
-- Trust boundaries for local UI, application API, persistence, files, Windows protection, imports, exports, backups, and diagnostics.
-- Source-staging, review, safe-auto-accept, and provenance flows.
-- Audit, business evidence, source history, and technical diagnostics as separate authorities.
-- Atomic mutation and failure-recovery requirements.
-- Local process, single-instance, loopback, tray, startup, shutdown, and offline behavior.
-- Encryption coverage and recovery objectives without prematurely selecting algorithms.
-- Information architecture, route hierarchy, navigation, primary task flows, and low-fidelity responsive prototypes.
-- Mapping from each use case to its owning module and architectural boundary.
+- Define the conceptual domain model across all six workspaces.
+- Establish aggregate ownership and cross-module relationship rules.
+- Express lifecycle and state models in business vocabulary.
+- Define trust boundaries for the local UI, application API, persistence, retained files, Windows protection, imports, exports, backups, communications evidence, and diagnostics.
+- Define source staging, review, optional safe auto-accept, provenance, and failure recovery.
+- Separate audit history, business evidence, source history, and technical diagnostics.
+- Define atomicity, local process ownership, single-instance behavior, loopback boundaries, tray lifecycle, startup, shutdown, and complete offline operation.
+- Define encryption coverage and recovery objectives without selecting exact algorithms prematurely.
+- Establish information architecture, routes, navigation, and cross-workspace task flows.
+- Produce clickable low-fidelity prototypes for critical and cross-workspace flows.
+- Produce static responsive wireframes for the remaining flows.
+- Map every use case to its owning module and architectural boundary.
 
 ### Exit gate
 
-- Every product requirement is exercised by at least one use case or identified as a structural invariant.
-- Every use case has a domain owner, state effects, trust boundary, and failure outcome.
-- Cross-workspace dependencies are explicit and acyclic where required.
-- Low-fidelity workflow validation finds no unresolved navigation or domain dead end.
-- The HLD contains no hidden schema, library, or framework decision masquerading as product truth.
+- Every BETA-REQ is exercised by a use case or identified as a structural invariant.
+- Every use case has an owner, state effects, trust boundary, and failure outcome.
+- All Beta 1.0.0 use cases are accepted.
+- Clickable critical flows and static remainder wireframes reveal no unresolved domain or navigation dead end.
+- No HLD ambiguity remains.
+- Questions intentionally reserved for LLD are explicitly identified, bounded, assigned, and confirmed not to alter product behavior or HLD ownership.
 
-## Phase 3 — Low-level design
+## Phase 2 — Complete Beta 1.0.0 low-level design
 
 ### Purpose
 
-Translate the accepted product behavior and HLD into an implementable, testable technical design.
+Translate the accepted Product Contract, use cases, and HLD into one complete, implementable, testable technical design before any code is written.
+
+### Organization
+
+- Maintain modular LLD specifications with one authoritative index.
+- Define shared rules once and reference them from domain modules.
+- Keep each module traceable to BETA-REQ IDs, use cases, HLD ownership, implementation units, and tests.
+- Do not permit scaffolds, prototypes, disposable spikes, production code, or implementation-led framework selection before this phase is accepted.
 
 ### Deliverables
 
 - Clean relational schema, constraints, indexes, immutable evidence, and migration strategy.
-- Exact state-transition tables and correction/supersession mechanisms.
-- Application command/query contracts, validation order, transaction boundaries, concurrency behavior, stable errors, and idempotency/no-op rules.
+- Exact state transitions, correction and supersession mechanisms, and retention behavior.
+- Command/query contracts, validation order, transaction boundaries, concurrency, stable errors, idempotency, and no-op behavior.
 - Local API routes and request/response contracts.
-- Source-specific mapping contracts for:
-  - Advanced Search Service Requests;
-  - Enhanced Excel RFC data; and
-  - Service Provider WFM plans.
-- File discovery, stabilization, logical fingerprint, replay/high-water, absence, validation, resource-limit, preview, and acceptance rules.
+- Exact source mappings for Advanced Search SR data, Enhanced Excel RFC data, and Service Provider WFM plans.
+- File discovery, stabilization, fingerprinting, replay, absence, validation, resource limits, preview, review, and acceptance rules.
 - Sanitized golden import fixtures and expected normalized observations.
-- Exact SLA calculations and golden vectors, including fractional suspension and immutable export snapshots.
+- Exact Product Line/SLA calculations and golden vectors.
 - Threat model and ADRs for:
-  - database and file encryption;
+  - database and retained-file encryption;
   - password KDF and data-key wrapping;
-  - Windows automatic-login protection;
+  - optional Windows-user automatic login protection;
   - key recovery and rotation;
   - WAL-safe backup, verification, pruning, and restore;
-  - PST/OST read and MSG generation; and
-  - packaging and supported Windows/Python/browser versions.
-- Concrete audit allowlists, append-only behavior, atomic rollback, retention, and housekeeping.
-- Frontend architecture:
-  - routing and workspace composition;
-  - design tokens and canonical branding;
-  - shared lists, details, forms, dialogs, timelines, and review surfaces;
-  - draft protection and conflict recovery;
-  - responsive breakpoints;
-  - keyboard/pointer operation;
-  - accessibility and reduced motion; and
-  - loading, empty, error, warning, stale, and destructive-confirmation states.
-- Requirement-to-use-case-to-design-to-test traceability.
-- Implementation plan divided into independently verifiable vertical slices.
+  - PST/OST read-only processing and MSG generation;
+  - packaging; and
+  - supported Windows, Python, and browser versions.
+- Concrete audit allowlists, append-only evidence, rollback, housekeeping, and privacy-aware diagnostics.
+- Frontend architecture covering routes, functional layouts, shared interaction components, drafts, conflicts, responsive behavior, keyboard and pointer access, accessibility, and every loading, empty, warning, error, stale, locked, destructive, and recovery state.
+- A dependency policy requiring few, pinned, justified, adapter-isolated production libraries while remaining nearly dependency-free rather than dependency-free.
+- A complete implementation and verification plan.
 
 ### Exit gate
 
-- Every 1.0.0 use case maps to commands/queries, persistence, adapters, UI states, and tests.
-- Every invariant has an application owner and a database/backstop decision where appropriate.
-- Security, recovery, import, and destructive-operation designs have explicit failure tests.
-- No LLD decision changes product behavior without returning through Phase 1.
-- Estimates may be assigned only after this gate.
+- Every Beta 1.0.0 use case maps to commands/queries, persistence, adapters, UI states, and tests.
+- Every invariant has an application owner and database backstop decision where appropriate.
+- Security, recovery, import, destructive-operation, accessibility, and failure designs have explicit verification methods.
+- The **entire** Beta 1.0.0 LLD is accepted.
+- Only after this gate may production implementation or technical scaffolding begin.
+- If implementation later disproves an accepted assumption, controlled design correction reopens and reaccepts the affected specifications before work proceeds.
 
-## Phase 4 — Engineering foundation
+## Phase 3 — Synthetic-data engineering foundation and Tickets/Objectives MVP
 
 ### Purpose
 
-Build the secure local platform on which domain slices can be delivered without repeatedly rebuilding infrastructure.
+Prove the core business architecture through functional Tickets and Objectives workflows before security and recovery become operational.
+
+### Data restriction
+
+- Use disposable synthetic data only.
+- Pre-security databases are development-only, recreatable, non-operational, and non-migratable.
+- Do not use real, sanitized operational, or internally identifying data.
+- Do not import operational files, inspect operational PST/OST content, or begin internal operational use.
 
 ### Deliverables
 
-- Python application boundary and React/TypeScript web shell.
-- Dependency manifest with few, pinned, justified, adapter-isolated production libraries.
-- Local setup, upgrade, run, console-run, stop, health, and single-instance lifecycle.
-- Loopback-only service, authenticated local control, and stale-process protection.
-- Schema initialization/migration runner and database integrity checks.
-- Encryption envelope, login, lock/unlock, optional Windows-user automatic login, and protected working paths.
-- Unit-of-work, audit, clock, identity, error, and transaction foundations.
-- Privacy-aware diagnostics.
-- WAL-safe encrypted backup and verified restore baseline.
-- Import staging framework with no domain mutation during parsing.
-- Frontend routing, design system seed, themes, responsive shell, error boundary, and canonical SOMA assets.
-- Continuous integration for the supported platform matrix.
-- Automated architecture-boundary, migration, security, and packaging checks.
+- Minimal local application lifecycle, loopback service, schema runner, unit of work, audit, identity, clock, errors, and transaction foundation.
+- Just enough Settings/reference support for the MVP.
+- Tickets and Objectives MVP including:
+  - manual SR, RFC, and WFM workflows;
+  - reviewed SR, RFC, and WFM Excel imports using synthetic fixtures;
+  - Product Line and SLA calculation;
+  - Objective and Task scheduling;
+  - execution and review; and
+  - required correction, warning, and failure paths.
+- Functional responsive UI for every implemented flow.
+- Keyboard and pointer access, visible focus, readable state communication, and basic accessibility from the first UI.
+- No canonical brand styling, light/dark visual polish, animation polish, or final design-system finish yet.
+- Automated traceability and regression evidence for every implemented requirement.
 
 ### Exit gate
 
-- A clean supported Windows installation can set up, launch, authenticate, stop, restart, back up, and restore entirely offline.
-- Database, temporary persistence, logs, communication indexes, imports retained by SOMA, and backups follow the accepted protection boundary.
-- The web shell and tray share one application lifecycle.
-- CI and local verification are reproducible before business-domain implementation begins.
+- The Tickets and Objectives MVP works end-to-end exclusively with disposable synthetic data.
+- Product Line/SLA calculations and all three reviewed import families pass golden synthetic fixtures.
+- Scheduling, execution, and review preserve accepted lifecycle evidence.
+- No operational data has entered any pre-security database or retained file.
+- The implementation still conforms to the accepted LLD.
 
-## Phase 5 — Domain vertical slices
-
-### Purpose
-
-Deliver complete business capabilities incrementally. Each slice includes domain rules, persistence, application services, API, a minimally usable web workflow, tests, documentation, and traceability—not backend-only implementation.
-
-### Recommended dependency order
-
-#### 5.1 Settings and reference identity
-
-Local User Profile, registered people, Customer Organizations, Product Lines, Sites, Dispatch Locations, Clouds, BOM catalog, and installation policy.
-
-#### 5.2 Tickets and SLA
-
-Manual/imported Service Requests, notes, official-ID reconciliation, RFC hierarchy, source population, Product Line assignment, SLA calculations, warnings, and lifecycle evidence.
-
-#### 5.3 Infrastructure
-
-Rooms, racks, Network Element models and instances, placement, addresses/management facts, compound elements, components, compatibility, and installation/replacement history.
-
-#### 5.4 Inventory
-
-Stock, Spare Needs, request lines, quantity outcomes, Spare Requests, C10 positions, serialized units, reservation/allocation, dispatch, receipt, installation, return, Fault Tags, and warehouse confirmation.
-
-#### 5.5 Objectives and Tasks
-
-Local/WFM Tasks, WFM imports and attempts, time-window discovery, Objective composition, Task-derived context, spare suggestions, execution, review, correction, cloning, and retry.
-
-#### 5.6 Offline communications
-
-Read-only PST/OST indexing, identifier matching, evidence links, targeted backfill, progress/cancellation, and MSG draft generation.
-
-#### 5.7 Overview and reporting
-
-Daily/Weekly/Monthly metrics, period comparison, SLA progress, operational narrative, Needs Attention queues, preserved filtered navigation, and Excel snapshots.
-
-### Exit gate
-
-- All six workspaces function through the local web app.
-- Cross-domain rules work through public application contracts rather than table-level shortcuts.
-- Every completed slice has traceable automated acceptance evidence.
-- No critical 1.0.0 workflow remains a placeholder, database script, or developer-only command.
-
-## Phase 6 — Integrated UI and UX completion
+## Phase 4 — Authentication, encryption, backup, and recovery
 
 ### Purpose
 
-Turn the functional vertical slices into one coherent SOMA experience.
+Make SOMA safe for authorized internal operational data before any real-data pilot or operational use.
 
 ### Deliverables
+
+- Local-admin password authentication and lock/unlock behavior.
+- Optional automatic login protected by the accepted local Windows-user mechanism.
+- Accepted encryption envelope for the database and every retained sensitive artifact in scope.
+- Protected working paths, temporary-file handling, diagnostics, and communication indexes.
+- Verified encrypted backup, integrity checks, retention/pruning, restore, and recovery.
+- Wrong-password, damaged-backup, key-recovery, last-recoverable-copy, interruption, and atomic rollback tests.
+- Fresh offline setup, start, stop, restart, authentication, backup, and restore on the supported platform matrix.
+- Security and recovery operator documentation.
+
+### Exit gate
+
+- Authentication, encryption, backup, and recovery are operational and demonstrated, not merely implemented or documented.
+- A clean offline installation can launch, authenticate, lock, back up, restore, restart, and recover.
+- Retained operational data cannot bypass the accepted protection boundary.
+- Only after this gate may controlled real internal data be used.
+
+## Phase 5 — Remaining domains and cross-domain integration
+
+### Purpose
+
+Complete every operational domain through functional, responsive web workflows before Overview and final brand polish.
+
+### Required order
+
+#### 5.1 Inventory
+
+- Stock, Spare Needs, request lines and quantities, Spare Requests, C10 RMA positions, serialized units, reservation, allocation, dispatch, receipt, installation, return, Fault Tags, and warehouse confirmation.
+- Implement accepted Infrastructure-facing contracts, but keep device-targeted installation and replacement unavailable until the corresponding Infrastructure capability exists.
+
+#### 5.2 Infrastructure
+
+- Customer Organization, Cloud, Site, Room, Rack, Network Element models and instances, compound elements, placement, component compatibility, installation, replacement, and history.
+- Activate Inventory-to-device installation and replacement workflows after their cross-domain invariants pass.
+
+#### 5.3 Offline communications
+
+- Read-only PST/OST indexing, identifier matching, evidence links, targeted backfill, progress, cancellation, and MSG draft generation.
+- SOMA never sends or receives email directly.
+
+#### 5.4 Domain completion and integration
+
+- Complete Settings and any remaining Tickets/Objectives behavior.
+- Complete SR-centered relationships across Tickets, Objectives, Inventory, Infrastructure, and communications evidence.
+- Verify master/subordinate RFC and WFM ownership, SLA, spare suggestions, installation/replacement history, retention, archive, and destructive consequences across public application contracts.
+
+### UI rule during this phase
+
+- Every workflow must already be functionally understandable, responsive, keyboard/pointer operable, and accessible enough to test safely.
+- Postpone only canonical brand styling and visual polish until all domains work.
+
+### Exit gate
+
+- Tickets, Objectives, Inventory, Infrastructure, Settings, and offline communications work through the local web app.
+- Every accepted cross-domain rule works through public application contracts rather than database shortcuts.
+- Every completed capability has automated acceptance evidence.
+- No critical Beta 1.0.0 domain workflow remains a placeholder, script, or developer-only command.
+- All domains are complete before Overview implementation begins.
+
+## Phase 6 — Overview and complete UI/UX system
+
+### Purpose
+
+Add cross-domain operational reporting only after its source domains are complete, then turn the functional application into the final coherent SOMA experience.
+
+### 6A. Overview and reporting
+
+- Daily, Weekly, and Monthly summaries with configurable scope.
+- Period comparison.
+- Product Line/SLA progress.
+- Operational narrative and scheduled Objective timeline.
+- Needs Attention queues linking to preserved filtered views.
+- Inventory and Infrastructure metrics.
+- Excel report snapshots with immutable calculation context.
+
+### 6B. Complete visual and interaction system
 
 - Final six-area navigation:
   1. Overview
@@ -282,56 +300,69 @@ Turn the functional vertical slices into one coherent SOMA experience.
   4. Inventory
   5. Infrastructure
   6. Settings
-- Canonical SOMA mark, wordmark, lockup, application icon, favicon, and tray treatment.
-- Unified responsive desktop and narrow-layout behavior.
-- Complete light and dark themes using shared accessible design tokens.
-- Consistent lists, filters, selection, details, editors, autocomplete, dialogs, lifecycle timelines, import review, conflict resolution, and destructive previews.
-- Operationally useful empty, loading, error, stale, locked, unsupported-file, and recovery states.
-- Draft protection, selective save/discard, navigation/reload warnings, and meaningful undo where the business operation is reversible.
-- Keyboard and pointer parity for primary workflows.
-- Screen-reader labels, visible focus, non-color status indicators, and reduced-motion support.
-- Overview links that preserve filter and period context.
-- End-to-end usability reviews using sanitized representative SR, RFC, WFM, Inventory, Infrastructure, Fault Tag, and PST/OST scenarios.
-- Visual regression coverage for core responsive states.
+- Canonical SOMA mark, wordmark, lockup, application icon, favicon, and tray identity.
+- Complete accessible light and dark themes.
+- Responsive layouts across every workflow and state.
+- Consistent lists, filters, details, editors, autocomplete, dialogs, timelines, import review, conflict resolution, and destructive previews.
+- Complete loading, empty, warning, error, stale, locked, unsupported-file, conflict, recovery, and success states.
+- Draft protection, selective save/discard, navigation warnings, and meaningful undo where operations are reversible.
+- Keyboard and pointer parity, screen-reader labels, visible focus, non-color status cues, contrast, and reduced motion.
+- Visual regression coverage for the complete supported state matrix.
+
+### Usability validation
+
+- Every available internal evaluator independently completes representative task scenarios before group discussion.
+- Record observations, task outcomes, errors, and unresolved confusion.
+- Resolve findings or disposition them under the accepted defect policy.
 
 ### Exit gate
 
-- Every primary use case can be completed through the web UI without database access or developer tooling.
-- UX terminology, status, warnings, and consequences agree with the Product Contract.
-- Responsive, keyboard, pointer, focus, contrast, reduced-motion, and destructive-confirmation acceptance scenarios pass.
-- The canonical SOMA identity is used from browser tab through tray and packaged application.
+- The final UI/UX pass is complete across **all workflows and states**, not only critical or visible screens.
+- Every Beta 1.0.0 operator use case can be completed through the web UI without database access or developer tooling.
+- Terminology, status, warnings, and consequences agree with the Product Contract.
+- Responsive, accessibility, input-method, recovery, and destructive-confirmation scenarios pass.
+- Canonical SOMA identity is consistent from browser tab to tray and packaged application.
+- Every available internal evaluator has completed the required usability validation.
 
 ## Phase 7 — Beta 1.0.0 hardening and acceptance
 
 ### Purpose
 
-Prove that the integrated product is safe, recoverable, understandable, and deployable for the internal Beta team.
+Prove that the integrated product is safe, recoverable, understandable, stable, and deployable for the internal team.
 
-### Deliverables
+### Acceptance evidence
 
-- Final closed traceability chain:
+- Close the traceability chain:
 
-  'Alpha source → Beta requirement → use case → HLD owner → LLD design → implementation → automated/manual acceptance evidence'
+  **Alpha source → BETA-REQ → use case → HLD owner → LLD design → implementation → automated/manual acceptance evidence**
 
-- Full invariant, lifecycle, correction, concurrency, audit, and destructive-impact suites.
-- Golden-file verification for all official Excel imports and Excel report exports.
-- PST/OST tests covering locked, changing, corrupted, unsupported, duplicate, received, sent, unrelated, older/backfill, and multi-entity evidence.
-- SLA golden calculations and immutable report-snapshot verification.
-- Encryption, wrong-password, automatic-login, key-recovery, backup-corruption, restore, and last-recoverable-copy tests.
-- Fresh offline installation and upgrade tests on every supported Windows/Python/browser combination.
-- Performance and bounded-resource tests using representative operating volumes.
-- Accessibility and representative operator-task acceptance.
-- License, NOTICE, dependency attribution, asset provenance, privacy, support, setup, backup, recovery, and troubleshooting documentation.
-- Small-team field pilot, defect triage, and release-candidate evidence.
-- Versioned Beta 1.0.0 release artifacts and rollback/recovery instructions.
+- Run a deterministic synthetic suite covering requirements, invariants, lifecycle changes, corrections, concurrency, audit, destructive impact, imports, exports, SLA, communications, security, recovery, responsive behavior, accessibility, and packaging.
+- Run a controlled real-data pilot only after the Phase 4 security-and-recovery gate.
+- Require representative workflow coverage **and** a minimum stable-operation soak; neither substitutes for the other.
+- Require **four weeks** of stable operation.
+- A Critical or High pilot defect invalidates the stability gate. The acceptance plan defines proportionate reset rules for lower-severity fixes.
+- Complete fresh offline installation and upgrade validation on every supported platform combination.
+- Demonstrate backup and recovery with operationally representative protected data.
+- Complete license, proprietary notice, origin attribution, dependency attribution, asset provenance, privacy, setup, support, backup, recovery, and troubleshooting documentation.
+- Produce versioned release artifacts and rollback/recovery instructions.
 
-### Exit gate
+### Defect policy
 
-- Every 1.0.0 requirement has passing acceptance evidence or an explicitly approved removal from scope.
-- No unresolved critical/high-severity defect or unexplained data-integrity failure remains.
-- Backup and recovery have been demonstrated, not merely documented.
+- No known Critical or High defect may remain at acceptance.
+- A Medium defect requires a formal exception recording impact, risk, safe workaround, owner, planned correction, and project-owner approval.
+- Low defects remain documented and prioritized normally.
+- No unexplained data-integrity failure may remain.
+
+### Exit gate and authority
+
+- Every Beta 1.0.0 requirement has passing evidence or a formally approved scope removal reflected through Phase 0 traceability.
+- The deterministic synthetic suite passes.
+- The representative real-data workflow matrix and four-week stability gate pass.
+- Security, backup, and recovery are demonstrated.
+- Every available internal evaluator has completed task-based usability validation.
+- All permitted Medium exceptions are recorded.
 - A fresh offline operator can install, understand, use, stop, restart, update, and recover SOMA.
-- Product, architecture, security, UX, and release acceptance are explicitly recorded.
+- The **project owner** has sole final authority to accept SOMA Beta 1.0.0, but only after every objective gate above has passed.
 
 ## Phase 8 — Beta 1.x.0 evolution
 
@@ -340,9 +371,9 @@ Candidates include:
 - SSH and reviewed Network Element operations;
 - Infrastructure connectivity and topology;
 - language switching; and
-- refinements justified by 1.0.0 field evidence.
+- refinements justified by Beta 1.0.0 field evidence.
 
-Every candidate starts with a Product Contract and traceability change. A feature is not added merely because Alpha contained related code.
+Every candidate begins with a Product Contract and traceability change. Alpha implementation does not grant automatic acceptance or reuse.
 
 ## Cross-cutting traceability rules
 
@@ -351,21 +382,22 @@ Every deliverable uses stable references:
 | Artifact | Example purpose |
 |---|---|
 | Alpha disposition | Historical source and Beta decision |
-| Beta requirement | Normative product outcome |
-| Use case | Operator goal and business flow |
-| Architecture/ADR | Ownership, boundary, and technical choice |
-| LLD contract | Concrete implementation behavior |
+| BETA-REQ-0001 | Immutable normative product outcome |
+| Use case | Meaningful operator goal or system-triggered behavior |
+| HLD/ADR | Ownership, boundary, trust, and technical direction |
+| LLD module | Exact implementable behavior |
 | Test/acceptance scenario | Verifiable evidence |
+| UI route/state | Operator-facing realization |
 
 A feature is complete only when:
 
 1. its product rule is accepted;
-2. its use cases include success, warning, correction, cancellation, and failure paths where applicable;
-3. its HLD owner and trust boundaries are known;
-4. its LLD covers persistence, transactions, security, adapters, and UI states;
+2. its meaningful operator and system-triggered use cases are accepted;
+3. its HLD owner, boundaries, and failure outcomes are known;
+4. its LLD covers persistence, transactions, security, adapters, and every UI state;
 5. automated and manual acceptance evidence exists;
 6. user-facing documentation is current; and
-7. the traceability chain contains no unexplained gap.
+7. the traceability chain reaches the final UI without an unexplained gap.
 
 ## Explicit non-goals for Beta 1.0.0
 
@@ -376,4 +408,4 @@ A feature is complete only when:
 - SSH or automated device connectivity.
 - Infrastructure topology/connectivity.
 - Language switching.
-- Wholesale reuse of Alpha code or schema.
+- Wholesale reuse of Alpha code, schema, migrations, fixtures, or tests.
