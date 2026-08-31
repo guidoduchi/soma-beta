@@ -42,6 +42,8 @@ For an active SR:
 
 `running time = max(0, now − effective Report Date − cumulative suspension)`
 
+A blank imported `Suspension Duration` is authoritative zero: the SR has never been suspended and has no cumulative suspension. `Suspend Planned End Date` is an active suspension fact only while the accepted status is `Customer Agreed Suspend` and the end is in the future. A suspended status with a missing or expired planned end is an import inconsistency requiring review; it is not silently treated as a valid future suspension.
+
 For a terminal SR, `now` is replaced by the first accepted terminal observation timestamp. Closed and resolved observations can establish the endpoint. Cancelled SRs are excluded from SLA cohorts and compliance calculations.
 
 Cumulative suspension retains exact fractional-day duration and must not use binary floating-point arithmetic for persisted calculations.
@@ -70,7 +72,7 @@ SOMA exposes separate warnings rather than collapsing them into one generic risk
 - approaching or passed 85%/100% SLA milestones;
 - suspension duration thresholds at 3, 10, 15, and 30 days by default;
 - `ResolveBy` and `ResolveBySuspend` inconsistencies;
-- missing or passed Suspend Planned End;
+- missing or passed Suspend Planned End while the SR is reported as currently suspended;
 - source removal or reversal of a terminal observation, always requiring review; and
 - retention review after 180 days, without silently deleting operational evidence.
 

@@ -1,6 +1,6 @@
 # SOMA Beta High-Level Architecture
 
-Status: **HLD foundation v0.2**. This document establishes boundaries and quality attributes. It intentionally does not select a final database schema, cryptographic library, PST/OST adapter, or packaging implementation; those belong to low-level design and architecture decision records.
+Status: **HLD foundation v0.3**. This document establishes boundaries and quality attributes. It intentionally does not select a final database schema, cryptographic library, PST/OST adapter, or packaging implementation; those belong to low-level design and architecture decision records.
 
 ## 1. Architectural drivers
 
@@ -31,9 +31,9 @@ The browser UI is a client of a local application boundary. Domain rules do not 
 | Module | Owns |
 |---|---|
 | Identity and Settings | Local User Profile, registered people, installation configuration, themes |
-| Tickets | SRs, RFCs, hierarchy, Product Line assignment, source observations |
+| Tickets | SRs, RFCs, hierarchy, workbench device references, Product Line assignment, source observations |
 | Objectives | Maintenance Windows, Local/WFM Tasks, RFC branches, scheduling, planned/actual time, review and attempts |
-| Inventory | Stock, BOM catalog, Spare Needs, Spare Requests, RMAs, serialized units, Fault Tags and logistics |
+| Inventory | Stock, BOM catalog, Spare Needs, Spare Requests, RMAs, physical units, Fault Parts, Fault Tags and logistics |
 | Infrastructure | customer/cloud/site hierarchy, device models and instances, installed components, replacement history |
 | SLA Policy | milestone policies, suspension, endpoint, derived state, cohorts, warnings |
 | Overview and Reporting | curated metrics, narrative queues, filters, Excel snapshots |
@@ -52,10 +52,13 @@ The clean Beta schema must distinguish:
 - SOMA-owned relationships/notes from source-owned population fields;
 - exact two-level RFC hierarchy and derived master/subordinate WFM roles;
 - Objective identity from Task identity and Task-derived SR context;
-- Local Task many-to-many context from WFM Task single-RFC ownership;
+- Local Task many-to-many context—including master or subordinate RFC links—from WFM Task single-RFC ownership;
 - planned Objective time from actual execution evidence;
 - requested quantity/position outcomes from accepted C10 RMA positions;
-- physical unit identity from catalog/BOM identity;
+- requested BOM from actual received BOM and compatibility acceptance;
+- physical unit identity from optional manufacturer serial and catalog/BOM identity;
+- unregistered device references from promoted Infrastructure Network Elements without duplicating their operational relationships;
+- Spare Needs from actual Fault Parts and one-to-one replacement counterparts;
 - RMA logistics state from unit condition and location;
 - customer-neutral Site placement from explicit Customer/Cloud/Network Element responsibility;
 - current device composition from immutable installation/replacement events; and
@@ -84,7 +87,7 @@ The exact algorithms, KDF parameters, key rotation/recovery behavior, export pro
 
 ## 6. Import architecture
 
-Every source adapter produces a normalized source observation with source file identity, import run, row locator, external identity, parsed values, and validation findings.
+Every source adapter produces a normalized source observation with source file identity, import run, row locator, external identity, parsed allowlisted values, and validation findings. The [Import Contract](IMPORT_CONTRACT.md) is the authority for retained fields; adapters may not persist discarded columns as generic metadata.
 
 The reconciliation pipeline:
 
@@ -98,13 +101,21 @@ The reconciliation pipeline:
 
 The operator may configure auto-accept only for explicitly safe source/change classes. High-risk classes in the product contract cannot be bypassed.
 
-## 7. Offline communication architecture
+## 7. Workbench and reference promotion
+
+The Service Request and RFC workbenches are projections over shared domain identities, not private copies of devices, Tasks, RFCs, spares, or notes. Their exact interaction contract is defined in [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md).
+
+An unregistered device reference is owned by the operational context that first records it and can be used immediately across Tickets, Objectives, and Inventory. Promotion through the deliberate three-second control creates or links one Infrastructure Network Element in a transaction that preserves and repoints existing relationships. Promotion cannot produce a second operational device for the same reference.
+
+Objective grouping is a domain policy, not a calendar-only UI behavior. It evaluates accepted Task intervals, prohibits accepted overlapping Objectives, stages consolidation when a Task bridges groups, and keeps Tasks without complete intervals unscheduled.
+
+## 8. Offline communication architecture
 
 PST/OST access is read-only and adapter-isolated. The index is locally encrypted and reproducible from the store. File lock, corruption, unsupported format, or partial parse produces a bounded error and never modifies the source store.
 
 MSG output is a generated draft artifact. The domain records draft generation separately from sent evidence. No direct SMTP, Exchange, Graph, IMAP, or cloud mail integration exists in 1.0.0.
 
-## 8. Dependency policy
+## 9. Dependency policy
 
 “Nearly dependency-free” means:
 
@@ -117,7 +128,7 @@ MSG output is a generated draft artifact. The domain records draft generation se
 
 A local Python runtime and local web UI are the current direction. The exact supported Python, Windows, and browser matrix remains open until packaging and adapter feasibility are validated.
 
-## 9. Release boundaries
+## 10. Release boundaries
 
 1.0.0 includes all six modules, Inventory Stock/Spare Request/Fault Tag lifecycles, security, official imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
 

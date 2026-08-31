@@ -1,8 +1,10 @@
 # SOMA Beta Product Contract
 
-Status: **Foundation review v0.2**  
+Status: **Foundation review v0.3**  
 Target: **SOMA Beta 1.0.0**  
 Authority: confirmed product decisions; unresolved items are listed in `DECISIONS.md` and are not implementation permission.
+
+Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), and [Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
 
 ## 1. Product intent
 
@@ -23,7 +25,7 @@ SOMA uses a game-like interface language to make state, priority, progress, and 
 
 - An installation runs locally and remains functional offline.
 - Each installation has exactly one authenticating **Local User Profile**, acting as local administrator.
-- Registered people are operational/business records and do not receive login profiles.
+- Registered people are operational/business records and do not receive login profiles. A Contact may optionally belong to a Customer Organization; organization assignment is never required merely to register the person.
 - Password login is required; the operator may explicitly enable automatic login on that Windows account.
 - A small internal Beta team means multiple evaluators may use separate local installations. It does not authorize a shared multi-user database in 1.0.0.
 
@@ -65,7 +67,7 @@ Reporting uses `America/Guayaquil` for operator-facing dates, a Monday–Sunday 
 
 ## 6. Tickets
 
-Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**.
+Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**. The ticket-opening behavior, split communication preview, tab order, device-reference workflow, and Objective grouping behavior are normative in the [Workbench Contract](WORKBENCH_CONTRACT.md).
 
 - An SR may link directly to many **master RFCs**; an SR view shows their complete RFC/WFM branches nested beneath it.
 - An RFC may link to many SRs through its master branch and owns its WFM Tasks.
@@ -77,7 +79,9 @@ Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**.
 - Official SR identity is exactly eight digits.
 - An SR can be created manually.
 - If its official ID is supplied, a later Advanced Search import populates the same record.
-- If omitted, SOMA generates a local SR identity. Later reconciliation to an official SR requires an explicit operator-reviewed mapping; SOMA does not guess.
+- If omitted, SOMA generates `LSR-` followed by an eight-digit installation-local sequence beginning at `00000001`. Later reconciliation to an official SR requires an explicit operator-reviewed mapping; SOMA does not guess.
+- Imported cancelled, resolved, and closed SRs remain muted but visible during the configured Daily, Weekly, or Monthly main period, then move to Historical view. Weekly is the installation default.
+- A source observation that appears to reopen an imported terminal SR is high risk and requires explicit confirmation and audit.
 
 ### 6.2 Requests for Change
 
@@ -85,7 +89,7 @@ Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**.
 - RFC hierarchy is exactly two levels: one master RFC may own direct subordinate RFCs.
 - A subordinate RFC cannot own another RFC, contain subordinate RFCs, or act as a master.
 - Direct SR↔RFC links target master RFCs only. Subordinate RFC and WFM context is derived through the master branch.
-- A Local Task may link directly to master RFCs only; subordinate context is derived rather than duplicated.
+- A Local Task may be created under or linked to a master or subordinate RFC; this does not allow a subordinate RFC to own another RFC.
 - Correcting a provisional, manually created RFC identity must not rewrite historical identity silently.
 
 ### 6.3 WFM Tasks
@@ -105,7 +109,7 @@ An **Objective** is a Maintenance Window composed of Tasks in one reviewed plann
 
 - Every Objective requires one reviewed planned timeframe and at least one Task from creation; there is no empty Objective state.
 - A Task is first-class, has its own identity, and is either a Local Task or a WFM Task.
-- A Local Task requires only a Task Name from the operator. It may link independently to zero or many SRs, zero or many master RFCs, zero or many Spare Part Units, and zero or many Network Elements.
+- A Local Task requires only a Task Name from the operator. It may link independently to zero or many SRs, zero or many RFCs—including subordinate RFCs—zero or many Spare Part Units, and zero or many Network Elements.
 - A WFM Task retains its one owning RFC. Its master/subordinate branch and SR context are derived through that RFC hierarchy rather than copied as independent Objective relationships.
 - A local Task created inside an Objective inherits the Objective **planned timeframe**, not its identity.
 - Every Task assigned to an Objective uses the Objective planned timeframe.
@@ -114,6 +118,8 @@ An **Objective** is a Maintenance Window composed of Tasks in one reviewed plann
 - Cloning a Local Task creates a new Task identity. Retrying an Objective creates a new Objective; a WFM reschedule/retry requiring a new external attempt uses a new WFM Task No.
 
 When an Objective timeframe is selected, SOMA locates available WFM Tasks whose authoritative WFM planned windows overlap it. An unplanned WFM may inherit the Objective window. A WFM with a conflicting established window requires explicit review and, when it represents another attempt, a new Task No.; SOMA never overwrites an established attempt silently.
+
+Creating or importing a future, noncancelled Task with a valid interval enters reviewed Objective grouping. It creates a new Objective when no interval overlaps; otherwise it is proposed into the overlapping Objective. A Task bridging multiple Objectives proposes their consolidation and union timeframe because accepted Objectives may not overlap. A Task without a timeframe remains unscheduled and creates no Objective.
 
 Planned and actual Objective intervals are distinct. Task outcomes and actual Spare Part Unit use are reviewed individually. Corrections preserve prior actor/time/reason evidence; the exact outcome transition table remains a low-level design item.
 
@@ -126,25 +132,26 @@ Inventory has three principal views: **Stock**, **Spare Requests**, and **Fault 
 ### 8.1 Catalog and physical identity
 
 - A **Part Number/BOM code** is the catalog and grouping unit.
-- A **Spare Part Unit** is a physical item identified by serial number.
+- A **Spare Part Unit** has an immutable SOMA local physical-unit identity. Manufacturer serial number is authoritative when available but optional, because components such as CPUs may have no serial label.
 - Inventory shows quantities by BOM and state, while preserving unit-level identity and history.
 - Installing a unit removes it from available stock but retains it as an installed Infrastructure component.
 - Removing a unit requires a disposition; it never silently returns to available stock.
 
 ### 8.2 Spare Needs
 
-A Spare Need is mandatorily linked to an open or registered SR and may target a device, BOM, or slot. It may be fulfilled by an official Spare Request or by an eligible unit already in stock. Linking a Spare Need to a device also establishes which replacement was performed under which SR.
+A Spare Need is the planning step before a Spare Request. It belongs to one open or registered SR and one involved registered or unregistered device reference, and records BOM/Part Number, description, and quantity. One Need may feed many Spare Requests; one Spare Request may combine many Needs from the same SR. Use does not consume eligibility. Exact request, Fault Part, replacement, discrepancy, and deletion behavior is normative in the [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md).
 
 ### 8.3 Spare Requests and RMAs
 
 - Official Spare Request identity is `SR` followed by seven digits.
-- Every official Spare Request is linked to a Service Request.
+- Every official Spare Request is linked to exactly one Service Request through one or more selected Spare Needs from that SR.
+- After verifiable sent evidence, absence of a matching confirmation response for 24 hours produces a Needs Attention warning. Draft generation alone does not start the timer.
 - For a requested quantity `N`, one Spare Request may receive `M` accepted C10 RMA positions where `M ≤ N`.
 - Every requested position remains explainable. Positions without a C10 record their rejected/unfulfilled outcome and reason, such as EOS, unavailable, incompatible, or another reviewed status; they do not disappear from history.
 - An RMA identity is `C` followed by ten digits.
 - One RMA belongs to exactly one Spare Request, represents exactly one accepted ordered BOM position, and is never a quantity container.
-- Before receipt, an RMA may have no physical serial. At Received state it has exactly one received serial number and the resulting unit initially has condition `new`.
-- An RMA can record the serial number returned to the supplier.
+- Before receipt, an RMA has no received physical unit. At Received state it has exactly one received unit and the resulting unit initially has condition `new`; manufacturer serial is recorded when available.
+- An RMA records the actual received BOM separately from the requested BOM and can record the serial number or SOMA local identity returned to the supplier.
 - The return serial equals the received serial only when that same unit is returned, such as unused, incompatible, or dead-on-arrival stock.
 - If a different replaced unit should be returned and its serial is unavailable, SOMA records `unknown` plus a reason; it never copies the received serial as fabricated evidence.
 - RMA logistics state and Spare Part Unit condition/location are separate concepts.
@@ -174,7 +181,7 @@ The physical/organizational model is:
 - A Network Element Model is reusable across customers and device instances.
 - Devices of the same model may contain different installed Components.
 - A Network Element may contain compound sub-elements; circular containment is invalid.
-- Components use BOM codes, physical unit serials, and immutable installation/replacement events.
+- Components use BOM codes, immutable local physical-unit identities, optional manufacturer serials, and immutable installation/replacement events.
 
 BOM **compatibility** with a model and BOM **historical use** in an instance are distinct facts. Replacement events link the installed and removed units, target Network Element/slot, and applicable SR, Objective, and Task. An unknown legacy component can be registered progressively when it is first replaced.
 
@@ -198,6 +205,10 @@ The official 1.0.0 sources are:
 | Service Requests | Advanced Search Excel export |
 | RFCs | Enhanced Excel Data Export |
 | WFM Tasks | Service Provider Plan Creation Excel export |
+
+The exact active/deferred allowlists, discarded-column boundary, delimiters, conditional blanks, historical cutoff, source precedence, and aggregate sample evidence are normative in the [Import Contract](IMPORT_CONTRACT.md).
+
+The default historical lookback is one month and is configurable. Terminal source rows older than that boundary are excluded using the trusted source-specific recency field; active, future, and unscheduled work is not discarded by this rule.
 
 Population matches immutable official identities and updates source-owned fields. It must preserve local notes, relationships, Objectives, inventory and infrastructure links, review results, audit history, and other SOMA-owned meaning.
 
@@ -228,6 +239,7 @@ Product Line classification, SLA calculation, warnings, and reporting are core p
 - Hard deletion is restricted to untouched manual records with no imported/adopted provenance, executed Objective, communication, review, spare-use, lifecycle, or dependent history.
 - Removing a Task from an unexecuted Objective is allowed only when the Objective retains at least one Task, or when the complete untouched Objective is removed atomically.
 - Business history is preserved when a relationship changes.
+- Beta 1.0.0 provides Historical views and archive-safe presentation but no purge of operational records. Purge policy is deferred to Beta 1.1.0.
 
 ## 15. 1.0.0 acceptance boundary
 

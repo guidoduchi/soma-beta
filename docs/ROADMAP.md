@@ -100,7 +100,7 @@ Prove that the accepted Product Contract supports every Beta 1.0.0 operator goal
   - affected workspaces and domain owners;
   - Product Contract and BETA-REQ references; and
   - acceptance scenarios without prescribing tables, classes, or libraries.
-- Cover setup, login, automatic login, locking, backup, recovery, Settings, Tickets, Product Line/SLA, Objectives, Inventory, Infrastructure, offline communications, Overview, reporting, archive, retention, destructive previews, and restoration.
+- Cover setup, login, automatic login, locking, backup, recovery, Settings, both ticket workbenches, device-reference promotion, Tickets, Product Line/SLA, Objective grouping, every Inventory discrepancy/return scenario, Infrastructure, offline communications, Overview, reporting, archive, retention, destructive previews, and restoration.
 
 ### 1B. High-level design
 
@@ -145,7 +145,7 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
 - Exact state transitions, correction and supersession mechanisms, and retention behavior.
 - Command/query contracts, validation order, transaction boundaries, concurrency, stable errors, idempotency, and no-op behavior.
 - Local API routes and request/response contracts.
-- Exact source mappings for Advanced Search SR data, Enhanced Excel RFC data, and Service Provider WFM plans.
+- Exact parsers, types, validation, and transactions implementing the accepted allowlists and semantics in `IMPORT_CONTRACT.md` for Advanced Search SR data, Enhanced Excel RFC data, and Service Provider WFM plans.
 - File discovery, stabilization, fingerprinting, replay, absence, validation, resource limits, preview, review, and acceptance rules.
 - Sanitized golden import fixtures and expected normalized observations.
 - Exact Product Line/SLA calculations and golden vectors.
@@ -243,7 +243,7 @@ Complete every operational domain through functional, responsive web workflows b
 
 #### 5.1 Inventory
 
-- Stock, Spare Needs, request lines and quantities, Spare Requests, C10 RMA positions, serialized units, reservation, allocation, dispatch, receipt, installation, return, Fault Tags, and warehouse confirmation.
+- Stock, registered/unregistered device references, reusable Spare Needs, request lines and quantities, Spare Requests, C10 RMA positions, units with or without manufacturer serials, Fault Parts, requested-versus-actual BOM review, reservation, allocation, dispatch, receipt, dismantling, installation, return, Fault Tags, and warehouse confirmation.
 - Implement accepted Infrastructure-facing contracts, but keep device-targeted installation and replacement unavailable until the corresponding Infrastructure capability exists.
 
 #### 5.2 Infrastructure

@@ -24,6 +24,9 @@ These names and this order are product language. `Settings` must not be renamed 
 ## Foundation documents
 
 - [Product contract](docs/PRODUCT_CONTRACT.md)
+- [Import contract](docs/IMPORT_CONTRACT.md)
+- [Ticket and Objective workbench contract](docs/WORKBENCH_CONTRACT.md)
+- [Inventory lifecycle contract](docs/INVENTORY_LIFECYCLE.md)
 - [Domain glossary](docs/GLOSSARY.md)
 - [Product Line and SLA contract](docs/PRODUCT_LINE_SLA.md)
 - [High-level architecture](docs/ARCHITECTURE.md)
