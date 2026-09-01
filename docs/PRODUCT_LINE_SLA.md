@@ -47,9 +47,7 @@ The IT and NFV rows are policy templates, not global policies forced onto every 
 
 ## 3. Effective SLA start
 
-The preferred start is the accepted source `Report Date`.
-
-If no valid source Report Date exists, the start temporarily falls back to the system-assigned instant of import or manual creation. A later valid, newer source observation replaces that fallback according to import review rules. The provenance and prior calculation remain auditable.
+The only SLA start is the accepted source `Report Date`. If no valid source Report Date exists, the SR has no calculable elapsed-time or SLA result and remains explicitly incomplete or SLA-unclassified. Discovery, filename, filesystem, capture, import, manual-creation, and current timestamps are provenance or lifecycle facts only and never substitute for Report Date. A later accepted valid source value activates calculation without rewriting earlier provenance.
 
 Instants are stored in UTC and displayed in the operator-configured timezone, initially `America/Guayaquil`.
 
@@ -57,11 +55,13 @@ Instants are stored in UTC and displayed in the operator-configured timezone, in
 
 For an active SR:
 
-`effective elapsed time = max(0, now - effective Report Date - cumulative suspension)`
+`effective elapsed time = max(0, now - accepted Report Date - cumulative suspension)`
 
 An initially blank imported `Suspension Duration` means zero: the source reports that the SR has never been suspended and has no cumulative suspension. A later blank or zero value that conflicts with previously accepted nonzero suspension evidence requires review and cannot silently erase that evidence. `Suspend Planned End Date` is an active suspension fact only while the accepted status is `Customer Agreed Suspend` and the end is in the future. A suspended status with a missing or expired planned end is an import inconsistency requiring review; it is not silently treated as a valid future suspension.
 
 For a terminal SR, `now` is replaced by the first accepted `Resolved` or `Closed` observation timestamp. Cancelled SRs are excluded from SLA cohorts and compliance calculations.
+
+A recognized `Resolved`, `Closed`, or `Cancelled` status immediately suppresses active-work reminders and live SLA-risk notifications for that SR. Resolved and Closed SRs retain effective terminal-duration evidence and remain eligible for applicable cohorts; Cancelled SRs retain historical evidence but remain excluded. A suspected terminal-to-nonterminal reversal is a separate high-risk review warning and does not silently reactivate ordinary reminders.
 
 Cumulative suspension retains exact fractional-day duration and must not use binary floating-point arithmetic for persisted calculations.
 
@@ -69,9 +69,15 @@ Cumulative suspension retains exact fractional-day duration and must not use bin
 
 An SR's elapsed-time evidence and every cohort-compliance result are derived from accepted source facts, operator classification, and the applicable Contract Product Line policy. They are not independently editable truth.
 
+An SR without an accepted valid Report Date has no calculable elapsed-time or SLA result and is presented as incomplete or SLA-unclassified. Import discovery, filename, filesystem, capture, and current timestamps never substitute for Report Date. A later accepted valid Report Date activates calculation without rewriting earlier import provenance.
+
 Changing Contract Product Line classification, severity, effective Report Date, accepted endpoint, suspension, or policy recalculates current results. An accepted policy revision applies to every existing SR currently classified under that Contract Product Line, including SRs created before the revision and terminal SRs; Report Date does not grandfather an SR into the previous policy. All subsequent current views, warnings, calculations, and reports use the revised policy.
 
+An explicitly accepted terminal-to-nonterminal reversal recalculates the same SR's current endpoint, elapsed-time evidence, and applicable cohort results while preserving prior terminal observations and every completed report snapshot.
+
 Every policy revision preserves its prior values and change evidence in audit history. Completed report exports and accepted persisted snapshots retain the calculation and policy revision captured when they were completed, so historical evidence does not mutate even though the live SR projection is recalculated.
+
+Each completed report is derived from one internally consistent accepted-state snapshot. It preserves the report period, timezone, organization scope, included members, reported calculations, applicable policy revisions, and minimum provenance needed for reproduction, but not complete source observations or unrelated operational or personal data. Completion occurs only after the artifact is written and verified. Later accepted changes never mark a completed report stale or eligible for cleanup.
 
 ## 6. Reporting cohorts
 
@@ -93,6 +99,10 @@ SOMA exposes separate warnings rather than collapsing them into one generic risk
 - individual SRs approaching or exceeding an applicable duration;
 - cohort tiers currently below their required compliance percentage;
 - missing or passed Suspend Planned End while the SR is reported as currently suspended;
-- source removal or reversal of a terminal observation, always requiring review; and
+- suspension ending soon when a currently suspended SR's valid future planned end enters the configured noncontractual warning threshold;
+- source disappearance or conflict requiring review; and
+- reversal of a terminal observation, always requiring high-risk review.
 
-Alpha's global age-risk and suspension-KPI severity schedules do not control Beta 1.0. `ResolveBy` and `Resolve By Suspend` remain future-use source facts and do not determine Beta 1.0 SLA behavior. Warning presentation may be configurable where the product contract permits, but policy truth, source provenance, and audit history are not optional.
+Individual duration evidence and cohort compliance are separate dimensions. Passing an individual policy-tier duration is evidence that may affect its cohort; it is not by itself failure of a percentage-based tier. Alpha's global age-risk and suspension-KPI severity schedules do not control Beta 1.0. `ResolveBy` and `Resolve By Suspend` remain future-use source facts and do not determine Beta 1.0 SLA behavior. Alpha's `no deadline`, `expiring`, `overdue`, and `pending source removal` labels are not Beta 1.0 policy truth. Warning presentation may be configurable where the product contract permits, but policy truth, source provenance, and audit history are not optional. Every state uses text and/or iconography in addition to color.
+
+Overview and Needs Attention are the primary continuous warning surfaces. A supplemental local in-app or tray notification for the same SR and active condition may occur at most once per operator-local calendar day, including across application restarts.

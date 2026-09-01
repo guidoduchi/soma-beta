@@ -142,6 +142,7 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
 ### Deliverables
 
 - Clean relational schema, constraints, indexes, immutable evidence, and migration strategy.
+- Independent Beta migration lineage with atomic schema-and-ledger application, immutable accepted migrations, forward-only corrections, startup integrity checks, and no Alpha database upgrade path.
 - Exact state transitions, correction and supersession mechanisms, and retention behavior.
 - Command/query contracts, validation order, transaction boundaries, concurrency, stable errors, idempotency, and no-op behavior.
 - Local API routes and request/response contracts.
@@ -223,6 +224,7 @@ Make SOMA safe for authorized internal operational data before any real-data pil
 - Accepted encryption envelope for the database and every retained sensitive artifact in scope.
 - Protected working paths, temporary-file handling, diagnostics, and communication indexes.
 - Verified encrypted backup, integrity checks, retention/pruning, restore, and recovery.
+- Configurable managed-backup count defaulting to five, with verified replacement before pruning, last-restorable-copy protection, and no automatic pruning of operator-exported portable backups.
 - Wrong-password, damaged-backup, key-recovery, last-recoverable-copy, interruption, and atomic rollback tests.
 - Fresh offline setup, start, stop, restart, authentication, backup, and restore on the supported platform matrix.
 - Security and recovery operator documentation.

@@ -19,12 +19,15 @@ SOMA uses a game-like interface language to make state, priority, progress, and 
 - Alpha work may be selectively reused only after it is evaluated against this contract.
 - Alpha pull requests are not merged wholesale into Beta.
 - Beta 1.0.0 has no Zeus/Alpha database migration requirement.
+- Beta starts an independent schema and migration lineage. It does not execute, continue, or automatically upgrade Alpha migrations or databases. Any later Alpha-data importer requires a separately accepted contract.
 - High-level design precedes low-level design; implementation follows both.
 
 ## 3. Deployment and operator model
 
 - An installation runs locally and remains functional offline.
 - Each installation has exactly one authenticating **Local User Profile**, acting as local administrator.
+- The Local Administrator has an automatically generated stable internal identity. Initial authentication setup requires a password and confirmation; login requires no username. The editable display name defaults to `Local Administrator`, while any username-like label is optional display metadata.
+- Local User email and phone are not mandatory profile fields. Operational channels belong to reusable Contact records rather than being duplicated into authentication identity.
 - Registered people are operational/business records and do not receive login profiles. A Contact may optionally belong to a Customer Organization; organization assignment is never required merely to register the person.
 - Contact email, phone, and other communication channels are optional for ordinary Ticket, Task, Objective, and historical workflows. A channel is validated only when an action actually needs it; failure blocks that communication action rather than the underlying operational record.
 - Password login is required; the operator may explicitly enable automatic login on that Windows account.
@@ -66,6 +69,8 @@ Examples include an RFC without a Service Request, a WFM without an Objective, a
 
 Reporting uses `America/Guayaquil` for operator-facing dates, a Monday–Sunday week, and UTC storage. Excel is the 1.0.0 report export format.
 
+Daily, Weekly, and Monthly exports derive from one internally consistent accepted-state snapshot and may cover one Customer Organization or all organizations. Completed report evidence preserves only the report-time values, membership, calculation results, policy revisions, and provenance needed to interpret and reproduce the artifact. Later operational or policy changes affect current and future reports but never rewrite a completed report. A report is completed only after successful artifact verification; failed or cancelled generation changes no operational record. Report generation never offers or initiates cleanup in Beta 1.0.
+
 ## 6. Tickets
 
 Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**. The ticket-opening behavior, split communication preview, tab order, device-reference workflow, and Objective grouping behavior are normative in the [Workbench Contract](WORKBENCH_CONTRACT.md).
@@ -82,7 +87,9 @@ Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**. 
 - If its official ID is supplied, a later Advanced Search import populates the same record.
 - If omitted, SOMA generates `LSR-` followed by an eight-digit installation-local sequence beginning at `00000001`. Later reconciliation to an official SR requires an explicit operator-reviewed mapping; SOMA does not guess.
 - Imported cancelled, resolved, and closed SRs remain muted but visible during the configured Daily, Weekly, or Monthly main period, then move to Historical view. Weekly is the installation default.
+- A recognized terminal status immediately suppresses active-work reminders and live SLA-risk notifications. Resolved and Closed SRs retain their effective duration, applicable SLA-cohort, source, and audit evidence; Cancelled SRs retain historical evidence but are excluded from SLA cohorts.
 - A source observation that appears to reopen an imported terminal SR is high risk and requires explicit confirmation and audit.
+- One official SR number always refers to the same surviving Beta SR; Beta creates no finalized episodes, tombstones, or same-number replacement records. A confirmed terminal reversal updates that same SR, preserves prior terminal evidence, and recalculates current projections without rewriting completed reports.
 
 ### 6.2 Requests for Change
 
@@ -220,6 +227,12 @@ Population matches immutable official identities and updates source-owned fields
 
 Imports are reviewed by default. The operator may opt into automatic acceptance of safe new data per source/change class. Identity changes, hierarchy or ownership changes, WFM reassignment, time conflicts, terminal-state reversal, disappearance/deletion, and hardware serial contradictions always require review.
 
+Every import presents a pre-mutation proposal summary with source-appropriate counts and conflicts. Absence is meaningful only for a declared authoritative scope. An empty authoritative population affecting existing in-scope records always requires confirmation bound to the exact source identity and remains nondestructive. Nonempty count and Customer Organization distribution comparisons are informational in Beta 1.0 and do not alone trigger automatic acceptance or rejection.
+
+Workbook validation and logical fingerprinting establish structural and processing integrity, not proof that an unsigned source was published by a particular person or remained unedited.
+
+Advanced Search requires only SRNo as its universal identity header. New SRs may remain incomplete, and later usable source values fill missing facts without changing identity. Import capture time is never substituted for a missing Report Date and cannot become SLA evidence. Incomplete records remain visible; workflows validate additional facts only when genuinely required. Product remains discarded and Current Handler remains optional source-owned information.
+
 An imported source cannot correct an official identity in place. Identity reconciliation is an explicit audited operation.
 
 ## 12. Offline mail evidence
@@ -238,6 +251,8 @@ SOMA does not connect to an email server and cannot send or receive mail directl
 
 Contract Product Line classification, SLA calculation, warnings, and reporting are core product capabilities, not an optional reporting add-on. Each Contract belongs to exactly one Customer Organization. Product Lines such as IT and NFV are reusable definitions, but every occurrence inside a Contract is a distinct Contract Product Line that owns its customer-and-contract-specific SLA policy; two customers may therefore apply different policies to the same Product Line. An SLA tier measures the percentage of an eligible Service Request cohort resolved or closed within an inclusive duration; it is not a percentage of one ticket's allowed time. Each SR has at most one active Contract Product Line classification, and its Contract must belong to the SR's resolved Customer Organization. Automatic import classification must be deterministic and based only on trusted allowlisted evidence; unresolved, ambiguous, unmatched, or cross-customer proposals remain unclassified for review, and the discarded Advanced Search `Product` field never selects a policy. Manual reclassification is audited. An accepted policy revision recalculates every existing SR under that Contract Product Line, including older and terminal SRs; completed report snapshots remain immutable, while every later view and report uses the revised policy. The confirmed IT/NFV templates, Non-fault inquiry derivation, cancelled exclusion, and normative calculation rules are in the [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
 
+Warning presentation keeps classification, individual duration evidence, cohort compliance, suspension, source integrity, and terminal state as separate dimensions. A currently suspended SR receives a distinct suspension-ending-soon warning when its valid future planned end enters the configured noncontractual threshold. Individual duration evidence is never mislabeled as failure of a percentage-based cohort tier, and every warning uses text and/or iconography in addition to color.
+
 ## 14. Audit and deletion principles
 
 - Imported facts retain source and import-run provenance.
@@ -248,6 +263,9 @@ Contract Product Line classification, SLA calculation, warnings, and reporting a
 - Removing a Task from an unexecuted Objective is allowed only when the Objective retains at least one Task, or when the complete untouched Objective is removed atomically.
 - Business history is preserved when a relationship changes.
 - Beta 1.0.0 provides Historical views and archive-safe presentation but no purge of operational records. Purge policy is deferred to Beta 1.1.0.
+- Report completion, terminal status, source disappearance, source age, inactivity, or elapsed time never finalizes or minimizes operational records in Beta 1.0. Movement to Historical view is presentation only. Alpha's 180-day timer, terminated-episode snapshot, 27-field final snapshot, and report-triggered cleanup are not Beta behavior.
+- Technical cache reconstruction, temporary staging cleanup, diagnostic-log rotation, and verified backup rotation are separate from operational-history retention.
+- Beta 1.0 exposes no operational retention countdown, due timestamp, scheduled purge, per-user retention, postponement, or legal-hold control. Daily/Weekly/Monthly affects main-view visibility only. Any later operational retention policy is installation-level and requires a new accepted contract rather than inheriting Alpha's 180-day default.
 
 ## 15. 1.0.0 acceptance boundary
 

@@ -65,6 +65,16 @@ The clean Beta schema must distinguish:
 - current device composition from immutable installation/replacement events; and
 - current individual elapsed-time evidence and cohort SLA/reporting results from the accepted facts and latest Contract Product Line policy, while completed report snapshots retain the policy revision and results captured at completion.
 
+Beta owns an independent migration lineage; Alpha migrations, ledgers, and table layouts are historical input and are never an executable starting point. The Beta persistence model explicitly separates import attempts, staging, accepted runs and compact observations, current projections, domain lifecycle evidence, general audit, report attempts, and completed report snapshots. It contains no structure whose sole purpose is Alpha report finalization or purge authorization.
+
+Migration drafts may be revised until accepted. An accepted migration's identity, order, content, and integrity evidence are immutable; later corrections are forward-only. Applying schema changes and recording their ledger evidence is atomic, and startup fails safely before serving when accepted migration integrity is not satisfied. Exact numbering, checksum, locking, and recovery mechanics belong in the LLD.
+
+Reporting reads one consistent accepted-state snapshot and writes data-minimized durable evidence only after the Excel artifact is verified. Failed or cancelled generation retains at most bounded attempt diagnostics and cannot mutate operational state. Completed snapshots are immutable historical evidence rather than cleanup authorization.
+
+Operational persistence has no report-, status-, disappearance-, age-, or timer-driven finalization/minimization path in Beta 1.0. Historical views are projections over surviving records. Technical cache reconstruction, staging cleanup, diagnostic-log rotation, and backup rotation use separate policies and cannot delete authoritative operational history.
+
+No Beta 1.0 scheduler computes an operational retention due time or purge eligibility. Main-view period selection is a query/presentation concern. Any future operational retention service is installation-level, version-gated, and requires its own accepted dependency, exception/hold, recovery, and audit design.
+
 Audit history is a first-class persistence concern. Hard deletion is a narrow operation for untouched manual records only. Imported/adopted or operationally evidenced records transition through archive, termination, cancellation, replacement, and append-only correction so their material effects remain explainable.
 
 ## 5. Local security envelope
@@ -85,6 +95,8 @@ The live security envelope covers the database, journals/WAL, temporary persiste
 
 Exportable backups use a separate random backup-encryption key and authenticated encryption. Portable recovery uses a generated high-entropy recovery secret, recommended as seven random words or an equivalent secret of at least 128 bits. Hashes verify integrity and do not substitute for encryption. The exact algorithms, password-verifier parameters, Windows protection API, encrypted-database implementation, recovery-secret encoding, key rotation, and restore mechanics are LLD decisions and require threat-model review. Established cryptographic libraries must be used; custom cryptography is prohibited.
 
+Managed backup retention defaults to five and is configurable to another positive finite count. A replacement is authenticated, integrity-checked, and verified as structurally restorable before pruning an older managed copy; rotation never removes the last verified restorable copy and never automatically deletes portable backups in operator-selected locations. Managed backup rotation is separate from operational-history retention.
+
 ## 6. Import architecture
 
 Every source adapter produces a staged normalized source observation with source file identity, import run, row locator, external identity, parsed allowlisted values, and validation findings. Acceptance updates the current projection field by field and persists only compact meaningful deltas, necessary provenance, and warnings. The [Import Contract](IMPORT_CONTRACT.md) is the authority for retained fields; adapters may not persist discarded columns, complete workbook copies, or repeated unchanged values as generic metadata.
@@ -101,6 +113,8 @@ The reconciliation pipeline:
 
 The operator may configure auto-accept only for explicitly safe source/change classes. High-risk classes in the product contract cannot be bypassed.
 
+Every staged run exposes a proposal-oriented impact summary before mutation. Source profiles declare whether and for what scope absence has meaning. An empty authoritative population with prior in-scope records requires confirmation bound to the exact source identity and cannot auto-accept; acceptance remains nondestructive. Population and Customer Organization distribution comparisons are observable inputs in 1.0, not unvalidated automatic thresholds.
+
 The local application shell owns scheduled Advanced Search invocation and satisfied-boundary persistence. After inbox configuration it supports the accepted daily default, operator configuration/disablement, a single missed-boundary startup catch-up, and an always-available manual check. Scheduling only invokes discovery and staging; it never bypasses domain reconciliation policy.
 
 ## 7. Workbench and reference promotion
@@ -116,6 +130,8 @@ Objective grouping is a domain policy, not a calendar-only UI behavior. It evalu
 PST/OST access is read-only and adapter-isolated. The index is locally encrypted and reproducible from the store. File lock, corruption, unsupported format, or partial parse produces a bounded error and never modifies the source store.
 
 MSG output is a generated draft artifact. The domain records draft generation separately from sent evidence. No direct SMTP, Exchange, Graph, IMAP, or cloud mail integration exists in 1.0.0.
+
+Overview and Needs Attention are the authoritative continuous warning projection. Supplemental local in-app or tray notifications are a deduplicated projection of active conditions, limited to once per Service Request and condition per operator-local calendar day across restarts. Recognized terminal SR status suppresses active-work and live SLA-risk notifications without removing historical evidence.
 
 ## 9. Dependency policy
 

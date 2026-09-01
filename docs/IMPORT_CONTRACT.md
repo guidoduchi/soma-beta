@@ -25,6 +25,15 @@ Enhanced Excel remains authoritative for RFC facts. WFM RFC fields may create or
 - Population updates accepted source-owned facts while preserving SOMA-owned relationships, Tasks, Objectives, device references, spares, notes, review state, audit history, and other local meaning.
 - Import review is the default. The operator may configure automatic acceptance only for explicitly safe source/change classes defined during LLD.
 - Identity changes, RFC/WFM ownership changes, hierarchy changes, time conflicts, terminal-state reversals, disappearance, and hardware-serial contradictions always require review.
+- Before acceptance, every official source produces a proposal-oriented impact summary separating creations, updates, unchanged observations, skips, invalid rows, warnings, high-risk conflicts, and applicable identity, organization, hierarchy, ownership, timeframe, or disappearance effects.
+- Absence is inferred only when the source profile declares an authoritative population and scope. Partial or filtered RFC/WFM exports do not fabricate missing-record results.
+- A valid empty authoritative population affecting previously accepted in-scope records requires explicit high-risk confirmation bound to the exact source family, chronology, logical fingerprint, scope, and impact summary. It can record reviewed disappearance warnings but cannot delete or finalize operational records.
+- Beta 1.0 displays nonempty population and Customer Organization distribution comparisons but applies no automatic accept/reject threshold based solely on an unvalidated count or percentage deviation.
+- `SRNo` is the only universal Advanced Search header and row identity requirement. Missing allowlisted nonidentity headers create coverage warnings; a new SR may remain incomplete, and unusable values do not erase prior accepted facts unless the field contract explicitly permits clearing.
+- Import capture time is provenance only. It never substitutes for missing `Report Date` and never participates in SR duration or SLA calculations. A later accepted valid Report Date fills the missing source fact without changing identity or history.
+- One official SRNo identifies one surviving SR. Later terminal observations reconcile normally, and a valid reappearance may clear a source-disappearance warning. A recognized nonterminal Status after accepted terminal evidence is a high-risk proposal that never auto-accepts; explicit acceptance updates the same SR while preserving prior terminal evidence and completed report snapshots.
+- A missing, blank, malformed, or unknown Status cannot reverse accepted terminal evidence.
+- Structural validation, chronology, fingerprinting, and anomaly checks establish processing integrity but do not prove publisher authenticity, file origin, or absence of human editing for an unsigned workbook.
 - Blank handling is field-specific. A blank does not globally mean delete, zero, or unknown.
 - Persisted source observations retain source family, file fingerprint, import run, row locator, parsed identity, only meaningfully observed or changed allowlisted values, and applicable validation/review findings.
 - Unallowlisted values are not persisted as generic metadata, searchable text, an opaque copy of the row, or a retained workbook copy. SOMA retains the file fingerprint and bounded provenance; the external original remains user-managed.
@@ -71,7 +80,7 @@ The Advanced Search filename timestamp is interpreted as China Standard Time whe
 |---|---|---|
 | `SRNo` | Official SR identity | Required for an imported SR; exactly eight digits after safe display-prefix normalization |
 | `Problem Summary` | Source summary | Absence is shown in review; it does not invalidate the identity |
-| `Report Date` | Preferred SLA start | Invalid or absent value uses the audited fallback defined by the SLA contract |
+| `Report Date` | Source report date and SLA start | Invalid or absent values remain incomplete; no discovery, filename, filesystem, capture, import, or current timestamp may replace them |
 | `Customer Contact` | Source contact reference | May propose a Contact match or creation; never silently merges ambiguous people |
 | `Customer Severity` | Source severity | Source-owned and SLA-relevant |
 | `Current Handler` | Current source handler | May be absent without deleting a registered Contact |
