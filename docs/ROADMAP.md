@@ -55,10 +55,10 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - Objective and Task composition, scheduling, execution, review, correction, cloning, and retry;
   - Inventory lifecycle covering Stock, Spare Needs, request lines and quantities, Spare Requests, C10 RMA positions, physical units, allocation, installation, return, and Fault Tags;
   - Infrastructure identity, placement, component compatibility, installation, replacement, and history;
-  - registered people, Customer Organizations, Local User Profile, Product Lines, Clouds, Sites, Rooms, Racks, and Dispatch Locations;
+  - registered people, Customer Organizations, Local User Profile, Contracts, Product Lines, Contract Product Lines, Cloud Types, Cloud Deployments, Sites, Rooms, Racks, and Dispatch Locations;
   - source-specific import and population behavior;
   - offline PST/OST evidence and MSG draft behavior; and
-  - Product Line and SLA classification, calculations, cohorts, warnings, and Overview presentation.
+  - Contract Product Line classification, cohort SLA calculations, warnings, and Overview presentation.
 - Define product-level deletion, correction, archive, replacement, restoration, and historical-evidence rules.
 - Confirm Beta 1.0.0 acceptance scope and explicit Beta 1.x.0 deferrals.
 
@@ -100,7 +100,7 @@ Prove that the accepted Product Contract supports every Beta 1.0.0 operator goal
   - affected workspaces and domain owners;
   - Product Contract and BETA-REQ references; and
   - acceptance scenarios without prescribing tables, classes, or libraries.
-- Cover setup, login, automatic login, locking, backup, recovery, Settings, both ticket workbenches, device-reference promotion, Tickets, Product Line/SLA, Objective grouping, every Inventory discrepancy/return scenario, Infrastructure, offline communications, Overview, reporting, archive, retention, destructive previews, and restoration.
+- Cover setup, login, automatic login, locking, backup, recovery, Settings, both ticket workbenches, device-reference promotion, Tickets, Contract Product Line/SLA, Objective grouping, every Inventory discrepancy/return scenario, Infrastructure, offline communications, Overview, reporting, archive, retention, destructive previews, and restoration.
 
 ### 1B. High-level design
 
@@ -148,7 +148,7 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
 - Exact parsers, types, validation, and transactions implementing the accepted allowlists and semantics in `IMPORT_CONTRACT.md` for Advanced Search SR data, Enhanced Excel RFC data, and Service Provider WFM plans.
 - File discovery, stabilization, fingerprinting, replay, absence, validation, resource limits, preview, review, and acceptance rules.
 - Sanitized golden import fixtures and expected normalized observations.
-- Exact Product Line/SLA calculations and golden vectors.
+- Exact Contract Product Line cohort membership, tier calculations, percentage rounding, snapshots, and golden vectors.
 - Threat model and ADRs for:
   - database and retained-file encryption;
   - authentication-only password verification, independent random data-key protection, and encrypted-database packaging;
@@ -193,7 +193,7 @@ Prove the core business architecture through functional Tickets and Objectives w
 - Tickets and Objectives MVP including:
   - manual SR, RFC, and WFM workflows;
   - reviewed SR, RFC, and WFM Excel imports using synthetic fixtures;
-  - Product Line and SLA calculation;
+  - Contract Product Line classification and cohort SLA calculation;
   - Objective and Task scheduling;
   - execution and review; and
   - required correction, warning, and failure paths.
@@ -205,7 +205,7 @@ Prove the core business architecture through functional Tickets and Objectives w
 ### Exit gate
 
 - The Tickets and Objectives MVP works end-to-end exclusively with disposable synthetic data.
-- Product Line/SLA calculations and all three reviewed import families pass golden synthetic fixtures.
+- Contract Product Line/SLA calculations and all three reviewed import families pass golden synthetic fixtures.
 - Scheduling, execution, and review preserve accepted lifecycle evidence.
 - No operational data has entered any pre-security database or retained file.
 - The implementation still conforms to the accepted LLD.
@@ -249,7 +249,7 @@ Complete every operational domain through functional, responsive web workflows b
 
 #### 5.2 Infrastructure
 
-- Customer Organization, Cloud, Site, Room, Rack, Network Element models and instances, compound elements, placement, component compatibility, installation, replacement, and history.
+- Customer Organization, Site, Cloud Type, Cloud Deployment, Room, Rack, Network Element models and instances, compound elements, placement, component compatibility, installation, replacement, and history.
 - Activate Inventory-to-device installation and replacement workflows after their cross-domain invariants pass.
 
 #### 5.3 Offline communications
@@ -261,7 +261,7 @@ Complete every operational domain through functional, responsive web workflows b
 
 - Complete Settings and any remaining Tickets/Objectives behavior.
 - Complete SR-centered relationships across Tickets, Objectives, Inventory, Infrastructure, and communications evidence.
-- Verify master/subordinate RFC and WFM ownership, SLA, spare suggestions, installation/replacement history, retention, archive, and destructive consequences across public application contracts.
+- Verify master/subordinate RFC and WFM ownership, Contract Product Line/SLA behavior, spare suggestions, installation/replacement history, retention, archive, and destructive consequences across public application contracts.
 
 ### UI rule during this phase
 
@@ -286,7 +286,7 @@ Add cross-domain operational reporting only after its source domains are complet
 
 - Daily, Weekly, and Monthly summaries with configurable scope.
 - Period comparison.
-- Product Line/SLA progress.
+- Contract Product Line/SLA progress.
 - Operational narrative and scheduled Objective timeline.
 - Needs Attention queues linking to preserved filtered views.
 - Inventory and Infrastructure metrics.

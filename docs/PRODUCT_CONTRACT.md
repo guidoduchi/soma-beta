@@ -4,7 +4,7 @@ Status: **Foundation review v0.3**
 Target: **SOMA Beta 1.0.0**  
 Authority: confirmed product decisions; unresolved items are listed in `DECISIONS.md` and are not implementation permission.
 
-Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), and [Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
+Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), and [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
 
 ## 1. Product intent
 
@@ -115,7 +115,7 @@ An **Objective** is a Maintenance Window composed of Tasks in one reviewed plann
 - Every Task assigned to an Objective uses the Objective planned timeframe.
 - A Task belongs to at most one Objective, but one SR may participate through different Tasks in multiple unfinished Objectives.
 - There is no independent Objective↔SR authority: an Objective's effective SR context is derived exclusively through its Local and WFM Tasks.
-- Cloning a Local Task creates a new Task identity. Retrying an Objective creates a new Objective; a WFM reschedule/retry requiring a new external attempt uses a new WFM Task No.
+- Retrying work creates a new Task attempt while preserving the earlier Task unchanged. A Local Task retry receives a new local Task identity; a WFM retry requires a new WFM Task No. The new attempt enters the normal overlap-grouping flow, so Objective retry lineage is derived from Task attempts rather than represented as a one-to-one Objective chain.
 
 When an Objective timeframe is selected, SOMA locates available WFM Tasks whose authoritative WFM planned windows overlap it. An unplanned WFM may inherit the Objective window. A WFM with a conflicting established window requires explicit review and, when it represents another attempt, a new Task No.; SOMA never overwrites an established attempt silently.
 
@@ -172,10 +172,10 @@ A Fault Tag is the return leg of the Spare Request lifecycle and groups one or m
 
 The physical/organizational model is:
 
-- Customer Organization owns Clouds.
-- A Site is a customer-neutral physical datacenter.
-- Clouds and Sites have a many-to-many relationship: a Cloud may span Sites and a Site may host Clouds from one or more Customer Organizations.
-- Customer/Cloud responsibility for a Network Element is explicit and independent from its physical placement; a Site alone never assigns customer ownership.
+- A Customer Organization owns Contracts and Sites.
+- A Site is one physical Datacenter and belongs to exactly one Customer Organization. Equal names or city codes across organizations remain distinct records and never imply the same physical location.
+- A Cloud Type is reusable—such as PRV, B2B, AMS, BES, or NFV—and appears at a Site through a distinct Cloud Deployment. Each Cloud Deployment belongs to exactly one Site; the same Cloud Type may therefore have separate deployments at GYE, UIO, GLP1, GLP2, MAP, INC, and other Sites.
+- A regularized Network Element belongs to its physical Site and may be assigned to one of that Site's Cloud Deployments. Its Customer Organization is derived through the Site. Unregistered/external Device References remain valid without forced placement or ownership.
 - Site contains Rooms; Room contains Racks; Rack records row and column.
 - A Network Element is an installed device instance and may be standalone/unplaced or located in a Rack.
 - A Network Element Model is reusable across customers and device instances.
@@ -226,9 +226,9 @@ SOMA does not connect to an email server and cannot send or receive mail directl
 - Sent evidence exists only after a later PST/OST scan finds it or the operator explicitly records manual confirmation.
 - Locked, corrupted, or unsupported stores fail safely without modification.
 
-## 13. Product Line and SLA
+## 13. Contract Product Lines and SLA
 
-Product Line classification, SLA calculation, warnings, and reporting are core product capabilities, not an optional reporting add-on. The normative rules are in [Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
+Contract Product Line classification, SLA calculation, warnings, and reporting are core product capabilities, not an optional reporting add-on. An SLA tier measures the percentage of an eligible Service Request cohort resolved or closed within an inclusive duration; it is not a percentage of one ticket's allowed time. Each SR has at most one active Contract Product Line classification. Automatic import classification must be deterministic and based only on trusted allowlisted evidence; ambiguous or unmatched SRs remain unclassified for review, and the discarded Advanced Search `Product` field never selects a policy. Manual reclassification is audited and recalculates current results without rewriting completed report snapshots. The confirmed IT/NFV tiers, Non-fault inquiry derivation, cancelled exclusion, and normative calculation rules are in the [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
 
 ## 14. Audit and deletion principles
 
@@ -243,4 +243,4 @@ Product Line classification, SLA calculation, warnings, and reporting are core p
 
 ## 15. 1.0.0 acceptance boundary
 
-Beta 1.0.0 is not complete until all six work areas function together, Product Line/SLA rules are enforced, supported Excel imports and exports work, offline PST/OST and MSG workflows work, local data is protected, and the UI supports responsive light/dark operation plus Windows tray behavior.
+Beta 1.0.0 is not complete until all six work areas function together, Contract Product Line/SLA rules are enforced, supported Excel imports and exports work, offline PST/OST and MSG workflows work, local data is protected, and the UI supports responsive light/dark operation plus Windows tray behavior.

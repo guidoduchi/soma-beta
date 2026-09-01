@@ -31,11 +31,11 @@ The browser UI is a client of a local application boundary. Domain rules do not 
 | Module | Owns |
 |---|---|
 | Identity and Settings | Local User Profile, registered people, installation configuration, themes |
-| Tickets | SRs, RFCs, hierarchy, workbench device references, Product Line assignment, source observations |
+| Tickets | SRs, RFCs, hierarchy, workbench device references, Contract Product Line classification, source observations |
 | Objectives | Maintenance Windows, Local/WFM Tasks, RFC branches, scheduling, planned/actual time, review and attempts |
 | Inventory | Stock, BOM catalog, Spare Needs, Spare Requests, RMAs, physical units, Fault Parts, Fault Tags and logistics |
-| Infrastructure | customer/cloud/site hierarchy, device models and instances, installed components, replacement history |
-| SLA Policy | milestone policies, suspension, endpoint, derived state, cohorts, warnings |
+| Infrastructure | customer-owned Sites, reusable Cloud Types, site-bound Cloud Deployments, device models and instances, installed components, replacement history |
+| SLA Policy | Contracts, Contract Product Lines, cohort tiers, suspension, endpoints, derived results, warnings |
 | Overview and Reporting | curated metrics, narrative queues, filters, Excel snapshots |
 | Import/Reconciliation | source adapters, provenance, diffs, safe auto-accept policy |
 | Offline Communications | read-only PST/OST indexing and MSG draft generation |
@@ -60,9 +60,9 @@ The clean Beta schema must distinguish:
 - unregistered device references from promoted Infrastructure Network Elements without duplicating their operational relationships;
 - Spare Needs from actual Fault Parts and one-to-one replacement counterparts;
 - RMA logistics state from unit condition and location;
-- customer-neutral Site placement from explicit Customer/Cloud/Network Element responsibility;
+- Customer Organization ownership of Sites, reusable Cloud Types, site-bound Cloud Deployments, and optional provisional Device placement;
 - current device composition from immutable installation/replacement events; and
-- derived SLA/reporting state from the accepted facts used to calculate it.
+- individual elapsed-time evidence and cohort SLA/reporting results from the accepted facts and Contract Product Line policy used to calculate them.
 
 Audit history is a first-class persistence concern. Hard deletion is a narrow operation for untouched manual records only. Imported/adopted or operationally evidenced records transition through archive, termination, cancellation, replacement, and append-only correction so their material effects remain explainable.
 

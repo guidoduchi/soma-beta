@@ -28,7 +28,7 @@ The accepted tab order is:
 
 ### 2.1 Overview
 
-Overview displays the complete accepted SR information supplied by the active Advanced Search allowlist, local identity/provenance, status, SLA/Product Line context, and review warnings. Deferred fields do not become active workflow controls.
+Overview displays the complete accepted SR information supplied by the active Advanced Search allowlist, local identity/provenance, status, Contract Product Line/SLA context, and review warnings. Deferred fields do not become active workflow controls.
 
 ### 2.2 Devices
 

@@ -28,7 +28,7 @@ These names and this order are product language. `Settings` must not be renamed 
 - [Ticket and Objective workbench contract](docs/WORKBENCH_CONTRACT.md)
 - [Inventory lifecycle contract](docs/INVENTORY_LIFECYCLE.md)
 - [Domain glossary](docs/GLOSSARY.md)
-- [Product Line and SLA contract](docs/PRODUCT_LINE_SLA.md)
+- [Contract Product Line and SLA contract](docs/PRODUCT_LINE_SLA.md)
 - [High-level architecture](docs/ARCHITECTURE.md)
 - [Brand and UX contract](docs/BRANDING.md)
 - [Decision ledger](docs/DECISIONS.md)
@@ -39,10 +39,10 @@ These names and this order are product language. `Settings` must not be renamed 
 - Fully usable without internet, cloud services, or an email server.
 - One authenticating Local User Profile per installation; people recorded in the business domain are not login accounts.
 - Source imports populate operational records without erasing local relationships, notes, history, or review state—the “soul of SOMA.”
-- Product Line classification and SLA behavior remain a core purpose of SOMA.
+- Contract Product Line classification and cohort SLA behavior remain a core purpose of SOMA.
 - Dependencies are deliberately few, pinned, auditable, and isolated behind SOMA-owned adapters.
 - Game-inspired information architecture makes work legible; the visual identity remains precise and restrained.
 
 ## Version intent
 
-`1.0.0` delivers the six functional work areas, local security, supported imports, PST/OST reading, MSG draft generation, Excel exports, SLA control, responsive light/dark UI, and Windows tray behavior. Device operations such as SSH, topology, and language switching belong to `1.x.0`.
+`1.0.0` delivers the six functional work areas, local security, supported imports, PST/OST reading, MSG draft generation, Excel exports, Contract Product Line/SLA control, responsive light/dark UI, and Windows tray behavior. Device operations such as SSH, topology, and language switching belong to `1.x.0`.

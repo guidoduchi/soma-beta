@@ -21,7 +21,7 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-013 | Population updates source-owned facts but preserves SOMA-owned relationships, notes, review, and history. |
 | D-014 | Import review is default; safe classes may be auto-accepted, but high-risk conflicts always require review. |
 | D-015 | SOMA reads PST/OST and generates MSG drafts but does not directly send or receive email. |
-| D-016 | Product Line and SLA policy are core product capabilities. |
+| D-016 | Contract Product Line classification and cohort-based SLA policy are core product capabilities. Each tier is a required cohort percentage within an inclusive duration, never a percentage of one ticket's deadline. IT and NFV defaults are confirmed; additional policies are Contract-configurable; Cancelled SRs are excluded. |
 | D-017 | Dependencies are deliberately minimal, pinned, auditable, and adapter-isolated—nearly dependency-free, not zero-dependency. |
 | D-018 | Canonical SOMA logo, wordmark, colors, app icon, and tray icon carry forward under the brand contract. |
 | D-019 | 1.0.0 includes responsive English UI, light/dark themes, and Windows tray behavior. |
@@ -31,10 +31,10 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-023 | Master/subordinate WFM role is derived from the WFM's owning RFC, not stored as an independently editable hierarchy. |
 | D-024 | A Task is either Local or WFM. Local Tasks may link to zero or many SRs, master or subordinate RFCs, Spare Part Units, and Network Elements; a WFM retains exactly one RFC owner. |
 | D-025 | SR context reaches an Objective exclusively through its Tasks. One SR may participate in multiple unfinished Objectives; a Task belongs to at most one. |
-| D-026 | Planned and actual Objective intervals are separate. Objective retry creates a new Objective; Local Task clone creates a new Task ID; a new WFM attempt uses a new Task No. |
+| D-026 | Planned and actual Objective intervals are separate. Retry creates a new Task attempt: a Local Task receives a new local Task ID and a WFM receives a new Task No. Objective predecessor/successor context is derived from those Task attempts and normal overlap grouping. |
 | D-027 | Hard deletion is limited to untouched manual RFCs/WFMs/Objectives with no import/adoption or protected operational evidence; otherwise history-preserving lifecycle transitions apply. |
 | D-028 | Requested quantity `N` under one SR7 may yield `M ≤ N` C10 RMA positions; every rejected or unfulfilled position retains its outcome and reason. |
-| D-029 | Sites are customer-neutral physical datacenters. Customer/Cloud/Network Element responsibility is explicit and is not inferred from Site placement. |
+| D-029 | Each Site is one physical Datacenter owned by exactly one Customer Organization. Equal Site names or city codes across organizations remain distinct. Reusable Cloud Types appear at Sites through distinct site-bound Cloud Deployments, and a regularized Network Element derives its organization through its Site. |
 | D-030 | Inventory's primary views are Stock, Spare Requests, and Fault Tags; Fault Tags are part of the Spare Request return lifecycle. |
 | D-031 | Explicit Beta decisions supersede conflicting Alpha behavior, including navigation, manual SR creation, Task relationships, C10/RMA semantics, Dispatch Locations, and offline mail boundaries. |
 | D-032 | Ticket workbenches open by double-click or keyboard Enter and use a left tabbed work area plus right local-email-evidence preview. |
