@@ -75,6 +75,8 @@ For an unused return, rejected incompatible unit, dead-on-arrival unit, or disma
 
 ## 8. Confirmation warning
 
+Creating and managing a Spare Request does not require its requester or related Contacts to already have email or phone data. Generating a Spare Request `.msg` draft validates a usable recipient address just in time and may collect the missing address or use another eligible Contact. Missing recipient data blocks only draft generation and does not invalidate the Spare Request or its Needs. The generated artifact/evidence preserves the recipient identity and address used at creation.
+
 After outgoing Spare Request communication has verifiable sent evidence, SOMA expects a confirmation response. If no matching response evidence has been indexed or manually registered within **24 hours**, the request becomes a Needs Attention warning. Generating an MSG draft alone does not start this timer because it is not evidence of sending.
 
 ## 9. Fault Tags

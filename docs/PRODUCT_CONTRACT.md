@@ -26,6 +26,7 @@ SOMA uses a game-like interface language to make state, priority, progress, and 
 - An installation runs locally and remains functional offline.
 - Each installation has exactly one authenticating **Local User Profile**, acting as local administrator.
 - Registered people are operational/business records and do not receive login profiles. A Contact may optionally belong to a Customer Organization; organization assignment is never required merely to register the person.
+- Contact email, phone, and other communication channels are optional for ordinary Ticket, Task, Objective, and historical workflows. A channel is validated only when an action actually needs it; failure blocks that communication action rather than the underlying operational record.
 - Password login is required; the operator may explicitly enable automatic login on that Windows account.
 - A small internal Beta team means multiple evaluators may use separate local installations. It does not authorize a shared multi-user database in 1.0.0.
 
@@ -225,6 +226,8 @@ SOMA does not connect to an email server and cannot send or receive mail directl
 
 - It reads PST/OST files without modifying them, indexes selected folders such as Inbox and Sent, and matches supported operational identifiers.
 - It generates `.msg` draft items with recipient, subject, body, and attachments for the operator to send manually.
+- Generating a draft validates its recipient at that moment. The operator may select another eligible Contact or register a missing address without making communication channels mandatory for the underlying Ticket, Objective, Spare Need, or Spare Request.
+- Communication evidence snapshots the recipient identity and address used for the artifact; later Contact edits do not rewrite it.
 - Generating a draft is not evidence that it was sent.
 - Sent evidence exists only after a later PST/OST scan finds it or the operator explicitly records manual confirmation.
 - Locked, corrupted, or unsupported stores fail safely without modification.
