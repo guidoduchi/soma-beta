@@ -35,7 +35,7 @@ The browser UI is a client of a local application boundary. Domain rules do not 
 | Objectives | Maintenance Windows, Local/WFM Tasks, RFC branches, scheduling, planned/actual time, review and attempts |
 | Inventory | Stock, BOM catalog, Spare Needs, Spare Requests, RMAs, physical units, Fault Parts, Fault Tags and logistics |
 | Infrastructure | customer-owned Sites, reusable Cloud Types, site-bound Cloud Deployments, device models and instances, installed components, replacement history |
-| SLA Policy | Contracts, Contract Product Lines, cohort tiers, suspension, endpoints, derived results, warnings |
+| SLA Policy | Customer-owned Contracts, reusable Product Lines, Contract Product Lines, cohort tiers, suspension, endpoints, derived results, warnings |
 | Overview and Reporting | curated metrics, narrative queues, filters, Excel snapshots |
 | Import/Reconciliation | source adapters, provenance, diffs, safe auto-accept policy |
 | Offline Communications | read-only PST/OST indexing and MSG draft generation |
@@ -60,6 +60,7 @@ The clean Beta schema must distinguish:
 - unregistered device references from promoted Infrastructure Network Elements without duplicating their operational relationships;
 - Spare Needs from actual Fault Parts and one-to-one replacement counterparts;
 - RMA logistics state from unit condition and location;
+- reusable Product Line identity from Customer-owned Contract Product Lines and their independent SLA policies;
 - Customer Organization ownership of Sites, reusable Cloud Types, site-bound Cloud Deployments, and optional provisional Device placement;
 - current device composition from immutable installation/replacement events; and
 - individual elapsed-time evidence and cohort SLA/reporting results from the accepted facts and Contract Product Line policy used to calculate them.

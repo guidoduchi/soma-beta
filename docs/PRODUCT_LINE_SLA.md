@@ -4,14 +4,17 @@ Contract Product Line classification and SLA control are a core reason SOMA exis
 
 ## 1. Classification model
 
-- A `Contract` represents the service agreement under which SLA performance is measured.
+- A `Contract` represents the service agreement under which SLA performance is measured and belongs to exactly one Customer Organization.
 - A `Product Line` is a reusable service or technology classification such as IT or NFV.
-- A `Contract Product Line` is the active Product Line configuration inside one Contract. It owns the applicable SLA policy.
-- Each Service Request has at most one active Contract Product Line classification.
+- A `Contract Product Line` is one occurrence of a reusable Product Line inside one Contract. It owns the applicable SLA policy.
+- Different Customer Organizations may use the same Product Line under different Contracts and configure completely different SLA policies. Sharing the Product Line definition never shares the Contract or its policy.
+- One Customer Organization may have multiple Contracts, including more than one Contract covering the same Product Line; these remain distinct Contract Product Lines.
+- Each Service Request has at most one active Contract Product Line classification, whose Contract must belong to the SR's resolved Customer Organization.
 - An imported SR may be classified automatically only by a deterministic configured mapping based on trusted allowlisted evidence, such as Customer Account Code.
 - Advanced Search `Product` is discarded and never selects a Contract, Product Line, Contract Product Line, or SLA policy.
-- An unmatched or ambiguously matched SR remains SLA-unclassified and requires review. SOMA does not apply a fabricated IT or other default.
-- The operator may reclassify one SR to another active Contract Product Line. The change is audited and recalculates current results without rewriting completed report snapshots.
+- An SR with an unresolved Customer Organization, no eligible mapping, an ambiguous mapping, or a cross-customer proposed Contract remains SLA-unclassified and requires review. SOMA does not apply a fabricated IT or other default.
+- The operator may reclassify one SR to another active Contract Product Line belonging to that SR's Customer Organization. The change is audited and recalculates current results without rewriting completed report snapshots.
+- Correcting an SR's Customer Organization invalidates an incompatible Contract Product Line classification and requires reviewed reclassification.
 
 ## 2. Cohort-compliance policies
 
@@ -40,7 +43,7 @@ Beta 1.0.0 provides these confirmed default policies:
 
 Non-fault inquiry derives from the corresponding Minor policy by multiplying each duration by `1.5` and preserving the Minor policy's tier structure. Therefore IT Non-fault inquiry retains both the 85% and 100% tiers, while NFV Non-fault inquiry has only the 100% tier.
 
-Other Product Lines, Contract Product Lines, and tier combinations are configurable according to their Contract requirements. Durations support exact fractional days; calculation does not round a 67.5-day rule into a whole-day bucket.
+The IT and NFV rows are policy templates, not global policies forced onto every customer. Each Customer Organization's Contract Product Lines may configure their own tier combinations according to the applicable Contract. Durations support exact fractional days; calculation does not round a 67.5-day rule into a whole-day bucket.
 
 ## 3. Effective SLA start
 
@@ -72,7 +75,7 @@ Changing Contract Product Line classification, severity, effective Report Date, 
 
 SLA operational review supports the configured Daily, Weekly, or Monthly reporting period and groups eligible SRs by at least:
 
-- Contract Product Line;
+- Customer Organization, Contract, and Contract Product Line;
 - severity;
 - policy tier; and
 - current compliance outcome.

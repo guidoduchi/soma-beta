@@ -7,10 +7,10 @@ This glossary is normative product language. UI copy, schemas, imports, and docu
 | Local User Profile | The sole authenticating local administrator profile for one SOMA installation. |
 | Registered Person | A business/contact record. It is not a login account. |
 | Customer Organization | The customer boundary that owns Contracts and Datacenter Sites. Equal names or city labels do not merge different organizations or physical locations. |
-| Contract | A service agreement for one Customer Organization under which one or more Contract Product Lines and their SLA policies are configured. |
+| Contract | A service agreement belonging to exactly one Customer Organization under which one or more Contract Product Lines and their SLA policies are configured. One Customer Organization may have multiple Contracts. |
 | Product | An untrusted Advanced Search source column discarded by Beta 1.0; it cannot classify an SR or create operational relationships. |
 | Product Line | A reusable service or technology classification, such as IT or NFV. It does not own SLA policy outside a Contract. |
-| Contract Product Line | One Product Line configured within one Contract. It owns the SLA cohort policy selected by an SR's single active classification. |
+| Contract Product Line | One occurrence of a reusable Product Line inside one Contract. It owns that Contract-specific SLA cohort policy. Different Customer Organizations may configure different policies for the same Product Line. |
 | Service Request (SR) | A pivotal Ticket that connects service work, RFCs, spares, and infrastructure evidence. Official identity: exactly 8 digits; manual local identity: `LSR-` + 8 digits. |
 | Request for Change (RFC) | A change Ticket that owns WFM Tasks. Official identity: `NC` + 14 digits. RFC hierarchy is exactly two levels. |
 | Master RFC | An RFC that may own direct subordinate RFCs and receive direct SR/Local Task links. |
