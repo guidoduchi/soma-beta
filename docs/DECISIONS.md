@@ -54,6 +54,7 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-046 | A Local Task may be created under a master or subordinate RFC; the two-level RFC hierarchy invariant remains unchanged. |
 | D-047 | Current source-owned SR facts use the newest accepted usable observation per field. Historical source evidence is stored as compact meaningful allowlisted deltas with provenance and warnings, never complete workbook copies, discarded Product, repeated unchanged values, or Alpha terminated-SR snapshots. |
 | D-048 | Contact communication channels are optional for ordinary operational work. A recipient channel is required only by the communication action that uses it; failure blocks that action alone, and generated artifacts preserve the effective recipient evidence. |
+| D-049 | Once its inbox is configured, Advanced Search supports an enabled-by-default 10:00 operator-timezone daily check, whole-minute configuration or disablement, one startup catch-up, and always-available manual checking. Scheduled invocation creates staging and cannot bypass review or safe-auto-accept policy. |
 
 ## Deferred beyond 1.0.0
 

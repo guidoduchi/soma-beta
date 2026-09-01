@@ -38,6 +38,15 @@ Enhanced Excel remains authoritative for RFC facts. WFM RFC fields may create or
 - Customer Organization and Contact source labels are retained only when meaningfully observed or changed for reconciliation evidence. Unchanged labels and contact channels are not copied into every observation.
 - Beta 1.0 retains the SR, compact source deltas, and audit history. It does not create Alpha's terminated-SR snapshot or purge source history after report finalization.
 
+### 2.2 Scheduled Advanced Search checks
+
+- After an Advanced Search inbox is configured, its automatic daily check is enabled by default at 10:00 in the operator timezone, initially `America/Guayaquil`.
+- The operator may select another whole-minute local time or disable the automatic schedule. **Check now** remains available in either state.
+- Startup after a missed enabled boundary performs at most one catch-up check and never repeatedly invokes every missed day.
+- An automatic check discovers the newest eligible stable workbook without opening a file picker. Manual file selection remains available as a separate operator action.
+- Every automatic candidate enters the same staging, validation, review, and configured safe-auto-accept boundary as a manual candidate.
+- Satisfied schedule-boundary persistence prevents duplicate scheduled invocation; logical-content fingerprinting and idempotence independently prevent duplicate import mutation.
+
 ## 3. Historical import boundary
 
 The default historical lookback is **one month**, configurable in Settings.

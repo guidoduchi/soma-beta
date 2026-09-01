@@ -212,6 +212,8 @@ The exact active/deferred allowlists, discarded-column boundary, delimiters, con
 
 Current source-owned SR facts are derived field by field from the newest accepted usable observations. Historical source evidence is retained as compact meaningful allowlisted deltas with provenance and warnings, not full workbook copies or repeated unchanged values. Problem Summary revisions remain auditable. Historical view uses the surviving operational record, compact observations, and audit history; Beta 1.0 does not recreate Alpha's terminated-SR snapshot or report-finalization purge model.
 
+After the Advanced Search inbox is configured, SOMA supports a default 10:00 daily check in the operator timezone, a configurable whole-minute schedule, schedule disablement, one missed-boundary startup catch-up, and an always-available **Check now** action. Scheduled discovery never opens a file picker and never bypasses staging, required review, or configured safe-auto-accept rules.
+
 The default historical lookback is one month and is configurable. Terminal source rows older than that boundary are excluded using the trusted source-specific recency field; active, future, and unscheduled work is not discarded by this rule.
 
 Population matches immutable official identities and updates source-owned fields. It must preserve local notes, relationships, Objectives, inventory and infrastructure links, review results, audit history, and other SOMA-owned meaning.
