@@ -209,6 +209,8 @@ The official 1.0.0 sources are:
 
 The exact active/deferred allowlists, discarded-column boundary, delimiters, conditional blanks, historical cutoff, source precedence, and aggregate sample evidence are normative in the [Import Contract](IMPORT_CONTRACT.md).
 
+Current source-owned SR facts are derived field by field from the newest accepted usable observations. Historical source evidence is retained as compact meaningful allowlisted deltas with provenance and warnings, not full workbook copies or repeated unchanged values. Problem Summary revisions remain auditable. Historical view uses the surviving operational record, compact observations, and audit history; Beta 1.0 does not recreate Alpha's terminated-SR snapshot or report-finalization purge model.
+
 The default historical lookback is one month and is configurable. Terminal source rows older than that boundary are excluded using the trusted source-specific recency field; active, future, and unscheduled work is not discarded by this rule.
 
 Population matches immutable official identities and updates source-owned fields. It must preserve local notes, relationships, Objectives, inventory and infrastructure links, review results, audit history, and other SOMA-owned meaning.

@@ -52,6 +52,7 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-044 | Contacts exist independently and may optionally belong to a Customer Organization. |
 | D-045 | Beta 1.0.0 has no purge of operational history. |
 | D-046 | A Local Task may be created under a master or subordinate RFC; the two-level RFC hierarchy invariant remains unchanged. |
+| D-047 | Current source-owned SR facts use the newest accepted usable observation per field. Historical source evidence is stored as compact meaningful allowlisted deltas with provenance and warnings, never complete workbook copies, discarded Product, repeated unchanged values, or Alpha terminated-SR snapshots. |
 
 ## Deferred beyond 1.0.0
 

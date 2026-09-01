@@ -26,9 +26,17 @@ Enhanced Excel remains authoritative for RFC facts. WFM RFC fields may create or
 - Import review is the default. The operator may configure automatic acceptance only for explicitly safe source/change classes defined during LLD.
 - Identity changes, RFC/WFM ownership changes, hierarchy changes, time conflicts, terminal-state reversals, disappearance, and hardware-serial contradictions always require review.
 - Blank handling is field-specific. A blank does not globally mean delete, zero, or unknown.
-- Persisted source observations retain source family, file fingerprint, import run, row locator, parsed identity, accepted values, and validation findings.
+- Persisted source observations retain source family, file fingerprint, import run, row locator, parsed identity, only meaningfully observed or changed allowlisted values, and applicable validation/review findings.
 - Unallowlisted values are not persisted as generic metadata, searchable text, an opaque copy of the row, or a retained workbook copy. SOMA retains the file fingerprint and bounded provenance; the external original remains user-managed.
 - Raw operational workbooks and their customer data are not committed to the source repository.
+
+### 2.1 Current projection and compact history
+
+- Each current source-owned SR field comes from its newest accepted usable observation under source chronology and that field's non-destructive rules. A newer unusable, missing, malformed, or unknown value does not automatically erase an older accepted value.
+- Historical observations are compact field-level deltas, not snapshots of every source column or every unchanged accepted field.
+- Current Problem Summary is stored on the SR; accepted changes remain in audit/delta history rather than repeating the same summary in every observation.
+- Customer Organization and Contact source labels are retained only when meaningfully observed or changed for reconciliation evidence. Unchanged labels and contact channels are not copied into every observation.
+- Beta 1.0 retains the SR, compact source deltas, and audit history. It does not create Alpha's terminated-SR snapshot or purge source history after report finalization.
 
 ## 3. Historical import boundary
 

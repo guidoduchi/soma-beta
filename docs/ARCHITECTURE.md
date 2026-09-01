@@ -87,7 +87,7 @@ Exportable backups use a separate random backup-encryption key and authenticated
 
 ## 6. Import architecture
 
-Every source adapter produces a normalized source observation with source file identity, import run, row locator, external identity, parsed allowlisted values, and validation findings. The [Import Contract](IMPORT_CONTRACT.md) is the authority for retained fields; adapters may not persist discarded columns as generic metadata.
+Every source adapter produces a staged normalized source observation with source file identity, import run, row locator, external identity, parsed allowlisted values, and validation findings. Acceptance updates the current projection field by field and persists only compact meaningful deltas, necessary provenance, and warnings. The [Import Contract](IMPORT_CONTRACT.md) is the authority for retained fields; adapters may not persist discarded columns, complete workbook copies, or repeated unchanged values as generic metadata.
 
 The reconciliation pipeline:
 
