@@ -46,11 +46,11 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 
 ### Gaps and product contracts
 
-- Maintain contradictions and omissions separately in FOUNDATION_GAPS.md.
+- Maintain contradictions and omissions separately in [FOUNDATION_GAPS.md](FOUNDATION_GAPS.md).
 - Give every gap a stable ID that traceability rows can reference.
 - Resolve all discovered Beta product questions, including candidate Alpha proposals, before Phase 0 closes.
 - Stabilize the Product Contract, glossary, decision ledger, release boundary, and focused contracts for:
-  - Service Request identity, notes, source population, lifecycle, episodes, finalization, and retention;
+  - Service Request identity, notes, source population, lifecycle, period visibility, historical presentation, source observations, and the Beta 1.0 no-purge boundary;
   - RFC master/subordinate hierarchy, WFM ownership, adoption, correction, attempts, archive, tracking, and terminal cascade behavior;
   - Objective and Task composition, scheduling, execution, review, correction, cloning, and retry;
   - Inventory lifecycle covering Stock, Spare Needs, request lines and quantities, Spare Requests, C10 RMA positions, physical units, allocation, installation, return, and Fault Tags;

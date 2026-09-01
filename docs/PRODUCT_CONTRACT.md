@@ -44,7 +44,7 @@ The primary navigation is fixed, in order:
 
 Overview is a curated operational dashboard, not an arbitrary report builder.
 
-The operator can select Daily, Weekly, or Monthly periods; compare the current period with its preceding equivalent; show, hide, and reorder approved sections; choose a default period; and configure approved warning thresholds.
+The operator can select Daily, Weekly, or Monthly periods; compare the current period with its preceding equivalent; show, hide, and reorder approved sections; choose a default period; and configure approved noncontractual warning thresholds. Presentation thresholds cannot replace, weaken, or redefine a Contract Product Line SLA policy.
 
 Default sections include:
 
@@ -143,8 +143,9 @@ A Spare Need is the planning step before a Spare Request. It belongs to one open
 
 ### 8.3 Spare Requests and RMAs
 
-- Official Spare Request identity is `SR` followed by seven digits.
-- Every official Spare Request is linked to exactly one Service Request through one or more selected Spare Needs from that SR.
+- Every Spare Request originates locally from one or more selected Spare Needs belonging to the same Service Request and immediately receives its immutable temporary tracking identity.
+- Huawei may later assign the official identity, `SR` followed by seven digits, to that same request without replacing its internal or temporary identity.
+- The request retains exactly one Service Request relationship through its selected Spare Needs, including when that Service Request currently has only an `LSR-########` identity.
 - After verifiable sent evidence, absence of a matching confirmation response for 24 hours produces a Needs Attention warning. Draft generation alone does not start the timer.
 - For a requested quantity `N`, one Spare Request may receive `M` accepted C10 RMA positions where `M ≤ N`.
 - Every requested position remains explainable. Positions without a C10 record their rejected/unfulfilled outcome and reason, such as EOS, unavailable, incompatible, or another reviewed status; they do not disappear from history.

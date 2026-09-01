@@ -62,7 +62,7 @@ The Advanced Search filename timestamp is interpreted as China Standard Time whe
 | `Customer Org.` | Customer Organization name | Used in reviewed organization reconciliation |
 | `Customer Account Code` | Stable customer account key | Used for organization reconciliation and SR queries when present |
 | `Suspend Planned End Date` | Current planned suspension end | Active only when status is `Customer Agreed Suspend` and the date is in the future at reconciliation time |
-| `Suspension Duration` | Cumulative suspension | Blank means exactly zero: the SR has never been suspended and has no cumulative suspension |
+| `Suspension Duration` | Cumulative suspension | An initial blank means zero/no reported suspension; a later blank or zero conflicting with accepted nonzero evidence requires review and cannot erase it silently |
 | `Last Update` | Source recency | Drives stale-observation ordering and historical cutoff |
 
 If an SR is marked `Customer Agreed Suspend` but its planned end is absent or not in the future, SOMA stages an inconsistency warning for operator review. Outside that active-future condition, `Suspend Planned End Date` does not pause SLA or act as an active suspension fact.
@@ -85,7 +85,7 @@ These values may be normalized and retained with provenance, but they drive no B
 
 ### 4.3 Discard rule
 
-Every Advanced Search column not named in sections 4.1 or 4.2 is untrusted for SOMA Beta and is discarded after staging. It cannot create Products, Product Lines, Network Elements, RFCs, spare relationships, ownership, contacts, dates, or classifications.
+Every Advanced Search column not named in sections 4.1 or 4.2 is untrusted for SOMA Beta and is discarded after staging. It cannot create Contracts, Products, Product Lines, Contract Product Lines, SLA policies, Network Elements, RFCs, spare relationships, ownership, contacts, dates, or classifications.
 
 ## 5. Enhanced Excel RFC mapping
 
@@ -116,7 +116,7 @@ An identifier longer than canonical `NC` plus fourteen digits, including a suffi
 - `Product Code`
 - `Product Name`
 
-These fields cannot silently select a SOMA Product Line or create Product/Infrastructure relationships in Beta 1.0.
+These fields cannot silently select a SOMA Product Line or Contract Product Line, choose an SLA policy, or create Product/Infrastructure relationships in Beta 1.0.
 
 ### 5.3 Discard rule
 
@@ -136,7 +136,7 @@ Every Enhanced Excel column not named in sections 5.1 or 5.2 is discarded after 
 | `Planned Start Time` | Planned interval start | A complete valid pair participates in Objective grouping |
 | `Planned End Time` | Planned interval end | Also supplies the terminal historical reference |
 | `Rep Office` | Source office label | Descriptive; it grants no ownership or authorization |
-| `Risk Level` | WFM operational risk | Distinct from SR/RFC severity and SLA state |
+| `Risk Level` | WFM operational risk | Distinct from SR/RFC severity and an SLA Result |
 | `Task Name` | WFM name and provisional RFC-summary hint | Existing Enhanced RFC Summary remains authoritative |
 | `Description` | Source-owned task description | Never parsed to create devices, sites, parts, or relationships automatically |
 | `Customer Organization` | Customer Organization hint | Allowed for reviewed reconciliation, including a WFM-created provisional RFC |
@@ -152,7 +152,7 @@ Both planned timestamps may be absent; such a WFM remains an unscheduled Task. E
 - `Product Line`
 - `Product`
 
-These fields drive no Beta 1.0 actor assignment, Product Line selection, SLA policy, or Infrastructure creation.
+These fields drive no Beta 1.0 actor assignment, Product Line or Contract Product Line selection, SLA policy, or Infrastructure creation.
 
 ### 6.3 Discard rule
 
@@ -186,7 +186,7 @@ This section records aggregate evidence from the three official sample exports r
 | `Resolve By Suspend` | 17 / 263 — 6.5% |
 | `Owner` | 1 / 263 — 0.4% |
 
-Every other active SR field was populated. All three currently suspended rows had a future `Suspend Planned End Date`. Blank `Suspension Duration` is nevertheless normatively zero, not unknown.
+Every other active SR field was populated. All three currently suspended rows had a future `Suspend Planned End Date`. An initial blank `Suspension Duration` is normatively zero rather than unknown; a later blank or zero conflicting with accepted nonzero evidence remains subject to reviewed reconciliation.
 
 ### RFCs — 22 source rows
 

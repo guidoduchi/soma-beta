@@ -14,7 +14,7 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-006 | WFM is a Task subtype owned by exactly one RFC, not a top-level Ticket. |
 | D-007 | Objective means Maintenance Window; it requires one reviewed planned timeframe and at least one Task from creation. Every Task has its own ID. |
 | D-008 | A Part Number/BOM groups parts. Every physical unit has a SOMA local identity; manufacturer serial identifies it when available but is optional. |
-| D-009 | Spare Need requires an SR; official Spare Request/RMA flows also require their SR relationship. |
+| D-009 | Every Spare Need requires one SR. Every Spare Request originates locally from one or more Needs belonging to that same SR, receives a temporary tracking identity, and retains that SR chain if Huawei later assigns an SR7 identity and C10 RMAs. |
 | D-010 | One C10 RMA is one accepted BOM position under one Spare Request and yields exactly one received physical unit at receipt; manufacturer serial is recorded when available. |
 | D-011 | A reusable Cloud Type may appear at many Sites through distinct Cloud Deployments. Each Cloud Deployment belongs to exactly one Site; a regularized Network Element's assigned Cloud Deployment, when present, must belong to its physical Site. Network Element model and installed instance remain separate. |
 | D-012 | Registering a Site creates one exclusive site-bound Dispatch Location that inherits its address. |
@@ -47,7 +47,7 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-039 | Weekly is the default ticket period with Daily/Monthly alternatives; terminal tickets then remain in Historical view. Terminal import rows older than the configurable one-month default lookback are excluded. |
 | D-040 | A manually created SR receives `LSR-` plus an eight-digit local sequence beginning at `00000001`; official reconciliation is reviewed. |
 | D-041 | Each official workbook has an explicit active/deferred allowlist. Every other source column is discarded and cannot influence Beta behavior. |
-| D-042 | Blank SR Suspension Duration means zero and never suspended. Suspend Planned End is active only for a currently suspended SR with a future end. Blank WFM Dispatch Progress is valid for Plan Cancel. |
+| D-042 | An initially blank SR Suspension Duration means zero/no reported suspension; a later blank or zero conflicting with accepted nonzero evidence requires review. Suspend Planned End is active only for a currently suspended SR with a future end. Blank WFM Dispatch Progress is valid for Plan Cancel. |
 | D-043 | WFM Customer Organization is an active reviewed reconciliation hint; Enhanced Excel remains authoritative for populated RFC facts. |
 | D-044 | Contacts exist independently and may optionally belong to a Customer Organization. |
 | D-045 | Beta 1.0.0 has no purge of operational history. |

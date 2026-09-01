@@ -27,7 +27,7 @@ For example, IT Major's `85% within 15 days` tier means at least 85% of the elig
 
 Beta 1.0.0 provides these confirmed default policies:
 
-| Product Line | Severity | Required cohort percentage | Maximum inclusive duration |
+| Default Product Line template | Severity | Required cohort percentage | Maximum inclusive duration |
 |---|---|---:|---:|
 | IT | Critical | 100% | 7 days |
 | IT | Major | 85% | 15 days |
@@ -59,7 +59,7 @@ For an active SR:
 
 `effective elapsed time = max(0, now - effective Report Date - cumulative suspension)`
 
-A blank imported `Suspension Duration` is authoritative zero: the source reports that the SR has never been suspended and has no cumulative suspension. `Suspend Planned End Date` is an active suspension fact only while the accepted status is `Customer Agreed Suspend` and the end is in the future. A suspended status with a missing or expired planned end is an import inconsistency requiring review; it is not silently treated as a valid future suspension.
+An initially blank imported `Suspension Duration` means zero: the source reports that the SR has never been suspended and has no cumulative suspension. A later blank or zero value that conflicts with previously accepted nonzero suspension evidence requires review and cannot silently erase that evidence. `Suspend Planned End Date` is an active suspension fact only while the accepted status is `Customer Agreed Suspend` and the end is in the future. A suspended status with a missing or expired planned end is an import inconsistency requiring review; it is not silently treated as a valid future suspension.
 
 For a terminal SR, `now` is replaced by the first accepted `Resolved` or `Closed` observation timestamp. Cancelled SRs are excluded from SLA cohorts and compliance calculations.
 
@@ -94,6 +94,5 @@ SOMA exposes separate warnings rather than collapsing them into one generic risk
 - cohort tiers currently below their required compliance percentage;
 - missing or passed Suspend Planned End while the SR is reported as currently suspended;
 - source removal or reversal of a terminal observation, always requiring review; and
-- retention review after 180 days, without silently deleting operational evidence.
 
 Alpha's global age-risk and suspension-KPI severity schedules do not control Beta 1.0. `ResolveBy` and `Resolve By Suspend` remain future-use source facts and do not determine Beta 1.0 SLA behavior. Warning presentation may be configurable where the product contract permits, but policy truth, source provenance, and audit history are not optional.

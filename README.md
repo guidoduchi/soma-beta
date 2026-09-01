@@ -16,13 +16,16 @@ No application code, database schema, or Alpha data migration is approved by thi
 2. **Tickets** — Service Requests and Requests for Change.
 3. **Objectives** — Maintenance Windows composed of Tasks, including WFM Tasks.
 4. **Inventory** — Stock, Spare Requests, and Fault Tags, including Spare Need, RMA, and physical-unit lifecycles.
-5. **Infrastructure** — customer, cloud, datacenter, rack, Network Element, and component history.
+5. **Infrastructure** — customer-owned Datacenter Sites, Cloud Types and Deployments, racks, Network Elements, and component history.
 6. **Settings** — the Local User Profile, registered people, sites, and installation-wide configuration.
 
 These names and this order are product language. `Settings` must not be renamed to `Administration`.
 
 ## Foundation documents
 
+- [Normative Beta requirements](docs/BETA_REQUIREMENTS.md)
+- [Alpha-to-Beta traceability register](docs/ALPHA_TRACEABILITY.md)
+- [Foundation gaps register](docs/FOUNDATION_GAPS.md)
 - [Product contract](docs/PRODUCT_CONTRACT.md)
 - [Import contract](docs/IMPORT_CONTRACT.md)
 - [Ticket and Objective workbench contract](docs/WORKBENCH_CONTRACT.md)

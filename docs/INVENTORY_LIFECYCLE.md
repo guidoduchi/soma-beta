@@ -32,8 +32,9 @@ Not every workflow uses every step. Manual Stock units, unregistered device refe
 
 ## 4. Spare Requests and RMA positions
 
-- An official Spare Request identity is `SR` followed by seven digits.
-- It belongs to exactly one official Service Request, derived through its selected Spare Needs.
+- Every Spare Request originates locally from one or more selected Spare Needs and immediately receives an immutable, non-reusable temporary tracking identity.
+- All selected Needs must belong to the same registered Service Request; the Spare Request derives and retains exactly that one SR relationship even when the Service Request currently has only an `LSR-########` identity.
+- Huawei may later assign the official Spare Request identity, `SR` followed by seven digits, to the existing request. This never replaces its internal identity or temporary tracking identity.
 - A requested quantity `N` may yield `M` C10 RMA positions where `M ≤ N`.
 - Every missing position records a reviewed rejection/unfulfilled outcome such as EOS, unavailable, incompatible, or another explicit status.
 - One RMA identity is `C` followed by ten digits, belongs to exactly one Spare Request, and represents one accepted ordered position.
