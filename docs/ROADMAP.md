@@ -151,8 +151,9 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
 - Exact Product Line/SLA calculations and golden vectors.
 - Threat model and ADRs for:
   - database and retained-file encryption;
-  - password KDF and data-key wrapping;
-  - optional Windows-user automatic login protection;
+  - authentication-only password verification, independent random data-key protection, and encrypted-database packaging;
+  - optional Windows-user automatic-login protection;
+  - independent portable-backup encryption and high-entropy recovery-secret handling;
   - key recovery and rotation;
   - WAL-safe backup, verification, pruning, and restore;
   - PST/OST read-only processing and MSG generation;

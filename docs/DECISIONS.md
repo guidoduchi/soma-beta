@@ -10,13 +10,13 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-002 | Canonical navigation is Overview, Tickets, Objectives, Inventory, Infrastructure, Settings. |
 | D-003 | One local authenticating user per installation; registered people are not login users. |
 | D-004 | SOMA is fully local/offline in 1.0.0. |
-| D-005 | Password-derived key wrapping protects a random data key; optional auto-login uses Windows user protection, never a plaintext password. |
+| D-005 | The SOMA password is authentication-only and never derives or wraps encryption keys. Live data uses an independent random key protected through approved Windows-bound secure storage; exportable backups use independent authenticated encryption and a high-entropy portable recovery secret. Optional auto-login uses Windows-protected authentication material and never stores the password. |
 | D-006 | WFM is a Task subtype owned by exactly one RFC, not a top-level Ticket. |
 | D-007 | Objective means Maintenance Window; it requires one reviewed planned timeframe and at least one Task from creation. Every Task has its own ID. |
 | D-008 | A Part Number/BOM groups parts. Every physical unit has a SOMA local identity; manufacturer serial identifies it when available but is optional. |
 | D-009 | Spare Need requires an SR; official Spare Request/RMA flows also require their SR relationship. |
 | D-010 | One C10 RMA is one accepted BOM position under one Spare Request and yields exactly one received physical unit at receipt; manufacturer serial is recorded when available. |
-| D-011 | Cloud–Site is many-to-many; Network Element model and installed instance are separate. |
+| D-011 | A reusable Cloud Type may appear at many Sites through distinct Cloud Deployments. Each Cloud Deployment belongs to exactly one Site; a regularized Network Element's assigned Cloud Deployment, when present, must belong to its physical Site. Network Element model and installed instance remain separate. |
 | D-012 | Registering a Site creates one exclusive site-bound Dispatch Location that inherits its address. |
 | D-013 | Population updates source-owned facts but preserves SOMA-owned relationships, notes, review, and history. |
 | D-014 | Import review is default; safe classes may be auto-accepted, but high-risk conflicts always require review. |

@@ -68,22 +68,21 @@ Audit history is a first-class persistence concern. Hard deletion is a narrow op
 
 ## 5. Local security envelope
 
-The login password is never used directly as an encryption key and is never stored in plaintext.
+The login password is authentication material only. It is never used directly or indirectly to encrypt data, wrap encryption keys, or protect backups, and it is never stored in plaintext.
 
 ```mermaid
 flowchart TD
-    P[Operator password] --> KDF[Slow password KDF]
-    KDF --> KEK[Key-encryption key]
+    P[Operator password] --> AUTH[Memory-hard verifier]
     RNG[Random generator] --> DEK[Data-encryption key]
-    KEK --> WRAP[Wrap or unwrap DEK]
+    WIN[Windows secure storage] --> WRAP[Protect or release DEK]
+    DEK --> WRAP
     DEK --> DATA[Encrypt protected local data]
-    WIN[Windows user protection] --> AUTO[Optional auto-login wrapping]
-    AUTO --> WRAP
+    WIN --> AUTO[Optional auto-login material]
 ```
 
-The security envelope covers the database, journals/WAL, temporary persistence, backups, sensitive retained imports, communication indexes, and support artifacts containing operational data. Automatic login stores only a Windows-user-protected wrapped key. Disabling it removes that convenience wrapper, not the encrypted data.
+The live security envelope covers the database, journals/WAL, temporary persistence, sensitive retained imports, communication indexes, and support artifacts containing operational data. A cryptographically random data-encryption key is protected through approved Windows-bound secure storage independently of the SOMA password. Automatic login stores only Windows-protected authentication material; disabling it removes that convenience without changing live-data encryption.
 
-The exact algorithms, KDF parameters, key rotation/recovery behavior, export protection, and Windows protection API are LLD decisions and require threat-model review. Established cryptographic libraries must be used; custom cryptography is prohibited.
+Exportable backups use a separate random backup-encryption key and authenticated encryption. Portable recovery uses a generated high-entropy recovery secret, recommended as seven random words or an equivalent secret of at least 128 bits. Hashes verify integrity and do not substitute for encryption. The exact algorithms, password-verifier parameters, Windows protection API, encrypted-database implementation, recovery-secret encoding, key rotation, and restore mechanics are LLD decisions and require threat-model review. Established cryptographic libraries must be used; custom cryptography is prohibited.
 
 ## 6. Import architecture
 
