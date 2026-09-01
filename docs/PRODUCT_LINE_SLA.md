@@ -87,9 +87,8 @@ SOMA exposes separate warnings rather than collapsing them into one generic risk
 - ambiguous or unmatched automatic Contract Product Line classification;
 - individual SRs approaching or exceeding an applicable duration;
 - cohort tiers currently below their required compliance percentage;
-- suspension duration thresholds at 3, 10, 15, and 30 days by default;
 - missing or passed Suspend Planned End while the SR is reported as currently suspended;
 - source removal or reversal of a terminal observation, always requiring review; and
 - retention review after 180 days, without silently deleting operational evidence.
 
-`ResolveBy` and `Resolve By Suspend` remain future-use source facts and do not determine Beta 1.0 SLA behavior. Warning presentation may be configurable where the product contract permits, but policy truth, source provenance, and audit history are not optional.
+Alpha's global age-risk and suspension-KPI severity schedules do not control Beta 1.0. `ResolveBy` and `Resolve By Suspend` remain future-use source facts and do not determine Beta 1.0 SLA behavior. Warning presentation may be configurable where the product contract permits, but policy truth, source provenance, and audit history are not optional.
