@@ -69,7 +69,9 @@ Cumulative suspension retains exact fractional-day duration and must not use bin
 
 An SR's elapsed-time evidence and every cohort-compliance result are derived from accepted source facts, operator classification, and the applicable Contract Product Line policy. They are not independently editable truth.
 
-Changing Contract Product Line classification, severity, effective Report Date, accepted endpoint, suspension, or policy recalculates current results. Completed report exports and accepted persisted snapshots retain their calculation and policy context so historical results do not mutate retroactively.
+Changing Contract Product Line classification, severity, effective Report Date, accepted endpoint, suspension, or policy recalculates current results. An accepted policy revision applies to every existing SR currently classified under that Contract Product Line, including SRs created before the revision and terminal SRs; Report Date does not grandfather an SR into the previous policy. All subsequent current views, warnings, calculations, and reports use the revised policy.
+
+Every policy revision preserves its prior values and change evidence in audit history. Completed report exports and accepted persisted snapshots retain the calculation and policy revision captured when they were completed, so historical evidence does not mutate even though the live SR projection is recalculated.
 
 ## 6. Reporting cohorts
 

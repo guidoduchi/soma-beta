@@ -63,7 +63,7 @@ The clean Beta schema must distinguish:
 - reusable Product Line identity from Customer-owned Contract Product Lines and their independent SLA policies;
 - Customer Organization ownership of Sites, reusable Cloud Types, site-bound Cloud Deployments, and optional provisional Device placement;
 - current device composition from immutable installation/replacement events; and
-- individual elapsed-time evidence and cohort SLA/reporting results from the accepted facts and Contract Product Line policy used to calculate them.
+- current individual elapsed-time evidence and cohort SLA/reporting results from the accepted facts and latest Contract Product Line policy, while completed report snapshots retain the policy revision and results captured at completion.
 
 Audit history is a first-class persistence concern. Hard deletion is a narrow operation for untouched manual records only. Imported/adopted or operationally evidenced records transition through archive, termination, cancellation, replacement, and append-only correction so their material effects remain explainable.
 
