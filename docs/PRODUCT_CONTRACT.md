@@ -152,15 +152,17 @@ A Spare Need is one persistent Service-Request-level planning record aggregated 
 
 Before external requesting, SOMA shows compatible available Stock for the Need and affected Devices. The operator may use local Stock, request externally, combine both by quantity, or deliberately request externally despite local availability. A suggestion never reserves or consumes a unit automatically. A Need remains reusable across request attempts until explicitly resolved or cancelled.
 
-### 8.3 Spare Requests
+### 8.3 Spare Requests and submission
 
-- Every Spare Request originates locally from one or more selected Needs belonging to the same Service Request and immediately receives an immutable temporary tracking identifier.
+- Every Spare Request receives an immutable temporary tracking identifier and selects one or more Needs belonging to one Service Request.
 - The request derives its Service Request and Customer Organization and suggests the current customer ticket owner as a Contact.
 - Before draft generation, the operator selects delivery or self-pickup, receiver, and applicable dispatch or pickup location.
-- The generated subject includes the temporary tracking identifier. Missing tracking text in later correspondence does not prevent explicit manual reconciliation.
-- Submission is established only by indexed sent communication or manual confirmation, never by generating a `.msg` draft.
-- Submitted Need allocations, quantities, BOM values, receiver, logistics choice/snapshot, and temporary tracking identity become immutable submission evidence.
-- The official `SR` plus seven-digit identifier attaches later to the same request.
+- **Save Draft**, **Generate Email Draft**, and **Record External Submission** are distinct actions.
+- A generated `.msg` contains the temporary tracking identifier but never proves submission or sending and never starts the response-warning timer. Beta 1.0 does not send email.
+- Submission is accepted only through reviewed indexed sent communication or explicit manual confirmation without required evidence.
+- Accepted submission locks the Need allocations, quantities, requested BOM values, receiver, temporary tracking identity, recipient context, and immutable requested-logistics snapshot.
+- A request prepared or submitted outside SOMA receives the same normal internal and temporary identity and must reconcile to exactly one Service Request and one or more of its Needs. Missing Needs may be created through the reviewed registration.
+- A known official SR7 requires canonical-format and uniqueness validation. Later communication appends evidence to the same identity; duplicate candidates require review rather than silent creation or merge.
 - Missing acknowledgement produces a warning. An official SR7 may arrive alone or with zero, some, or all C10 RMAs; partial responses preserve pending quantity and later responses append positions.
 - The 24-hour Needs Attention timer begins from accepted sent evidence or manual submission confirmation, not draft generation.
 
@@ -176,7 +178,17 @@ Before external requesting, SOMA shows compatible available Stock for the Need a
 - After Task outcome review the RMA references the actual return unit separately: normally the removed Device Part Unit after replacement, otherwise the inbound unit or parent assembly when unused, faulty, incompatible, or dismantled.
 - Official C10 correction preserves internal identity and the former value as an immutable alias. A genuinely new authorization creates another RMA.
 
-### 8.5 Tasks, Fault Tags, and warehouse decisions
+### 8.5 Requested and actual logistics
+
+- Submission preserves requested delivery or self-pickup mode, intended receiver, selected dispatch or pickup location, and effective name, address, and recipient context as immutable intent.
+- Actual dispatch, pickup, delivery, receipt, custody, receiver, chronology, and condition are separate append-oriented events.
+- One logistics event may cover multiple RMAs or units, but every participant remains independently addressable and correctable.
+- Partial and split dispatch or receipt are valid; pending RMAs and quantities retain their state.
+- Actual facts may differ from requested intent. Both remain visible, and neither later master-data edits nor actual delivery rewrite the submission snapshot.
+- A Dispatch Location is logistics master data, not an Infrastructure Site, even when a Site's dedicated Dispatch Location supplies the effective address.
+- Local units receive no fabricated external-delivery evidence. A dismantled parent assembly retains the direct receipt; extracted units inherit provenance and record later custody independently.
+
+### 8.6 Tasks, Fault Tags, and warehouse decisions
 
 - Physical Spare Part Units are reserved through Tasks, not direct Objective ownership.
 - After maintenance the operator records each target and unit outcome. A successful replacement links the actual removed Device Part Unit and installed Spare Part Unit.
@@ -184,9 +196,18 @@ Before external requesting, SOMA shows compatible available Stock for the Need a
 - A Fault Tag may group return obligations and units from different Service Requests, Spare Requests, temporary tracking identifiers, and RMAs.
 - Fault Tag generation, warehouse receipt, and final warehouse acceptance or rejection are separate milestones.
 - Warehouse receipt does not close the return obligation. Rejection may return the same unit to the operator and create a new explanation/resend loop.
-- Erroneous automatic or manual milestones use targeted correction or rollback. Genuine rejection/resend history is appended and never erased.
 
-The complete lifecycle, cardinalities, deterministic assignment, manual alternatives, evidence boundary, and deletion behavior are normative in the [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md).
+### 8.7 Manual, proposed, bulk, and correction actions
+
+- Every supported milestone remains manually recordable without required uploaded evidence.
+- Indexed communications create idempotent reviewed proposals and never mutate Inventory before acceptance.
+- Bulk actions require one compatible transition and prerequisites, preview eligible and excluded targets, commit transactionally, and append one independently correctable event per target under a common batch identifier.
+- A correction targets the exact accepted event or relationship, preserves the original history, and recalculates the projection.
+- Entity identity remains immutable when an assignment, allocation, receipt, installation, removal, return selection, Fault Tag membership, or warehouse decision is corrected.
+- A genuine rejection/resend is new lifecycle history, not rollback. Hard deletion is not the normal correction mechanism.
+- Beta 1.0 services accept optional evidence references, but the UI exposes no manual attachment or upload control.
+
+The complete lifecycle, cardinalities, deterministic assignment, request-origin rules, logistics snapshots, manual and bulk alternatives, correction semantics, evidence boundary, and deletion behavior are normative in the [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md).
 
 ## 9. Infrastructure
 

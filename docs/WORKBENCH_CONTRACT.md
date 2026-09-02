@@ -44,16 +44,23 @@ The operator can register one or more involved device references.
 
 ### 2.3 Spares
 
-Spares presents the SR-level BOM demand aggregated from Device Part Units across every involved Device and connects that demand to Stock, Spare Requests, RMAs, Task outcomes, and return status.
+Spares presents the SR-level BOM demand aggregated from Device Part Units across every involved Device and connects that demand to Stock, Spare Requests, RMAs, Task outcomes, actual logistics, and return status.
 
 - Recording a faulty slot creates or identifies one Device Part Unit with Device, slot when known, BOM, optional manufacturer serial, condition, and chronology.
 - Matching Device Part Units contribute to one Spare Need per SR/BOM rather than creating duplicate Needs per Device or slot.
-- The UI shows the system-derived contributor count, operator-confirmed planned quantity, local Stock availability, quantities allocated locally, quantities submitted externally, accepted RMAs, pending quantity, and return progress without collapsing their meanings.
+- The UI shows contributor count, planned quantity, eligible local Stock, quantities allocated locally, quantities submitted externally, accepted RMAs, pending quantity, and return progress without collapsing their meanings.
 - Before starting a Spare Request, SOMA suggests compatible available Stock. The operator may select local units, request externally, combine both by quantity, or continue externally despite local availability.
 - One Spare Request may select one or more Needs from this SR and records receiver plus delivery or self-pickup logistics.
+- **Save Draft**, **Generate Email Draft**, and **Record External Submission** are separate controls. Draft generation never appears as sending.
+- Recording a request prepared or submitted outside SOMA creates the normal internal and temporary identities, guides reviewed reconciliation to this Service Request and its Needs, and warns about possible duplicate requests.
+- Requested logistics and actual dispatch, pickup, delivery, receipt, and custody appear separately. Partial progress remains visible per RMA and physical unit.
+- A shared actual logistics event may cover several RMAs or units, but each participant remains independently addressable, inspectable, and correctable.
 - A Need remains reusable across multiple request attempts until explicitly resolved or cancelled.
 - Detected C10 RMAs autoassign to compatible unassigned Device Part Units by stable creation order. The operator may redistribute assignments with an audited reason.
 - The tab exposes acknowledgement, partial RMA, dispatch, receipt, Task outcome, Fault Tag, warehouse receipt, and final acceptance/rejection as separate states.
+- Communication-derived milestones appear as review proposals. The operator may accept or reject them individually.
+- A bulk action previews eligible, excluded, and conflicting targets before transactional confirmation and reports one result per target.
+- Correction selects the exact event or relationship, displays the original and proposed effect, and leaves unaffected batch members unchanged.
 - Manual identifiers and milestone confirmations remain available without evidence when communication detection fails.
 - Beta 1.0 exposes no manual attachment or upload control.
 - Deletion, correction, rollback, and rejection/resend rules are governed by the Inventory Lifecycle Contract.
