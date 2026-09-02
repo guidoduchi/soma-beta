@@ -90,6 +90,12 @@ Complex/destructive/bulk actions retain impact preview even when followed by a h
 
 One versioned token system separates primitive palette/type/spacing/radius/elevation/duration values from semantic meaning. Components use semantic tokens such as informational, selected, focused, pending review, provisional, incomplete, accepted, success, warning, action required, error, destructive, disabled, archived, historical, stale, and unknown.
 
+SOMA's primary visual direction is a proprietary terminal-inspired operations interface—not a literal terminal emulator. It combines compact command-like cues and strong information density with vSphere-style contextual exploration, entity headers, predictable tabs, modular cards and activity surfaces, plus Wireshark-style list/detail/evidence inspection. Monospace typography is reserved for identifiers, statuses, timestamps, metrics, command cues, and shortcuts; readable sans-serif typography remains the default for email bodies, notes, dialogs, help, and other long-form content.
+
+The operator may choose from a small governed set of built-in skins, including SOMA Core and terminal-inspired green, amber, and violet/pink families. Skin and appearance mode are independent axes: **System** follows the operating-system light/dark mode within the selected skin, while explicit Light and Dark select that skin's corresponding mode. Every skin supplies semantic tokens for Light, Dark, high-contrast, and forced-color behavior and previews immediately and reversibly as typed local preference.
+
+A skin may change palette, approved typographic accents, border/radius/elevation treatment, restrained texture, and chart hues. It shall not change layout, information architecture, workflow, command availability or names, density, status/severity meaning, confirmation friction, accessibility, or acceptance logic. Beta 1.0 supports no arbitrary CSS or imported theme packages.
+
 Light, dark, high-contrast, forced-color, enlarged-text, and zoomed presentation preserve equivalent meaning. Typography provides a readable hierarchy for workspace/entity titles, headings, body, controls, labels, tables, identifiers, metadata, evidence, and warnings.
 
 State never depends solely on hue, saturation, motion, blinking, position, or one visual channel. Badges/warnings include concise text and may add icon, border, shape, or pattern. Selection, hover, active row, keyboard focus, checked membership, disabled, provisional, destructive, and historical states remain distinct.
@@ -168,6 +174,8 @@ Overview composes Customer/period scope, Tickets, Objectives, Inventory, SLA/coh
 Infrastructure composes a relationship-projection explorer, entity header, Summary/Placement/Components/IP/Relationships/History/Workbook Activity tabs as applicable, accepted-state cards, and workbook/review/job activity. The explorer never changes domain cardinality or creates competing ownership.
 
 The reviewed vSphere interface is an approved directional reference for these patterns only. SOMA does not copy VMware/Broadcom branding, logos, icons, screenshots, proprietary assets, trade dress, exact pixels, product terminology, or operational meaning. SOMA improves on the reference with larger readable typography, labelled actions, responsive/touch behavior, clearer warnings, restrained density, and its proprietary game-informed identity.
+
+Wireshark is likewise a directional reference only for high-volume selectable lists, explicit filters, synchronized detail/evidence panes, and inspectable field provenance. Terminal-inspired references guide hierarchy, concise notation, and keyboard fluency without turning operational data into unstructured command output. All third-party references remain subordinate to SOMA's contracts, identity, accessibility, and responsive behavior.
 
 ## 13. Reference and fixture classes
 

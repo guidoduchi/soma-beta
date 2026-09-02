@@ -117,7 +117,7 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-104 | UI evidence is classified as directional reference, visual fixture, or export golden. vSphere is approved only as information-architecture inspiration; SOMA copies no third-party assets/trade dress and pixel/artifact acceptance uses sanitized versioned deterministic fixtures rather than guesses. |
 | D-105 | Every authoritative SQLite connection uses one verified foreign-key-enabled factory, and child-side foreign-key paths have effective leading-prefix index coverage; isolated rebuild exceptions receive post-checks. |
 | D-106 | Migration schema/data and ledger commit atomically under one data-instance migrator; concurrent startup, interruption, retry, and readiness checks cannot publish partial or duplicate migration state. |
-| D-107 | Branch-only migration candidates remain editable until primary-branch acceptance, when canonical bytes, name/order/content/checksum/manifest freeze; accepted correction is forward-only and drift is never hidden. |
+| D-107 | A migration candidate remains editable until its own protected-lineage acceptance, when canonical bytes, name/order/content/checksum/manifest freeze individually; accepted correction is forward-only and drift is never hidden. |
 | D-108 | Migration status is purely observational and creates or mutates no database, sidecar, directory, lock, settings, or invalid target; unsafe live/offline inspection reports limitation rather than disturbing ownership. |
 | D-109 | Domain lifecycle evidence, application audit, proposal/job history, and technical diagnostics are separate authorities. Required mutation, lifecycle evidence, and audit commit together, while corrections append against exact identities. |
 | D-110 | Persisted JSON is typed, named, versioned, bounded, semantically validated, atomically written/upgraded, and never substitutes for normalized domain authority; UI working copies and domain Drafts remain distinct. |
@@ -129,6 +129,25 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-116 | Sensitive-data prevention begins at the diagnostic call site through allowlists and semantic classification; all outputs sanitize before queuing, pattern redaction is defense in depth only, and canary tests prove non-disclosure. |
 | D-117 | `audit_events` is append-only through ordinary application/SQL paths: update/delete/replace/upsert/conflict-skip are forbidden, duplicate event identity is error, command idempotency is separate, and corrections append. |
 | D-118 | Audit JSON uses permanent named/versioned action-specific closed schemas with relational core facts and minimal differences/references; whole objects, secrets, bodies, provider payloads, arbitrary exceptions, and tombstones are prohibited. |
+| D-119 | RFC/WFM discovery uses one configurable directory with source-specific deterministic candidate rules; invalid newest files fail visibly and manual selection remains. |
+| D-120 | RFC/WFM workbooks are staged untrusted observations with independent chronology checkpoints, logical replay protection, explicit recovery, and no omission-driven lifecycle. |
+| D-121 | Recognized RFC/WFM status governs active and historical presentation; source reports may retain terminal history and SOMA filters locally without `Stop tracking` or disappearance proposals. |
+| D-122 | Exact canonical external identity adopts manual RFC/WFM records in place; source provenance is derived and irreversible, while SOMA and source creation times remain separate. |
+| D-123 | RFC Closed and Cancelled are distinct terminal evidence; projection correction is high risk and local terminal cascade requires reviewed deliberate confirmation. |
+| D-124 | Active WFM work requires Implement eligibility; WFM provisional evidence cannot override accepted Enhanced RFC status, and Complete/Plan Cancel never promotes or reactivates. |
+| D-125 | RFC Summary and then WFM Task Name may propose bounded links to existing SRs; subordinate evidence links the master and omission never unlinks. |
+| D-126 | RFC hierarchy is an acyclic two-level forest without an arbitrary business-size cap; provider data never infers hierarchy and used-branch reparenting is high risk. |
+| D-127 | RFC archival is reversible presentation over exact recorded members and never substitutes for terminal evidence or cascades into SR/WFM/Objective/provider/communication state. |
+| D-128 | SR and RFC lifecycles remain independent; reviewed terminal/historical SR links are valid, do not reopen or restart anything, and corrections preserve relationship history. |
+| D-129 | Plan Cancel is cancelled WFM history that may create/adopt its exact identity but never activates work, promotes an RFC, or creates an Objective. |
+| D-130 | WFM planning uses optional paired arbitrary-minute source intervals distinct from Objective/SOMA/actual time; invalid pairs are row-scoped and retries use new Task identities. |
+| D-131 | Objective grouping uses global transitive strict overlap; customer and RFC hierarchy are explanatory partitions, touching intervals remain separate unless reviewed, and bridging work proposes consolidation. |
+| D-132 | Import acceptance and Objective regrouping are separate exact-revision decisions; regrouping never silently commits, terminal work never restructures, and proposals revalidate. |
+| D-133 | RFC/WFM headers use versioned explicit alias registries with only identity universally required; missing optional coverage is non-destructive and missing customer does not block temporal grouping. |
+| D-134 | Repeated RFCs across distinct WFM Tasks are valid; duplicate/conflict/identityless rows receive scoped handling, and parser/preview limits are measured LLD controls rather than product constants. |
+| D-135 | Confirmed terminal RFC cascade is all-or-nothing over exact revalidated branch/WFM membership, preserves provider status, never mutates SRs, handles surviving/lost Objective work explicitly, and integrates terminal communication grace. |
+| D-136 | SOMA's proprietary visual direction combines terminal-inspired hierarchy and keyboard fluency with vSphere contextual composition and Wireshark list/detail/evidence inspection; monospace accents never reduce long-form readability. |
+| D-137 | Operators choose a curated built-in skin independently from Light/Dark/System appearance. Skins alter aesthetic tokens only and cannot change layout, workflow, semantic meaning, confirmation friction, or accessibility; arbitrary themes are excluded from Beta 1.0. |
 
 ## Deferred beyond 1.0.0
 

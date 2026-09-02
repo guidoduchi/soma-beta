@@ -2,7 +2,7 @@
 
 Status: **Foundation review v0.3**  
 Target: **SOMA Beta 1.0.0**  
-Authority: confirmed source trust, field-retention, identity, population, historical-selection, and Infrastructure workbook-exchange decisions.
+Authority: confirmed source trust, field retention, identity, population, status-driven RFC/WFM history, local filtering, and Infrastructure workbook-exchange decisions, including `BETA-REQ-0145`–`0160`.
 
 ## 1. Purpose and source authority
 
@@ -26,9 +26,9 @@ The SOMA-generated Infrastructure workbook is not an authoritative external popu
 - Matching uses immutable official identity. An import never corrects an official identity in place.
 - Population updates accepted source-owned facts while preserving SOMA-owned relationships, Tasks, Objectives, device references, spares, notes, review state, audit history, and other local meaning.
 - Import review is the default. The operator may configure automatic acceptance only for explicitly safe source/change classes defined during LLD.
-- Identity changes, RFC/WFM ownership changes, hierarchy changes, time conflicts, terminal-state reversals, disappearance, and hardware-serial contradictions always require review.
-- Before acceptance, every official source produces a proposal-oriented impact summary separating creations, updates, unchanged observations, skips, invalid rows, warnings, high-risk conflicts, and applicable identity, organization, hierarchy, ownership, timeframe, or disappearance effects.
-- Absence is inferred only when the source profile declares an authoritative population and scope. Partial or filtered RFC/WFM exports do not fabricate missing-record results.
+- Identity changes, RFC/WFM ownership changes, hierarchy changes, time conflicts, terminal-state corrections, and hardware-serial contradictions always require review. RFC/WFM omission has no record-level lifecycle meaning.
+- Before acceptance, every official source produces a proposal-oriented impact summary separating creations, updates, unchanged observations, skips, invalid rows, warnings, high-risk conflicts, and applicable identity, organization, hierarchy, ownership, or timeframe effects.
+- RFC/WFM absence is never inferred, including from a full, partial, filtered, or empty workbook. Recognized status drives historical presentation and SOMA filters locally.
 - A valid empty authoritative population affecting previously accepted in-scope records requires explicit high-risk confirmation bound to the exact source family, chronology, logical fingerprint, scope, and impact summary. It can record reviewed disappearance warnings but cannot delete or finalize operational records.
 - Beta 1.0 displays nonempty population and Customer Organization distribution comparisons but applies no automatic accept/reject threshold based solely on an unvalidated count or percentage deviation.
 - `SRNo` is the only universal Advanced Search header and row identity requirement. Missing allowlisted nonidentity headers create coverage warnings; a new SR may remain incomplete, and unusable values do not erase prior accepted facts unless the field contract explicitly permits clearing.
@@ -64,17 +64,7 @@ The SOMA-generated Infrastructure workbook is not an authoritative external popu
 
 ## 3. Historical import boundary
 
-The default historical lookback is **one month**, configurable in Settings.
-
-A row is excluded from operational population when its record is in a recognized terminal state and its trusted recency reference is older than the configured lookback:
-
-| Source | Trusted historical reference |
-|---|---|
-| Service Request | `Last Update` |
-| RFC | `Last Update Time` |
-| WFM | `Planned End Time` |
-
-Active, nonterminal, unscheduled, and future work is not excluded by this terminal-record rule. Excluded rows do not create or update domain records. The import result reports their count and exclusion reason without retaining discarded source fields.
+Supported RFC/WFM workbooks may contain complete historical rows, including closed, cancelled, complete, and Plan Cancel states. SOMA accepts them according to status and field rules and then filters active/historical presentation locally. It shall not require operators to pre-filter online reports or discard valid terminal rows merely because they are old. Any configurable lookback applies only to a source family whose separately accepted contract explicitly defines it; it does not authorize RFC/WFM disappearance inference.
 
 The Advanced Search filename timestamp is interpreted as China Standard Time when it is used for source-file chronology. Operational row timestamps are interpreted under the accepted Ecuador operational timezone rules. The WFM filename suffix is opaque and is not an operational timestamp.
 
@@ -121,6 +111,8 @@ Every Advanced Search column not named in sections 4.1 or 4.2 is untrusted for S
 
 ## 5. Enhanced Excel RFC mapping
 
+Enhanced RFC and WFM discovery share one configured operational import directory, initially suggested as Downloads, while retaining separate exact source patterns. Only stable direct regular files are considered. RFC filesystem modification time may rank candidates but is not business chronology. WFM uses its supported embedded source timestamp; filename collision suffixes never determine recency. The newest invalid candidate fails visibly without silent fallback, and explicit manual selection remains available.
+
 ### 5.1 Active in Beta 1.0
 
 | Source column | Beta meaning | Rule |
@@ -163,7 +155,7 @@ Every Enhanced Excel column not named in sections 5.1 or 5.2 is discarded after 
 | `RFC No.` | Owning RFC identity | Required; canonical `NC` plus fourteen digits |
 | `RFC Status` | Provisional parent-RFC status | Fallback only; Enhanced Excel wins when available |
 | `Task No.` | WFM Task identity | Required; `TK` plus fourteen digits |
-| `Task Status` | WFM lifecycle status | Cancelled work does not create an Objective automatically |
+| `Task Status` | WFM lifecycle status | `Complete` and `Plan Cancel` are terminal/cancelled history and never create an Objective automatically |
 | `Dispatch Progress` | Dispatch state | Blank is valid when `Task Status = Plan Cancel`; otherwise absence is reviewed |
 | `Planned Start Time` | Planned interval start | A complete valid pair participates in Objective grouping |
 | `Planned End Time` | Planned interval end | Also supplies the terminal historical reference |
@@ -173,7 +165,7 @@ Every Enhanced Excel column not named in sections 5.1 or 5.2 is discarded after 
 | `Description` | Source-owned task description | Never parsed to create devices, sites, parts, or relationships automatically |
 | `Customer Organization` | Customer Organization hint | Allowed for reviewed reconciliation, including a WFM-created provisional RFC |
 
-Both planned timestamps may be absent; such a WFM remains an unscheduled Task. Exactly one timestamp, an invalid interval, or a conflict with established work requires review rather than fabricated scheduling.
+Both planned timestamps may be absent; such a WFM remains unscheduled. Otherwise both must be usable, with end after start. Any valid minute is accepted. Exactly one timestamp or an invalid interval is a row-level failure by default and shall not fabricate scheduling or automatically reject unrelated valid rows.
 
 ### 6.2 Retained for future use
 
@@ -196,8 +188,10 @@ Every Service Provider column not named in sections 6.1 or 6.2 is discarded afte
 - If its RFC exists, the WFM attaches to that RFC without rewriting accepted RFC facts.
 - If its RFC does not exist, the WFM creates a provisional RFC using the WFM Task Name as provisional Summary and may use WFM RFC Status and Customer Organization as reviewed provisional hints.
 - A later Enhanced Excel observation populates that provisional RFC by official identity while preserving its Tasks and SOMA-owned relationships.
-- A valid, future, noncancelled WFM interval enters the Objective grouping review described by the Workbench Contract.
+- A valid, nonterminal WFM interval under an Implement-eligible RFC enters the Objective grouping review described by the Workbench Contract.
 - A WFM without a complete timeframe remains unscheduled and creates no Objective.
+- `Complete` and `Plan Cancel` rows remain historical evidence. Plan Cancel may create or adopt its exact identity but cannot promote/reactivate an RFC or create an Objective.
+- RFC/WFM source omission never changes lifecycle, archival, links, or tracking. The complete governing rules are in the [RFC/WFM Contract](RFC_WFM_CONTRACT.md).
 
 ## 8. Observed historical blank profile
 

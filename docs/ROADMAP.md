@@ -1,6 +1,6 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Roadmap reviewed; 138/138 merged Alpha requirements complete; unmerged proposal review remains in Phase 0**
+Status: **Roadmap reviewed; 138/138 merged Alpha requirements complete; unmerged proposal review checkpoint 23/43 complete (20 remain)**
 
 This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 

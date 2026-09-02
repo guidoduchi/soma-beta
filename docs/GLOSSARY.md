@@ -90,3 +90,11 @@ This glossary is normative product language. UI copy, schemas, imports, and docu
 | Local Task | SOMA-generated | Always generated; never inherited from its Objective |
 
 Identity is not a mutable descriptive field. Corrections use explicit reconciliation so references and audit history remain intelligible.
+
+| Term | Meaning |
+|---|---|
+| Source chronology checkpoint | The accepted per-source-family ordering position used for replay/conflict decisions; it is independent of communications coverage and business-event time. |
+| RFC branch | Exactly one root/master RFC and its direct subordinate RFCs in the two-level acyclic hierarchy. |
+| Work-package partition | Customer and RFC-branch context shown inside one temporal Objective component; it explains membership but does not authorize overlapping Objectives. |
+| Skin | A governed built-in aesthetic token family that cannot change domain meaning, layout, workflow, confirmation safety, or accessibility. |
+| Appearance mode | Light, Dark, or System selection applied within the chosen skin; System follows the operating system without changing skin. |

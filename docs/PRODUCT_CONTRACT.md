@@ -103,6 +103,9 @@ Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**. 
 - Direct SR↔RFC links target master RFCs only. Subordinate RFC and WFM context is derived through the master branch.
 - A Local Task may be created under or linked to a master or subordinate RFC; this does not allow a subordinate RFC to own another RFC.
 - Correcting a provisional, manually created RFC identity must not rewrite historical identity silently.
+- RFC/WFM workbook absence has no lifecycle authority. Recognized status controls active, terminal, cancelled, and historical presentation, while SOMA performs filtering locally.
+- Archival is reversible presentation and is distinct from imported terminal evidence. SR and RFC lifecycles remain independent.
+- The complete discovery, identity, hierarchy, status, grouping, and terminal-cascade rules are governed by the [RFC/WFM Contract](RFC_WFM_CONTRACT.md).
 
 ### 6.3 WFM Tasks
 
@@ -114,10 +117,13 @@ Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**. 
 - Correcting the parent RFC of a manually registered WFM prompts the operator either to remove the now-unused provisional RFC or leave it orphaned; no silent deletion occurs.
 - Hard deletion is available only for manually created RFCs/WFMs that were never imported or adopted and have no executed Objective, communication, review, spare-use, lifecycle, or other protected operational evidence.
 - Deleting a manual RFC may cascade only through WFMs that are independently eligible for hard deletion. Otherwise SOMA uses termination/archive/cancellation and preserves history.
+- `Complete` and `Plan Cancel` are historical WFM states. Plan Cancel may create or adopt an exact cancelled record but never activates work, promotes an RFC, or creates an Objective.
 
 ## 7. Objectives and Tasks
 
 An **Objective** is a Maintenance Window composed of Tasks in one reviewed planned timeframe.
+
+An SR may be resolved without an Objective or Task—for example by the customer or as a Non-fault inquiry. SOMA never fabricates maintenance work merely to justify SR completion.
 
 - Every Objective requires one reviewed planned timeframe and at least one Task from creation; there is no empty Objective state.
 - A Task is first-class, has its own identity, and is either a Local Task or a WFM Task.
@@ -300,7 +306,7 @@ The default historical lookback is one month and is configurable. Terminal sourc
 
 Population matches immutable official identities and updates source-owned fields. It must preserve local notes, relationships, Objectives, inventory and infrastructure links, review results, audit history, and other SOMA-owned meaning.
 
-Imports are reviewed by default. The operator may opt into automatic acceptance of safe new data per source/change class. Identity changes, hierarchy or ownership changes, WFM reassignment, time conflicts, terminal-state reversal, disappearance/deletion, and hardware serial contradictions always require review.
+Imports are reviewed by default. The operator may opt into automatic acceptance of safe new data per source/change class. Identity changes, hierarchy or ownership changes, WFM reassignment, time conflicts, terminal-state correction, supported authoritative-population disappearance, deletion, and hardware serial contradictions always require review. RFC/WFM omission is never such an authoritative-population disappearance.
 
 Every import presents a pre-mutation proposal summary with source-appropriate counts and conflicts. Absence is meaningful only for a declared authoritative scope. An empty authoritative population affecting existing in-scope records always requires confirmation bound to the exact source identity and remains nondestructive. Nonempty count and Customer Organization distribution comparisons are informational in Beta 1.0 and do not alone trigger automatic acceptance or rejection.
 

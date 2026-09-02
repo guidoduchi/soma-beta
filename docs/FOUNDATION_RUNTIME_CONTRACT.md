@@ -60,13 +60,13 @@ Failure-injection and concurrency tests prove rollback, restart, and exactly-onc
 
 ## 4. Accepted migration immutability and drift detection
 
-Before acceptance into the protected primary branch, a branch-only migration candidate may be corrected, reordered, renamed, or consolidated. At merge acceptance its identity, filename, sequence, content, canonical bytes, checksum, and manifest entry freeze.
+Before its acceptance into the protected Beta lineage, an individual migration candidate may be corrected, reordered, renamed, or consolidated. At that migration's acceptance its identity, filename, sequence, content, canonical bytes, checksum, and manifest entry freeze. Candidates do not collectively refreeze merely because they coexist on one branch.
 
 Canonical migration bytes use governed UTF-8, line-ending, and normalization rules so Windows checkout behavior cannot create false drift or hide real drift. The accepted manifest and database ledger retain the applicable digest.
 
 Startup and status comparison distinguish an unknown migration, missing migration, content drift, ledger mismatch, ordering error, and unsupported future version. Drift blocks authoritative startup. SOMA never alters a ledger checksum, accepted file, or manifest entry to make unexpected content appear valid.
 
-Development databases affected by a pre-acceptance branch rewrite may be rebuilt or explicitly reset. An accepted migration is corrected only through a new forward migration. Checksums detect drift; they do not prove authorship, authenticity, or privileged-file tamper resistance.
+Only an explicitly disposable development database affected by a pre-acceptance rewrite may be rebuilt or reset. A non-disposable instance requires an accepted forward migration or recovery path. Abandoned candidate checksums have no compatibility guarantee unless the origin is explicitly supported. An accepted migration is corrected only through a new forward migration. Checksums detect drift; they do not prove authorship, authenticity, or privileged-file tamper resistance.
 
 ## 5. Observational migration status
 

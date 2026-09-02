@@ -134,6 +134,8 @@ Communication matching may create an idempotent reviewed proposal under the owni
 
 Accepted terminal Service Request or RFC state removes that entity's direct communication links through an audited domain event. It does not remove links to other protected operational entities, erase the terminal entity, or treat the communication body as part of the terminal record.
 
+For imported RFC terminal evidence, “accepted terminal state” means the explicit confirmed cascade decision governed by `BETA-REQ-0161`, not parsing, staging, import acceptance alone, or a pending proposal. Master-branch confirmation never removes an SR link or a communication's other protected entity links.
+
 After link removal, a retained communication with no remaining operational link, unresolved reviewed proposal, correction dependency, collision review, protected export dependency, or other protected hold enters **Orphaned — Pending Purge**.
 
 The orphan grace is:

@@ -115,6 +115,8 @@ Notes are operational journal entries.
 
 The RFC workbench uses the same open behavior, split layout, communication preview, responsive behavior, Notes rules, and merge-review principles.
 
+Recognized source status controls active/terminal/historical placement. Workbook absence has no record-level meaning: it never hides, archives, terminates, unlinks, or stops tracking an RFC/WFM. Because source workbooks may include closed, cancelled, complete, and Plan Cancel history, SOMA keeps those identities available and performs filtering locally through visible filters and saved views.
+
 The accepted tab order is:
 
 1. **Overview**
@@ -145,6 +147,7 @@ Overview displays accepted Enhanced Excel facts, provisional/import provenance, 
 ### 3.4 Tasks
 
 - The tab shows WFMs under their owning master or subordinate RFC.
+- Complete and Plan Cancel WFMs remain visible as terminal/cancelled history and never become active grouping candidates.
 - A Local Task may be created under a master or a subordinate RFC.
 - If no WFM exists, the absence does not block a Local Task.
 - WFM ownership remains exactly one RFC; a Local Task may relate to zero or many RFCs, including subordinate RFCs.
@@ -154,6 +157,8 @@ Overview displays accepted Enhanced Excel facts, provisional/import provenance, 
 An Objective is the reviewed grouping of scheduled Tasks, not an independently linked ticket container.
 
 - Creating or importing a future, noncancelled Task with a complete valid timeframe starts Objective grouping.
+- Grouping is global by transitive strict overlap; customer and RFC hierarchy remain explanatory partitions inside one temporal component.
+- Exactly touching intervals remain separate unless the operator explicitly reviews a merge.
 - A Task whose interval overlaps an existing Objective is proposed for that Objective.
 - If it bridges multiple Objectives, SOMA proposes one consolidation and the union timeframe; overlapping Objectives cannot remain after acceptance.
 - The operator reviews and may correct the Task interval or manually reassign Tasks before accepting a grouping conflict.
