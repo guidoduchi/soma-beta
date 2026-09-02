@@ -2,7 +2,7 @@
 
 Status: **Foundation review v0.3**  
 Target: **SOMA Beta 1.0.0**  
-Authority: confirmed source trust, field-retention, identity, population, and historical-selection decisions.
+Authority: confirmed source trust, field-retention, identity, population, historical-selection, and Infrastructure workbook-exchange decisions.
 
 ## 1. Purpose and source authority
 
@@ -17,6 +17,8 @@ The official source families are:
 | WFM Tasks | Service Provider Plan Creation | WFM source facts and provisional parent-RFC hints |
 
 Enhanced Excel remains authoritative for RFC facts. WFM RFC fields may create or provisionally populate a missing parent RFC, but cannot silently override a populated Enhanced Excel fact.
+
+The SOMA-generated Infrastructure workbook is not an authoritative external population. It is an operator-authored, versioned bulk registration/update format and human-readable discovery export governed by section 9 and the [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md). Absence from that workbook never means disappearance, deletion, archival, relocation, unlinking, or clearing.
 
 ## 2. Shared import behavior
 
@@ -222,6 +224,42 @@ Every selected active field was populated. `L2 Handler Name` was blank in 4 of 2
 
 Every selected field was populated except `Dispatch Progress`, blank in 3 of 17 rows (17.6%). Those three rows were exactly the `Plan Cancel` tasks. `Customer Organization` was populated in all 17 rows.
 
-## 9. Remaining LLD responsibility
+## 9. Infrastructure workbook import and export
+
+### 9.1 Workbook family and locations
+
+SOMA generates one versioned, macro-free `.xlsx` workbook family with three modes:
+
+1. an empty Network Element registration template;
+2. a human-readable current-device discovery export; and
+3. a round-trip export for reviewed updates.
+
+Infrastructure imports are discovered only from one operator-configured directory through an explicit **Check now** action. SOMA does not recurse into unrelated directories or fall back to broad scanning. Exports are written to an operator-selected destination; successful export does not register an import or mutate Infrastructure.
+
+The workbook declares its format version, mode, source-installation scope, generation chronology, and included filter/scope. The exact representation belongs in the LLD, but it must remain human-readable in ordinary spreadsheet software and usable without SOMA for device discovery.
+
+### 9.2 Allowed capability boundary
+
+The format may represent current Network Element name, Model, optional manufacturer serial, Site, same-Site Cloud Deployment, Room/Rack/U placement, zero-many IP addresses and primary selection, compound-containment parent, and permitted notes or import comments.
+
+It contains no password, private key, token, reusable secret, credential-provider reference, or Beta 1.0 connectivity/topology/interface/port edge. Export never creates those facts, and import never infers connectivity from co-occurrence, placement, Cloud assignment, IP patterns, or containment.
+
+### 9.3 Identity and cross-installation handling
+
+A valid same-installation round-trip identity may target one existing entity or relationship. A workbook identity originating in another installation is retained only as bounded provenance and matching evidence; it never authorizes an update to a coincidentally equal local identifier. Names, hostnames, Models, manufacturer serials, IP addresses, and placement labels are candidate evidence, not identity proof.
+
+New accepted rows receive new immutable local identities. Ambiguous or contradictory candidates remain unresolved proposals. Unknown Sites, Models, Racks, Cloud Deployments, or parents require explicit resolution or reviewed creation and are never silently invented.
+
+### 9.4 Staging and mutation
+
+Every eligible workbook is parsed without modifying its source file or domain state. Review distinguishes creations, proposed updates, unchanged rows, duplicate/ambiguous candidates, unknown references, invalid placement/containment/IP-primary facts, skipped rows, and warnings.
+
+Site, Rack, Cloud Deployment, one-primary-IP, containment-forest, archival, and dependency invariants remain enforced by the same application services as manual changes. Material Site/Rack/Cloud/containment reassignment is always explicit.
+
+Missing rows do not imply deletion, archival, movement, unlinking, or clearing. Blank or unusable optional cells preserve prior valid data unless a future explicit clearing operation is accepted in the contract. Batch acceptance commits transactionally or rolls back, and replay of identical accepted content is idempotent.
+
+Locked, corrupt, malformed, unsupported-version, inaccessible, or partially invalid workbooks produce bounded results without source modification or broader scanning. SOMA records bounded content identity, template version, source-installation scope, row/result decisions, warnings, actor, and chronology rather than a secret-bearing or unnecessary full workbook copy. Source and exported workbooks remain user-managed and are never automatically deleted, renamed, moved, or overwritten.
+
+## 10. Remaining LLD responsibility
 
 LLD must define exact workbook/header-version detection, data types, formula handling, cell-size limits, date-system handling, file stabilization, fingerprints, replay/idempotency, safe auto-accept classes, review presentation, import transaction boundaries, and sanitized golden fixtures. Those choices must implement this allowlist and may not reintroduce discarded columns without a Product Contract change.

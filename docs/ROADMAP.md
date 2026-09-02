@@ -54,7 +54,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - RFC master/subordinate hierarchy, WFM ownership, adoption, correction, attempts, archive, tracking, and terminal cascade behavior;
   - Objective and Task composition, scheduling, execution, review, correction, cloning, and retry;
   - Inventory lifecycle covering stock-first eligibility, SR-level Spare Need aggregation from Device Part Units, local/external quantity choice, Spare Request draft and external-submission origin, C10 RMA obligations, direct inbound and return-unit relationships, requested-versus-actual logistics, partial dispatch/receipt, Task outcomes, compatible bulk actions, exact-event correction, and the mandatory Fault Tag return workflow: cross-request membership, conditional pickup-origin snapshots, warehouse receipt, explicit final acceptance/rejection, correction replacement, rejection resend, and state-specific removal;
-  - Infrastructure identity, placement, component compatibility, installation, replacement, and history;
+  - Infrastructure terminology, Device Reference promotion, Network Element identity and progressive completion, Site/Rack placement, Cloud Deployment assignment, zero-many IP inventory, acyclic containment, component compatibility, installation/replacement history, SQLite authority, topology/SSH deferral, and versioned workbook import/export;
   - registered people, Customer Organizations, Local User Profile, Contracts, Product Lines, Contract Product Lines, Cloud Types, Cloud Deployments, Sites, Rooms, Racks, and Dispatch Locations;
   - source-specific import and population behavior;
   - offline PST/OST evidence and MSG draft behavior; and
@@ -143,7 +143,7 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
 
 - Clean relational schema, constraints, indexes, immutable evidence, and migration strategy.
 - Independent Beta migration lineage with atomic schema-and-ledger application, immutable accepted migrations, forward-only corrections, startup integrity checks, and no Alpha database upgrade path.
-- Exact state transitions, proposal review, compatible bulk operations, per-target and batch identity, requested and actual logistics events, Fault Tag membership and submitted snapshots, conditional pickup-origin snapshots, warehouse receipt and final-decision events, typed correction-replacement and resend lineage, correction and supersession mechanisms, and retention behavior.
+- Exact state transitions, proposal review, compatible bulk operations, per-target and batch identity, requested and actual logistics events, Fault Tag membership and submitted snapshots, conditional pickup-origin snapshots, warehouse receipt and final-decision events, typed correction-replacement and resend lineage, Infrastructure placement/containment/IP invariants, versioned workbook exchange and installation-scoped identity, correction and supersession mechanisms, and retention behavior.
 - Command/query contracts, validation order, transaction boundaries, concurrency, stable errors, idempotency, and no-op behavior.
 - Local API routes and request/response contracts.
 - Exact parsers, types, validation, and transactions implementing the accepted allowlists and semantics in `IMPORT_CONTRACT.md` for Advanced Search SR data, Enhanced Excel RFC data, and Service Provider WFM plans.
@@ -251,7 +251,9 @@ Complete every operational domain through functional, responsive web workflows b
 
 #### 5.2 Infrastructure
 
-- Customer Organization, Site, Cloud Type, Cloud Deployment, Room, Rack, Network Element models and instances, compound elements, placement, component compatibility, installation, replacement, and history.
+- Customer Organization, Site, Cloud Type, Cloud Deployment, Room, Rack, Device Reference promotion, Network Element models and progressively completed instances, zero-many IP inventory with one primary, acyclic compound containment, placement, component compatibility, installation, replacement, and history.
+- Generate versioned Infrastructure workbooks for empty registration, human-readable current-device discovery export, and safe round-trip updates. Discover imports only from the configured directory, stage every mutation, scope update identity to the source installation, preserve absence nondestructively, and expose import/export history.
+- Keep credential fields, connectivity, discovery, reachability, topology, interfaces/ports, and SSH unavailable in 1.0.0.
 - Activate Inventory-to-device installation and replacement workflows after their cross-domain invariants pass.
 
 #### 5.3 Offline communications

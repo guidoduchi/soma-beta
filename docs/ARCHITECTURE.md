@@ -34,7 +34,7 @@ The browser UI is a client of a local application boundary. Domain rules do not 
 | Tickets | SRs, RFCs, hierarchy, workbench device references, Contract Product Line classification, source observations |
 | Objectives | Maintenance Windows, Local/WFM Tasks, RFC branches, scheduling, planned/actual time, review and attempts |
 | Inventory | Stock, BOM catalog, SR-level Spare Needs, Device Part Units, Spare Requests, RMA obligations, Spare Part Units, requested and actual logistics, Task outcomes, Fault Tag identities and memberships, pickup-origin snapshots, warehouse decisions, replacement/resend lineage, proposals, bulk actions, correction, and removal |
-| Infrastructure | customer-owned Sites, reusable Cloud Types, site-bound Cloud Deployments, device models and instances, installed components, replacement history |
+| Infrastructure | customer-owned Sites; Rooms/Racks; reusable Cloud Types and site-bound Deployments; Device References; Network Element models, instances, IP inventory, containment, placement, installed components, replacement history, and reviewed workbook exchange |
 | SLA Policy | Customer-owned Contracts, reusable Product Lines, Contract Product Lines, cohort tiers, suspension, endpoints, derived results, warnings |
 | Overview and Reporting | curated metrics, narrative queues, filters, Excel snapshots |
 | Import/Reconciliation | source adapters, provenance, diffs, safe auto-accept policy |
@@ -82,6 +82,8 @@ Audit history is a first-class persistence concern. Hard deletion is a narrow op
 
 Inventory persistence separates immutable entity identity, accepted lifecycle events, current projections, relationship history, proposal decisions, bulk-batch identity, requested-logistics snapshots, shared actual-logistics events, and per-target participation. Fault Tag persistence additionally separates tag and membership identity, derived RMA/ticket/Device context, immutable submitted display snapshots, conditional pickup-origin snapshots, per-membership warehouse events, and typed correction-replacement versus resend lineage. A correction targets an exact event or relationship and recomputes the projection without rewriting entity identity or original evidence.
 
+SQLite is the authoritative operational datastore for Beta 1.0. Infrastructure placement, IP inventory, containment, Cloud assignment, component history, workbook proposals, and every other domain invariant remain relationally enforceable and queryable without a graph database. A later graph engine requires representative measurements and can only be a rebuildable, versioned, disposable projection that accepts no independent authoritative writes and owns no unique facts.
+
 ## 5. Local security envelope
 
 The login password is authentication material only. It is never used directly or indirectly to encrypt data, wrap encryption keys, or protect backups, and it is never stored in plaintext.
@@ -122,11 +124,15 @@ Every staged run exposes a proposal-oriented impact summary before mutation. Sou
 
 The local application shell owns scheduled Advanced Search invocation and satisfied-boundary persistence. After inbox configuration it supports the accepted daily default, operator configuration/disablement, a single missed-boundary startup catch-up, and an always-available manual check. Scheduling only invokes discovery and staging; it never bypasses domain reconciliation policy.
 
+Infrastructure workbook exchange uses a separate operator-authored adapter governed by the [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md). SOMA generates the supported workbook versions for empty registration, human-readable discovery export, and round-trip update. Import discovery is bounded to one configured directory and always stages review; export uses an operator-selected destination. Missing rows never carry authoritative absence, and foreign-installation identities remain provenance/matching evidence rather than update authority.
+
 ## 7. Workbench and reference promotion
 
 The Service Request and RFC workbenches are projections over shared domain identities, not private copies of devices, Tasks, RFCs, spares, or notes. Their exact interaction contract is defined in [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md).
 
 An unregistered device reference is owned by the operational context that first records it and can be used immediately across Tickets, Objectives, and Inventory. Promotion through the deliberate three-second control creates or links one Infrastructure Network Element in a transaction that preserves and repoints existing relationships. Promotion cannot produce a second operational device for the same reference.
+
+Registered Network Elements preserve zero-many optional IP addresses with at most one primary. Address inventory does not activate interfaces, discovery, reachability, connectivity, topology, or SSH. Compound containment is an acyclic forest and remains distinct from Site/Room/Rack placement, Cloud Deployment assignment, Component history, and deferred connectivity.
 
 Objective grouping is a domain policy, not a calendar-only UI behavior. It evaluates accepted Task intervals, prohibits accepted overlapping Objectives, stages consolidation when a Task bridges groups, and keeps Tasks without complete intervals unscheduled.
 
@@ -153,6 +159,6 @@ A local Python runtime and local web UI are the current direction. The exact sup
 
 ## 10. Release boundaries
 
-1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, pickup-origin and actual logistics, cross-request membership, correction replacement, rejection resend, state-specific removal, external request registration, reviewed proposals, compatible bulk actions, exact-event correction, security, official imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
+1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, pickup-origin and actual logistics, cross-request membership, correction replacement, rejection resend, state-specific removal, Infrastructure identity/placement/IP inventory/containment, reviewed Infrastructure workbook import and discovery export, external request registration, reviewed proposals, compatible bulk actions, exact-event correction, security, official operational imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
 
 1.x.0 may add SSH/device operations, connectivity/topology, and language switching. Shared multi-user databases, direct email, cloud services, arbitrary report builders, and Alpha database migration require a later product decision.

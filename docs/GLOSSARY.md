@@ -44,8 +44,11 @@ This glossary is normative product language. UI copy, schemas, imports, and docu
 | Site | One physical Datacenter belonging to exactly one Customer Organization. Site names and city codes may repeat across organizations, but each physical location is a distinct Site and automatically has one exclusive Dispatch Location. |
 | Dispatch Location | A reusable physical logistics address whose role is operation-specific. A Spare Request may use it for delivery or self-pickup; a Fault Tag may use it as the pickup origin from which return units are dispatched or collected. The pickup origin is not the warehouse destination. A site-bound location inherits the Site address. |
 | Network Element Model | A reusable device type/model definition. |
-| Network Element | A specific device instance whose components may differ from other instances of the same model. |
+| Network Element | A registered device instance with immutable SOMA identity, nonblank operational name, and one physical Site. Model, serial, precise placement, Cloud Deployment, and IP inventory may be completed progressively. |
+| Network Element IP Address | An optional stored address belonging to one Network Element. It is descriptive inventory and matching evidence, not relational identity or proof of connectivity. One address per Network Element may be primary. |
+| Compound containment | The acyclic parent/child forest among Network Elements or compound sub-elements, distinct from physical placement, Component installation, and connectivity. |
 | Component | A BOM-compatible or historically installed part associated with a Network Element or compound sub-element. |
+| Infrastructure Workbook | A versioned SOMA-generated `.xlsx` family used for empty device registration, human-readable current-device discovery export, and reviewed round-trip updates. Import identities are authoritative only within their source installation. |
 | Population | Updating source-owned fields on an identity-matched record while preserving SOMA-owned meaning and history. |
 | Import Review | Operator acceptance, rejection, or conflict resolution for proposed source changes. |
 | Workbench | The focused split ticket view with a tabbed working area and local communication-evidence preview. |

@@ -4,7 +4,7 @@ Status: **Foundation review v0.3**
 Target: **SOMA Beta 1.0.0**  
 Authority: confirmed product decisions; unresolved items are listed in `DECISIONS.md` and are not implementation permission.
 
-Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), and [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
+Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md), and [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
 
 ## 1. Product intent
 
@@ -236,22 +236,28 @@ The complete lifecycle, cardinalities, deterministic assignment, request-origin 
 
 ## 9. Infrastructure
 
+**Infrastructure** is the canonical workspace. `Device Manager` and `Managed Element` are not canonical Beta domain terms. Tickets, Tasks, Objectives, and Inventory use a Device Reference that may remain unregistered/external or resolve to one registered Network Element; deliberate promotion preserves its operational relationships without duplication.
+
 The physical/organizational model is:
 
 - A Customer Organization owns Contracts and Sites.
-- A Site is one physical Datacenter and belongs to exactly one Customer Organization. Equal names or city codes across organizations remain distinct records and never imply the same physical location.
-- A Cloud Type is reusable—such as PRV, B2B, AMS, BES, or NFV—and appears at a Site through a distinct Cloud Deployment. Each Cloud Deployment belongs to exactly one Site; the same Cloud Type may therefore have separate deployments at GYE, UIO, GLP1, GLP2, MAP, INC, and other Sites.
-- A regularized Network Element belongs to its physical Site and may be assigned to one of that Site's Cloud Deployments. Its Customer Organization is derived through the Site. Unregistered/external Device References remain valid without forced placement or ownership.
-- Site contains Rooms; Room contains Racks; Rack records row and column.
-- A Network Element is an installed device instance and may be standalone/unplaced or located in a Rack.
-- A Network Element Model is reusable across customers and device instances.
-- Devices of the same model may contain different installed Components.
-- A Network Element may contain compound sub-elements; circular containment is invalid.
-- Components use BOM codes, immutable local physical-unit identities, optional manufacturer serials, and immutable installation/replacement events.
+- A Site is one physical Datacenter and belongs to exactly one Customer Organization. Equal names or city codes across organizations remain distinct records.
+- A Cloud Type is reusable—such as PRV, B2B, AMS, BES, or NFV—and appears at a Site through a distinct Cloud Deployment. Each Deployment belongs to exactly one Cloud Type and one Site.
+- A registered Network Element has immutable internal identity, nonblank operational name, and exactly one physical Site. Model, serial, Rack/U placement, Cloud Deployment, and IP inventory may be completed progressively.
+- Customer Organization derives through Site. A Network Element may use at most one Cloud Deployment and it must belong to that Site.
+- Site contains Rooms; Room contains Racks; Rack records row and column. A Network Element may be site-level/unracked, placed in one same-Site Rack, or participate in compatible compound containment.
+- A Network Element Model is reusable. Manufacturer serial is optional evidence and never relational identity.
+- A Network Element supports zero-many optional IP addresses and at most one primary. IP inventory is not identity, interface modeling, reachability, connectivity, topology, or SSH.
+- Network Element and compound-sub-element containment is an acyclic forest, distinct from placement, Cloud assignment, Component installation, and connectivity.
+- Devices of the same Model may contain different installed Components. Components use BOM codes, immutable local physical-unit identities, optional manufacturer serials, and immutable installation/replacement events.
 
-BOM **compatibility** with a model and BOM **historical use** in an instance are distinct facts. Replacement events link the installed and removed units, target Network Element/slot, and applicable SR, Objective, and Task. An unknown legacy component can be registered progressively when it is first replaced.
+BOM **compatibility** with a Model and BOM **historical use** in an instance are distinct facts. Replacement events link installed and removed units, target Network Element/slot, and applicable SR, Objective, and Task. Unknown legacy facts may be registered progressively.
 
-Device connectivity, topology, and SSH are excluded from 1.0.0.
+Beta 1.0 stores no device password, key, token, or credential-provider reference in ordinary records, Notes, evidence, audit, logs, or workbooks and exposes no device-credential control. Connectivity, topology, discovery, reachability, interfaces/ports, and SSH are excluded from 1.0.0 and are never inferred from placement, Cloud assignment, IP patterns, co-occurrence, import, or containment.
+
+SQLite is authoritative for every Infrastructure fact and invariant. A later graph engine may exist only as a measured, rebuildable, disposable derived projection without independent authoritative writes or unique facts.
+
+Beta 1.0 generates a versioned Infrastructure workbook family for empty device registration, human-readable current-device discovery export, and reviewed round-trip update. Imports are discovered only from one configured directory and always stage review; exports use an operator-selected destination. Same-installation round-trip identity may target updates, while foreign-installation identity is provenance/matching evidence only. Missing rows never imply deletion or unlinking. The complete normative behavior is in the [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md).
 
 ## 10. Dispatch Locations
 
@@ -273,6 +279,8 @@ The official 1.0.0 sources are:
 | Service Requests | Advanced Search Excel export |
 | RFCs | Enhanced Excel Data Export |
 | WFM Tasks | Service Provider Plan Creation Excel export |
+
+The SOMA-generated Infrastructure workbook is a separate operator-authored bulk registration/update and discovery-export format, not a fourth authoritative operational source. Omitted devices or fields carry no disappearance meaning. Its contract is defined in [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md) and [Import Contract §9](IMPORT_CONTRACT.md#9-infrastructure-workbook-import-and-export).
 
 The exact active/deferred allowlists, discarded-column boundary, delimiters, conditional blanks, historical cutoff, source precedence, and aggregate sample evidence are normative in the [Import Contract](IMPORT_CONTRACT.md).
 

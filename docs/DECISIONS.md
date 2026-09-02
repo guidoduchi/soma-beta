@@ -83,6 +83,17 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-074 | Fault Tag hard deletion is limited to a truly untouched manual draft. Other states use Cancel, Supersede and Replace, Archive, or Create Resend with impact preview, transactional audit, and no cascade into independent records or exported files. |
 | D-075 | Pickup-origin evidence is conditional on a pickup return method and cannot exist without exactly one selected Dispatch Location. Non-pickup methods fabricate no pickup snapshot; actual pickup remains separate, and replacement or resend attempts receive their own logistics snapshots. |
 
+
+| D-076 | Infrastructure is the canonical workspace; Managed Element is retired. Device Reference is operational identity that may remain unregistered or resolve to one Network Element without relationship duplication. |
+| D-077 | A registered Network Element has immutable identity, nonblank name, and one physical Site while Model, serial, Rack/U, Cloud Deployment, and other facts may be completed progressively. Placement and ownership are derived through accepted relationships; SSH credential fields are absent from 1.0. |
+| D-078 | Beta 1.0 retains zero-many stored IP addresses per Network Element and at most one primary. IP is optional descriptive inventory and candidate matching evidence, not identity, connectivity, discovery, reachability, topology, or SSH. |
+| D-079 | Network Element and compound-sub-element containment is an acyclic forest, distinct from physical placement, Cloud assignment, component compatibility, and connectivity. |
+| D-080 | Reusable Cloud Types appear through site-bound Cloud Deployments. Each Network Element belongs to one Site and may use at most one Deployment at that Site; Customer Organization derives through Site. |
+| D-081 | Connectivity remains separate from containment, placement, Cloud assignment, and IP inventory and is deferred to 1.x.0. Beta 1.0 infers no topology from proximity, co-occurrence, addressing, import, or containment. |
+| D-082 | Device credentials and reusable secrets never enter ordinary persistence, Notes, evidence, audit, logs, or workbooks. Beta 1.0 exposes no device-credential control; a future capability may retain only opaque approved-provider references. |
+| D-083 | SQLite is authoritative for all 1.0 operational truth. A later graph engine requires representative measurements and may only be a rebuildable, disposable, read-derived projection with no independent authoritative writes or unique facts. |
+| D-084 | Beta 1.0 generates versioned Infrastructure workbooks for empty registration, human-readable device discovery, and reviewed round-trip update. Imports come only from one configured directory, stage every mutation, preserve absence nondestructively, scope update identity to its source installation, prohibit credentials/topology, and remain idempotent; exports go to an operator-selected location. |
+
 ## Deferred beyond 1.0.0
 
 | ID | Deferred capability | Earliest intent |

@@ -154,6 +154,17 @@ An Objective is the reviewed grouping of scheduled Tasks, not an independently l
 - Imported tickets cannot be officially reopened by SOMA. A source observation implying reopening is treated as possible parsing or external-data manipulation: high risk, but permitted after explicit operator confirmation and audit.
 - Manual SRs may use their accepted local lifecycle until official reconciliation.
 
-## 6. Deferred behavior
+## 6. Infrastructure workspace exchange
+
+The Infrastructure workspace owns the interactive counterpart to the [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md):
+
+- **Generate Import Workbook** produces the empty registration template.
+- **Export Devices** produces a human-readable filtered discovery snapshot or round-trip workbook at an operator-selected destination.
+- **Check now** scans only the configured Infrastructure Import Directory.
+- Import review separates creations, updates, unchanged rows, ambiguity, duplicates, unknown references, invalid placement/IP/containment, skips, and warnings before confirmation.
+- Cross-installation identity, nondestructive absence, batch transaction, idempotency, file-preservation, and secret/topology exclusions remain visible in applicable warnings and results.
+- Import/export history is inspectable without treating exported workbooks as live state.
+
+## 7. Deferred behavior
 
 MOP generation belongs to Beta 1.1.0. It will be initiated from Local Tasks and may use accepted SR workbench information to populate a reviewed DOCX template. It is not part of Beta 1.0.0.
