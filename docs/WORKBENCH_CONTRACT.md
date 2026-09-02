@@ -11,9 +11,19 @@ Tickets open into a focused workbench rather than a sequence of disconnected dia
 - Pressing Enter while a ticket is selected through keyboard navigation performs the same action.
 - The wide layout has a left working area with small tabs and a right communication-evidence preview.
 - The narrow responsive layout keeps the same information and actions through switchable panes; it does not remove the communication side.
-- The right pane previews locally indexed relevant email evidence. SOMA does not contact an email service.
+- The right pane presents canonical retained matched communications, direction and age summaries, coverage/warnings, and safe navigation according to the Communications Contract. SOMA does not contact an email service.
 - All pointer actions have a keyboard equivalent, visible focus, and non-color state cues.
 - Relationship consolidation uses a reviewed merge preview. SOMA shows retained records, incoming context, conflicts, and consequences before applying the merge.
+
+### 1.1 Shared communication presentation
+
+- Service Request, Spare Request, and RFC workbenches display independently derived received count, sent count, direction, most recent interaction time or unknown-time state, and last-interaction age from canonical communication links.
+- One retained communication body exists once within its Communication Source Scope even when it links to several entities. A workbench relationship never copies the body, participant collections, or attachment metadata into the ticket or request.
+- Selecting a communication opens the canonical retained message only when its content is still available and the operator is permitted to view it. Missing source coverage, partial scans, collisions under review, parse failures, pending backfill, and purged content have distinct non-color warning states.
+- Locally generated unsent MSG drafts are shown separately from received/sent evidence and do not contribute to sent counts or interaction age.
+- After accepted SR/RFC termination, direct communication links are removed. The terminal workbench retains a frozen minimal summary containing prior received/sent counts, last known direction and interaction chronology, unlink chronology, and coverage state, but it does not retain or navigate to a purged body merely to preserve the summary.
+- A communication that remains linked to another protected operational entity stays available from that entity. Pending-purge and purge administration belongs to the Communication housekeeping surface, not the workbench.
+- Coverage and summary projections are reproducible from accepted communication/link/job history and never independently editable.
 
 ## 2. Service Request workbench
 

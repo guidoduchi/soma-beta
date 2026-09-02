@@ -18,7 +18,7 @@ The official source families are:
 
 Enhanced Excel remains authoritative for RFC facts. WFM RFC fields may create or provisionally populate a missing parent RFC, but cannot silently override a populated Enhanced Excel fact.
 
-The SOMA-generated Infrastructure workbook is not an authoritative external population. It is an operator-authored, versioned bulk registration/update format and human-readable discovery export governed by section 9 and the [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md). Absence from that workbook never means disappearance, deletion, archival, relocation, unlinking, or clearing.
+The SOMA-generated Infrastructure workbook is not an authoritative external population. It is an operator-authored, versioned bulk registration/update format and human-readable discovery export governed by section 9 and the [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md). Absence from that workbook never means disappearance, deletion, archival, relocation, unlinking, or clearing. Communication-processing eligibility and terminal unlinking are governed separately by the [Communications Contract](COMMUNICATIONS_CONTRACT.md).
 
 ## 2. Shared import behavior
 
@@ -40,6 +40,10 @@ The SOMA-generated Infrastructure workbook is not an authoritative external popu
 - Persisted source observations retain source family, file fingerprint, import run, row locator, parsed identity, only meaningfully observed or changed allowlisted values, and applicable validation/review findings.
 - Unallowlisted values are not persisted as generic metadata, searchable text, an opaque copy of the row, or a retained workbook copy. SOMA retains the file fingerprint and bounded provenance; the external original remains user-managed.
 - Raw operational workbooks and their customer data are not committed to the source repository.
+- Acceptance that creates the installation's first trackable communication entity makes Communication Processing eligible, but the import transaction never fetches, scans, matches, advances a communication high-water mark, or accepts a communication-derived proposal. The independent scheduler or Check now command performs that work afterward.
+- An accepted terminal SR/RFC observation invokes the owning domain transition. That transition previews and records direct communication-link removal and may start orphan grace only for a retained communication with no remaining protected dependency. Staged, rejected, invalid, or merely parsed terminal values never unlink or purge communication evidence.
+- An accepted terminal reversal during orphan grace restores the same SR/RFC relationship when its evidence remains available and cancels pending purge. After content purge, the independent communication workflow may run a targeted backfill if the source remains available; otherwise the workbench records a coverage warning. Import never fabricates reconstructed content.
+- Import runs do not create or update Communication Source Scopes, source health, coverage intervals, high-water marks, processing jobs, fallback message identities, MSG drafts, or orphan-purge due times except by invoking an accepted cross-domain command explicitly defined in the Communications Contract.
 
 ### 2.1 Current projection and compact history
 

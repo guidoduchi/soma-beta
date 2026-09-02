@@ -52,6 +52,14 @@ This glossary is normative product language. UI copy, schemas, imports, and docu
 | Population | Updating source-owned fields on an identity-matched record while preserving SOMA-owned meaning and history. |
 | Import Review | Operator acceptance, rejection, or conflict resolution for proposed source changes. |
 | Workbench | The focused split ticket view with a tabbed working area and local communication-evidence preview. |
+| Communication Source Scope | Immutable mailbox/account context for one or more reconciled PST/OST stores. It is independent of file path and scopes message identity, coverage, and high-water state. |
+| Trackable communication entity | An accepted SR, Spare Request, RMA, RFC, WFM Task, Objective, or Fault Tag whose supported identities may match communications while its lifecycle remains eligible. |
+| Retained communication | One canonical data-minimized matched message with immutable SOMA identity and zero-many independently historical entity links. Unmatched content is never retained. |
+| Communication coverage | Completed source/folder/time ranges actually processed under a scan profile. Historical coverage is distinct from the forward high-water position. |
+| Targeted backfill | A bounded identity/source/folder/range job repairing older missing communication coverage without rewinding unrelated forward progress. |
+| Deep Scan | An explicitly initiated and confirmed broad communication scan; it is never an automatic fallback. |
+| Orphaned — Pending Purge | A retained communication with no valid link or protected dependency, held for a configurable positive grace period defaulting to seven exact elapsed days before transactional revalidation and content purge. |
+| Terminal communication summary | Frozen non-reconstructable received/sent/final-time/final-direction evidence shown after an SR or RFC's direct communication links are removed. |
 | Historical View | The retained view for records outside the configured Daily, Weekly, or Monthly main period. |
 | SLA Cohort Tier | A Contract Product Line rule requiring a percentage of eligible SRs of one severity to resolve or close within an inclusive duration. |
 | SLA Result | A derived individual-duration or cohort-compliance result calculated from Contract Product Line policy, severity, effective Report Date, suspension, endpoint, and reporting-period facts. |

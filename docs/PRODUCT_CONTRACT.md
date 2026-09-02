@@ -4,7 +4,7 @@ Status: **Foundation review v0.3**
 Target: **SOMA Beta 1.0.0**  
 Authority: confirmed product decisions; unresolved items are listed in `DECISIONS.md` and are not implementation permission.
 
-Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md), and [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
+Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md), [Communications Contract](COMMUNICATIONS_CONTRACT.md), and [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
 
 ## 1. Product intent
 
@@ -304,15 +304,19 @@ An imported source cannot correct an official identity in place. Identity reconc
 
 ## 12. Offline mail evidence
 
-SOMA does not connect to an email server and cannot send or receive mail directly.
+The complete normative lifecycle is defined by the [Communications Contract](COMMUNICATIONS_CONTRACT.md).
 
-- It reads PST/OST files without modifying them, indexes selected folders such as Inbox and Sent, and matches supported operational identifiers.
-- It generates `.msg` draft items with recipient, subject, body, and attachments for the operator to send manually.
-- Generating a draft validates its recipient at that moment. The operator may select another eligible Contact or register a missing address without making communication channels mandatory for the underlying Ticket, Objective, Spare Need, or Spare Request.
-- Communication evidence snapshots the recipient identity and address used for the artifact; later Contact edits do not rewrite it.
-- Generating a draft is not evidence that it was sent.
-- Sent or lifecycle evidence exists after a later PST/OST scan finds it or the operator explicitly records manual confirmation. Beta 1.0 persistence and application services accept optional evidence references, but the UI exposes no manual attachment or upload control; manual actions remain valid without evidence.
-- Locked, corrupted, or unsupported stores fail safely without modification.
+SOMA does not connect to an email service and cannot send or receive mail directly. It reads configured PST/OST Communication Source Scopes without modifying them and generates MSG drafts for the operator to send through an external application. Saving or exporting a draft does not prove sending.
+
+Automatic Communication Processing is eligible only after at least one registered trackable operational entity exists. Infrastructure or descriptive Device records alone do not activate it. The registry includes supported SR/TT, Spare Request, RMA/C10, RFC, WFM, Objective, and Fault Tag identities and aliases. Initial scanning is bounded by the earliest relevant accepted creation/report boundary, then continues incrementally from durable per-scope high-water marks with overlap. An older added target may request a bounded targeted backfill; Deep Scan is an explicit scoped operator action.
+
+Only matched communications persist. Each retained communication is canonical within its Communication Source Scope, may link independently to multiple operational entities, stores structured participant roles, and uses a provider-stable origin identifier or a versioned collision-safe fallback. Entity links carry matching and review facts rather than duplicate message bodies. Communication-derived proposals require review and never write domain state implicitly.
+
+One local fetch-and-match pipeline runs hourly by default, using a configurable positive whole-minute interval or an explicit disabled setting. Check now, one bounded catch-up, non-overlap, progress, phase/count reporting, cancellation, bounded retry, restart-safe checkpoints, and redacted diagnostics are required. Advanced Search synchronization, communication processing, communication-derived proposal acceptance, and local MSG draft persistence remain independent workflows with no implicit cross-write.
+
+Accepted terminal SR or RFC state removes its direct communication links. A retained communication that then has no remaining protected operational dependency enters **Orphaned — Pending Purge** for a configurable positive installation-level grace period of seven exact elapsed days by default. Restoring a protected link cancels pending purge. At expiry SOMA transactionally revalidates dependencies before purging reconstructable content, while preserving a non-reconstructable purge record and frozen minimal terminal summary. It never modifies external PST/OST stores, exported MSG files, portable exports, or existing backups. Reversal after purge may use targeted backfill when the source remains available; otherwise the workbench exposes a coverage warning.
+
+Service Request, Spare Request, and RFC views distinguish received and sent counts, direction, last-interaction age, coverage/warnings, and canonical-message navigation without copying bodies. Terminal SR/RFC views retain their frozen minimal summary even after the body is purged. Beta 1.0 persistence accepts optional communication evidence references but exposes no attachment/upload control; manual domain actions remain valid without evidence.
 
 ## 13. Contract Product Lines and SLA
 
@@ -329,11 +333,11 @@ Warning presentation keeps classification, individual duration evidence, cohort 
 - Hard deletion is restricted to untouched manual records with no imported/adopted provenance, executed Objective, communication, review, spare-use, lifecycle, or dependent history.
 - Removing a Task from an unexecuted Objective is allowed only when the Objective retains at least one Task, or when the complete untouched Objective is removed atomically.
 - Business history is preserved when a relationship changes.
-- Beta 1.0.0 provides Historical views and archive-safe presentation but no purge of operational records. Purge policy is deferred to Beta 1.1.0.
-- Report completion, terminal status, source disappearance, source age, inactivity, or elapsed time never finalizes or minimizes operational records in Beta 1.0. Movement to Historical view is presentation only. Alpha's 180-day timer, terminated-episode snapshot, 27-field final snapshot, and report-triggered cleanup are not Beta behavior.
+- Beta 1.0.0 provides Historical views and archive-safe presentation and no general purge of operational domain records. The narrow orphaned-communication content transition in section 12 is the only elapsed-time operational-content exception; it preserves domain records, link/purge history, and the frozen terminal summary.
+- Report completion, terminal status, source disappearance, source age, inactivity, or elapsed time never finalizes or minimizes domain records in Beta 1.0. Movement to Historical view is presentation only. Accepted SR/RFC termination may remove direct communication links and begin the section 12 orphan grace only when no protected link remains. Alpha's 180-day record timer, terminated-episode snapshot, 27-field final snapshot, and general report-triggered cleanup are not Beta behavior.
 - Technical cache reconstruction, temporary staging cleanup, diagnostic-log rotation, and verified backup rotation are separate from operational-history retention.
-- Beta 1.0 exposes no operational retention countdown, due timestamp, scheduled purge, per-user retention, postponement, or legal-hold control. Daily/Weekly/Monthly affects main-view visibility only. Any later operational retention policy is installation-level and requires a new accepted contract rather than inheriting Alpha's 180-day default.
+- Beta 1.0 exposes no general operational-record retention countdown, due timestamp, scheduled purge, per-user retention, postponement, or legal-hold control. Daily/Weekly/Monthly affects main-view visibility only. The section 12 installation-level orphan grace is a domain-specific positive timer, seven exact elapsed days by default, and does not authorize broader retention. Any broader policy requires a new accepted contract rather than inheriting Alpha's 180-day default.
 
 ## 15. 1.0.0 acceptance boundary
 
-Beta 1.0.0 is not complete until all six work areas function together, Contract Product Line/SLA rules are enforced, supported Excel imports and exports work, offline PST/OST and MSG workflows work, local data is protected, and the UI supports responsive light/dark operation plus Windows tray behavior.
+Beta 1.0.0 is not complete until all six work areas function together, Contract Product Line/SLA rules are enforced, supported Excel imports and exports work, the complete target-gated PST/OST processing, matching, coverage, backfill, proposal, terminal unlink, orphan grace/purge, summary, and MSG workflows work, local data is protected, and the UI supports responsive light/dark operation plus Windows tray behavior.

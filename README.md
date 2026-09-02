@@ -30,6 +30,8 @@ These names and this order are product language. `Settings` must not be renamed 
 - [Import contract](docs/IMPORT_CONTRACT.md)
 - [Ticket and Objective workbench contract](docs/WORKBENCH_CONTRACT.md)
 - [Inventory lifecycle contract](docs/INVENTORY_LIFECYCLE.md)
+- [Infrastructure contract](docs/INFRASTRUCTURE_CONTRACT.md)
+- [Communications contract](docs/COMMUNICATIONS_CONTRACT.md)
 - [Domain glossary](docs/GLOSSARY.md)
 - [Contract Product Line and SLA contract](docs/PRODUCT_LINE_SLA.md)
 - [High-level architecture](docs/ARCHITECTURE.md)
@@ -48,4 +50,4 @@ These names and this order are product language. `Settings` must not be renamed 
 
 ## Version intent
 
-`1.0.0` delivers the six functional work areas, local security, supported imports, PST/OST reading, MSG draft generation, Excel exports, Contract Product Line/SLA control, responsive light/dark UI, and Windows tray behavior. Device operations such as SSH, topology, and language switching belong to `1.x.0`.
+`1.0.0` delivers the six functional work areas, local security, supported imports and Infrastructure workbook exchange, target-gated read-only PST/OST processing with canonical matching, coverage, terminal orphan grace/purge, and workbench summaries, MSG draft generation, Excel exports, Contract Product Line/SLA control, responsive light/dark UI, and Windows tray behavior. Device operations such as SSH, topology, and language switching belong to `1.x.0`.

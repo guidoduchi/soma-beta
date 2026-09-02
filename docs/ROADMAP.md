@@ -57,7 +57,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - Infrastructure terminology, Device Reference promotion, Network Element identity and progressive completion, Site/Rack placement, Cloud Deployment assignment, zero-many IP inventory, acyclic containment, component compatibility, installation/replacement history, SQLite authority, topology/SSH deferral, and versioned workbook import/export;
   - registered people, Customer Organizations, Local User Profile, Contracts, Product Lines, Contract Product Lines, Cloud Types, Cloud Deployments, Sites, Rooms, Racks, and Dispatch Locations;
   - source-specific import and population behavior;
-  - offline PST/OST evidence and MSG draft behavior; and
+  - target-gated PST/OST processing, source scopes, canonical matching, coverage/high-water marks, backfill/Deep Scan, reviewed proposals, terminal orphan grace/purge, workbench summaries, and MSG draft behavior; and
   - Contract Product Line classification, cohort SLA calculations, warnings, and Overview presentation.
 - Define product-level deletion, correction, archive, replacement, restoration, and historical-evidence rules.
 - Confirm Beta 1.0.0 acceptance scope and explicit Beta 1.x.0 deferrals.
@@ -157,7 +157,7 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
   - independent portable-backup encryption and high-entropy recovery-secret handling;
   - key recovery and rotation;
   - WAL-safe backup, verification, pruning, and restore;
-  - PST/OST read-only processing and MSG generation;
+  - PST/OST read-only source scopes, provider/fallback identity, coverage/high-water processing, target registry, backfill/Deep Scan, matched-message/link persistence, background jobs, terminal orphan grace/purge, workbench summaries, and MSG generation;
   - packaging; and
   - supported Windows, Python, and browser versions.
 - Concrete audit allowlists, append-only evidence, rollback, housekeeping, and privacy-aware diagnostics.
@@ -258,8 +258,14 @@ Complete every operational domain through functional, responsive web workflows b
 
 #### 5.3 Offline communications
 
-- Read-only PST/OST indexing, identifier matching, reviewable Inventory milestone proposals, evidence links, targeted backfill, progress, cancellation, and MSG draft generation. Persistence/services accept optional evidence references, but Beta 1.0 exposes no manual attachment or upload control.
-- SOMA never sends or receives email directly.
+- Implement the target gate and versioned registry for SR/TT, Spare Request, RMA/C10, RFC, WFM, Objective, and Fault Tag identifiers; Infrastructure and descriptive Device data alone do not activate scanning.
+- Implement path-independent read-only Communication Source Scopes, structured participants, provider-stable identity, versioned collision-safe fallback identity, canonical messages, and independent multi-entity links.
+- Implement initial relevant-time boundaries, per-scope high-water marks with overlap, coverage warnings, bounded targeted backfill, and explicit scoped Deep Scan.
+- Run one local combined fetch-and-match pipeline hourly by default with positive whole-minute configuration, disable and Check now controls, one catch-up, non-overlap, restart-safe progress, cancellation, bounded retry/backoff, and redacted diagnostics.
+- Persist only matched communications; keep unmatched parse results transient. Produce reviewed domain proposals without implicit writes.
+- On accepted SR/RFC termination, remove direct communication links. When no protected dependency remains, apply the configurable positive orphan grace of seven exact elapsed days by default, cancel it on relink, revalidate at expiry, purge reconstructable content, and preserve the purge record plus frozen terminal summary.
+- Expose received/sent counts, direction, last-interaction age, coverage, and canonical navigation without body duplication. Keep Advanced Search synchronization, communication processing, proposal acceptance, and local MSG draft persistence independent.
+- Generate MSG drafts without treating them as sent evidence. Beta 1.0 never sends or receives email directly, exposes no manual attachment/upload control, and keeps valid manual domain actions independent of evidence.
 
 #### 5.4 Domain completion and integration
 
