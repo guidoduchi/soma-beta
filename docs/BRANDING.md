@@ -35,13 +35,19 @@ The product should feel precise, calm, technical, and confidently local.
 
 ## 5. 1.0.0 UX requirements
 
-- Responsive layout.
-- Light and dark themes.
-- English interface initially.
-- Canonical six-area navigation and terminology.
-- Keyboard and pointer operation for primary workflows.
-- Warnings that explain consequence and next action rather than relying on color alone.
-- Clickable Overview metrics and attention items that preserve filter context.
-- Windows tray behavior as a required application capability.
+The complete normative interaction behavior is in the [UI/UX Interaction Contract](UI_UX_CONTRACT.md).
+
+- Responsive layouts preserve every material fact, warning, action, pane, and workflow.
+- Light, dark, high-contrast, forced-color, enlarged-text, and reduced-motion presentations retain equivalent meaning and operability.
+- One semantic token system governs typography, status, focus, dialogs, motion, spacing, and component presentation.
+- Keyboard, pointer, and touch are equivalent for supported primary workflows.
+- Status and warnings use text and/or semantic icons in addition to color; repetitive blinking/flashing is prohibited.
+- The shell uses restrained density, clear hierarchy, generous enough whitespace, progressive disclosure, contextual actions, and independent scrollable surfaces.
+- The reviewed vSphere interface is directional inspiration for hierarchy and composition only. SOMA copies no VMware/Broadcom branding, icons, screenshots, trade dress, exact pixels, or proprietary product meaning.
+- Three-second deliberate hold is an allowlisted confirmation tier with accessible progress. It is required for Device Reference promotion and may be assigned only to other consequential actions where it meaningfully interrupts mistakes.
+- Overview metrics and attention items preserve filter/scope context and remain projections over accepted domain state.
+- Windows tray behavior remains required.
+
+Language switching is scheduled for 1.x.0.
 
 Language switching is scheduled for 1.x.0.

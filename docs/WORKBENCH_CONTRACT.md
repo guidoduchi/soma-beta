@@ -3,6 +3,8 @@
 Status: **Foundation review v0.3**  
 Target: **SOMA Beta 1.0.0**
 
+Shared component behavior is governed by the [UI/UX Interaction Contract](UI_UX_CONTRACT.md). This workbench contract specializes that behavior for Tickets and Objectives.
+
 ## 1. Shared interaction model
 
 Tickets open into a focused workbench rather than a sequence of disconnected dialogs.
@@ -14,6 +16,12 @@ Tickets open into a focused workbench rather than a sequence of disconnected dia
 - The right pane presents canonical retained matched communications, direction and age summaries, coverage/warnings, and safe navigation according to the Communications Contract. SOMA does not contact an email service.
 - All pointer actions have a keyboard equivalent, visible focus, and non-color state cues.
 - Relationship consolidation uses a reviewed merge preview. SOMA shows retained records, incoming context, conflicts, and consequences before applying the merge.
+
+- Active row, selection, multi-selection, keyboard focus, and opened record remain distinct. A single click selects, double-click or Enter opens, and nested controls do not accidentally open the row.
+- Wheel and trackpad input belong to the nearest hovered scrollable workbench surface. Hovering the Ticket list scrolls the Ticket list; hovering the communication pane scrolls that pane; reaching either boundary does not chain into the other.
+- Responsive pane switching preserves the active record, tab, filters, scroll context, working copy, and communication state.
+- Material actions use the shared confirmation-tier registry. The three-second Device Reference promotion remains required, visible, cancellable, and equivalent across pointer, touch, and keyboard.
+- Unsaved workbench edits remain UI working copies until a validated domain command commits them; stale versions receive reviewed conflict handling rather than last-write-wins.
 
 ### 1.1 Shared communication presentation
 

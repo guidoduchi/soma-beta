@@ -255,6 +255,19 @@ An externally initiated request shall reconcile to exactly one Service Request a
 - A genuine later development—including warehouse rejection, return to the operator, explanation work, and resend—is new lifecycle history rather than correction or rollback.
 - Hard deletion is not the ordinary correction mechanism for accepted Inventory history.
 
+Inventory action surfaces implement [UI/UX Interaction Contract](UI_UX_CONTRACT.md) §11:
+
+- available commands derive from accepted lifecycle projection and dependencies rather than editable labels;
+- unavailable predictable commands explain blockers and remediation;
+- bulk preflight partitions every selected target and never silently skips incompatible state;
+- batch and per-target results remain inspectable and correctable;
+- manual paths remain valid without communication/upload evidence;
+- generating/exporting an artifact never constitutes a lifecycle transition;
+- every nonterminal valid state exposes continuation or actionable remediation; and
+- false-event correction, material replacement, rejected-return resend, cancellation, archival, and eligible hard deletion remain distinct.
+
+Material Inventory actions retain their owning impact preview. A three-second deliberate hold may follow that preview only when the approved confirmation registry assigns it; it does not replace domain review, final warehouse decision confirmation, or per-target validation.
+
 ## 14. Evidence boundary for Beta 1.0
 
 - Evidence is optional for every manual Inventory action in Beta 1.0.

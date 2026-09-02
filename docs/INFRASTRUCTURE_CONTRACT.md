@@ -28,6 +28,19 @@ This contract defines canonical Infrastructure terminology, identity, placement,
 - Model, serial, Rack/U, Cloud Deployment, IP addresses, containment, and other optional facts may be completed progressively.
 - Manufacturer serial and every imported/exported descriptive value are evidence and matching candidates, not relational identity.
 
+### 3.1 Infrastructure workspace presentation
+
+The Infrastructure workspace follows the shared [UI/UX Interaction Contract](UI_UX_CONTRACT.md):
+
+- A contextual explorer projects Customer Organization, Site, Room, Rack, Cloud Deployment, Network Element, and containment relationships without redefining their domain cardinalities.
+- The selected entity has a stable identity header, warnings, contextual actions, and predictable tabs such as Summary, Placement, Components, IP Addresses, Relationships, History, and Workbook Activity as applicable.
+- Modular summary cards present accepted placement, identity/model, IP, component, relationship, and warning projections without storing card-owned truth.
+- Workbook imports, proposal reviews, validation failures, background jobs, and recent audited changes may appear in a collapsible activity surface with its own scroll ownership.
+- Wide/narrow layouts preserve the same information/actions; tiny text, ambiguous icon-only controls, and dependence on an ultrawide display are prohibited.
+- The reviewed vSphere screenshot is a directional information-architecture reference only and is not a pixel fixture or third-party asset source.
+
+Device Reference promotion remains one continuous three-second deliberate hold with visible semantic progress and equivalent pointer, touch, and keyboard behavior. Release, cancellation, stale target, or a gesture resolved as scrolling produces no promotion. Successful completion revalidates and performs the one governed promotion transaction.
+
 ## 4. Physical placement, Models, Notes, Components, and history
 
 - A Site belongs to one Customer Organization; Network Element ownership derives through Site.

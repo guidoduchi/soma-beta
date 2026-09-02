@@ -60,6 +60,14 @@ This glossary is normative product language. UI copy, schemas, imports, and docu
 | Deep Scan | An explicitly initiated and confirmed broad communication scan; it is never an automatic fallback. |
 | Orphaned — Pending Purge | A retained communication with no valid link or protected dependency, held for a configurable positive grace period defaulting to seven exact elapsed days before transactional revalidation and content purge. |
 | Terminal communication summary | Frozen non-reconstructable received/sent/final-time/final-direction evidence shown after an SR or RFC's direct communication links are removed. |
+| Active row | The one row currently used by keyboard navigation and default row actions; it is distinct from keyboard focus, multi-selection membership, and the record already opened. |
+| Scroll owner | The nearest applicable scrollable surface beneath the pointer, holding the touch gesture, or carrying keyboard focus; it alone consumes the applicable scroll input in that context. |
+| Deliberate hold | An allowlisted continuous three-second confirmation interaction with semantic progress and equivalent pointer, touch, and keyboard behavior; release or cancellation before completion produces no action. |
+| UI working copy | Unsaved operator edits based on one accepted record revision; it is neither accepted operational truth nor necessarily the same as a persistent domain entity whose lifecycle state is Draft. |
+| Semantic design token | A versioned visual value named for operational meaning—such as warning, selected, historical, or destructive—rather than one hard-coded component color or dimension. |
+| Directional design reference | Approved visual inspiration for hierarchy, composition, density, or interaction patterns that does not define exact pixels, proprietary assets, terminology, or acceptance results. |
+| Visual acceptance fixture | A versioned approved synthetic/sanitized UI state with defined rendering context and tolerance used for visual acceptance or regression evidence. |
+| Export golden fixture | A versioned approved synthetic/sanitized input and expected normalized structure/content/rendering used to verify generated artifacts while explicitly controlling permissible nondeterminism. |
 | Historical View | The retained view for records outside the configured Daily, Weekly, or Monthly main period. |
 | SLA Cohort Tier | A Contract Product Line rule requiring a percentage of eligible SRs of one severity to resolve or close within an inclusive duration. |
 | SLA Result | A derived individual-duration or cohort-compliance result calculated from Contract Product Line policy, severity, effective Report Date, suspension, endpoint, and reporting-period facts. |

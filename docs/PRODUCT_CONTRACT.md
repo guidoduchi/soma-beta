@@ -4,7 +4,7 @@ Status: **Foundation review v0.3**
 Target: **SOMA Beta 1.0.0**  
 Authority: confirmed product decisions; unresolved items are listed in `DECISIONS.md` and are not implementation permission.
 
-Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md), [Communications Contract](COMMUNICATIONS_CONTRACT.md), and [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
+Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md), [Communications Contract](COMMUNICATIONS_CONTRACT.md), [UI/UX Interaction Contract](UI_UX_CONTRACT.md), and [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
 
 ## 1. Product intent
 
@@ -70,6 +70,10 @@ Examples include an RFC without a Service Request, a WFM without an Objective, a
 Reporting uses `America/Guayaquil` for operator-facing dates, a Monday–Sunday week, and UTC storage. Excel is the 1.0.0 report export format.
 
 Daily, Weekly, and Monthly exports derive from one internally consistent accepted-state snapshot and may cover one Customer Organization or all organizations. Completed report evidence preserves only the report-time values, membership, calculation results, policy revisions, and provenance needed to interpret and reproduce the artifact. Later operational or policy changes affect current and future reports but never rewrite a completed report. A report is completed only after successful artifact verification; failed or cancelled generation changes no operational record. Report generation never offers or initiates cleanup in Beta 1.0.
+
+The Overview composition follows the [UI/UX Interaction Contract](UI_UX_CONTRACT.md). It uses a stable global shell, explicit Customer/period scope, a clear context header, restrained modular summaries, progressive detail, Needs Attention, the operational narrative, and a collapsible activity surface for background jobs, imports, reviews, warnings, and failures. This direction is informed by the clarity of mature infrastructure-management interfaces without copying their branding, assets, exact pixels, dense typography, or wide-screen assumptions.
+
+Overview summary cards are projections over accepted domain facts, not editable state. Every card identifies its scope, unknown/partial/coverage conditions, and actionable destination. The activity surface never replaces authoritative job, proposal, or audit records and owns its own hovered/focused scrolling.
 
 ## 6. Tickets
 
@@ -259,6 +263,10 @@ SQLite is authoritative for every Infrastructure fact and invariant. A later gra
 
 Beta 1.0 generates a versioned Infrastructure workbook family for empty device registration, human-readable current-device discovery export, and reviewed round-trip update. Imports are discovered only from one configured directory and always stage review; exports use an operator-selected destination. Same-installation round-trip identity may target updates, while foreign-installation identity is provenance/matching evidence only. Missing rows never imply deletion or unlinking. The complete normative behavior is in the [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md).
 
+Infrastructure presentation uses a context explorer, selected-entity header, contextual actions, predictable tabs, modular summary cards, independent panes, and a collapsible activity surface for workbook jobs, reviews, warnings, and recent audited changes. The hierarchy is a projection over accepted Customer Organization, Site, placement, Cloud Deployment, containment, and Network Element relationships; the UI must not turn one convenient tree into competing domain ownership.
+
+The reviewed vSphere interface is a directional information-architecture reference only. SOMA shall reinterpret its useful hierarchy, density, progressive disclosure, and activity patterns through the proprietary SOMA identity, larger accessible typography, clearer labelled actions, responsive behavior, and accepted domain terminology.
+
 ## 10. Dispatch Locations
 
 - `Dispatch Site` is renamed **Dispatch Location**.
@@ -340,4 +348,4 @@ Warning presentation keeps classification, individual duration evidence, cohort 
 
 ## 15. 1.0.0 acceptance boundary
 
-Beta 1.0.0 is not complete until all six work areas function together, Contract Product Line/SLA rules are enforced, supported Excel imports and exports work, the complete target-gated PST/OST processing, matching, coverage, backfill, proposal, terminal unlink, orphan grace/purge, summary, and MSG workflows work, local data is protected, and the UI supports responsive light/dark operation plus Windows tray behavior.
+Beta 1.0.0 is not complete until all six work areas function together, Contract Product Line/SLA rules are enforced, supported Excel imports and exports work, the complete target-gated PST/OST processing, matching, coverage, backfill, proposal, terminal unlink, orphan grace/purge, summary, and MSG workflows work, local data is protected, and the complete UI/UX Interaction Contract passes across responsive light/dark/high-contrast presentation, keyboard/pointer/touch input, hovered scroll ownership, deliberate confirmation, drafts/conflicts, accessibility, sanitized visual/export fixtures, and Windows tray behavior.

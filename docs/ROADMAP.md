@@ -290,50 +290,51 @@ Complete every operational domain through functional, responsive web workflows b
 
 ### Purpose
 
-Add cross-domain operational reporting only after its source domains are complete, then turn the functional application into the final coherent SOMA experience.
+Add cross-domain operational reporting only after its source domains are complete, then apply the accepted UI/UX Interaction Contract across every workflow and state.
 
 ### 6A. Overview and reporting
 
-- Daily, Weekly, and Monthly summaries with configurable scope.
-- Period comparison.
-- Contract Product Line/SLA progress.
+- Daily, Weekly, and Monthly Customer-scoped summaries with visible filter/scope.
+- Period comparison, Contract Product Line/SLA context, communication coverage, Inventory lifecycle, and Objective/Maintenance Window context without reconstructing discarded `Resolved Status Date`.
 - Operational narrative and scheduled Objective timeline.
 - Needs Attention queues linking to preserved filtered views.
-- Inventory and Infrastructure metrics.
-- Excel report snapshots with immutable calculation context.
+- A clean stable shell, context header, restrained modular summary cards, progressive detail, and collapsible recent-processing/review activity.
+- Excel report snapshots with immutable calculation context and export golden fixtures.
 
 ### 6B. Complete visual and interaction system
 
-- Final six-area navigation:
-  1. Overview
-  2. Tickets
-  3. Objectives
-  4. Inventory
-  5. Infrastructure
-  6. Settings
-- Canonical SOMA mark, wordmark, lockup, application icon, favicon, and tray identity.
-- Complete accessible light and dark themes.
-- Responsive layouts across every workflow and state.
-- Consistent lists, filters, details, editors, autocomplete, dialogs, timelines, import review, conflict resolution, and destructive previews.
-- Complete loading, empty, warning, error, stale, locked, unsupported-file, conflict, recovery, and success states.
-- Draft protection, selective save/discard, navigation warnings, and meaningful undo where operations are reversible.
-- Keyboard and pointer parity, screen-reader labels, visible focus, non-color status cues, contrast, and reduced motion.
-- Visual regression coverage for the complete supported state matrix.
+- Final six-area navigation: Overview, Tickets, Objectives, Inventory, Infrastructure, Settings.
+- Canonical SOMA mark, wordmark, lockup, application icon, favicon, tray identity, and one semantic design-token system.
+- Accessible light, dark, high-contrast/forced-color, enlarged-text, and reduced-motion presentations.
+- Global list/table navigation separating focus, active row, selection, multi-selection, and opening.
+- Hovered/gesture-origin/focused scroll ownership across nested panes, lists, communication previews, tables, popups, dialogs, and activity surfaces.
+- Bounded accessible autocomplete with stale-result suppression and explicit entity creation.
+- Responsive split workbenches, horizontal table access, viewport-safe overlays, accessible icon actions, and complete empty/loading/error states.
+- Allowlisted three-second deliberate confirmation with visible semantic progress, pointer/touch/keyboard equivalence, scroll-gesture safety, and mandatory Device Reference promotion coverage.
+- Impact previews remain mandatory where domain consequences require them; holding never substitutes for understanding.
+- Protected UI working copies, valid selective save/discard, recovery, stale-version conflict review, navigation warnings, and bounded safe Undo.
+- Domain-derived Customer/communication/Inventory/Objective/SLA/main-view summaries.
+- Lifecycle-contextual Inventory commands, compatible bulk preflight, per-target results, manual continuation, and export/transition separation.
+- Overview and Infrastructure composition informed directionally by mature infrastructure-management hierarchy—including the reviewed vSphere reference—without third-party branding/assets/trade dress or wide-screen-only density.
+- A versioned catalogue of directional references, sanitized visual acceptance fixtures, and export golden fixtures. Missing required fixtures block acceptance rather than authorize guessing.
 
-### Usability validation
+### Usability and fixture validation
 
 - Every available internal evaluator independently completes representative task scenarios before group discussion.
 - Record observations, task outcomes, errors, and unresolved confusion.
+- Verify wide/intermediate/narrow, themes, zoom/text, keyboard/pointer/touch, reduced motion, nested scrolling, deliberate holds, dialogs, drafts/conflicts, bulk actions, and complete lifecycle/error/recovery states.
+- Validate screenshots only in deterministic approved contexts/tolerances; validate package exports structurally, semantically, and through rendered usability with explicit nondeterministic-field normalization.
+- A baseline cannot be updated merely to make a regression pass.
 - Resolve findings or disposition them under the accepted defect policy.
 
 ### Exit gate
 
 - The final UI/UX pass is complete across **all workflows and states**, not only critical or visible screens.
-- Every Beta 1.0.0 operator use case can be completed through the web UI without database access or developer tooling.
-- Terminology, status, warnings, and consequences agree with the Product Contract.
-- Responsive, accessibility, input-method, recovery, and destructive-confirmation scenarios pass.
+- Every Beta 1.0 operator use case is completable through the web UI without database/developer tooling.
+- Terminology, status, warnings, consequences, action availability, and summaries agree with owning domain contracts.
+- Responsive, accessibility, input-method, hovered-scroll, recovery, conflict, fixture, export, and confirmation-tier scenarios pass.
 - Canonical SOMA identity is consistent from browser tab to tray and packaged application.
-- Every available internal evaluator has completed the required usability validation.
+- Every available internal evaluator completes the required usability validation.
 
 ## Phase 7 — Beta 1.0.0 hardening and acceptance
 

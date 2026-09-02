@@ -126,7 +126,7 @@ The local application shell owns scheduled Advanced Search invocation and satisf
 
 Infrastructure workbook exchange uses a separate operator-authored adapter governed by the [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md). SOMA generates the supported workbook versions for empty registration, human-readable discovery export, and round-trip update. Import discovery is bounded to one configured directory and always stages review; export uses an operator-selected destination. Missing rows never carry authoritative absence, and foreign-installation identities remain provenance/matching evidence rather than update authority.
 
-## 7. Workbench and reference promotion
+## 7. UI shell, workbenches, and reference promotion
 
 The Service Request and RFC workbenches are projections over shared domain identities, not private copies of devices, Tasks, RFCs, spares, or notes. Their exact interaction contract is defined in [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md).
 
@@ -135,6 +135,14 @@ An unregistered device reference is owned by the operational context that first 
 Registered Network Elements preserve zero-many optional IP addresses with at most one primary. Address inventory does not activate interfaces, discovery, reachability, connectivity, topology, or SSH. Compound containment is an acyclic forest and remains distinct from Site/Room/Rack placement, Cloud Deployment assignment, Component history, and deferred connectivity.
 
 Objective grouping is a domain policy, not a calendar-only UI behavior. It evaluates accepted Task intervals, prohibits accepted overlapping Objectives, stages consolidation when a Task bridges groups, and keeps Tasks without complete intervals unscheduled.
+
+The [UI/UX Interaction Contract](UI_UX_CONTRACT.md) owns the shared shell and component behavior. The client separates focus, active row, selection, multi-selection, open state, UI working copies, persistent domain Drafts, dialogs, and background activity. Scroll ownership resolves to the hovered, gesture-origin, or focused surface so nested Ticket lists, communication previews, tables, popups, cards, dialogs, and activity panes do not fight over input.
+
+The wide shell may expose a contextual explorer, entity header/actions, tabs, modular summary cards, independent work panes, and a collapsible activity surface. Narrow layouts recompose the same capabilities rather than removing them. Overview and Infrastructure use this information hierarchy as a projection over domain truth, not as additional mutable state. vSphere is a directional reference only; no external asset or proprietary identity enters the product or repository.
+
+Deliberate hold is an application-owned state machine and confirmation tier, not a CSS animation. It uses one allowlisted action registry, a three-second monotonic elapsed interval, equivalent pointer/touch/keyboard commands, accessible progress, cancellation/reset, one-shot completion, stale-state revalidation, and audit integration. Device Reference promotion requires it. Other consequential commands use it only when the accepted action contract assigns that tier, and it never replaces an impact preview for complex or destructive operations.
+
+UI working copies are protected local application state tied to an accepted record revision. Save commands cross the domain/application boundary only after validation and concurrency checks. Generic Undo never rewrites append-oriented evidence. Visual fixtures and export goldens are versioned sanitized test inputs/evidence; they are not runtime domain data.
 
 ## 8. Offline communication architecture
 
@@ -171,6 +179,6 @@ A local Python runtime and local web UI are the current direction. The exact sup
 
 ## 10. Release boundaries
 
-1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, pickup-origin and actual logistics, cross-request membership, correction replacement, rejection resend, state-specific removal, Infrastructure identity/placement/IP inventory/containment, reviewed Infrastructure workbook import and discovery export, external request registration, reviewed proposals, compatible bulk actions, exact-event correction, security, official operational imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
+1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, pickup-origin and actual logistics, cross-request membership, correction replacement, rejection resend, state-specific removal, Infrastructure identity/placement/IP inventory/containment, reviewed Infrastructure workbook import and discovery export, external request registration, reviewed proposals, compatible bulk actions, exact-event correction, security, official operational imports, Excel reporting, SLA, PST/OST read, MSG drafts, the complete responsive accessible UI/UX interaction and fixture system, and tray behavior.
 
 1.x.0 may add SSH/device operations, connectivity/topology, and language switching. Shared multi-user databases, direct email, cloud services, arbitrary report builders, and Alpha database migration require a later product decision.
