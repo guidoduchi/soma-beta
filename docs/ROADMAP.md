@@ -53,7 +53,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - Service Request identity, notes, source population, lifecycle, period visibility, historical presentation, source observations, and the Beta 1.0 no-purge boundary;
   - RFC master/subordinate hierarchy, WFM ownership, adoption, correction, attempts, archive, tracking, and terminal cascade behavior;
   - Objective and Task composition, scheduling, execution, review, correction, cloning, and retry;
-  - Inventory lifecycle covering Stock, Spare Needs, request lines and quantities, Spare Requests, C10 RMA positions, physical units, allocation, installation, return, and Fault Tags;
+  - Inventory lifecycle covering stock-first eligibility, SR-level Spare Need aggregation from Device Part Units, local/external quantity choice, Spare Requests, C10 RMA obligations, direct inbound and return-unit relationships, Task outcomes, cross-request Fault Tags, and warehouse rejection/resend loops;
   - Infrastructure identity, placement, component compatibility, installation, replacement, and history;
   - registered people, Customer Organizations, Local User Profile, Contracts, Product Lines, Contract Product Lines, Cloud Types, Cloud Deployments, Sites, Rooms, Racks, and Dispatch Locations;
   - source-specific import and population behavior;
@@ -246,7 +246,7 @@ Complete every operational domain through functional, responsive web workflows b
 
 #### 5.1 Inventory
 
-- Stock, registered/unregistered device references, reusable Spare Needs, request lines and quantities, Spare Requests, C10 RMA positions, units with or without manufacturer serials, Fault Parts, requested-versus-actual BOM review, reservation, allocation, dispatch, receipt, dismantling, installation, return, Fault Tags, and warehouse confirmation.
+- Stock, registered/unregistered device references, Device Part Units, SR-level aggregated Spare Needs, local/external quantity selection, Spare Requests, incremental C10 RMA obligations, units with or without manufacturer serials, promised-versus-inbound-versus-return BOM review, deterministic assignment and redistribution, reservation, dispatch, receipt, dismantling, installation, cross-request Fault Tags, warehouse receipt, final acceptance/rejection, and resend loops.
 - Implement accepted Infrastructure-facing contracts, but keep device-targeted installation and replacement unavailable until the corresponding Infrastructure capability exists.
 
 #### 5.2 Infrastructure
@@ -256,7 +256,7 @@ Complete every operational domain through functional, responsive web workflows b
 
 #### 5.3 Offline communications
 
-- Read-only PST/OST indexing, identifier matching, evidence links, targeted backfill, progress, cancellation, and MSG draft generation.
+- Read-only PST/OST indexing, identifier matching, reviewable Inventory milestone proposals, evidence links, targeted backfill, progress, cancellation, and MSG draft generation. Persistence/services accept optional evidence references, but Beta 1.0 exposes no manual attachment or upload control.
 - SOMA never sends or receives email directly.
 
 #### 5.4 Domain completion and integration

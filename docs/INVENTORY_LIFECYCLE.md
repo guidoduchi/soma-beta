@@ -1,94 +1,173 @@
 # SOMA Beta Inventory Lifecycle Contract
 
-Status: **Foundation review v0.3**  
+Status: **Foundation review v0.4**  
 Target: **SOMA Beta 1.0.0**
 
-## 1. Operational chain
+## 1. Normative language boundary
 
-The principal chain is:
+- Normative requirements, UI copy, schemas, and documentation shall not name the external provider.
+- Use neutral terms such as `external provider`, `official Spare Request identifier`, and `RMA` only where a role must be described.
+- The seven-digit Spare Request identifier and C10 RMA are business identifiers, never relational identity.
 
-**Service Request → involved device reference → Spare Need → Spare Request → RMA position → received Spare Part Unit → installation/return outcome → Fault Tag**
+## 2. Inventory purpose
 
-Not every workflow uses every step. Manual Stock units, unregistered device references, and manually confirmed installation are valid under the warnings defined here.
+Inventory exists to maintain traceable Stock of physical Spare Part Units and to accelerate replacement work.
 
-## 2. Device references, Spare Needs, and Fault Parts
+When an SR-level Spare Need exists, SOMA shall first identify compatible, available Stock units for the relevant Devices and parts. The operator may allocate local Stock, start the external Spare Request flow, combine both approaches, or request externally despite available local Stock. Availability is a recommendation, not an automatic consumption decision.
 
-- An SR may have multiple involved device references.
-- A reference may resolve to an Infrastructure Network Element or remain unregistered throughout the workflow.
-- Each involved device may have zero or more Spare Needs and zero or more Fault Parts.
-- A Spare Need is the planning step before a Spare Request. It belongs to one SR and one involved device and records BOM/Part Number, description, and quantity.
-- A Fault Part represents the actual removed or diagnosed device component. It may be prefilled from a Spare Need, but the link is optional because the actual failed part may differ from the requested one.
-- The original Spare Need is preserved when the actual Fault Part has a different BOM; SOMA records the reviewed discrepancy rather than rewriting history.
+## 3. Correct entity boundaries
 
-## 3. Spare Need and Spare Request cardinality
+### Service Request
 
-- A single Spare Request may use one or more Spare Needs, but all selected Needs must belong to the same SR.
-- A Spare Need may feed zero or many Spare Requests and remains eligible after its first use.
-- The workbench shows previous requests and compares planned, already requested, accepted, and remaining quantities.
-- Submitted quantities may differ from Need quantities only after a warning and explicit confirmation.
-- A Spare Need with no request history may be removed under the normal audited manual-record rule.
-- Once linked to a Spare Request, it cannot be removed while any associated request remains active or otherwise nonrejected.
-- Removal becomes available only when every associated request relevant to that Need has been explicitly confirmed by the operator as cancelled or rejected. The UI previews consequences and preserves the cancelled/rejected request evidence and the Need's prior values in audit history.
+- Owns the operational customer context.
+- May reference many Devices.
+- Owns SR-level Spare Needs.
 
-## 4. Spare Requests and RMA positions
+### Device Part Unit
 
-- Every Spare Request originates locally from one or more selected Spare Needs and immediately receives an immutable, non-reusable temporary tracking identity.
-- All selected Needs must belong to the same registered Service Request; the Spare Request derives and retains exactly that one SR relationship even when the Service Request currently has only an `LSR-########` identity.
-- Huawei may later assign the official Spare Request identity, `SR` followed by seven digits, to the existing request. This never replaces its internal identity or temporary tracking identity.
-- A requested quantity `N` may yield `M` C10 RMA positions where `M ≤ N`.
-- Every missing position records a reviewed rejection/unfulfilled outcome such as EOS, unavailable, incompatible, or another explicit status.
-- One RMA identity is `C` followed by ten digits, belongs to exactly one Spare Request, and represents one accepted ordered position.
-- An RMA has one requested BOM and, after receipt, exactly one received physical unit. The actual received BOM may differ and is recorded separately.
-- Before receipt an RMA has no received serial. On receipt, the resulting unit normally arrives with condition `new`.
-- A locally registered Spare Part Unit may optionally record the official parent Spare Request and RMA from which it originated.
+- Represents one actual component installed in, removed from, or diagnosed under one Device and, when known, one slot.
+- Records actual Part Number/BOM code, manufacturer serial when available, condition, and chronology.
+- A faulty slot registration creates or identifies the corresponding Device Part Unit.
+- It is not a Spare Need and is not an Inventory Spare Part Unit.
 
-## 5. Physical identity and components without serial labels
+### Spare Need
 
-Every Spare Part Unit has a SOMA-generated immutable local physical-unit identity. Manufacturer serial number is authoritative when available but is not mandatory, because components such as CPUs may have no serial label.
+- Belongs to exactly one Service Request, not to exactly one Device.
+- Aggregates demand by Part Number/BOM code across the relevant Device Part Units under that Service Request.
+- Records BOM, description, and planned quantity.
+- Contributor relationships preserve which Device Part Units generated the demand.
+- Registering sixty faulty battery units with the same BOM across fifteen Devices produces one SR-level Spare Need with suggested quantity sixty, not sixty duplicate Needs.
+- If the Need already exists, later matching Device Part Units contribute to the existing Need rather than create duplicates.
+- If matching Device Part Units are registered first, SOMA automatically proposes or creates the aggregated Need.
+- SOMA shall preserve the system-derived contributor count separately from any operator-confirmed planned or requested quantity.
 
-Units without manufacturer serials remain individually traceable through their local identity, BOM, origin, device/slot installation events, removal events, and disposition. SOMA never fabricates a serial value.
+### Spare Request
 
-## 6. Replacement linkage
+- Is the request/tracking container created from one or more SR-level Spare Needs belonging to the same Service Request.
+- Receives SOMA's immutable temporary tracking identifier at creation.
+- Inherits Customer Organization context through its Service Request.
+- Suggests the Service Request's current customer ticket owner as the customer Contact.
+- Captures selected Needs and quantities, delivery or self-pickup mode, receiver, and the applicable dispatch or pickup location.
+- The temporary tracking identifier is placed in the generated request email subject, but omission from later correspondence does not prevent manual reconciliation.
+- The official identifier is `SR` followed by seven digits and is attached later to the same request.
 
-- A Fault Part may link to zero or one received Spare Part Unit.
-- A received Spare Part Unit may link to zero or one Fault Part as its direct replacement counterpart.
-- The one-to-one link records which actual component was replaced by which actual received unit, on which device and, when known, slot.
-- Installation/removal is recorded per device even when the received item was a larger assembly that was dismantled into subcomponents.
-- Extracted subcomponents are registered as individual local Spare Part Units. Each can record its parent Spare Request and RMA and can be installed against a device Fault Part independently.
+### RMA
 
-## 7. Reviewed receipt and maintenance outcomes
+- Uses the official C10 identifier and represents one two-sided obligation position under exactly one officially identified Spare Request.
+- Initially represents the external provider's promise that one replacement item will be supplied.
+- After receipt and maintenance disposition, it represents the return obligation for the physical item that must be sent back.
+- It is the bridge between a target Device Part Unit and a future or received Inventory Spare Part Unit.
+- It shall not contain a physical unit as a mutable embedded child record.
+- Before physical receipt, it may target a Device Part Unit while its inbound Spare Part Unit relationship remains empty; SOMA shall not fabricate a placeholder physical unit.
+- It preserves the promised/authorized BOM independently from the actual inbound and outbound physical-unit identities.
+- One RMA may therefore begin with one promised BOM, later link to an inbound unit with its own BOM and serial, and ultimately require return of another unit with a different BOM and serial.
 
-| Scenario | Required Beta behavior |
+### Spare Part Unit
+
+- Represents one actual physical Inventory unit, separate from the RMA and Device Part Unit.
+- Has immutable SOMA identity, actual BOM, optional manufacturer serial, condition, location/custody, and lifecycle history.
+- May have zero or one origin RMA and therefore zero or one parent official Spare Request through that RMA.
+- A local unit without official provenance remains valid.
+- Attaching later RMA provenance never replaces the unit's identity or history.
+- One RMA has at most one directly received fulfillment unit.
+- If that received unit is an assembly that is dismantled, extracted units become separate Spare Part Units. They may share origin-RMA provenance while the parent assembly remains the single direct fulfillment unit.
+
+### Replacement outcome
+
+- Records what actually occurred during a Task.
+- May link one target Device Part Unit, one installed Spare Part Unit, the applicable RMA assignment when present, Device, slot, Task, and chronology.
+- Local Stock replacement remains valid without an RMA.
+- The actual installed/removed relationship shall not be inferred merely from the RMA assignment.
+
+### Fault Tag
+
+- Groups actual return obligations and physical return units.
+- May contain items originating from different Service Requests, Spare Requests, temporary tracking identifiers, and RMAs.
+- Membership is determined from the physical outcome associated with each RMA, not from a requirement that all items share one parent request.
+
+## 4. Principal cardinalities
+
+| Relationship | Cardinality and rule |
 |---|---|
-| Requested unit arrives as needed | Record actual BOM/serial or local identity, then install or retain in Stock |
-| Different but valid compatible unit arrives | Preserve requested BOM; record actual BOM and operator compatibility acceptance before use |
-| Different invalid unit arrives | Quarantine/reject it, prevent installation, and preserve return evidence |
-| Removed site part differs from original Need | Register the actual Fault Part and discrepancy; do not rewrite the Need |
-| Mixed result across positions | Review and resolve every RMA position independently |
-| Received unit is unused | Return the same unit as `new`; no Fault Part replacement link exists |
-| Request is cancelled/rejected, including EOS | Preserve the terminal request/position reasons; no missing RMA is fabricated |
-| Received assembly is dismantled/scrapped | Register extracted components individually; the parent assembly is dispositioned as dismantled/scrapped and returned as faulty under its own identity |
+| Service Request → Device | `1 → 0..N` |
+| Device → Device Part Unit | `1 → 0..N`; slot is recorded when known |
+| Service Request → Spare Need | `1 → 0..N`; active Needs aggregate by BOM |
+| Spare Need ↔ Device Part Unit | `1 ↔ 0..N` contributor units; one contributor belongs to the applicable SR/BOM Need at a time |
+| Spare Request ↔ Spare Need | `1..N ↔ 0..N` through quantity-bearing allocations; all selected Needs share one Service Request |
+| Spare Request → RMA | `1 → 0..N`; RMAs may arrive incrementally |
+| RMA → target Device Part Unit | `0..1` current assignment; assignment history is preserved and may be redistributed |
+| RMA → direct inbound Spare Part Unit | `0..1`; empty before receipt |
+| Spare Part Unit → origin RMA | `0..1`; local units may have none |
+| RMA → return unit | `0..1` current return obligation at a time, derived from the physical outcome |
+| Fault Tag ↔ return obligation/unit | `0..N ↔ 0..N`; cross-request grouping is permitted |
 
-For a normal replacement, the received unit becomes installed and the linked Fault Part becomes the unit returned as faulty. Its return serial is the actual removed serial when available; otherwise SOMA records an unknown serial with a reason.
+## 5. Spare Need aggregation example
 
-For an unused return, rejected incompatible unit, dead-on-arrival unit, or dismantled parent assembly, the returned unit is the received unit itself, so its return serial—when it has one—is the received serial. Lack of a serial uses the immutable local unit identity; it never causes a copied or invented serial.
+Given one Service Request with fifteen Devices, each containing four registered faulty batteries with BOM `battery_bomcode`:
 
-## 8. Confirmation warning
+- SOMA records sixty Device Part Units.
+- SOMA produces one Spare Need for `battery_bomcode`.
+- The derived contributor count is sixty.
+- The Need preserves links to all sixty contributing Device Part Units and therefore to their fifteen Devices.
+- The user does not create four identical Need rows per Device.
 
-Creating and managing a Spare Request does not require its requester or related Contacts to already have email or phone data. Generating a Spare Request `.msg` draft validates a usable recipient address just in time and may collect the missing address or use another eligible Contact. Missing recipient data blocks only draft generation and does not invalidate the Spare Request or its Needs. The generated artifact/evidence preserves the recipient identity and address used at creation.
+## 6. RMA discovery and deterministic assignment
 
-After outgoing Spare Request communication has verifiable sent evidence, SOMA expects a confirmation response. If no matching response evidence has been indexed or manually registered within **24 hours**, the request becomes a Needs Attention warning. Generating an MSG draft alone does not start this timer because it is not evidence of sending.
+- An accepted response may provide the official SR7 alone, SR7 with some RMAs, SR7 with all RMAs, or neither.
+- No detected SR7/RMA keeps the request awaiting response and creates a warning; it does not invent identifiers.
+- An SR7 without all expected RMAs is valid partial progress. Later accepted responses append additional RMAs.
+- Every detected RMA preserves its C10 and promised BOM from the response.
+- SOMA assigns RMAs to unassigned matching Device Part Units by stable Device Part Unit creation order.
+- RMAs within an accepted response use their preserved response order; later response batches continue with the next eligible unassigned target.
+- Example: sixty matching faulty battery units and thirty received RMAs assign four RMAs to each of the earliest seven Devices and two to the eighth when Device Part Unit creation order follows Device registration.
+- The operator may redistribute any RMA assignment to another compatible target, including prioritizing another Device.
+- Redistribution changes only the reviewed assignment relationship; it does not rewrite the RMA, response communication, Spare Need, or Device Part Unit.
+- Every redistribution records prior target, new target, reason, operator, and chronology.
+- Ambiguous or incompatible BOM mappings require review and shall not be forced silently.
 
-## 9. Fault Tags
+## 7. RMA obligation lifecycle
 
-- A Fault Tag uses the resolved return/disposition information of linked Fault Parts and received units to construct the return-to-warehouse list.
-- It preserves SR, Spare Need, Spare Request, RMA, device, BOM, unit, and return-identity context through references rather than copied mutable truth.
-- Mixed outcomes are allowed; only units actually requiring return appear in the return membership.
-- Sending locks membership and identity. Corrections cancel/replace the sent tag rather than rewriting it.
-- Warehouse confirmation requires evidence plus explicit operator confirmation.
+1. **Awaiting acknowledgement** — the Spare Request has been submitted but no official SR7/RMA response is accepted.
+2. **Acknowledged** — SR7 is known; zero or more RMAs may be known.
+3. **Partially authorized** — fewer RMAs exist than the requested quantity and more may arrive later.
+4. **Promised** — an RMA exists and may be preassigned to a compatible target Device Part Unit before receipt.
+5. **Dispatched** — item dispatch is detected from indexed communication or confirmed manually.
+6. **Received** — the actual inbound Spare Part Unit is registered and linked; actual BOM and serial may differ from the promise.
+7. **Maintenance outcome recorded** — the inbound unit was installed, unused, faulty, incompatible, dismantled, or otherwise dispositioned.
+8. **Return obligation resolved** — the RMA points to the physical unit that must be returned:
+   - successful replacement: the removed Device Part Unit;
+   - unused replacement: the same inbound Spare Part Unit;
+   - inbound faulty/incompatible item: the inbound Spare Part Unit;
+   - dismantled assembly: the parent assembly under its own identity.
+9. **Fault-tagged** — the return obligation is included in a Fault Tag, possibly with unrelated requests.
+10. **Warehouse received** — physical receipt is detected or confirmed, but final acceptance remains pending.
+11. **Warehouse accepted** — the return obligation is finally closed.
+12. **Warehouse rejected** — the same physical unit may be returned to the operator, explanation/correction work continues, and the obligation reopens for a later resend.
 
-## 10. Manual installation and retention
+An erroneous detected or manual milestone may be rolled back through a targeted correction. A genuine rejection/resend is a new operational transition and shall not erase the earlier receipt or rejection.
 
-- A manually registered unit may be confirmed installed, including on an unregistered device reference, after an explicit provenance warning.
-- Installation without an SR is permitted for manual Stock units after acknowledgment; official SR7/C10 flows retain their required SR chain.
-- Beta 1.0.0 performs no automatic or operator-triggered purge of operational inventory history. New purge policies are deferred to Beta 1.1.0.
+## 8. Dispatch and manual alternatives
+
+- The dispatch communication is a distinct milestone from the initial SR7/RMA acknowledgement.
+- It commonly contains the SR7, applicable C10 identifiers, and the eight-digit Service Request shown in the communication's `TT ########` context.
+- Dispatch may cover only some RMAs while other requested items remain pending.
+- The operator may manually register the SR7, RMAs, per-item BOMs, dispatch milestone, Fault Tag generation, warehouse receipt, and warehouse acceptance/rejection when detection is missing or incorrect.
+- Manual confirmation requires target, operator, chronology, and reason but no mandatory uploaded evidence.
+- Erroneous automatic and manual milestones remain correctable at the exact request, RMA, unit, Fault Tag, or warehouse-decision level.
+
+## 9. Task outcome and return selection
+
+- Inventory units are allocated to Tasks, not directly to Objectives.
+- After maintenance, the operator confirms the outcome for every relevant unit and target: installed/used, unused, inbound faulty, incompatible, dismantled, or another accepted outcome.
+- The RMA uses that outcome to determine which physical unit becomes the return obligation.
+- The return obligation is not stored by overwriting inbound serial/BOM fields on the RMA; it references the actual physical unit.
+
+## 10. Evidence boundary for Beta 1.0
+
+- Evidence is optional for every manual Inventory action in Beta 1.0.
+- Ordinary workflows shall not request or require an evidence upload.
+- Beta 1.0 persistence and application services shall accept optional evidence references from supported internal adapters and future callers.
+- Beta 1.0 shall expose no manual attachment or upload control anywhere in the UI.
+- Indexed PST/OST communications are first-class evidence when SOMA detects them.
+- Manual confirmation without evidence remains valid and auditable through operator, reason, target, and chronology.
+- Later activation of any evidence attachment control, mandatory evidence collection, or additional evidence-ingestion source requires a separately accepted product decision and UI/LLD change.

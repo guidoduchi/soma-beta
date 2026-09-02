@@ -14,8 +14,8 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-006 | WFM is a Task subtype owned by exactly one RFC, not a top-level Ticket. |
 | D-007 | Objective means Maintenance Window; it requires one reviewed planned timeframe and at least one Task from creation. Every Task has its own ID. |
 | D-008 | A Part Number/BOM groups parts. Every physical unit has a SOMA local identity; manufacturer serial identifies it when available but is optional. |
-| D-009 | Every Spare Need requires one SR. Every Spare Request originates locally from one or more Needs belonging to that same SR, receives a temporary tracking identity, and retains that SR chain if Huawei later assigns an SR7 identity and C10 RMAs. |
-| D-010 | One C10 RMA is one accepted BOM position under one Spare Request and yields exactly one received physical unit at receipt; manufacturer serial is recorded when available. |
+| D-009 | Every SR-level Spare Need aggregates matching Device Part Unit contributors by BOM across any number of Devices under one Service Request. Every Spare Request originates locally from selected Needs belonging to that same SR, receives a temporary tracking identity, derives Customer Organization, and retains that SR chain when official SR7 and C10 identifiers arrive. |
+| D-010 | One C10 RMA is one two-sided obligation under one official Spare Request: it may target one Device Part Unit before receipt, later links to at most one direct inbound Spare Part Unit, and references the actual return unit separately after maintenance outcome review. No physical unit is embedded in or fabricated for the RMA. |
 | D-011 | A reusable Cloud Type may appear at many Sites through distinct Cloud Deployments. Each Cloud Deployment belongs to exactly one Site; a regularized Network Element's assigned Cloud Deployment, when present, must belong to its physical Site. Network Element model and installed instance remain separate. |
 | D-012 | Registering a Site creates one exclusive site-bound Dispatch Location that inherits its address. |
 | D-013 | Population updates source-owned facts but preserves SOMA-owned relationships, notes, review, and history. |
@@ -39,8 +39,8 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-031 | Explicit Beta decisions supersede conflicting Alpha behavior, including navigation, manual SR creation, Task relationships, C10/RMA semantics, Dispatch Locations, and offline mail boundaries. |
 | D-032 | Ticket workbenches open by double-click or keyboard Enter and use a left tabbed work area plus right local-email-evidence preview. |
 | D-033 | Registered and unregistered device references are both valid operationally; a deliberate three-second pointer/touch/keyboard hold promotes a reference into Infrastructure without duplicating it. |
-| D-034 | Spare Needs precede requests, are device-level under one SR, remain reusable, and relate many-to-many with Spare Requests constrained to that same SR. |
-| D-035 | A Fault Part and received Spare Part Unit link zero-or-one in each direction as the direct replacement pair; requested and actual components remain distinct evidence. |
+| D-034 | Spare Needs are reusable SR-level BOM aggregates rather than device-level duplicates. Device Part Units contribute derived demand; matching Stock is suggested first, but the operator may use local units, request externally, combine both by quantity, or request despite local availability. |
+| D-035 | Device Part Units and Inventory Spare Part Units are separate physical entities. The reviewed Task outcome links the actual removed and installed units and determines which unit the RMA requires back; unused, faulty, incompatible, and dismantled inbound outcomes retain distinct return behavior. |
 | D-036 | Actual received BOM may differ from requested BOM. Valid alternatives require reviewed compatibility; invalid units cannot be installed. |
 | D-037 | Dismantled assemblies retain a parent disposition while extracted components receive individual local identities and per-device installation history. |
 | D-038 | Future noncancelled scheduled Tasks enter reviewed Objective grouping; overlaps consolidate, unscheduled Tasks create no Objective, and accepted Objectives cannot overlap. |
@@ -65,6 +65,11 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-057 | One official SRNo identifies one surviving Beta SR; there are no finalized episodes or tombstones. Terminal reversal is a high-risk same-record correction requiring explicit confirmation, preserved terminal history, and current recalculation. Unsigned workbook checks prove processing integrity, not publisher authenticity or absence of editing. |
 | D-058 | Beta 1.0 has no operational retention clock or purge Settings. Daily/Weekly/Monthly controls main-view presentation only. Operational retention is installation-level governance; technical housekeeping is separate, and any Beta 1.1 policy must define its own scope, timing, dependencies, exceptions/holds, recovery, and audit without inheriting Alpha defaults. |
 | D-059 | Single-user login requires only the Local Administrator password; stable actor identity is generated, display name is editable, username-like metadata is optional, and operational email/phone belong to Contacts. Live and backup encryption remain credential-independent. Managed backups default to five and prune only after verified replacement without deleting portable exports or the last restorable copy. |
+
+| D-060 | Incremental SR7/C10 responses are valid. RMAs autoassign to compatible unassigned Device Part Units by stable target creation order and preserved response order; later batches continue the sequence, and audited manual redistribution supports operational priority without rewriting source evidence. |
+| D-061 | Spare Request acknowledgement, partial RMA authorization, per-item dispatch, receipt, Task use, Fault Tag generation, warehouse receipt, and warehouse acceptance/rejection are distinct milestones. A genuine rejection/resend reopens the return obligation as new history; rollback corrects an erroneous recorded milestone. |
+| D-062 | Fault Tags may group return obligations and physical units from different Service Requests, Spare Requests, temporary tracking identifiers, and RMAs. Warehouse receipt does not equal final acceptance. |
+| D-063 | Beta 1.0 persistence and application services accept optional evidence references, and indexed PST/OST communications may supply them. Manual Inventory actions require no evidence, and Beta 1.0 exposes no manual attachment or upload control anywhere in the UI. |
 
 ## Deferred beyond 1.0.0
 

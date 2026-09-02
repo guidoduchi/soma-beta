@@ -33,7 +33,7 @@ The browser UI is a client of a local application boundary. Domain rules do not 
 | Identity and Settings | Local User Profile, registered people, installation configuration, themes |
 | Tickets | SRs, RFCs, hierarchy, workbench device references, Contract Product Line classification, source observations |
 | Objectives | Maintenance Windows, Local/WFM Tasks, RFC branches, scheduling, planned/actual time, review and attempts |
-| Inventory | Stock, BOM catalog, Spare Needs, Spare Requests, RMAs, physical units, Fault Parts, Fault Tags and logistics |
+| Inventory | Stock, BOM catalog, SR-level Spare Needs, Device Part Units, Spare Requests, RMA obligations, Spare Part Units, Task outcomes, Fault Tags and return logistics |
 | Infrastructure | customer-owned Sites, reusable Cloud Types, site-bound Cloud Deployments, device models and instances, installed components, replacement history |
 | SLA Policy | Customer-owned Contracts, reusable Product Lines, Contract Product Lines, cohort tiers, suspension, endpoints, derived results, warnings |
 | Overview and Reporting | curated metrics, narrative queues, filters, Excel snapshots |
@@ -54,12 +54,15 @@ The clean Beta schema must distinguish:
 - Objective identity from Task identity and Task-derived SR context;
 - Local Task many-to-many context—including master or subordinate RFC links—from WFM Task single-RFC ownership;
 - planned Objective time from actual execution evidence;
-- requested quantity/position outcomes from accepted C10 RMA positions;
-- requested BOM from actual received BOM and compatibility acceptance;
+- SR-level Spare Need demand from matching Device Part Unit contributors across the Service Request;
+- available Stock suggestions from physical-unit condition, location, reservation, compatibility, and disposition;
+- submitted request quantity from local-Stock allocations, external-request allocations, and immutable submission evidence;
+- promised RMA BOM from actual inbound, installed, removed, and return-unit BOM/serial facts;
 - physical unit identity from optional manufacturer serial and catalog/BOM identity;
 - unregistered device references from promoted Infrastructure Network Elements without duplicating their operational relationships;
-- Spare Needs from actual Fault Parts and one-to-one replacement counterparts;
-- RMA logistics state from unit condition and location;
+- Device Part Units from Inventory Spare Part Units, even when one replaces the other;
+- RMA obligation state from target assignment, direct inbound unit, Task outcome, return-unit selection, Fault Tag, warehouse receipt, and final acceptance/rejection;
+- RMA origin provenance from direct-fulfillment identity for dismantled assemblies and their extracted component units;
 - reusable Product Line identity from Customer-owned Contract Product Lines and their independent SLA policies;
 - Customer Organization ownership of Sites, reusable Cloud Types, site-bound Cloud Deployments, and optional provisional Device placement;
 - current device composition from immutable installation/replacement events; and
@@ -127,9 +130,9 @@ Objective grouping is a domain policy, not a calendar-only UI behavior. It evalu
 
 ## 8. Offline communication architecture
 
-PST/OST access is read-only and adapter-isolated. The index is locally encrypted and reproducible from the store. File lock, corruption, unsupported format, or partial parse produces a bounded error and never modifies the source store.
+PST/OST access is read-only and adapter-isolated. The index is locally encrypted and reproducible from the store. File lock, corruption, unsupported format, or partial parse produces a bounded error and never modifies the source store. Inventory communication matches create idempotent review proposals for submission, SR7/C10 acknowledgement, incremental positions, dispatch, and later milestones; they never mutate domain state before acceptance.
 
-MSG output is a generated draft artifact. The domain records draft generation separately from sent evidence. No direct SMTP, Exchange, Graph, IMAP, or cloud mail integration exists in 1.0.0.
+MSG output is a generated draft artifact. The domain records draft generation separately from sent evidence. No direct SMTP, Exchange, Graph, IMAP, or cloud mail integration exists in 1.0.0. The persistence and application-service boundary accepts optional evidence references from supported adapters, but Beta 1.0 exposes no manual attachment or upload control anywhere in the UI; manual lifecycle actions remain valid without evidence.
 
 Overview and Needs Attention are the authoritative continuous warning projection. Supplemental local in-app or tray notifications are a deduplicated projection of active conditions, limited to once per Service Request and condition per operator-local calendar day across restarts. Recognized terminal SR status suppresses active-work and live SLA-risk notifications without removing historical evidence.
 
@@ -148,6 +151,6 @@ A local Python runtime and local web UI are the current direction. The exact sup
 
 ## 10. Release boundaries
 
-1.0.0 includes all six modules, Inventory Stock/Spare Request/Fault Tag lifecycles, security, official imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
+1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, security, official imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
 
 1.x.0 may add SSH/device operations, connectivity/topology, and language switching. Shared multi-user databases, direct email, cloud services, arbitrary report builders, and Alpha database migration require a later product decision.
