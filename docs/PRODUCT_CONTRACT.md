@@ -334,6 +334,8 @@ Warning presentation keeps classification, individual duration evidence, cohort 
 
 ## 14. Audit and deletion principles
 
+The [Foundation Runtime, Persistence, Audit, and Verification Contract](FOUNDATION_RUNTIME_CONTRACT.md) governs the separation of lifecycle evidence, application audit, proposal/job history, and technical diagnostics; atomic mutation/event/audit commitment; append-only `audit_events`; and named/versioned minimal audit payloads.
+
 - Imported facts retain source and import-run provenance.
 - Material manual changes record when, what, and why.
 - Derived states are recalculated from source facts and policy rather than silently persisted as independent truth.
@@ -348,4 +350,4 @@ Warning presentation keeps classification, individual duration evidence, cohort 
 
 ## 15. 1.0.0 acceptance boundary
 
-Beta 1.0.0 is not complete until all six work areas function together, Contract Product Line/SLA rules are enforced, supported Excel imports and exports work, the complete target-gated PST/OST processing, matching, coverage, backfill, proposal, terminal unlink, orphan grace/purge, summary, and MSG workflows work, local data is protected, and the complete UI/UX Interaction Contract passes across responsive light/dark/high-contrast presentation, keyboard/pointer/touch input, hovered scroll ownership, deliberate confirmation, drafts/conflicts, accessibility, sanitized visual/export fixtures, and Windows tray behavior.
+Beta 1.0.0 is not complete until all six work areas function together, Contract Product Line/SLA rules are enforced, supported Excel imports and exports work, the complete target-gated PST/OST processing, matching, coverage, backfill, proposal, terminal unlink, orphan grace/purge, summary, and MSG workflows work, local data is protected, the complete UI/UX Interaction Contract passes across responsive light/dark/high-contrast presentation, keyboard/pointer/touch input, hovered scroll ownership, deliberate confirmation, drafts/conflicts, accessibility, sanitized visual/export fixtures, and Windows tray behavior, and the Foundation Runtime Contract passes for SQLite connections, migrations/status, JSON, audit, local-instance trust, diagnostics/redaction, Windows/Python CI, and application acceptance.

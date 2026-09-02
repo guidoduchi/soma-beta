@@ -1,6 +1,6 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Roadmap reviewed; combined product-foundation phase in progress**
+Status: **Roadmap reviewed; 138/138 merged Alpha requirements complete; unmerged proposal review remains in Phase 0**
 
 This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 
@@ -43,6 +43,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - destination layer, kept separate from release disposition.
 - Destination layers include Product Contract, use case, HLD, LLD, implementation, and acceptance evidence. **Defer** means a later release; it never means “belongs in LLD.”
 - Assign neutral immutable normative identifiers in the form **BETA-REQ-0001**. Workspace, domain, release, status, and destination remain metadata rather than part of the identifier.
+- The merged Alpha requirement pass is complete at 138 exact source rows mapped to 144 sequential Beta requirements. This milestone does not close Phase 0 while unmerged proposals remain undispositioned.
 
 ### Gaps and product contracts
 
@@ -58,7 +59,8 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - registered people, Customer Organizations, Local User Profile, Contracts, Product Lines, Contract Product Lines, Cloud Types, Cloud Deployments, Sites, Rooms, Racks, and Dispatch Locations;
   - source-specific import and population behavior;
   - target-gated PST/OST processing, source scopes, canonical matching, coverage/high-water marks, backfill/Deep Scan, reviewed proposals, terminal orphan grace/purge, workbench summaries, and MSG draft behavior; and
-  - Contract Product Line classification, cohort SLA calculations, warnings, and Overview presentation.
+  - Contract Product Line classification, cohort SLA calculations, warnings, and Overview presentation; and
+  - the [Foundation Runtime Contract](FOUNDATION_RUNTIME_CONTRACT.md): owned foreign-key SQLite connections, atomic immutable migrations, observational status, typed/versioned JSON, evidence/audit/diagnostic separation, append-only minimal audit, local-instance trust, redacted diagnostics, Windows/Python CI, and accessible application acceptance.
 - Define product-level deletion, correction, archive, replacement, restoration, and historical-evidence rules.
 - Confirm Beta 1.0.0 acceptance scope and explicit Beta 1.x.0 deferrals.
 
@@ -160,7 +162,10 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
   - PST/OST read-only source scopes, provider/fallback identity, coverage/high-water processing, target registry, backfill/Deep Scan, matched-message/link persistence, background jobs, terminal orphan grace/purge, workbench summaries, and MSG generation;
   - packaging; and
   - supported Windows, Python, and browser versions.
-- Concrete audit allowlists, append-only evidence, rollback, housekeeping, and privacy-aware diagnostics.
+- Concrete action-versioned audit allowlists, append-only SQL/application protections, duplicate/idempotency behavior, atomic rollback, exact correction, restoration validation, housekeeping boundaries, structured external diagnostics, prevention-first redaction, and canary fixtures.
+- One owned SQLite connection factory; effective foreign-key index map; atomic migration/ledger protocol; canonical migration-byte manifest and drift checks; exclusive migrator; truly observational status; versioned JSON schema/upgrade registry; and post-migration/restore integrity verification.
+- Exact local runtime ownership, loopback binding, runtime-registry, process-birth, authenticated health/session/origin/shutdown, proxy/redirect bypass, stale-registry, PID/port reuse, crash, restart, and forced-termination contracts.
+- Current-revision Windows CI on Python 3.13 and 3.14, draft/non-draft/primary/release trigger policy, reproducible synthetic fixtures, representative Windows desktop matrix, and traced invariant/application acceptance suites including hovered-pane scrolling and deliberate-hold accessibility.
 - Frontend architecture covering routes, functional layouts, shared interaction components, drafts, conflicts, responsive behavior, keyboard and pointer access, accessibility, and every loading, empty, warning, error, stale, locked, destructive, and recovery state.
 - A dependency policy requiring few, pinned, justified, adapter-isolated production libraries while remaining nearly dependency-free rather than dependency-free.
 - A complete implementation and verification plan.
@@ -348,7 +353,8 @@ Prove that the integrated product is safe, recoverable, understandable, stable, 
 
   **Alpha source → BETA-REQ → use case → HLD owner → LLD design → implementation → automated/manual acceptance evidence**
 
-- Run a deterministic synthetic suite covering requirements, invariants, lifecycle changes, corrections, concurrency, audit, destructive impact, imports, exports, SLA, communications, security, recovery, responsive behavior, accessibility, and packaging.
+- Run a deterministic synthetic suite covering requirements; identifiers and hierarchies; lifecycle changes and corrections; foreign-key/schema/migration integrity; versioned JSON; concurrent startup and local-instance attacks; append-only/minimal audit; diagnostic failure/redaction canaries; destructive impact; all imports/exports including Infrastructure Device workbook round trip; SLA; communications; security; recovery; hovered-pane/responsive/focus/reduced-motion/semantic/hold accessibility; and packaging.
+- Require successful current-revision Windows CI on Python 3.13 and 3.14 and representative supported Windows desktop acceptance. Stale, cancelled, skipped, missing, flaky, or unexplained evidence does not pass.
 - Run a controlled real-data pilot only after the Phase 4 security-and-recovery gate.
 - Require representative workflow coverage **and** a minimum stable-operation soak; neither substitutes for the other.
 - Require **four weeks** of stable operation.

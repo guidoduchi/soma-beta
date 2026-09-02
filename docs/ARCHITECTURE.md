@@ -40,6 +40,7 @@ The browser UI is a client of a local application boundary. Domain rules do not 
 | Import/Reconciliation | source adapters, provenance, diffs, safe auto-accept policy |
 | Offline Communications | source scopes, target-gated read-only PST/OST processing, coverage and high-water jobs, canonical matched communications and entity links, reviewed proposals, MSG draft generation, terminal unlinking, orphan grace and content purge, and workbench summaries |
 | Audit | accepted facts, manual changes, relationship history, destructive impact records |
+| Foundation Runtime | owned SQLite connections, migrations/status, local instance ownership, diagnostics/redaction, append-only audit, JSON contracts, CI and acceptance evidence |
 
 Modules may share identifiers and domain events through explicit interfaces. They must not mutate each other’s tables or files through undocumented shortcuts.
 
@@ -78,11 +79,11 @@ Operational persistence has no report-, status-, disappearance-, age-, or timer-
 
 No Beta 1.0 scheduler computes general operational-record retention or purge eligibility. Main-view period selection is a query/presentation concern. The only elapsed-time operational-content exception is the exact Communication Contract housekeeping transition for an unlinked retained communication after its configurable positive orphan grace period, defaulting to seven exact elapsed days. That transition never deletes a domain entity, relationship history, purge evidence, or the frozen terminal communication summary. Any broader operational-retention service is installation-level, version-gated, and requires its own accepted dependency, exception/hold, recovery, and audit design.
 
-Audit history is a first-class persistence concern. Hard deletion is a narrow operation for untouched manual records only. Imported/adopted or operationally evidenced records transition through archive, termination, cancellation, replacement, and append-only correction so their material effects remain explainable.
+Audit history is a first-class persistence concern. Hard deletion is a narrow operation for untouched manual records only. Imported/adopted or operationally evidenced records transition through archive, termination, cancellation, replacement, and append-only correction so their material effects remain explainable. Domain lifecycle evidence, application audit, proposal/job history, and technical diagnostics remain separate authorities. Required mutation, lifecycle evidence, and action-specific audit commit atomically; technical diagnostics remain external to SQLite and fail open only for their own emission.
 
 Inventory persistence separates immutable entity identity, accepted lifecycle events, current projections, relationship history, proposal decisions, bulk-batch identity, requested-logistics snapshots, shared actual-logistics events, and per-target participation. Fault Tag persistence additionally separates tag and membership identity, derived RMA/ticket/Device context, immutable submitted display snapshots, conditional pickup-origin snapshots, per-membership warehouse events, and typed correction-replacement versus resend lineage. A correction targets an exact event or relationship and recomputes the projection without rewriting entity identity or original evidence.
 
-SQLite is the authoritative operational datastore for Beta 1.0. Infrastructure placement, IP inventory, containment, Cloud assignment, component history, workbook proposals, and every other domain invariant remain relationally enforceable and queryable without a graph database. A later graph engine requires representative measurements and can only be a rebuildable, versioned, disposable projection that accepts no independent authoritative writes and owns no unique facts.
+SQLite is the authoritative operational datastore for Beta 1.0. Every authoritative connection uses the owned verified foreign-key factory and effective FK index coverage. Infrastructure placement, IP inventory, containment, Cloud assignment, component history, workbook proposals, and every other domain invariant remain relationally enforceable and queryable without a graph database. A later graph engine requires representative measurements and can only be a rebuildable, versioned, disposable projection that accepts no independent authoritative writes and owns no unique facts. The [Foundation Runtime Contract](FOUNDATION_RUNTIME_CONTRACT.md) governs connections, atomic/immutable migrations, observational status, versioned JSON, append-only audit, external diagnostics, local-instance trust, CI, and acceptance.
 
 ## 5. Local security envelope
 
@@ -164,6 +165,14 @@ Service Request, Spare Request, and RFC workbenches project received/sent counts
 
 SOMA does not send or receive mail directly in Beta 1.0. MSG output is a generated draft artifact. Saving a domain record, generating its MSG, accepting indexed sent evidence, and manually recording an action initiated outside SOMA are distinct commands. Beta 1.0 exposes no manual attachment/upload control, and valid manual lifecycle actions do not require communication evidence.
 
+### 8.1 Foundation runtime boundary
+
+The local service acquires canonical data-instance ownership before migration or service and binds only to supported loopback addresses. A per-run identity, independent PID-birth evidence, exact origin, authenticated non-redirecting health check, proxy bypass, host/origin validation, and authenticated shutdown prevent a stale registry, reused PID/port, or unrelated local process from impersonating SOMA.
+
+Migration mutation and ledger evidence are atomic under one migrator. Accepted migration bytes/checksums are immutable and forward-corrected; read-only status creates or changes nothing. Typed persisted JSON follows named/versioned schemas and atomic upgrade/write rules.
+
+Technical diagnostics are structured, bounded, redacted before queues/outputs, stored outside SQLite, and never authoritative. Audit events are append-only and use named/versioned minimal action payloads. Required audit failure rolls back its authoritative mutation; diagnostic emission failure does not. The exact contracts and verification evidence are owned by the [Foundation Runtime Contract](FOUNDATION_RUNTIME_CONTRACT.md).
+
 ## 9. Dependency policy
 
 “Nearly dependency-free” means:
@@ -175,10 +184,10 @@ SOMA does not send or receive mail directly in Beta 1.0. MSG output is a generat
 - cryptography, Excel, and PST/OST parsing use established libraries rather than home-grown implementations; and
 - React/TypeScript and Node tooling are build/development concerns; Node is not an installed end-user runtime.
 
-A local Python runtime and local web UI are the current direction. The exact supported Python, Windows, and browser matrix remains open until packaging and adapter feasibility are validated.
+A local Python runtime and local web UI are the current direction. Windows 10/11 and Python 3.13/3.14 are confirmed. Exact supported Windows builds/editions, browser versions, runner images, and packaging combinations remain assigned to the packaging ADR and must satisfy the current-revision CI plus representative desktop-acceptance contract.
 
 ## 10. Release boundaries
 
-1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, pickup-origin and actual logistics, cross-request membership, correction replacement, rejection resend, state-specific removal, Infrastructure identity/placement/IP inventory/containment, reviewed Infrastructure workbook import and discovery export, external request registration, reviewed proposals, compatible bulk actions, exact-event correction, security, official operational imports, Excel reporting, SLA, PST/OST read, MSG drafts, the complete responsive accessible UI/UX interaction and fixture system, and tray behavior.
+1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, pickup-origin and actual logistics, cross-request membership, correction replacement, rejection resend, state-specific removal, Infrastructure identity/placement/IP inventory/containment, reviewed Infrastructure workbook import and discovery export, external request registration, reviewed proposals, compatible bulk actions, exact-event correction, security, official operational imports, Excel reporting, SLA, PST/OST read, MSG drafts, the complete responsive accessible UI/UX interaction and fixture system, atomic SQLite/migration/audit runtime, external redacted diagnostics, Windows/Python verification, and tray behavior.
 
 1.x.0 may add SSH/device operations, connectivity/topology, and language switching. Shared multi-user databases, direct email, cloud services, arbitrary report builders, and Alpha database migration require a later product decision.

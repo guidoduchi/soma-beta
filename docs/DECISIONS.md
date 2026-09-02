@@ -115,6 +115,20 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-102 | SR dashboards derive Customer, communication, Inventory, Objective, SLA, and main-view summaries from owning domains. `Resolved Status Date` remains discarded and cannot be reconstructed or replaced by unrelated chronology. |
 | D-103 | Inventory actions are lifecycle-contextual; compatible bulk work is preflighted with per-target results; manual paths survive absent evidence; export is not transition; and every valid nonterminal state exposes continuation or actionable remediation. |
 | D-104 | UI evidence is classified as directional reference, visual fixture, or export golden. vSphere is approved only as information-architecture inspiration; SOMA copies no third-party assets/trade dress and pixel/artifact acceptance uses sanitized versioned deterministic fixtures rather than guesses. |
+| D-105 | Every authoritative SQLite connection uses one verified foreign-key-enabled factory, and child-side foreign-key paths have effective leading-prefix index coverage; isolated rebuild exceptions receive post-checks. |
+| D-106 | Migration schema/data and ledger commit atomically under one data-instance migrator; concurrent startup, interruption, retry, and readiness checks cannot publish partial or duplicate migration state. |
+| D-107 | Branch-only migration candidates remain editable until primary-branch acceptance, when canonical bytes, name/order/content/checksum/manifest freeze; accepted correction is forward-only and drift is never hidden. |
+| D-108 | Migration status is purely observational and creates or mutates no database, sidecar, directory, lock, settings, or invalid target; unsafe live/offline inspection reports limitation rather than disturbing ownership. |
+| D-109 | Domain lifecycle evidence, application audit, proposal/job history, and technical diagnostics are separate authorities. Required mutation, lifecycle evidence, and audit commit together, while corrections append against exact identities. |
+| D-110 | Persisted JSON is typed, named, versioned, bounded, semantically validated, atomically written/upgraded, and never substitutes for normalized domain authority; UI working copies and domain Drafts remain distinct. |
+| D-111 | Automated verification proves identifiers, hierarchies, immutability, lifecycles, referential/schema/migration integrity, and every governed import/export including Infrastructure Device workbook discovery and round trip; percentage coverage alone is insufficient. |
+| D-112 | Required Windows CI covers Python 3.13 and 3.14 on the current revision. Drafts retain a fast safety subset; stale/cancelled/missing results never pass, primary/release runs are complete, and representative desktop acceptance supplements hosted CI. |
+| D-113 | Application acceptance covers keyboard/pointer/touch, hovered-pane scrolling, responsive/focus/reduced-motion/semantic behavior, proposal review, and confirmation tiers. The three-second Device hold has an accessible deliberate equivalent and never replaces necessary impact preview. |
+| D-114 | Local startup proves canonical data-instance ownership, per-run process/birth/health identity, exact loopback origin, and request authority before serving; proxy/redirect/forged-registry/port/PID confusion cannot authorize activation or shutdown. |
+| D-115 | Structured bounded technical diagnostics live outside SQLite and are fail-open only for emission: logger failure does not break valid work but never converts a failed migration, audit, security, integrity, or domain operation into success. |
+| D-116 | Sensitive-data prevention begins at the diagnostic call site through allowlists and semantic classification; all outputs sanitize before queuing, pattern redaction is defense in depth only, and canary tests prove non-disclosure. |
+| D-117 | `audit_events` is append-only through ordinary application/SQL paths: update/delete/replace/upsert/conflict-skip are forbidden, duplicate event identity is error, command idempotency is separate, and corrections append. |
+| D-118 | Audit JSON uses permanent named/versioned action-specific closed schemas with relational core facts and minimal differences/references; whole objects, secrets, bodies, provider payloads, arbitrary exceptions, and tombstones are prohibited. |
 
 ## Deferred beyond 1.0.0
 
@@ -140,7 +154,7 @@ Open items are not permission to choose silently.
 | O-003 | Which exact Objective/Task outcome transitions and correction reasons are valid within the confirmed new-identity retry model? | Objective state-machine LLD |
 | O-004 | Which library and supported subset provide safe PST/OST read and MSG generation? | Communications adapter ADR |
 | O-005 | Which database/encryption design, KDF parameters, recovery, rotation, backup, and export-protection policy satisfy the threat model? | Persistence/security LLD |
-| O-006 | What Windows, Python, and embedded/supported browser versions form the 1.0.0 support matrix? | Packaging ADR |
+| O-006 | Which exact supported Windows editions/builds, browser versions, runner images, and packaging combinations complete the already confirmed Windows 10/11 and Python 3.13/3.14 matrix? | Packaging ADR |
 | O-007 | Which field-level changes inside the accepted Import Contract allowlists qualify as safe auto-accept? | Import reconciliation LLD |
 | O-010 | What exact tray actions and background lifecycle are supported? | Windows shell UX/packaging LLD |
 

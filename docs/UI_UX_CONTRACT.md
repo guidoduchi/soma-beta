@@ -2,7 +2,7 @@
 
 Status: **Foundation review v0.1**  
 Target: **SOMA Beta 1.0.0**  
-Authority: accepted `BETA-REQ-0123` through `BETA-REQ-0130` and decisions `D-097` through `D-104`.
+Authority: accepted `BETA-REQ-0123` through `BETA-REQ-0130`, application-acceptance requirement `BETA-REQ-0139`, and decisions `D-097` through `D-104` plus `D-113`.
 
 ## 1. Purpose and authority
 
@@ -223,7 +223,7 @@ Beta 1.0 acceptance includes at least:
 11. directional/visual/export fixture classification, sanitization, provenance, baseline change; and
 12. deterministic visual/export regression across the supported matrix.
 
-The use-case catalogue, HLD, LLD, implementation, and automated/manual acceptance evidence shall trace each case to `BETA-REQ-0123`–`0130`.
+The use-case catalogue, HLD, LLD, implementation, and automated/manual acceptance evidence shall trace each case to `BETA-REQ-0123`–`0130` and the cross-cutting acceptance rules in `BETA-REQ-0139` and Foundation Runtime Contract §10.
 
 ## 17. LLD responsibilities
 

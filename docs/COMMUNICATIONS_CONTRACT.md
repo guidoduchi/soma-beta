@@ -218,6 +218,8 @@ Spare Request or another entity that retains a protected link continues to show 
 
 ## 13. Security, privacy, and failure boundaries
 
+Technical diagnostic structure, fail-open qualification, prevention-first redaction, output-wide sanitization, and canary verification are governed by `BETA-REQ-0141`, `BETA-REQ-0142`, and Foundation Runtime Contract §§12–13. Communication content is never passed as an arbitrary diagnostic object merely because this adapter can parse it.
+
 Communication content, participants, source configuration, indexes, links, and job state use the local security envelope. Temporary parse material is bounded, protected, and removed after commit/failure according to the technical-cleanup contract. Redaction is applied before diagnostics leave the owning process.
 
 Source-store reads use least privilege and bounded resources. Parser failure is data, not permission to modify the source, skip validation, advance coverage, accept proposals, or discard a previously retained canonical communication.
