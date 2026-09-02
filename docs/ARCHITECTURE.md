@@ -33,7 +33,7 @@ The browser UI is a client of a local application boundary. Domain rules do not 
 | Identity and Settings | Local User Profile, registered people, installation configuration, themes |
 | Tickets | SRs, RFCs, hierarchy, workbench device references, Contract Product Line classification, source observations |
 | Objectives | Maintenance Windows, Local/WFM Tasks, RFC branches, scheduling, planned/actual time, review and attempts |
-| Inventory | Stock, BOM catalog, SR-level Spare Needs, Device Part Units, Spare Requests, RMA obligations, Spare Part Units, requested and actual logistics, Task outcomes, Fault Tags, warehouse loops, proposals, bulk actions, and correction |
+| Inventory | Stock, BOM catalog, SR-level Spare Needs, Device Part Units, Spare Requests, RMA obligations, Spare Part Units, requested and actual logistics, Task outcomes, Fault Tag identities and memberships, pickup-origin snapshots, warehouse decisions, replacement/resend lineage, proposals, bulk actions, correction, and removal |
 | Infrastructure | customer-owned Sites, reusable Cloud Types, site-bound Cloud Deployments, device models and instances, installed components, replacement history |
 | SLA Policy | Customer-owned Contracts, reusable Product Lines, Contract Product Lines, cohort tiers, suspension, endpoints, derived results, warnings |
 | Overview and Reporting | curated metrics, narrative queues, filters, Excel snapshots |
@@ -80,7 +80,7 @@ No Beta 1.0 scheduler computes an operational retention due time or purge eligib
 
 Audit history is a first-class persistence concern. Hard deletion is a narrow operation for untouched manual records only. Imported/adopted or operationally evidenced records transition through archive, termination, cancellation, replacement, and append-only correction so their material effects remain explainable.
 
-Inventory persistence separates immutable entity identity, accepted lifecycle events, current projections, relationship history, proposal decisions, bulk-batch identity, requested-logistics snapshots, shared actual-logistics events, and per-target participation. A correction targets an exact event or relationship and recomputes the projection without rewriting either entity identity or original evidence.
+Inventory persistence separates immutable entity identity, accepted lifecycle events, current projections, relationship history, proposal decisions, bulk-batch identity, requested-logistics snapshots, shared actual-logistics events, and per-target participation. Fault Tag persistence additionally separates tag and membership identity, derived RMA/ticket/Device context, immutable submitted display snapshots, conditional pickup-origin snapshots, per-membership warehouse events, and typed correction-replacement versus resend lineage. A correction targets an exact event or relationship and recomputes the projection without rewriting entity identity or original evidence.
 
 ## 5. Local security envelope
 
@@ -132,7 +132,7 @@ Objective grouping is a domain policy, not a calendar-only UI behavior. It evalu
 
 ## 8. Offline communication architecture
 
-PST/OST access is read-only and adapter-isolated. The index is locally encrypted and reproducible from the store. File lock, corruption, unsupported format, or partial parse produces a bounded error and never modifies the source store. Inventory communication matches create idempotent review proposals for submission, SR7/C10 acknowledgement, incremental positions, dispatch, and later milestones; they never mutate domain state before acceptance. Proposal identity, source communication, candidate targets, acceptance or rejection, and later correction remain distinct.
+PST/OST access is read-only and adapter-isolated. The index is locally encrypted and reproducible from the store. File lock, corruption, unsupported format, or partial parse produces a bounded error and never modifies the source store. Inventory communication matches create idempotent review proposals for Spare Request or Fault Tag submission, SR7/C10 acknowledgement, incremental positions, dispatch, actual pickup, warehouse receipt, and final decisions; they never mutate domain state before acceptance. Proposal identity, source communication, candidate memberships, acceptance or rejection, and later correction remain distinct. Final warehouse acceptance or rejection always requires explicit operator confirmation.
 
 MSG output is a generated draft artifact. Saving a Spare Request, generating its `.msg`, accepting indexed sent evidence, and manually recording a submission initiated outside SOMA are distinct commands; external registration creates the normal internal and temporary request identities. Draft generation never proves sending or starts a response timer. No direct SMTP, Exchange, Graph, IMAP, or cloud mail integration exists in 1.0.0. The persistence and application-service boundary accepts optional evidence references from supported adapters, but Beta 1.0 exposes no manual attachment or upload control anywhere in the UI; manual lifecycle actions remain valid without evidence.
 
@@ -153,6 +153,6 @@ A local Python runtime and local web UI are the current direction. The exact sup
 
 ## 10. Release boundaries
 
-1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, requested-versus-actual logistics, external request registration, reviewed proposals, compatible bulk actions, exact-event correction, security, official imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
+1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, pickup-origin and actual logistics, cross-request membership, correction replacement, rejection resend, state-specific removal, external request registration, reviewed proposals, compatible bulk actions, exact-event correction, security, official imports, Excel reporting, SLA, PST/OST read, MSG drafts, responsive themes, and tray behavior.
 
 1.x.0 may add SSH/device operations, connectivity/topology, and language switching. Shared multi-user databases, direct email, cloud services, arbitrary report builders, and Alpha database migration require a later product decision.

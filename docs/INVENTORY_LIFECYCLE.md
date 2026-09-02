@@ -1,6 +1,6 @@
 # SOMA Beta Inventory Lifecycle Contract
 
-Status: **Foundation review v0.5**  
+Status: **Foundation review v0.6**  
 Target: **SOMA Beta 1.0.0**
 
 ## 1. Normative language boundary
@@ -93,9 +93,13 @@ When an SR-level Spare Need exists, SOMA shall first identify compatible, availa
 
 ### Fault Tag
 
-- Groups actual return obligations and physical return units.
-- May contain items originating from different Service Requests, Spare Requests, temporary tracking identifiers, and RMAs.
-- Membership is determined from the physical outcome associated with each RMA, not from a requirement that all items share one parent request.
+- Is a mandatory Beta 1.0 primary Inventory view and return-attempt container.
+- Receives immutable internal identity and a non-reusable operator-visible tracking identifier at draft creation.
+- Groups independently identified memberships from different Service Requests, Spare Requests, temporary tracking identifiers, and RMAs.
+- Each membership references exactly one open RMA return obligation and exactly one physical unit selected by the reviewed maintenance outcome.
+- Current ticket and Device context is derived through the RMA, Spare Request, Need, outcome, and Device Reference chain rather than independently reassigned.
+- Submitted membership display facts may be preserved in an immutable data-minimized snapshot but never become competing current RMA or unit truth.
+- Current state is projected from append-oriented submission, warehouse, correction, replacement, resend, cancellation, and archival events.
 
 ## 4. Principal cardinalities
 
@@ -113,7 +117,13 @@ When an SR-level Spare Need exists, SOMA shall first identify compatible, availa
 | Actual logistics event ↔ RMA/Spare Part Unit | `0..N ↔ 1..N`; every participant relationship is independently addressable |
 | Spare Part Unit → origin RMA | `0..1`; local units may have none |
 | RMA → return unit | `0..1` current return obligation at a time, derived from the physical outcome |
-| Fault Tag ↔ return obligation/unit | `0..N ↔ 0..N`; cross-request grouping is permitted |
+| Fault Tag → membership | `1 → 0..N` in Draft and `1 → 1..N` at accepted first submission |
+| Fault Tag membership → RMA return obligation | `1 → 1`; the obligation must be open when selected |
+| Fault Tag membership → selected physical return unit | `1 → 1`; no duplicate physical-unit record |
+| RMA return obligation/physical unit → active submitted membership | `1 → 0..1`; later resend follows rejection history |
+| Fault Tag → pickup-origin Dispatch Location | `0..1`; exactly one before submission only when the return method requires pickup |
+| Fault Tag → correction replacement | `0..1` direct successor and `0..1` direct predecessor; lineage is acyclic and linear |
+| Fault Tag → resend successor | Explicit typed operational lineage distinct from correction replacement |
 
 ## 5. Spare Need aggregation example
 
@@ -196,7 +206,40 @@ An externally initiated request shall reconcile to exactly one Service Request a
 - The RMA uses that outcome to determine which physical unit becomes the return obligation.
 - The return obligation is not stored by overwriting inbound serial/BOM fields on the RMA; it references the actual physical unit.
 
-## 11. Manual actions, reviewed proposals, bulk operations, and correction
+## 11. Fault Tag draft, membership, and first submission
+
+- Fault Tags and returns are mandatory Beta 1.0 capabilities and are not dependent on future manual evidence uploads.
+- Draft membership is editable and contains eligible open RMA return obligations proposed from reviewed maintenance outcomes.
+- Eligible return units include the removed Device Part Unit after successful replacement, an unused/faulty/incompatible inbound Spare Part Unit, the dismantled parent assembly, or another explicitly reviewed outcome allowed by the RMA contract.
+- Condition, newness, BOM, serial, or provenance alone never establishes eligibility.
+- One obligation and physical unit may appear in at most one active submitted Fault Tag membership at a time.
+- Membership stores internal relationships. Spare Request and Service Request derive through the RMA; Device context derives through assignment, outcome, unit, and Device Reference.
+- Current C10, SR7, BOM, serial, condition, location, and derived context remain owned by their source entities. First submission may preserve only the data-minimized values actually represented in the artifact.
+- Every draft records its return method. Pickup requires exactly one reusable Dispatch Location in the pickup-origin role: the location from which units are dispatched or collected, never the warehouse destination.
+- A non-pickup method creates no pickup-origin location or snapshot. Any known warehouse destination remains separate.
+- Save/export of a communication draft does not prove sending or lock membership or logistics.
+- Accepted first submission requires reviewed indexed sent communication or manual confirmation without mandatory evidence.
+- Accepted submission locks the exact membership identities, return method, pickup-origin and recipient snapshot when applicable, source/operator, chronology, and submitted display evidence.
+- Later master-data changes never rewrite the snapshot. Actual pickup is a separate logistics/custody event and may differ with an explicit discrepancy.
+
+## 12. Fault Tag warehouse, correction, replacement, resend, and removal
+
+- Warehouse receipt and final disposition are distinct per-membership stages.
+- Receipt acknowledges possession but does not close the RMA obligation.
+- Final acceptance requires explicit operator confirmation and closes the applicable RMA obligation.
+- Final rejection requires explicit operator confirmation, preserves the failed attempt, leaves the RMA obligation unresolved, and permits a later resend Fault Tag.
+- Communication may propose receipt or final outcomes for any subset; manual confirmation without evidence remains valid. Partial membership progress never forces other outcomes.
+- Unknown external times remain unknown. Accepted events and timestamps are immutable evidence but may be superseded through exact targeted correction.
+- A falsely recorded submission with no real send may be corrected so the same tag returns to Draft.
+- A materially wrong actually submitted membership or pickup instruction requires cancellation/supersession and one explicit replacement Fault Tag with new identities and revalidated memberships.
+- Correction lineage is linear and typed `corrects/replaces`. Alias-only or current-display corrections do not create unnecessary replacements.
+- Genuine warehouse rejection and resend use typed `resend of` lineage and never rewrite or reopen the earlier attempt.
+- A submitted attempt becomes terminal only after every membership has a final decision, cancellation, or supersession. Rejected memberships remain unresolved obligations even when the attempt is terminal.
+- Hard deletion is limited to a truly untouched manual draft with no protected submission, communication-generation, proposal, warehouse, lineage, or dependent history.
+- Other records use explicit Cancel, Supersede and Replace, Archive, or Create Resend actions. Archive affects presentation only.
+- Destructive actions provide dependency preview, operator confirmation, transactional mutation, and required audit; independently surviving RMAs, units, tickets, locations, Contacts, communications, and exported files are never cascaded.
+
+## 13. Manual actions, reviewed proposals, bulk operations, and correction
 
 - Every supported Inventory transition provides a manual action when detection is absent, incomplete, delayed, or incorrect.
 - A manual action identifies the exact target, operator, recording time, effective time when known, and reason or relevant facts.
@@ -212,7 +255,7 @@ An externally initiated request shall reconcile to exactly one Service Request a
 - A genuine later development—including warehouse rejection, return to the operator, explanation work, and resend—is new lifecycle history rather than correction or rollback.
 - Hard deletion is not the ordinary correction mechanism for accepted Inventory history.
 
-## 12. Evidence boundary for Beta 1.0
+## 14. Evidence boundary for Beta 1.0
 
 - Evidence is optional for every manual Inventory action in Beta 1.0.
 - Ordinary workflows shall not request or require an evidence upload.

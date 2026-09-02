@@ -57,7 +57,11 @@ Spares presents the SR-level BOM demand aggregated from Device Part Units across
 - A shared actual logistics event may cover several RMAs or units, but each participant remains independently addressable, inspectable, and correctable.
 - A Need remains reusable across multiple request attempts until explicitly resolved or cancelled.
 - Detected C10 RMAs autoassign to compatible unassigned Device Part Units by stable creation order. The operator may redistribute assignments with an audited reason.
-- The tab exposes acknowledgement, partial RMA, dispatch, receipt, Task outcome, Fault Tag, warehouse receipt, and final acceptance/rejection as separate states.
+- The tab exposes acknowledgement, partial RMA, dispatch, receipt, Task outcome, Fault Tag membership, warehouse receipt, and final acceptance/rejection as separate states.
+- Eligible RMA return obligations show the selected physical return unit and provide navigation to the cross-request Fault Tag workflow without duplicating C10, SR7, unit, or Device facts.
+- The Fault Tag workflow identifies pickup Dispatch Location as the origin from which return units are dispatched, never as the warehouse destination.
+- Draft, submitted, replacement, resend, warehouse-received, accepted, and rejected attempts remain distinguishable; partial outcomes are visible per membership.
+- The UI offers state-specific Delete Draft, Cancel, Supersede and Replace, Archive, and Create Resend actions rather than generic deletion.
 - Communication-derived milestones appear as review proposals. The operator may accept or reject them individually.
 - A bulk action previews eligible, excluded, and conflicting targets before transactional confirmation and reports one result per target.
 - Correction selects the exact event or relationship, displays the original and proposed effect, and leaves unaffected batch members unchanged.

@@ -53,7 +53,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - Service Request identity, notes, source population, lifecycle, period visibility, historical presentation, source observations, and the Beta 1.0 no-purge boundary;
   - RFC master/subordinate hierarchy, WFM ownership, adoption, correction, attempts, archive, tracking, and terminal cascade behavior;
   - Objective and Task composition, scheduling, execution, review, correction, cloning, and retry;
-  - Inventory lifecycle covering stock-first eligibility, SR-level Spare Need aggregation from Device Part Units, local/external quantity choice, Spare Request draft and external-submission origin, C10 RMA obligations, direct inbound and return-unit relationships, requested-versus-actual logistics, partial dispatch/receipt, Task outcomes, compatible bulk actions, exact-event correction, cross-request Fault Tags, and warehouse rejection/resend loops;
+  - Inventory lifecycle covering stock-first eligibility, SR-level Spare Need aggregation from Device Part Units, local/external quantity choice, Spare Request draft and external-submission origin, C10 RMA obligations, direct inbound and return-unit relationships, requested-versus-actual logistics, partial dispatch/receipt, Task outcomes, compatible bulk actions, exact-event correction, and the mandatory Fault Tag return workflow: cross-request membership, conditional pickup-origin snapshots, warehouse receipt, explicit final acceptance/rejection, correction replacement, rejection resend, and state-specific removal;
   - Infrastructure identity, placement, component compatibility, installation, replacement, and history;
   - registered people, Customer Organizations, Local User Profile, Contracts, Product Lines, Contract Product Lines, Cloud Types, Cloud Deployments, Sites, Rooms, Racks, and Dispatch Locations;
   - source-specific import and population behavior;
@@ -143,7 +143,7 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
 
 - Clean relational schema, constraints, indexes, immutable evidence, and migration strategy.
 - Independent Beta migration lineage with atomic schema-and-ledger application, immutable accepted migrations, forward-only corrections, startup integrity checks, and no Alpha database upgrade path.
-- Exact state transitions, proposal review, compatible bulk operations, per-target and batch identity, requested and actual logistics events, correction and supersession mechanisms, and retention behavior.
+- Exact state transitions, proposal review, compatible bulk operations, per-target and batch identity, requested and actual logistics events, Fault Tag membership and submitted snapshots, conditional pickup-origin snapshots, warehouse receipt and final-decision events, typed correction-replacement and resend lineage, correction and supersession mechanisms, and retention behavior.
 - Command/query contracts, validation order, transaction boundaries, concurrency, stable errors, idempotency, and no-op behavior.
 - Local API routes and request/response contracts.
 - Exact parsers, types, validation, and transactions implementing the accepted allowlists and semantics in `IMPORT_CONTRACT.md` for Advanced Search SR data, Enhanced Excel RFC data, and Service Provider WFM plans.
@@ -246,7 +246,7 @@ Complete every operational domain through functional, responsive web workflows b
 
 #### 5.1 Inventory
 
-- Stock, registered/unregistered device references, Device Part Units, SR-level aggregated Spare Needs, local/external quantity selection, Spare Request drafts and externally initiated registration, incremental C10 RMA obligations, units with or without manufacturer serials, promised-versus-inbound-versus-return BOM review, deterministic assignment and redistribution, requested-versus-actual logistics, partial dispatch and receipt, reservation, dismantling, installation, reviewed proposals, compatible bulk actions, exact-event and relationship correction, cross-request Fault Tags, warehouse receipt, final acceptance/rejection, and resend loops.
+- Stock, registered/unregistered device references, Device Part Units, SR-level aggregated Spare Needs, local/external quantity selection, Spare Request drafts and externally initiated registration, incremental C10 RMA obligations, units with or without manufacturer serials, promised-versus-inbound-versus-return BOM review, deterministic assignment and redistribution, requested-versus-actual logistics, partial dispatch and receipt, reservation, dismantling, installation, reviewed proposals, compatible bulk actions, and exact-event and relationship correction. Complete the mandatory Fault Tag return workflow with immutable tag identity, one RMA obligation and one selected return unit per membership, cross-request grouping, conditional pickup-origin snapshots, per-membership warehouse receipt and explicit final acceptance/rejection, linear correction replacement, rejection resend, and state-specific removal.
 - Implement accepted Infrastructure-facing contracts, but keep device-targeted installation and replacement unavailable until the corresponding Infrastructure capability exists.
 
 #### 5.2 Infrastructure

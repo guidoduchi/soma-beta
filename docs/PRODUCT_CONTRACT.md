@@ -188,26 +188,51 @@ Before external requesting, SOMA shows compatible available Stock for the Need a
 - A Dispatch Location is logistics master data, not an Infrastructure Site, even when a Site's dedicated Dispatch Location supplies the effective address.
 - Local units receive no fabricated external-delivery evidence. A dismantled parent assembly retains the direct receipt; extracted units inherit provenance and record later custody independently.
 
-### 8.6 Tasks, Fault Tags, and warehouse decisions
+### 8.6 Tasks and return-unit eligibility
 
 - Physical Spare Part Units are reserved through Tasks, not direct Objective ownership.
 - After maintenance the operator records each target and unit outcome. A successful replacement links the actual removed Device Part Unit and installed Spare Part Unit.
 - The reviewed outcome determines the RMA return obligation without overwriting requested, inbound, installed, or return BOM/serial facts.
-- A Fault Tag may group return obligations and units from different Service Requests, Spare Requests, temporary tracking identifiers, and RMAs.
-- Fault Tag generation, warehouse receipt, and final warehouse acceptance or rejection are separate milestones.
-- Warehouse receipt does not close the return obligation. Rejection may return the same unit to the operator and create a new explanation/resend loop.
+- A Fault Tag membership requires one open RMA return obligation and its one selected physical return unit.
+- Eligible units include the removed Device Part Unit, an unused/faulty/incompatible inbound unit, the dismantled parent assembly, or another explicitly reviewed RMA outcome.
+- Condition, apparent newness, BOM, serial, or provenance alone never establishes eligibility.
+- One obligation and physical unit may occupy at most one active submitted membership at a time; a later resend follows preserved rejection history.
 
-### 8.7 Manual, proposed, bulk, and correction actions
+### 8.7 Fault Tag identity, membership, submission, and pickup origin
+
+- Fault Tags are a mandatory Beta 1.0 primary Inventory view.
+- Each draft receives immutable internal and non-reusable operator-visible tracking identities.
+- Memberships may span different Service Requests, Spare Requests, temporary tracking identifiers, and RMAs.
+- Each membership stores the RMA and physical-unit relationships; Spare Request, Service Request, and Device context are derived and cannot be independently contradicted.
+- Current RMA and unit values remain source-owned. Accepted first submission may preserve a data-minimized immutable snapshot of values represented in the artifact.
+- Draft membership remains editable until accepted first submission. Draft generation never proves sending.
+- Every draft records return method. Pickup requires exactly one Dispatch Location in the pickup-origin role—the place from which units are dispatched or collected, not the warehouse destination.
+- Non-pickup return creates no pickup-origin snapshot. Any destination remains separate.
+- Accepted first submission locks membership and the applicable pickup-origin, recipient, and submitted display snapshot.
+- Later master-data edits never rewrite that snapshot. Actual pickup is a separate event and may preserve a reviewed difference.
+
+### 8.8 Warehouse decisions, replacement, resend, and removal
+
+- Warehouse receipt and final acceptance or rejection are distinct per-membership stages.
+- Receipt does not close the RMA obligation. Final acceptance closes it. Final rejection preserves the failed attempt, leaves the obligation unresolved, and permits a later resend.
+- Final acceptance or rejection always requires explicit operator confirmation. Communication may propose any subset; manual confirmation without evidence remains valid.
+- Partial processing is valid and one membership never forces another's state.
+- A false submission record may be corrected back to Draft when no real submission occurred.
+- A materially wrong submitted membership or pickup instruction requires one explicit correction replacement with new identities and linear `corrects/replaces` lineage.
+- A genuine rejection/resend uses distinct `resend of` lineage. It is new operational history, not correction.
+- Hard deletion applies only to a truly untouched manual draft. Otherwise the UI exposes Cancel, Supersede and Replace, Archive, or Create Resend according to state and dependencies.
+- Archive is presentation only. Destructive preview and transaction rules preserve every independently surviving RMA, unit, ticket, location, Contact, communication, exported artifact, and audit record.
+
+### 8.9 Manual, proposed, bulk, and correction actions
 
 - Every supported milestone remains manually recordable without required uploaded evidence.
 - Indexed communications create idempotent reviewed proposals and never mutate Inventory before acceptance.
 - Bulk actions require one compatible transition and prerequisites, preview eligible and excluded targets, commit transactionally, and append one independently correctable event per target under a common batch identifier.
 - A correction targets the exact accepted event or relationship, preserves the original history, and recalculates the projection.
-- Entity identity remains immutable when an assignment, allocation, receipt, installation, removal, return selection, Fault Tag membership, or warehouse decision is corrected.
-- A genuine rejection/resend is new lifecycle history, not rollback. Hard deletion is not the normal correction mechanism.
+- Entity identity remains immutable when an assignment, allocation, receipt, installation, removal, return selection, Fault Tag membership, warehouse decision, replacement, or resend relationship is corrected.
 - Beta 1.0 services accept optional evidence references, but the UI exposes no manual attachment or upload control.
 
-The complete lifecycle, cardinalities, deterministic assignment, request-origin rules, logistics snapshots, manual and bulk alternatives, correction semantics, evidence boundary, and deletion behavior are normative in the [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md).
+The complete lifecycle, cardinalities, deterministic assignment, request-origin rules, logistics snapshots, Fault Tag membership and lineage, manual and bulk alternatives, correction semantics, evidence boundary, and deletion behavior are normative in the [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md).
 
 ## 9. Infrastructure
 
@@ -232,6 +257,8 @@ Device connectivity, topology, and SSH are excluded from 1.0.0.
 
 - `Dispatch Site` is renamed **Dispatch Location**.
 - A Dispatch Location has a name and address and represents one physical logistics location independent of customer ownership.
+- Its role is operation-specific: a Spare Request may use it as delivery or self-pickup context, while a Fault Tag may use it as the pickup origin from which return units are dispatched or collected.
+- A Fault Tag pickup-origin Dispatch Location is not the warehouse destination. Any known destination remains a separate logistics fact.
 - A standalone Dispatch Location stores its own address.
 - Registering a Site automatically creates one exclusive Dispatch Location for it.
 - A site-bound Dispatch Location is one-to-one, cannot be reused or reassigned, and inherits the Site address.
