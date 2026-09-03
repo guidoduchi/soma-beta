@@ -1,6 +1,6 @@
 # SOMA Beta Requirement Normalization
 
-Status: **Active — checkpoint 77/177 accepted; CP-001 amendment A1 applied**  
+Status: **Active — checkpoint 102/177 accepted; CP-001 amendment A1 and CP-004 substitute clarification applied**  
 Authority: project-owner-approved normalization decisions.  
 Source baseline: `docs/BETA_REQUIREMENTS.md` preserves the pre-normalization approved wording and immutable `BETA-REQ-####` identities.
 
@@ -55,6 +55,9 @@ For every reviewed requirement:
 | CP-001 | `BETA-REQ-0001`–`0027` | 27 | 26 | 1 | 183 | Forward PASS; reverse-authority PASS after amendment A1 |
 | CP-002 | `BETA-REQ-0028`–`0052` | 25 | 25 | 0 | 275 | Forward PASS; reverse-authority PASS; prior-checkpoint cross-check PASS; commit-isolation PASS |
 | CP-003 | `BETA-REQ-0053`–`0077` | 25 | 25 | 0 | 666 | Forward PASS; reverse-authority PASS; CP-001/CP-002 cross-check PASS; commit-isolation PASS |
+| CP-004 | `BETA-REQ-0078`–`0102` | 25 | 25 | 0 | 1383 | Two-pass preservation PASS; reverse-authority PASS; CP-001/CP-002/CP-003 cross-check PASS; commit-isolation PASS |
+
+Cumulative accepted normalization through CP-004: **102 / 177 requirements reviewed; 101 Replace; 1 Retain; 2507 stable clauses.**
 
 CP-001 artefacts:
 - [`normalization/CP001_CATALOGUE.md`](normalization/CP001_CATALOGUE.md) — accepted governing obligations and classifications.
@@ -74,6 +77,12 @@ CP-003 artefacts:
 - [`normalization/CP003_CLAUSE_AUTHORITY.md`](normalization/CP003_CLAUSE_AUTHORITY.md) — explicit owner/supporting-authority evidence for all 666 clauses.
 - [`normalization/CP003_TRACEABILITY.md`](normalization/CP003_TRACEABILITY.md) — design seeds, forward/reverse audit, prior-checkpoint cross-check, and commit-isolation evidence.
 
+CP-004 artefacts:
+- [`normalization/CP004_CATALOGUE.md`](normalization/CP004_CATALOGUE.md) — accepted governing obligations and classifications.
+- [`normalization/CP004_CLAUSES.md`](normalization/CP004_CLAUSES.md) — stable normative clause decomposition, including the accepted `BETA-REQ-0096` substitute clarification.
+- [`normalization/CP004_CLAUSE_AUTHORITY.md`](normalization/CP004_CLAUSE_AUTHORITY.md) — explicit owner/supporting-authority evidence for all 1383 clauses.
+- [`normalization/CP004_TRACEABILITY.md`](normalization/CP004_TRACEABILITY.md) — two-pass audit, design seeds, substitute-authority reconciliation, prior-checkpoint cross-check, and commit-isolation evidence.
+
 ## Amendment log
 
 ### CP-001-A1 — clause authority evidence and classification syntax
@@ -90,6 +99,16 @@ After A1: **Product preservation PASS; structural integrity PASS; forward tracea
 ### CP-003 owner clarification — configurable SLA cohort reports
 
 During normalization of `BETA-REQ-0064`, the project owner explicitly confirmed that configurable Weekly/Monthly reports must evaluate the applicable Contract Product Line cohort against its configured SLA tiers, expose the actual cohort compliance against each required percentage/duration, and preserve the report-time policy/result evidence. The clarification does not hard-code a terminal endpoint such as `Closed`; exact elapsed-duration endpoint semantics remain governed by the SLA/Temporal contracts.
+
+### CP-004 owner clarification — approved spare substitutes
+
+During normalization of `BETA-REQ-0096`, the project owner explicitly confirmed that exact BOM/Part Number equality is not required for a valid replacement or return relationship when a substitute is approved. When the faulty Device Part Unit, its Spare Need, and the submitted Spare Request consistently identify the original BOM but the provider fulfills the accepted RMA with a different actual BOM, SOMA may preserve that mismatch as provider-approved substitute evidence. The operator may also explicitly approve a different-BOM substitute after a material warning. Neither path rewrites the original requested BOM or the substitute physical unit's actual BOM, and substitute approval does not bypass other identity, allocation, open-RMA, installation, condition, or contradictory-return prerequisites.
+
+The clarification is owned by `BETA-REQ-0096` and is propagated only as explicit supporting authority where later Fault Tag relationship or replacement clauses depend on it.
+
+## Known design-reconciliation boundary
+
+The preliminary HLD currently contains wording that assigns “Task outcomes” to Inventory. Accepted product authority through CP-004 does **not** support that ownership. Objectives/Task lifecycle owns Task execution, outcome, review, correction, and retry; Inventory consumes reviewed outcomes only to apply Task-to-unit allocation and physical lifecycle consequences. This remains a design-reconciliation item for the later HLD audit and is not silently edited during Phase 0A normalization.
 
 ## Final consolidation rule
 
