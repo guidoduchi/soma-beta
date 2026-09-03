@@ -277,3 +277,4 @@ Material Inventory actions retain their owning impact preview. A three-second de
 - Indexed PST/OST communications are first-class evidence when SOMA detects them.
 - Manual confirmation without evidence remains valid and auditable through operator, reason, target, and chronology.
 - Later activation of any evidence attachment control, mandatory evidence collection, or additional evidence-ingestion source requires a separately accepted product decision and UI/LLD change.
+

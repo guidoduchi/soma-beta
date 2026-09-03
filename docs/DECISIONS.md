@@ -148,6 +148,26 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 | D-135 | Confirmed terminal RFC cascade is all-or-nothing over exact revalidated branch/WFM membership, preserves provider status, never mutates SRs, handles surviving/lost Objective work explicitly, and integrates terminal communication grace. |
 | D-136 | SOMA's proprietary visual direction combines terminal-inspired hierarchy and keyboard fluency with vSphere contextual composition and Wireshark list/detail/evidence inspection; monospace accents never reduce long-form readability. |
 | D-137 | Operators choose a curated built-in skin independently from Light/Dark/System appearance. Skins alter aesthetic tokens only and cannot change layout, workflow, semantic meaning, confirmation friction, or accessibility; arbitrary themes are excluded from Beta 1.0. |
+| D-138 | Loss of executable Objective scope preserves surviving work and warnings; no remaining executable work yields Incomplete—Awaiting Review, and accepted execution/history—not wall-clock position—governs locks and deletion. |
+| D-139 | WFM master/subordinate context derives only from the owning RFC hierarchy; WFM-to-WFM hierarchy and independent master fields are prohibited. |
+| D-140 | Beta 1.0 preserves RFC, WFM, Objective, and other operational history without a general age-based purge; only the separately governed orphaned-communication grace is elapsed-time content minimization. |
+| D-141 | Undo is independently action-scoped and safe-inverse bounded; warning acknowledgement affects presentation only and immutable evidence uses named correction workflows. |
+| D-142 | RFC Customer Organization uses reviewed strong identity evidence, never names or Infrastructure context alone; unresolved customer partitions may still participate in temporal grouping. |
+| D-143 | Local Tasks are first-class internally identified Tasks with only Task Name universally required and no fabricated provider identity. |
+| D-144 | Task plan, actual execution, and outcome are independent; individual unstarted Tasks may be cancelled while other Objective work executes, producing an explicit mixed Objective outcome. |
+| D-145 | Objective identity is immutable while monthly ordinal is derived presentation; the selectable IANA timezone is limited to Objective/Task scheduling and calendar presentation. |
+| D-146 | Validation and pagination limits are semantic and measured by owning contracts; no universal 400-character or 100/500-page product constant applies. |
+| D-147 | Distinct WFMs under one RFC may share an Objective when they are distinct activities; only competing attempts of the same reviewed activity lineage conflict. |
+| D-148 | Complete unassigned WFMs may propose historical Objectives without fabricating execution; Tasks and whole historical Objectives may be excluded from operational counts without erasing history. |
+| D-149 | Plan Cancel may create or adopt exact cancelled WFM history but never activates work, promotes an RFC, creates an Objective, or silently changes existing local work. |
+| D-150 | Valid WFM source planning is the default reviewed candidate but remains distinct from accepted Task plan, Objective envelope, and actual execution; wall-clock position alone never locks it. |
+| D-151 | Advanced Search Product remains discarded; reusable Product Lines become customer-specific only through Contract Product Lines, and classification batches preserve per-target review outcomes. |
+| D-152 | First run requires only Local Administrator authentication plus appearance and Objective-timezone selection; operational master-data setup is skippable and missing classification yields no fabricated IT SLA fallback. |
+| D-153 | IT/NFV SLA values are templates; custom tier structure is contract-specific, and Non-fault inquiry preserves every Minor tier with exact 1.5 duration multiplication and no rounding. |
+| D-154 | SLA elapsed duration is a nonnegative exact derived projection with explicit active/terminal endpoints; accepted changes recalculate live truth while completed reports remain immutable. |
+| D-155 | Contractual SLA cohorts are monthly in `America/Guayaquil`; other report ranges are progress snapshots, and individual duration never substitutes for percentage-cohort compliance. |
+| D-156 | RFC/WFM exact-source presence is independent of accepting mutation; disputed terminal rows are individually reviewable while whole-import rejection is reserved for inseparable workbook-level failure. |
+| D-157 | Known instants persist in UTC whole seconds; source adapters own source-zone conversion, ordinary/SLA time remains `America/Guayaquil`, and selectable timezone affects Objectives/Tasks only. |
 
 ## Deferred beyond 1.0.0
 

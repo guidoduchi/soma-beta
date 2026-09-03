@@ -1,6 +1,6 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Roadmap reviewed; 138/138 merged Alpha requirements complete; unmerged proposal review checkpoint 23/43 complete (20 remain)**
+Status: **Roadmap reviewed; 138/138 merged Alpha requirements and 43/43 unmerged proposals dispositioned; Phase 0 normalization and design closure remain**
 
 This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 
@@ -43,7 +43,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - destination layer, kept separate from release disposition.
 - Destination layers include Product Contract, use case, HLD, LLD, implementation, and acceptance evidence. **Defer** means a later release; it never means “belongs in LLD.”
 - Assign neutral immutable normative identifiers in the form **BETA-REQ-0001**. Workspace, domain, release, status, and destination remain metadata rather than part of the identifier.
-- The merged Alpha requirement pass is complete at 138 exact source rows mapped to 144 sequential Beta requirements. This milestone does not close Phase 0 while unmerged proposals remain undispositioned.
+- The complete Alpha pass contains 138 exact merged source rows and 43 exact proposal rows mapped through 177 sequential Beta requirements. Proposal disposition is complete. Phase 0 remains open for the requirement-normalization pass, domain-contract acceptance, remaining gaps, use cases, UI states, LLD traceability, and final gate review.
 
 ### Gaps and product contracts
 

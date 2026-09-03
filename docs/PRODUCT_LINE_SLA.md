@@ -49,7 +49,7 @@ The IT and NFV rows are policy templates, not global policies forced onto every 
 
 The only SLA start is the accepted source `Report Date`. If no valid source Report Date exists, the SR has no calculable elapsed-time or SLA result and remains explicitly incomplete or SLA-unclassified. Discovery, filename, filesystem, capture, import, manual-creation, and current timestamps are provenance or lifecycle facts only and never substitute for Report Date. A later accepted valid source value activates calculation without rewriting earlier provenance.
 
-Instants are stored in UTC and displayed in the operator-configured timezone, initially `America/Guayaquil`.
+Instants are stored in UTC whole-second precision. SLA source interpretation, calendar boundaries, and ordinary display use the fixed operational timezone `America/Guayaquil`. The separately selectable Objective/Task scheduling timezone has no SLA authority.
 
 ## 4. Effective elapsed time and endpoint
 
@@ -81,14 +81,14 @@ Each completed report is derived from one internally consistent accepted-state s
 
 ## 6. Reporting cohorts
 
-SLA operational review supports the configured Daily, Weekly, or Monthly reporting period and groups eligible SRs by at least:
+Canonical contractual SLA cohorts are monthly. Membership consists of eligible non-cancelled SRs whose accepted Report Date falls in the calendar month interpreted in `America/Guayaquil`. Objective timezone changes never move cohort membership. Cohorts partition by at least:
 
 - Customer Organization, Contract, and Contract Product Line;
 - severity;
 - policy tier; and
 - current compliance outcome.
 
-Cancelled SRs are excluded. The exact membership boundary, denominator treatment for active SRs that have not reached a tier duration, percentage rounding, and snapshot persistence are assigned to the Beta 1.0 use cases and LLD; they may not change the confirmed percentages, inclusive durations, classification rules, or cancelled exclusion.
+Cancelled SRs are excluded. Individual duration and cohort compliance are different results. Live projections distinguish Pending, Currently Met, At Risk, Breached, and Final Met using deterministic lower-bound and best-possible calculations. An open changing month is never represented as final. Daily, Weekly, and selected-range views are as-of progress snapshots of monthly cohorts, not alternate contractual cohort boundaries. Each snapshot identifies timezone, month, scope, included/excluded/unclassified populations, denominator, policy revision, and result. Percentage rounding and finalization rules belong to the Beta 1.0 LLD and may not weaken configured percentages or inclusive durations.
 
 ## 7. Warnings and safeguards
 

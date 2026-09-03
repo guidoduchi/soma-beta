@@ -1,7 +1,7 @@
 # RFC/WFM Import, Lifecycle, and Objective Grouping Contract
 
 **Status:** Normative Beta 1.0.0 product contract  
-**Authority:** `BETA-REQ-0145` through `BETA-REQ-0161`, with revised `BETA-REQ-0045`, `0050`, `0064`, `0065`, `0070`, and `0073`.
+**Authority:** `BETA-REQ-0145` through `BETA-REQ-0177` where applicable, with revised `BETA-REQ-0042`, `0045`, `0050`, `0061`, `0064`, `0065`, `0068`, `0070`, `0073`, `0078`, `0150`, and `0155`.
 
 ## 1. Source discovery and authority
 
@@ -45,6 +45,16 @@ Import acceptance and regrouping are separate reviewed actions. Proposals carry 
 
 An SR may be solved without any Task or Objective, including customer-resolved and Non-fault inquiry cases. No work is fabricated. Due Objective review records acceptance time separately from execution, preserves per-Task outcomes, never infers spare use, and creates new identities for retries.
 
+The valid WFM source plan is the default reviewed operational-plan candidate. It remains immutable source evidence distinct from the accepted Task plan, Objective envelope, and actual execution. A conflicting manual plan is shown beside it; the operator may adopt the source value, retain the manual value with reason, correct the plan, or leave the conflict unresolved. Execution, terminal evidence, or an explicit plan lock stops automatic recalculation; wall-clock position alone does not.
+
+Distinct WFM Task Nos remain distinct attempts. Multiple WFMs under one RFC may share an Objective when reviewed as genuinely different activities. Only competing active attempts of the same activity lineage conflict. SOMA preserves both identities and reviews whether they are distinct work, a retry, a cancellation, source error, or unresolved; it never creates overlapping Objectives to evade that review.
+
+Local Tasks are first-class Tasks with internal identity and no fabricated provider identifier. Task Name is the only universal descriptive requirement. They may be unscheduled or belong to at most one Objective. A Task created inside an Objective may initialize its plan from that Objective, but its accepted plan is independent and the Objective envelope remains derived.
+
+Planned and actual intervals are distinct. Starting an Objective does not start every Task. An unstarted member may be cancelled during or after the activity while other work continues. Per-Task outcomes include Completed, Incomplete, Cancelled without execution, and Awaiting Review. Mixed outcomes remain visible; whole-Objective Cancelled is valid only when no Task began. Recording and effective times remain separate.
+
+Objective schedule entry, calendar grouping, and presentation use the operator-selected IANA Objective timezone. Changing that setting changes display of existing UTC instants, not the instants; preserving local wall-clock time requires explicit rescheduling. This setting has no authority over RFC/WFM source chronology or other domains.
+
 ## 6. Terminal cascade
 
 Accepted terminal evidence creates a pending cascade proposal atomically but mutates local lifecycle only after an explicit three-second deliberate hold or accessible equivalent. A subordinate proposal targets that RFC and its active owned WFMs. A master proposal targets the exact two-level branch and its active WFMs. It never targets SRs or unrelated Local Tasks.
@@ -53,6 +63,20 @@ The cascade stores internal membership, persists across restart, and revalidates
 
 After confirmation, direct RFC communication links follow the Communications Contract and only a dependency-free communication enters orphan grace. Erroneously recorded terminal/cascade evidence is append-correctable. Genuine later WFM work uses a new Task No.
 
-## 7. Acceptance minimum
+If executable members survive an accepted loss, an in-progress Objective continues with a warning. If none survive, it becomes `Incomplete — Awaiting Review`. Locks derive from accepted execution/history rather than the current clock. Started or evidenced Tasks/Objectives are never hard-deleted.
+
+A provider `Complete` WFM without Objective membership may propose a historical Objective only when a usable source interval exists. This proves neither actual execution nor local outcome or downstream Device/Inventory effects. The operator may exclude historical Tasks from operational counting without deleting history; excluding all members marks the Objective excluded from operational counts and reports disclose both included and excluded populations.
+
+`Plan Cancel` may create or adopt its exact WFM identity as cancelled history. It never activates work, promotes an RFC, or creates an Objective; any conflict with existing planned or in-progress local work is separately reviewed.
+
+## 7. Customer, import review, and derived context
+
+Every RFC has at most one current Customer Organization. Customer Account Number is the strongest supported external reconciliation key; names remain labels. WFM and linked-SR facts may propose reviewed reconciliation, while Infrastructure context never proves ownership. Resolved branch membership must agree; unresolved customer context remains a warned work-package partition and does not block temporal grouping.
+
+A WFM's master/subordinate context derives only from its owning RFC hierarchy, including outside an Objective. There is no WFM hierarchy, master flag, or `master_wfm_id`. Hierarchy correction recalculates current context while preserving identities and history.
+
+Every workbook produces an exact-source staged result. Observed source presence is distinct from accepting a mutation, so rejected, deferred, or unresolved valid identities do not fabricate disappearance. Independent targets may receive independent dispositions. Terminal RFC proposals are individually rejectable; acceptance appends terminal evidence and a pending cascade, while local cascade still requires its own impact preview and deliberate hold. Whole-workbook rejection is reserved for failures that make safe row-level interpretation impossible.
+
+## 8. Acceptance minimum
 
 Automated acceptance covers deterministic discovery, unsafe input, replay/chronology conflict, partial and historical exports, omission neutrality, status correction, adoption, header aliases, duplicate/conflicting rows, hierarchy/reparenting, SR candidates, Plan Cancel, arbitrary-minute scheduling, strict-overlap grouping, stale regroup proposals, restart-persistent terminal review, hold/revalidation, cascade rollback, Objective effects, and communication orphan-grace integration.

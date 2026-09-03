@@ -174,3 +174,4 @@ Before 1.0 release, accepted use cases, responsive UI states, LLD contracts, and
 ## 17. LLD responsibilities
 
 LLD defines exact normalized schema, constraints/indexes, Network Element name/serial/IP candidate matching, Site/Model/Rack/Deployment resolution, U occupancy, containment cycle checks, workbook sheets/headers/versioning, installation-scope token, formulas/macros policy, file stabilization, fingerprints, import limits, concurrency, transaction/idempotency keys, errors, export filters, and sanitized golden fixtures. Those choices may not weaken this contract.
+

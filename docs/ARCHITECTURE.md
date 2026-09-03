@@ -188,7 +188,11 @@ Technical diagnostics are structured, bounded, redacted before queues/outputs, s
 
 A local Python runtime and local web UI are the current direction. Windows 10/11 and Python 3.13/3.14 are confirmed. Exact supported Windows builds/editions, browser versions, runner images, and packaging combinations remain assigned to the packaging ADR and must satisfy the current-revision CI plus representative desktop-acceptance contract.
 
-## 10. Release boundaries
+## 10. Temporal authority
+
+Persistence represents known instants as canonical UTC whole-second values. Source adapters alone interpret source-local timestamps according to their versioned source profiles and preserve conversion provenance. Ordinary operations and SLA calendar boundaries use `America/Guayaquil`. A separately stored IANA Objective timezone affects only Task/Objective schedule entry, grouping, and presentation; it never becomes a global display or source timezone. Date-only values, exact durations, and unknown or ambiguous times remain distinct types.
+
+## 11. Release boundaries
 
 1.0.0 includes all six modules, the stock-first Inventory, SR-level Need aggregation, Spare Request/RMA obligation/Task outcome/Fault Tag and warehouse-loop lifecycles, pickup-origin and actual logistics, cross-request membership, correction replacement, rejection resend, state-specific removal, Infrastructure identity/placement/IP inventory/containment, reviewed Infrastructure workbook import and discovery export, external request registration, reviewed proposals, compatible bulk actions, exact-event correction, security, official operational imports, Excel reporting, SLA, PST/OST read, MSG drafts, the complete responsive accessible UI/UX interaction and fixture system, atomic SQLite/migration/audit runtime, external redacted diagnostics, Windows/Python verification, and tray behavior.
 

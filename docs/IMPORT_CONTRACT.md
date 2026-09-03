@@ -35,6 +35,7 @@ The SOMA-generated Infrastructure workbook is not an authoritative external popu
 - Import capture time is provenance only. It never substitutes for missing `Report Date` and never participates in SR duration or SLA calculations. A later accepted valid Report Date fills the missing source fact without changing identity or history.
 - One official SRNo identifies one surviving SR. Later terminal observations reconcile normally, and a valid reappearance may clear a source-disappearance warning. A recognized nonterminal Status after accepted terminal evidence is a high-risk proposal that never auto-accepts; explicit acceptance updates the same SR while preserving prior terminal evidence and completed report snapshots.
 - A missing, blank, malformed, or unknown Status cannot reverse accepted terminal evidence.
+- For RFC/WFM imports, observed source presence is distinct from mutation acceptance. A valid identity counts as present inside the declared source scope even when its proposal is rejected, deferred, or unresolved. Terminal RFC proposals are individually reviewable; accepting one records terminal evidence and a pending local-cascade proposal, while rejecting it does not require rejecting unrelated valid rows. Whole-workbook rejection is reserved for failures that make safe target-scoped interpretation impossible.
 - Structural validation, chronology, fingerprinting, and anomaly checks establish processing integrity but do not prove publisher authenticity, file origin, or absence of human editing for an unsigned workbook.
 - Blank handling is field-specific. A blank does not globally mean delete, zero, or unknown.
 - Persisted source observations retain source family, file fingerprint, import run, row locator, parsed identity, only meaningfully observed or changed allowlisted values, and applicable validation/review findings.
@@ -55,7 +56,7 @@ The SOMA-generated Infrastructure workbook is not an authoritative external popu
 
 ### 2.2 Scheduled Advanced Search checks
 
-- After an Advanced Search inbox is configured, its automatic daily check is enabled by default at 10:00 in the operator timezone, initially `America/Guayaquil`.
+- After an Advanced Search inbox is configured, its automatic daily check is enabled by default at 10:00 in the fixed operational timezone `America/Guayaquil`; changing the Objective scheduling timezone does not reinterpret this boundary.
 - The operator may select another whole-minute local time or disable the automatic schedule. **Check now** remains available in either state.
 - Startup after a missed enabled boundary performs at most one catch-up check and never repeatedly invokes every missed day.
 - An automatic check discovers the newest eligible stable workbook without opening a file picker. Manual file selection remains available as a separate operator action.
@@ -213,6 +214,10 @@ This section records aggregate evidence from the three official sample exports r
 | `Owner` | 1 / 263 — 0.4% |
 
 Every other active SR field was populated. All three currently suspended rows had a future `Suspend Planned End Date`. An initial blank `Suspension Duration` is normatively zero rather than unknown; a later blank or zero conflicting with accepted nonzero evidence remains subject to reviewed reconciliation.
+
+## Temporal authority
+
+Known accepted instants persist as UTC whole-second values. Each adapter applies the explicit offset or its governed source-family timezone at ingestion and preserves conversion provenance. A timezone-less timestamp without an unambiguous source contract remains unresolved. The operator-selectable Objective timezone never interprets SR, RFC, WFM, workbook, filename, communication, or import chronology.
 
 ### RFCs — 22 source rows
 

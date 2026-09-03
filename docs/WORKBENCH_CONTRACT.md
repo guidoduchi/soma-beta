@@ -168,6 +168,14 @@ An Objective is the reviewed grouping of scheduled Tasks, not an independently l
 - A cancelled Task does not create an Objective automatically.
 - Every accepted Objective contains at least one Task. Removing the last Task requires atomic removal of an otherwise deletable untouched Objective.
 
+Local Tasks remain first-class and may be unscheduled. A Local Task created in an Objective may start with that Objective's interval, but its accepted plan is independently reviewable and the Objective envelope remains derived from Task plans. Source WFM plan, accepted Task plan, Objective envelope, and actual execution are displayed as distinct facts when they differ.
+
+Starting an Objective does not start all Tasks. During or after an activity, the operator may cancel an individual unstarted Task while completing the rest. Per-Task Completed, Incomplete, Cancelled without execution, and Awaiting Review outcomes produce an explicit mixed Objective result; whole-Objective Cancelled is available only when nothing began. Loss of the final executable Task produces `Incomplete — Awaiting Review`.
+
+Historical Complete-WFM proposals never imply actual execution. Operators may exclude selected historical Tasks from current operational counts; excluding all members marks the Objective excluded from operational counts without deleting its history. Reports and filters disclose the excluded population.
+
+Objective schedule input and calendars use the selected IANA Objective timezone. Existing UTC instants merely redisplay after a timezone change; changing the intended wall-clock schedule is a separate reviewed reschedule.
+
 ## 5. Ticket visibility and status safety
 
 - Imported cancelled, resolved, and closed SRs remain visible and are visually muted in the configured Daily, Weekly, or Monthly main period.

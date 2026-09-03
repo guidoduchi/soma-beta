@@ -124,7 +124,7 @@ Recoverable working copies remain inside the security envelope and identify targ
 
 A working copy based on an older revision never overwrites newer truth. Conflict review distinguishes current, draft, affected relationships, and safely reapplicable changes; last-write-wins is prohibited for identity/evidence/lifecycle.
 
-Undo exists only when the exact inverse is currently valid, bounded, and safe. It revalidates dependencies and explains the reversal. Accepted evidence/lifecycle uses owning correction, cancellation, supersession, replacement, resend, restoration, or other append-oriented command instead.
+Undo exists only when the exact inverse is currently valid, bounded, and safe. It is action-scoped rather than one global latest-action slot: independent reversible actions may retain independent bounded Undo opportunities while their own inverses remain valid. It revalidates dependencies and explains the reversal; stale or unsafe inverses become unavailable with a reason. Warning acknowledgement changes presentation only and never changes the underlying fact. Accepted evidence/lifecycle uses owning correction, cancellation, supersession, replacement, resend, restoration, or other append-oriented command instead.
 
 Unsaved values do not affect authoritative lists, counts, warnings, SLA, matching, availability, relationships, or reports.
 

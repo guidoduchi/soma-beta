@@ -98,3 +98,8 @@ Identity is not a mutable descriptive field. Corrections use explicit reconcilia
 | Work-package partition | Customer and RFC-branch context shown inside one temporal Objective component; it explains membership but does not authorize overlapping Objectives. |
 | Skin | A governed built-in aesthetic token family that cannot change domain meaning, layout, workflow, confirmation safety, or accessibility. |
 | Appearance mode | Light, Dark, or System selection applied within the chosen skin; System follows the operating system without changing skin. |
+| Objective timezone | The operator-selected IANA timezone used only for Objective/Task schedule entry, calendar grouping, and maintenance-window presentation. It has no authority over SLA, source, communication, retention, Inventory, or audit chronology. |
+| Operational SLA timezone | The fixed `America/Guayaquil` timezone used for SR SLA calendar interpretation and monthly cohort boundaries. |
+| Activity lineage | The reviewed relationship indicating that distinct WFM Task identities are attempts of the same operational activity; distinct identity alone does not prove duplicate work. |
+| Excluded from operational counts | Historical Objective/Task presentation state that removes selected history from current aggregates without deleting or rewriting its identities, evidence, membership, audit, or completed reports. |
+| Action-scoped Undo | A bounded safe inverse attached to one reversible accepted action and independently revalidated; it is not authority to rewrite immutable evidence. |
