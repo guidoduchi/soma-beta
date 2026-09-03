@@ -1,6 +1,6 @@
 # SOMA Beta Requirement Normalization
 
-Status: **Active — checkpoint 27/177 accepted; CP-001 amendment A1 applied**  
+Status: **Active — checkpoint 52/177 accepted; CP-001 amendment A1 applied**  
 Authority: project-owner-approved normalization decisions.  
 Source baseline: `docs/BETA_REQUIREMENTS.md` preserves the pre-normalization approved wording and immutable `BETA-REQ-####` identities.
 
@@ -51,12 +51,19 @@ For every reviewed requirement:
 | Checkpoint | Scope | Reviewed | Replace | Retain | Clause count | Audit |
 |---|---|---:|---:|---:|---:|---|
 | CP-001 | `BETA-REQ-0001`–`0027` | 27 | 26 | 1 | 183 | Forward PASS; reverse-authority PASS after amendment A1 |
+| CP-002 | `BETA-REQ-0028`–`0052` | 25 | 25 | 0 | 275 | Forward PASS; reverse-authority PASS |
 
 CP-001 artefacts:
 - [`normalization/CP001_CATALOGUE.md`](normalization/CP001_CATALOGUE.md) — accepted governing obligations and classifications.
 - [`normalization/CP001_CLAUSES.md`](normalization/CP001_CLAUSES.md) — stable normative clause decomposition.
 - [`normalization/CP001_CLAUSE_AUTHORITY.md`](normalization/CP001_CLAUSE_AUTHORITY.md) — explicit owner/supporting-authority evidence for all 183 clauses.
 - [`normalization/CP001_TRACEABILITY.md`](normalization/CP001_TRACEABILITY.md) — design seeds and two-way audit.
+
+CP-002 artefacts:
+- [`normalization/CP002_CATALOGUE.md`](normalization/CP002_CATALOGUE.md) — accepted governing obligations and classifications.
+- [`normalization/CP002_CLAUSES.md`](normalization/CP002_CLAUSES.md) — stable normative clause decomposition.
+- [`normalization/CP002_CLAUSE_AUTHORITY.md`](normalization/CP002_CLAUSE_AUTHORITY.md) — explicit owner/supporting-authority evidence for all 275 clauses.
+- [`normalization/CP002_TRACEABILITY.md`](normalization/CP002_TRACEABILITY.md) — design seeds and two-way audit.
 
 ## Amendment log
 
