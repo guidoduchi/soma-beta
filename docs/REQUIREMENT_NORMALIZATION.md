@@ -1,6 +1,6 @@
 # SOMA Beta Requirement Normalization
 
-Status: **Active — checkpoint 52/177 accepted; CP-001 amendment A1 applied**  
+Status: **Active — checkpoint 77/177 accepted; CP-001 amendment A1 applied**  
 Authority: project-owner-approved normalization decisions.  
 Source baseline: `docs/BETA_REQUIREMENTS.md` preserves the pre-normalization approved wording and immutable `BETA-REQ-####` identities.
 
@@ -31,6 +31,8 @@ For every reviewed requirement:
 9. Supporting authority strengthens provenance only; it does not transfer clause ownership or authorize new product behavior.
 10. Design may choose implementation mechanics but may not weaken, replace, or silently invent product behavior.
 11. A compound requirement that cannot be normalized under one coherent obligation is flagged to the project owner rather than split silently.
+12. Each checkpoint audit shall cross-check the new range against all prior accepted checkpoints for semantic conflict, duplicated authority, terminology drift, ownership drift, and weakened invariants.
+13. Each checkpoint commit shall be isolated to its normalization artefacts and normalization index unless a separately approved correction is explicitly included.
 
 ## Classification vocabulary
 
@@ -51,7 +53,8 @@ For every reviewed requirement:
 | Checkpoint | Scope | Reviewed | Replace | Retain | Clause count | Audit |
 |---|---|---:|---:|---:|---:|---|
 | CP-001 | `BETA-REQ-0001`–`0027` | 27 | 26 | 1 | 183 | Forward PASS; reverse-authority PASS after amendment A1 |
-| CP-002 | `BETA-REQ-0028`–`0052` | 25 | 25 | 0 | 275 | Forward PASS; reverse-authority PASS |
+| CP-002 | `BETA-REQ-0028`–`0052` | 25 | 25 | 0 | 275 | Forward PASS; reverse-authority PASS; prior-checkpoint cross-check PASS; commit-isolation PASS |
+| CP-003 | `BETA-REQ-0053`–`0077` | 25 | 25 | 0 | 666 | Forward PASS; reverse-authority PASS; CP-001/CP-002 cross-check PASS; commit-isolation PASS |
 
 CP-001 artefacts:
 - [`normalization/CP001_CATALOGUE.md`](normalization/CP001_CATALOGUE.md) — accepted governing obligations and classifications.
@@ -65,6 +68,12 @@ CP-002 artefacts:
 - [`normalization/CP002_CLAUSE_AUTHORITY.md`](normalization/CP002_CLAUSE_AUTHORITY.md) — explicit owner/supporting-authority evidence for all 275 clauses.
 - [`normalization/CP002_TRACEABILITY.md`](normalization/CP002_TRACEABILITY.md) — design seeds and two-way audit.
 
+CP-003 artefacts:
+- [`normalization/CP003_CATALOGUE.md`](normalization/CP003_CATALOGUE.md) — accepted governing obligations and classifications.
+- [`normalization/CP003_CLAUSES.md`](normalization/CP003_CLAUSES.md) — stable normative clause decomposition.
+- [`normalization/CP003_CLAUSE_AUTHORITY.md`](normalization/CP003_CLAUSE_AUTHORITY.md) — explicit owner/supporting-authority evidence for all 666 clauses.
+- [`normalization/CP003_TRACEABILITY.md`](normalization/CP003_TRACEABILITY.md) — design seeds, forward/reverse audit, prior-checkpoint cross-check, and commit-isolation evidence.
+
 ## Amendment log
 
 ### CP-001-A1 — clause authority evidence and classification syntax
@@ -77,6 +86,10 @@ Independent review accepted the CP-001 product content but correctly identified 
 - clarifies that the first classification listed in compact catalogue syntax is primary and later entries are secondary.
 
 After A1: **Product preservation PASS; structural integrity PASS; forward traceability PASS; reverse authority PASS; overall CP-001 unconditional PASS.**
+
+### CP-003 owner clarification — configurable SLA cohort reports
+
+During normalization of `BETA-REQ-0064`, the project owner explicitly confirmed that configurable Weekly/Monthly reports must evaluate the applicable Contract Product Line cohort against its configured SLA tiers, expose the actual cohort compliance against each required percentage/duration, and preserve the report-time policy/result evidence. The clarification does not hard-code a terminal endpoint such as `Closed`; exact elapsed-duration endpoint semantics remain governed by the SLA/Temporal contracts.
 
 ## Final consolidation rule
 
