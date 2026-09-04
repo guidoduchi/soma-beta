@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/rc006-a2-product-candidates.yml'
       - 'tools/reconciliation/prepare_rc006_a2_product_candidates.py'
+      - 'tools/reconciliation/prepare_rc006_a2_product_candidates_v1_3.py'
       - 'tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py'
       - 'docs/reconciliation/RC006_A2_SCHEMA_AMENDMENT_001.md'
   workflow_dispatch:
@@ -28,10 +29,10 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Prepare Product Contract candidate batch
+      - name: Prepare final reviewed Product Contract candidate batch
         run: |
           mkdir -p a2-work
-          python tools/reconciliation/prepare_rc006_a2_product_candidates.py \
+          python tools/reconciliation/prepare_rc006_a2_product_candidates_v1_3.py \
             --repo . \
             --output a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
             --summary a2-work/product_candidate_preparation.json
@@ -44,6 +45,24 @@ jobs:
             --source-path docs/PRODUCT_CONTRACT.md \
             --candidates a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
             --output a2-work/product_candidate_validation.json
+
+      - name: Verify expected final review invariants
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows=[json.loads(line) for line in Path('a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl').read_text(encoding='utf-8').splitlines() if line]
+          assert len(rows) == 431, len(rows)
+          assert len({r['section_ordinal'] for r in rows}) == 27
+          semicolons=[r for r in rows if ';' in r['exact_text']]
+          assert len(semicolons) == 1, [(r['source_start_line'], r['exact_text']) for r in semicolons]
+          assert semicolons[0]['source_start_line'] == 52
+          assert semicolons[0]['normative_kind'] == 'PERMISSION'
+          print('FINAL_REVIEW_INVARIANTS\tPASS')
+          print('candidate_count\t431')
+          print('section_count\t27')
+          print('intentional_semicolon_rows\t52')
+          PY
 
       - name: Show preparation and validation summaries
         run: |
@@ -63,7 +82,7 @@ jobs:
       - name: Upload candidate evidence
         uses: actions/upload-artifact@v4
         with:
-          name: rc006-a2-product-contract-candidates
+          name: rc006-a2-product-contract-candidates-final
           path: a2-work/
           if-no-files-found: error
           retention-days: 90
