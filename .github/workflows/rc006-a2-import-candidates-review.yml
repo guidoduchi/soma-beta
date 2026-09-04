@@ -9,6 +9,7 @@ on:
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates.py'
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_2.py'
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3.py'
+      - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3_1.py'
   workflow_dispatch:
 
 permissions:
@@ -49,10 +50,10 @@ jobs:
           print('IMPORT_NEXT_SOURCE_BOUNDARY\tPASS')
           PY
 
-      - name: Generate final Import Contract review candidate corpus
+      - name: Generate completeness-corrected Import candidate corpus
         run: |
           set -euo pipefail
-          python tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3.py \
+          python tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3_1.py \
             --repo . \
             --output /tmp/rc006-a2-import-review/import-candidates.jsonl \
             --summary /tmp/rc006-a2-import-review/import-summary.json \
@@ -79,10 +80,15 @@ jobs:
           assert all(r['classification_review']=='PASS' for r in rows)
           assert not any('A2-ASSERT-' in json.dumps(r) for r in rows)
           first=[r for r in rows if r['source_start_line']==9]
-          assert first[0]['exact_text']=='SOMA imports operational evidence'
-          assert first[0]['normative_kind']=='OBLIGATION'
-          assert first[1]['exact_text']=='it does not mirror every column supplied by an external workbook.'
-          assert first[1]['normative_kind']=='PROHIBITION'
+          assert len(first)==5
+          expected=[
+              ('SOMA imports operational evidence','OBLIGATION'),
+              ('it does not mirror every column supplied by an external workbook.','PROHIBITION'),
+              ('Only fields explicitly allowlisted here may enter normalized Beta persistence.','DESIGN_BOUNDARY'),
+              ('A field may be retained as an active 1.0 fact or retained for a later release.','DESIGN_BOUNDARY'),
+              ('Every other source column is discarded after staging and cannot influence Beta behavior.','DESIGN_BOUNDARY'),
+          ]
+          assert [(r['exact_text'],r['normative_kind']) for r in first]==expected
           print('FINAL_IMPORT_REVIEW_INVARIANTS\tPASS')
           PY
 
@@ -90,8 +96,8 @@ jobs:
         run: |
           set -euo pipefail
           git rev-parse 61bbd665535e942ef3b05c5ed45661639d3a37a9:docs/IMPORT_CONTRACT.md > /tmp/rc006-a2-import-review/source-blob.txt
-          git rev-parse HEAD:tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3.py > /tmp/rc006-a2-import-review/generator-blob.txt
-          sha256sum tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3.py > /tmp/rc006-a2-import-review/generator-sha256.txt
+          git rev-parse HEAD:tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3_1.py > /tmp/rc006-a2-import-review/generator-blob.txt
+          sha256sum tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3_1.py > /tmp/rc006-a2-import-review/generator-sha256.txt
           sha256sum /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-sha256.txt
           wc -l /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-count.txt
           cat /tmp/rc006-a2-import-review/import-summary.json
@@ -100,7 +106,7 @@ jobs:
       - name: Upload review evidence
         uses: actions/upload-artifact@v4
         with:
-          name: rc006-a2-import-candidate-review-v03
+          name: rc006-a2-import-candidate-review-v031
           path: /tmp/rc006-a2-import-review/
           if-no-files-found: error
           retention-days: 90
