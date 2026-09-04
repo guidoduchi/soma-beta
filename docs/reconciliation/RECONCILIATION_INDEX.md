@@ -1,8 +1,9 @@
 # SOMA Beta Foundation Reconciliation Index
 
-Status: **RC-001 through RC-006 complete; RC-006-A1 corrective assurance applied; second-pass status alignment complete; Phase 0 ready for project-owner closure acceptance**  
+Status: **RC-001 through RC-006 complete; RC-006-A1 corrective assurance applied; independent second pass complete; Phase 0 CLOSED by project-owner acceptance**  
 Branch: `foundation/product-contract-v0.1`  
 Reconciliation baseline commit: `38e41714640b39a34d079102595f99153451f562`  
+Accepted Phase 0 pre-closure head: `9402ee5a8bc8630523448c3382ab62e1d616e8d1`  
 Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 canonical clauses**
 
 ## Checkpoints
@@ -14,9 +15,11 @@ Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 can
 | `RC-003` | Workbench + Product Line/SLA | **Completed** | 0 | Workbench workflow and customer-specific SLA/classification authority aligned; no unresolved product contradiction |
 | `RC-004` | Inventory + Infrastructure | **Completed** | 0 | Physical Inventory/Infrastructure authority aligned; no unresolved product contradiction |
 | `RC-005` | Communications + UI/UX + Foundation Runtime + Branding | **Completed** | 0 | Cross-cutting communication, interaction, runtime, verification and brand authority aligned; no unresolved product contradiction |
-| `RC-006` | Architecture + Roadmap + repository-facing status + global bidirectional reconciliation audit | **Completed; amended by A1** | 0 | Derived synthesis aligned; A1 removes unsupported frontend selection and upgrades literal clause-destination proof; second pass aligned remaining status surfaces; Phase 0 ready for owner closure acceptance |
+| `RC-006` | Architecture + Roadmap + repository-facing status + global bidirectional reconciliation audit | **Completed; amended by A1** | 0 | Derived synthesis aligned; A1 removes unsupported frontend selection and upgrades literal clause-destination proof; independent second pass closes status-only C21 |
 
-`RC-006-A1` is a corrective amendment to RC-006, **not RC-007**. The post-A1 second pass adds no new reconciliation wave; it closes status-only finding `RC006-C21`. Checkpoint numbering remains reconciliation-wave-specific. Project-owner Phase-0 acceptance is a separate authority action under `RECONCILIATION_METHOD.md` §8.
+`RC-006-A1` is a corrective amendment to RC-006, **not RC-007**. The post-A1 second pass adds no new reconciliation wave; it closes status-only finding `RC006-C21`. Checkpoint numbering remains reconciliation-wave-specific.
+
+Project-owner Phase-0 acceptance is a separate authority action recorded in `PHASE0_ACCEPTANCE.md`. It is not an RC checkpoint.
 
 ## RC-001 artifacts
 
@@ -55,9 +58,10 @@ Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 can
 - `RC006_GLOBAL_TRACEABILITY.md` — final global forward/reverse audit, strengthened by A1 from requirement-family inference to literal stable-clause-range destination proof.
 - `RC006_CLAUSE_DESTINATIONS.md` — **RC-006-A1** exhaustive canonical-range → requirement owner → destination evidence; expands to exactly 11,524 canonical IDs.
 - `RC006_CONTRADICTIONS.md` — resolved synthesis/global findings including A1 findings C18–C20 and second-pass status finding C21.
-- `RC006_PHASE0_GATE.md` — objective Phase 0 closure-gate result after A1, explicitly awaiting project-owner acceptance.
+- `RC006_PHASE0_GATE.md` — objective Phase 0 gate, now closed by explicit project-owner acceptance.
+- `PHASE0_ACCEPTANCE.md` — explicit project-owner authority action closing Phase 0 against pre-closure head `9402ee5a8bc8630523448c3382ab62e1d616e8d1`.
 
-## Cumulative state after RC-006-A1 and second pass
+## Final Phase 0 state
 
 - Normalized requirements changed by reconciliation: **0**.
 - Canonical stable clause identities changed by reconciliation: **0**.
@@ -76,6 +80,7 @@ Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 can
 - Known cross-document product contradictions: **0**.
 - Repository-facing status drift: **0 known after C21**.
 - Open technical-design boundaries remain intentionally open: `O-001`, `O-003`, `O-004`, `O-005`, `O-006`, `O-007`, `O-010`, plus exact frontend framework/language/build-tool selection under downstream design gates.
+- Project-owner Phase 0 closure acceptance: **ACCEPTED**.
 
 ## Global reconciliation result
 
@@ -86,12 +91,12 @@ The final proof is compact but literal:
 3. RC-001 through RC-005 provide the detailed focused-contract forward/reverse evidence behind the destination codes;
 4. RC-006-A1 reverse-audits the whole foundation at normative assertion-family granularity and removes the sole unsupported settled design assertion found by independent review;
 5. the independent second pass rechecked the literal owner-range sequence, high-risk authority boundaries, security/runtime assertions, framework leakage, and repository-facing status consistency; and
-6. Architecture/Roadmap/repository-facing text remain derived synthesis rather than competing product authority.
+6. the project owner explicitly accepted the closure gate against the audited pre-closure head recorded in `PHASE0_ACCEPTANCE.md`.
 
-Result: **177/177 requirements; 11,524/11,524 canonical clauses destination-covered; GLOBAL FORWARD PASS; GLOBAL REVERSE PASS; ORPHANS 0; PRODUCT CONTRADICTIONS 0; UNSUPPORTED SETTLED DESIGN ASSERTIONS 0.**
+Result: **177/177 requirements; 11,524/11,524 canonical clauses destination-covered; GLOBAL FORWARD PASS; GLOBAL REVERSE PASS; ORPHANS 0; PRODUCT CONTRADICTIONS 0; UNSUPPORTED SETTLED DESIGN ASSERTIONS 0; PHASE 0 CLOSED.**
 
-## Remaining action
+## Next authorized work
 
-There is no remaining foundation-reconciliation defect queue after RC-006-A1 and the independent second pass.
+Phase 0 is formally closed. No `RC-007` exists or is required.
 
-Phase 0 is **not automatically closed**. Explicit project-owner acceptance is still required. No `RC-007` will be created for that action. After the owner explicitly accepts the closure gate, the acceptance should be recorded separately as `PHASE0_ACCEPTANCE.md`, and the next roadmap work is Phase 1A business use cases followed by Phase 1B complete HLD.
+The next authorized roadmap work is **Phase 1A — Complete Business Use-Case Catalogue**. Phase 1B complete HLD begins only after Phase 1A acceptance. Production implementation remains blocked until the complete Beta 1.0.0 LLD is accepted.

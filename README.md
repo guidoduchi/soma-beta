@@ -6,7 +6,7 @@ SOMA Beta is a local, offline-first operations workspace for service tickets, ma
 
 ## Product status
 
-Phase 0 requirement normalization and foundation contract reconciliation are complete through `RC-006`, with the `RC-006-A1` corrective assurance amendment applied. The foundation is **ready for project-owner Phase 0 closure acceptance**; business use cases and the complete HLD begin only after that acceptance, followed by the complete Beta 1.0.0 LLD.
+**Phase 0 is formally closed by project-owner acceptance.** Requirement normalization and foundation contract reconciliation are complete through `RC-006`, with `RC-006-A1` corrective assurance and the independent second pass applied. Phase 1A — the complete business use-case catalogue — is now authorized; Phase 1B complete HLD follows only after Phase 1A acceptance, then the complete Beta 1.0.0 LLD.
 
 No production code, final database schema, or Alpha data migration is approved by this foundation state. Production implementation remains blocked until the entire Beta 1.0.0 LLD is accepted.
 
@@ -25,6 +25,7 @@ These names and this order are product language. `Settings` must not be renamed 
 
 The normalized governing obligations and canonical stable clauses are current product authority. `docs/BETA_REQUIREMENTS.md` remains the preserved **pre-normalization baseline** and must not be used as a substitute for the normalized catalogue/clauses.
 
+- [Phase 0 project-owner acceptance](docs/reconciliation/PHASE0_ACCEPTANCE.md)
 - [Requirement normalization authority and doctrine](docs/REQUIREMENT_NORMALIZATION.md)
 - [Normalized catalogue, canonical clauses, clause authority, and checkpoint audits](docs/normalization/)
 - [Foundation reconciliation index](docs/reconciliation/RECONCILIATION_INDEX.md)

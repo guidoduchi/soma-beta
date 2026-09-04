@@ -1,6 +1,6 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Phase 0 normalization and contract reconciliation complete through RC-006 with RC-006-A1 corrective assurance applied; final project-owner Phase 0 closure acceptance pending**
+Status: **Phase 0 CLOSED by project-owner acceptance after RC-006, RC-006-A1, and the independent second pass; Phase 1A authorized**
 
 This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 
@@ -21,7 +21,7 @@ flowchart TD
 
 A later phase may expose a disproven assumption. When this happens, SOMA uses controlled design correction: reopen the owning accepted artifact, record the reason and impact, update downstream traceability, and reaccept the affected design before implementation continues. Product behavior always returns to Phase 0; implementation must never silently invent policy.
 
-## Phase 0 — Requirement traceability and product stabilization (closure gate)
+## Phase 0 — Requirement traceability and product stabilization (CLOSED)
 
 ### Purpose
 
@@ -43,7 +43,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - destination layer, kept separate from release disposition.
 - Destination layers include Product Contract, use case, HLD, LLD, implementation, and acceptance evidence. **Defer** means a later release; it never means “belongs in LLD.”
 - Assign neutral immutable normative identifiers in the form **BETA-REQ-0001**. Workspace, domain, release, status, and destination remain metadata rather than part of the identifier.
-- The complete Alpha pass contains 138 exact merged source rows and 43 exact proposal rows mapped through 177 sequential Beta requirements. Proposal disposition is complete. Requirement normalization is complete at **177/177** with **11,524** globally unique canonical stable clauses, all recorded `FND-GAP-001`–`016` items are resolved, focused contract reconciliation is complete through `RC-006`, and `RC-006-A1` has removed the unsupported frontend selection and upgraded the final forward assurance to literal canonical clause-range destination coverage. Phase 0 remains open only for the final project-owner closure acceptance required by the reconciliation doctrine; business use cases/HLD and LLD belong to Phases 1 and 2 rather than being unfinished Phase 0 work.
+- The complete Alpha pass contains 138 exact merged source rows and 43 exact proposal rows mapped through 177 sequential Beta requirements. Proposal disposition is complete. Requirement normalization is complete at **177/177** with **11,524** globally unique canonical stable clauses, all recorded `FND-GAP-001`–`016` items are resolved, focused contract reconciliation is complete through `RC-006`, `RC-006-A1` removed the unsupported frontend selection and upgraded the final forward assurance to literal canonical clause-range destination coverage, and the independent second pass found no remaining substantive reconciliation defect. Phase 0 is formally closed by the project-owner acceptance recorded in `docs/reconciliation/PHASE0_ACCEPTANCE.md`. Phase 1A business use cases are now authorized; HLD and LLD remain Phases 1B and 2.
 
 ### Gaps and product contracts
 
@@ -83,7 +83,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 - Terminology and rules agree across all foundation documents.
 - The proprietary boundary, internal-team restriction, brand provenance, and applicable required notices are accepted.
 
-### Current Phase 0 gate state
+### Final Phase 0 gate state
 
 - Requirement normalization: **PASS — 177/177 requirements, 11,524/11,524 unique canonical clause IDs**.
 - Recorded foundation gaps: **PASS — 16/16 resolved; 0 Open**.
@@ -93,7 +93,8 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 - Unsupported settled implementation/framework assertion: **PASS — 0 known after RC-006-A1**.
 - Known unresolved Phase 0 product questions: **0**.
 - Remaining `O-*` items and exact frontend framework/language/build-tool selection are bounded downstream design questions and do not reopen settled product behavior.
-- Final project-owner Phase 0 closure acceptance: **PENDING**.
+- Final project-owner Phase 0 closure acceptance: **ACCEPTED — PHASE 0 CLOSED**.
+- Next authorized work: **Phase 1A — Complete Business Use-Case Catalogue**.
 
 ## Phase 1 — Complete business use cases and high-level design
 
