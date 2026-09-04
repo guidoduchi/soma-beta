@@ -1,9 +1,9 @@
 # RC-006-A2 — Section-Level Clause Destination Assurance
 
-Status: **READY FOR EXECUTION — `A2-BASELINE-001` pinned; certification remains OPEN; Phase 1A owner review remains paused**  
+Status: **METHOD READY — execution authorization is controlled by `RC006_A2_EXECUTION_BASELINE.md`; certification remains OPEN; Phase 1A owner review remains paused**  
 Parent: `RC-006-A1`  
-Baseline authority: accepted Phase-0 product authority and the 11,524-clause canonical set recorded in `PHASE0_ACCEPTANCE.md`.
-Execution source snapshot: `A2-BASELINE-001` — source commit `8282d321d0ab318ef141695b2500c8247ccd26b4`, Git tree `3ee7140a3005d8538e6e350efac1de070c9c60be`.
+Baseline authority: accepted Phase-0 product authority and the 11,524-clause canonical set recorded in `PHASE0_ACCEPTANCE.md`.  
+Execution source snapshot: **the exact current source commit/tree is authoritative only when `RC006_A2_EXECUTION_BASELINE.md` is `PINNED / VERIFIED`; mass mapping is prohibited otherwise**.
 
 ## 1. Purpose
 
@@ -75,13 +75,13 @@ Rules:
 3. Identity is not derived from document path, heading text, line number, or row position; those locators may change without changing the stable ID.
 4. The reverse ledger records: assertion ID, document path, explicit section anchor/heading, ordinal locator, exact assertion text, SHA-256 fingerprint, destination role, authorizing canonical clause IDs, owning `BETA-REQ`, semantic-review result, and supersession/history metadata.
 5. The fingerprint is SHA-256 over the assertion text encoded as UTF-8 after Unicode NFC and LF line-ending normalization. Internal whitespace and punctuation are preserved.
-6. A fingerprint mismatch invalidates the assertion’s prior validation until reviewed. Editorially equivalent text retains its stable ID with recorded old/new fingerprints; semantic split or replacement allocates new IDs and marks the old ID superseded.
+6. A fingerprint mismatch invalidates the assertion's prior validation until reviewed. Editorially equivalent text retains its stable ID with recorded old/new fingerprints; semantic split or replacement allocates new IDs and marks the old ID superseded.
 7. Identical wording in different normative locations receives distinct assertion IDs because each destination assertion has independent placement and reverse-authority evidence.
 8. Informative references receive no `A2-ASSERT` identity unless they contain normative language; any such language must instead be classified and audited as normative.
 
 ## 4.2 Exact execution-baseline pin
 
-Before mass mapping begins, A2 shall record an immutable source snapshot in `RC006_A2_EXECUTION_BASELINE.md` with:
+Before mass mapping begins, A2 shall have one current immutable source snapshot recorded in `RC006_A2_EXECUTION_BASELINE.md` with:
 
 - repository and branch for provenance;
 - exact source commit SHA;
@@ -91,11 +91,11 @@ Before mass mapping begins, A2 shall record an immutable source snapshot in `RC0
 - assertion-ID allocation start/range policy; and
 - invalidation/rebaseline rules.
 
-All A2 extraction and validation reads source inputs by pinned Git tree, never by a moving branch name. Any post-pin change to a canonical clause, normative contract, synthesis document, or other included source blob invalidates affected evidence and requires a controlled rebaseline or explicitly bounded amendment.
+All A2 extraction and validation reads source inputs by the pinned Git tree, never by a moving branch name. Any post-pin change to an included canonical clause, normative contract assertion, synthesis assertion used for destination interpretation, or other included normative source invalidates affected evidence and requires a controlled rebaseline or explicitly bounded amendment.
 
-The baseline pin is written in a follow-up control commit because a Git tree cannot contain its own hash. The pinned tree is the completed preparatory input corpus; the follow-up commit may add only the pin/control metadata needed to identify that corpus.
+The source snapshot is created only after all included normative/synthesis corrections are finalized. The follow-up pin commit may modify only the excluded `RC006_A2_EXECUTION_BASELINE.md` control record to insert the exact source commit/tree and mark the baseline `PINNED / VERIFIED`. Because that control file is excluded from normative assertion extraction/destination interpretation, the pin-only commit does not invalidate the source snapshot it identifies.
 
-`A2-BASELINE-001` satisfies this prerequisite. All mass mapping must read the pinned tree. If the pin is absent, mismatched, or invalidated by an included-source change, **A2 mass mapping is prohibited** until controlled rebaseline.
+Mass mapping is authorized **only** when `RC006_A2_EXECUTION_BASELINE.md` declares the current baseline `PINNED / VERIFIED`. If the pin is absent, mismatched, superseded, or invalidated, **A2 mass mapping is prohibited** until controlled rebaseline.
 
 ## 5. Mechanical invariants
 
@@ -161,7 +161,7 @@ A2 is **not PASS merely because this method exists**.
 
 After the destination map is complete and all §5 invariants pass:
 
-1. pin and verify the exact source commit/tree;
+1. verify the current exact source commit/tree through the PINNED / VERIFIED execution-baseline record;
 2. complete the compact forward map, generated 11,524-record ledger, stable-ID reverse-authority ledger, reproducible validator, and validation summary;
 3. prove every §5 invariant with zero unresolved exceptions;
 4. mark A2 `PASS`;
