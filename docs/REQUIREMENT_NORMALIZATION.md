@@ -1,6 +1,6 @@
 # SOMA Beta Requirement Normalization
 
-Status: **Active — checkpoint 127/177 accepted; CP-001 amendment A1, CP-004 substitute clarification, and CP-005 Device Reference clarification applied**  
+Status: **Active — checkpoint 152/177 accepted; CP-001 amendment A1, CP-004 substitute clarification, and CP-005 Device Reference clarification applied**  
 Authority: project-owner-approved normalization decisions.  
 Source baseline: `docs/BETA_REQUIREMENTS.md` preserves the pre-normalization approved wording and immutable `BETA-REQ-####` identities.
 
@@ -57,8 +57,9 @@ For every reviewed requirement:
 | CP-003 | `BETA-REQ-0053`–`0077` | 25 | 25 | 0 | 666 | Forward PASS; reverse-authority PASS; CP-001/CP-002 cross-check PASS; commit-isolation PASS |
 | CP-004 | `BETA-REQ-0078`–`0102` | 25 | 25 | 0 | 1383 | Two-pass preservation PASS; reverse-authority PASS; CP-001/CP-002/CP-003 cross-check PASS; commit-isolation PASS |
 | CP-005 | `BETA-REQ-0103`–`0127` | 25 | 25 | 0 | 2669 | Two-pass preservation PASS; reverse-authority PASS; CP-001/CP-002/CP-003/CP-004 cross-check PASS; commit-isolation PASS |
+| CP-006 | `BETA-REQ-0128`–`0152` | 25 | 25 | 0 | 3444 | Two-pass preservation PASS; reverse-authority PASS; CP-001/CP-002/CP-003/CP-004/CP-005 cross-check PASS; commit-isolation PASS |
 
-Cumulative accepted normalization through CP-005: **127 / 177 requirements reviewed; 126 Replace; 1 Retain; 5176 stable clauses.**
+Cumulative accepted normalization through CP-006: **152 / 177 requirements reviewed; 151 Replace; 1 Retain; 8620 stable clauses.**
 
 CP-001 artefacts:
 - [`normalization/CP001_CATALOGUE.md`](normalization/CP001_CATALOGUE.md) — accepted governing obligations and classifications.
@@ -90,6 +91,12 @@ CP-005 artefacts:
 - [`normalization/CP005_CLAUSE_AUTHORITY.md`](normalization/CP005_CLAUSE_AUTHORITY.md) — one-owner/supporting-authority evidence for all 2669 clauses, including the Device Reference regularization clarification as supporting authority only.
 - [`normalization/CP005_TRACEABILITY.md`](normalization/CP005_TRACEABILITY.md) — two-pass audit, design seeds, owner clarification reconciliation, prior-checkpoint cross-check, open-design boundaries, and commit-isolation evidence.
 
+CP-006 artefacts:
+- [`normalization/CP006_CATALOGUE.md`](normalization/CP006_CATALOGUE.md) — accepted governing obligations and classifications for `BETA-REQ-0128`–`0152`.
+- [`normalization/CP006_CLAUSES.md`](normalization/CP006_CLAUSES.md) — 3444 stable normative clauses covering operational projections/actions, persistence/runtime/security/acceptance guarantees, and RFC/WFM import/reconciliation/hierarchy behavior.
+- [`normalization/CP006_CLAUSE_AUTHORITY.md`](normalization/CP006_CLAUSE_AUTHORITY.md) — one-owner/supporting-authority evidence for all 3444 clauses with explicit Task-outcome, Device Reference, runtime, audit, and import authority boundaries.
+- [`normalization/CP006_TRACEABILITY.md`](normalization/CP006_TRACEABILITY.md) — two-pass audit, design seeds, CP-001–CP-005 cross-check, preserved technical-design boundaries, and commit-isolation evidence.
+
 ## Amendment log
 
 ### CP-001-A1 — clause authority evidence and classification syntax
@@ -117,11 +124,11 @@ The clarification is owned by `BETA-REQ-0096` and is propagated only as explicit
 
 During normalization of `BETA-REQ-0110`, the project owner explicitly confirmed that typos and provisional operational references must remain correctable: a provisional or temporary Device Reference may be reviewably resolved or reassigned to an already-existing Network Element from the Infrastructure workspace even after every related Service Request reaches a terminal state. Ticket closure does not freeze Infrastructure regularization. The Device Reference identity, Network Element identity, original imported or ticket-time text, prior resolution evidence, and correction history remain preserved, and the Infrastructure correction neither reopens nor rewrites the terminal Service Request.
 
-This clarification strengthens the already accepted Device Reference authority in `BETA-REQ-0102`; it is propagated into CP-005 only as explicit supporting authority for workbook, workflow-isolation, responsive-action, and editor consequences. Creation/promotion of a genuinely new Network Element remains distinct and retains the accepted three-second deliberate-hold behavior.
+This clarification strengthens the already accepted Device Reference authority in `BETA-REQ-0102`; it is propagated into CP-005 and later checkpoints only as explicit supporting authority where dependent workbook, workflow, UI, editor, or acceptance behavior consumes it. Creation/promotion of a genuinely new Network Element remains distinct and retains the accepted three-second deliberate-hold behavior.
 
 ## Known design-reconciliation boundary
 
-The preliminary HLD currently contains wording that assigns “Task outcomes” to Inventory. Accepted product authority through CP-005 does **not** support that ownership. Objectives/Task lifecycle owns Task execution, outcome, review, correction, and retry; Inventory consumes reviewed outcomes only to apply Task-to-unit allocation and physical lifecycle consequences. This remains a design-reconciliation item for the later HLD audit and is not silently edited during Phase 0A normalization.
+The preliminary HLD currently contains wording that assigns “Task outcomes” to Inventory. Accepted product authority through CP-006 does **not** support that ownership. Objectives/Task lifecycle owns Task execution, outcome, review, correction, and retry; Inventory consumes reviewed outcomes only to apply Task-to-unit allocation and physical lifecycle consequences. `BETA-REQ-0128` explicitly reinforces this projection/ownership distinction. This remains a design-reconciliation item for the later HLD audit and is not silently edited during Phase 0A normalization.
 
 ## Final consolidation rule
 
