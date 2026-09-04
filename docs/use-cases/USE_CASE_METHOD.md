@@ -1,0 +1,129 @@
+# SOMA Beta Phase 1A — Business Use-Case Method
+
+Status: **Accepted working method for P1A-001**  
+Phase authority: `docs/ROADMAP.md` Phase 1A and the Phase-0 accepted foundation recorded in `docs/reconciliation/PHASE0_ACCEPTANCE.md`.
+
+## 1. Purpose
+
+Phase 1A translates accepted product authority into the complete set of meaningful human and system goals SOMA Beta 1.0 must support. It does not redesign product policy and does not select implementation technology.
+
+A use case is a **meaningful actor goal or system-triggered goal** with observable preconditions, flow, outcomes, preserved evidence, and failure/correction behavior. It is not a button, screen, field, database command, clause, implementation task, or test case.
+
+## 2. Authority order
+
+Use-case work consumes, in order:
+
+1. accepted normalized `BETA-REQ-####` governing obligations and canonical stable clauses;
+2. accepted product-owner decisions;
+3. reconciled focused product contracts;
+4. Product Contract and Glossary synthesis;
+5. Phase-0 Architecture/Roadmap only as derived boundary/delivery guidance.
+
+If a use-case draft exposes a genuine product contradiction or missing policy, Phase 1A does not invent the answer. The issue returns through controlled Phase-0 reopening/gap handling before the use case is accepted.
+
+## 3. Stable identifiers
+
+- Business use cases use `UC-###`, beginning with `UC-001`.
+- `UC-*` identities are stable after acceptance and are never reused for a different goal.
+- Phase-1A governance/checkpoint records use `P1A-*`; `CP-*` and `RC-*` remain reserved for their completed Phase-0 lineages.
+- Structural invariants are recorded in traceability as `SI` classifications rather than fabricated use cases.
+
+## 4. Required use-case fields
+
+Every accepted use case records:
+
+- stable ID and concise goal;
+- primary actor (`Local Administrator` or `System`), with supporting actors/sources where relevant;
+- trigger;
+- preconditions;
+- main success flow;
+- alternate, warning, conflict, stale, correction, cancellation, retry, and failure flows that materially apply;
+- postconditions / accepted-state effects;
+- preserved evidence/history;
+- owning domain and affected workspace(s);
+- governing `BETA-REQ` and canonical clause-family references;
+- related focused contracts;
+- downstream HLD questions/boundaries exposed by the flow, without resolving LLD mechanics; and
+- acceptance scenarios stated behaviorally, without prescribing tables, classes, APIs, frameworks, libraries, or algorithms.
+
+A field may state `Not applicable` only when the reason is evident from accepted authority.
+
+## 5. Scope and granularity rules
+
+Create one use case per meaningful goal. Split when the actor objective, authority boundary, accepted end state, or materially different failure/recovery contract changes. Keep one use case when multiple UI actions are merely steps toward the same goal.
+
+Examples of **not** separate use cases by themselves: clicking Save, opening a tab, selecting an autocomplete row, individual validation messages, one SQL transaction, or one lifecycle command that exists only as a step inside a broader operator goal.
+
+System-triggered behavior is first-class. Scheduled import checks, background Communications processing, grace expiry/revalidation, notification evaluation, backup/runtime lifecycle behavior, and similar autonomous goals receive explicit system use cases where they produce meaningful observable product behavior.
+
+## 6. Structural invariants
+
+A normalized requirement may be classified wholly or partly as a Structural Invariant when it constrains the product but does not independently describe an actor/system goal—for example identity syntax, cardinality, persistence authority, or a platform boundary.
+
+Structural-invariant classification requires:
+
+1. exact `BETA-REQ` and applicable canonical clause-family coverage;
+2. rationale for why no independent goal is created;
+3. at least one downstream HLD/LLD/test destination class; and
+4. confirmation that any behavioral clauses inside the same requirement are still exercised by use cases.
+
+A dense requirement may therefore map to both `UC-*` and `SI`; classification at requirement-header level may not hide uncovered behavioral clause families.
+
+## 7. Traceability doctrine
+
+`USE_CASE_TRACEABILITY.md` is the Phase-1A forward coverage ledger. The accepted Phase-0 `RC006_CLAUSE_DESTINATIONS.md` remains the canonical owner-range source; Phase 1A references it rather than duplicating 11,524 clause rows.
+
+For every `BETA-REQ-0001` through `BETA-REQ-0177`, Phase 1A must eventually record:
+
+`BETA-REQ → canonical owner range → UC(s) and/or SI → coverage result`
+
+For dense requirements, the review must inspect the canonical clause families/range and may split coverage notes by sub-range/family when different use cases exercise different behavior.
+
+The final Phase-1A forward invariant is:
+
+- requirements represented: `177 / 177`;
+- requirements resolved to UC/SI coverage: `177 / 177`;
+- known behavioral clause-family orphans: `0`;
+- use cases lacking product authority: `0`.
+
+The reverse audit is:
+
+`UC normative behavior → accepted BETA-REQ/clause/decision authority`.
+
+## 8. Review states
+
+Use cases move through:
+
+`Draft → Proposed → Accepted`
+
+or `Draft/Proposed → Rework`.
+
+Acceptance is explicit. A proposed use case does not become product authority and cannot modify Phase-0 authority. If accepted Phase-0 wording must change, controlled reopening occurs separately.
+
+## 9. Planned Phase-1A waves
+
+1. **P1A-W1 — Foundation & Settings**: first run, Local User Profile, authentication/locking/auto-login, reference setup, runtime/start/stop, backup/recovery-facing goals.
+2. **P1A-W2 — Tickets & Source Intake**: SR/RFC/WFM registration/import/review, Contacts/customer context, CPL classification/SLA-facing goals.
+3. **P1A-W3 — Objectives & Operational Work**: Local/WFM Tasks, planning, grouping/regrouping, execution/review/correction/retry, RFC cascade.
+4. **P1A-W4 — Inventory**: Spare Needs, Stock, Spare Requests, RMA/logistics, Task physical consequences, Fault Tags/warehouse/resend.
+5. **P1A-W5 — Infrastructure**: Sites/Dispatch Locations, Cloud Deployments, Device References/Network Elements, placement/components/IP, workbook exchange.
+6. **P1A-W6 — Communications**: PST/OST source scopes, processing/matching/review, coverage/backfill/Deep Scan, MSG drafts, terminal unlink/orphan grace.
+7. **P1A-W7 — Overview & Cross-domain Operations**: reporting, Needs Attention, history/archive/correction/destructive previews, restoration and cross-workspace navigation.
+8. **P1A-W8 — Global Audit**: system-triggered coverage, structural invariants, clause-family orphan audit, reverse-authority audit, and Phase-1A acceptance gate.
+
+Wave order is for review discipline, not domain ownership transfer. Cross-domain use cases live with the goal's primary owner and reference all affected domains.
+
+## 10. Phase-1A exit gate
+
+Phase 1A may close only when:
+
+- every meaningful Beta 1.0 operator/system goal is represented by an accepted use case;
+- every `BETA-REQ` is exercised by accepted `UC-*` use cases or explicitly justified as structural invariant, with dense mixed requirements split as needed;
+- every accepted use case traces backward to accepted product authority;
+- warning/conflict/correction/cancellation/retry/failure paths are represented where materially applicable;
+- preserved evidence and postconditions are explicit;
+- no unresolved product ambiguity remains;
+- HLD questions are identified without prematurely selecting LLD implementation detail; and
+- the project owner explicitly accepts Phase 1A before final Phase 1B HLD acceptance work proceeds.
+
+Production code/scaffolding remains prohibited until the complete Beta 1.0 LLD is accepted.
