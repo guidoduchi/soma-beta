@@ -11,6 +11,7 @@ on:
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3.py'
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3_1.py'
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_4.py'
+      - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5.py'
   workflow_dispatch:
 
 permissions:
@@ -51,10 +52,10 @@ jobs:
           print('IMPORT_NEXT_SOURCE_BOUNDARY\tPASS')
           PY
 
-      - name: Generate context-safe Import candidate corpus
+      - name: Generate context-closed Import candidate corpus
         run: |
           set -euo pipefail
-          python tools/reconciliation/prepare_rc006_a2_import_candidates_v0_4.py \
+          python tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5.py \
             --repo . \
             --output /tmp/rc006-a2-import-review/import-candidates.jsonl \
             --summary /tmp/rc006-a2-import-review/import-summary.json \
@@ -69,42 +70,45 @@ jobs:
             --candidates /tmp/rc006-a2-import-review/import-candidates.jsonl \
             --output /tmp/rc006-a2-import-review/validator.json
 
-      - name: Enforce final context-safe invariants
+      - name: Enforce final context-closure invariants
         run: |
           set -euo pipefail
           python - <<'PY'
           import json
           from pathlib import Path
           rows=[json.loads(x) for x in Path('/tmp/rc006-a2-import-review/import-candidates.jsonl').read_text(encoding='utf-8').splitlines()]
-          assert len(rows)==215
+          assert len(rows)==186
           assert sorted({r['section_ordinal'] for r in rows}) == [1,2,3,4,5,7,8,9,10,11,12,13,15,16,17,18,21,25,26,27,28,29]
           assert all(r['classification_review']=='PASS' for r in rows)
           assert not any('A2-ASSERT-' in json.dumps(r) for r in rows)
-          by_line={n:[r for r in rows if r['source_start_line']==n] for n in [9,39,48,49,62,176,204,258]}
-          assert len(by_line[9])==4
-          assert len(by_line[39])==4
-          assert len(by_line[48])==3
-          assert len(by_line[49])==3
-          assert len(by_line[62])==1
-          assert len(by_line[176])==4
-          assert len(by_line[204])==3
-          assert len(by_line[258])==2
-          assert by_line[9][0]['exact_text']=='SOMA imports operational evidence; it does not mirror every column supplied by an external workbook.'
-          assert by_line[48][1]['exact_text'].startswith('For RFCs, accepted source terminal evidence alone does not unlink Communications:')
-          assert 'otherwise the workbench records a coverage warning.' in by_line[49][1]['exact_text']
-          assert 'changing the Objective scheduling timezone does not reinterpret this boundary.' in by_line[62][0]['exact_text']
-          assert by_line[176][0]['exact_text']=='Both planned timestamps may be absent; such a WFM remains unscheduled.'
-          assert 'that proposal proves neither actual execution' in by_line[204][2]['exact_text']
-          assert by_line[258][1]['exact_text'].startswith('Export never creates those facts, and import never infers connectivity')
-          print('CONTEXT_SAFE_IMPORT_REVIEW_INVARIANTS\tPASS')
+          checks=[
+              (21,'The SOMA-generated Infrastructure workbook is not an authoritative external population. It is an operator-authored'),
+              (34,'For a source family that explicitly declares authoritative-population semantics'),
+              (38,'Import capture time is provenance only. It never substitutes for missing `Report Date`'),
+              (41,'For RFC imports, accepting recognized terminal evidence appends that source evidence'),
+              (47,"Acceptance that creates the installation's first trackable communication entity"),
+              (58,'Beta 1.0 retains the SR, compact source deltas, and audit history. It does not create Alpha'),
+              (94,'If an SR is marked `Customer Agreed Suspend`'),
+              (114,'Every Advanced Search column not named in sections 4.1 or 4.2'),
+              (176,'Both planned timestamps may be absent; such a WFM remains unscheduled. Otherwise both must be usable'),
+              (252,'The workbook declares its format version, mode, source-installation scope'),
+              (258,'It contains no password, private key, token, reusable secret'),
+          ]
+          for line,prefix in checks:
+              matches=[r for r in rows if r['source_start_line']==line and r['exact_text'].startswith(prefix)]
+              assert len(matches)==1, (line,prefix,len(matches))
+          # Future-use field boundaries must carry the allowlist and consequence together.
+          assert any(r['source_start_line']==144 and r['source_end_line']==151 and 'These fields cannot silently select' in r['exact_text'] for r in rows)
+          assert any(r['source_start_line']==182 and r['source_end_line']==189 and 'These fields drive no Beta 1.0 actor assignment' in r['exact_text'] for r in rows)
+          print('CONTEXT_CLOSED_IMPORT_REVIEW_INVARIANTS\tPASS')
           PY
 
       - name: Record deterministic review identities
         run: |
           set -euo pipefail
           git rev-parse 61bbd665535e942ef3b05c5ed45661639d3a37a9:docs/IMPORT_CONTRACT.md > /tmp/rc006-a2-import-review/source-blob.txt
-          git rev-parse HEAD:tools/reconciliation/prepare_rc006_a2_import_candidates_v0_4.py > /tmp/rc006-a2-import-review/generator-blob.txt
-          sha256sum tools/reconciliation/prepare_rc006_a2_import_candidates_v0_4.py > /tmp/rc006-a2-import-review/generator-sha256.txt
+          git rev-parse HEAD:tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5.py > /tmp/rc006-a2-import-review/generator-blob.txt
+          sha256sum tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5.py > /tmp/rc006-a2-import-review/generator-sha256.txt
           sha256sum /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-sha256.txt
           wc -l /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-count.txt
           cat /tmp/rc006-a2-import-review/import-summary.json
@@ -113,7 +117,7 @@ jobs:
       - name: Upload review evidence
         uses: actions/upload-artifact@v4
         with:
-          name: rc006-a2-import-candidate-review-v04
+          name: rc006-a2-import-candidate-review-v05
           path: /tmp/rc006-a2-import-review/
           if-no-files-found: error
           retention-days: 90
