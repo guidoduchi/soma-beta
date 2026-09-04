@@ -1,0 +1,85 @@
+name: RC006 A2 Import Contract Candidate Review
+
+on:
+  push:
+    branches:
+      - foundation/product-contract-v0.1
+    paths:
+      - '.github/workflows/rc006-a2-import-candidates-review.yml'
+      - 'tools/reconciliation/prepare_rc006_a2_import_candidates.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Confirm allocation boundary and next source
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/rc006-a2-import-review
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py \
+            --repo . check-state \
+            --output /tmp/rc006-a2-import-review/state.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/rc006-a2-import-review/state.json').read_text(encoding='utf-8'))
+          assert r['result']=='PASS'
+          assert r['allocated_count']==431
+          assert r['ledger_record_count']==431
+          assert r['next_assertion_id']=='A2-ASSERT-000432'
+          assert r['next_initial_source']=='docs/IMPORT_CONTRACT.md'
+          print('IMPORT_NEXT_SOURCE_BOUNDARY\tPASS')
+          PY
+
+      - name: Generate Import Contract review candidate corpus
+        run: |
+          set -euo pipefail
+          python tools/reconciliation/prepare_rc006_a2_import_candidates.py \
+            --repo . \
+            --output /tmp/rc006-a2-import-review/import-candidates.jsonl \
+            --summary /tmp/rc006-a2-import-review/import-summary.json \
+            --listing /tmp/rc006-a2-import-review/import-listing.tsv
+
+      - name: Validate every candidate against pinned B002 source
+        run: |
+          set -euo pipefail
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py \
+            --repo . validate-candidates \
+            --source-path docs/IMPORT_CONTRACT.md \
+            --candidates /tmp/rc006-a2-import-review/import-candidates.jsonl \
+            --output /tmp/rc006-a2-import-review/validator.json
+
+      - name: Record deterministic review identities
+        run: |
+          set -euo pipefail
+          git rev-parse 61bbd665535e942ef3b05c5ed45661639d3a37a9:docs/IMPORT_CONTRACT.md > /tmp/rc006-a2-import-review/source-blob.txt
+          git rev-parse HEAD:tools/reconciliation/prepare_rc006_a2_import_candidates.py > /tmp/rc006-a2-import-review/generator-blob.txt
+          sha256sum tools/reconciliation/prepare_rc006_a2_import_candidates.py > /tmp/rc006-a2-import-review/generator-sha256.txt
+          sha256sum /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-sha256.txt
+          wc -l /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-count.txt
+          cat /tmp/rc006-a2-import-review/import-summary.json
+          cat /tmp/rc006-a2-import-review/validator.json
+
+      - name: Upload review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc006-a2-import-candidate-review
+          path: /tmp/rc006-a2-import-review/
+          if-no-files-found: error
+          retention-days: 90
