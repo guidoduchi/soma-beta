@@ -1,8 +1,8 @@
 # SOMA Beta Import Contract
 
-Status: **Foundation review v0.3**  
+Status: **Reconciled RC-002 — normative Beta 1.0.0 import/source contract**  
 Target: **SOMA Beta 1.0.0**  
-Authority: confirmed source trust, field retention, identity, population, status-driven RFC/WFM history, local filtering, and Infrastructure workbook-exchange decisions, including `BETA-REQ-0145`–`0160`.
+Authority: accepted source trust, field retention, identity, population, status-driven RFC/WFM history, local filtering, Infrastructure workbook exchange, and normalized source-review authority, including `BETA-REQ-0145`–`0177` where applicable.
 
 ## 1. Purpose and source authority
 
@@ -16,34 +16,37 @@ The official source families are:
 | Requests for Change | Enhanced Excel Data Export | RFC source facts |
 | WFM Tasks | Service Provider Plan Creation | WFM source facts and provisional parent-RFC hints |
 
-Enhanced Excel remains authoritative for RFC facts. WFM RFC fields may create or provisionally populate a missing parent RFC, but cannot silently override a populated Enhanced Excel fact.
+Enhanced Excel remains authoritative for RFC facts. WFM RFC fields may create or provisionally populate a missing parent RFC, but cannot silently override an accepted Enhanced Excel fact.
 
 The SOMA-generated Infrastructure workbook is not an authoritative external population. It is an operator-authored, versioned bulk registration/update format and human-readable discovery export governed by section 9 and the [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md). Absence from that workbook never means disappearance, deletion, archival, relocation, unlinking, or clearing. Communication-processing eligibility and terminal unlinking are governed separately by the [Communications Contract](COMMUNICATIONS_CONTRACT.md).
 
 ## 2. Shared import behavior
 
-- Parsing creates staged source observations before any operational record changes.
+- Parsing creates exact-source staged observations before any operational record changes.
 - Matching uses immutable official identity. An import never corrects an official identity in place.
 - Population updates accepted source-owned facts while preserving SOMA-owned relationships, Tasks, Objectives, device references, spares, notes, review state, audit history, and other local meaning.
-- Import review is the default. The operator may configure automatic acceptance only for explicitly safe source/change classes defined during LLD.
-- Identity changes, RFC/WFM ownership changes, hierarchy changes, time conflicts, terminal-state corrections, and hardware-serial contradictions always require review. RFC/WFM omission has no record-level lifecycle meaning.
+- Import review is the default. The operator may configure automatic acceptance only for explicitly approved low-risk source/change classes defined during LLD under `O-007`.
+- Safe auto-accept shall never include RFC terminal-state proposals, material WFM terminal/history proposals, RFC hierarchy/reparenting, Customer/ownership reconciliation, material Task/WFM timeframe changes, disappearance or empty-population interpretation, Objective-regrouping consequences, or suspected competing WFM attempts. Identity reconciliation and hardware-serial contradictions likewise remain reviewed under their owning contracts.
+- Independent targets shall receive dispositions at the smallest safe explainable idempotent scope. One safely isolatable invalid, conflicting, terminal, Customer, hierarchy, timeframe, or competing-attempt case shall not force rejection of unrelated valid targets. Whole-import rejection is reserved for genuine workbook-level integrity, identity, chronology, source-scope, safety, or inseparable-consistency failure.
 - Before acceptance, every official source produces a proposal-oriented impact summary separating creations, updates, unchanged observations, skips, invalid rows, warnings, high-risk conflicts, and applicable identity, organization, hierarchy, ownership, or timeframe effects.
+- RFC/WFM observed source presence is distinct from mutation acceptance. A valid canonical identity counts as present inside the declared source scope even when its proposal is rejected, deferred, or unresolved.
 - RFC/WFM absence is never inferred, including from a full, partial, filtered, or empty workbook. Recognized status drives historical presentation and SOMA filters locally.
-- A valid empty authoritative population affecting previously accepted in-scope records requires explicit high-risk confirmation bound to the exact source family, chronology, logical fingerprint, scope, and impact summary. It can record reviewed disappearance warnings but cannot delete or finalize operational records.
+- For a source family that explicitly declares authoritative-population semantics, a valid empty authoritative population affecting previously accepted in-scope records requires explicit high-risk confirmation bound to the exact source family, chronology, logical fingerprint, scope, and impact summary. It may record reviewed disappearance warnings but cannot delete or finalize operational records. This rule does not grant RFC/WFM omission any lifecycle authority.
 - Beta 1.0 displays nonempty population and Customer Organization distribution comparisons but applies no automatic accept/reject threshold based solely on an unvalidated count or percentage deviation.
 - `SRNo` is the only universal Advanced Search header and row identity requirement. Missing allowlisted nonidentity headers create coverage warnings; a new SR may remain incomplete, and unusable values do not erase prior accepted facts unless the field contract explicitly permits clearing.
+- For RFC/WFM adapters, only the governed identity headers are universally required. Missing optional-active coverage warns and preserves prior accepted truth; it does not silently clear source-owned facts.
 - Import capture time is provenance only. It never substitutes for missing `Report Date` and never participates in SR duration or SLA calculations. A later accepted valid Report Date fills the missing source fact without changing identity or history.
 - One official SRNo identifies one surviving SR. Later terminal observations reconcile normally, and a valid reappearance may clear a source-disappearance warning. A recognized nonterminal Status after accepted terminal evidence is a high-risk proposal that never auto-accepts; explicit acceptance updates the same SR while preserving prior terminal evidence and completed report snapshots.
 - A missing, blank, malformed, or unknown Status cannot reverse accepted terminal evidence.
-- For RFC/WFM imports, observed source presence is distinct from mutation acceptance. A valid identity counts as present inside the declared source scope even when its proposal is rejected, deferred, or unresolved. Terminal RFC proposals are individually reviewable; accepting one records terminal evidence and a pending local-cascade proposal, while rejecting it does not require rejecting unrelated valid rows. Whole-workbook rejection is reserved for failures that make safe target-scoped interpretation impossible.
+- For RFC imports, accepting recognized terminal evidence appends that source evidence and atomically creates its linked pending local-cascade proposal. It does **not** execute the cascade. Rejecting, deferring, or leaving the terminal proposal unresolved does not require rejecting unrelated valid rows.
 - Structural validation, chronology, fingerprinting, and anomaly checks establish processing integrity but do not prove publisher authenticity, file origin, or absence of human editing for an unsigned workbook.
 - Blank handling is field-specific. A blank does not globally mean delete, zero, or unknown.
 - Persisted source observations retain source family, file fingerprint, import run, row locator, parsed identity, only meaningfully observed or changed allowlisted values, and applicable validation/review findings.
 - Unallowlisted values are not persisted as generic metadata, searchable text, an opaque copy of the row, or a retained workbook copy. SOMA retains the file fingerprint and bounded provenance; the external original remains user-managed.
 - Raw operational workbooks and their customer data are not committed to the source repository.
-- Acceptance that creates the installation's first trackable communication entity makes Communication Processing eligible, but the import transaction never fetches, scans, matches, advances a communication high-water mark, or accepts a communication-derived proposal. The independent scheduler or Check now command performs that work afterward.
-- An accepted terminal SR/RFC observation invokes the owning domain transition. That transition previews and records direct communication-link removal and may start orphan grace only for a retained communication with no remaining protected dependency. Staged, rejected, invalid, or merely parsed terminal values never unlink or purge communication evidence.
-- An accepted terminal reversal during orphan grace restores the same SR/RFC relationship when its evidence remains available and cancels pending purge. After content purge, the independent communication workflow may run a targeted backfill if the source remains available; otherwise the workbench records a coverage warning. Import never fabricates reconstructed content.
+- Acceptance that creates the installation's first trackable communication entity makes Communication Processing eligible, but the import transaction never fetches, scans, matches, advances a communication high-water mark, or accepts a communication-derived proposal. The independent scheduler or **Check now** command performs that work afterward.
+- An accepted terminal SR lifecycle transition may invoke its governed direct-communication unlink consequence. For RFCs, accepted source terminal evidence alone does not unlink Communications: only the separately reviewed and confirmed RFC terminal cascade may perform that local consequence under the RFC/WFM and Communications contracts. Staged, rejected, invalid, merely parsed, or merely source-accepted-but-uncascaded RFC terminal values never unlink or purge communication evidence.
+- An accepted terminal reversal during orphan grace restores the applicable same-entity relationship when its evidence remains available and cancels pending purge. After content purge, the independent communication workflow may run a targeted backfill if the source remains available; otherwise the workbench records a coverage warning. Import never fabricates reconstructed content.
 - Import runs do not create or update Communication Source Scopes, source health, coverage intervals, high-water marks, processing jobs, fallback message identities, MSG drafts, or orphan-purge due times except by invoking an accepted cross-domain command explicitly defined in the Communications Contract.
 
 ### 2.1 Current projection and compact history
@@ -65,9 +68,9 @@ The SOMA-generated Infrastructure workbook is not an authoritative external popu
 
 ## 3. Historical import boundary
 
-Supported RFC/WFM workbooks may contain complete historical rows, including closed, cancelled, complete, and Plan Cancel states. SOMA accepts them according to status and field rules and then filters active/historical presentation locally. It shall not require operators to pre-filter online reports or discard valid terminal rows merely because they are old. Any configurable lookback applies only to a source family whose separately accepted contract explicitly defines it; it does not authorize RFC/WFM disappearance inference.
+Supported RFC/WFM workbooks may contain complete historical rows, including Closed, Cancelled, Complete, and Plan Cancel states. SOMA accepts them according to status and field rules and then filters active/historical presentation locally. It shall not require operators to pre-filter online reports or discard valid terminal rows merely because they are old. Any configurable lookback applies only to a source family whose separately accepted contract explicitly defines it; it does not authorize RFC/WFM disappearance inference.
 
-The Advanced Search filename timestamp is interpreted as China Standard Time when it is used for source-file chronology. Operational row timestamps are interpreted under the accepted Ecuador operational timezone rules. The WFM filename suffix is opaque and is not an operational timestamp.
+The Advanced Search filename timestamp is interpreted as China Standard Time when it is used for source-file chronology. Operational row timestamps are interpreted under the accepted source/operational timezone rules. The WFM filename suffix is opaque and is not an operational timestamp.
 
 ## 4. Advanced Search Service Request mapping
 
@@ -86,7 +89,7 @@ The Advanced Search filename timestamp is interpreted as China Standard Time whe
 | `Customer Account Code` | Stable customer account key | Used for organization reconciliation and SR queries when present |
 | `Suspend Planned End Date` | Current planned suspension end | Active only when status is `Customer Agreed Suspend` and the date is in the future at reconciliation time |
 | `Suspension Duration` | Cumulative suspension | An initial blank means zero/no reported suspension; a later blank or zero conflicting with accepted nonzero evidence requires review and cannot erase it silently |
-| `Last Update` | Source recency | Drives stale-observation ordering and historical cutoff |
+| `Last Update` | Source recency | Drives stale-observation ordering and the separately governed Advanced Search historical lookback |
 
 If an SR is marked `Customer Agreed Suspend` but its planned end is absent or not in the future, SOMA stages an inconsistency warning for operator review. Outside that active-future condition, `Suspend Planned End Date` does not pause SLA or act as an active suspension fact.
 
@@ -118,24 +121,28 @@ Enhanced RFC and WFM discovery share one configured operational import directory
 
 | Source column | Beta meaning | Rule |
 |---|---|---|
-| `Task ID` | RFC No. | Accept only `NC` followed by exactly fourteen digits |
-| `Customer Account Number` | Customer account key | Supports reviewed Customer Organization reconciliation |
-| `Customer Account Name` | Customer Organization name | Supports reviewed reconciliation and display |
+| `Task ID` | RFC No. | Canonical `NC` plus fourteen digits is the only RFC identity. A recognized canonical-plus-suffix branch artifact is staged as a skipped source branch artifact; other malformed values fail RFC identity validation. SOMA never truncates a source value to manufacture a parent RFC. |
+| `Create Time` | Source RFC creation chronology | Preserved separately from SOMA creation time, file/discovery chronology, and import capture time; absence remains unknown |
+| `Creator` | Source creator evidence | Active source-owned RFC evidence; it does not create authentication identity or silently select a Contact |
+| `Customer Account Number` | Customer account key | Strongest supported external key for reviewed Customer Organization reconciliation |
+| `Customer Account Name` | Customer Organization name | Descriptive reconciliation evidence; name alone never establishes ownership |
 | `Severity` | RFC source severity | Distinct from WFM Risk Level and SR severity |
 | `Summary` | Authoritative RFC summary | Populates a provisional RFC without changing its identity |
-| `Status` | Authoritative RFC status | Terminal reversal requires review |
+| `Status` | Authoritative RFC status | Closed/Cancelled terminal evidence is reviewed; terminal acceptance creates a pending cascade proposal but never executes that cascade automatically |
 | `Owner` | Authoritative external owner identity | Retained separately from the display name |
-| `Owner Name` | Owner display/contact hint | Supports Contact reconciliation without replacing `Owner` identity |
-| `Last Update Time` | Source recency | Drives stale-observation ordering and historical cutoff |
+| `Owner Name` | Owner display/contact hint | Supports reviewed Contact reconciliation without replacing `Owner` identity |
+| `L1 Handler Name` | Source L1 handler evidence | Active source-owned RFC evidence; absence does not clear unrelated accepted Contact or ownership truth |
+| `L2 Handler Name` | Source L2 handler evidence | Active source-owned RFC evidence; absence does not clear unrelated accepted Contact or ownership truth |
+| `Last Update Time` | Source recency | Drives stale-observation ordering/source chronology; it does not create an age-based RFC lifecycle or historical cutoff |
 
-An identifier longer than canonical `NC` plus fourteen digits, including a suffixed source branch such as `NC…-004`, is excluded. SOMA does not truncate it to the parent and does not interpret it as a Beta subordinate RFC.
+Recognized RFC branch artifacts are review-visible skips, not Beta subordinate RFCs and not malformed canonical RFCs. They neither create nor update the canonical parent. Other malformed `Task ID` values are invalid rows at the smallest safe scope.
+
+All active RFC fields other than canonical identity remain optional according to their field rules. Missing optional-active headers or values warn/preserve prior accepted truth rather than silently clearing current facts.
 
 ### 5.2 Retained for future use
 
 - `Service Type`
 - `Scenario`
-- `L1 Handler Name`
-- `L2 Handler Name`
 - `Product Line Code`
 - `Product Line`
 - `Product Code`
@@ -154,19 +161,21 @@ Every Enhanced Excel column not named in sections 5.1 or 5.2 is discarded after 
 | Source column | Beta meaning | Rule |
 |---|---|---|
 | `RFC No.` | Owning RFC identity | Required; canonical `NC` plus fourteen digits |
-| `RFC Status` | Provisional parent-RFC status | Fallback only; Enhanced Excel wins when available |
+| `RFC Status` | Provisional parent-RFC status | Fallback/provisional evidence only; accepted Enhanced Excel status wins when available and WFM evidence cannot silently override a pre-Implement RFC state |
 | `Task No.` | WFM Task identity | Required; `TK` plus fourteen digits |
-| `Task Status` | WFM lifecycle status | `Complete` and `Plan Cancel` are terminal/cancelled history and never create an Objective automatically |
+| `Task Status` | WFM lifecycle status | `Complete` and `Plan Cancel` are terminal/cancelled provider history; neither creates active Objective work automatically |
 | `Dispatch Progress` | Dispatch state | Blank is valid when `Task Status = Plan Cancel`; otherwise absence is reviewed |
-| `Planned Start Time` | Planned interval start | A complete valid pair participates in Objective grouping |
-| `Planned End Time` | Planned interval end | Also supplies the terminal historical reference |
+| `Planned Start Time` | WFM source-plan start | With a usable end forms immutable provider planning evidence and the default reviewed operational-plan candidate; source acceptance alone never silently schedules/regroups an Objective |
+| `Planned End Time` | WFM source-plan end | With a usable start forms the provider interval used by separately reviewed active or historical Objective proposals where eligible |
 | `Rep Office` | Source office label | Descriptive; it grants no ownership or authorization |
 | `Risk Level` | WFM operational risk | Distinct from SR/RFC severity and an SLA Result |
-| `Task Name` | WFM name and provisional RFC-summary hint | Existing Enhanced RFC Summary remains authoritative |
+| `Task Name` | WFM name and provisional RFC-summary hint | Existing accepted Enhanced RFC Summary remains authoritative |
 | `Description` | Source-owned task description | Never parsed to create devices, sites, parts, or relationships automatically |
-| `Customer Organization` | Customer Organization hint | Allowed for reviewed reconciliation, including a WFM-created provisional RFC |
+| `Customer Organization` | Customer Organization hint | Allowed only as reviewed reconciliation evidence, including for a WFM-created provisional RFC |
 
 Both planned timestamps may be absent; such a WFM remains unscheduled. Otherwise both must be usable, with end after start. Any valid minute is accepted. Exactly one timestamp or an invalid interval is a row-level failure by default and shall not fabricate scheduling or automatically reject unrelated valid rows.
+
+All active WFM fields other than `RFC No.` and `Task No.` remain optional according to their field rules. Missing optional-active coverage warns/preserves prior accepted truth rather than silently clearing current facts.
 
 ### 6.2 Retained for future use
 
@@ -189,10 +198,11 @@ Every Service Provider column not named in sections 6.1 or 6.2 is discarded afte
 - If its RFC exists, the WFM attaches to that RFC without rewriting accepted RFC facts.
 - If its RFC does not exist, the WFM creates a provisional RFC using the WFM Task Name as provisional Summary and may use WFM RFC Status and Customer Organization as reviewed provisional hints.
 - A later Enhanced Excel observation populates that provisional RFC by official identity while preserving its Tasks and SOMA-owned relationships.
-- A valid, nonterminal WFM interval under an Implement-eligible RFC enters the Objective grouping review described by the Workbench Contract.
-- A WFM without a complete timeframe remains unscheduled and creates no Objective.
-- `Complete` and `Plan Cancel` rows remain historical evidence. Plan Cancel may create or adopt its exact identity but cannot promote/reactivate an RFC or create an Objective.
-- RFC/WFM source omission never changes lifecycle, archival, links, or tracking. The complete governing rules are in the [RFC/WFM Contract](RFC_WFM_CONTRACT.md).
+- Only an Implement-eligible RFC may ordinarily own active nonterminal WFM work. WFM evidence may support separately reviewed provisional eligibility for a missing RFC but cannot override accepted Enhanced pre-Implement evidence.
+- A valid accepted nonterminal WFM source interval is the default reviewed operational-plan candidate. Accepting the import never silently accepts Objective membership or regrouping; eligible accepted Task planning enters the separate Objective grouping review governed by the RFC/WFM and Workbench contracts.
+- A WFM without a complete accepted timeframe remains unscheduled and creates no Objective.
+- `Complete` and `Plan Cancel` rows remain historical provider evidence. `Plan Cancel` may create or adopt its exact identity but cannot promote/reactivate an RFC or create an Objective. An accepted provider-`Complete` WFM with no Objective and a usable accepted source interval may produce a separate reviewed historical-Objective proposal; that proposal proves neither actual execution nor SOMA Task outcome or downstream Inventory/Device effects.
+- RFC/WFM source omission never changes lifecycle, archival, links, tracking, or Communication state. The complete governing rules are in the [RFC/WFM Contract](RFC_WFM_CONTRACT.md).
 
 ## 8. Observed historical blank profile
 
@@ -217,11 +227,11 @@ Every other active SR field was populated. All three currently suspended rows ha
 
 ## Temporal authority
 
-Known accepted instants persist as UTC whole-second values. Each adapter applies the explicit offset or its governed source-family timezone at ingestion and preserves conversion provenance. A timezone-less timestamp without an unambiguous source contract remains unresolved. The operator-selectable Objective timezone never interprets SR, RFC, WFM, workbook, filename, communication, or import chronology.
+Known accepted instants persist as UTC whole-second values. Each adapter applies an explicit offset or its governed source-family timezone at ingestion and preserves conversion provenance. A timezone-less timestamp without an unambiguous source contract remains unresolved. Offsetless WFM source planning uses its accepted `America/Guayaquil` source-time rule. The operator-selectable Objective timezone never reinterprets SR, RFC, WFM, workbook, filename, communication, or import chronology.
 
 ### RFCs — 22 source rows
 
-Every selected active field was populated. `L2 Handler Name` was blank in 4 of 22 rows (18.2%). One nonblank `Task ID` was still invalid for Beta because it had a branch suffix; canonical-format validation therefore remains mandatory. Twenty-one rows had canonical RFC identities.
+Every active RFC field observed in the reviewed sample was populated except `L2 Handler Name`, which was blank in 4 of 22 rows (18.2%). One nonblank `Task ID` was a recognized branch-suffixed source artifact rather than a canonical RFC identity; branch-artifact classification therefore remains mandatory. Twenty-one rows had canonical RFC identities.
 
 ### WFM Tasks — 17 rows
 
@@ -265,4 +275,4 @@ Locked, corrupt, malformed, unsupported-version, inaccessible, or partially inva
 
 ## 10. Remaining LLD responsibility
 
-LLD must define exact workbook/header-version detection, data types, formula handling, cell-size limits, date-system handling, file stabilization, fingerprints, replay/idempotency, safe auto-accept classes, review presentation, import transaction boundaries, and sanitized export golden fixtures under the UI/UX Interaction Contract. Each fixture identifies format/schema version, synthetic or irreversibly sanitized inputs, expected normalized structure/content/rendering, and explicitly allowlisted nondeterminism; raw package-byte equality is not a substitute for semantic validation. The automated contract suite required by `BETA-REQ-0137` covers the Infrastructure Device template, discovery export, same-installation round trip, foreign identity, duplicates, ambiguity, malformed/modified workbooks, partial failure, and authoritative hierarchy preservation. Those choices must implement this allowlist and may not reintroduce discarded columns without a Product Contract change.
+LLD must define exact workbook/header-version detection, data types, formula handling, cell-size limits, date-system handling, file stabilization, fingerprints, replay/idempotency, the centrally governed/versioned low-risk safe-auto-accept classes permitted by `O-007`, review presentation, import transaction boundaries, and sanitized export golden fixtures under the UI/UX Interaction Contract. Those implementation choices shall preserve the RC-002 exclusions: terminal, hierarchy, ownership, material timeframe, disappearance/empty-population, Objective-regrouping consequence, and competing-attempt cases are not safe auto-accept classes. Each fixture identifies format/schema version, synthetic or irreversibly sanitized inputs, expected normalized structure/content/rendering, and explicitly allowlisted nondeterminism; raw package-byte equality is not a substitute for semantic validation. The automated contract suite required by `BETA-REQ-0137` covers the Infrastructure Device template, discovery export, same-installation round trip, foreign identity, duplicates, ambiguity, malformed/modified workbooks, partial failure, and authoritative hierarchy preservation. Those choices must implement this allowlist and may not reintroduce discarded columns without a Product Contract change.

@@ -9,8 +9,8 @@ Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 can
 
 | Checkpoint | Scope | Status | Product decisions opened | Result |
 |---|---|---|---:|---|
-| `RC-001` | Reconciliation doctrine + Decision Ledger + Glossary + Product Contract + first cross-document audit | **Completed in this checkpoint** | 1 provenance clarification, resolved as D-158 | Core authority aligned; no unresolved product contradiction |
-| `RC-002` | Import + RFC/WFM | Planned | — | — |
+| `RC-001` | Reconciliation doctrine + Decision Ledger + Glossary + Product Contract + first cross-document audit | **Completed** | 1 provenance clarification, resolved as D-158 | Core authority aligned; no unresolved product contradiction |
+| `RC-002` | Import + RFC/WFM | **Completed** | 0 | Source/import and RFC/WFM lifecycle authority aligned; no unresolved product contradiction |
 | `RC-003` | Workbench + Product Line/SLA | Planned | — | — |
 | `RC-004` | Inventory + Infrastructure | Planned | — | — |
 | `RC-005` | Communications + UI/UX + Foundation Runtime + Branding | Planned | — | — |
@@ -25,23 +25,30 @@ Checkpoint numbering is reconciliation-specific. The completed requirement-norma
 - `RC001_TRACEABILITY.md` — RC-001 forward/reverse authority audit.
 - `RC001_CONTRADICTIONS.md` — resolved and queued cross-document findings.
 
-## Cumulative state after RC-001
+## RC-002 artifacts
+
+- `RC002_SOURCE_AUTHORITY.md` — Import/RFC-WFM forward and reverse reconciliation report.
+- `RC002_TRACEABILITY.md` — requirement-to-contract and assertion-to-authority coverage for RC-002.
+- `RC002_CONTRADICTIONS.md` — resolved source/import contradictions and downstream queue.
+
+## Cumulative state after RC-002
 
 - Normalized requirements changed: **0**.
 - Canonical stable clause identities changed: **0**.
 - New product behavior introduced by reconciliation: **0**.
-- Product-owner clarifications required by RC-001: **1**.
+- Product-owner clarifications required cumulatively: **1**.
 - Product-owner clarifications resolved: **1** (`D-158`, canonical SOMA brand-asset rights provenance).
-- Known unresolved Phase 0 product questions after the pre-RC sweep: **0**.
+- Product-owner clarifications opened by RC-002: **0**.
+- Known unresolved Phase 0 product questions after RC-002: **0**.
 - Open technical-design boundaries remain intentionally open: `O-001`, `O-003`, `O-004`, `O-005`, `O-006`, `O-007`, `O-010`.
 
 ## Known downstream reconciliation queue
 
-These are document-reconciliation defects, not unresolved product decisions:
+These are document-reconciliation defects or pending audits, not unresolved product decisions:
 
 1. `ARCHITECTURE.md` currently assigns Task outcomes inside Inventory ownership; normalized authority assigns Task execution/outcome/review/correction/retry to Objectives/Task lifecycle, with Inventory consuming reviewed physical consequences.
 2. `ROADMAP.md` still contains pre-completion wording saying Phase 0 normalization remains.
 3. `BRANDING.md` contains a duplicated language-switching deferral line.
-4. Focused contracts still require their own forward/reverse audits before their wording can be declared reconciled.
+4. Workbench, Product Line/SLA, Inventory, Infrastructure, Communications, UI/UX, Foundation Runtime, Branding, Architecture, and Roadmap still require their owning reconciliation checkpoints.
 
-These items are intentionally queued for their owning reconciliation waves rather than silently patched out of order.
+These items remain queued for their owning waves rather than being silently patched out of order.
