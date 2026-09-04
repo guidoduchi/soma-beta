@@ -15,7 +15,7 @@ jobs:
   allocate-product-contract:
     runs-on: ubuntu-latest
     env:
-      A2_WORK: ${{ runner.temp }}/rc006-a2-product-allocation
+      A2_WORK: /tmp/rc006-a2-product-allocation
     steps:
       - name: Check out full repository history
         uses: actions/checkout@v4
