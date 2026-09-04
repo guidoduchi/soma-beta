@@ -1,6 +1,6 @@
 # SOMA Beta Inventory Lifecycle Contract
 
-Status: **Foundation review v0.6**  
+Status: **Reconciled RC-004 — normative Beta 1.0.0 Inventory lifecycle contract**  
 Target: **SOMA Beta 1.0.0**
 
 ## 1. Normative language boundary
@@ -14,6 +14,8 @@ Target: **SOMA Beta 1.0.0**
 Inventory exists to maintain traceable Stock of physical Spare Part Units and to accelerate replacement work.
 
 When an SR-level Spare Need exists, SOMA shall first identify compatible, available Stock units for the relevant Devices and parts. The operator may allocate local Stock, start the external Spare Request flow, combine both approaches, or request externally despite available local Stock. Availability is a recommendation, not an automatic consumption decision.
+
+Inventory owns physical-unit identity, allocation/reservation consequences, logistics, receipt, installation/removal relationships, RMA return-unit selection, Fault Tag and warehouse lifecycle, and their append-oriented corrections. Objectives/Task lifecycle remains authoritative for Task execution, Task outcome, review, correction, cancellation, and retry. Inventory consumes reviewed Task outcomes and records their physical consequences without creating a competing Task-outcome authority.
 
 ## 3. Correct entity boundaries
 
@@ -40,13 +42,18 @@ When an SR-level Spare Need exists, SOMA shall first identify compatible, availa
 - If the Need already exists, later matching Device Part Units contribute to the existing Need rather than create duplicates.
 - If matching Device Part Units are registered first, SOMA automatically proposes or creates the aggregated Need.
 - SOMA shall preserve the system-derived contributor count separately from any operator-confirmed planned or requested quantity.
+- Prior local or external fulfillment does not consume the Need automatically; an active Need remains reusable for additional governed attempts until explicitly resolved or cancelled.
+- Resolve, Cancel, and eligible Reactivate are explicit reasoned/audited lifecycle actions.
+- Removal is blocked while any associated Spare Request remains nonterminal. History-preserving removal is allowed only after every associated request is confirmed cancelled or rejected under its owning lifecycle and preserves prior allocation/request history.
+- Hard deletion is limited to an untouched manually created Spare Need. Any contributor relationship, fulfillment allocation, imported/adopted evidence, or protected operational dependency blocks hard deletion.
 
 ### Spare Request
 
 - Is the request/tracking container created from one or more SR-level Spare Needs belonging to the same Service Request.
 - Receives SOMA's immutable temporary tracking identifier at creation.
 - Inherits Customer Organization context through its Service Request.
-- Suggests the Service Request's current customer ticket owner as the customer Contact.
+- Its requester/receiver uses a reusable Contact relationship; the Service Request's current customer ticket owner may be suggested but remains only a proposal.
+- An archived Contact is not selectable for a new Spare Request, and an active nonterminal request prevents archival of its required requester Contact until the dependency is resolved.
 - Captures selected Needs and quantities, delivery or self-pickup mode, receiver, and the applicable dispatch or pickup location.
 - The temporary tracking identifier is placed in the generated request email subject, but omission from later correspondence does not prevent manual reconciliation.
 - The official identifier is `SR` followed by seven digits and is attached later to the same request.
@@ -55,7 +62,7 @@ When an SR-level Spare Need exists, SOMA shall first identify compatible, availa
 
 - Uses the official C10 identifier and represents one two-sided obligation position under exactly one officially identified Spare Request.
 - Initially represents the external provider's promise that one replacement item will be supplied.
-- After receipt and maintenance disposition, it represents the return obligation for the physical item that must be sent back.
+- After receipt and a reviewed maintenance outcome establishes the applicable physical consequence, it represents the return obligation for the physical item that must be sent back.
 - It is the bridge between a target Device Part Unit and a future or received Inventory Spare Part Unit.
 - It shall not contain a physical unit as a mutable embedded child record.
 - Before physical receipt, it may target a Device Part Unit while its inbound Spare Part Unit relationship remains empty; SOMA shall not fabricate a placeholder physical unit.
@@ -72,12 +79,13 @@ When an SR-level Spare Need exists, SOMA shall first identify compatible, availa
 - One RMA has at most one directly received fulfillment unit.
 - If that received unit is an assembly that is dismantled, extracted units become separate Spare Part Units. They may share origin-RMA provenance while the parent assembly remains the single direct fulfillment unit.
 
-### Replacement outcome
+### Reviewed maintenance physical consequence
 
-- Records what actually occurred during a Task.
+- Records the Inventory-owned physical consequence associated with an already reviewed Task outcome; it does not own or redefine the Task outcome itself.
 - May link one target Device Part Unit, one installed Spare Part Unit, the applicable RMA assignment when present, Device, slot, Task, and chronology.
 - Local Stock replacement remains valid without an RMA.
 - The actual installed/removed relationship shall not be inferred merely from the RMA assignment.
+- If the governing Task outcome is later corrected through Objectives/Task lifecycle, Inventory re-evaluates the affected physical consequence through its own exact history-preserving correction workflow rather than rewriting Task history locally.
 
 ### Submission-logistics snapshot
 
@@ -96,8 +104,8 @@ When an SR-level Spare Need exists, SOMA shall first identify compatible, availa
 - Is a mandatory Beta 1.0 primary Inventory view and return-attempt container.
 - Receives immutable internal identity and a non-reusable operator-visible tracking identifier at draft creation.
 - Groups independently identified memberships from different Service Requests, Spare Requests, temporary tracking identifiers, and RMAs.
-- Each membership references exactly one open RMA return obligation and exactly one physical unit selected by the reviewed maintenance outcome.
-- Current ticket and Device context is derived through the RMA, Spare Request, Need, outcome, and Device Reference chain rather than independently reassigned.
+- Each membership references exactly one open RMA return obligation and exactly one physical unit selected from the reviewed Task outcome and accepted Inventory physical consequence.
+- Current ticket and Device context is derived through the RMA, Spare Request, Need, reviewed Task outcome/physical consequence, and Device Reference chain rather than independently reassigned.
 - Submitted membership display facts may be preserved in an immutable data-minimized snapshot but never become competing current RMA or unit truth.
 - Current state is projected from append-oriented submission, warehouse, correction, replacement, resend, cancellation, and archival events.
 
@@ -116,7 +124,7 @@ When an SR-level Spare Need exists, SOMA shall first identify compatible, availa
 | Spare Request submission → submission-logistics snapshot | `1 → 1` after accepted submission; immutable intent |
 | Actual logistics event ↔ RMA/Spare Part Unit | `0..N ↔ 1..N`; every participant relationship is independently addressable |
 | Spare Part Unit → origin RMA | `0..1`; local units may have none |
-| RMA → return unit | `0..1` current return obligation at a time, derived from the physical outcome |
+| RMA → return unit | `0..1` current return obligation at a time, derived from the reviewed Task outcome and Inventory physical consequence |
 | Fault Tag → membership | `1 → 0..N` in Draft and `1 → 1..N` at accepted first submission |
 | Fault Tag membership → RMA return obligation | `1 → 1`; the obligation must be open when selected |
 | Fault Tag membership → selected physical return unit | `1 → 1`; no duplicate physical-unit record |
@@ -157,8 +165,8 @@ Given one Service Request with fifteen Devices, each containing four registered 
 4. **Promised** — an RMA exists and may be preassigned to a compatible target Device Part Unit before receipt.
 5. **Dispatched** — item dispatch is detected from indexed communication or confirmed manually.
 6. **Received** — the actual inbound Spare Part Unit is registered and linked; actual BOM and serial may differ from the promise.
-7. **Maintenance outcome recorded** — the inbound unit was installed, unused, faulty, incompatible, dismantled, or otherwise dispositioned.
-8. **Return obligation resolved** — the RMA points to the physical unit that must be returned:
+7. **Reviewed maintenance physical consequence recorded** — after the governing Task outcome is reviewed, Inventory records the applicable physical result such as installed/used, unused, inbound faulty, incompatible, dismantled, or another accepted physical disposition without becoming Task-outcome authority.
+8. **Return obligation resolved** — the RMA references the physical unit selected from that reviewed outcome/consequence:
    - successful replacement: the removed Device Part Unit;
    - unused replacement: the same inbound Spare Part Unit;
    - inbound faulty/incompatible item: the inbound Spare Part Unit;
@@ -168,7 +176,7 @@ Given one Service Request with fifteen Devices, each containing four registered 
 11. **Warehouse accepted** — the return obligation is finally closed.
 12. **Warehouse rejected** — the same physical unit may be returned to the operator, explanation/correction work continues, and the obligation reopens for a later resend.
 
-An erroneous detected or manual milestone may be rolled back through a targeted correction. A genuine rejection/resend is a new operational transition and shall not erase the earlier receipt or rejection.
+An erroneous detected or manual Inventory milestone may be rolled back through a targeted Inventory correction. A genuine rejection/resend is a new operational transition and shall not erase the earlier receipt or rejection. A disputed Task outcome itself is corrected only through the governing Objectives/Task lifecycle contract.
 
 ## 8. Request creation, draft generation, and submission
 
@@ -190,6 +198,8 @@ An externally initiated request shall reconcile to exactly one Service Request a
 - It commonly contains the SR7, applicable C10 identifiers, and the eight-digit Service Request shown in the communication's `TT ########` context.
 - Dispatch may cover only some RMAs while other requested items remain pending.
 - The immutable submission-logistics snapshot records requested delivery or self-pickup mode, intended receiver, selected dispatch or pickup location, and the effective name, address, and recipient context. It is intent, not proof of dispatch or receipt.
+- A Dispatch Location is a customer-neutral reusable physical logistics location; delivery, self-pickup, pickup-origin, and dispatch-origin meaning belongs to the operation using it rather than to the location identity itself.
+- A Site-linked Dispatch Location may expose Customer context only as a derived fact from the Site. It does not acquire direct Customer ownership or preference, and later Site/address changes never rewrite a frozen submission or pickup snapshot.
 - Actual dispatch, pickup, delivery, receipt, location, custody, receiver, chronology, and observed condition are recorded independently through append-oriented logistics and receipt events.
 - One actual logistics event may cover multiple RMAs or physical units, but every participating RMA and unit remains independently addressable, reviewable, and correctable.
 - Split dispatch and receipt are valid. Some RMAs or units may progress while other quantities remain pending, undispatched, or unreceived.
@@ -199,21 +209,23 @@ An externally initiated request shall reconcile to exactly one Service Request a
 - A dismantled parent assembly retains the direct receipt and logistics event. Extracted units inherit origin and receipt provenance through the parent without fabricated independent deliveries; their later custody movements are their own events.
 - The operator may manually register the SR7, RMAs, per-item BOMs, dispatch, receipt, Fault Tag generation, warehouse receipt, and warehouse acceptance or rejection when detection is missing or incorrect.
 
-## 10. Task outcome and return selection
+## 10. Task-outcome consumption and return selection
 
-- Inventory units are allocated to Tasks, not directly to Objectives.
-- After maintenance, the operator confirms the outcome for every relevant unit and target: installed/used, unused, inbound faulty, incompatible, dismantled, or another accepted outcome.
-- The RMA uses that outcome to determine which physical unit becomes the return obligation.
+- Inventory units are allocated to Tasks, not directly to Objectives. Objective presentation of allocated/reserved units derives through its Tasks.
+- Objectives/Task lifecycle owns Task execution, outcome, review, correction, cancellation, and retry facts.
+- After an applicable Task outcome is reviewed, Inventory records/reviews the physical consequence for every relevant unit and target: installed/used, unused, inbound faulty, incompatible, dismantled, or another accepted physical disposition.
+- The RMA uses the reviewed Task outcome plus accepted Inventory physical consequence to determine which physical unit becomes the current return obligation.
 - The return obligation is not stored by overwriting inbound serial/BOM fields on the RMA; it references the actual physical unit.
+- Inventory correction may supersede an erroneous Task-to-unit allocation, installation/removal relationship, receipt link, or return-unit selection while preserving prior evidence. It shall not locally rewrite the governing Task outcome; if that outcome is wrong, the upstream Task correction is performed through Objectives/Task lifecycle and Inventory then re-evaluates dependent physical consequences.
 
 ## 11. Fault Tag draft, membership, and first submission
 
 - Fault Tags and returns are mandatory Beta 1.0 capabilities and are not dependent on future manual evidence uploads.
-- Draft membership is editable and contains eligible open RMA return obligations proposed from reviewed maintenance outcomes.
-- Eligible return units include the removed Device Part Unit after successful replacement, an unused/faulty/incompatible inbound Spare Part Unit, the dismantled parent assembly, or another explicitly reviewed outcome allowed by the RMA contract.
+- Draft membership is editable and contains eligible open RMA return obligations proposed from reviewed Task outcomes and accepted Inventory physical consequences.
+- Eligible return units include the removed Device Part Unit after successful replacement, an unused/faulty/incompatible inbound Spare Part Unit, the dismantled parent assembly, or another explicitly reviewed physical consequence allowed by the RMA contract.
 - Condition, newness, BOM, serial, or provenance alone never establishes eligibility.
 - One obligation and physical unit may appear in at most one active submitted Fault Tag membership at a time.
-- Membership stores internal relationships. Spare Request and Service Request derive through the RMA; Device context derives through assignment, outcome, unit, and Device Reference.
+- Membership stores internal relationships. Spare Request and Service Request derive through the RMA; Device context derives through assignment, reviewed Task outcome, Inventory physical consequence, unit, and Device Reference.
 - Current C10, SR7, BOM, serial, condition, location, and derived context remain owned by their source entities. First submission may preserve only the data-minimized values actually represented in the artifact.
 - Every draft records its return method. Pickup requires exactly one reusable Dispatch Location in the pickup-origin role: the location from which units are dispatched or collected, never the warehouse destination.
 - A non-pickup method creates no pickup-origin location or snapshot. Any known warehouse destination remains separate.
@@ -249,7 +261,7 @@ An externally initiated request shall reconcile to exactly one Service Request a
 - Bulk acceptance is transactional and appends one independently addressable lifecycle event per affected target under a common batch identifier. It never collapses multiple units or obligations into one shared status record.
 - Correcting one member of a batch does not alter unaffected members.
 - A correction or superseding decision targets the exact accepted event or relationship, preserves the original event and evidence, and reproducibly recalculates the current projection.
-- Correcting an RMA assignment, Task allocation, receipt link, installation, removal, return-unit selection, Fault Tag membership, or warehouse decision preserves the identities of the participating entities and supersedes only the disputed relationship.
+- Correcting an RMA assignment, Task allocation, receipt link, installation, removal, return-unit selection, Fault Tag membership, or warehouse decision preserves the identities of the participating entities and supersedes only the disputed Inventory relationship/event; Task outcome correction remains owned by Objectives/Task lifecycle.
 - Internal identities are immutable. SR7/C10 correction retains the previous official identifier as a non-reusable alias; a genuinely different request or authorization receives a different internal identity.
 - Equal BOMs, manufacturer serials, official identifiers, names, or labels create reconciliation candidates only and never authorize silent merge or reassignment.
 - A genuine later development—including warehouse rejection, return to the operator, explanation work, and resend—is new lifecycle history rather than correction or rollback.
@@ -277,4 +289,3 @@ Material Inventory actions retain their owning impact preview. A three-second de
 - Indexed PST/OST communications are first-class evidence when SOMA detects them.
 - Manual confirmation without evidence remains valid and auditable through operator, reason, target, and chronology.
 - Later activation of any evidence attachment control, mandatory evidence collection, or additional evidence-ingestion source requires a separately accepted product decision and UI/LLD change.
-
