@@ -17,14 +17,12 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 SOURCE_COMMIT = "61bbd665535e942ef3b05c5ed45661639d3a37a9"
 SOURCE_PATH = "docs/PRODUCT_CONTRACT.md"
 SOURCE_BLOB = "6ba3ecb8eabd0845927aa4e6436ec09130a90263"
 SCHEMA = "RC006-A2-ASSERTION-CANDIDATE-V1"
 
-# Whole-line/paragraph metadata or delegation text that is intentionally not an
-# independent Product Contract destination assertion.
 META_PREFIXES = (
     "Status:",
     "Target:",
@@ -39,12 +37,34 @@ META_PREFIXES = (
     "The complete normative lifecycle is defined by",
     "The confirmed IT/NFV templates, Non-fault inquiry derivation, cancelled exclusion, and normative calculation rules are in",
     "The [Foundation Runtime, Persistence, Audit, and Verification Contract]",
+    "The Overview composition follows the [UI/UX Interaction Contract]",
 )
 
 EXACT_INFORMATIVE = {
     "Examples include an RFC without a Service Request, a WFM without an Objective, an Objective awaiting review, and a Spare Request dispatched beyond its threshold.",
     "This direction is informed by the clarity of mature infrastructure-management interfaces without copying their branding, assets, exact pixels, dense typography, or wide-screen assumptions.",
 }
+
+# These connectors separate independently reviewable clauses in this source.
+# The second-fragment prefix keeps negative/modal meaning while remaining a
+# verbatim substring of the source line.
+CONNECTOR_SPLITS = (
+    (", but ", ""),
+    (", while ", ""),
+    (", and neither ", "neither "),
+    (", and every warning ", "every warning "),
+    (" and never ", "never "),
+    (" and does not ", "does not "),
+    (" and cannot ", "cannot "),
+    (" and it must ", "it must "),
+    (" and must ", "must "),
+    (" and may ", "may "),
+    (" and creates ", "creates "),
+    (" and exposes ", "exposes "),
+    (" and are never ", "are never "),
+    (" and later usable ", "later usable "),
+    (" and Current Handler ", "Current Handler "),
+)
 
 
 def git(repo: Path, *args: str) -> bytes:
@@ -77,31 +97,55 @@ def canonical_json(value: Any) -> bytes:
     return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
 
 
-def split_sentences(text: str) -> list[str]:
-    # Product Contract prose uses ordinary sentence punctuation. Keep semicolon-
-    # connected clauses together when they form one tightly coupled rule.
-    parts = re.split(r"(?<=[.!?]) (?=(?:[A-Z]|`|\*|\[))", text)
-    return [part.strip() for part in parts if part.strip()]
+def _split_connector(piece: str, connector: str, second_prefix: str) -> list[str]:
+    if connector not in piece:
+        return [piece]
+    left, right = piece.split(connector, 1)
+    left = left.strip()
+    right = (second_prefix + right).strip()
+    return [part for part in (left, right) if part]
+
+
+def split_atomic(text: str) -> list[str]:
+    sentence_parts = re.split(r"(?<=[.!?]) (?=(?:[A-Z]|`|\*|\[))", text)
+    pieces: list[str] = []
+    for sentence in sentence_parts:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        # Semicolons in Product Contract consistently separate independently
+        # reviewable clauses; retain punctuation only when it belongs to text.
+        pieces.extend(part.strip() for part in sentence.split(";") if part.strip())
+
+    for connector, second_prefix in CONNECTOR_SPLITS:
+        refined: list[str] = []
+        for piece in pieces:
+            refined.extend(_split_connector(piece, connector, second_prefix))
+        pieces = refined
+    return [piece.strip() for piece in pieces if piece.strip()]
 
 
 def kind_for(text: str) -> str:
     low = text.lower()
+    padded = f" {low} "
     boundary_terms = (
         " is not ", " are not ", " not a ", " not an ", "excluded from",
         "has no ", "have no ", "does not authorize", "do not authorize",
         "does not become", "do not become", "distinct from", "separate from",
         "is confined to", "are confined to", "rather than", "only where",
+        " at most one ", " exactly one ", " zero or one ", " zero or many ",
+        " one-to-one", " reference only", " only after ", " only through ",
+        " only when ", " only for ", " only from ", " is derived ", " are derived ",
     )
     prohibition_terms = (
         " must not ", " never ", " cannot ", " does not ", " do not ",
         " no silent", " no general", " no device", " no username",
     )
-    padded = f" {low} "
     if any(term in padded for term in boundary_terms):
         return "DESIGN_BOUNDARY"
     if any(term in padded for term in prohibition_terms):
         return "PROHIBITION"
-    if re.search(r"\bmay\b|\bcan\b|\boptional\b|\ballowed\b|\bpermits?\b", low):
+    if re.search(r"\bmay\b|\bcan\b|\ballowed\b|\bpermits?\b|\bis optional\b|\bare optional\b", low):
         return "PERMISSION"
     return "OBLIGATION"
 
@@ -142,9 +186,7 @@ def find_line(lines: list[str], exact: str) -> int:
 
 
 def special_spans(lines: list[str]) -> dict[int, tuple[int, str, str]]:
-    # start_line -> (end_line, exact_text, note)
     result: dict[int, tuple[int, str, str]] = {}
-
     nav_start = find_line(lines, "The primary navigation is fixed, in order:")
     nav_end = find_line(lines, "6. Settings")
     result[nav_start] = (
@@ -152,7 +194,6 @@ def special_spans(lines: list[str]) -> dict[int, tuple[int, str, str]]:
         "\n".join(lines[nav_start - 1 : nav_end]),
         "Reviewed as one atomic ordered-navigation obligation; list order is the rule.",
     )
-
     overview_start = find_line(lines, "Default sections include:")
     overview_end = find_line(lines, "| Objectives | Scheduled, completed, incomplete, awaiting review |")
     result[overview_start] = (
@@ -160,7 +201,6 @@ def special_spans(lines: list[str]) -> dict[int, tuple[int, str, str]]:
         "\n".join(lines[overview_start - 1 : overview_end]),
         "Reviewed as one default Overview-section/measure composition obligation.",
     )
-
     import_start = find_line(lines, "The official 1.0.0 sources are:")
     import_end = find_line(lines, "| WFM Tasks | Service Provider Plan Creation Excel export |")
     result[import_start] = (
@@ -182,9 +222,9 @@ def is_meta(text: str) -> bool:
 
 def candidate_spans(lines: list[str]) -> list[tuple[int, int, str, str]]:
     specials = special_spans(lines)
-    special_covered: set[int] = set()
+    covered: set[int] = set()
     for start, (end, _, _) in specials.items():
-        special_covered.update(range(start, end + 1))
+        covered.update(range(start, end + 1))
 
     spans: list[tuple[int, int, str, str]] = []
     i = 1
@@ -194,17 +234,15 @@ def candidate_spans(lines: list[str]) -> list[tuple[int, int, str, str]]:
             spans.append((i, end, text, note))
             i = end + 1
             continue
-        if i in special_covered:
+        if i in covered:
             i += 1
             continue
-
         line = lines[i - 1]
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             i += 1
             continue
         if stripped.startswith("|") or re.match(r"^\d+\. ", stripped):
-            # Tables/ordered navigation are consumed only through explicit special spans.
             i += 1
             continue
         if stripped in {"Default sections include:", "Below the measures, Overview provides:", "The physical/organizational model is:"}:
@@ -215,15 +253,13 @@ def candidate_spans(lines: list[str]) -> list[tuple[int, int, str, str]]:
             continue
 
         selected = stripped[2:] if stripped.startswith("- ") else stripped
-        for sentence in split_sentences(selected):
-            if is_meta(sentence):
+        for atomic in split_atomic(selected):
+            if is_meta(atomic):
                 continue
-            # Exact sentence text must occur verbatim on this source line. The Product
-            # Contract has no multi-line prose paragraphs outside explicit special spans.
-            if sentence not in line:
-                raise RuntimeError(f"sentence split is not verbatim at line {i}: {sentence!r}")
-            note = "Reviewed as an independent normative Product Contract statement; reverse authority remains pending."
-            spans.append((i, i, sentence, note))
+            if atomic not in line:
+                raise RuntimeError(f"atomic split is not verbatim at line {i}: {atomic!r}")
+            note = "Human-reviewed as one independently reviewable normative Product Contract assertion; reverse authority remains pending."
+            spans.append((i, i, atomic, note))
         i += 1
     return spans
 
@@ -232,7 +268,6 @@ def build(repo: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     lines, blob = source(repo)
     heads = headings(lines)
     raw_spans = candidate_spans(lines)
-
     section_counts: dict[int, int] = {}
     records: list[dict[str, Any]] = []
     for start, end, exact, note in raw_spans:
@@ -255,19 +290,15 @@ def build(repo: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
             "source_path": SOURCE_PATH,
             "source_start_line": start,
         })
-
-    # Candidate order and section assertion ordinals must be deterministic.
     records.sort(key=lambda r: (r["section_ordinal"], r["assertion_ordinal"]))
     summary_sections = []
     for _, visible, normalized, ordinal in heads:
-        count = section_counts.get(ordinal, 0)
         summary_sections.append({
             "section_anchor": normalized,
             "section_heading": visible,
             "section_ordinal": ordinal,
-            "candidate_count": count,
+            "candidate_count": section_counts.get(ordinal, 0),
         })
-
     summary = {
         "candidate_count": len(records),
         "generator_version": VERSION,
@@ -287,7 +318,6 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     parser.add_argument("--summary", required=True)
     args = parser.parse_args()
-
     repo = Path(args.repo).resolve()
     records, summary = build(repo)
     candidate_bytes = b"".join(canonical_json(record) for record in records)
