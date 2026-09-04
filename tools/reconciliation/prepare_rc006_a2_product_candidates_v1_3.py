@@ -13,12 +13,13 @@ import importlib.util
 import json
 from pathlib import Path
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 BASE_PATH = "tools/reconciliation/prepare_rc006_a2_product_candidates.py"
 BASE_BLOB_SHA = "93a246b3babf5b9fa28a13c6c0190cd6bd09bca1"
 
 FINAL_SPANS = {
     93: [
+        "If omitted, SOMA generates `LSR-` followed by an eight-digit installation-local sequence beginning at `00000001`.",
         "Later reconciliation to an official SR requires an explicit operator-reviewed mapping",
         "SOMA does not guess.",
     ],
@@ -27,6 +28,8 @@ FINAL_SPANS = {
         "one membership never forces another's state.",
     ],
     338: [
+        "Service Request, Spare Request, and RFC views distinguish received and sent counts, direction, last-interaction age, coverage/warnings, and canonical-message navigation without copying bodies.",
+        "Terminal SR/RFC views retain their frozen minimal summary even after the body is purged.",
         "Beta 1.0 persistence accepts optional communication evidence references but exposes no attachment/upload control",
         "manual domain actions remain valid without evidence.",
     ],
