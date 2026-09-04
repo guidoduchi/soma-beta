@@ -87,6 +87,7 @@ Tasks and ticket work context select/link **Device References**. A resolved Devi
 - Allocated IDs: **95 (`UC-001..UC-095`)**.
 - Active goals: **94**.
 - Accepted UCs: **1 (`UC-001`)**.
+- Proposed UCs: **1 (`UC-002`)**.
 - Active Goal Seeds: **92**.
 - Merged/retired pre-acceptance seeds: **1 (`UC-043 → UC-069`)**.
 - Finally resolved requirement coverage: **0 / 177** until accepted UC/SI family-level coverage is completed.
@@ -105,7 +106,7 @@ Tasks and ticket work context select/link **Device References**. A resolved Devi
 | Duplicate-goal disposition recorded | **PASS** |
 | Device Reference terminology corrected | **PASS** |
 | Index and traceability ledger synchronized | **PASS** |
-| Owner review remains paused before UC-002 until full Specification Gate | **PASS** |
+| Owner review remains paused before `UC-002` until `RC-006-A2` PASS | **PASS** |
 
 **P1A-002 CONTROLLED CATALOGUE RECONSTRUCTION: PASS / COMPLETED.**
 
