@@ -108,9 +108,11 @@ The same final audit prevented two equivalent collisions before CP-007 persisten
 
 Literal canonical global audit after correction: **11524 clause rows; 11524 globally unique clause IDs; 0 collisions; 0 overlay transformations required.**
 
-## Known design-reconciliation boundary
+## Reconciliation outcome for the previously known design boundary
 
-The preliminary HLD contains wording assigning “Task outcomes” to Inventory. Accepted product authority through the completed normalization does **not** support that ownership. Objectives/Task lifecycle owns Task execution, outcome, review, correction, and retry; Inventory consumes reviewed outcomes only to apply Task-to-unit allocation and physical lifecycle consequences. `BETA-REQ-0128`, `0162`, `0166`, and `0167` reinforce this boundary. It remains a design-reconciliation item for the later HLD audit and was not silently edited during normalization.
+Normalization identified that the preliminary Architecture wording incorrectly assigned “Task outcomes” to Inventory. RC-006 resolves that downstream representation defect without changing normalization authority: Architecture now assigns Task execution, outcome, review, correction, cancellation, and retry to Objectives/Task lifecycle, while Inventory owns Task-to-unit allocation and consumes reviewed Task outcomes only to preserve physical lifecycle consequences. `BETA-REQ-0128`, `0162`, `0166`, `0167`, and the `SPUNIT-ALLOC-*` family remain the unchanged authority for that boundary.
+
+This status update changes **0** normalized governing obligations, **0** requirement identities, **0** clause owners, and **0** canonical stable clause IDs.
 
 ## Preserved open technical-design items
 
@@ -124,4 +126,4 @@ The preliminary HLD contains wording assigning “Task outcomes” to Inventory.
 
 ## Final consolidation rule
 
-`docs/BETA_REQUIREMENTS.md` remains the preserved pre-normalization baseline. The normalized governing obligations and stable clauses in this layer are now complete for all `BETA-REQ-0001`–`0177` and may be consolidated into downstream product/design catalogues without deleting source history. The normalization layer remains the authority for literal canonical clause identity and before/after traceability, including recorded amendments.
+`docs/BETA_REQUIREMENTS.md` remains the preserved pre-normalization baseline. The normalized governing obligations and stable clauses in this layer are complete for all `BETA-REQ-0001`–`0177` and may be consolidated into downstream product/design catalogues without deleting source history. The normalization layer remains the authority for literal canonical clause identity and before/after traceability, including recorded amendments.

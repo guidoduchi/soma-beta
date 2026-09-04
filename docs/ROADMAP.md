@@ -1,6 +1,6 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Roadmap reviewed; 138/138 merged Alpha requirements and 43/43 unmerged proposals dispositioned; Phase 0 normalization and design closure remain**
+Status: **Phase 0 normalization and contract reconciliation complete through RC-006; final project-owner Phase 0 closure acceptance pending**
 
 This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 
@@ -21,7 +21,7 @@ flowchart TD
 
 A later phase may expose a disproven assumption. When this happens, SOMA uses controlled design correction: reopen the owning accepted artifact, record the reason and impact, update downstream traceability, and reaccept the affected design before implementation continues. Product behavior always returns to Phase 0; implementation must never silently invent policy.
 
-## Phase 0 — Requirement traceability and product stabilization (current)
+## Phase 0 — Requirement traceability and product stabilization (closure gate)
 
 ### Purpose
 
@@ -43,7 +43,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - destination layer, kept separate from release disposition.
 - Destination layers include Product Contract, use case, HLD, LLD, implementation, and acceptance evidence. **Defer** means a later release; it never means “belongs in LLD.”
 - Assign neutral immutable normative identifiers in the form **BETA-REQ-0001**. Workspace, domain, release, status, and destination remain metadata rather than part of the identifier.
-- The complete Alpha pass contains 138 exact merged source rows and 43 exact proposal rows mapped through 177 sequential Beta requirements. Proposal disposition is complete. Phase 0 remains open for the requirement-normalization pass, domain-contract acceptance, remaining gaps, use cases, UI states, LLD traceability, and final gate review.
+- The complete Alpha pass contains 138 exact merged source rows and 43 exact proposal rows mapped through 177 sequential Beta requirements. Proposal disposition is complete. Requirement normalization is complete at **177/177** with **11,524** globally unique canonical stable clauses, all recorded `FND-GAP-001`–`016` items are resolved, and focused contract reconciliation is complete through `RC-006`. Phase 0 remains open only for the final project-owner closure acceptance required by the reconciliation doctrine; business use cases/HLD and LLD belong to Phases 1 and 2 rather than being unfinished Phase 0 work.
 
 ### Gaps and product contracts
 
@@ -53,10 +53,10 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 - Stabilize the Product Contract, glossary, decision ledger, release boundary, and focused contracts for:
   - Service Request identity, notes, source population, lifecycle, period visibility, historical presentation, source observations, and the Beta 1.0 no-purge boundary;
   - RFC master/subordinate hierarchy, WFM ownership, adoption, correction, attempts, archive, tracking, and terminal cascade behavior;
-  - Objective and Task composition, scheduling, execution, review, correction, cloning, and retry;
-  - Inventory lifecycle covering stock-first eligibility, SR-level Spare Need aggregation from Device Part Units, local/external quantity choice, Spare Request draft and external-submission origin, C10 RMA obligations, direct inbound and return-unit relationships, requested-versus-actual logistics, partial dispatch/receipt, Task outcomes, compatible bulk actions, exact-event correction, and the mandatory Fault Tag return workflow: cross-request membership, conditional pickup-origin snapshots, warehouse receipt, explicit final acceptance/rejection, correction replacement, rejection resend, and state-specific removal;
-  - Infrastructure terminology, Device Reference promotion, Network Element identity and progressive completion, Site/Rack placement, Cloud Deployment assignment, zero-many IP inventory, acyclic containment, component compatibility, installation/replacement history, SQLite authority, topology/SSH deferral, and versioned workbook import/export;
-  - registered people, Customer Organizations, Local User Profile, Contracts, Product Lines, Contract Product Lines, Cloud Types, Cloud Deployments, Sites, Rooms, Racks, and Dispatch Locations;
+  - Objective and Task composition, scheduling, execution, outcome review, correction, cancellation, and retry as new Task attempts with immutable predecessor lineage;
+  - Inventory lifecycle covering stock-first eligibility, SR-level Spare Need aggregation from Device Part Units, local/external quantity choice, Spare Request draft and external-submission origin, C10 RMA obligations, direct inbound and return-unit relationships, requested-versus-actual logistics, partial dispatch/receipt, Task-to-unit allocations and reviewed physical consequences, compatible bulk actions, exact-event correction, and the mandatory Fault Tag return workflow: cross-request membership, conditional pickup-origin snapshots, warehouse receipt, explicit final acceptance/rejection, correction replacement, rejection resend, and state-specific removal;
+  - Infrastructure terminology, Device Reference resolution/promotion, Network Element identity and progressive completion, Site/Rack placement, Cloud Deployment assignment, zero-many IP inventory, acyclic containment, component compatibility, installation/replacement history, SQLite authority, topology/SSH deferral, and versioned workbook import/export;
+  - Contacts, Customer Organizations, Local User Profile, Contracts, Product Lines, Contract Product Lines, Cloud Types, Cloud Deployments, Sites, Rooms, Racks, and Dispatch Locations;
   - source-specific import and population behavior;
   - target-gated PST/OST processing, source scopes, canonical matching, coverage/high-water marks, backfill/Deep Scan, reviewed proposals, terminal orphan grace/purge, workbench summaries, and MSG draft behavior; and
   - Contract Product Line classification, cohort SLA calculations, warnings, and Overview presentation; and
@@ -66,10 +66,11 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 
 ### Reuse, ownership, and licensing
 
-- The only Phase 0 Alpha reuse candidates are canonical SOMA brand assets.
+- The five canonical SOMA brand assets are accepted project-owner-owned Beta assets with Alpha history retained as provenance.
 - Alpha code, schemas, migrations, adapters, fixtures, and tests may inform historical analysis but are not migration or reuse candidates.
 - SOMA Beta is a private proprietary project for the internal team only.
-- Preserve required Apache-2.0 origin attribution for reused Alpha brand assets through a narrowly scoped origin/third-party notice unless sole-rights relicensing is established.
+- `D-158` establishes that the canonical SOMA brand assets contain no third-party material requiring surviving third-party licensing and may be used under the proprietary/internal Beta boundary. Their Alpha repository history alone does not require an Apache-2.0 notice for those Beta-owned assets.
+- Any future reused artifact that actually carries surviving third-party or license obligations must retain whatever notices or attribution are required for that artifact without expanding those obligations to unrelated Beta material.
 - Do not imply that the proprietary Beta codebase as a whole is Apache-2.0.
 
 ### Exit gate
@@ -80,7 +81,18 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 - Every gap is resolved in an accepted product contract or deliberately rejected or deferred.
 - No product question, identity rule, lifecycle, cardinality, relationship, deletion consequence, or release-scope ambiguity remains.
 - Terminology and rules agree across all foundation documents.
-- The proprietary boundary, internal-team restriction, brand provenance, and required notices are accepted.
+- The proprietary boundary, internal-team restriction, brand provenance, and applicable required notices are accepted.
+
+### Current Phase 0 gate state
+
+- Requirement normalization: **PASS — 177/177 requirements, 11,524/11,524 unique canonical clause IDs**.
+- Recorded foundation gaps: **PASS — 16/16 resolved; 0 Open**.
+- Contract reconciliation: **PASS through RC-006**.
+- Forward requirement-to-foundation orphan audit: **PASS — 0 known orphans**.
+- Reverse normative-assertion authority audit: **PASS — 0 known unsupported assertions**.
+- Known unresolved Phase 0 product questions: **0**.
+- Remaining `O-*` items are bounded downstream design questions and do not reopen settled product behavior.
+- Final project-owner Phase 0 closure acceptance: **PENDING**.
 
 ## Phase 1 — Complete business use cases and high-level design
 
@@ -151,7 +163,7 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
 - Exact parsers, types, validation, and transactions implementing the accepted allowlists and semantics in `IMPORT_CONTRACT.md` for Advanced Search SR data, Enhanced Excel RFC data, and Service Provider WFM plans.
 - File discovery, stabilization, fingerprinting, replay, absence, validation, resource limits, preview, review, and acceptance rules.
 - Sanitized golden import fixtures and expected normalized observations.
-- Exact Contract Product Line cohort membership, tier calculations, percentage rounding, snapshots, and golden vectors.
+- Exact Contract Product Line cohort membership, tier calculations, percentage rounding, completed-report evidence representation, and golden vectors while preserving `O-001` until its accepted storage strategy is selected.
 - Threat model and ADRs for:
   - database and retained-file encryption;
   - authentication-only password verification, independent random data-key protection, and encrypted-database packaging;
@@ -161,7 +173,7 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
   - WAL-safe backup, verification, pruning, and restore;
   - PST/OST read-only source scopes, provider/fallback identity, coverage/high-water processing, target registry, backfill/Deep Scan, matched-message/link persistence, background jobs, terminal orphan grace/purge, workbench summaries, and MSG generation;
   - packaging; and
-  - supported Windows, Python, and browser versions.
+  - exact supported Windows editions/builds, browser versions, CI runner images, and packaging combinations while preserving the fixed Beta 1.0 Windows 10/11 x64 and Python 3.13/3.14 product boundary.
 - Concrete action-versioned audit allowlists, append-only SQL/application protections, duplicate/idempotency behavior, atomic rollback, exact correction, restoration validation, housekeeping boundaries, structured external diagnostics, prevention-first redaction, and canary fixtures.
 - One owned SQLite connection factory; effective foreign-key index map; atomic migration/ledger protocol; canonical migration-byte manifest and drift checks; exclusive migrator; truly observational status; versioned JSON schema/upgrade registry; and post-migration/restore integrity verification.
 - Exact local runtime ownership, loopback binding, runtime-registry, process-birth, authenticated health/session/origin/shutdown, proxy/redirect bypass, stale-registry, PID/port reuse, crash, restart, and forced-termination contracts.
@@ -256,7 +268,7 @@ Complete every operational domain through functional, responsive web workflows b
 
 #### 5.2 Infrastructure
 
-- Customer Organization, Site, Cloud Type, Cloud Deployment, Room, Rack, Device Reference promotion, Network Element models and progressively completed instances, zero-many IP inventory with one primary, acyclic compound containment, placement, component compatibility, installation, replacement, and history.
+- Customer Organization, Site, Cloud Type, Cloud Deployment, Room, Rack, Device Reference promotion/resolution, Network Element models and progressively completed instances, zero-many IP inventory with one primary, acyclic compound containment, placement, component compatibility, installation, replacement, and history.
 - Generate versioned Infrastructure workbooks for empty registration, human-readable current-device discovery export, and safe round-trip updates. Discover imports only from the configured directory, stage every mutation, scope update identity to the source installation, preserve absence nondestructively, and expose import/export history.
 - Keep credential fields, connectivity, discovery, reachability, topology, interfaces/ports, and SSH unavailable in 1.0.0.
 - Activate Inventory-to-device installation and replacement workflows after their cross-domain invariants pass.
@@ -268,7 +280,7 @@ Complete every operational domain through functional, responsive web workflows b
 - Implement initial relevant-time boundaries, per-scope high-water marks with overlap, coverage warnings, bounded targeted backfill, and explicit scoped Deep Scan.
 - Run one local combined fetch-and-match pipeline hourly by default with positive whole-minute configuration, disable and Check now controls, one catch-up, non-overlap, restart-safe progress, cancellation, bounded retry/backoff, and redacted diagnostics.
 - Persist only matched communications; keep unmatched parse results transient. Produce reviewed domain proposals without implicit writes.
-- On accepted SR/RFC termination, remove direct communication links. When no protected dependency remains, apply the configurable positive orphan grace of seven exact elapsed days by default, cancel it on relink, revalidate at expiry, purge reconstructable content, and preserve the purge record plus frozen terminal summary.
+- On an authoritatively accepted terminal SR transition, remove only that SR's direct communication links. For RFCs, provider terminal evidence/import acceptance creates or updates the pending terminal-cascade proposal but does not unlink Communications; only the separately reviewed and confirmed local cascade may remove the RFC's direct links. When no protected dependency remains after a governed unlink, apply the configurable positive orphan grace of seven exact elapsed days by default, cancel it on relink, revalidate at expiry, purge reconstructable content, and preserve the purge record plus frozen terminal summary.
 - Expose received/sent counts, direction, last-interaction age, coverage, and canonical navigation without body duplication. Keep Advanced Search synchronization, communication processing, proposal acceptance, and local MSG draft persistence independent.
 - Generate MSG drafts without treating them as sent evidence. Beta 1.0 never sends or receives email directly, exposes no manual attachment/upload control, and keeps valid manual domain actions independent of evidence.
 
@@ -304,18 +316,18 @@ Add cross-domain operational reporting only after its source domains are complet
 - Operational narrative and scheduled Objective timeline.
 - Needs Attention queues linking to preserved filtered views.
 - A clean stable shell, context header, restrained modular summary cards, progressive detail, and collapsible recent-processing/review activity.
-- Excel report snapshots with immutable calculation context and export golden fixtures.
+- Excel report artifacts with immutable completed calculation context/evidence and export golden fixtures; `O-001` governs the exact internal persisted/on-demand/both completed-report evidence strategy.
 
 ### 6B. Complete visual and interaction system
 
 - Final six-area navigation: Overview, Tickets, Objectives, Inventory, Infrastructure, Settings.
 - Canonical SOMA mark, wordmark, lockup, application icon, favicon, tray identity, and one semantic design-token system.
-- Accessible light, dark, high-contrast/forced-color, enlarged-text, and reduced-motion presentations.
+- Accessible Light, Dark, and System appearance within curated skins, plus high-contrast/forced-color, enlarged-text, and reduced-motion presentations.
 - Global list/table navigation separating focus, active row, selection, multi-selection, and opening.
 - Hovered/gesture-origin/focused scroll ownership across nested panes, lists, communication previews, tables, popups, dialogs, and activity surfaces.
 - Bounded accessible autocomplete with stale-result suppression and explicit entity creation.
 - Responsive split workbenches, horizontal table access, viewport-safe overlays, accessible icon actions, and complete empty/loading/error states.
-- Allowlisted three-second deliberate confirmation with visible semantic progress, pointer/touch/keyboard equivalence, scroll-gesture safety, and mandatory Device Reference promotion coverage.
+- Allowlisted three-second deliberate confirmation with visible semantic progress, pointer/touch/keyboard equivalence, scroll-gesture safety, and mandatory Device Reference creation/promotion coverage.
 - Impact previews remain mandatory where domain consequences require them; holding never substitutes for understanding.
 - Protected UI working copies, valid selective save/discard, recovery, stale-version conflict review, navigation warnings, and bounded safe Undo.
 - Domain-derived Customer/communication/Inventory/Objective/SLA/main-view summaries.
@@ -361,7 +373,7 @@ Prove that the integrated product is safe, recoverable, understandable, stable, 
 - A Critical or High pilot defect invalidates the stability gate. The acceptance plan defines proportionate reset rules for lower-severity fixes.
 - Complete fresh offline installation and upgrade validation on every supported platform combination.
 - Demonstrate backup and recovery with operationally representative protected data.
-- Complete license, proprietary notice, origin attribution, dependency attribution, asset provenance, privacy, setup, support, backup, recovery, and troubleshooting documentation.
+- Complete applicable license/proprietary notices, origin attribution, dependency attribution, asset provenance, privacy, setup, support, backup, recovery, and troubleshooting documentation.
 - Produce versioned release artifacts and rollback/recovery instructions.
 
 ### Defect policy
