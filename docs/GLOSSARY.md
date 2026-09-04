@@ -5,7 +5,8 @@ This glossary is normative product language. UI copy, schemas, imports, and docu
 | Term | Contract definition |
 |---|---|
 | Local User Profile | The sole authenticating local administrator profile for one SOMA installation. |
-| Registered Person | A business/contact record. It is not a login account. |
+| Registered Person | Descriptive product language for a person represented canonically by a Contact record. It is not a second entity type and is not a login account. |
+| Contact | The reusable operational/business record representing a person or role. A Contact has its own immutable identity, may optionally belong to a Customer Organization, and is distinct from the Local User Profile. |
 | Customer Organization | The customer boundary that owns Contracts and Datacenter Sites. Equal names or city labels do not merge different organizations or physical locations. |
 | Contract | A service agreement belonging to exactly one Customer Organization under which one or more Contract Product Lines and their SLA policies are configured. One Customer Organization may have multiple Contracts. |
 | Product | An untrusted Advanced Search source column discarded by Beta 1.0; it cannot classify an SR or create operational relationships. |
@@ -13,14 +14,18 @@ This glossary is normative product language. UI copy, schemas, imports, and docu
 | Contract Product Line | One occurrence of a reusable Product Line inside one Contract. It owns that Contract-specific SLA cohort policy. Different Customer Organizations may configure different policies for the same Product Line. |
 | Service Request (SR) | A pivotal Ticket that connects service work, RFCs, spares, and infrastructure evidence. Official identity: exactly 8 digits; manual local identity: `LSR-` + 8 digits. |
 | Request for Change (RFC) | A change Ticket that owns WFM Tasks. Official identity: `NC` + 14 digits. RFC hierarchy is exactly two levels. |
-| Master RFC | An RFC that may own direct subordinate RFCs and receive direct SR/Local Task links. |
+| Master RFC | A root RFC that may own direct subordinate RFCs and is the only RFC role eligible for direct SR↔RFC links. Local Tasks may link to either master or subordinate RFCs. |
 | Subordinate RFC | An RFC owned by exactly one master RFC. It cannot own another RFC or act as a master. |
 | Task | A first-class unit of work with its own identity, classified as either a Local Task or WFM Task and belonging to at most one Objective. |
 | Local Task | A manually registered Task whose only required user-supplied field is Task Name. It may link to zero or many SRs, master or subordinate RFCs, Spare Part Units, and Network Elements. |
 | WFM Task | An externally generated Task subtype imported or registered with external identity `TK` + 14 digits; it belongs to exactly one RFC. |
-| Master WFM | The WFM owned by a master RFC for an operational branch/timeframe. The role is derived, not independently assigned. |
+| Master WFM | A WFM Task whose owning RFC currently projects master-RFC context. The role is derived from RFC ownership, is not a WFM-to-WFM hierarchy or unique branch slot, and multiple master-owned WFMs may remain distinct. |
 | Subordinate WFM | A WFM owned by a subordinate RFC; its master/SR context is derived through the RFC hierarchy. |
+| WFM source plan | The accepted provider/source planned interval for one WFM attempt. It remains immutable source evidence distinct from SOMA operational planning, Objective envelope, and actual execution. |
+| Operational Task plan | The accepted local schedule governing a Task for SOMA planning. It may originate from a reviewed WFM source plan or Objective-created initialization but remains independently reviewable and historically preserved. |
 | Objective | A Maintenance Window with one reviewed planned timeframe and at least one Task from creation. |
+| Objective envelope | The Objective planned interval derived from the accepted operational plans of its member Tasks. It is not authority to overwrite a Task plan or proof of actual execution. |
+| Actual execution interval | Independently accepted Task or Objective execution chronology. It remains distinct from source planning, operational Task planning, and the Objective envelope. |
 | Device Reference | An involved device identity used by Tickets, Tasks, and Inventory. It may resolve to Infrastructure or remain unregistered. |
 | Unregistered Device Reference | A valid Device Reference not yet promoted to an Infrastructure Network Element. It remains usable throughout the workflow. |
 | Spare Need | The Service-Request-level planning record aggregated by BOM across contributing Device Part Units from any relevant Device under that SR. It records description and quantity, preserves contributor links, remains reusable, and is not consumed by a request attempt. |
@@ -99,7 +104,7 @@ Identity is not a mutable descriptive field. Corrections use explicit reconcilia
 | Skin | A governed built-in aesthetic token family that cannot change domain meaning, layout, workflow, confirmation safety, or accessibility. |
 | Appearance mode | Light, Dark, or System selection applied within the chosen skin; System follows the operating system without changing skin. |
 | Objective timezone | The operator-selected IANA timezone used only for Objective/Task schedule entry, calendar grouping, and maintenance-window presentation. It has no authority over SLA, source, communication, retention, Inventory, or audit chronology. |
-| Operational SLA timezone | The fixed `America/Guayaquil` timezone used for SR SLA calendar interpretation and monthly cohort boundaries. |
+| Operational SLA timezone | The fixed `America/Guayaquil` timezone used for ordinary operational/SLA calendar interpretation and monthly SLA cohort boundaries outside the separately governed Objective/Task scheduling and source-adapter exceptions. |
 | Activity lineage | The reviewed relationship indicating that distinct WFM Task identities are attempts of the same operational activity; distinct identity alone does not prove duplicate work. |
 | Excluded from operational counts | Historical Objective/Task presentation state that removes selected history from current aggregates without deleting or rewriting its identities, evidence, membership, audit, or completed reports. |
 | Action-scoped Undo | A bounded safe inverse attached to one reversible accepted action and independently revalidated; it is not authority to rewrite immutable evidence. |

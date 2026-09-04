@@ -1,10 +1,10 @@
 # SOMA Beta Product Contract
 
-Status: **Foundation review v0.3**  
+Status: **Reconciled foundation v0.4 (RC-001)**  
 Target: **SOMA Beta 1.0.0**  
-Authority: confirmed product decisions; unresolved items are listed in `DECISIONS.md` and are not implementation permission.
+Authority: accepted normalized Beta requirements and confirmed product decisions; unresolved technical-design items are listed in `DECISIONS.md` and are not implementation permission.
 
-Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md), [Communications Contract](COMMUNICATIONS_CONTRACT.md), [UI/UX Interaction Contract](UI_UX_CONTRACT.md), and [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md).
+Normative supporting contracts: [Import Contract](IMPORT_CONTRACT.md), [RFC/WFM Contract](RFC_WFM_CONTRACT.md), [Ticket and Objective Workbench Contract](WORKBENCH_CONTRACT.md), [Inventory Lifecycle Contract](INVENTORY_LIFECYCLE.md), [Infrastructure Contract](INFRASTRUCTURE_CONTRACT.md), [Communications Contract](COMMUNICATIONS_CONTRACT.md), [UI/UX Interaction Contract](UI_UX_CONTRACT.md), [Contract Product Line and SLA Contract](PRODUCT_LINE_SLA.md), [Foundation Runtime Contract](FOUNDATION_RUNTIME_CONTRACT.md), and [Brand and UX Contract](BRANDING.md).
 
 ## 1. Product intent
 
@@ -20,6 +20,7 @@ SOMA uses a game-like interface language to make state, priority, progress, and 
 - Alpha pull requests are not merged wholesale into Beta.
 - Beta 1.0.0 has no Zeus/Alpha database migration requirement.
 - Beta starts an independent schema and migration lineage. It does not execute, continue, or automatically upgrade Alpha migrations or databases. Any later Alpha-data importer requires a separately accepted contract.
+- The canonical SOMA mark, wordmark, lockup, application icon, and tray icon retain their Alpha-origin provenance, but the project owner has confirmed the rights necessary to use and distribute them under SOMA Beta's proprietary/internal-use terms and that they contain no third-party material requiring a surviving third-party license. Alpha's Apache-2.0 license remains an Alpha-repository property and does not become the licensing basis for unrelated Beta material or those independently owned Beta assets.
 - High-level design precedes low-level design; implementation follows both.
 
 ## 3. Deployment and operator model
@@ -67,7 +68,7 @@ Below the measures, Overview provides:
 
 Examples include an RFC without a Service Request, a WFM without an Objective, an Objective awaiting review, and a Spare Request dispatched beyond its threshold.
 
-Reporting uses `America/Guayaquil` for operator-facing dates, a Monday–Sunday week, and UTC storage. Excel is the 1.0.0 report export format.
+Ordinary/SLA reporting period interpretation uses `America/Guayaquil`, a Monday–Sunday week, and canonical UTC whole-second instants. Objective/Task schedule labels and calendar grouping use the separately selected Objective timezone where that context is presented. Excel is the 1.0.0 report export format.
 
 Daily, Weekly, and Monthly exports derive from one internally consistent accepted-state snapshot and may cover one Customer Organization or all organizations. Completed report evidence preserves only the report-time values, membership, calculation results, policy revisions, and provenance needed to interpret and reproduce the artifact. Later operational or policy changes affect current and future reports but never rewrite a completed report. A report is completed only after successful artifact verification; failed or cancelled generation changes no operational record. Report generation never offers or initiates cleanup in Beta 1.0.
 
@@ -112,7 +113,7 @@ Tickets contains **Service Requests (SRs)** and **Requests for Change (RFCs)**. 
 - A WFM is an externally generated **Task subtype**, never a third top-level Ticket type.
 - Official WFM Task identity is `TK` followed by fourteen digits.
 - A WFM belongs to exactly one RFC and at most one Objective.
-- A WFM owned by a master RFC acts as the **master WFM** for that operational branch/timeframe. A WFM owned by a subordinate RFC acts as a subordinate WFM. This role is derived from RFC ownership and is not an independently editable flag.
+- A WFM owned by a master RFC projects **master-RFC WFM context**; a WFM owned by a subordinate RFC projects subordinate-RFC context. This role is derived from RFC ownership, is not an independently editable flag or WFM-to-WFM hierarchy, and does not imply one unique WFM per RFC, branch, or Objective.
 - Registering a WFM requires Task No. and RFC No. If the RFC exists, Task Name is inherited from the RFC Summary. If it does not exist, Task Name is also required and creates a provisional parent RFC with that summary.
 - Correcting the parent RFC of a manually registered WFM prompts the operator either to remove the now-unused provisional RFC or leave it orphaned; no silent deletion occurs.
 - Hard deletion is available only for manually created RFCs/WFMs that were never imported or adopted and have no executed Objective, communication, review, spare-use, lifecycle, or other protected operational evidence.
@@ -129,17 +130,20 @@ An SR may be resolved without an Objective or Task—for example by the customer
 - A Task is first-class, has its own identity, and is either a Local Task or a WFM Task.
 - A Local Task requires only a Task Name from the operator. It may link independently to zero or many SRs, zero or many RFCs—including subordinate RFCs—zero or many Spare Part Units, and zero or many Network Elements.
 - A WFM Task retains its one owning RFC. Its master/subordinate branch and SR context are derived through that RFC hierarchy rather than copied as independent Objective relationships.
-- A local Task created inside an Objective inherits the Objective **planned timeframe**, not its identity.
-- Every Task assigned to an Objective uses the Objective planned timeframe.
+- A Local Task created inside an Objective may initialize its operational plan from the Objective's current planned timeframe, but the accepted Task plan remains independently reviewable and historically preserved.
+- WFM source plan, accepted operational Task plan, Objective planned envelope, and actual execution are separate temporal authorities.
+- The Objective planned envelope is derived from accepted member Task plans; membership does not authorize the Objective to overwrite an established Task plan silently.
 - A Task belongs to at most one Objective, but one SR may participate through different Tasks in multiple unfinished Objectives.
 - There is no independent Objective↔SR authority: an Objective's effective SR context is derived exclusively through its Local and WFM Tasks.
 - Retrying work creates a new Task attempt while preserving the earlier Task unchanged. A Local Task retry receives a new local Task identity; a WFM retry requires a new WFM Task No. The new attempt enters the normal overlap-grouping flow, so Objective retry lineage is derived from Task attempts rather than represented as a one-to-one Objective chain.
 
-When an Objective timeframe is selected, SOMA locates available WFM Tasks whose authoritative WFM planned windows overlap it. An unplanned WFM may inherit the Objective window. A WFM with a conflicting established window requires explicit review and, when it represents another attempt, a new Task No.; SOMA never overwrites an established attempt silently.
+When an Objective timeframe is selected or reviewed, SOMA may locate eligible WFM Tasks whose accepted/source planning overlaps it. A previously unplanned WFM may initialize an operational plan through the reviewed Objective flow. A WFM with a conflicting established plan requires explicit review and, when it represents another attempt, a new Task No.; SOMA never overwrites an established attempt silently.
 
 Creating or importing a future, noncancelled Task with a valid interval enters reviewed Objective grouping. It creates a new Objective when no interval overlaps; otherwise it is proposed into the overlapping Objective. A Task bridging multiple Objectives proposes their consolidation and union timeframe because accepted Objectives may not overlap. A Task without a timeframe remains unscheduled and creates no Objective.
 
 Planned and actual Objective intervals are distinct. Task outcomes and actual Spare Part Unit use are reviewed individually. Corrections preserve prior actor/time/reason evidence; the exact outcome transition table remains a low-level design item.
+
+Task execution, start/stop evidence, cancellation, outcome, review, correction, and retry are owned by Objectives/Task lifecycle. Inventory may consume separately reviewed physical consequences of those outcomes but does not become the authority for Task lifecycle state.
 
 If one or more Tasks link to SRs, SOMA suggests the union of eligible Stock and pending spares related to those SRs. Physical-unit reservation belongs to a Task, not directly to the Objective; the Objective displays the derived union of its Task allocations.
 
@@ -200,9 +204,10 @@ Before external requesting, SOMA shows compatible available Stock for the Need a
 
 ### 8.6 Tasks and return-unit eligibility
 
+- Inventory consumes reviewed Task/physical outcomes to record physical consequences; it does not own Task execution, outcome, correction, cancellation, or retry lifecycle.
 - Physical Spare Part Units are reserved through Tasks, not direct Objective ownership.
-- After maintenance the operator records each target and unit outcome. A successful replacement links the actual removed Device Part Unit and installed Spare Part Unit.
-- The reviewed outcome determines the RMA return obligation without overwriting requested, inbound, installed, or return BOM/serial facts.
+- After maintenance the operator records each target and unit physical outcome. A successful replacement links the actual removed Device Part Unit and installed Spare Part Unit.
+- The reviewed physical consequence determines the RMA return obligation without overwriting requested, inbound, installed, or return BOM/serial facts.
 - A Fault Tag membership requires one open RMA return obligation and its one selected physical return unit.
 - Eligible units include the removed Device Part Unit, an unused/faulty/incompatible inbound unit, the dismantled parent assembly, or another explicitly reviewed RMA outcome.
 - Condition, apparent newness, BOM, serial, or provenance alone never establishes eligibility.
@@ -302,7 +307,7 @@ Current source-owned SR facts are derived field by field from the newest accepte
 
 After the Advanced Search inbox is configured, SOMA supports a default 10:00 daily check in the fixed operational timezone `America/Guayaquil`, a configurable whole-minute clock time, schedule disablement, one missed-boundary startup catch-up, and an always-available **Check now** action. The Objective scheduling timezone never reinterprets this job boundary. Scheduled discovery never opens a file picker and never bypasses staging, required review, or configured safe-auto-accept rules.
 
-The default historical lookback is one month and is configurable. Terminal source rows older than that boundary are excluded using the trusted source-specific recency field; active, future, and unscheduled work is not discarded by this rule.
+Advanced Search uses a configurable one-month default historical lookback for terminal source rows under its trusted source-specific recency rule. Active rows are not discarded by this rule. RFC/WFM workbooks are governed separately: their supported historical rows remain valid according to status and field rules, and workbook age or omission does not create record-level lifecycle disappearance.
 
 Population matches immutable official identities and updates source-owned fields. It must preserve local notes, relationships, Objectives, inventory and infrastructure links, review results, audit history, and other SOMA-owned meaning.
 
@@ -328,7 +333,7 @@ Only matched communications persist. Each retained communication is canonical wi
 
 One local fetch-and-match pipeline runs hourly by default, using a configurable positive whole-minute interval or an explicit disabled setting. Check now, one bounded catch-up, non-overlap, progress, phase/count reporting, cancellation, bounded retry, restart-safe checkpoints, and redacted diagnostics are required. Advanced Search synchronization, communication processing, communication-derived proposal acceptance, and local MSG draft persistence remain independent workflows with no implicit cross-write.
 
-Accepted terminal SR or RFC state removes its direct communication links. A retained communication that then has no remaining protected operational dependency enters **Orphaned — Pending Purge** for a configurable positive installation-level grace period of seven exact elapsed days by default. Restoring a protected link cancels pending purge. At expiry SOMA transactionally revalidates dependencies before purging reconstructable content, while preserving a non-reconstructable purge record and frozen minimal terminal summary. It never modifies external PST/OST stores, exported MSG files, portable exports, or existing backups. Reversal after purge may use targeted backfill when the source remains available; otherwise the workbench exposes a coverage warning.
+An accepted terminal SR lifecycle transition removes that SR's direct communication links. For an RFC, direct communication unlink occurs only after the confirmed local terminal-cascade decision governed by the RFC/WFM contract; parsing, staging, or merely accepting provider terminal evidence does not itself perform the local cascade consequence. A retained communication that then has no remaining protected operational dependency enters **Orphaned — Pending Purge** for a configurable positive installation-level grace period of seven exact elapsed days by default. Restoring a protected link cancels pending purge. At expiry SOMA transactionally revalidates dependencies before purging reconstructable content, while preserving a non-reconstructable purge record and frozen minimal terminal summary. It never modifies external PST/OST stores, exported MSG files, portable exports, or existing backups. Reversal after purge may use targeted backfill when the source remains available; otherwise the workbench exposes a coverage warning.
 
 Service Request, Spare Request, and RFC views distinguish received and sent counts, direction, last-interaction age, coverage/warnings, and canonical-message navigation without copying bodies. Terminal SR/RFC views retain their frozen minimal summary even after the body is purged. Beta 1.0 persistence accepts optional communication evidence references but exposes no attachment/upload control; manual domain actions remain valid without evidence.
 
@@ -350,14 +355,14 @@ The [Foundation Runtime, Persistence, Audit, and Verification Contract](FOUNDATI
 - Material manual changes record when, what, and why.
 - Derived states are recalculated from source facts and policy rather than silently persisted as independent truth.
 - Destructive cascades require impact preview and confirmation.
-- Hard deletion is restricted to untouched manual records with no imported/adopted provenance, executed Objective, communication, review, spare-use, lifecycle, or dependent history.
+- Hard deletion exists only where an owning domain contract explicitly allows it. Across domains, imported/adopted provenance, accepted execution/lifecycle evidence, communication/review/spare-use history, or protected dependencies prevent hard deletion unless a narrower accepted rule explicitly states otherwise; history-preserving lifecycle/correction actions are used instead.
 - Removing a Task from an unexecuted Objective is allowed only when the Objective retains at least one Task, or when the complete untouched Objective is removed atomically.
 - Business history is preserved when a relationship changes.
 - Beta 1.0.0 provides Historical views and archive-safe presentation and no general purge of operational domain records. The narrow orphaned-communication content transition in section 12 is the only elapsed-time operational-content exception; it preserves domain records, link/purge history, and the frozen terminal summary.
-- Report completion, terminal status, source disappearance, source age, inactivity, or elapsed time never finalizes or minimizes domain records in Beta 1.0. Movement to Historical view is presentation only. Accepted SR/RFC termination may remove direct communication links and begin the section 12 orphan grace only when no protected link remains. Alpha's 180-day record timer, terminated-episode snapshot, 27-field final snapshot, and general report-triggered cleanup are not Beta behavior.
+- Report completion, terminal status, source disappearance, source age, inactivity, or elapsed time never finalizes or minimizes domain records in Beta 1.0. Movement to Historical view is presentation only. Accepted SR termination or confirmed RFC terminal cascade may remove direct communication links and begin the section 12 orphan grace only when no protected link remains. Alpha's 180-day record timer, terminated-episode snapshot, 27-field final snapshot, and general report-triggered cleanup are not Beta behavior.
 - Technical cache reconstruction, temporary staging cleanup, diagnostic-log rotation, and verified backup rotation are separate from operational-history retention.
 - Beta 1.0 exposes no general operational-record retention countdown, due timestamp, scheduled purge, per-user retention, postponement, or legal-hold control. Daily/Weekly/Monthly affects main-view visibility only. The section 12 installation-level orphan grace is a domain-specific positive timer, seven exact elapsed days by default, and does not authorize broader retention. Any broader policy requires a new accepted contract rather than inheriting Alpha's 180-day default.
 
 ## 15. 1.0.0 acceptance boundary
 
-Beta 1.0.0 is not complete until all six work areas function together, Contract Product Line/SLA rules are enforced, supported Excel imports and exports work, the complete target-gated PST/OST processing, matching, coverage, backfill, proposal, terminal unlink, orphan grace/purge, summary, and MSG workflows work, local data is protected, the complete UI/UX Interaction Contract passes across responsive light/dark/high-contrast presentation, keyboard/pointer/touch input, hovered scroll ownership, deliberate confirmation, drafts/conflicts, accessibility, sanitized visual/export fixtures, and Windows tray behavior, and the Foundation Runtime Contract passes for SQLite connections, migrations/status, JSON, audit, local-instance trust, diagnostics/redaction, Windows/Python CI, and application acceptance.
+Beta 1.0.0 is not complete until all six work areas function together, Contract Product Line/SLA rules are enforced, supported Excel imports and exports work, the complete target-gated PST/OST processing, matching, coverage, backfill, proposal, terminal unlink, orphan grace/purge, summary, and MSG workflows work, local data is protected, the complete UI/UX Interaction Contract passes across responsive Light/Dark/System appearance, high-contrast and forced-color presentation, keyboard/pointer/touch input, hovered scroll ownership, deliberate confirmation, drafts/conflicts, accessibility, sanitized visual/export fixtures, and Windows tray behavior, and the Foundation Runtime Contract passes for SQLite connections, migrations/status, JSON, audit, local-instance trust, diagnostics/redaction, Windows/Python CI, and application acceptance.
