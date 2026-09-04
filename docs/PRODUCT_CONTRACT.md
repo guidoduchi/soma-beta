@@ -1,6 +1,6 @@
 # SOMA Beta Product Contract
 
-Status: **Reconciled foundation v0.4 (RC-001)**  
+Status: **Reconciled foundation v0.4 (RC-001; post-closure assurance correction RC-006-A2-F1)**  
 Target: **SOMA Beta 1.0.0**  
 Authority: accepted normalized Beta requirements and confirmed product decisions; unresolved technical-design items are listed in `DECISIONS.md` and are not implementation permission.
 
@@ -128,7 +128,7 @@ An SR may be resolved without an Objective or Task—for example by the customer
 
 - Every Objective requires one reviewed planned timeframe and at least one Task from creation; there is no empty Objective state.
 - A Task is first-class, has its own identity, and is either a Local Task or a WFM Task.
-- A Local Task requires only a Task Name from the operator. It may link independently to zero or many SRs, zero or many RFCs—including subordinate RFCs—zero or many Spare Part Units, and zero or many Network Elements.
+- A Local Task requires only a Task Name from the operator. It may link independently to zero or many SRs, zero or many RFCs—including subordinate RFCs—zero or many Spare Part Units, and zero or many Device References. A Device Reference may remain external/unregistered or resolve to one Network Element; regularization preserves the Task-to-Device-Reference relationship and its history rather than replacing it with a direct Network Element relationship.
 - A WFM Task retains its one owning RFC. Its master/subordinate branch and SR context are derived through that RFC hierarchy rather than copied as independent Objective relationships.
 - A Local Task created inside an Objective may initialize its operational plan from the Objective's current planned timeframe, but the accepted Task plan remains independently reviewable and historically preserved.
 - WFM source plan, accepted operational Task plan, Objective planned envelope, and actual execution are separate temporal authorities.
