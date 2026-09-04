@@ -6,7 +6,7 @@ SOMA Beta is a local, offline-first operations workspace for service tickets, ma
 
 ## Product status
 
-**Phase 0’s decision baseline remains accepted and frozen.** The historical project-owner acceptance remains valid, but current Phase 0 closure certification is suspended while `RC-006-A2` completes section-level forward and reverse authority assurance against pinned `A2-BASELINE-001`. Phase 1A catalogue reconstruction may remain recorded, but owner review is paused after `UC-001`; `UC-002` is Proposed and may be reviewed only after A2 passes. Phase 1B complete HLD follows only after Phase 1A acceptance, then the complete Beta 1.0.0 LLD.
+**Phase 0’s decision baseline remains accepted and frozen.** The historical project-owner acceptance remains valid, but current Phase 0 closure certification is suspended while `RC-006-A2` completes section-level forward and reverse authority assurance against the immutable execution source controlled by `docs/reconciliation/RC006_A2_EXECUTION_BASELINE.md`. Phase 1A catalogue reconstruction may remain recorded, but owner review is paused after `UC-001`; `UC-002` is Proposed and may be reviewed only after A2 passes. Phase 1B complete HLD follows only after Phase 1A acceptance, then the complete Beta 1.0.0 LLD.
 
 No production code, final database schema, or Alpha data migration is approved by this foundation state. Production implementation remains blocked until the entire Beta 1.0.0 LLD is accepted.
 
