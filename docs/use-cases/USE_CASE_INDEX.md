@@ -1,6 +1,6 @@
 # SOMA Beta Phase 1A — Use-Case Index
 
-Status: **P1A-002 structural correction completed — owner review frozen pending UC-002 Specification Gate**  
+Status: **P1A-002 structural correction completed — UC-002 Specification Gate PASS; pending owner review**  
 Phase-0 accepted baseline remains governed by `../reconciliation/PHASE0_ACCEPTANCE.md`.
 
 ## Governance
@@ -13,9 +13,9 @@ Phase-0 accepted baseline remains governed by `../reconciliation/PHASE0_ACCEPTAN
 
 ## Status rule
 
-`UC-001` is the only accepted use case. Its semantics remain accepted and its repository representation has been expanded non-semantically.
+`UC-001` is accepted. `UC-002` has passed the internal Specification Gate and is **Proposed — pending project-owner review**.
 
-All other active entries are **Goal Seeds** until they pass the Specification Gate in `USE_CASE_METHOD.md` and become `Proposed`. They are not to be presented for owner acceptance in seed form.
+All other active entries are **Goal Seeds** until they pass the Specification Gate in `USE_CASE_METHOD.md`. They are not to be presented for owner acceptance in seed form.
 
 Pre-acceptance IDs may be split/merged/narrowed/retired with recorded disposition. Accepted IDs are immutable and never reused.
 
@@ -24,30 +24,31 @@ Pre-acceptance IDs may be split/merged/narrowed/retired with recorded dispositio
 - Allocated IDs: **95 (`UC-001..UC-095`)**
 - Active goals: **94**
 - Accepted: **1 (`UC-001`)**
-- Active Goal Seeds: **93**
+- Proposed: **1 (`UC-002`)**
+- Active Goal Seeds: **92**
 - Pre-acceptance merged/retired seeds: **1 (`UC-043 → UC-069`)**
-- Owner review: **paused before UC-002**
+- Next owner review: **UC-002**
 
 ## Wave status
 
-| Wave | Scope | Active goals | Accepted | Goal Seeds | Retired/merged |
-|---|---|---:|---:|---:|---:|
-| `P1A-W1` | Foundation & Settings | 15 | 1 | 14 | 0 |
-| `P1A-W2` | Tickets & Source Intake | 16 | 0 | 16 | 0 |
-| `P1A-W3` | Objectives & Operational Work | 13 | 0 | 13 | 0 |
-| `P1A-W4` | Inventory | 21 | 0 | 21 | 1 (`UC-043`) |
-| `P1A-W5` | Infrastructure | 11 | 0 | 11 | 0 |
-| `P1A-W6` | Communications | 8 | 0 | 8 | 0 |
-| `P1A-W7` | Overview & Cross-domain Operations | 10 | 0 | 10 | 0 |
-| **Total active** |  | **94** | **1** | **93** | **1** |
-| `P1A-W8` | Global traceability/reverse-authority/duplicate audit | — | Not started | — | — |
+| Wave | Scope | Active goals | Accepted | Proposed | Goal Seeds | Retired/merged |
+|---|---|---:|---:|---:|---:|---:|
+| `P1A-W1` | Foundation & Settings | 15 | 1 | 1 | 13 | 0 |
+| `P1A-W2` | Tickets & Source Intake | 16 | 0 | 0 | 16 | 0 |
+| `P1A-W3` | Objectives & Operational Work | 13 | 0 | 0 | 13 | 0 |
+| `P1A-W4` | Inventory | 21 | 0 | 0 | 21 | 1 (`UC-043`) |
+| `P1A-W5` | Infrastructure | 11 | 0 | 0 | 11 | 0 |
+| `P1A-W6` | Communications | 8 | 0 | 0 | 8 | 0 |
+| `P1A-W7` | Overview & Cross-domain Operations | 10 | 0 | 0 | 10 | 0 |
+| **Total active** |  | **94** | **1** | **1** | **92** | **1** |
+| `P1A-W8` | Global traceability/reverse-authority/duplicate audit | — | Not started | — | — | — |
 
 ## Catalogue
 
 | UC | Goal | Wave | Status |
 |---|---|---|---|
 | `UC-001` | Initialize a new SOMA installation | W1 | **Accepted** |
-| `UC-002` | Authenticate, lock, and unlock the installation | W1 | Goal Seed |
+| `UC-002` | Authenticate to an established SOMA installation | W1 | **Proposed — Specification Gate PASS** |
 | `UC-003` | Maintain the Local Administrator profile and password | W1 | Goal Seed |
 | `UC-004` | Configure automatic login | W1 | Goal Seed |
 | `UC-005` | Change appearance, skin, and Objective scheduling timezone | W1 | Goal Seed |
@@ -154,7 +155,7 @@ Pre-acceptance IDs may be split/merged/narrowed/retired with recorded dispositio
 
 ## Review protocol after P1A-002
 
-Owner review does **not** resume directly from the Goal Seed text. For each next ID:
+For each next ID:
 
 1. expand the seed to the complete mandatory specification;
 2. validate requirement → canonical owner/family → normative destination;
@@ -162,6 +163,6 @@ Owner review does **not** resume directly from the Goal Seed text. For each next
 4. mark `Proposed` only after Specification Gate PASS; and
 5. then present it to the project owner for Approve/Rework/Split/Merge/SI disposition.
 
-The next owner-reviewed use case remains **UC-002**, but only after its Specification Gate passes.
+`UC-002` has completed steps 1–4 and is now the next project-owner review item.
 
 `P1A-W8` begins only after all active goals are accepted/reworked/merged/SI-classified and the forward ledger can prove every behavioral canonical clause family is exercised by accepted use cases or explicitly covered as SI.
