@@ -1,18 +1,18 @@
 # SOMA Beta Phase 1A — Requirement / Use-Case Traceability
 
-Status: **P1A-002 structural correction — authority re-derivation required before UC-002 owner review**
+Status: **P1A-002 structural correction completed — UC-002 Proposed after Specification Gate; final coverage remains pending owner acceptance**
 
 ## Purpose
 
 This is the Phase-1A forward coverage ledger. It deliberately does not duplicate the 11,524 canonical clauses. Exact canonical owner ranges remain authoritative in `docs/reconciliation/RC006_CLAUSE_DESTINATIONS.md`.
 
-P1A-002 corrected a systemic defect in the initial seed catalogue: several Goal Seeds cited unrelated or overly broad requirement ranges. Therefore no seed-level candidate mapping is allowed to masquerade as accepted coverage. Each active Goal Seed must pass the Specification Gate and re-derive its authority from canonical families before it can become `Proposed`.
+P1A-002 corrected a systemic defect in the initial seed catalogue: several Goal Seeds cited unrelated or overly broad requirement ranges. No seed-level candidate mapping is allowed to masquerade as accepted coverage. Each active Goal Seed must pass the Specification Gate and re-derive its authority from canonical families before it can become `Proposed`.
 
 ## Coverage states
 
 - `Goal Seed` — decomposition candidate only; not acceptance-ready and not counted as final coverage.
 - `Draft` — expanded specification still undergoing internal gate review.
-- `Proposed` — complete specification with Specification Gate PASS; eligible for owner review.
+- `Proposed` — complete specification with Specification Gate PASS; eligible for owner review but not final coverage.
 - `UC` — behavioral obligations exercised by accepted use case(s).
 - `SI` — structural invariant only, with rationale/destination.
 - `UC+SI` — mixed requirement; behavioral and structural portions both accounted for.
@@ -26,13 +26,16 @@ P1A-002 corrected a systemic defect in the initial seed catalogue: several Goal 
 - allocated UC IDs: **95 (`UC-001..UC-095`)**
 - active goals: **94**
 - accepted use cases: **1 (`UC-001`)**
-- active Goal Seeds: **93**
+- proposed use cases: **1 (`UC-002`)**
+- active Goal Seeds: **92**
 - pre-acceptance merged/retired seeds: **1 (`UC-043 → UC-069`)**
 - finally resolved requirement coverage: **0 / 177** until owner-by-owner/family coverage is accepted
-- owner review: **paused before UC-002**
+- next owner review: **UC-002**
 - current blocked product ambiguities: **0 known**
 
-`UC-001` is accepted and now has complete mandatory repository representation, but `BETA-REQ-0078` remains mixed and is not finally resolved: password-change, auto-login, security/key, backup/recovery and structural families still require accepted UC/SI coverage.
+`UC-001` is accepted and has complete mandatory repository representation, but `BETA-REQ-0078` remains mixed and is not finally resolved: password-change, auto-login, security/key, backup/recovery and structural families still require accepted UC/SI coverage.
+
+`UC-002` has passed the Specification Gate for the password-authentication goal but remains Proposed; it provides no final accepted coverage until project-owner acceptance.
 
 ## Requirement registry
 
@@ -44,7 +47,7 @@ This table is navigational only. It identifies domains/families to be re-derived
 
 | Wave | Active UCs | Corrected primary candidate authority areas | State |
 |---|---|---|---|
-| `P1A-W1` | `001..012`, `078..080` | foundation/runtime/security/settings/reference plus Customer/Product Line/Contract/CPL/SLA policy | UC-001 Accepted; remainder Goal Seed |
+| `P1A-W1` | `001..012`, `078..080` | foundation/runtime/security/settings/reference plus Customer/Product Line/Contract/CPL/SLA policy | UC-001 Accepted; UC-002 Proposed; remainder Goal Seed |
 | `P1A-W2` | `013..026`, `081`, `094` | SR/RFC/WFM/source intake, Workbench, Notes, CPL classification/SLA-facing behavior | Goal Seed |
 | `P1A-W3` | `027..037`, `082..083` | Task/Objective identity/planning/grouping/execution/correction/retry, Device Reference participation, RFC cascade, archive/delete | Goal Seed |
 | `P1A-W4` | `038..042`, `044..052`, `084..090` | Spare Need/Request/RMA/physical-unit/logistics/physical consequence/Fault Tag/warehouse/lifecycle | Goal Seed; `043` retired |
@@ -72,12 +75,33 @@ Cross-wave overlaps are expected and do not transfer requirement ownership.
 
 These corrections remove known false references. Final Proposed/Accepted traceability still requires canonical-family/subrange validation under the Specification Gate.
 
+## UC-002 Specification Gate traceability
+
+| Element | Verified authority | Result |
+|---|---|---|
+| Singleton authenticating Local User Profile | `BETA-REQ-0035`; `AUTH-001..002` | PASS |
+| Password is authentication authority only | `AUTH-003`; separation constraints `AUTH-005..006` | PASS |
+| Password persistence uses salted memory-hard verifier | `AUTH-004`; `ADMIN-SETUP-038` | PASS |
+| Login requires no username | `BETA-REQ-0078`; `ADMIN-SETUP-007`; Product Contract §3 | PASS |
+| Password does not become live/backup encryption authority | `AUTH-005..006`; `ADMIN-SETUP-039..042` | PASS |
+| Automatic login is separate optional behavior | `AUTH-007..009`; `ADMIN-SETUP-043..045`; owned primarily by `UC-004` | PASS boundary |
+| Explicit application lock/unlock | **No accepted normalized/canonical authority found** | REMOVED from UC-002 before proposal |
+| Primary normative destination | `PRODUCT_CONTRACT.md` §3 Deployment and operator model | PASS |
+| Runtime/security mechanics | Downstream HLD/LLD constrained by normalized authority; Foundation Runtime is supporting, not password-policy owner | PASS boundary |
+
+### UC-002 reverse-authority result
+
+The original seed title `Authenticate, lock, and unlock the installation` contained unsupported lock/unlock behavior. No accepted `BETA-REQ` or canonical clause authorizes an explicit application lock/unlock workflow. The Proposed UC is therefore narrowed to **Authenticate to an established SOMA installation**. This correction removes unsupported seed behavior and does not reopen or change Phase-0 product authority.
+
+**UC-002 SPECIFICATION GATE: PASS — Proposed; owner acceptance pending.**
+
 ## Working coverage table
 
 | BETA-REQ | Canonical family/range | Coverage | UC/SI reference | Rationale / coverage note | Result |
 |---|---|---|---|---|---|
-| `BETA-REQ-0078` | `ADMIN-SETUP-001..067` | `UC+SI` candidate | `UC-001`, `UC-003..010`, SI security/key invariants | `UC-001` accepted for first-run behavioral subset only; remaining families pending | **Pending final coverage** |
-| `BETA-REQ-0052` | `NOTE-HIST-001..013` | UC candidate | `UC-094` | Working Notes now has an explicit goal seed; full specification/acceptance pending | Pending |
+| `BETA-REQ-0035` | `AUTH-001..010` | UC candidate | `UC-002`, `UC-003`, `UC-004` | UC-002 Proposed for password-login subset; credential change/auto-login portions remain separate and pending | **Pending final coverage** |
+| `BETA-REQ-0078` | `ADMIN-SETUP-001..067` | `UC+SI` candidate | `UC-001`, `UC-002`, `UC-003..010`, SI security/key invariants | UC-001 accepted for first-run subset; UC-002 Proposed for login subset; remaining families pending | **Pending final coverage** |
+| `BETA-REQ-0052` | `NOTE-HIST-001..013` | UC candidate | `UC-094` | Working Notes has an explicit goal seed; full specification/acceptance pending | Pending |
 | `BETA-REQ-0086` | `SPUNIT-REG-001..036` | UC candidate | `UC-084` | Manual Spare Part Unit registration now explicit | Pending |
 | `BETA-REQ-0110` | `INFRA-XLSX-001..132` | multiple UC candidate | `UC-059`, `UC-060`, `UC-091` | Export, import/reconcile, and import-directory/Check-now goals separated | Pending |
 | `BETA-REQ-0049` | `DEVICE-REF-001..014` | multiple UC candidate | `UC-027`, `UC-028`, `UC-056`, `UC-057`, `UC-092` | Operational Device Reference participation kept distinct from NE regularization/correction | Pending |
