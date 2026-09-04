@@ -1,6 +1,6 @@
 # RC-006 — Synthesis and Global Contradiction Register
 
-Status: **All RC-006 findings resolved after RC-006-A1; no remaining reconciliation defect queue**
+Status: **All RC-006 findings resolved after RC-006-A1 and second-pass status alignment; no remaining reconciliation defect queue**
 
 ## Resolved findings
 
@@ -26,8 +26,9 @@ Status: **All RC-006 findings resolved after RC-006-A1; no remaining reconciliat
 | **RC006-C18** | Architecture prematurely selected `React and TypeScript UI` and described React/TypeScript/Node tooling as the development direction despite no Phase-0 framework authority | Logical shape now says `Browser UI`; frontend framework/language/build-tool selection is explicitly downstream design work; Node.js remains prohibited as an installed end-user runtime requirement | `BETA-REQ-0002`; Roadmap Phase 2 design gate; reconciliation doctrine design-boundary rule |
 | **RC006-C19** | Initial global forward proof inferred clause coverage from requirement-family coverage and therefore did not mechanically exclude an orphan clause inside an otherwise mapped requirement | Added `RC006_CLAUSE_DESTINATIONS.md`: 177 inclusive canonical ranges expanding to exactly 11,524 unique canonical IDs, with missing/extra/duplicate/owner-mismatch counts all zero | `RECONCILIATION_METHOD.md` §4; CP-001…CP-007 clause-authority artefacts |
 | **RC006-C20** | Review referenced a possible `RC-007`, creating checkpoint-status ambiguity | No RC-007 is created. Reconciliation remains RC-001…RC-006, with this correction recorded as **RC-006-A1**. Explicit project-owner Phase-0 acceptance is a separate authority action and will be recorded in `PHASE0_ACCEPTANCE.md` only after the owner gives that acceptance | `RECONCILIATION_METHOD.md` §§7–8 |
+| **RC006-C21** | Independent second pass found README, Roadmap, and the original RC-006 synthesis record still described the repository as complete only “through RC-006”; Roadmap also retained requirement-level forward-orphan wording after A1 introduced literal stable-clause assurance | Repository-facing status text now records RC-006-A1 as applied; Roadmap reports literal `11,524 / 11,524` clause-destination coverage and the original synthesis record is explicitly marked/read as amended by A1 | RC-006-A1; `RC006_CLAUSE_DESTINATIONS.md`; `RECONCILIATION_METHOD.md` §§4 and 8 |
 
-## Post-A1 global checks
+## Second-pass global checks
 
 - Unsupported settled frontend/framework assertion: **0**.
 - Literal canonical clause destination orphans: **0 / 11,524**.
@@ -37,9 +38,10 @@ Status: **All RC-006 findings resolved after RC-006-A1; no remaining reconciliat
 - Product gaps requiring owner clarification: **0**.
 - Release-boundary leaks: **0**.
 - Open design items accidentally resolved: **0**.
+- Repository-facing RC-006/A1 status drift after C21 correction: **0 known**.
 
 ## Remaining queue
 
-Reconciliation defect queue: **EMPTY after RC-006-A1**.
+Reconciliation defect queue: **EMPTY after RC006-C21 correction**.
 
 The only remaining Phase 0 action is explicit project-owner closure acceptance under `RECONCILIATION_METHOD.md` §8. That action is **not RC-007** and has not yet been recorded.

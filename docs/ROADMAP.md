@@ -1,6 +1,6 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Phase 0 normalization and contract reconciliation complete through RC-006; final project-owner Phase 0 closure acceptance pending**
+Status: **Phase 0 normalization and contract reconciliation complete through RC-006 with RC-006-A1 corrective assurance applied; final project-owner Phase 0 closure acceptance pending**
 
 This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 
@@ -43,7 +43,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - destination layer, kept separate from release disposition.
 - Destination layers include Product Contract, use case, HLD, LLD, implementation, and acceptance evidence. **Defer** means a later release; it never means “belongs in LLD.”
 - Assign neutral immutable normative identifiers in the form **BETA-REQ-0001**. Workspace, domain, release, status, and destination remain metadata rather than part of the identifier.
-- The complete Alpha pass contains 138 exact merged source rows and 43 exact proposal rows mapped through 177 sequential Beta requirements. Proposal disposition is complete. Requirement normalization is complete at **177/177** with **11,524** globally unique canonical stable clauses, all recorded `FND-GAP-001`–`016` items are resolved, and focused contract reconciliation is complete through `RC-006`. Phase 0 remains open only for the final project-owner closure acceptance required by the reconciliation doctrine; business use cases/HLD and LLD belong to Phases 1 and 2 rather than being unfinished Phase 0 work.
+- The complete Alpha pass contains 138 exact merged source rows and 43 exact proposal rows mapped through 177 sequential Beta requirements. Proposal disposition is complete. Requirement normalization is complete at **177/177** with **11,524** globally unique canonical stable clauses, all recorded `FND-GAP-001`–`016` items are resolved, focused contract reconciliation is complete through `RC-006`, and `RC-006-A1` has removed the unsupported frontend selection and upgraded the final forward assurance to literal canonical clause-range destination coverage. Phase 0 remains open only for the final project-owner closure acceptance required by the reconciliation doctrine; business use cases/HLD and LLD belong to Phases 1 and 2 rather than being unfinished Phase 0 work.
 
 ### Gaps and product contracts
 
@@ -87,11 +87,12 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 
 - Requirement normalization: **PASS — 177/177 requirements, 11,524/11,524 unique canonical clause IDs**.
 - Recorded foundation gaps: **PASS — 16/16 resolved; 0 Open**.
-- Contract reconciliation: **PASS through RC-006**.
-- Forward requirement-to-foundation orphan audit: **PASS — 0 known orphans**.
+- Contract reconciliation: **PASS through RC-006 with RC-006-A1 applied**.
+- Literal canonical stable-clause destination audit: **PASS — 11,524/11,524; missing 0; extra 0; duplicate 0; owner mismatch 0**.
 - Reverse normative-assertion authority audit: **PASS — 0 known unsupported assertions**.
+- Unsupported settled implementation/framework assertion: **PASS — 0 known after RC-006-A1**.
 - Known unresolved Phase 0 product questions: **0**.
-- Remaining `O-*` items are bounded downstream design questions and do not reopen settled product behavior.
+- Remaining `O-*` items and exact frontend framework/language/build-tool selection are bounded downstream design questions and do not reopen settled product behavior.
 - Final project-owner Phase 0 closure acceptance: **PENDING**.
 
 ## Phase 1 — Complete business use cases and high-level design

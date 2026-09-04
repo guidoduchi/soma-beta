@@ -6,7 +6,7 @@ SOMA Beta is a local, offline-first operations workspace for service tickets, ma
 
 ## Product status
 
-Phase 0 requirement normalization and foundation contract reconciliation are complete through `RC-006`. The foundation is **ready for project-owner Phase 0 closure acceptance**; business use cases and the complete HLD begin only after that acceptance, followed by the complete Beta 1.0.0 LLD.
+Phase 0 requirement normalization and foundation contract reconciliation are complete through `RC-006`, with the `RC-006-A1` corrective assurance amendment applied. The foundation is **ready for project-owner Phase 0 closure acceptance**; business use cases and the complete HLD begin only after that acceptance, followed by the complete Beta 1.0.0 LLD.
 
 No production code, final database schema, or Alpha data migration is approved by this foundation state. Production implementation remains blocked until the entire Beta 1.0.0 LLD is accepted.
 
@@ -29,6 +29,7 @@ The normalized governing obligations and canonical stable clauses are current pr
 - [Normalized catalogue, canonical clauses, clause authority, and checkpoint audits](docs/normalization/)
 - [Foundation reconciliation index](docs/reconciliation/RECONCILIATION_INDEX.md)
 - [Foundation reconciliation doctrine](docs/reconciliation/RECONCILIATION_METHOD.md)
+- [Literal canonical clause destination audit](docs/reconciliation/RC006_CLAUSE_DESTINATIONS.md)
 - [Pre-normalization Beta requirement baseline](docs/BETA_REQUIREMENTS.md)
 - [Alpha-to-Beta traceability register](docs/ALPHA_TRACEABILITY.md)
 - [Foundation gaps register](docs/FOUNDATION_GAPS.md)
