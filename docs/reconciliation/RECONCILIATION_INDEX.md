@@ -1,6 +1,6 @@
 # SOMA Beta Foundation Reconciliation Index
 
-Status: **RC-001 through RC-006 complete; Phase 0 ready for project-owner closure acceptance**  
+Status: **RC-001 through RC-006 complete; RC-006-A1 corrective assurance applied; Phase 0 ready for project-owner closure acceptance**  
 Branch: `foundation/product-contract-v0.1`  
 Reconciliation baseline commit: `38e41714640b39a34d079102595f99153451f562`  
 Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 canonical clauses**
@@ -14,9 +14,9 @@ Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 can
 | `RC-003` | Workbench + Product Line/SLA | **Completed** | 0 | Workbench workflow and customer-specific SLA/classification authority aligned; no unresolved product contradiction |
 | `RC-004` | Inventory + Infrastructure | **Completed** | 0 | Physical Inventory/Infrastructure authority aligned; no unresolved product contradiction |
 | `RC-005` | Communications + UI/UX + Foundation Runtime + Branding | **Completed** | 0 | Cross-cutting communication, interaction, runtime, verification and brand authority aligned; no unresolved product contradiction |
-| `RC-006` | Architecture + Roadmap + repository-facing status + global bidirectional reconciliation audit | **Completed** | 0 | Derived synthesis aligned; global forward/reverse orphan audit PASS; Phase 0 ready for owner closure acceptance |
+| `RC-006` | Architecture + Roadmap + repository-facing status + global bidirectional reconciliation audit | **Completed; amended by A1** | 0 | Derived synthesis aligned; A1 removes unsupported frontend selection and upgrades literal clause-destination proof; Phase 0 ready for owner closure acceptance |
 
-Checkpoint numbering is reconciliation-specific. The completed requirement-normalization `CP-*` lineage is not extended by these records.
+`RC-006-A1` is a corrective amendment to RC-006, **not RC-007**. Checkpoint numbering remains reconciliation-wave-specific. Project-owner Phase-0 acceptance is a separate authority action under `RECONCILIATION_METHOD.md` §8.
 
 ## RC-001 artifacts
 
@@ -51,12 +51,13 @@ Checkpoint numbering is reconciliation-specific. The completed requirement-norma
 
 ## RC-006 artifacts
 
-- `RC006_SYNTHESIS_AUTHORITY.md` — Architecture/Roadmap/repository-facing synthesis reconciliation report.
-- `RC006_GLOBAL_TRACEABILITY.md` — compositional 177-requirement/11,524-clause forward audit and whole-foundation reverse audit.
-- `RC006_CONTRADICTIONS.md` — resolved synthesis/global contradictions with no remaining reconciliation queue.
-- `RC006_PHASE0_GATE.md` — objective Phase 0 closure-gate result, explicitly awaiting project-owner acceptance.
+- `RC006_SYNTHESIS_AUTHORITY.md` — Architecture/Roadmap/repository-facing synthesis reconciliation report; read together with A1 for the frontend design-boundary correction.
+- `RC006_GLOBAL_TRACEABILITY.md` — final global forward/reverse audit, strengthened by A1 from requirement-family inference to literal stable-clause-range destination proof.
+- `RC006_CLAUSE_DESTINATIONS.md` — **RC-006-A1** exhaustive canonical-range → requirement owner → destination evidence; expands to exactly 11,524 canonical IDs.
+- `RC006_CONTRADICTIONS.md` — resolved synthesis/global findings including A1 findings C18–C20.
+- `RC006_PHASE0_GATE.md` — objective Phase 0 closure-gate result after A1, explicitly awaiting project-owner acceptance.
 
-## Cumulative state after RC-006
+## Cumulative state after RC-006-A1
 
 - Normalized requirements changed by reconciliation: **0**.
 - Canonical stable clause identities changed by reconciliation: **0**.
@@ -64,24 +65,31 @@ Checkpoint numbering is reconciliation-specific. The completed requirement-norma
 - New product behavior introduced by reconciliation: **0**.
 - Product-owner clarifications required cumulatively: **1**.
 - Product-owner clarifications resolved: **1** (`D-158`, canonical SOMA brand-asset rights provenance).
-- Product-owner clarifications opened by RC-002 through RC-006: **0**.
-- Known unresolved Phase 0 product questions after RC-006: **0**.
-- Forward normalized-authority destination orphans: **0 known**.
+- Product-owner clarifications opened by RC-002 through RC-006-A1: **0**.
+- Known unresolved Phase 0 product questions: **0**.
+- Canonical clause IDs represented in literal destination map: **11,524 / 11,524**.
+- Forward normalized-authority destination orphans: **0**.
+- Destination-map duplicate/extra IDs: **0**.
+- Destination-map owner mismatches: **0**.
 - Reverse normative-assertion authority orphans: **0 known**.
+- Unsupported settled frontend/framework assertion: **0 after A1**.
 - Known cross-document product contradictions: **0**.
-- Open technical-design boundaries remain intentionally open: `O-001`, `O-003`, `O-004`, `O-005`, `O-006`, `O-007`, `O-010`.
+- Open technical-design boundaries remain intentionally open: `O-001`, `O-003`, `O-004`, `O-005`, `O-006`, `O-007`, `O-010`, plus exact frontend framework/language/build-tool selection under downstream design gates.
 
 ## Global reconciliation result
 
-The final proof is compositional rather than a duplicated 11,524-row shadow catalogue:
+The final proof is compact but literal:
 
-1. accepted normalization authority proves every one of the **11,524** canonical stable clauses has one requirement owner and every `BETA-REQ-0001`–`0177` identity is present;
-2. `RC001_TRACEABILITY.md` through `RC005_TRACEABILITY.md` prove forward destination coverage and reverse assertion authority for every focused contract family;
-3. `RC006_GLOBAL_TRACEABILITY.md` exhaustively joins the seven normalized checkpoint ranges to those reconciled destinations and reverse-audits the remaining derived synthesis/index layer; and
-4. Architecture/Roadmap/repository-facing status text now defers to rather than competes with normalized/focused authority.
+1. accepted normalization authority proves every one of the **11,524** canonical stable clauses and its one `BETA-REQ` owner;
+2. `RC006_CLAUSE_DESTINATIONS.md` reproduces those canonical IDs through 177 inclusive owner ranges and requires exact set equality with missing/extra/duplicate/owner-mismatch counts all zero;
+3. RC-001 through RC-005 provide the detailed focused-contract forward/reverse evidence behind the destination codes;
+4. RC-006-A1 reverse-audits the whole foundation at normative assertion-family granularity and removes the sole unsupported settled design assertion found by independent review; and
+5. Architecture/Roadmap/repository-facing text remain derived synthesis rather than competing product authority.
 
-Result: **GLOBAL FORWARD PASS; GLOBAL REVERSE PASS; ORPHANS 0; CONTRADICTIONS 0; DESIGN BOUNDARIES PRESERVED.**
+Result: **177/177 requirements; 11,524/11,524 canonical clauses destination-covered; GLOBAL FORWARD PASS; GLOBAL REVERSE PASS; ORPHANS 0; PRODUCT CONTRADICTIONS 0; UNSUPPORTED SETTLED DESIGN ASSERTIONS 0.**
 
 ## Remaining action
 
-There is no remaining foundation-reconciliation defect queue. Phase 0 is **not automatically closed by RC-006**: `RECONCILIATION_METHOD.md` requires explicit project-owner acceptance. After that acceptance, the next roadmap work is Phase 1A business use cases followed by Phase 1B complete HLD.
+There is no remaining foundation-reconciliation defect queue after RC-006-A1.
+
+Phase 0 is **not automatically closed**. Explicit project-owner acceptance is still required. No `RC-007` will be created for that action. After the owner explicitly accepts the closure gate, the acceptance should be recorded separately as `PHASE0_ACCEPTANCE.md`, and the next roadmap work is Phase 1A business use cases followed by Phase 1B complete HLD.

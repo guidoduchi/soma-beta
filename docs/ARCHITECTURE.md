@@ -1,6 +1,6 @@
 # SOMA Beta High-Level Architecture
 
-Status: **Reconciled RC-006 — Phase 0 architecture synthesis; not the final Phase 1 HLD**. This document establishes accepted boundaries and quality attributes for downstream use-case/HLD work. It intentionally does not select a final database schema, cryptographic library, PST/OST adapter, or packaging implementation; those belong to low-level design and architecture decision records.
+Status: **Reconciled RC-006-A1 — Phase 0 architecture synthesis; not the final Phase 1 HLD**. This document establishes accepted boundaries and quality attributes for downstream use-case/HLD work. It intentionally does not select a frontend framework/language/build tool, final database schema, cryptographic library, PST/OST adapter, or packaging implementation; those belong to downstream design and architecture decision records under the Roadmap gates.
 
 ## 1. Architectural drivers
 
@@ -16,7 +16,7 @@ Status: **Reconciled RC-006 — Phase 0 architecture synthesis; not the final Ph
 
 ```mermaid
 flowchart TD
-    UI[React and TypeScript UI] --> API[Local application boundary]
+    UI[Browser UI] --> API[Local application boundary]
     API --> DOMAIN[Domain and policy engine]
     API --> IMPORTS[Import and mail adapters]
     DOMAIN --> STORE[Encrypted local persistence]
@@ -24,7 +24,7 @@ flowchart TD
     STAGE --> DOMAIN
 ```
 
-The browser UI is a client of a local application boundary. Domain rules do not live only in UI components or import parsers. Imports first produce staged proposals; accepted proposals pass through the same domain policies as manual changes.
+The browser UI is a client of a local Python-authoritative application boundary. Domain rules do not live only in UI components or import parsers. Imports first produce staged proposals; accepted proposals pass through the same domain policies as manual changes. The exact frontend framework, implementation language, and build tooling are not Phase 0 product authority and remain downstream design decisions.
 
 ## 3. Product modules
 
@@ -184,9 +184,9 @@ Technical diagnostics are structured, bounded, redacted before queues/outputs, s
 - production dependencies are few, pinned, auditable, and wrapped by narrow adapters;
 - no framework is allowed to redefine the domain model;
 - cryptography, Excel, and PST/OST parsing use established libraries rather than home-grown implementations; and
-- React/TypeScript and Node tooling are build/development concerns; Node is not an installed end-user runtime.
+- frontend framework, implementation language, and build-tool selection remain downstream design decisions rather than Phase 0 product authority.
 
-A local Python runtime and local web UI are the current direction. The Beta 1.0 product support boundary is 64-bit Windows 10 and Windows 11 with Python 3.13 and Python 3.14. Exact supported Windows editions/builds, browser versions, runner images, and packaging combinations remain the `O-006` design/verification responsibility and may not narrow that product boundary without an explicit product decision.
+The accepted product boundary is a local Python-authoritative application boundary serving a browser client. Any frontend framework/language/build tooling must be selected only under the Roadmap's downstream design gates; Node.js, if used as development/build tooling, must not become an installed end-user runtime requirement. The Beta 1.0 product support boundary is 64-bit Windows 10 and Windows 11 with Python 3.13 and Python 3.14. Exact supported Windows editions/builds, browser versions, runner images, packaging combinations, and frontend stack remain design/verification responsibilities and may not narrow or extend accepted product behavior without the appropriate authority.
 
 ## 10. Temporal authority
 
