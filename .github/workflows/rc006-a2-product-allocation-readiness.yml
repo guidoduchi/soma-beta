@@ -1,0 +1,160 @@
+name: RC006 A2 Product Allocation Readiness
+
+on:
+  push:
+    branches:
+      - foundation/product-contract-v0.1
+    paths:
+      - '.github/workflows/rc006-a2-product-allocation-readiness.yml'
+      - 'tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py'
+      - 'tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py'
+      - 'tools/reconciliation/allocate_rc006_a2_assertions.py'
+      - 'docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl'
+      - 'docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json'
+      - 'docs/reconciliation/RC006_A2_SOURCE_ROLES.tsv'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preallocation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out full repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Prepare evidence directory
+        run: mkdir -p a2-work
+
+      - name: Record pre-test state identities
+        run: |
+          sha256sum docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json > a2-work/state-before.sha256
+          if [ -e docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl ]; then
+            echo 'Authority ledger unexpectedly exists before first allocation' >&2
+            exit 1
+          fi
+          git rev-parse HEAD:docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl > a2-work/candidate-head-blob.txt
+
+      - name: Confirm zero-allocation readiness with frozen allocator
+        run: |
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py \
+            --repo . \
+            check-state \
+            --expect-zero \
+            --output a2-work/readiness-before.json
+
+      - name: Validate canonical frozen Product Contract corpus
+        run: |
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py \
+            --repo . \
+            validate-frozen \
+            --source-path docs/PRODUCT_CONTRACT.md \
+            --candidates docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
+            --output a2-work/frozen-validation.json
+
+      - name: Preallocate exact Product Contract batch without mutation
+        run: |
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py \
+            --repo . \
+            preallocate \
+            --mode INITIAL \
+            --source-path docs/PRODUCT_CONTRACT.md \
+            --candidates docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
+            --batch-id A2-BATCH-0001-PRODUCT-CONTRACT \
+            --output a2-work/preallocation.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('a2-work/preallocation.json').read_text(encoding='utf-8'))
+          assert r['result'] == 'PASS'
+          assert r['mutation_performed'] is False
+          assert r['assertion_count'] == 431
+          assert r['candidate_count'] == 431
+          assert r['section_count_with_candidates'] == 27
+          assert r['candidate_git_blob_sha'] == '3fdbad0c4b9484735020a1dec2698c0e7e14ef95'
+          assert r['candidate_payload_sha256'] == '97dffb8a826747fc9bc12bdbb876147da591b2e1350bed9a319cb86b9bab1ba7'
+          assert r['first_assertion_id'] == 'A2-ASSERT-000001'
+          assert r['last_assertion_id'] == 'A2-ASSERT-000431'
+          assert r['new_allocated_count'] == 431
+          print('CANONICAL_PREALLOCATION_INVARIANTS\tPASS')
+          PY
+
+      - name: Prove stale 426-record substitution fails closed
+        run: |
+          cp docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl a2-work/candidates-good.jsonl
+          head -n 426 a2-work/candidates-good.jsonl > docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl
+          if python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py \
+            --repo . \
+            preallocate \
+            --mode INITIAL \
+            --source-path docs/PRODUCT_CONTRACT.md \
+            --candidates docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
+            --batch-id A2-BATCH-0001-PRODUCT-CONTRACT \
+            --output a2-work/stale-preallocation-should-not-exist.json \
+            >a2-work/stale-stdout.txt 2>a2-work/stale-stderr.txt; then
+            echo 'ERROR: stale 426-record corpus was accepted' >&2
+            exit 1
+          fi
+          cp a2-work/candidates-good.jsonl docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl
+          test ! -e a2-work/stale-preallocation-should-not-exist.json
+          grep -E 'candidate Git blob mismatch|candidate payload SHA-256 mismatch' a2-work/stale-stderr.txt
+          echo 'STALE_426_SUBSTITUTION\tREJECTED_AS_REQUIRED'
+
+      - name: Revalidate restored canonical corpus
+        run: |
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py \
+            --repo . \
+            validate-frozen \
+            --source-path docs/PRODUCT_CONTRACT.md \
+            --candidates docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
+            --output a2-work/frozen-validation-after-stale-test.json
+
+      - name: Prove preallocation made no state or ledger mutation
+        run: |
+          sha256sum -c a2-work/state-before.sha256
+          if [ -e docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl ]; then
+            echo 'Authority ledger was created by preallocation' >&2
+            exit 1
+          fi
+          git diff --exit-code -- \
+            docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json \
+            docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py \
+            --repo . \
+            check-state \
+            --expect-zero \
+            --output a2-work/readiness-after.json
+          echo 'NO_ALLOCATION_MUTATION\tPASS'
+
+      - name: Record tool identities
+        run: |
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py --version > a2-work/tool-version.txt
+          git rev-parse HEAD:tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py > a2-work/tool-git-blob.txt
+          sha256sum tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py > a2-work/tool-sha256.txt
+          cat a2-work/tool-version.txt
+          cat a2-work/tool-git-blob.txt
+          cat a2-work/tool-sha256.txt
+
+      - name: Show deterministic evidence
+        run: |
+          cat a2-work/readiness-before.json
+          cat a2-work/frozen-validation.json
+          cat a2-work/preallocation.json
+          cat a2-work/stale-stderr.txt
+          cat a2-work/readiness-after.json
+
+      - name: Upload preallocation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc006-a2-product-allocation-readiness
+          path: a2-work/
+          if-no-files-found: error
+          retention-days: 90
