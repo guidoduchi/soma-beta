@@ -1,73 +1,105 @@
 # SOMA Beta Phase 1A — Requirement / Use-Case Traceability
 
-Status: **Draft catalogue seeded — 177/177 requirement owners registered; 1 accepted UC; 76 draft UCs pending review**
+Status: **P1A-002 structural correction — authority re-derivation required before UC-002 owner review**
 
 ## Purpose
 
-This is the Phase-1A forward coverage ledger. It deliberately does not duplicate the 11,524 canonical clauses. For each requirement listed below, the exact canonical owner range is the row for that owner in `docs/reconciliation/RC006_CLAUSE_DESTINATIONS.md`; that file remains authoritative for stable clause identity/range.
+This is the Phase-1A forward coverage ledger. It deliberately does not duplicate the 11,524 canonical clauses. Exact canonical owner ranges remain authoritative in `docs/reconciliation/RC006_CLAUSE_DESTINATIONS.md`.
 
-A requirement is finally resolved only when its applicable canonical clause families are covered by one or more **accepted** `UC-*` use cases and/or a justified Structural Invariant (`SI`) classification. Draft UCs are candidate coverage only and cannot satisfy the Phase-1A acceptance gate.
+P1A-002 corrected a systemic defect in the initial seed catalogue: several Goal Seeds cited unrelated or overly broad requirement ranges. Therefore no seed-level candidate mapping is allowed to masquerade as accepted coverage. Each active Goal Seed must pass the Specification Gate and re-derive its authority from canonical families before it can become `Proposed`.
 
 ## Coverage states
 
-- `Pending` — not yet classified.
-- `Draft UC` — candidate behavioral coverage exists but owner review is pending.
+- `Goal Seed` — decomposition candidate only; not acceptance-ready and not counted as final coverage.
+- `Draft` — expanded specification still undergoing internal gate review.
+- `Proposed` — complete specification with Specification Gate PASS; eligible for owner review.
 - `UC` — behavioral obligations exercised by accepted use case(s).
 - `SI` — structural invariant only, with rationale/destination.
 - `UC+SI` — mixed requirement; behavioral and structural portions both accounted for.
 - `Blocked` — genuine product ambiguity returned for controlled Phase-0 handling.
+- `Merged/Retired` — pre-acceptance seed disposition with successor/reference; provides no independent coverage.
 
 ## Current invariants
 
-- registered requirement owners: **177 / 177**
-- source owner ranges: **177 / 177** via `RC006_CLAUSE_DESTINATIONS.md`
-- catalogue use cases: **77**
+- registered requirement-owner set: **exactly `BETA-REQ-0001..0177` (177 / 177)**
+- canonical source-owner ranges: **177 / 177** via `RC006_CLAUSE_DESTINATIONS.md`
+- allocated UC IDs: **95 (`UC-001..UC-095`)**
+- active goals: **94**
 - accepted use cases: **1 (`UC-001`)**
-- draft use cases: **76 (`UC-002..UC-077`)**
-- finally resolved requirement coverage: **0 / 177** until owner-by-owner/family coverage is accepted in review
-- current blocked product ambiguities: **0**
+- active Goal Seeds: **93**
+- pre-acceptance merged/retired seeds: **1 (`UC-043 → UC-069`)**
+- finally resolved requirement coverage: **0 / 177** until owner-by-owner/family coverage is accepted
+- owner review: **paused before UC-002**
+- current blocked product ambiguities: **0 known**
 
-`UC-001` is accepted, but `BETA-REQ-0078` remains mixed and therefore is **not** marked finally resolved yet: later UCs/SI must still cover its password-change, auto-login, security/key, backup and recovery families.
+`UC-001` is accepted and now has complete mandatory repository representation, but `BETA-REQ-0078` remains mixed and is not finally resolved: password-change, auto-login, security/key, backup/recovery and structural families still require accepted UC/SI coverage.
 
 ## Requirement registry
 
-All owners remain pre-registered. Exact canonical range identity is bound by `BETA-REQ` to the accepted RC-006-A1 destination map.
+The registry is the exact contiguous accepted owner set `BETA-REQ-0001` through `BETA-REQ-0177`. Each owner resolves to its canonical family/range through `RC006_CLAUSE_DESTINATIONS.md`; Phase 1A shall not invent alternative owner ranges.
 
-`BETA-REQ-0001`, `BETA-REQ-0002`, `BETA-REQ-0003`, `BETA-REQ-0004`, `BETA-REQ-0005`, `BETA-REQ-0006`, `BETA-REQ-0007`, `BETA-REQ-0008`, `BETA-REQ-0009`, `BETA-REQ-0010`, `BETA-REQ-0011`, `BETA-REQ-0012`, `BETA-REQ-0013`, `BETA-REQ-0014`, `BETA-REQ-0015`, `BETA-REQ-0016`, `BETA-REQ-0017`, `BETA-REQ-0018`, `BETA-REQ-0019`, `BETA-REQ-0020`, `BETA-REQ-0021`, `BETA-REQ-0022`, `BETA-REQ-0023`, `BETA-REQ-0024`, `BETA-REQ-0025`, `BETA-REQ-0026`, `BETA-REQ-0027`, `BETA-REQ-0028`, `BETA-REQ-0029`, `BETA-REQ-0030`, `BETA-REQ-0031`, `BETA-REQ-0032`, `BETA-REQ-0033`, `BETA-REQ-0034`, `BETA-REQ-0035`, `BETA-REQ-0036`, `BETA-REQ-0037`, `BETA-REQ-0038`, `BETA-REQ-0039`, `BETA-REQ-0040`, `BETA-REQ-0041`, `BETA-REQ-0042`, `BETA-REQ-0043`, `BETA-REQ-0044`, `BETA-REQ-0045`, `BETA-REQ-0046`, `BETA-REQ-0047`, `BETA-REQ-0048`, `BETA-REQ-0049`, `BETA-REQ-0050`, `BETA-REQ-0051`, `BETA-REQ-0052`, `BETA-REQ-0053`, `BETA-REQ-0054`, `BETA-REQ-0055`, `BETA-REQ-0056`, `BETA-REQ-0057`, `BETA-REQ-0058`, `BETA-REQ-0059`, `BETA-REQ-0060`, `BETA-REQ-0061`, `BETA-REQ-0062`, `BETA-REQ-0063`, `BETA-REQ-0064`, `BETA-REQ-0065`, `BETA-REQ-0066`, `BETA-REQ-0067`, `BETA-REQ-0068`, `BETA-REQ-0069`, `BETA-REQ-0070`, `BETA-REQ-0071`, `BETA-REQ-0072`, `BETA-REQ-0073`, `BETA-REQ-0074`, `BETA-REQ-0075`, `BETA-REQ-0076`, `BETA-REQ-0077`, `BETA-REQ-0078`, `BETA-REQ-0079`, `BETA-REQ-0080`, `BETA-REQ-0081`, `BETA-REQ-0082`, `BETA-REQ-0083`, `BETA-REQ-0084`, `BETA-REQ-0085`, `BETA-REQ-0086`, `BETA-REQ-0087`, `BETA-REQ-0088`, `BETA-REQ-0089`, `BETA-REQ-0090`, `BETA-REQ-0091`, `BETA-REQ-0092`, `BETA-REQ-0093`, `BETA-REQ-0094`, `BETA-REQ-0095`, `BETA-REQ-0096`, `BETA-REQ-0097`, `BETA-REQ-0098`, `BETA-REQ-0099`, `BETA-REQ-0100`, `BETA-REQ-0101`, `BETA-REQ-0102`, `BETA-REQ-0103`, `BETA-REQ-0104`, `BETA-REQ-0105`, `BETA-REQ-0106`, `BETA-REQ-0107`, `BETA-REQ-0108`, `BETA-REQ-0109`, `BETA-REQ-0110`, `BETA-REQ-0111`, `BETA-REQ-0112`, `BETA-REQ-0113`, `BETA-REQ-0114`, `BETA-REQ-0115`, `BETA-REQ-0116`, `BETA-REQ-0117`, `BETA-REQ-0118`, `BETA-REQ-0119`, `BETA-REQ-0120`, `BETA-REQ-0121`, `BETA-REQ-0122`, `BETA-REQ-0123`, `BETA-REQ-0124`, `BETA-REQ-0125`, `BETA-REQ-0126`, `BETA-REQ-0127`, `BETA-REQ-0128`, `BETA-REQ-0129`, `BETA-REQ-0130`, `BETA-REQ-0131`, `BETA-REQ-0132`, `BETA-REQ-0133`, `BETA-REQ-0134`, `BETA-REQ-0135`, `BETA-REQ-0136`, `BETA-REQ-0137`, `BETA-REQ-0138`, `BETA-REQ-0139`, `BETA-REQ-0140`, `BETA-REQ-0141`, `BETA-REQ-0142`, `BETA-REQ-0143`, `BETA-REQ-0144`, `BETA-REQ-0145`, `BETA-REQ-0146`, `BETA-REQ-0147`, `BETA-REQ-0148`, `BETA-REQ-0149`, `BETA-REQ-0150`, `BETA-REQ-0151`, `BETA-REQ-0152`, `BETA-REQ-0153`, `BETA-REQ-0154`, `BETA-REQ-0155`, `BETA-REQ-0156`, `BETA-REQ-0157`, `BETA-REQ-0158`, `BETA-REQ-0159`, `BETA-REQ-0160`, `BETA-REQ-0161`, `BETA-REQ-0162`, `BETA-REQ-0163`, `BETA-REQ-0164`, `BETA-REQ-0165`, `BETA-REQ-0166`, `BETA-REQ-0167`, `BETA-REQ-0168`, `BETA-REQ-0169`, `BETA-REQ-0170`, `BETA-REQ-0171`, `BETA-REQ-0172`, `BETA-REQ-0173`, `BETA-REQ-0174`, `BETA-REQ-0175`, `BETA-REQ-0176`, `BETA-REQ-0177`
+## Corrected active goal inventory by wave
 
-## Draft catalogue candidate coverage by wave
+This table is navigational only. It identifies domains/families to be re-derived during Specification Gate review and is **not final traceability**.
 
-This table is navigational only. It does not replace final requirement/clause-family rows.
-
-| Wave | Draft/accepted UCs | Primary candidate authority families | Acceptance state |
+| Wave | Active UCs | Corrected primary candidate authority areas | State |
 |---|---|---|---|
-| `P1A-W1` | `UC-001..012` | Foundation/runtime/security/settings/reference/backup families, including `0001..0010`, `0021..0037`, `0078`, `0131..0144` | UC-001 accepted; remainder Draft |
-| `P1A-W2` | `UC-013..026` | SR/RFC/WFM/source/classification/SLA/ticket presentation, principally `0011..0013`, `0038..0042`, `0053..0077`, `0145..0165`, `0170..0177` as applicable | Draft |
-| `P1A-W3` | `UC-027..037` | Task/Objective planning/grouping/execution/correction/retry/RFC cascade, principally `0024`, `0043..0051`, `0153..0172` | Draft |
-| `P1A-W4` | `UC-038..052` | Inventory/Spare Need/Request/RMA/unit/logistics/Fault Tag, principally `0014..0016`, `0020`, `0028`, `0032`, `0034..0037`, `0079..0102`, `0167` | Draft |
-| `P1A-W5` | `UC-053..061` | Infrastructure/Site/Dispatch/Cloud/Device Reference/NE/workbooks, principally `0023..0027`, `0033..0034`, `0049`, `0076..0080`, `0103..0110` | Draft |
-| `P1A-W6` | `UC-062..069` | Communications source/matching/coverage/proposals/terminal minimization/MSG, principally `0015`, `0032`, `0063..0064`, `0067`, `0072`, `0077`, `0089..0090`, `0111..0122`, `0161` | Draft |
-| `P1A-W7` | `UC-070..077` | UI navigation/working copies/Overview/reporting/warnings/destructive actions/history, principally `0019..0020`, `0051`, `0069..0071`, `0123..0144`, `0174..0175` | Draft |
+| `P1A-W1` | `001..012`, `078..080` | foundation/runtime/security/settings/reference plus Customer/Product Line/Contract/CPL/SLA policy | UC-001 Accepted; remainder Goal Seed |
+| `P1A-W2` | `013..026`, `081`, `094` | SR/RFC/WFM/source intake, Workbench, Notes, CPL classification/SLA-facing behavior | Goal Seed |
+| `P1A-W3` | `027..037`, `082..083` | Task/Objective identity/planning/grouping/execution/correction/retry, Device Reference participation, RFC cascade, archive/delete | Goal Seed |
+| `P1A-W4` | `038..042`, `044..052`, `084..090` | Spare Need/Request/RMA/physical-unit/logistics/physical consequence/Fault Tag/warehouse/lifecycle | Goal Seed; `043` retired |
+| `P1A-W5` | `053..061`, `091..092` | Site/Dispatch/Cloud/Device Reference/Network Element/placement/IP/containment/workbook/import-directory | Goal Seed |
+| `P1A-W6` | `062..069` | Communication source/matching/coverage/proposals/evidence/terminal minimization/MSG | Goal Seed |
+| `P1A-W7` | `070..077`, `093`, `095` | navigation/working copies/stale conflicts/Overview/reporting/warnings/bulk actions/history/Undo | Goal Seed |
 
-Cross-wave overlaps are expected and do not transfer requirement ownership. Dense requirements will be split by canonical clause family during one-by-one review.
+Cross-wave overlaps are expected and do not transfer requirement ownership.
+
+## P1A-002 authority corrections already applied
+
+| UC / area | Removed misleading authority | Corrected direction |
+|---|---|---|
+| `UC-027`, `UC-028` | `0024` Site/Dispatch | Task relationship + `DEVICE-REF` authority; Task links Device References, not Network Elements directly |
+| `UC-030` | `0007` source-control discipline | Objective/Task grouping/lifecycle families |
+| `UC-046` | Fault Tag/Contact padding | Spare Request/RMA/provider-response/logistics families |
+| `UC-047` | `0036` data encryption | RMA/physical-unit/logistics/receipt families |
+| `UC-049` | `0035..0037` security/backup and unrelated Fault Tag IDs | Task outcome + Inventory physical-consequence families |
+| `UC-050` | `0068` Advanced Search scheduling | `FT-SCOPE`, `FT-ID`, `FT-MEMBER`, `FT-REL` and logistics snapshot authority |
+| `UC-051` | `0061..0064` source/SLA and `0102` Infrastructure | `FT-WH`, `FT-LOG` and applicable Fault Tag relation authority |
+| `UC-054..061` | `0076..0080` used as Infrastructure authority | physical hierarchy + `0049`, `0102..0110` as applicable |
+| `UC-066` | `0063..0064` SLA authority | Communications proposal authority + exact scenario owning-domain authority |
+| `UC-067` | `0032` requester Contact | canonical Communication identity/link/evidence authority |
+| `UC-069` | `0048` Objective grouping | Communications MSG authority + exact invoking-workflow authority |
+
+These corrections remove known false references. Final Proposed/Accepted traceability still requires canonical-family/subrange validation under the Specification Gate.
 
 ## Working coverage table
 
-During review, affected requirements are added/updated here with exact canonical family/range notes.
-
 | BETA-REQ | Canonical family/range | Coverage | UC/SI reference | Rationale / coverage note | Result |
 |---|---|---|---|---|---|
-| `BETA-REQ-0078` | `ADMIN-SETUP-001..067` | `UC+SI` candidate | `UC-001`, `UC-003..010`, SI security/key invariants | `UC-001` accepted only for first-run behavioral subset; remaining families pending later UC/SI review | **Pending final coverage** |
+| `BETA-REQ-0078` | `ADMIN-SETUP-001..067` | `UC+SI` candidate | `UC-001`, `UC-003..010`, SI security/key invariants | `UC-001` accepted for first-run behavioral subset only; remaining families pending | **Pending final coverage** |
+| `BETA-REQ-0052` | `NOTE-HIST-001..013` | UC candidate | `UC-094` | Working Notes now has an explicit goal seed; full specification/acceptance pending | Pending |
+| `BETA-REQ-0086` | `SPUNIT-REG-001..036` | UC candidate | `UC-084` | Manual Spare Part Unit registration now explicit | Pending |
+| `BETA-REQ-0110` | `INFRA-XLSX-001..132` | multiple UC candidate | `UC-059`, `UC-060`, `UC-091` | Export, import/reconcile, and import-directory/Check-now goals separated | Pending |
+| `BETA-REQ-0049` | `DEVICE-REF-001..014` | multiple UC candidate | `UC-027`, `UC-028`, `UC-056`, `UC-057`, `UC-092` | Operational Device Reference participation kept distinct from NE regularization/correction | Pending |
+
+## Duplicate/merge record
+
+| Seed | Disposition | Successor | Coverage consequence |
+|---|---|---|---|
+| `UC-043` | Merged/retired before acceptance | `UC-069` | Spare Request MSG behavior becomes a required `UC-069` scenario; no independent UC-043 coverage |
 
 ## Final Phase-1A audit requirements
 
 Before Phase 1A acceptance:
 
 1. owner set equals exactly `BETA-REQ-0001..0177`;
-2. every behavioral canonical clause family is exercised by at least one accepted `UC-*`;
-3. every `SI` classification has rationale and downstream design/test destination;
-4. no accepted use-case behavior lacks accepted Phase-0 authority;
-5. requirements with both structural and behavioral clauses are `UC+SI` where necessary rather than overclassified as structural;
-6. every Draft UC has been Approved, Reworked, Split, Merged, or rejected as non-use-case/SI;
-7. forward behavioral clause-family orphan count is zero; and
-8. unresolved coverage / blocked product ambiguity count is zero.
+2. every behavioral canonical clause family/subrange is exercised by at least one **accepted** `UC-*`;
+3. every `SI` classification has exact owner/family, rationale and downstream design/test destination;
+4. every Proposed/Accepted UC cites only semantically relevant accepted authority;
+5. every Proposed/Accepted UC validates `BETA-REQ → canonical family/subrange → owning normative destination`;
+6. no accepted use-case behavior lacks accepted Phase-0 authority;
+7. requirements with both structural and behavioral clauses are `UC+SI` where necessary rather than overclassified as structural;
+8. every active Goal Seed/Draft has been Proposed/Accepted/Reworked/Split/Merged/Retired/SI-classified;
+9. duplicate independently-governing use-case goals are zero;
+10. forward behavioral clause-family orphan count is zero; and
+11. unresolved coverage / blocked product ambiguity count is zero.
