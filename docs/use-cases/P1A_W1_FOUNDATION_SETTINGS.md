@@ -1,8 +1,8 @@
 # P1A-W1 — Foundation & Settings Use Cases
 
-Status: **P1A-002 Rework — UC-001 accepted; remaining entries are Goal Seeds pending Specification Gate**
+Status: **P1A-002 Rework complete — UC-001 accepted; UC-002 Proposed after Specification Gate; remaining entries Goal Seeds**
 
-These entries do not select schema, APIs, frontend technology, libraries, algorithms, packaging, or other HLD/LLD mechanics. Except for `UC-001`, they are not acceptance-ready until expanded to the full `USE_CASE_METHOD.md` template and validated for authority.
+These entries do not select schema, APIs, frontend technology, libraries, algorithms, packaging, or other HLD/LLD mechanics. Except for `UC-001` and the explicitly `Proposed` `UC-002`, Goal Seeds are not acceptance-ready until expanded to the full `USE_CASE_METHOD.md` template and validated for authority.
 
 ## UC-001 — Initialize a new SOMA installation
 
@@ -26,16 +26,37 @@ Status: **Accepted — repository representation expanded non-semantically by P1
 - **Acceptance scenarios:** fresh install cannot reach accepted bootstrap with invalid mandatory authentication input; successful bootstrap creates exactly one Local Administrator without a username requirement; timezone detection failure selects `America/Guayaquil` rather than inventing another timezone; skipping optional Customer/CPL/Contact/Infrastructure readiness still allows unrelated application use; no skipped readiness item fabricates fallback SLA/customer truth.
 - **Structural companions:** security/key/backup invariants within `BETA-REQ-0078` are not blanket-covered by this UC.
 
-## UC-002 — Authenticate, lock, and unlock the installation
+## UC-002 — Authenticate to an established SOMA installation
 
-Status: **Goal Seed — Specification Gate pending**
+Status: **Proposed — Specification Gate PASS; pending project-owner review**
+
 - **Primary actor:** Local Administrator.
-- **Goal:** Enter an established SOMA installation, lock it when appropriate, and regain access without creating additional login identities.
-- **Trigger/preconditions:** Bootstrap complete; Local Administrator authentication exists.
-- **Main flow:** present password-only authentication unless eligible automatic login is active; verify the Local Administrator; establish the local authenticated session; allow explicit lock; require valid authentication to unlock.
-- **Alternates/failures:** wrong password reveals no protected data; unavailable/invalid automatic-login material falls back safely to password authentication; lock/unlock failure never fabricates an authenticated state.
-- **Postconditions/evidence:** exactly one authenticated local actor/session state; security/audit evidence where required.
-- **Candidate authority:** `BETA-REQ-0035`, `0078`; `AUTH`, applicable `ADMIN-SETUP`; Product Contract; Foundation Runtime.
+- **Supporting actor/source:** System, which verifies the local authentication credential and establishes the authenticated application context.
+- **Goal:** Authenticate the installation's one Local Administrator through the governed password-login path without requiring or creating a username identity.
+- **Trigger:** The established installation requires Local Administrator authentication and the password-login path is used.
+- **Preconditions:** First-run bootstrap is complete; exactly one authenticating Local User Profile exists; its password verifier was established; the installation has not obtained equivalent access through a separately eligible automatic-login flow.
+- **Main success flow:** present the password authentication control without a required username; accept the password attempt through the local authentication boundary; verify it against the stored approved verifier; on success establish authenticated Local Administrator access to the installation; preserve the same stable Local Administrator identity rather than creating another login profile.
+- **Alternate / warning / conflict / stale / correction / cancellation / retry / failure flows:** an incorrect or unverifiable password leaves the installation unauthenticated and changes no business/domain state; cancelling or abandoning authentication grants no access; repeated attempts remain attempts against the same singleton profile rather than creating identities; automatic login is not performed or configured by this UC and remains governed by `UC-004`; password change/reset/recovery is not silently performed by failed login and remains governed by its own accepted workflow/design boundary.
+- **Postconditions / accepted-state effects:** on success, the existing singleton Local Administrator is authenticated for application use; on failure/cancellation, no authenticated application state is established and no operational record is mutated.
+- **Preserved evidence/history:** no plaintext/recoverable password is persisted by authentication; security/audit evidence, if required by the downstream security/audit design, must be minimized and must not contain the password or authentication secret. This UC does not invent a business lifecycle event for login.
+- **Owning domain:** Foundation authentication.
+- **Affected workspaces:** global application entry/authentication surface; authenticated access subsequently permits normal workspace use according to each owning domain.
+- **Governing requirements:** `BETA-REQ-0035`, with the login-specific subset of `BETA-REQ-0078`.
+- **Canonical authority:** `AUTH-001..004`, `AUTH-010`; `ADMIN-SETUP-007`, `ADMIN-SETUP-038..042` as applicable separation/security constraints. `AUTH-007..009` / `ADMIN-SETUP-043..045` belong primarily to `UC-004` automatic-login behavior and are supporting boundaries only here.
+- **Related focused contracts:** `PRODUCT_CONTRACT.md` §3 Deployment and operator model; authentication/security persistence mechanics remain downstream design constrained by the normalized `AUTH`/`ADMIN-SETUP` clauses. `FOUNDATION_RUNTIME_CONTRACT.md` supplies audit/diagnostic and runtime security constraints only where applicable; it does not own password-login policy.
+- **Downstream HLD boundaries:** exact authenticated-session representation and lifetime; authentication endpoint/service decomposition; verifier library and parameters within the accepted salted memory-hard requirement; failed-attempt throttling/telemetry policy if adopted without inventing product-visible lockout behavior; secure handling/zeroization of transient password material; CSRF/session-cookie mechanics for the localhost browser boundary; and exact audit/security-event treatment. No account-lockout, explicit application lock/unlock workflow, username login, second user, remote authentication, or password-reset behavior is authorized by this UC.
+- **Acceptance scenarios:**
+  1. Given a bootstrapped installation, the Local Administrator can authenticate with the valid password without entering a username.
+  2. An invalid password does not establish authenticated access and does not mutate operational/domain state.
+  3. Authentication always resolves to the one existing Local User Profile; retrying login never creates another profile or actor identity.
+  4. The persisted authentication credential is a salted memory-hard verifier rather than a recoverable password, and the login password is not used as operational-data or portable-backup encryption authority.
+  5. Automatic-login configuration/execution is not silently changed by ordinary password authentication and remains a separately governed capability.
+  6. No explicit lock/unlock or account-lockout behavior is required or implied by this UC; such behavior would require accepted product authority before introduction.
+- **Specification Gate result:** **PASS** — one actor goal; accepted authority verified; canonical owners verified; Product Contract destination verified; unsupported lock/unlock behavior removed; recovery/failure/evidence/design boundaries explicit; no duplicate with `UC-004`.
+
+### UC-002 correction note
+
+The original Goal Seed was titled **Authenticate, lock, and unlock the installation**. P1A Specification Gate review found no accepted normalized requirement or canonical clause authorizing an explicit application lock/unlock workflow. The seed was therefore narrowed before acceptance to the supported authentication goal. This is a removal of unsupported seed behavior, not a Phase-0 product-policy change.
 
 ## UC-003 — Maintain the Local Administrator profile and password
 
@@ -112,7 +133,7 @@ Status: **Goal Seed — Specification Gate pending**
 - **Main flow:** request backup; produce protected backup under the accepted security envelope; authenticate/integrity/structurally verify it; record success; for managed rotation, prune only after verified replacement and keep configured retention (default five).
 - **Alternates/failures:** failed verification prevents pruning; last verified restorable copy is never automatically deleted; operator-exported portable backups are outside managed pruning; recovery secret remains independent from login password/live key.
 - **Postconditions/evidence:** verified backup plus immutable backup/verification history.
-- **Candidate authority:** `BETA-REQ-0037`, `0078`; Foundation Runtime.
+- **Candidate authority:** `BETA-REQ-0037`, `0078`; Foundation Runtime; Roadmap security boundary.
 
 ## UC-010 — Restore or recover an installation from protected backup
 
