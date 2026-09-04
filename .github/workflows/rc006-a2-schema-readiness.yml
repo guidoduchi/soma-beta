@@ -7,8 +7,10 @@ on:
     paths:
       - '.github/workflows/rc006-a2-schema-readiness.yml'
       - 'tools/reconciliation/allocate_rc006_a2_assertions.py'
+      - 'tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py'
       - 'docs/reconciliation/RC006_A2_SOURCE_ROLES.tsv'
       - 'docs/reconciliation/RC006_A2_EXTRACTION_SCHEMA.md'
+      - 'docs/reconciliation/RC006_A2_SCHEMA_AMENDMENT_001.md'
       - 'docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json'
       - 'docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl'
   workflow_dispatch:
@@ -28,9 +30,9 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Check A2-1 zero-allocation readiness
+      - name: Check hardened A2-1 zero-allocation readiness
         run: |
-          python tools/reconciliation/allocate_rc006_a2_assertions.py \
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py \
             --repo . \
             check-state \
             --expect-zero \
@@ -42,7 +44,7 @@ jobs:
       - name: Upload readiness result
         uses: actions/upload-artifact@v4
         with:
-          name: rc006-a2-schema-readiness
+          name: rc006-a2-schema-readiness-hardened
           path: rc006_a2_schema_readiness.json
           if-no-files-found: error
           retention-days: 90
