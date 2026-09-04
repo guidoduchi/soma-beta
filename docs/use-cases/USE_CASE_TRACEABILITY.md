@@ -1,10 +1,12 @@
 # SOMA Beta Phase 1A — Requirement / Use-Case Traceability
 
-Status: **P1A-002 controlled reconstruction completed — UC-002 Proposed after Specification Gate; owner review paused pending RC-006-A2; final coverage pending**
+Status: **P1A-002 PASS — UC-001 expansion proof and exhaustive transformation ledger complete; UC-002 Proposed after Specification Gate; owner review paused pending RC-006-A2; final coverage pending**
 
 ## Purpose
 
 This is the Phase-1A forward coverage ledger. It deliberately does not duplicate the 11,524 canonical clauses. Exact canonical owner ranges remain authoritative in `docs/reconciliation/RC006_CLAUSE_DESTINATIONS.md`.
+
+`P1A_001_UC001_EXPANSION_PROOF.md` preserves UC-001 accepted semantics, and `P1A_002_TRANSFORMATION_LEDGER.md` reconciles every allocated identity `UC-001..UC-095`.
 
 P1A-002 controlled catalogue reconstruction corrected a systemic defect in the initial seed catalogue: several Goal Seeds cited unrelated or overly broad requirement ranges. No seed-level candidate mapping is allowed to masquerade as accepted coverage. Each active Goal Seed must pass the Specification Gate and re-derive its authority from canonical families before it can become `Proposed`.
 

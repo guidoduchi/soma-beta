@@ -1,6 +1,6 @@
 # P1A-002 — Controlled Use-Case Catalogue Reconstruction
 
-Status: **COMPLETED — controlled reconstruction recorded; UC-002 Proposed; owner review paused pending RC-006-A2**  
+Status: **PASS / COMPLETED — UC-001 expansion proof and exhaustive 95-identity transformation ledger complete; UC-002 Proposed; owner review paused pending RC-006-A2**  
 Scope: Phase 1A catalogue representation, decomposition topology, and traceability; accepted product authority remains unchanged.  
 Product authority: unchanged; Phase-0 accepted behavior remains authoritative.
 
@@ -17,11 +17,11 @@ The controlled reconstruction addressed four specification-assurance defects wit
 
 ## 2. Governance disposition
 
-- `UC-001` remains semantically **Accepted**. Its repository representation was expanded non-semantically to satisfy the mandatory use-case fields.
-- `UC-002` onward owner acceptance remains **paused** until each candidate passes the Specification Gate.
+- `UC-001` remains semantically **Accepted**. `P1A_001_UC001_EXPANSION_PROOF.md` proves the repaired repository expansion and records removal of unsupported resumability/history implications.
+- `UC-002` onward owner acceptance remains **paused** until RC-006-A2 certification passes and each candidate has passed the Specification Gate.
 - Existing nonaccepted IDs may be narrowed, split, merged, or retired because they have not acquired accepted identity authority; every such disposition is recorded.
 - New/extracted goals received IDs from `UC-078` onward.
-- Every narrowed, split, merged, retired, extracted, or added seed records its original identity, retained principal goal, successor/derived IDs, `derived-from` relationship, governing authority, reason, and whether observable behavior changed.
+- Every narrowed, split, merged, retired, extracted, or added seed records its original identity, retained principal goal, successor/derived IDs, `derived-from` relationship, governing authority, reason, and whether observable behavior changed. The exhaustive record is `P1A_002_TRANSFORMATION_LEDGER.md`.
 - An accepted UC may retain acceptance after repository expansion only when every added statement is demonstrably derived from already accepted authority. Any new actor decision, outcome, warning, exception, permission boundary, state transition, or other observable behavior returns the affected portion to owner review.
 - Cross-cutting UI mechanics remain acceptance/SI obligations unless they independently form an actor/system goal.
 - MOP generation remains outside Beta 1.0 and was not added.
@@ -97,7 +97,8 @@ Tasks and ticket work context select/link **Device References**. A resolved Devi
 
 | Exit criterion | Result |
 |---|---|
-| `UC-001` expansion derived exclusively from accepted authority; no new observable behavior introduced | **PASS — acceptance retained under the accepted-specification expansion gate** |
+| `UC-001` expansion derived exclusively from accepted authority; unsupported resumability/history implications removed | **PASS — `P1A_001_UC001_EXPANSION_PROOF.md`** |
+| Exhaustive transformation ledger covers exactly `UC-001..UC-095` with origins/successors and product-effect classification | **PASS — `P1A_002_TRANSFORMATION_LEDGER.md`; 95/95, missing 0, duplicate 0** |
 | Remaining seeds explicitly non-acceptance-ready until Specification Gate | **PASS** |
 | Known invalid authority references removed | **PASS** |
 | Extracted/missing goals registered | **PASS** |

@@ -1,12 +1,12 @@
 # P1A-W1 — Foundation & Settings Use Cases
 
-Status: **P1A-002 reconstruction complete — UC-001 accepted; UC-002 Proposed after Specification Gate; owner review paused pending RC-006-A2; remaining entries Goal Seeds**
+Status: **P1A-002 PASS — UC-001 expansion proof complete; UC-002 Proposed after Specification Gate; owner review paused pending RC-006-A2; remaining entries Goal Seeds**
 
 These entries do not select schema, APIs, frontend technology, libraries, algorithms, packaging, or other HLD/LLD mechanics. Except for `UC-001` and the explicitly `Proposed` `UC-002`, Goal Seeds are not acceptance-ready until expanded to the full `USE_CASE_METHOD.md` template and validated for authority.
 
 ## UC-001 — Initialize a new SOMA installation
 
-Status: **Accepted — repository representation expanded non-semantically by P1A-002**
+Status: **Accepted — repository expansion verified by `P1A_001_UC001_EXPANSION_PROOF.md`**
 
 - **Primary actor:** Local Administrator.
 - **Supporting actor/source:** System, for local environment/timezone detection and first-run state.
@@ -14,9 +14,9 @@ Status: **Accepted — repository representation expanded non-semantically by P1
 - **Trigger:** Launch of a fresh installation with no accepted administrator bootstrap.
 - **Preconditions:** Authoritative local data instance is new/uninitialized for bootstrap; no accepted Local Administrator bootstrap exists.
 - **Main success flow:** establish the one stable Local Administrator identity; set password/confirmation without requiring username; accept Light/Dark/System plus one built-in skin; confirm Objective/Task scheduling timezone using detected supported IANA value or `America/Guayaquil` fallback; present skippable/reopenable readiness for Customer, Contract, Contract Product Line, Contact, Dispatch Location, and Infrastructure; complete bootstrap and enter normal use.
-- **Alternate / warning / conflict / stale / correction / cancellation / retry / failure flows:** password mismatch or invalid mandatory choice leaves bootstrap incomplete; unavailable/invalid timezone detection uses the accepted fallback; skipped/partial business readiness never becomes a global application-use gate; missing business setup blocks only actions that require it; no fallback SLA classification is fabricated; interruption before completion leaves bootstrap incomplete and safely resumable; post-bootstrap preference/profile changes occur through their own UCs rather than rewriting bootstrap history.
+- **Alternate / warning / conflict / stale / correction / cancellation / retry / failure flows:** password mismatch or invalid mandatory choice leaves bootstrap incomplete; unavailable/invalid timezone detection uses the accepted fallback; skipped/partial business readiness never becomes a global application-use gate; missing business setup blocks only actions that require it; no fallback SLA classification is fabricated; interruption before completion does not establish completed bootstrap state and this UC specifies no resume/restart behavior; post-bootstrap preference/profile changes are outside this UC and remain governed by their own UCs.
 - **Postconditions / accepted-state effects:** exactly one Local Administrator identity and completed bootstrap state exist; authentication is initialized; appearance/skin and Objective scheduling timezone are accepted; optional business readiness may remain incomplete.
-- **Preserved evidence/history:** bootstrap completion state, accepted administrator identity, accepted appearance/skin/timezone choices, and audit/security evidence required by the owning contracts; later changes preserve their own history rather than rewriting the initial event.
+- **Preserved evidence/history:** accepted administrator identity, accepted current appearance/skin/timezone choices, and only the audit/security evidence explicitly required by owning authority; this UC asserts no general immutable bootstrap-history behavior.
 - **Owning domain:** Foundation / Settings.
 - **Affected workspaces:** first-run bootstrap and Settings; readiness links may navigate to reference/Infrastructure setup without transferring ownership.
 - **Governing requirements:** `BETA-REQ-0078` plus applicable authentication/presentation/temporal structural authority.
@@ -25,6 +25,7 @@ Status: **Accepted — repository representation expanded non-semantically by P1
 - **Downstream HLD boundaries:** exact first-run routing/state-machine decomposition, secure password-verifier mechanics, OS timezone detection adapter, persistence transaction boundaries, and UI component composition remain HLD/LLD decisions; no frontend framework is selected here.
 - **Acceptance scenarios:** fresh install cannot reach accepted bootstrap with invalid mandatory authentication input; successful bootstrap creates exactly one Local Administrator without a username requirement; timezone detection failure selects `America/Guayaquil` rather than inventing another timezone; skipping optional Customer/CPL/Contact/Infrastructure readiness still allows unrelated application use; no skipped readiness item fabricates fallback SLA/customer truth.
 - **Structural companions:** security/key/backup invariants within `BETA-REQ-0078` are not blanket-covered by this UC.
+- **Expansion proof:** `P1A_001_UC001_EXPANSION_PROOF.md` maps every expanded field to accepted authority and records the removed resumability/history overreach.
 
 ## UC-002 — Authenticate to an established SOMA installation
 

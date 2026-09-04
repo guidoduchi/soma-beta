@@ -28,7 +28,7 @@ If a use-case draft exposes a genuine product contradiction or missing policy, P
 - Business use cases use `UC-###`, beginning with `UC-001`.
 - An **Accepted** `UC-*` identity is stable and is never reused for a different goal.
 - A pre-acceptance Goal Seed or Draft may be split, merged, narrowed, or retired during controlled catalogue reconstruction. Its disposition remains recorded so traceability is never silently lost.
-- Every such transformation records the original identity, retained principal goal, successor/derived IDs, `derived-from` relationship, governing authority, reason, and whether observable behavior changed. If no unambiguous principal goal survives, the original seed is retired rather than misleadingly repurposed.
+- Every such transformation records the original identity, retained principal goal, successor/derived IDs, `derived-from` relationship, governing authority, reason, and whether observable behavior changed in `P1A_002_TRANSFORMATION_LEDGER.md`. If no unambiguous principal goal survives, the original seed is retired rather than misleadingly repurposed.
 - Extracted/new goals receive new identifiers from the next unused `UC-###`; accepted IDs are never renumbered to close gaps.
 - Phase-1A governance/checkpoint records use `P1A-*`; `CP-*` and `RC-*` remain reserved for their completed Phase-0 lineages.
 - Structural invariants are recorded in traceability as `SI` classifications rather than fabricated use cases.
@@ -75,7 +75,7 @@ Failure of this gate returns the item to `Rework`; it is not presented to the pr
 
 An Accepted UC may be expanded in repository form without reopening acceptance only when every added statement is mechanically traceable to already accepted authority and introduces no new observable product behavior.
 
-The expansion record must prove that it adds no new actor decision, outcome, warning, exception, permission boundary, state transition, recovery obligation, or other observable behavior. If any such behavior is introduced or existing meaning becomes narrower/broader, the affected portion returns to project-owner review. Labeling an edit “non-semantic” is not evidence by itself.
+The expansion record must prove that it adds no new actor decision, outcome, warning, exception, permission boundary, state transition, recovery obligation, or other observable behavior. If any such behavior is introduced or existing meaning becomes narrower/broader, the affected portion returns to project-owner review. Labeling an edit “non-semantic” is not evidence by itself. Each such expansion requires a dedicated proof artifact; the first is `P1A_001_UC001_EXPANSION_PROOF.md`.
 
 ## 5. Scope and granularity rules
 

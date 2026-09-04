@@ -1,8 +1,9 @@
 # RC-006-A2 — Section-Level Clause Destination Assurance
 
-Status: **OPEN — Phase-0 decision baseline accepted/frozen; closure certification suspended pending A2; Phase 1A owner review paused**  
+Status: **PREPARATION — assertion identity defined; exact source-tree pin pending; mass mapping prohibited until pin commit**  
 Parent: `RC-006-A1`  
-Baseline: accepted Phase-0 product authority and the 11,524-clause canonical set recorded in `PHASE0_ACCEPTANCE.md`.
+Baseline authority: accepted Phase-0 product authority and the 11,524-clause canonical set recorded in `PHASE0_ACCEPTANCE.md`.
+Execution source snapshot: **TO_BE_PINNED_AFTER_PREPARATORY_COMMIT**.
 
 ## 1. Purpose
 
@@ -61,12 +62,50 @@ A broad owner range must be split when different canonical clauses are primarily
 8. The primary destination is a traceability anchor, not a claim that all other normative representations are non-authoritative.
 9. A design-boundary clause may map primarily to the governing product/runtime contract section that explicitly leaves the mechanic downstream; A2 must not choose the mechanic.
 
+## 4.1 Stable normative-assertion identity
+
+Every distinct normative destination assertion receives one opaque stable identity:
+
+`A2-ASSERT-000001`, `A2-ASSERT-000002`, …
+
+Rules:
+
+1. IDs are allocated monotonically, are never reused, and are never reassigned to a different semantic assertion.
+2. An assertion is one independently reviewable obligation, prohibition, permission, or explicit design boundary. Unrelated rules in one paragraph receive separate IDs.
+3. Identity is not derived from document path, heading text, line number, or row position; those locators may change without changing the stable ID.
+4. The reverse ledger records: assertion ID, document path, explicit section anchor/heading, ordinal locator, exact assertion text, SHA-256 fingerprint, destination role, authorizing canonical clause IDs, owning `BETA-REQ`, semantic-review result, and supersession/history metadata.
+5. The fingerprint is SHA-256 over the assertion text encoded as UTF-8 after Unicode NFC and LF line-ending normalization. Internal whitespace and punctuation are preserved.
+6. A fingerprint mismatch invalidates the assertion’s prior validation until reviewed. Editorially equivalent text retains its stable ID with recorded old/new fingerprints; semantic split or replacement allocates new IDs and marks the old ID superseded.
+7. Identical wording in different normative locations receives distinct assertion IDs because each destination assertion has independent placement and reverse-authority evidence.
+8. Informative references receive no `A2-ASSERT` identity unless they contain normative language; any such language must instead be classified and audited as normative.
+
+## 4.2 Exact execution-baseline pin
+
+Before mass mapping begins, A2 shall record an immutable source snapshot in `RC006_A2_EXECUTION_BASELINE.md` with:
+
+- repository and branch for provenance;
+- exact source commit SHA;
+- exact Git tree SHA;
+- included input corpus and exclusions;
+- canonical clause count and expected owner set;
+- assertion-ID allocation start/range policy; and
+- invalidation/rebaseline rules.
+
+All A2 extraction and validation reads source inputs by pinned Git tree, never by a moving branch name. Any post-pin change to a canonical clause, normative contract, synthesis document, or other included source blob invalidates affected evidence and requires a controlled rebaseline or explicitly bounded amendment.
+
+The baseline pin is written in a follow-up control commit because a Git tree cannot contain its own hash. The pinned tree is the completed preparatory input corpus; the follow-up commit may add only the pin/control metadata needed to identify that corpus.
+
+Until the exact commit and tree are populated and verified, **A2 mass mapping is prohibited**.
+
 ## 5. Mechanical invariants
 
 After expanding all primary A2 ranges, validation shall require:
 
 - canonical stable IDs: **11,524**;
 - machine-expanded clause-ledger records: **11,524**;
+- stable normative-assertion IDs: **unique, monotonic, non-reused**;
+- assertion fingerprint mismatches without reviewed disposition: **0**;
+- validator source commit/tree mismatch: **0**;
 - primary-covered IDs: **11,524**;
 - missing canonical IDs: **0**;
 - extra/noncanonical IDs: **0**;
@@ -109,9 +148,10 @@ The final A2 evidence shall include:
 
 1. `RC006_A2_SECTION_DESTINATIONS.md` — compact human-reviewed semantic subranges;
 2. a generated machine-readable 11,524-record expanded clause ledger;
-3. a reverse normative-destination authority ledger;
-4. a reproducible validator and immutable validation summary; and
-5. the A2 finding/correction register.
+3. a reverse normative-destination authority ledger using stable `A2-ASSERT-######` identities and recorded fingerprints;
+4. `RC006_A2_EXECUTION_BASELINE.md` pinning the exact source commit/tree;
+5. a reproducible validator and immutable validation summary; and
+6. the A2 finding/correction register.
 
 The compact map may use inclusive ranges substantially finer than the 177 owner ranges. The expanded ledger is generated evidence, not a second hand-authored normative catalogue. “Automated-equivalent” evidence is insufficient: expansion and invariant checks must be automated and reproducible.
 
@@ -121,12 +161,13 @@ A2 is **not PASS merely because this method exists**.
 
 After the destination map is complete and all §5 invariants pass:
 
-1. complete the compact forward map, generated 11,524-record ledger, reverse-authority ledger, reproducible validator, and validation summary;
-2. prove every §5 invariant with zero unresolved exceptions;
-3. mark A2 `PASS`;
-4. record every finding/correction explicitly;
-5. add a Phase-0 assurance addendum stating whether accepted product authority remained stable and that section-level evidence was added post-closure; and
-6. do not rewrite the original `PHASE0_ACCEPTANCE.md` action or accepted pre-closure head.
+1. pin and verify the exact source commit/tree;
+2. complete the compact forward map, generated 11,524-record ledger, stable-ID reverse-authority ledger, reproducible validator, and validation summary;
+3. prove every §5 invariant with zero unresolved exceptions;
+4. mark A2 `PASS`;
+5. record every finding/correction explicitly;
+6. add a Phase-0 assurance addendum stating whether accepted product authority remained stable and that section-level evidence was added post-closure; and
+7. do not rewrite the original `PHASE0_ACCEPTANCE.md` action or accepted pre-closure head.
 
 Until then:
 

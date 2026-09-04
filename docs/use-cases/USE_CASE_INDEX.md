@@ -1,12 +1,14 @@
 # SOMA Beta Phase 1A — Use-Case Index
 
-Status: **P1A-002 controlled reconstruction completed — UC-002 Specification Gate PASS; owner review paused pending RC-006-A2**  
+Status: **P1A-002 PASS — UC-001 expansion proof and exhaustive transformation ledger complete; UC-002 Specification Gate PASS; owner review paused pending RC-006-A2**  
 Phase-0 accepted baseline remains governed by `../reconciliation/PHASE0_ACCEPTANCE.md`.
 
 ## Governance
 
 - Method: `USE_CASE_METHOD.md`
 - Controlled catalogue reconstruction: `P1A_002_CATALOGUE_STRUCTURAL_CORRECTION.md`
+- UC-001 accepted-specification expansion proof: `P1A_001_UC001_EXPANSION_PROOF.md`
+- Exhaustive P1A-002 transformation ledger: `P1A_002_TRANSFORMATION_LEDGER.md`
 - Forward coverage ledger: `USE_CASE_TRACEABILITY.md`
 - Canonical clause-range authority: `../reconciliation/RC006_CLAUSE_DESTINATIONS.md`
 - Phase-0 owner acceptance: `../reconciliation/PHASE0_ACCEPTANCE.md`

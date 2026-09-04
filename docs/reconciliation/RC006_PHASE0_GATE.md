@@ -1,6 +1,10 @@
 # SOMA Beta RC-006 — Phase 0 Closure Gate
 
-Status: **CLOSED BY EXPLICIT PROJECT-OWNER ACCEPTANCE**
+Status: **HISTORICAL GATE RECORD — CLOSED BY EXPLICIT PROJECT-OWNER ACCEPTANCE AT THE RECORDED SNAPSHOT**
+
+> **Historical-record notice**
+>
+> This file records the RC-006/RC-006-A1 closure decision at accepted pre-closure head `9402ee5a8bc8630523448c3382ab62e1d616e8d1`. It preserves the evidence and authority action as they existed at that time. It is not the current-work status source and must not be used to decide whether Phase 0 certification or Phase 1A owner review may proceed. Current status is governed by `RECONCILIATION_INDEX.md` and `RC006_A2_SECTION_DESTINATION_ASSURANCE.md`.
 
 ## Gate authority
 
@@ -62,4 +66,4 @@ Therefore:
 
 No `RC-007` is created for this action. `PHASE0_ACCEPTANCE.md` is the separate authority record.
 
-The next authorized roadmap work is **Phase 1A — Complete Business Use-Case Catalogue**, followed only after Phase 1A acceptance by **Phase 1B — Complete HLD**. The bounded `O-*` and frontend-stack design questions remain assigned downstream and are not reopened product questions.
+At this historical gate snapshot, the recorded roadmap successor was Phase 1A, followed by Phase 1B after Phase 1A acceptance. That statement is historical context, not a current-work instruction. Consult `RECONCILIATION_INDEX.md` for the active sequence; RC-006-A2 certification currently governs whether use-case owner review may resume. The bounded `O-*` and frontend-stack design questions remain assigned downstream and are not reopened product questions.
