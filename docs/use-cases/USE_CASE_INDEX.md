@@ -1,6 +1,6 @@
 # SOMA Beta Phase 1A — Use-Case Index
 
-Status: **P1A-002 structural correction in progress — owner review frozen after UC-001**  
+Status: **P1A-002 structural correction completed — owner review frozen pending UC-002 Specification Gate**  
 Phase-0 accepted baseline remains governed by `../reconciliation/PHASE0_ACCEPTANCE.md`.
 
 ## Governance
