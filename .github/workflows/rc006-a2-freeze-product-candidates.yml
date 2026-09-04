@@ -1,0 +1,72 @@
+name: RC006 A2 Freeze Product Candidates
+
+on:
+  push:
+    branches:
+      - foundation/product-contract-v0.1
+    paths:
+      - '.github/workflows/rc006-a2-freeze-product-candidates.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out full repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Regenerate final reviewed Product Contract candidates
+        run: |
+          mkdir -p a2-work docs/reconciliation/candidates
+          python tools/reconciliation/prepare_rc006_a2_product_candidates_v1_3.py \
+            --repo . \
+            --output a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
+            --summary a2-work/product_candidate_preparation.json
+
+      - name: Validate exact candidates against pinned B002 source
+        run: |
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py \
+            --repo . \
+            validate-candidates \
+            --source-path docs/PRODUCT_CONTRACT.md \
+            --candidates a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
+            --output a2-work/product_candidate_validation.json
+
+      - name: Enforce frozen candidate invariants
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          p=Path('a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl')
+          raw=p.read_bytes()
+          rows=[json.loads(line) for line in raw.decode('utf-8').splitlines() if line]
+          assert hashlib.sha256(raw).hexdigest() == '97dffb8a826747fc9bc12bdbb876147da591b2e1350bed9a319cb86b9bab1ba7'
+          assert len(rows) == 431
+          assert len({r['section_ordinal'] for r in rows}) == 27
+          semicolons=[r for r in rows if ';' in r['exact_text']]
+          assert len(semicolons) == 1
+          assert semicolons[0]['source_start_line'] == 52
+          assert semicolons[0]['normative_kind'] == 'PERMISSION'
+          print('PRODUCT_CANDIDATE_FREEZE_INVARIANTS\tPASS')
+          PY
+
+      - name: Freeze candidate corpus
+        run: |
+          cp a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
+            docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl
+          git diff --cached --exit-code && { echo 'Expected new candidate corpus was not staged'; exit 1; } || true
+          git commit -m 'Freeze Product Contract A2 candidate corpus'
+          git push origin HEAD:foundation/product-contract-v0.1
