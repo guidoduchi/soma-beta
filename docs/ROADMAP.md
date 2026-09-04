@@ -1,6 +1,6 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Phase 0 decision baseline ACCEPTED/FROZEN; RC-006-A2 methodology READY at `A2-BASELINE-001` with certification OPEN; Phase 1A owner review PAUSED after UC-001**
+Status: **Phase 0 decision baseline ACCEPTED/FROZEN; RC-006-A2 method READY with certification OPEN; execution authorization governed by `RC006_A2_EXECUTION_BASELINE.md`; Phase 1A owner review PAUSED after UC-001**
 
 This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 
@@ -95,7 +95,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 - Remaining `O-*` items and exact frontend framework/language/build-tool selection are bounded downstream design questions and do not reopen settled product behavior.
 - Historical project-owner Phase 0 acceptance action: **ACCEPTED — preserved unchanged**.
 - Current Phase 0 closure certification: **SUSPENDED / OPEN pending RC-006-A2**.
-- A2 methodology/readiness: **PASS — exact source commit/tree pinned by `A2-BASELINE-001`**.
+- A2 methodology/readiness: **PASS — stable assertion identity and exact execution-baseline protocol defined; current source pin is governed only by `RC006_A2_EXECUTION_BASELINE.md`**.
 - Exact section-level forward authority proof: **OPEN**.
 - Reverse normative-destination authority orphan proof: **OPEN**.
 - Phase 1A catalogue reconstruction: **recorded; owner review paused after `UC-001`**.
@@ -184,7 +184,7 @@ Translate the accepted Product Contract, use cases, and HLD into one complete, i
 - Concrete action-versioned audit allowlists, append-only SQL/application protections, duplicate/idempotency behavior, atomic rollback, exact correction, restoration validation, housekeeping boundaries, structured external diagnostics, prevention-first redaction, and canary fixtures.
 - One owned SQLite connection factory; effective foreign-key index map; atomic migration/ledger protocol; canonical migration-byte manifest and drift checks; exclusive migrator; truly observational status; versioned JSON schema/upgrade registry; and post-migration/restore integrity verification.
 - Exact local runtime ownership, loopback binding, runtime-registry, process-birth, authenticated health/session/origin/shutdown, proxy/redirect bypass, stale-registry, PID/port reuse, crash, restart, and forced-termination contracts.
-- Current-revision Windows CI on Python 3.13 and 3.14, draft/non-draft/primary/release trigger policy, reproducible synthetic fixtures, representative Windows desktop matrix, and traced invariant/application acceptance suites including hovered-pane scrolling and deliberate-hold accessibility.
+- Current-revision Windows CI on Python 3.13 and 3.14, draft/non-draft/primary/release trigger policy, reproducible synthetic fixtures, representative supported Windows desktop matrix, and traced invariant/application acceptance suites including hovered-pane scrolling and deliberate-hold accessibility.
 - Frontend architecture covering routes, functional layouts, shared interaction components, drafts, conflicts, responsive behavior, keyboard and pointer access, accessibility, and every loading, empty, warning, error, stale, locked, destructive, and recovery state.
 - A dependency policy requiring few, pinned, justified, adapter-isolated production libraries while remaining nearly dependency-free rather than dependency-free.
 - A complete implementation and verification plan.
@@ -243,7 +243,7 @@ Make SOMA safe for authorized internal operational data before any real-data pil
 
 ### Deliverables
 
-- Local-admin password authentication and lock/unlock behavior.
+- Local-admin password authentication and governed authenticated-session/security behavior; explicit application lock/unlock is not required unless future accepted authority adds it.
 - Optional automatic login protected by the accepted local Windows-user mechanism.
 - Accepted encryption envelope for the database and every retained sensitive artifact in scope.
 - Protected working paths, temporary-file handling, diagnostics, and communication indexes.
@@ -256,7 +256,7 @@ Make SOMA safe for authorized internal operational data before any real-data pil
 ### Exit gate
 
 - Authentication, encryption, backup, and recovery are operational and demonstrated, not merely implemented or documented.
-- A clean offline installation can launch, authenticate, lock, back up, restore, restart, and recover.
+- A clean offline installation can launch, authenticate, back up, restore, restart, and recover.
 - Retained operational data cannot bypass the accepted protection boundary.
 - Only after this gate may controlled real internal data be used.
 
