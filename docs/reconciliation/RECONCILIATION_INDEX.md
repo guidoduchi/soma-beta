@@ -1,6 +1,6 @@
 # SOMA Beta Foundation Reconciliation Index
 
-Status: **RC-001 through RC-006 complete; RC-006-A1 applied; Phase 0 CLOSED; RC-006-A2 post-closure assurance hardening OPEN**  
+Status: **RC-001 through RC-006 complete; RC-006-A1 applied; Phase 0 CLOSED; RC-006-A2 post-closure assurance hardening OPEN with F1 corrected**  
 Branch: `foundation/product-contract-v0.1`  
 Reconciliation baseline commit: `38e41714640b39a34d079102595f99153451f562`  
 Accepted Phase 0 pre-closure head: `9402ee5a8bc8630523448c3382ab62e1d616e8d1`  
@@ -20,6 +20,8 @@ Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 can
 `RC-006-A1` is a corrective amendment to RC-006, **not RC-007**.
 
 `RC-006-A2` is a **post-closure assurance-hardening amendment** that strengthens clause destination evidence from contract-level destination to exact primary normative section/subrange mapping. A2 is currently OPEN. It does not reopen Phase-0 product authority and does not invalidate the historical project-owner acceptance. A Phase-0 assurance addendum is created only after A2 itself passes.
+
+A2 has already produced one useful representation finding: `RC006-A2-F1`, correcting stale Product Contract §7 wording from direct Task→Network Element linking to the canonical Task→Device Reference relationship. This changed no requirement, canonical clause, clause owner, or product behavior.
 
 Project-owner Phase-0 acceptance is a separate authority action recorded in `PHASE0_ACCEPTANCE.md`. It is not an RC checkpoint.
 
@@ -60,6 +62,7 @@ Project-owner Phase-0 acceptance is a separate authority action recorded in `PHA
 - `RC006_GLOBAL_TRACEABILITY.md` — final global forward/reverse audit, strengthened by A1 from requirement-family inference to literal stable-clause-range destination proof.
 - `RC006_CLAUSE_DESTINATIONS.md` — **RC-006-A1** exhaustive canonical-range → requirement owner → destination evidence; expands to exactly 11,524 canonical IDs.
 - `RC006_A2_SECTION_DESTINATION_ASSURANCE.md` — **RC-006-A2 OPEN** method/gate for canonical semantic subrange → exact primary normative section assurance.
+- `RC006_A2_FINDINGS.md` — A2 finding register; currently records corrected `RC006-A2-F1` Task Device Reference synthesis defect.
 - `RC006_CONTRADICTIONS.md` — resolved synthesis/global findings including A1 findings C18–C20 and second-pass status finding C21.
 - `RC006_PHASE0_GATE.md` — objective Phase 0 gate, closed by explicit project-owner acceptance.
 - `PHASE0_ACCEPTANCE.md` — explicit project-owner authority action closing Phase 0 against pre-closure head `9402ee5a8bc8630523448c3382ab62e1d616e8d1`.
@@ -79,15 +82,17 @@ The accepted Phase-0 product state remains:
 - Forward normalized-authority destination orphans under the accepted A1 proof: **0**.
 - Destination-map duplicate/extra IDs: **0**.
 - Destination-map owner mismatches: **0**.
-- Reverse normative-assertion authority orphans: **0 known**.
+- Reverse normative-assertion authority orphans at accepted A1 closure: **0 known**.
 - Unsupported settled frontend/framework assertion: **0 after A1**.
-- Known cross-document product contradictions: **0**.
 - Project-owner Phase 0 closure acceptance: **ACCEPTED**.
 
 ### Additional assurance state
 
 - Exact clause/subrange → primary normative §section proof: **RC-006-A2 OPEN**.
-- A2 has not changed any accepted product decision or Phase-0 identity/owner.
+- A2 representation findings discovered: **1**.
+- A2 findings corrected: **1 (`RC006-A2-F1`)**.
+- Current known unresolved A2 representation findings: **0**.
+- A2 has changed accepted product decisions or Phase-0 identity/owner: **0**.
 - No A2 PASS/addendum is claimed until its section-level map and mechanical invariants are complete.
 
 ## Global reconciliation result
@@ -101,12 +106,12 @@ The accepted A1 proof remains compact but literal:
 5. the independent second pass rechecked the literal owner-range sequence, high-risk authority boundaries, security/runtime assertions, framework leakage, and repository-facing status consistency; and
 6. the project owner explicitly accepted the closure gate against the audited pre-closure head recorded in `PHASE0_ACCEPTANCE.md`.
 
-A2 adds a stronger, separately tracked assurance layer and does not retroactively redefine the accepted A1 gate.
+A2 adds a stronger, separately tracked assurance layer and does not retroactively redefine the accepted A1 gate. Its F1 correction demonstrates that section-level semantic verification can expose stale synthesis wording even when owner/destination-set equality passes.
 
 ## Next authorized work
 
 Phase 0 product authority remains formally closed. No `RC-007` exists or is required.
 
-Phase 1A remains the authorized roadmap phase, with owner UC review currently paused after `UC-001` while `P1A-002` repairs the catalogue/specification layer. RC-006-A2 may proceed as assurance hardening without authorizing implementation or changing Phase-0 product behavior.
+Phase 1A remains the authorized roadmap phase. `P1A-002` structural correction is complete and `UC-002` has passed its Specification Gate; it is the next item pending project-owner review. RC-006-A2 may continue in parallel as assurance hardening without authorizing implementation or changing Phase-0 product behavior.
 
 Phase 1B complete HLD begins only after Phase 1A acceptance. Production implementation remains blocked until the complete Beta 1.0.0 LLD is accepted.
