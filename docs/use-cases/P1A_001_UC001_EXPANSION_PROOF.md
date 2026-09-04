@@ -2,7 +2,7 @@
 
 Status: **PASS — unsupported resumability/history expansion removed; accepted behavior preserved**  
 Accepted pre-expansion record: `P1A_W1_FOUNDATION_SETTINGS.md` at `b506183548fcbdad75f099de2baf4ea44842521e`  
-Repaired result snapshot commit/tree: `A2-BASELINE-001` — source commit `8282d321d0ab318ef141695b2500c8247ccd26b4`, Git tree `3ee7140a3005d8538e6e350efac1de070c9c60be`  
+Historical P1A result snapshot anchor (not current A2 execution authority): `A2-BASELINE-001` — source commit `8282d321d0ab318ef141695b2500c8247ccd26b4`, Git tree `3ee7140a3005d8538e6e350efac1de070c9c60be`  
 Method: `USE_CASE_METHOD.md` §4.2.
 
 ## Purpose
