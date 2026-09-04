@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/rc006-a2-import-candidates-review.yml'
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates.py'
+      - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_1_1.py'
   workflow_dispatch:
 
 permissions:
@@ -50,7 +51,7 @@ jobs:
       - name: Generate Import Contract review candidate corpus
         run: |
           set -euo pipefail
-          python tools/reconciliation/prepare_rc006_a2_import_candidates.py \
+          python tools/reconciliation/prepare_rc006_a2_import_candidates_v0_1_1.py \
             --repo . \
             --output /tmp/rc006-a2-import-review/import-candidates.jsonl \
             --summary /tmp/rc006-a2-import-review/import-summary.json \
@@ -69,8 +70,8 @@ jobs:
         run: |
           set -euo pipefail
           git rev-parse 61bbd665535e942ef3b05c5ed45661639d3a37a9:docs/IMPORT_CONTRACT.md > /tmp/rc006-a2-import-review/source-blob.txt
-          git rev-parse HEAD:tools/reconciliation/prepare_rc006_a2_import_candidates.py > /tmp/rc006-a2-import-review/generator-blob.txt
-          sha256sum tools/reconciliation/prepare_rc006_a2_import_candidates.py > /tmp/rc006-a2-import-review/generator-sha256.txt
+          git rev-parse HEAD:tools/reconciliation/prepare_rc006_a2_import_candidates_v0_1_1.py > /tmp/rc006-a2-import-review/generator-blob.txt
+          sha256sum tools/reconciliation/prepare_rc006_a2_import_candidates_v0_1_1.py > /tmp/rc006-a2-import-review/generator-sha256.txt
           sha256sum /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-sha256.txt
           wc -l /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-count.txt
           cat /tmp/rc006-a2-import-review/import-summary.json
