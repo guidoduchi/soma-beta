@@ -38,7 +38,7 @@ Every clause in each inclusive range has exactly one listed owner. Range notatio
 
 ## Additional supporting authority
 
-Supporting authority strengthens provenance only; it does not transfer ownership or authorize new product behavior. References to `BETA-REQ-0152` use the canonical CP-006 clause-prefix correction in `CP006_CLAUSE_ID_AMENDMENT.md` (`RFC-FOREST-*`, not the collided legacy CP-006 `RFC-HIER-*`).
+Supporting authority strengthens provenance only; it does not transfer ownership or authorize new product behavior. References to `BETA-REQ-0152` resolve directly against the active canonical CP-006 `RFC-FOREST-*` range. `CP006_CLAUSE_ID_AMENDMENT.md` records the historical reason for that mechanical correction; no overlay transformation is required.
 
 | Clause range | Supporting authority |
 |---|---|

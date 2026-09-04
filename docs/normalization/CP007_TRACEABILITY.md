@@ -57,7 +57,7 @@ Preservation findings:
 - `0169` removes Alpha's universal 400/100/500 limits without leaving data unbounded; exact limits remain semantic/LLD-owned and overflow never silently truncates.
 - `0170` preserves distinct WFM Task identities and narrows the one-WFM restriction to overlapping active attempts of the same reviewed activity lineage.
 - `0171` permits historical structure from provider Complete + valid source plan without inventing execution/Inventory facts and separates counting exclusion from deletion/history mutation.
-- `0172` keeps provider plan, operational plan, Objective envelope and execution distinct, with explicit conflict choices and history/plan locks.
+- `0172` keeps provider plan, operational Task plan, Objective envelope and execution distinct, with explicit conflict choices and history/plan locks.
 - `0173` preserves Product Line reuse and customer-specific SLA authority at Contract Product Line, with reviewed per-target classification.
 - `0174` preserves exact reproducible SLA duration arithmetic, accepted source suspension only, first effective Resolved/Closed endpoint and immutable reports.
 - `0175` fixes canonical SLA cohorts to Report Date month in `America/Guayaquil`, separates individual and cohort state and treats daily/weekly/range outputs as snapshots of monthly contractual cohorts.
@@ -86,15 +86,24 @@ The final audit found three later prefix reuses of identifiers already assigned 
 2. Proposed CP-007 `BETA-REQ-0157` used `OBJ-GROUP`, already canonical for `BETA-REQ-0048`.
 3. Proposed CP-007 `BETA-REQ-0170` used `WFM-ATTEMPT`, already canonical for `BETA-REQ-0042`.
 
-Resolution is reference-only; no clause wording, order, owner, count or product semantics change:
+The corrections change no clause wording, order, owner, supporting authority, count, or product semantics:
 
-- `0152`: canonical prefix becomes `RFC-FOREST`; recorded in `CP006_CLAUSE_ID_AMENDMENT.md` while preserving CP-006 as-landed artefacts.
+- `0152`: the active canonical `CP006_CLAUSES.md` and `CP006_CLAUSE_AUTHORITY.md` now directly use `RFC-FOREST-001..124`; `CP006_TRACEABILITY.md` records that literal range and `CP006_CLAUSE_ID_AMENDMENT.md` remains historical evidence explaining the mechanical correction. No overlay is required.
 - `0157`: persisted CP-007 prefix is `OBJ-TEMP-GROUP`.
 - `0170`: persisted CP-007 prefix is `WFM-LINEAGE`.
 
-After applying these corrections, CP-001–CP-007 clause identifiers are globally unambiguous under the normalization layer's amendment rules.
+Literal canonical-file audit after those corrections:
 
-**Global clause-ID result: PASS after reference-ID correction.**
+| Audit measure | Result |
+|---|---:|
+| Stable clause rows | **11524** |
+| Globally unique literal canonical clause IDs | **11524** |
+| Clause-ID collisions | **0** |
+| Overlay transformations required | **0** |
+
+CP-002 therefore retains literal canonical `RFC-HIER-*`, `OBJ-GROUP-*`, and `WFM-ATTEMPT-*` ownership, while every later canonical range is directly unambiguous in the active files.
+
+**Global clause-ID result: PASS on literal canonical files.**
 
 ## Classification-vocabulary audit
 
@@ -132,17 +141,18 @@ Descriptive phrases used during interactive review (for example “data-retentio
 
 ## Cross-check against CP-001 through CP-006
 
-CP-007 was cross-checked against accepted normalized authority through `BETA-REQ-0152`, including CP-001 amendment A1, CP-004 substitute clarification, CP-005 Device Reference clarification and the final CP-006 clause-ID amendment.
+CP-007 was cross-checked against accepted normalized authority through `BETA-REQ-0152`, including CP-001 amendment A1, CP-004 substitute clarification, CP-005 Device Reference clarification, the direct CP-006 canonical clause-ID correction, and its retained historical amendment evidence.
 
 - No requirement identity is renumbered or reused.
 - No owning requirement changes.
 - No later clause transfers ownership from an earlier requirement.
 - The three detected prefix collisions are resolved without semantic change.
 - CP-002 keeps original canonical `RFC-HIER-*`, `OBJ-GROUP-*`, and `WFM-ATTEMPT-*` ownership.
+- CP-006 directly carries `RFC-FOREST-*` for `BETA-REQ-0152` in its active canonical clause and authority files.
 - CP-007 uses only globally unambiguous new prefixes.
 - Existing open technical-design items remain unresolved design boundaries rather than invented product behavior.
 
-**Prior-checkpoint cross-check: PASS after CP-006 reference-ID amendment.**
+**Prior-checkpoint cross-check: PASS with literal canonical CP-006 IDs.**
 
 ## Preserved technical-design boundaries
 
@@ -174,6 +184,10 @@ Cumulative requirements: **177 / 177**.
 
 Dispositions: **176 Replace / 1 Retain**.
 
+Literal globally unique canonical clause IDs: **11524 / 11524**.
+
+Known product contradictions: **0**.
+
 **Final normalization content audit: PASS.**
 
-Commit-isolation evidence is completed after the final tree is committed and branch comparison is re-run.
+Commit isolation for the canonical-ID correction is established by the correction commit's Git comparison; the normalization content result itself requires no overlay or transport-specific interpretation.

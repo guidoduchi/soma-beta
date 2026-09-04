@@ -43,7 +43,7 @@ The clause IDs and clause text in those three linked files are normative exactly
 - `BETA-REQ-0176` — `IMP-STAGE`
 - `BETA-REQ-0177` — `TIME-AUTH`
 
-The final global clause-ID audit intentionally avoids reusing CP-002 `OBJ-GROUP-*` and `WFM-ATTEMPT-*`. CP-006 `BETA-REQ-0152` is canonically re-keyed to `RFC-FOREST-*` by [`CP006_CLAUSE_ID_AMENDMENT.md`](CP006_CLAUSE_ID_AMENDMENT.md), preserving CP-002 `RFC-HIER-*` ownership.
+The final global clause-ID audit intentionally avoids reusing CP-002 `OBJ-GROUP-*` and `WFM-ATTEMPT-*`. The active CP-006 canonical files directly use `RFC-FOREST-*` for `BETA-REQ-0152`, preserving CP-002 `RFC-HIER-*` ownership. [`CP006_CLAUSE_ID_AMENDMENT.md`](CP006_CLAUSE_ID_AMENDMENT.md) remains historical evidence of that correction; canonical consumers require no overlay transformation.
 
 ## Authority
 

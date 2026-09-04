@@ -3444,7 +3444,7 @@ Clause identities are stable normative references. Under each requirement, the d
 `105` — Tests shall prove dates and eight-digit substrings of longer identifiers are excluded, unresolved candidates never create SRs, multiple candidates may be independently accepted, and all relationships remain review-gated.
 `106` — Tests shall prove subordinate-origin evidence links the master RFC, repeated extraction remains idempotent, and later text/workbook omission never unlinks accepted relationship history.
 
-## `BETA-REQ-0152` — prefix `RFC-HIER`
+## `BETA-REQ-0152` — prefix `RFC-FOREST`
 
 **Governing obligation:** RFC hierarchy shall be an acyclic one-parent forest of at most two RFC levels in which every parentless RFC is a root, roots with no children are standalone, roots with children derive Master role from those relationships, and child RFCs derive Subordinate role and can never themselves parent another RFC; resolved members of a branch shall share canonical Customer Organization identity while unresolved ownership remains an explicit warning, provider/import evidence shall never infer hierarchy, every hierarchy mutation shall revalidate depth, cycles, parent uniqueness, and applicable Customer consistency, reparenting after WFM history shall be a high-risk history-preserving correction, no arbitrary business cap such as twenty subordinates shall restrict valid branches because scale is handled through virtualization and measured technical limits, and hard deletion shall be permitted only while the RFC remains provably an untouched manual draft under the governing identity, provenance, relationship, WFM, and audit contracts.
 

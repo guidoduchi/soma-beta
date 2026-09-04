@@ -1,6 +1,6 @@
 # SOMA Beta Requirement Normalization
 
-Status: **Complete — 177/177 accepted; final two-way audit passed; CP-006 clause-ID amendment and CP-007 final checkpoint applied**  
+Status: **Complete — 177/177 accepted; final two-way audit passed; CP-006 canonical clause-ID correction and CP-007 final checkpoint applied**  
 Authority: project-owner-approved normalization decisions.  
 Source baseline: `docs/BETA_REQUIREMENTS.md` preserves the pre-normalization approved wording and immutable `BETA-REQ-####` identities.
 
@@ -57,17 +57,17 @@ For every reviewed requirement:
 | CP-003 | `BETA-REQ-0053`–`0077` | 25 | 25 | 0 | 666 | Forward PASS; reverse-authority PASS; CP-001/CP-002 cross-check PASS; commit-isolation PASS |
 | CP-004 | `BETA-REQ-0078`–`0102` | 25 | 25 | 0 | 1383 | Two-pass preservation PASS; reverse-authority PASS; CP-001–CP-003 cross-check PASS; commit-isolation PASS |
 | CP-005 | `BETA-REQ-0103`–`0127` | 25 | 25 | 0 | 2669 | Two-pass preservation PASS; reverse-authority PASS; CP-001–CP-004 cross-check PASS; commit-isolation PASS |
-| CP-006 | `BETA-REQ-0128`–`0152` | 25 | 25 | 0 | 3444 | Two-pass preservation PASS; reverse-authority PASS; CP-001–CP-005 semantic cross-check PASS; clause-ID prefix corrected by final amendment A1 |
-| CP-007 | `BETA-REQ-0153`–`0177` | 25 | 25 | 0 | 2904 | Two-pass preservation PASS; reverse-authority PASS; CP-001–CP-006 cross-check PASS after CP-006 clause-ID amendment; global clause-ID PASS; classification-vocabulary PASS |
+| CP-006 | `BETA-REQ-0128`–`0152` | 25 | 25 | 0 | 3444 | Two-pass preservation PASS; reverse-authority PASS; CP-001–CP-005 semantic cross-check PASS; literal canonical `RFC-FOREST-*` prefix applied with amendment evidence retained |
+| CP-007 | `BETA-REQ-0153`–`0177` | 25 | 25 | 0 | 2904 | Two-pass preservation PASS; reverse-authority PASS; CP-001–CP-006 cross-check PASS with literal canonical CP-006 IDs; global literal clause-ID PASS; classification-vocabulary PASS |
 
-Cumulative accepted normalization: **177 / 177 requirements reviewed; 176 Replace; 1 Retain; 11524 stable clauses.**
+Cumulative accepted normalization: **177 / 177 requirements reviewed; 176 Replace; 1 Retain; 11524 stable clauses; 11524 globally unique literal canonical clause IDs; 0 collisions.**
 
 ## Checkpoint artefacts
 
 CP-001 through CP-006 retain their accepted catalogue, clauses, clause-authority, and traceability artefacts under `docs/normalization/`.
 
 CP-006 additionally has:
-- [`normalization/CP006_CLAUSE_ID_AMENDMENT.md`](normalization/CP006_CLAUSE_ID_AMENDMENT.md) — canonical prefix correction for `BETA-REQ-0152`: legacy CP-006 `RFC-HIER-001..124` becomes `RFC-FOREST-001..124` without semantic, owner, order, support, or count change.
+- [`normalization/CP006_CLAUSE_ID_AMENDMENT.md`](normalization/CP006_CLAUSE_ID_AMENDMENT.md) — historical evidence explaining the mechanical prefix correction for `BETA-REQ-0152`: the original CP-006 checkpoint used `RFC-HIER-001..124`, while the active canonical CP-006 clause, authority, and traceability files directly use `RFC-FOREST-001..124` without semantic, owner, order, support, or count change. No overlay is required by canonical consumers.
 
 CP-007 artefacts:
 - [`normalization/CP007_CATALOGUE.md`](normalization/CP007_CATALOGUE.md) — accepted governing obligations and approved-vocabulary classifications for `BETA-REQ-0153`–`0177`.
@@ -75,8 +75,8 @@ CP-007 artefacts:
 - [`normalization/CP007_CLAUSES_0153_0161.md`](normalization/CP007_CLAUSES_0153_0161.md) — 1058 normative clauses for `0153`–`0161`.
 - [`normalization/CP007_CLAUSES_0162_0169.md`](normalization/CP007_CLAUSES_0162_0169.md) — 894 normative clauses for `0162`–`0169`.
 - [`normalization/CP007_CLAUSES_0170_0177.md`](normalization/CP007_CLAUSES_0170_0177.md) — 952 normative clauses for `0170`–`0177`.
-- [`normalization/CP007_CLAUSE_AUTHORITY.md`](normalization/CP007_CLAUSE_AUTHORITY.md) — one-owner/supporting-authority evidence for all 2904 clauses using globally unambiguous prefixes.
-- [`normalization/CP007_TRACEABILITY.md`](normalization/CP007_TRACEABILITY.md) — final two-pass audit, design seeds, CP-001–CP-006 cross-check, clause-ID collision correction evidence, classification-vocabulary audit, technical-design boundaries, and cumulative 177-requirement audit.
+- [`normalization/CP007_CLAUSE_AUTHORITY.md`](normalization/CP007_CLAUSE_AUTHORITY.md) — one-owner/supporting-authority evidence for all 2904 clauses using globally unambiguous prefixes and direct canonical CP-006 references.
+- [`normalization/CP007_TRACEABILITY.md`](normalization/CP007_TRACEABILITY.md) — final two-pass audit, design seeds, CP-001–CP-006 cross-check, literal global clause-ID audit, classification-vocabulary audit, technical-design boundaries, and cumulative 177-requirement audit.
 
 The three CP-007 clause shards are a physical-storage/readability split only. Their clause IDs and text are normative exactly as if stored in one file; `CP007_CLAUSES.md` is their authoritative manifest.
 
@@ -102,9 +102,11 @@ During normalization of `BETA-REQ-0110`, the project owner confirmed that a prov
 
 The final global audit found that CP-006 reused `RFC-HIER` for `BETA-REQ-0152`, colliding with canonical CP-002 `RFC-HIER-001..009` owned by `BETA-REQ-0040`. Product content and owner mapping were correct; only the later prefix reuse was invalid.
 
-The canonical CP-006 `0152` range is therefore `RFC-FOREST-001..124`. `CP006_CLAUSE_ID_AMENDMENT.md` is the authoritative overlay; as-landed CP-006 artefacts remain preserved for historical comparison. Clause text, order, owner, support, count and cumulative totals do not change.
+The active canonical CP-006 `0152` range is therefore literally `RFC-FOREST-001..124` in `CP006_CLAUSES.md` and `CP006_CLAUSE_AUTHORITY.md`, and `CP006_TRACEABILITY.md` records that canonical range. Git history preserves the original CP-006 checkpoint representation, while `CP006_CLAUSE_ID_AMENDMENT.md` remains the historical explanation for the mechanical correction. Clause text, suffixes, order, owner, supporting authority, count and cumulative totals do not change, and canonical consumers require no overlay transformation.
 
 The same final audit prevented two equivalent collisions before CP-007 persistence: proposed `OBJ-GROUP` for `0157` became `OBJ-TEMP-GROUP`, preserving CP-002 `OBJ-GROUP-*` ownership by `0048`; proposed `WFM-ATTEMPT` for `0170` became `WFM-LINEAGE`, preserving CP-002 `WFM-ATTEMPT-*` ownership by `0042`.
+
+Literal canonical global audit after correction: **11524 clause rows; 11524 globally unique clause IDs; 0 collisions; 0 overlay transformations required.**
 
 ## Known design-reconciliation boundary
 
@@ -122,4 +124,4 @@ The preliminary HLD contains wording assigning “Task outcomes” to Inventory.
 
 ## Final consolidation rule
 
-`docs/BETA_REQUIREMENTS.md` remains the preserved pre-normalization baseline. The normalized governing obligations and stable clauses in this layer are now complete for all `BETA-REQ-0001`–`0177` and may be consolidated into downstream product/design catalogues without deleting source history. The normalization layer remains the authority for clause identity and before/after traceability, including recorded amendments.
+`docs/BETA_REQUIREMENTS.md` remains the preserved pre-normalization baseline. The normalized governing obligations and stable clauses in this layer are now complete for all `BETA-REQ-0001`–`0177` and may be consolidated into downstream product/design catalogues without deleting source history. The normalization layer remains the authority for literal canonical clause identity and before/after traceability, including recorded amendments.

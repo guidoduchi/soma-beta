@@ -78,6 +78,12 @@ Every CP-006 clause has one immutable owner recorded in `CP006_CLAUSE_AUTHORITY.
 
 **Pass-2 result: 3444/3444 PASS.**
 
+## Canonical clause-ID correction
+
+The active canonical clause range for `BETA-REQ-0152` is literally `RFC-FOREST-001..124` in both `CP006_CLAUSES.md` and `CP006_CLAUSE_AUTHORITY.md`. The original CP-006 checkpoint commit preserves the earlier `RFC-HIER` spelling in Git history, while `CP006_CLAUSE_ID_AMENDMENT.md` records why the prefix was corrected. Canonical consumers require **no overlay or runtime transformation** to obtain the current IDs.
+
+This correction changes no clause wording, suffix, order, owner, supporting authority, requirement disposition, or clause count.
+
 ## Terminology, ownership, and invariant cross-check
 
 - `Infrastructure` remains the canonical workspace name; Network Element remains the registered infrastructure instance; Device Reference remains the provisional/operational reference.

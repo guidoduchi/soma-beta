@@ -34,7 +34,7 @@ Every clause in each inclusive range has exactly one listed owner. Range notatio
 | `RFC-STATUS-001..124` | `BETA-REQ-0149` |
 | `RFC-WFM-ELIG-001..096` | `BETA-REQ-0150` |
 | `SR-LINK-CAND-001..106` | `BETA-REQ-0151` |
-| `RFC-HIER-001..124` | `BETA-REQ-0152` |
+| `RFC-FOREST-001..124` | `BETA-REQ-0152` |
 
 ## Additional supporting authority
 
@@ -66,7 +66,7 @@ Supporting authority strengthens provenance only; it does not transfer ownership
 | `RFC-STATUS-001..124` | `BETA-REQ-0017`; `BETA-REQ-0019`; `BETA-REQ-0125`; `BETA-REQ-0135`; `BETA-REQ-0139`; `BETA-REQ-0143`; `BETA-REQ-0144`; `BETA-REQ-0146`; `BETA-REQ-0147`; `BETA-REQ-0148`; `BETA-REQ-0150`; later detailed cascade authority remains separately owned |
 | `RFC-WFM-ELIG-001..096` | `BETA-REQ-0012`; `BETA-REQ-0013`; RFC/Task lifecycle authority; `BETA-REQ-0146`; `BETA-REQ-0147`; `BETA-REQ-0148`; `BETA-REQ-0149`; `BETA-REQ-0151`; `BETA-REQ-0152` |
 | `SR-LINK-CAND-001..106` | `BETA-REQ-0011`; `BETA-REQ-0012`; `BETA-REQ-0013`; `BETA-REQ-0019`; SR↔master-RFC authority; `BETA-REQ-0135`; `BETA-REQ-0139`; `BETA-REQ-0146`; `BETA-REQ-0147`; `BETA-REQ-0148`; `BETA-REQ-0150`; `BETA-REQ-0152` |
-| `RFC-HIER-001..124` | `BETA-REQ-0010`; `BETA-REQ-0019`; `BETA-REQ-0027`; accepted master/subordinate RFC authority; `BETA-REQ-0124`; `BETA-REQ-0125`; `BETA-REQ-0135`; `BETA-REQ-0139`; `BETA-REQ-0148`; `BETA-REQ-0149`; `BETA-REQ-0150`; `BETA-REQ-0151` |
+| `RFC-FOREST-001..124` | `BETA-REQ-0010`; `BETA-REQ-0019`; `BETA-REQ-0027`; accepted master/subordinate RFC authority; `BETA-REQ-0124`; `BETA-REQ-0125`; `BETA-REQ-0135`; `BETA-REQ-0139`; `BETA-REQ-0148`; `BETA-REQ-0149`; `BETA-REQ-0150`; `BETA-REQ-0151` |
 
 ## CP-006 reconciliation notes
 
