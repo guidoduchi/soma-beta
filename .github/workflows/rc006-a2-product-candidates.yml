@@ -1,0 +1,69 @@
+name: RC006 A2 Product Candidates
+
+on:
+  push:
+    branches:
+      - foundation/product-contract-v0.1
+    paths:
+      - '.github/workflows/rc006-a2-product-candidates.yml'
+      - 'tools/reconciliation/prepare_rc006_a2_product_candidates.py'
+      - 'tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py'
+      - 'docs/reconciliation/RC006_A2_SCHEMA_AMENDMENT_001.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out full repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Prepare Product Contract candidate batch
+        run: |
+          mkdir -p a2-work
+          python tools/reconciliation/prepare_rc006_a2_product_candidates.py \
+            --repo . \
+            --output a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
+            --summary a2-work/product_candidate_preparation.json
+
+      - name: Validate candidates against pinned B002 source
+        run: |
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py \
+            --repo . \
+            validate-candidates \
+            --source-path docs/PRODUCT_CONTRACT.md \
+            --candidates a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl \
+            --output a2-work/product_candidate_validation.json
+
+      - name: Show preparation and validation summaries
+        run: |
+          cat a2-work/product_candidate_preparation.json
+          cat a2-work/product_candidate_validation.json
+
+      - name: Show human-review listing
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for raw in Path('a2-work/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl').read_text(encoding='utf-8').splitlines():
+              r=json.loads(raw)
+              print(f"S{r['section_ordinal']:02d} A{r['assertion_ordinal']:03d} L{r['source_start_line']}-{r['source_end_line']} {r['normative_kind']}: {r['exact_text']}")
+          PY
+
+      - name: Upload candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc006-a2-product-contract-candidates
+          path: a2-work/
+          if-no-files-found: error
+          retention-days: 90
