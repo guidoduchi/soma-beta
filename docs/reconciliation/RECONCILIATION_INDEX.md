@@ -1,6 +1,6 @@
 # SOMA Beta Foundation Reconciliation Index
 
-Status: **RC-001–RC-005 PASS; RC-006 decision/ownership work PASS under A1; Phase-0 closure certification SUSPENDED pending RC-006-A2; Phase 1A owner review PAUSED after UC-001**  
+Status: **RC-001–RC-005 PASS; RC-006 decision/ownership work PASS under A1; RC-006-A2 methodology READY at `A2-BASELINE-001` but certification OPEN; Phase 1A owner review PAUSED after UC-001**  
 Branch: `foundation/product-contract-v0.1`  
 Reconciliation baseline commit: `38e41714640b39a34d079102595f99153451f562`  
 Accepted Phase 0 pre-closure head: `9402ee5a8bc8630523448c3382ab62e1d616e8d1`  
@@ -19,7 +19,7 @@ Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 can
 
 `RC-006-A1` is a corrective amendment to RC-006, **not RC-007**.
 
-`RC-006-A2` is the **open closure-certification amendment** that strengthens clause destination evidence from contract-level destination to exact primary normative section/subrange mapping and adds mandatory reverse normative-destination authority proof. A2 does not reopen accepted product decisions and does not invalidate the historical project-owner acceptance; it suspends the current closure-certification claim until its forward and reverse invariants pass. A Phase-0 assurance addendum is created only after A2 itself passes.
+`RC-006-A2` is the **open closure-certification amendment** that strengthens clause destination evidence from contract-level destination to exact primary normative section/subrange mapping and adds mandatory reverse normative-destination authority proof. Its stable `A2-ASSERT-######` identity scheme and exact execution source are ready under `A2-BASELINE-001` (`${commit}` / tree `${tree}`). A2 does not reopen accepted product decisions and does not invalidate the historical project-owner acceptance; it suspends the current closure-certification claim until its forward and reverse invariants pass. A Phase-0 assurance addendum is created only after A2 itself passes.
 
 A2 has already produced one useful representation finding: `RC006-A2-F1`, correcting stale Product Contract §7 wording from direct Task→Network Element linking to the canonical Task→Device Reference relationship. This changed no requirement, canonical clause, clause owner, or product behavior.
 
@@ -61,10 +61,11 @@ Project-owner Phase-0 acceptance is a separate authority action recorded in `PHA
 - `RC006_SYNTHESIS_AUTHORITY.md` — Architecture/Roadmap/repository-facing synthesis reconciliation report, explicitly amended by A1 and status-aligned by the second pass.
 - `RC006_GLOBAL_TRACEABILITY.md` — final global forward/reverse audit, strengthened by A1 from requirement-family inference to literal stable-clause-range destination proof.
 - `RC006_CLAUSE_DESTINATIONS.md` — **RC-006-A1** exhaustive canonical-range → requirement owner → destination evidence; expands to exactly 11,524 canonical IDs.
-- `RC006_A2_SECTION_DESTINATION_ASSURANCE.md` — **RC-006-A2 OPEN** method/gate for canonical semantic subrange → exact primary normative section assurance.
+- `RC006_A2_SECTION_DESTINATION_ASSURANCE.md` — **RC-006-A2 READY / certification OPEN** method/gate for canonical semantic subrange → exact primary normative section assurance.
+- `RC006_A2_EXECUTION_BASELINE.md` — immutable `A2-BASELINE-001` source commit/tree pin and invalidation rules.
 - `RC006_A2_FINDINGS.md` — A2 finding register; currently records corrected `RC006-A2-F1` Task Device Reference synthesis defect.
 - `RC006_CONTRADICTIONS.md` — resolved synthesis/global findings including A1 findings C18–C20 and second-pass status finding C21.
-- `RC006_PHASE0_GATE.md` — objective Phase 0 gate, closed by explicit project-owner acceptance.
+- `RC006_PHASE0_GATE.md` — historical objective Phase 0 gate record; explicitly not a current-work status source.
 - `PHASE0_ACCEPTANCE.md` — explicit project-owner authority action closing Phase 0 against pre-closure head `9402ee5a8bc8630523448c3382ab62e1d616e8d1`.
 
 ## Final accepted Phase 0 state
@@ -89,6 +90,7 @@ The accepted Phase-0 product state remains:
 ### Additional assurance state
 
 - Current Phase-0 closure certification: **SUSPENDED / OPEN pending RC-006-A2**.
+- A2 methodology/readiness: **PASS — `A2-BASELINE-001` pinned to `${commit}` / `${tree}`**.
 - Exact clause/subrange → primary normative §section proof: **RC-006-A2 OPEN**.
 - Reverse normative-destination assertion → canonical authority proof: **RC-006-A2 OPEN**.
 - Phase 1A owner review: **PAUSED after `UC-001`; `UC-002` remains Proposed**.
@@ -115,6 +117,6 @@ A2 adds a stronger, separately tracked assurance layer and does not retroactivel
 
 Phase 0’s accepted decision baseline remains frozen, and its historical acceptance action remains preserved. Current closure certification is suspended pending RC-006-A2. No `RC-007` exists or is required.
 
-Phase 1A remains the authorized roadmap phase. `P1A-002` controlled catalogue reconstruction is recorded and `UC-002` has passed its Specification Gate, but project-owner review is paused after `UC-001` until A2 passes. RC-006-A2 is the next governing assurance action; it does not authorize implementation or change Phase-0 product behavior.
+Phase 1A remains the authorized roadmap phase. `P1A-002` controlled catalogue reconstruction is PASS with a UC-001 expansion proof and exhaustive 95-identity transformation ledger; `UC-002` has passed its Specification Gate, but project-owner review is paused after `UC-001` until A2 passes. RC-006-A2 mass mapping against `A2-BASELINE-001` is the next governing assurance action; it does not authorize production implementation or change Phase-0 product behavior.
 
 Phase 1B complete HLD begins only after Phase 1A acceptance. Production implementation remains blocked until the complete Beta 1.0.0 LLD is accepted.

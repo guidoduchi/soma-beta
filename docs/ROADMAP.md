@@ -1,6 +1,6 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Phase 0 decision baseline ACCEPTED/FROZEN; closure certification SUSPENDED pending RC-006-A2; Phase 1A owner review PAUSED after UC-001**
+Status: **Phase 0 decision baseline ACCEPTED/FROZEN; RC-006-A2 methodology READY at `A2-BASELINE-001` with certification OPEN; Phase 1A owner review PAUSED after UC-001**
 
 This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 
@@ -95,6 +95,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 - Remaining `O-*` items and exact frontend framework/language/build-tool selection are bounded downstream design questions and do not reopen settled product behavior.
 - Historical project-owner Phase 0 acceptance action: **ACCEPTED — preserved unchanged**.
 - Current Phase 0 closure certification: **SUSPENDED / OPEN pending RC-006-A2**.
+- A2 methodology/readiness: **PASS — exact source commit/tree pinned by `A2-BASELINE-001`**.
 - Exact section-level forward authority proof: **OPEN**.
 - Reverse normative-destination authority orphan proof: **OPEN**.
 - Phase 1A catalogue reconstruction: **recorded; owner review paused after `UC-001`**.

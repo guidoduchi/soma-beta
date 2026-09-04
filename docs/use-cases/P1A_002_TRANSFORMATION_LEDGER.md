@@ -2,7 +2,7 @@
 
 Status: **PASS — all allocated identities reconciled; result snapshot pin recorded by the A2 baseline control commit**  
 Pre-reconstruction baseline: `b506183548fcbdad75f099de2baf4ea44842521e`  
-Result snapshot commit/tree: **TO_BE_PINNED_AFTER_PREPARATORY_COMMIT**  
+Result snapshot commit/tree: `A2-BASELINE-001` — source commit `8282d321d0ab318ef141695b2500c8247ccd26b4`, Git tree `3ee7140a3005d8538e6e350efac1de070c9c60be`  
 Authority: `P1A_002_CATALOGUE_STRUCTURAL_CORRECTION.md` and `USE_CASE_METHOD.md`.
 
 ## Purpose

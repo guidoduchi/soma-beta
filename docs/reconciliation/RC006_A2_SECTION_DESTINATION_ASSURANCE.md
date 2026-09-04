@@ -1,9 +1,9 @@
 # RC-006-A2 — Section-Level Clause Destination Assurance
 
-Status: **PREPARATION — assertion identity defined; exact source-tree pin pending; mass mapping prohibited until pin commit**  
+Status: **READY FOR EXECUTION — `A2-BASELINE-001` pinned; certification remains OPEN; Phase 1A owner review remains paused**  
 Parent: `RC-006-A1`  
 Baseline authority: accepted Phase-0 product authority and the 11,524-clause canonical set recorded in `PHASE0_ACCEPTANCE.md`.
-Execution source snapshot: **TO_BE_PINNED_AFTER_PREPARATORY_COMMIT**.
+Execution source snapshot: `A2-BASELINE-001` — source commit `8282d321d0ab318ef141695b2500c8247ccd26b4`, Git tree `3ee7140a3005d8538e6e350efac1de070c9c60be`.
 
 ## 1. Purpose
 
@@ -95,7 +95,7 @@ All A2 extraction and validation reads source inputs by pinned Git tree, never b
 
 The baseline pin is written in a follow-up control commit because a Git tree cannot contain its own hash. The pinned tree is the completed preparatory input corpus; the follow-up commit may add only the pin/control metadata needed to identify that corpus.
 
-Until the exact commit and tree are populated and verified, **A2 mass mapping is prohibited**.
+`A2-BASELINE-001` satisfies this prerequisite. All mass mapping must read the pinned tree. If the pin is absent, mismatched, or invalidated by an included-source change, **A2 mass mapping is prohibited** until controlled rebaseline.
 
 ## 5. Mechanical invariants
 
