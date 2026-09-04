@@ -6,7 +6,7 @@ SOMA Beta is a local, offline-first operations workspace for service tickets, ma
 
 ## Product status
 
-**Phase 0 is formally closed by project-owner acceptance.** Requirement normalization and foundation contract reconciliation are complete through `RC-006`, with `RC-006-A1` corrective assurance and the independent second pass applied. Phase 1A — the complete business use-case catalogue — is now authorized; Phase 1B complete HLD follows only after Phase 1A acceptance, then the complete Beta 1.0.0 LLD.
+**Phase 0’s decision baseline remains accepted and frozen.** The historical project-owner acceptance remains valid, but current Phase 0 closure certification is suspended while `RC-006-A2` completes section-level forward and reverse authority assurance. Phase 1A catalogue reconstruction may remain recorded, but owner review is paused after `UC-001`; `UC-002` is Proposed and may be reviewed only after A2 passes. Phase 1B complete HLD follows only after Phase 1A acceptance, then the complete Beta 1.0.0 LLD.
 
 No production code, final database schema, or Alpha data migration is approved by this foundation state. Production implementation remains blocked until the entire Beta 1.0.0 LLD is accepted.
 
@@ -31,6 +31,7 @@ The normalized governing obligations and canonical stable clauses are current pr
 - [Foundation reconciliation index](docs/reconciliation/RECONCILIATION_INDEX.md)
 - [Foundation reconciliation doctrine](docs/reconciliation/RECONCILIATION_METHOD.md)
 - [Literal canonical clause destination audit](docs/reconciliation/RC006_CLAUSE_DESTINATIONS.md)
+- [RC-006-A2 section-level assurance gate](docs/reconciliation/RC006_A2_SECTION_DESTINATION_ASSURANCE.md)
 - [Pre-normalization Beta requirement baseline](docs/BETA_REQUIREMENTS.md)
 - [Alpha-to-Beta traceability register](docs/ALPHA_TRACEABILITY.md)
 - [Foundation gaps register](docs/FOUNDATION_GAPS.md)

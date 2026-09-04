@@ -1,6 +1,6 @@
 # SOMA Beta Delivery Roadmap
 
-Status: **Phase 0 CLOSED by project-owner acceptance after RC-006, RC-006-A1, and the independent second pass; Phase 1A authorized**
+Status: **Phase 0 decision baseline ACCEPTED/FROZEN; closure certification SUSPENDED pending RC-006-A2; Phase 1A owner review PAUSED after UC-001**
 
 This roadmap takes SOMA Beta from historical requirement recovery to an accepted, fully offline local web application. It is contract-first, use-case-driven, and traceable from every historical decision to the final UI and acceptance evidence.
 
@@ -21,7 +21,7 @@ flowchart TD
 
 A later phase may expose a disproven assumption. When this happens, SOMA uses controlled design correction: reopen the owning accepted artifact, record the reason and impact, update downstream traceability, and reaccept the affected design before implementation continues. Product behavior always returns to Phase 0; implementation must never silently invent policy.
 
-## Phase 0 — Requirement traceability and product stabilization (CLOSED)
+## Phase 0 — Requirement traceability and product stabilization (decision baseline accepted; closure certification pending A2)
 
 ### Purpose
 
@@ -43,7 +43,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
   - destination layer, kept separate from release disposition.
 - Destination layers include Product Contract, use case, HLD, LLD, implementation, and acceptance evidence. **Defer** means a later release; it never means “belongs in LLD.”
 - Assign neutral immutable normative identifiers in the form **BETA-REQ-0001**. Workspace, domain, release, status, and destination remain metadata rather than part of the identifier.
-- The complete Alpha pass contains 138 exact merged source rows and 43 exact proposal rows mapped through 177 sequential Beta requirements. Proposal disposition is complete. Requirement normalization is complete at **177/177** with **11,524** globally unique canonical stable clauses, all recorded `FND-GAP-001`–`016` items are resolved, focused contract reconciliation is complete through `RC-006`, `RC-006-A1` removed the unsupported frontend selection and upgraded the final forward assurance to literal canonical clause-range destination coverage, and the independent second pass found no remaining substantive reconciliation defect. Phase 0 is formally closed by the project-owner acceptance recorded in `docs/reconciliation/PHASE0_ACCEPTANCE.md`. Phase 1A business use cases are now authorized; HLD and LLD remain Phases 1B and 2.
+- The complete Alpha pass contains 138 exact merged source rows and 43 exact proposal rows mapped through 177 sequential Beta requirements. Proposal disposition is complete. Requirement normalization is complete at **177/177** with **11,524** globally unique canonical stable clauses, all recorded `FND-GAP-001`–`016` items are resolved, focused contract reconciliation is complete through `RC-006`, and `RC-006-A1` removed the unsupported frontend selection and upgraded forward assurance to literal canonical clause-range destination coverage. The historical project-owner acceptance recorded in `docs/reconciliation/PHASE0_ACCEPTANCE.md` remains valid and the product-decision baseline remains frozen. `RC-006-A2` is now the open closure-certification gate for exact section-level forward and reverse authority assurance. Phase 1A catalogue reconstruction is recorded, but owner review is paused after `UC-001` until A2 passes; HLD and LLD remain Phases 1B and 2.
 
 ### Gaps and product contracts
 
@@ -93,8 +93,12 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 - Unsupported settled implementation/framework assertion: **PASS — 0 known after RC-006-A1**.
 - Known unresolved Phase 0 product questions: **0**.
 - Remaining `O-*` items and exact frontend framework/language/build-tool selection are bounded downstream design questions and do not reopen settled product behavior.
-- Final project-owner Phase 0 closure acceptance: **ACCEPTED — PHASE 0 CLOSED**.
-- Next authorized work: **Phase 1A — Complete Business Use-Case Catalogue**.
+- Historical project-owner Phase 0 acceptance action: **ACCEPTED — preserved unchanged**.
+- Current Phase 0 closure certification: **SUSPENDED / OPEN pending RC-006-A2**.
+- Exact section-level forward authority proof: **OPEN**.
+- Reverse normative-destination authority orphan proof: **OPEN**.
+- Phase 1A catalogue reconstruction: **recorded; owner review paused after `UC-001`**.
+- Next authorized review action after A2 PASS: **project-owner review of Proposed `UC-002`**.
 
 ## Phase 1 — Complete business use cases and high-level design
 
@@ -116,7 +120,7 @@ Prove that the accepted Product Contract supports every Beta 1.0.0 operator goal
   - affected workspaces and domain owners;
   - Product Contract and BETA-REQ references; and
   - acceptance scenarios without prescribing tables, classes, or libraries.
-- Cover setup, login, automatic login, locking, backup, recovery, Settings, both ticket workbenches, device-reference promotion, Tickets, Contract Product Line/SLA, Objective grouping, every Inventory discrepancy/return scenario, Infrastructure, offline communications, Overview, reporting, archive, retention, destructive previews, and restoration.
+- Cover setup, login, automatic login, backup, recovery, Settings, both ticket workbenches, device-reference promotion, Tickets, Contract Product Line/SLA, Objective grouping, every Inventory discrepancy/return scenario, Infrastructure, offline communications, Overview, reporting, archive, retention, destructive previews, and restoration. Explicit application lock/unlock remains excluded unless accepted product authority is added through controlled reopening.
 
 ### 1B. High-level design
 

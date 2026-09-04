@@ -1,6 +1,6 @@
 # P1A-W5 — Infrastructure Use Cases
 
-Status: **P1A-002 Rework — Goal Seeds pending Specification Gate; owner review paused**
+Status: **P1A-002 reconstruction complete — Goal Seeds pending Specification Gate; owner review paused pending RC-006-A2**
 
 ## UC-053 — Create a Site and its dedicated Dispatch Location
 Status: **Goal Seed — Specification Gate pending**

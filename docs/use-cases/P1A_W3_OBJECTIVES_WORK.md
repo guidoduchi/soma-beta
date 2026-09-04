@@ -1,6 +1,6 @@
 # P1A-W3 — Objectives & Operational Work Use Cases
 
-Status: **P1A-002 Rework — Goal Seeds pending Specification Gate; owner review paused**
+Status: **P1A-002 reconstruction complete — Goal Seeds pending Specification Gate; owner review paused pending RC-006-A2**
 
 ## UC-027 — Create a Local Task
 Status: **Goal Seed — terminology/authority corrected by P1A-002**

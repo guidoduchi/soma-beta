@@ -1,14 +1,14 @@
-# P1A-002 — Catalogue Structural Correction
+# P1A-002 — Controlled Use-Case Catalogue Reconstruction
 
-Status: **COMPLETED — structural repair passed; UC-002 owner review still blocked until its Specification Gate passes**  
-Scope: Phase 1A catalogue representation and traceability only.  
+Status: **COMPLETED — controlled reconstruction recorded; UC-002 Proposed; owner review paused pending RC-006-A2**  
+Scope: Phase 1A catalogue representation, decomposition topology, and traceability; accepted product authority remains unchanged.  
 Product authority: unchanged; Phase-0 accepted behavior remains authoritative.
 
 ## 1. Why this correction exists
 
 The initial 77-item Phase-1A catalogue successfully decomposed SOMA Beta 1.0 into a useful goal inventory, but its repository representation was not consistently acceptance-ready under `USE_CASE_METHOD.md`.
 
-The corrective pass addressed four specification-assurance defects without reopening approved product behavior:
+The controlled reconstruction addressed four specification-assurance defects without reopening approved product behavior:
 
 1. several draft UCs cited unrelated or overly broad `BETA-REQ` ranges;
 2. the seed format omitted fields required for a Proposed/Accepted use case;
@@ -21,6 +21,8 @@ The corrective pass addressed four specification-assurance defects without reope
 - `UC-002` onward owner acceptance remains **paused** until each candidate passes the Specification Gate.
 - Existing nonaccepted IDs may be narrowed, split, merged, or retired because they have not acquired accepted identity authority; every such disposition is recorded.
 - New/extracted goals received IDs from `UC-078` onward.
+- Every narrowed, split, merged, retired, extracted, or added seed records its original identity, retained principal goal, successor/derived IDs, `derived-from` relationship, governing authority, reason, and whether observable behavior changed.
+- An accepted UC may retain acceptance after repository expansion only when every added statement is demonstrably derived from already accepted authority. Any new actor decision, outcome, warning, exception, permission boundary, state transition, or other observable behavior returns the affected portion to owner review.
 - Cross-cutting UI mechanics remain acceptance/SI obligations unless they independently form an actor/system goal.
 - MOP generation remains outside Beta 1.0 and was not added.
 
@@ -85,7 +87,7 @@ Tasks and ticket work context select/link **Device References**. A resolved Devi
 - Allocated IDs: **95 (`UC-001..UC-095`)**.
 - Active goals: **94**.
 - Accepted UCs: **1 (`UC-001`)**.
-- Active Goal Seeds: **93**.
+- Active Goal Seeds: **92**.
 - Merged/retired pre-acceptance seeds: **1 (`UC-043 → UC-069`)**.
 - Finally resolved requirement coverage: **0 / 177** until accepted UC/SI family-level coverage is completed.
 - Product decisions changed by P1A-002: **0**.
@@ -95,7 +97,7 @@ Tasks and ticket work context select/link **Device References**. A resolved Devi
 
 | Exit criterion | Result |
 |---|---|
-| `UC-001` complete mandatory representation without semantic change | **PASS** |
+| `UC-001` expansion derived exclusively from accepted authority; no new observable behavior introduced | **PASS — acceptance retained under the accepted-specification expansion gate** |
 | Remaining seeds explicitly non-acceptance-ready until Specification Gate | **PASS** |
 | Known invalid authority references removed | **PASS** |
 | Extracted/missing goals registered | **PASS** |
@@ -104,14 +106,16 @@ Tasks and ticket work context select/link **Device References**. A resolved Devi
 | Index and traceability ledger synchronized | **PASS** |
 | Owner review remains paused before UC-002 until full Specification Gate | **PASS** |
 
-**P1A-002 STRUCTURAL CORRECTION: PASS / COMPLETED.**
+**P1A-002 CONTROLLED CATALOGUE RECONSTRUCTION: PASS / COMPLETED.**
 
 ## 8. Next action
 
-The next business-use-case owner review remains `UC-002`, but the seed must first be expanded internally into the complete mandatory specification and pass:
+`UC-002` has been expanded and has passed its Specification Gate, so it remains `Proposed`. Project-owner review is nevertheless paused after `UC-001` until RC-006-A2 passes its forward and reverse section-level assurance gates.
+
+After A2 PASS, `UC-002` is the next business-use-case owner review item. Subsequent seeds must still pass:
 
 `requirement → canonical family/subrange → normative destination → behavioral/recovery/evidence → duplicate/atomicity`
 
-Only then may it move to `Proposed` and be presented for project-owner acceptance.
+before they may move to `Proposed` and be presented for project-owner acceptance.
 
 P1A-002 itself accepts no additional product behavior and no additional use case.

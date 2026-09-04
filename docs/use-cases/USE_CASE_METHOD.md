@@ -1,7 +1,7 @@
 # SOMA Beta Phase 1A — Business Use-Case Method
 
-Status: **Accepted working method — amended by P1A-002 structural correction**  
-Phase authority: `docs/ROADMAP.md` Phase 1A and the Phase-0 accepted foundation recorded in `docs/reconciliation/PHASE0_ACCEPTANCE.md`.
+Status: **Accepted working method — amended by P1A-002 controlled catalogue reconstruction**  
+Phase authority: `docs/ROADMAP.md` Phase 1A and the accepted/frozen Phase-0 decision baseline recorded in `docs/reconciliation/PHASE0_ACCEPTANCE.md`; current closure-certification status is governed by `docs/reconciliation/RC006_A2_SECTION_DESTINATION_ASSURANCE.md` and `docs/reconciliation/RECONCILIATION_INDEX.md`.
 
 ## 1. Purpose
 
@@ -27,7 +27,8 @@ If a use-case draft exposes a genuine product contradiction or missing policy, P
 
 - Business use cases use `UC-###`, beginning with `UC-001`.
 - An **Accepted** `UC-*` identity is stable and is never reused for a different goal.
-- A pre-acceptance Goal Seed or Draft may be split, merged, narrowed, or retired during structural correction. Its disposition remains recorded so traceability is never silently lost.
+- A pre-acceptance Goal Seed or Draft may be split, merged, narrowed, or retired during controlled catalogue reconstruction. Its disposition remains recorded so traceability is never silently lost.
+- Every such transformation records the original identity, retained principal goal, successor/derived IDs, `derived-from` relationship, governing authority, reason, and whether observable behavior changed. If no unambiguous principal goal survives, the original seed is retired rather than misleadingly repurposed.
 - Extracted/new goals receive new identifiers from the next unused `UC-###`; accepted IDs are never renumbered to close gaps.
 - Phase-1A governance/checkpoint records use `P1A-*`; `CP-*` and `RC-*` remain reserved for their completed Phase-0 lineages.
 - Structural invariants are recorded in traceability as `SI` classifications rather than fabricated use cases.
@@ -70,6 +71,12 @@ A Goal Seed/Draft may move to `Proposed` only when all of the following pass:
 
 Failure of this gate returns the item to `Rework`; it is not presented to the project owner for semantic acceptance.
 
+### 4.2 Accepted-specification expansion gate
+
+An Accepted UC may be expanded in repository form without reopening acceptance only when every added statement is mechanically traceable to already accepted authority and introduces no new observable product behavior.
+
+The expansion record must prove that it adds no new actor decision, outcome, warning, exception, permission boundary, state transition, recovery obligation, or other observable behavior. If any such behavior is introduced or existing meaning becomes narrower/broader, the affected portion returns to project-owner review. Labeling an edit “non-semantic” is not evidence by itself.
+
 ## 5. Scope and granularity rules
 
 Create one use case per meaningful goal. Split when the actor objective, authority boundary, accepted end state, or materially different failure/recovery contract changes. Keep one use case when multiple UI actions are merely steps toward the same goal.
@@ -78,7 +85,7 @@ Examples of **not** separate use cases by themselves: clicking Save, opening a t
 
 System-triggered behavior is first-class. Scheduled import checks, background Communications processing, grace expiry/revalidation, notification evaluation, backup/runtime lifecycle behavior, and similar autonomous goals receive explicit system use cases where they produce meaningful observable product behavior.
 
-Cross-cutting UI obligations such as pointer/keyboard equivalence, focus restoration, hovered-pane scroll ownership, responsive reachability, reduced motion, non-color meaning, and confirmation-tier mechanics are normally acceptance obligations/SI applied to relevant UCs. They become a standalone UC only when the operator/system goal itself is independently meaningful.
+Cross-cutting UI obligations such as pointer/keyboard equivalence, focus restoration, hovered-pane scroll ownership, responsive reachability, reduced motion, non-color meaning, and confirmation-tier mechanics are normally acceptance obligations/SI applied to relevant UCs. They should be maintained in shared named acceptance profiles or SI records and explicitly referenced by each applicable UC, avoiding copied text that can drift. They become a standalone UC only when the operator/system goal itself is independently meaningful.
 
 ## 6. Structural invariants
 
@@ -128,11 +135,11 @@ or
 
 A pre-acceptance seed/draft may also be `Split`, `Merged`, `Retired as duplicate`, or `Classified SI`; the disposition and successor/reference must remain recorded.
 
-Acceptance is explicit. A proposed use case does not become product authority and cannot modify Phase-0 authority. If accepted Phase-0 wording must change, controlled reopening occurs separately.
+Acceptance is explicit. A proposed use case does not become product authority and cannot modify Phase-0 authority. If accepted Phase-0 wording must change, controlled reopening occurs separately. Repository expansion of an already Accepted UC must pass §4.2; otherwise the affected behavior returns to owner review.
 
 ## 9. Planned Phase-1A waves
 
-1. **P1A-W1 — Foundation & Settings**: first run, Local User Profile, authentication/locking/auto-login, reference setup, runtime/start/stop, backup/recovery-facing goals.
+1. **P1A-W1 — Foundation & Settings**: first run, Local User Profile, authentication/auto-login, reference setup, runtime/start/stop, backup/recovery-facing goals. Explicit application lock/unlock is excluded unless later authorized through controlled product reopening.
 2. **P1A-W2 — Tickets & Source Intake**: SR/RFC/WFM registration/import/review, Contacts/customer context, CPL classification/SLA-facing goals.
 3. **P1A-W3 — Objectives & Operational Work**: Local/WFM Tasks, planning, grouping/regrouping, execution/review/correction/retry, RFC cascade.
 4. **P1A-W4 — Inventory**: Spare Needs, Stock, Spare Requests, RMA/logistics, Task physical consequences, Fault Tags/warehouse/resend.

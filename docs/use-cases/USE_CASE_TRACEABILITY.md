@@ -1,12 +1,12 @@
 # SOMA Beta Phase 1A — Requirement / Use-Case Traceability
 
-Status: **P1A-002 structural correction completed — UC-002 Proposed after Specification Gate; final coverage remains pending owner acceptance**
+Status: **P1A-002 controlled reconstruction completed — UC-002 Proposed after Specification Gate; owner review paused pending RC-006-A2; final coverage pending**
 
 ## Purpose
 
 This is the Phase-1A forward coverage ledger. It deliberately does not duplicate the 11,524 canonical clauses. Exact canonical owner ranges remain authoritative in `docs/reconciliation/RC006_CLAUSE_DESTINATIONS.md`.
 
-P1A-002 corrected a systemic defect in the initial seed catalogue: several Goal Seeds cited unrelated or overly broad requirement ranges. No seed-level candidate mapping is allowed to masquerade as accepted coverage. Each active Goal Seed must pass the Specification Gate and re-derive its authority from canonical families before it can become `Proposed`.
+P1A-002 controlled catalogue reconstruction corrected a systemic defect in the initial seed catalogue: several Goal Seeds cited unrelated or overly broad requirement ranges. No seed-level candidate mapping is allowed to masquerade as accepted coverage. Each active Goal Seed must pass the Specification Gate and re-derive its authority from canonical families before it can become `Proposed`.
 
 ## Coverage states
 
@@ -30,12 +30,12 @@ P1A-002 corrected a systemic defect in the initial seed catalogue: several Goal 
 - active Goal Seeds: **92**
 - pre-acceptance merged/retired seeds: **1 (`UC-043 → UC-069`)**
 - finally resolved requirement coverage: **0 / 177** until owner-by-owner/family coverage is accepted
-- next owner review: **UC-002**
+- next owner review after `RC-006-A2` PASS: **UC-002**
 - current blocked product ambiguities: **0 known**
 
 `UC-001` is accepted and has complete mandatory repository representation, but `BETA-REQ-0078` remains mixed and is not finally resolved: password-change, auto-login, security/key, backup/recovery and structural families still require accepted UC/SI coverage.
 
-`UC-002` has passed the Specification Gate for the password-authentication goal but remains Proposed; it provides no final accepted coverage until project-owner acceptance.
+`UC-002` has passed the Specification Gate for the password-authentication goal but remains Proposed; owner review is paused pending `RC-006-A2`, and it provides no final accepted coverage until project-owner acceptance.
 
 ## Requirement registry
 

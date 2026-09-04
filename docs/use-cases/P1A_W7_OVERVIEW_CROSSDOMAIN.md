@@ -1,6 +1,6 @@
 # P1A-W7 — Overview & Cross-Domain Operations Use Cases
 
-Status: **P1A-002 Rework — Goal Seeds pending Specification Gate; owner review paused**
+Status: **P1A-002 reconstruction complete — Goal Seeds pending Specification Gate; owner review paused pending RC-006-A2**
 
 ## UC-070 — Navigate SOMA workspaces, lists, and workbenches
 Status: **Goal Seed — Specification Gate pending**

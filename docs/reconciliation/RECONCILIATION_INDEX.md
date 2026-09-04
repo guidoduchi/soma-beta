@@ -1,6 +1,6 @@
 # SOMA Beta Foundation Reconciliation Index
 
-Status: **RC-001 through RC-006 complete; RC-006-A1 applied; Phase 0 CLOSED; RC-006-A2 post-closure assurance hardening OPEN with F1 corrected**  
+Status: **RC-001–RC-005 PASS; RC-006 decision/ownership work PASS under A1; Phase-0 closure certification SUSPENDED pending RC-006-A2; Phase 1A owner review PAUSED after UC-001**  
 Branch: `foundation/product-contract-v0.1`  
 Reconciliation baseline commit: `38e41714640b39a34d079102595f99153451f562`  
 Accepted Phase 0 pre-closure head: `9402ee5a8bc8630523448c3382ab62e1d616e8d1`  
@@ -15,11 +15,11 @@ Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 can
 | `RC-003` | Workbench + Product Line/SLA | **Completed** | 0 | Workbench workflow and customer-specific SLA/classification authority aligned; no unresolved product contradiction |
 | `RC-004` | Inventory + Infrastructure | **Completed** | 0 | Physical Inventory/Infrastructure authority aligned; no unresolved product contradiction |
 | `RC-005` | Communications + UI/UX + Foundation Runtime + Branding | **Completed** | 0 | Cross-cutting communication, interaction, runtime, verification and brand authority aligned; no unresolved product contradiction |
-| `RC-006` | Architecture + Roadmap + repository-facing status + global bidirectional reconciliation audit | **Completed; amended by A1** | 0 | Derived synthesis aligned; A1 removes unsupported frontend selection and upgrades literal clause-destination proof; independent second pass closes status-only C21 |
+| `RC-006` | Architecture + Roadmap + repository-facing status + global bidirectional reconciliation audit | **Decision/ownership work completed under A1; section-level certification conditional pending A2** | 0 | Derived synthesis and literal clause ownership aligned; exact forward/reverse normative-section assurance remains open in A2 |
 
 `RC-006-A1` is a corrective amendment to RC-006, **not RC-007**.
 
-`RC-006-A2` is a **post-closure assurance-hardening amendment** that strengthens clause destination evidence from contract-level destination to exact primary normative section/subrange mapping. A2 is currently OPEN. It does not reopen Phase-0 product authority and does not invalidate the historical project-owner acceptance. A Phase-0 assurance addendum is created only after A2 itself passes.
+`RC-006-A2` is the **open closure-certification amendment** that strengthens clause destination evidence from contract-level destination to exact primary normative section/subrange mapping and adds mandatory reverse normative-destination authority proof. A2 does not reopen accepted product decisions and does not invalidate the historical project-owner acceptance; it suspends the current closure-certification claim until its forward and reverse invariants pass. A Phase-0 assurance addendum is created only after A2 itself passes.
 
 A2 has already produced one useful representation finding: `RC006-A2-F1`, correcting stale Product Contract §7 wording from direct Task→Network Element linking to the canonical Task→Device Reference relationship. This changed no requirement, canonical clause, clause owner, or product behavior.
 
@@ -88,7 +88,10 @@ The accepted Phase-0 product state remains:
 
 ### Additional assurance state
 
+- Current Phase-0 closure certification: **SUSPENDED / OPEN pending RC-006-A2**.
 - Exact clause/subrange → primary normative §section proof: **RC-006-A2 OPEN**.
+- Reverse normative-destination assertion → canonical authority proof: **RC-006-A2 OPEN**.
+- Phase 1A owner review: **PAUSED after `UC-001`; `UC-002` remains Proposed**.
 - A2 representation findings discovered: **1**.
 - A2 findings corrected: **1 (`RC006-A2-F1`)**.
 - Current known unresolved A2 representation findings: **0**.
@@ -110,8 +113,8 @@ A2 adds a stronger, separately tracked assurance layer and does not retroactivel
 
 ## Next authorized work
 
-Phase 0 product authority remains formally closed. No `RC-007` exists or is required.
+Phase 0’s accepted decision baseline remains frozen, and its historical acceptance action remains preserved. Current closure certification is suspended pending RC-006-A2. No `RC-007` exists or is required.
 
-Phase 1A remains the authorized roadmap phase. `P1A-002` structural correction is complete and `UC-002` has passed its Specification Gate; it is the next item pending project-owner review. RC-006-A2 may continue in parallel as assurance hardening without authorizing implementation or changing Phase-0 product behavior.
+Phase 1A remains the authorized roadmap phase. `P1A-002` controlled catalogue reconstruction is recorded and `UC-002` has passed its Specification Gate, but project-owner review is paused after `UC-001` until A2 passes. RC-006-A2 is the next governing assurance action; it does not authorize implementation or change Phase-0 product behavior.
 
 Phase 1B complete HLD begins only after Phase 1A acceptance. Production implementation remains blocked until the complete Beta 1.0.0 LLD is accepted.

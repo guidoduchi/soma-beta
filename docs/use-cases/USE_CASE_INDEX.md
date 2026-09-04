@@ -1,19 +1,19 @@
 # SOMA Beta Phase 1A — Use-Case Index
 
-Status: **P1A-002 structural correction completed — UC-002 Specification Gate PASS; pending owner review**  
+Status: **P1A-002 controlled reconstruction completed — UC-002 Specification Gate PASS; owner review paused pending RC-006-A2**  
 Phase-0 accepted baseline remains governed by `../reconciliation/PHASE0_ACCEPTANCE.md`.
 
 ## Governance
 
 - Method: `USE_CASE_METHOD.md`
-- Structural correction: `P1A_002_CATALOGUE_STRUCTURAL_CORRECTION.md`
+- Controlled catalogue reconstruction: `P1A_002_CATALOGUE_STRUCTURAL_CORRECTION.md`
 - Forward coverage ledger: `USE_CASE_TRACEABILITY.md`
 - Canonical clause-range authority: `../reconciliation/RC006_CLAUSE_DESTINATIONS.md`
 - Phase-0 owner acceptance: `../reconciliation/PHASE0_ACCEPTANCE.md`
 
 ## Status rule
 
-`UC-001` is accepted. `UC-002` has passed the internal Specification Gate and is **Proposed — pending project-owner review**.
+`UC-001` is accepted. `UC-002` has passed the internal Specification Gate and is **Proposed**, but project-owner review is paused until `RC-006-A2` passes.
 
 All other active entries are **Goal Seeds** until they pass the Specification Gate in `USE_CASE_METHOD.md`. They are not to be presented for owner acceptance in seed form.
 
@@ -27,7 +27,7 @@ Pre-acceptance IDs may be split/merged/narrowed/retired with recorded dispositio
 - Proposed: **1 (`UC-002`)**
 - Active Goal Seeds: **92**
 - Pre-acceptance merged/retired seeds: **1 (`UC-043 → UC-069`)**
-- Next owner review: **UC-002**
+- Next owner review after `RC-006-A2` PASS: **UC-002**
 
 ## Wave status
 
@@ -163,6 +163,6 @@ For each next ID:
 4. mark `Proposed` only after Specification Gate PASS; and
 5. then present it to the project owner for Approve/Rework/Split/Merge/SI disposition.
 
-`UC-002` has completed steps 1–4 and is now the next project-owner review item.
+`UC-002` has completed steps 1–4 and remains the next project-owner review item after `RC-006-A2` passes; owner review is currently paused.
 
 `P1A-W8` begins only after all active goals are accepted/reworked/merged/SI-classified and the forward ledger can prove every behavioral canonical clause family is exercised by accepted use cases or explicitly covered as SI.

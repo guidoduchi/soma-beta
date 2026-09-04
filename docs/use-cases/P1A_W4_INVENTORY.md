@@ -1,6 +1,6 @@
 # P1A-W4 — Inventory Use Cases
 
-Status: **P1A-002 Rework — Goal Seeds pending Specification Gate; owner review paused**
+Status: **P1A-002 reconstruction complete — Goal Seeds pending Specification Gate; owner review paused pending RC-006-A2**
 
 ## UC-038 — Record a faulty Device Part and create/contribute to a Spare Need
 Status: **Goal Seed — Specification Gate pending**

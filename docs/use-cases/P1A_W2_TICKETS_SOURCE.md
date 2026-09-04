@@ -1,6 +1,6 @@
 # P1A-W2 — Tickets & Source Intake Use Cases
 
-Status: **P1A-002 Rework — Goal Seeds pending Specification Gate; owner review paused**
+Status: **P1A-002 reconstruction complete — Goal Seeds pending Specification Gate; owner review paused pending RC-006-A2**
 
 Except where explicitly noted, entries in this file are Goal Seeds rather than acceptance-ready specifications.
 

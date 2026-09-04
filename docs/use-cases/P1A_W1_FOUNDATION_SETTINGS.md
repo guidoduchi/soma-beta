@@ -1,6 +1,6 @@
 # P1A-W1 — Foundation & Settings Use Cases
 
-Status: **P1A-002 Rework complete — UC-001 accepted; UC-002 Proposed after Specification Gate; remaining entries Goal Seeds**
+Status: **P1A-002 reconstruction complete — UC-001 accepted; UC-002 Proposed after Specification Gate; owner review paused pending RC-006-A2; remaining entries Goal Seeds**
 
 These entries do not select schema, APIs, frontend technology, libraries, algorithms, packaging, or other HLD/LLD mechanics. Except for `UC-001` and the explicitly `Proposed` `UC-002`, Goal Seeds are not acceptance-ready until expanded to the full `USE_CASE_METHOD.md` template and validated for authority.
 
@@ -28,7 +28,7 @@ Status: **Accepted — repository representation expanded non-semantically by P1
 
 ## UC-002 — Authenticate to an established SOMA installation
 
-Status: **Proposed — Specification Gate PASS; pending project-owner review**
+Status: **Proposed — Specification Gate PASS; project-owner review paused pending RC-006-A2**
 
 - **Primary actor:** Local Administrator.
 - **Supporting actor/source:** System, which verifies the local authentication credential and establishes the authenticated application context.
