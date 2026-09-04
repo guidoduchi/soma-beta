@@ -1,6 +1,6 @@
 # SOMA Beta Ticket and Objective Workbench Contract
 
-Status: **Foundation review v0.3**  
+Status: **Reconciled RC-003 — normative Beta 1.0.0 workbench contract**  
 Target: **SOMA Beta 1.0.0**
 
 Shared component behavior is governed by the [UI/UX Interaction Contract](UI_UX_CONTRACT.md). This workbench contract specializes that behavior for Tickets and Objectives.
@@ -15,7 +15,7 @@ Tickets open into a focused workbench rather than a sequence of disconnected dia
 - The narrow responsive layout keeps the same information and actions through switchable panes; it does not remove the communication side.
 - The right pane presents canonical retained matched communications, direction and age summaries, coverage/warnings, and safe navigation according to the Communications Contract. SOMA does not contact an email service.
 - All pointer actions have a keyboard equivalent, visible focus, and non-color state cues.
-- Relationship consolidation uses a reviewed merge preview. SOMA shows retained records, incoming context, conflicts, and consequences before applying the merge.
+- Relationship consolidation uses a reviewed context/relationship preview. SOMA shows retained records, incoming context, conflicts, and consequences before applying relationship changes; the preview never authorizes silent entity-identity merge.
 
 - Active row, selection, multi-selection, keyboard focus, and opened record remain distinct. A single click selects, double-click or Enter opens, and nested controls do not accidentally open the row.
 - Wheel and trackpad input belong to the nearest hovered scrollable workbench surface. Hovering the Ticket list scrolls the Ticket list; hovering the communication pane scrolls that pane; reaching either boundary does not chain into the other.
@@ -29,7 +29,7 @@ Tickets open into a focused workbench rather than a sequence of disconnected dia
 - One retained communication body exists once within its Communication Source Scope even when it links to several entities. A workbench relationship never copies the body, participant collections, or attachment metadata into the ticket or request.
 - Selecting a communication opens the canonical retained message only when its content is still available and the operator is permitted to view it. Missing source coverage, partial scans, collisions under review, parse failures, pending backfill, and purged content have distinct non-color warning states.
 - Locally generated unsent MSG drafts are shown separately from received/sent evidence and do not contribute to sent counts or interaction age.
-- After accepted SR/RFC termination, direct communication links are removed. The terminal workbench retains a frozen minimal summary containing prior received/sent counts, last known direction and interaction chronology, unlink chronology, and coverage state, but it does not retain or navigate to a purged body merely to preserve the summary.
+- An accepted terminal SR lifecycle transition may remove that SR's direct communication links under the Communications Contract. For RFCs, direct communication unlink occurs only after the separately reviewed and confirmed local terminal cascade; accepting provider terminal evidence or creating the pending cascade proposal does not itself unlink Communications. The applicable terminal workbench retains a frozen minimal summary containing prior received/sent counts, last known direction and interaction chronology, unlink chronology, and coverage state, but it does not retain or navigate to a purged body merely to preserve the summary.
 - A communication that remains linked to another protected operational entity stays available from that entity. Pending-purge and purge administration belongs to the Communication housekeeping surface, not the workbench.
 - Coverage and summary projections are reproducible from accepted communication/link/job history and never independently editable.
 
@@ -47,6 +47,8 @@ The accepted tab order is:
 ### 2.1 Overview
 
 Overview displays the complete accepted SR information supplied by the active Advanced Search allowlist, local identity/provenance, status, Contract Product Line/SLA context, and review warnings. Deferred fields do not become active workflow controls.
+
+Where SLA authority is shown, the workbench distinguishes reusable Product Line from the customer-and-Contract-specific Contract Product Line, identifies the applicable Contract/policy context when classified, preserves an explicit unclassified state when classification authority is unresolved, and separately identifies an uncalculable SLA result when required time evidence such as Report Date is missing. Classification changes preserve prior classification history and never rewrite completed reports.
 
 ### 2.2 Devices
 
@@ -89,7 +91,7 @@ Spares presents the SR-level BOM demand aggregated from Device Part Units across
 
 ### 2.4 RFCs
 
-The RFC tab appears between Spares and Tasks. It shows linked master RFCs with subordinate RFCs and their WFM branches nested beneath them. Linking, unlinking, or consolidating RFC context uses an impact/merge preview and cannot silently duplicate devices, Tasks, notes, or relationships.
+The RFC tab appears between Spares and Tasks. It shows linked master RFCs with subordinate RFCs and their WFM branches nested beneath them. Linking, unlinking, or consolidating RFC context uses an impact/context preview and cannot silently duplicate or merge entity identities, devices, Tasks, notes, or relationships.
 
 ### 2.5 Tasks
 
@@ -113,7 +115,7 @@ Notes are operational journal entries.
 
 ## 3. RFC workbench
 
-The RFC workbench uses the same open behavior, split layout, communication preview, responsive behavior, Notes rules, and merge-review principles.
+The RFC workbench uses the same open behavior, split layout, communication preview, responsive behavior, Notes rules, and relationship-review principles.
 
 Recognized source status controls active/terminal/historical placement. Workbook absence has no record-level meaning: it never hides, archives, terminates, unlinks, or stops tracking an RFC/WFM. Because source workbooks may include closed, cancelled, complete, and Plan Cancel history, SOMA keeps those identities available and performs filtering locally through visible filters and saved views.
 
@@ -134,8 +136,8 @@ Overview displays accepted Enhanced Excel facts, provisional/import provenance, 
 - The operator may relate the RFC branch to an existing SR or create a new SR from this flow.
 - When related to an SR, the tab exposes applicable device references from that SR and from the RFC's subordinate branches.
 - If no SR is linked, the operator may still add involved registered or unregistered device references directly to the RFC.
-- Linking an SR previews the proposed consolidation rather than silently merging working context.
-- Direct SR links target a master RFC; subordinate context is visible through the branch.
+- Linking an SR previews the proposed relationship/context consolidation rather than silently merging working context.
+- Direct SR links target the governing master/root RFC. When the action or evidence originates from a subordinate RFC, the proposal targets its governing master/root while preserving subordinate-origin provenance; subordinate RFCs do not become competing direct SR relationship targets.
 
 ### 3.3 Related RFCs
 
@@ -147,7 +149,7 @@ Overview displays accepted Enhanced Excel facts, provisional/import provenance, 
 ### 3.4 Tasks
 
 - The tab shows WFMs under their owning master or subordinate RFC.
-- Complete and Plan Cancel WFMs remain visible as terminal/cancelled history and never become active grouping candidates.
+- Complete and Plan Cancel WFMs remain visible as terminal/cancelled provider history and never become active grouping candidates. A provider-Complete WFM without Objective membership may separately produce a reviewed historical-Objective proposal only when accepted source planning satisfies that contract; this never fabricates actual execution or a SOMA Task outcome.
 - A Local Task may be created under a master or a subordinate RFC.
 - If no WFM exists, the absence does not block a Local Task.
 - WFM ownership remains exactly one RFC; a Local Task may relate to zero or many RFCs, including subordinate RFCs.
@@ -156,19 +158,20 @@ Overview displays accepted Enhanced Excel facts, provisional/import provenance, 
 
 An Objective is the reviewed grouping of scheduled Tasks, not an independently linked ticket container.
 
-- Creating or importing a future, noncancelled Task with a complete valid timeframe starts Objective grouping.
-- Grouping is global by transitive strict overlap; customer and RFC hierarchy remain explanatory partitions inside one temporal component.
+- A future, noncancelled Task with an accepted operational Task plan enters reviewed Objective grouping. An imported WFM source plan is immutable provider evidence and the default reviewed operational-plan candidate; accepting source evidence alone does not silently accept an operational Task plan or commit Objective regrouping.
+- Grouping is global by transitive strict overlap over eligible accepted operational Task plans; customer and RFC hierarchy remain explanatory partitions inside one temporal component.
 - Exactly touching intervals remain separate unless the operator explicitly reviews a merge.
-- A Task whose interval overlaps an existing Objective is proposed for that Objective.
-- If it bridges multiple Objectives, SOMA proposes one consolidation and the union timeframe; overlapping Objectives cannot remain after acceptance.
-- The operator reviews and may correct the Task interval or manually reassign Tasks before accepting a grouping conflict.
-- Adding or removing a Task recalculates the Objective timeframe from its accepted Task windows.
-- A Local Task created inside an Objective inherits that Objective timeframe, not its identity.
-- A Task without a timeframe remains unscheduled and creates no Objective.
+- A Task whose accepted operational interval overlaps an existing Objective is proposed for that Objective.
+- If it bridges multiple Objectives, SOMA proposes one consolidation and the union envelope; overlapping Objectives cannot remain after acceptance.
+- Source-plan/Task-plan acceptance and Objective-regrouping acceptance are separate decisions. A grouping proposal is non-authoritative, carries exact base revisions/diffs, and freshly revalidates Task plans, membership, locks, and global non-overlap before atomic commit.
+- The operator may review and correct the Task plan or choose another permitted scheduling disposition before accepting a grouping conflict; any resulting grouping is recomputed from current accepted plans rather than forced from stale preview state.
+- Adding or removing a Task recalculates the Objective planned envelope from its accepted member Task plans.
+- A Local Task created inside an Objective may initialize its operational Task plan from that Objective's current envelope, but its accepted plan thereafter remains independently reviewable; membership never gives the Objective authority to overwrite an established Task plan silently.
+- A Task without an accepted operational timeframe remains unscheduled and creates no Objective.
 - A cancelled Task does not create an Objective automatically.
 - Every accepted Objective contains at least one Task. Removing the last Task requires atomic removal of an otherwise deletable untouched Objective.
 
-Local Tasks remain first-class and may be unscheduled. A Local Task created in an Objective may start with that Objective's interval, but its accepted plan is independently reviewable and the Objective envelope remains derived from Task plans. Source WFM plan, accepted Task plan, Objective envelope, and actual execution are displayed as distinct facts when they differ.
+Local Tasks remain first-class and may be unscheduled. Source WFM plan, accepted operational Task plan, Objective envelope, and actual execution are displayed as distinct facts when they differ.
 
 Starting an Objective does not start all Tasks. During or after an activity, the operator may cancel an individual unstarted Task while completing the rest. Per-Task Completed, Incomplete, Cancelled without execution, and Awaiting Review outcomes produce an explicit mixed Objective result; whole-Objective Cancelled is available only when nothing began. Loss of the final executable Task produces `Incomplete — Awaiting Review`.
 
@@ -181,8 +184,8 @@ Objective schedule input and calendars use the selected IANA Objective timezone.
 - Imported cancelled, resolved, and closed SRs remain visible and are visually muted in the configured Daily, Weekly, or Monthly main period.
 - Weekly is the installation default; Daily and Monthly are selectable.
 - After the configured period, terminal tickets leave the main view and remain accessible in Historical view.
-- Imports older than the configured historical lookback are governed by the Import Contract.
-- Imported tickets cannot be officially reopened by SOMA. A source observation implying reopening is treated as possible parsing or external-data manipulation: high risk, but permitted after explicit operator confirmation and audit.
+- Advanced Search terminal-row historical lookback is governed by the Import Contract. RFC/WFM history has no age- or omission-driven record lifecycle.
+- One official SR identity survives terminality and any reviewed terminal reversal as the same record. A recognized source terminal-to-nonterminal observation is a high-risk same-record lifecycle correction requiring explicit confirmation and audit; acceptance preserves the prior terminal evidence, recalculates current projections, and never creates a replacement/reopened SR episode. Missing, malformed, or unknown status evidence cannot perform that reversal.
 - Manual SRs may use their accepted local lifecycle until official reconciliation.
 
 ## 6. Infrastructure workspace exchange
