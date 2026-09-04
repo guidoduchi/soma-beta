@@ -12,8 +12,8 @@ Normalization parent lineage: CP-001 through CP-007, **177 / 177**, **11,524 can
 | `RC-001` | Reconciliation doctrine + Decision Ledger + Glossary + Product Contract + first cross-document audit | **Completed** | 1 provenance clarification, resolved as D-158 | Core authority aligned; no unresolved product contradiction |
 | `RC-002` | Import + RFC/WFM | **Completed** | 0 | Source/import and RFC/WFM lifecycle authority aligned; no unresolved product contradiction |
 | `RC-003` | Workbench + Product Line/SLA | **Completed** | 0 | Workbench workflow and customer-specific SLA/classification authority aligned; no unresolved product contradiction |
-| `RC-004` | Inventory + Infrastructure | **Completed in this checkpoint** | 0 | Physical Inventory/Infrastructure authority aligned; no unresolved product contradiction |
-| `RC-005` | Communications + UI/UX + Foundation Runtime + Branding | Planned | — | — |
+| `RC-004` | Inventory + Infrastructure | **Completed** | 0 | Physical Inventory/Infrastructure authority aligned; no unresolved product contradiction |
+| `RC-005` | Communications + UI/UX + Foundation Runtime + Branding | **Completed in this checkpoint** | 0 | Cross-cutting communication, interaction, runtime, verification and brand authority aligned; no unresolved product contradiction |
 | `RC-006` | Architecture + Roadmap + global bidirectional reconciliation audit | Planned | — | — |
 
 Checkpoint numbering is reconciliation-specific. The completed requirement-normalization `CP-*` lineage is not extended by these records.
@@ -43,7 +43,13 @@ Checkpoint numbering is reconciliation-specific. The completed requirement-norma
 - `RC004_TRACEABILITY.md` — physical-domain requirement/clause and reverse-assertion coverage.
 - `RC004_CONTRADICTIONS.md` — resolved physical-domain contradictions and downstream queue.
 
-## Cumulative state after RC-004
+## RC-005 artifacts
+
+- `RC005_CROSSCUTTING_AUTHORITY.md` — Communications/UI/Runtime/Branding forward and reverse reconciliation report.
+- `RC005_TRACEABILITY.md` — cross-cutting requirement/clause and reverse-assertion coverage.
+- `RC005_CONTRADICTIONS.md` — resolved cross-cutting contradictions and RC-006 queue.
+
+## Cumulative state after RC-005
 
 - Normalized requirements changed: **0**.
 - Canonical stable clause identities changed: **0**.
@@ -53,7 +59,8 @@ Checkpoint numbering is reconciliation-specific. The completed requirement-norma
 - Product-owner clarifications opened by RC-002: **0**.
 - Product-owner clarifications opened by RC-003: **0**.
 - Product-owner clarifications opened by RC-004: **0**.
-- Known unresolved Phase 0 product questions after RC-004: **0**.
+- Product-owner clarifications opened by RC-005: **0**.
+- Known unresolved Phase 0 product questions after RC-005: **0**.
 - Open technical-design boundaries remain intentionally open: `O-001`, `O-003`, `O-004`, `O-005`, `O-006`, `O-007`, `O-010`.
 
 ## Known downstream reconciliation queue
@@ -62,7 +69,6 @@ These are document-reconciliation defects or pending audits, not unresolved prod
 
 1. `ARCHITECTURE.md` currently assigns Task outcomes inside Inventory ownership; normalized and RC-004 authority assigns Task execution/outcome/review/correction/retry to Objectives/Task lifecycle, with Inventory consuming reviewed physical consequences.
 2. `ROADMAP.md` still contains pre-completion wording saying Phase 0 normalization remains.
-3. `BRANDING.md` contains a duplicated language-switching deferral line.
-4. Communications, UI/UX, Foundation Runtime, Branding, Architecture, and Roadmap still require their owning reconciliation checkpoints.
+3. RC-006 still must reconcile Architecture and Roadmap and execute the global bidirectional orphan/contradiction audit across the complete foundation.
 
-These items remain queued for their owning waves rather than being silently patched out of order.
+These items remain queued for their owning synthesis wave rather than being silently patched out of order.

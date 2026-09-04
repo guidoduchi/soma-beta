@@ -1,6 +1,8 @@
 # SOMA Beta Brand and UX Contract
 
-SOMA Beta deliberately carries forward the approved SOMA identity. Migration of the canonical Alpha assets is a later, reviewed repository change; this document prevents accidental reinterpretation in the meantime.
+Status: **Reconciled RC-005 — normative Beta 1.0.0 Brand/UX contract**
+
+SOMA Beta deliberately carries forward the approved SOMA identity under its own proprietary/internal Beta boundary. The canonical SOMA brand assets are owned by the project owner and may be used and distributed under those Beta terms; their SOMA Alpha history remains provenance only and does not make Alpha's Apache-2.0 license the licensing basis for the Beta-owned assets. Per accepted decision `D-158`, the canonical assets contain no third-party material requiring surviving third-party licensing.
 
 ## 1. Canonical identity
 
@@ -10,7 +12,7 @@ SOMA Beta deliberately carries forward the approved SOMA identity. Migration of 
 - **Wordmark:** custom geometric SOMA lettering with the open triangular `A`.
 - **Approved source assets:** `soma-mark.svg`, `soma-wordmark.svg`, `soma-lockup.svg`, `soma.ico`, and `soma-tray.ico`.
 
-These assets must be selectively migrated from the approved historical source and compared visually; they must not be recreated from memory.
+Canonical assets used in Beta shall come from the approved owner-controlled source/repository and be compared visually against the accepted reference. Their controlled reuse shall preserve ownership/provenance records; they shall not be recreated from memory, and historical Alpha repository provenance shall not be represented as automatic Beta license inheritance.
 
 ## 2. Placement
 
@@ -52,7 +54,5 @@ The complete normative interaction behavior is in the [UI/UX Interaction Contrac
 - Three-second deliberate hold is an allowlisted confirmation tier with accessible progress. It is required for Device Reference promotion and may be assigned only to other consequential actions where it meaningfully interrupts mistakes.
 - Overview metrics and attention items preserve filter/scope context and remain projections over accepted domain state.
 - Windows tray behavior remains required.
-
-Language switching is scheduled for 1.x.0.
 
 Language switching is scheduled for 1.x.0.

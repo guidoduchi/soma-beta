@@ -1,8 +1,8 @@
 # SOMA Beta Foundation Runtime, Persistence, Audit, and Verification Contract
 
-Status: **Foundation review v0.1**  
+Status: **Reconciled RC-005 — normative Beta 1.0.0 Foundation Runtime contract**  
 Target: **SOMA Beta 1.0.0**  
-Authority: accepted `BETA-REQ-0131` through `BETA-REQ-0144` and decisions `D-105` through `D-118`.
+Authority: accepted `BETA-REQ-0004`, `BETA-REQ-0131` through `BETA-REQ-0144`, and decisions `D-105` through `D-118`.
 
 ## 1. Purpose and authority boundaries
 
@@ -126,7 +126,9 @@ Accepted reproducible defects receive regression tests. Required failures, unexp
 
 ## 9. Windows and Python continuous integration
 
-CI runs the governed suite on Windows for every supported runtime, initially Python 3.13 and 3.14. Each matrix entry reports its exact interpreter, runner image, dependency resolution, selection, and result. Changing support requires an explicit decision and synchronized documentation.
+Beta 1.0 product support is 64-bit Windows 10 and Windows 11 with Python 3.13 and Python 3.14. CI and representative desktop acceptance shall produce evidence across that approved support boundary; test-runner convenience shall not narrow it. Exact Windows editions/builds, browser versions, runner images, and packaging combinations remain the design boundary `O-006` and are resolved in LLD/verification planning without changing product support.
+
+Each required matrix entry reports its exact interpreter, runner image, dependency resolution, selection, and result. Changing the product support boundary requires an explicit product decision and synchronized documentation.
 
 Draft pull requests may omit the expensive full matrix but retain bounded validation for workflow/project syntax, imports, migration-manifest consistency, and directly affected deterministic tests. Marking a pull request ready triggers the full current-head matrix. Every later non-draft revision invalidates older results.
 
@@ -134,7 +136,7 @@ Every protected-primary-branch push and release candidate runs the complete requ
 
 Dependencies resolve from governed reproducible metadata. Jobs use isolated temporary workspaces and exercise relevant Windows paths, Unicode, line endings, locking, registry handling, atomic replacement, process shutdown, spreadsheet behavior, and SQLite sidecars.
 
-CI uses synthetic data and no production credentials, customer content, Outlook profile, or operator-specific location. Logs/artifacts follow redaction and minimization. Hosted CI is supplemented before release by representative Windows desktop acceptance across Python 3.13 and 3.14 for startup, browser, registry, imports/exports, filesystem permissions, and responsive interaction.
+CI uses synthetic data and no production credentials, customer content, Outlook profile, or operator-specific location. Logs/artifacts follow redaction and minimization. Hosted CI is supplemented before release by representative supported Windows desktop acceptance across Python 3.13 and 3.14 for startup, browser, registry, imports/exports, filesystem permissions, and responsive interaction.
 
 Branch protection requires current results. Emergency bypass is attributable and reasoned and must be followed by complete validation; it never converts missing evidence into success.
 
@@ -241,7 +243,7 @@ Before Beta 1.0 release, evidence includes:
 3. lifecycle/audit/proposal/diagnostic separation and atomic mutation/audit behavior;
 4. JSON malformed/version/upgrade/concurrency/recovery cases;
 5. identifier/hierarchy/lifecycle/immutability/schema/import-export invariant suites;
-6. current-revision Windows Python 3.13/3.14 CI plus representative desktop acceptance;
+6. current-revision evidence across the accepted Windows 10/11 x64 and Python 3.13/3.14 support boundary, using the exact verification matrix selected under `O-006`;
 7. keyboard/pointer/touch/responsive/focus/reduced-motion/semantic/hover-scroll/hold acceptance;
 8. loopback binding, forged/stale registry, PID/port reuse, proxy/redirect, origin, shutdown, crash/restart cases;
 9. diagnostic structure/rotation/failure and redaction canaries; and
@@ -251,4 +253,4 @@ Missing, skipped, nondeterministic, stale, cancelled, or unexplained required ev
 
 ## 17. LLD responsibilities
 
-LLD defines the connection factory, pragma verification, FK-index map, migration/manifest/canonical-byte model, migrator lock, status protocol, JSON schema registry/upgraders, event/audit schemas and transactions, audit protections and idempotency store, diagnostic format/path/rotation/queue/fallback/redaction rules, canary corpus, local runtime registry/lock/process-birth/health/session/shutdown protocols, Windows/Python/browser matrix, CI workflows/branch protection, exact automated/manual test allocation, acceptance fixtures, stable errors, resource limits, and recovery procedures. No LLD choice may weaken this contract.
+LLD defines the connection factory, pragma verification, FK-index map, migration/manifest/canonical-byte model, migrator lock, status protocol, JSON schema registry/upgraders, event/audit schemas and transactions, audit protections and idempotency store, diagnostic format/path/rotation/queue/fallback/redaction rules, canary corpus, local runtime registry/lock/process-birth/health/session/shutdown protocols, Windows/Python/browser matrix under `O-006`, CI workflows/branch protection, exact automated/manual test allocation, acceptance fixtures, stable errors, resource limits, and recovery procedures. No LLD choice may weaken this contract or narrow the accepted product-support boundary without an explicit product decision.

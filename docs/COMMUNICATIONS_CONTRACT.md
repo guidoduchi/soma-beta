@@ -1,8 +1,8 @@
 # SOMA Beta Communications Contract
 
-Status: **Foundation review v0.1**  
+Status: **Reconciled RC-005 — normative Beta 1.0.0 Communications contract**  
 Target: **SOMA Beta 1.0.0**  
-Authority: accepted `BETA-REQ-0111` through `BETA-REQ-0122` and decisions `D-085` through `D-096`.
+Authority: accepted `BETA-REQ-0111` through `BETA-REQ-0122`, reconciled RFC terminal-cascade authority, and decisions `D-085` through `D-096`.
 
 ## 1. Purpose and boundary
 
@@ -132,9 +132,9 @@ Communication matching may create an idempotent reviewed proposal under the owni
 
 ## 8. Terminal unlink, orphan grace, and purge
 
-Accepted terminal Service Request or RFC state removes that entity's direct communication links through an audited domain event. It does not remove links to other protected operational entities, erase the terminal entity, or treat the communication body as part of the terminal record.
+An authoritatively accepted terminal Service Request transition removes only that SR's direct Communication links through an audited domain event. An RFC's direct Communication links are removed only by the separately reviewed and confirmed local terminal cascade governed by the RFC lifecycle. Neither unlink removes links to other protected operational entities, erases the terminal entity, or treats the Communication body as part of the terminal record.
 
-For imported RFC terminal evidence, “accepted terminal state” means the explicit confirmed cascade decision governed by `BETA-REQ-0161`, not parsing, staging, import acceptance alone, or a pending proposal. Master-branch confirmation never removes an SR link or a communication's other protected entity links.
+For imported RFC terminal evidence, provider terminal evidence acceptance commits the evidence and pending cascade proposal only. Parsing, staging, import acceptance alone, or the existence of a pending cascade proposal does not unlink RFC Communications. Only the explicit confirmed cascade decision governed by `BETA-REQ-0161`, after fresh revalidation, authorizes the RFC's direct unlink. Master-branch confirmation never removes an SR link or a Communication's other protected entity links.
 
 After link removal, a retained communication with no remaining operational link, unresolved reviewed proposal, correction dependency, collision review, protected export dependency, or other protected hold enters **Orphaned — Pending Purge**.
 
@@ -214,7 +214,7 @@ Active Service Request, Spare Request, and RFC communication panels distinguish:
 
 Counts and age are derived from surviving accepted links and canonical messages. The workbench never stores a second body or changes a canonical message through a ticket view.
 
-Immediately before accepted SR/RFC termination removes its direct links, SOMA freezes a data-minimized terminal communication summary: received/sent counts, last known direction, last independently known interaction chronology, coverage state, and unlink chronology. The summary is immutable historical evidence, not a retained message body. It survives orphan purge and does not provide body navigation after content is unavailable.
+Immediately before the governed unlink event removes an SR or RFC's direct links, SOMA freezes a data-minimized terminal Communication summary: received/sent counts, last known direction, last independently known interaction chronology, coverage state, and unlink chronology. For an SR, that event follows the authoritatively accepted terminal transition. For an RFC, it occurs only at the separately confirmed local terminal cascade—not at provider terminal-evidence acceptance or pending-cascade creation. The summary is immutable historical evidence, not a retained message body. It survives orphan purge and does not provide body navigation after content is unavailable.
 
 Spare Request or another entity that retains a protected link continues to show the canonical communication normally. One entity's terminal state must not falsify another entity's counts or purge eligibility.
 
@@ -242,7 +242,7 @@ Beta 1.0 acceptance shall cover at least:
 8. proposal creation, review, rejection, acceptance, correction, and no implicit mutation;
 9. hourly default, configuration, disable, Check now, coalescing, one catch-up, and non-overlap;
 10. progress, unknown estimates, cancellation, partial coverage, bounded retry, redacted diagnostics, and restart;
-11. terminal SR/RFC unlink while another protected link survives;
+11. terminal SR unlink and confirmed-RFC-cascade unlink while another protected link survives;
 12. last-link removal, seven-exact-day default grace, relink cancellation, due-time dependency race, purge, purge record, and backup/external-file nonmutation;
 13. terminal reversal before and after purge, source unavailable, and coverage warning;
 14. active and terminal workbench counts, direction, age, coverage, canonical navigation, draft separation, body nonduplication, and frozen summary;
@@ -268,3 +268,5 @@ The LLD shall define exact:
 - redaction allowlists and safe diagnostics;
 - API commands, permissions, stable errors, no-op/idempotency behavior, concurrency, and rollback; and
 - desktop/web UI states, accessibility, keyboard equivalence, localization-ready text, and deterministic tests.
+
+Exact PST/OST parser/library/subset selection remains the separate design boundary `O-004`; reconciliation does not choose it.

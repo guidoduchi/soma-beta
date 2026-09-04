@@ -1,8 +1,8 @@
 # SOMA Beta UI/UX Interaction Contract
 
-Status: **Foundation review v0.1**  
+Status: **Reconciled RC-005 — normative Beta 1.0.0 UI/UX interaction contract**  
 Target: **SOMA Beta 1.0.0**  
-Authority: accepted `BETA-REQ-0123` through `BETA-REQ-0130`, application-acceptance requirement `BETA-REQ-0139`, and decisions `D-097` through `D-104` plus `D-113`.
+Authority: accepted `BETA-REQ-0123` through `BETA-REQ-0130`, application-acceptance requirement `BETA-REQ-0139`, reconciled owning-domain authority, and decisions `D-097` through `D-104` plus `D-113`.
 
 ## 1. Purpose and authority
 
@@ -136,7 +136,7 @@ Customer filters use immutable Customer Organization identity, support all/speci
 
 Communication summary derives received/sent/unknown direction, last independently supported interaction/age, proposals and coverage from canonical links. MSG drafts do not count. Terminal SR/RFC uses its frozen summary without body reconstruction.
 
-Inventory summary derives Needs, allocations, requests, RMAs, physical units, Task outcomes, returns, Fault Tags, warehouse decisions, and resend/action-required positions. Mixed/partial state exposes constituent counts instead of false aggregate completion.
+Inventory summary derives Needs, allocations, requests, RMAs, physical units, reviewed Task-outcome context, Inventory-owned physical consequences, returns, Fault Tags, warehouse decisions, and resend/action-required positions. The Task outcome itself remains owned by Objectives/Task lifecycle; Inventory presentation consumes that reviewed context without creating competing Task-outcome truth. Mixed/partial state exposes constituent counts instead of false aggregate completion.
 
 Objective/Maintenance Window context derives through Tasks and identifies applicable Task, Objective interval/state, and RFC/WFM context. No competing direct mutable SR-Objective relationship is created.
 
