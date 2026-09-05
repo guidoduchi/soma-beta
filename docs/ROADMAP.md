@@ -89,7 +89,7 @@ Turn SOMA Alpha into a controlled historical source and establish the complete n
 - Recorded foundation gaps: **PASS — 16/16 resolved; 0 Open**.
 - Contract reconciliation: **PASS through RC-006 with RC-006-A1 applied**.
 - Literal canonical stable-clause destination audit: **PASS — 11,524/11,524; missing 0; extra 0; duplicate 0; owner mismatch 0**.
-- Reverse normative-assertion authority audit: **PASS — 0 known unsupported assertions**.
+- Reverse normative-assertion authority audit: **OPEN under RC-006-A2 — historical pre-A2 reconciliation reported 0 known unsupported assertions; A2 currently has unresolved reverse-authority gaps (`F4`, `F6`) and pending B002 correction/supersession dispositions (`F1`, `F5`)**.
 - Unsupported settled implementation/framework assertion: **PASS — 0 known after RC-006-A1**.
 - Known unresolved Phase 0 product questions: **0**.
 - Remaining `O-*` items and exact frontend framework/language/build-tool selection are bounded downstream design questions and do not reopen settled product behavior.
