@@ -1,6 +1,6 @@
 # RC-006-A2 Import boundary review and process simplification
 
-Status: **Human boundary review complete; canonical candidate freeze pending its one-file commit; reverse authority and A2 certification OPEN.**
+Status: **Human boundary review and stable-ID allocation complete; reverse authority and A2 certification OPEN.**
 
 This record is excluded reconciliation evidence. It changes no B002 source,
 requirement, product decision, use-case state or allocated assertion.
@@ -77,14 +77,23 @@ evidence record are removed. Their historical commits and successful run remain
 available in Git history. The 95-UC readiness assessment and every substantive
 semantic finding are retained.
 
-## Next boundary
+## Freeze and allocation result
 
-The next commit may add exactly the canonical Import candidate JSONL and no
-other path. After its blob is verified, the general allocation path may register
-that frozen identity, preallocate once, allocate `A2-ASSERT-000432` onward and
-continue to the next destination source. The accumulated A2 validator remains
-the final assurance gate.
+The candidate freeze commit `6237b75692e4f9c0dc0a16aad2294da0996bfd29`
+changed exactly one path: the canonical Import candidate JSONL. Git independently
+reports blob `e9a66fe4b9343929f70c40cd0c7cf24320b16233`, matching the reviewed prediction.
 
-Product allocation remains 431 records through `A2-ASSERT-000431`; Import is not
-yet allocated. UC owner review remains paused until RC-006-A2 PASS. HLD, complete
-LLD acceptance and production implementation remain downstream gates.
+The existing schema's deterministic allocation rule was applied directly to the
+frozen bytes. Batch `A2-BATCH-0002-IMPORT-CONTRACT` allocates 222 identities from
+`A2-ASSERT-000432` through `A2-ASSERT-000653`. All begin ACTIVE with
+`PENDING_AUTHORITY`, empty canonical owners/clauses/forward edges and no
+contradiction finding. Product's 431 existing ledger bytes remain the exact prefix.
+
+The reusable frozen-candidate registry now records Product and Import identities;
+future contracts append one entry rather than requiring another allocator version.
+The next initial destination is `docs/RFC_WFM_CONTRACT.md`. Human boundary review
+and direct candidate preparation may proceed there while accumulated validation
+remains the eventual assurance gate.
+
+UC owner review remains paused until RC-006-A2 PASS. HLD, complete LLD acceptance
+and production implementation remain downstream gates.
