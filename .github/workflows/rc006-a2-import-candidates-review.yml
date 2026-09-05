@@ -12,6 +12,8 @@ on:
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_3_1.py'
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_4.py'
       - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5.py'
+      - 'tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5_2.py'
+      - 'tools/reconciliation/test_rc006_a2_import_v0_5_2.py'
   workflow_dispatch:
 
 permissions:
@@ -37,6 +39,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/rc006-a2-import-review
+          sha256sum docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json \
+            docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl \
+            > /tmp/rc006-a2-import-review/allocation-before.sha256
           python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py \
             --repo . check-state \
             --output /tmp/rc006-a2-import-review/state.json
@@ -52,10 +57,13 @@ jobs:
           print('IMPORT_NEXT_SOURCE_BOUNDARY\tPASS')
           PY
 
-      - name: Generate context-closed Import candidate corpus
+      - name: Test review-note-only transformation and refusal paths
+        run: python -m unittest discover -s tools/reconciliation -p 'test_rc006_a2_import_v0_5_2.py' -v
+
+      - name: Generate review-note-corrected Import candidate corpus
         run: |
           set -euo pipefail
-          python tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5.py \
+          python tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5_2.py \
             --repo . \
             --output /tmp/rc006-a2-import-review/import-candidates.jsonl \
             --summary /tmp/rc006-a2-import-review/import-summary.json \
@@ -70,13 +78,22 @@ jobs:
             --candidates /tmp/rc006-a2-import-review/import-candidates.jsonl \
             --output /tmp/rc006-a2-import-review/validator.json
 
-      - name: Enforce final context-closure invariants
+      - name: Enforce retained boundaries and explicit open semantic review
         run: |
           set -euo pipefail
           python - <<'PY'
           import json
           from pathlib import Path
           rows=[json.loads(x) for x in Path('/tmp/rc006-a2-import-review/import-candidates.jsonl').read_text(encoding='utf-8').splitlines()]
+          summary=json.loads(Path('/tmp/rc006-a2-import-review/import-summary.json').read_text(encoding='utf-8'))
+          assert summary['semantic_review']=='OPEN'
+          assert summary['freeze_authorized'] is False
+          assert summary['allocation_authorized'] is False
+          assert summary['parent_candidate_payload_sha256']=='ce0a6102cc72ef6e0ef4a00a12f0bb7ae8f15db5c7c6d12ddb301192e1663dfc'
+          assert summary['changed_fields']==[{'section_ordinal':26,'assertion_ordinal':2,'field':'review_note'}]
+          members=[r for r in rows if r['section_ordinal']==26]
+          assert [(r['assertion_ordinal'],r['source_start_line'],r['source_end_line'],r['normative_kind']) for r in members]==[(1,256,256,'PERMISSION'),(2,258,258,'PROHIBITION')]
+          assert "'It'" in members[1]['review_note'] and 'line 256' in members[1]['review_note']
           assert len(rows)==186
           assert sorted({r['section_ordinal'] for r in rows}) == [1,2,3,4,5,7,8,9,10,11,12,13,15,16,17,18,21,25,26,27,28,29]
           assert all(r['classification_review']=='PASS' for r in rows)
@@ -100,24 +117,35 @@ jobs:
           # Future-use field boundaries must carry the allowlist and consequence together.
           assert any(r['source_start_line']==144 and r['source_end_line']==151 and 'These fields cannot silently select' in r['exact_text'] for r in rows)
           assert any(r['source_start_line']==182 and r['source_end_line']==189 and 'These fields drive no Beta 1.0 actor assignment' in r['exact_text'] for r in rows)
-          print('CONTEXT_CLOSED_IMPORT_REVIEW_INVARIANTS\tPASS')
+          print('IMPORT_BOUNDARY_PRESERVATION\tPASS; FULL_SEMANTIC_REVIEW\tOPEN')
           PY
 
       - name: Record deterministic review identities
         run: |
           set -euo pipefail
           git rev-parse 61bbd665535e942ef3b05c5ed45661639d3a37a9:docs/IMPORT_CONTRACT.md > /tmp/rc006-a2-import-review/source-blob.txt
-          git rev-parse HEAD:tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5.py > /tmp/rc006-a2-import-review/generator-blob.txt
-          sha256sum tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5.py > /tmp/rc006-a2-import-review/generator-sha256.txt
+          git rev-parse HEAD:tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5_2.py > /tmp/rc006-a2-import-review/generator-blob.txt
+          sha256sum tools/reconciliation/prepare_rc006_a2_import_candidates_v0_5_2.py > /tmp/rc006-a2-import-review/generator-sha256.txt
           sha256sum /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-sha256.txt
           wc -l /tmp/rc006-a2-import-review/import-candidates.jsonl > /tmp/rc006-a2-import-review/candidate-count.txt
           cat /tmp/rc006-a2-import-review/import-summary.json
           cat /tmp/rc006-a2-import-review/validator.json
 
+      - name: Recheck allocation and repository nonmutation
+        if: always()
+        run: |
+          set -euo pipefail
+          sha256sum --check /tmp/rc006-a2-import-review/allocation-before.sha256
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py \
+            --repo . check-state --output /tmp/rc006-a2-import-review/state-after.json
+          cmp /tmp/rc006-a2-import-review/state.json /tmp/rc006-a2-import-review/state-after.json
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
+
       - name: Upload review evidence
         uses: actions/upload-artifact@v4
         with:
-          name: rc006-a2-import-candidate-review-v05
+          name: rc006-a2-import-candidate-review-v052
           path: /tmp/rc006-a2-import-review/
           if-no-files-found: error
           retention-days: 90
