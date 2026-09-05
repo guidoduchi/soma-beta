@@ -37,8 +37,8 @@ These are deliberately **not forced into PASS mappings** yet:
 ## Progress accounting
 
 - Allocated destination assertions: **653**.
-- Semantically mapped in this file so far: **9 assertion identities with at least one reviewed forward edge** (`000005`–`000011`, `000013`–`000015`; `000014` remains only partially covered).
-- Fully authority-ready assertions in this slice: **8** (`000005`–`000011`, `000013`, `000015`).
+- Semantically mapped in this file so far: **10 assertion identities with at least one reviewed forward edge** (`000005`–`000011`, `000013`–`000015`; `000014` remains only partially covered).
+- Fully authority-ready assertions in this slice: **9** (`000005`–`000011`, `000013`, `000015`).
 - Assertions deliberately left open in Product §§1–2: **7** (`000001`–`000004`, `000012`, `000016`, `000017`) plus the unresolved third-party-material portion of `000014`.
 - Reverse-ledger fields remain to be updated from these reviewed rows before this slice is considered end-to-end complete.
 - Overall RC-006-A2 certification remains **OPEN**.
