@@ -17,7 +17,7 @@ This glossary is normative product language. UI copy, schemas, imports, and docu
 | Master RFC | A root RFC that may own direct subordinate RFCs and is the only RFC role eligible for direct SR↔RFC links. Local Tasks may link to either master or subordinate RFCs. |
 | Subordinate RFC | An RFC owned by exactly one master RFC. It cannot own another RFC or act as a master. |
 | Task | A first-class unit of work with its own identity, classified as either a Local Task or WFM Task and belonging to at most one Objective. |
-| Local Task | A manually registered Task whose only required user-supplied field is Task Name. It may link to zero or many SRs, master or subordinate RFCs, Spare Part Units, and Network Elements. |
+| Local Task | A manually registered Task whose only required user-supplied field is Task Name. It may link to zero or many SRs, master or subordinate RFCs, Spare Part Units, and Device References; a Device Reference may remain unregistered or resolve to one Network Element without replacing the Task relationship. |
 | WFM Task | An externally generated Task subtype imported or registered with external identity `TK` + 14 digits; it belongs to exactly one RFC. |
 | Master WFM | A WFM Task whose owning RFC currently projects master-RFC context. The role is derived from RFC ownership, is not a WFM-to-WFM hierarchy or unique branch slot, and multiple master-owned WFMs may remain distinct. |
 | Subordinate WFM | A WFM owned by a subordinate RFC; its master/SR context is derived through the RFC hierarchy. |
