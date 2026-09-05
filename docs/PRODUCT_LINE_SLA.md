@@ -85,12 +85,7 @@ Each completed report is derived from one internally consistent accepted-state s
 
 ## 6. Reporting cohorts
 
-Canonical contractual SLA cohorts are monthly. Membership consists of eligible non-cancelled SRs whose accepted Report Date falls in the calendar month interpreted in `America/Guayaquil`. An SR without an accepted Report Date is not assigned to a monthly cohort through any fabricated substitute date. Objective timezone changes never move cohort membership. Cohorts partition by at least:
-
-- Customer Organization, Contract, and Contract Product Line;
-- severity;
-- policy tier; and
-- current compliance outcome.
+Canonical contractual SLA cohorts are monthly. Membership consists of eligible non-cancelled SRs whose accepted Report Date falls in the calendar month interpreted in `America/Guayaquil`. An SR without an accepted Report Date is not assigned to a monthly cohort through any fabricated substitute date. Objective timezone changes never move cohort membership. The canonical cohort key is calendar month, Customer Organization, Contract, Contract Product Line, severity, and policy tier. Current compliance outcome is derived from that cohort and is not part of cohort identity or a partition dimension.
 
 Cancelled SRs are excluded. Individual duration and cohort compliance are different results. Live projections distinguish Pending, Currently Met, At Risk, Breached, and Final Met using deterministic lower-bound and best-possible calculations. An open changing month is never represented as final. Daily, Weekly, and selected-range views are as-of progress snapshots of monthly cohorts, not alternate contractual cohort boundaries. Each snapshot identifies timezone, month, scope, included/excluded/unclassified or otherwise uncalculable populations as applicable, denominator, policy revision, and result. Percentage rounding and the exact state-decision/finality matrix belong to the Beta 1.0 LLD and may not weaken configured percentages, inclusive durations, or the normalized live/final state semantics.
 
