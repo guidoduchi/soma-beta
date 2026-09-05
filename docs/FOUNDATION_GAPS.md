@@ -1,6 +1,6 @@
 # SOMA Beta Foundation Gaps Register
 
-Status: **All recorded product gaps resolved; Phase 0 closure gate pending project-owner acceptance**  
+Status: **All recorded product gaps `FND-GAP-001`–`FND-GAP-016` resolved; historical Phase 0 acceptance preserved; current closure certification pending `RC-006-A2`**  
 Target: **SOMA Beta 1.0.0**
 
 This register is the separate authority for contradictions, omissions, and incomplete historical coverage discovered while establishing the Beta foundation. It does not replace normalized requirements, the decision ledger, or assigned HLD/LLD questions.
@@ -41,4 +41,4 @@ Phase 0 cannot close while any product gap remains Open. All recorded `FND-GAP-0
 
 The unresolved technical questions in `DECISIONS.md` remain owned by their stated HLD/LLD destinations. They do not reopen settled product rules. If design work exposes a new product contradiction or omission, it receives a new `FND-GAP-###` entry before any downstream artifact changes.
 
-RC-006 global reconciliation found **0 new product gaps**. Phase 0 closure remains pending only the project-owner acceptance required by the reconciliation doctrine.
+RC-006 global reconciliation found **0 new product gaps**. The historical project-owner Phase 0 acceptance remains preserved. `RC-006-A2` is now the open closure-certification gate; A2 findings—including normalization-authority omissions for already-accepted behavior—remain tracked in `RC006_A2_FINDINGS.md` and do not become new `FND-GAP` identities unless controlled reopening determines that a product contradiction or omission exists.
