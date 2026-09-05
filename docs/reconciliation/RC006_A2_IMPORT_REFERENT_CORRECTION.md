@@ -1,78 +1,90 @@
-# RC-006-A2 Import referent correction — v0.5.2 review
+# RC-006-A2 Import boundary review and process simplification
 
-Status: **Correction implemented; Import semantic completeness/atomicity review OPEN; no freeze or allocation authorization.**
+Status: **Human boundary review complete; canonical candidate freeze pending its one-file commit; reverse authority and A2 certification OPEN.**
 
-This is excluded reconciliation control evidence, not a change to B002 authority.
-Starting branch checkpoint: `f0181078ea272d484cee6f609f0892af5996ec68`.
-B002 source commit: `61bbd665535e942ef3b05c5ed45661639d3a37a9`.
-Import source blob: `08dcf31d23748d4269538baa6ee1fcd7499585e8`.
+This record is excluded reconciliation evidence. It changes no B002 source,
+requirement, product decision, use-case state or allocated assertion.
 
-## Disposition
+## Corrected semantic result
 
-The v0.5.1 experiment combines the permission at Import §9.2 line 256 with the
-prohibitions at line 258, solely to bring the antecedent of “It” into the same
-span. Extraction Schema V1 §4 requires independently reviewable rules and
-minimal verbatim spans; §5 already provides `review_note` for contextual review.
-Pronoun presence alone is not sufficient grounds to merge independent rules.
+The v0.5.1 experiment joined the Import §9.2 permission at line 256 to the
+prohibitions at line 258 because “It” needed an antecedent. That merge was
+incorrect under Extraction Schema V1: the rules can fail independently.
+Context belongs in `review_note`; it does not require a larger normative span.
 
-The active review workflow now uses the separately versioned v0.5.2 generator.
-It retains the v0.5.0 186-record structure and adds the antecedent explanation to
-one review note, at section ordinal 26 / assertion ordinal 2. The permission and
-prohibition remain separate. v0.5.1 remains historical experimental evidence and
-is not the active review generator. No canonical source, source span, kind,
-ordinal, fingerprint or stable assertion identity is changed.
+The subsequent v0.5.2 experiment demonstrated this correction while retaining
+186 records, but also revealed a broader problem: v0.5.0 had joined several
+independently testable rules under the label “context closure.” Its mechanical
+PASS therefore did not establish complete or atomic semantic review.
 
-This narrow correction does **not** certify every v0.5.0 grouping as atomic.
-In particular, its 23 earlier combination groups still need explicit semantic
-disposition under §4, including the multiple prohibitions retained at line 258.
-Inherited candidate `classification_review: PASS` values are previous review
-metadata, not a new completeness certificate. The v0.5.2 summary explicitly
-sets semantic review OPEN and both freeze/allocation authorization false.
-186 is a regression expectation for this correction, not a mandatory final
-count: any justified later split requires a separately versioned, reviewed corpus.
+The human review used the exact B002 Import source blob
+`08dcf31d23748d4269538baa6ee1fcd7499585e8` and inspected the complete source
+and all 186 v0.5.2 candidates. It directly split 27 compound candidates into 63
+atomic candidates and retained 159 candidates. The resulting corpus has:
 
-## Identity and local evidence
+- **222 candidates** in **22 normative sections**;
+- 222 unique `(section_ordinal, assertion_ordinal)` locators;
+- 222 unique exact-text fingerprints;
+- contiguous assertion ordinals within every represented section;
+- exact verbatim spans within the pinned source lines;
+- no stable `A2-ASSERT` identity;
+- payload SHA-256 `418196ba0acc587797dedec05900d42fdc52f4b052c8f8ca44e15c8b01cc4ca4`;
+- predicted Git blob `e9a66fe4b9343929f70c40cd0c7cf24320b16233`.
 
-The prior CI artifact `9957374484` was downloaded and independently checked:
+The count is a result of the boundary decisions, not a required target.
+Informative sample-evidence sections remain unallocated; the Temporal Authority
+section remains represented. Lists and table rows stay cohesive when the list or
+row is the field/allowlist contract being reviewed. Distinct permissions,
+prohibitions, consequences and authority statements were split when each can be
+violated or mapped independently. Pronoun and clause context is recorded in the
+candidate note.
 
-| Identity | Value |
-|---|---|
-| ZIP SHA-256 | `5bf5804d2f23274be9eb3796df793c1a852520a69859b0105e6c6cf20372359e` |
-| v0.5.0 parent generator blob | `e77c1667f96c52337d0c50db71233ee1f664f971` |
-| v0.5.0 candidate payload SHA-256 | `ce0a6102cc72ef6e0ef4a00a12f0bb7ae8f15db5c7c6d12ddb301192e1663dfc` |
-| v0.5.2 generator blob | `3a5b6f9d779d78eabf5d3c6a4746a5c791cacf11` |
-| v0.5.2 generator SHA-256 | `d2653b27c2760a015cb51d8c2304ff598824d1f5e77cb4dc74621e4d40e6b463` |
-| v0.5.2 review payload SHA-256 | `4a0a1c6109fe581c6874e59559530c7a892b2e3588286610031aff9e6a6db981` |
-| v0.5.2 review payload Git blob | `a8a023e9a4df02bd7b9867d9b98219e1d7f0b8e6` |
+This completes candidate completeness/atomicity review only. Canonical reverse
+authority, contradiction review, forward mapping and clause coverage remain A2
+work. `classification_review: PASS` means the candidate is normative and its
+boundary is reviewed; it does not mean `semantic_review: PASS` in the assertion
+authority ledger.
 
-Local transformation of those exact artifact bytes produced 186 records, with
-only candidate position 163's `review_note` changed. All other parsed fields and
-record ordering were identical. The payload above is review evidence only,
-not a frozen canonical candidate corpus.
+## Simplified A2 operating rule
 
-Sixteen unit tests pass, including count/section/text/identity substitution,
-stable-ID refusal, same-count payload substitution, input immutability and
-repository-output/symlink/alias refusal. Synthetic fixtures are test-only.
-The exact parent payload is hashed before parsing; the transformation consumes
-that same byte stream. Review outputs must be outside the repository.
+Effective after this correction:
 
-Local testing used a partial downloaded snapshot, not a full Git checkout.
-Full pinned-source regeneration and hardened validation must therefore pass in
-the updated review CI. This record does not claim that future CI result.
-CI checks allocation-state/ledger byte identities before and after processing,
-reruns allocator check-state, and rejects tracked or untracked repository changes.
+> No new per-contract extractor version, workflow, CI artifact, hash-evidence
+> document or dedicated micro-validator may be added unless it detects a class
+> of error that the accumulated A2 validator cannot reasonably detect.
 
-## Remaining execution boundary
+Operational consequences:
 
-1. Obtain successful v0.5.2 CI evidence at its exact commit and verify payload identity.
-2. Review every final candidate and source section for omissions, independent
-   rules, authority and classification; explicitly resolve the 23 inherited groups.
-3. Only then freeze the final Import corpus and record validation/freeze evidence.
-4. Register that exact frozen identity in a separately versioned hardened allocator;
-   test stale, same-count and altered-source inputs plus nonmutating preallocation.
-5. Recheck unchanged Product allocation and exact commit boundary before Import allocation.
+1. Human reviewers edit the candidate set directly before allocation. Boundary
+   corrections do not create another extractor program.
+2. Each destination contract receives one reviewed canonical candidate file,
+   frozen once before allocation. Existing stable IDs are never renumbered.
+3. The maintained assertion authority ledger is the durable evidence. Per-step
+   archives and narrative hash records do not become a second ledger.
+4. One accumulated validator checks every processed source: corpus membership,
+   source blobs/spans, candidate/ledger schema, fingerprints, stable-ID order and
+   uniqueness, forward edges, reverse clause authority, owner derivation,
+   contradictions, exact 11,524-clause completeness and orphan conditions.
+5. Small local inspection scripts may be used ephemerally. They are not committed
+   unless the accumulated validator needs the capability permanently.
+6. A new tool is justified only by a documented error class, why human review
+   plus the accumulated validator cannot catch it reasonably, and how the tool
+   will be reused across the accumulated corpus.
 
-Until those gates pass, `A2-ASSERT-000432` is not allocated. Product IDs
-`000001..000431` remain intact and pending reverse-authority certification.
-UC owner review remains paused until full RC-006-A2 PASS. This correction does
-not authorize HLD acceptance, LLD acceptance or production implementation.
+Accordingly, the v0.5.2 generator and its dedicated tests, the P1A assessment
+checker/tests, the Import-only review workflow, and the duplicate v0.5.2 CI
+evidence record are removed. Their historical commits and successful run remain
+available in Git history. The 95-UC readiness assessment and every substantive
+semantic finding are retained.
+
+## Next boundary
+
+The next commit may add exactly the canonical Import candidate JSONL and no
+other path. After its blob is verified, the general allocation path may register
+that frozen identity, preallocate once, allocate `A2-ASSERT-000432` onward and
+continue to the next destination source. The accumulated A2 validator remains
+the final assurance gate.
+
+Product allocation remains 431 records through `A2-ASSERT-000431`; Import is not
+yet allocated. UC owner review remains paused until RC-006-A2 PASS. HLD, complete
+LLD acceptance and production implementation remain downstream gates.
