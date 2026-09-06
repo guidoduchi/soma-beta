@@ -30,8 +30,10 @@
     {"code":"IMPORT_PROPOSAL_BLOCKED","http":409,"recoverability":"resolve_blocker","meaning":"proposal cannot be accepted under current source/domain invariants"},
     {"code":"IMPORT_PROPOSAL_ALREADY_DECIDED","http":409,"recoverability":"refresh","meaning":"proposal is no longer pending"},
     {"code":"IMPORT_RUN_HAS_PENDING_PROPOSALS","http":409,"recoverability":"complete_review","meaning":"run cannot be finalized while proposal decisions remain pending"},
-    {"code":"IMPORT_RECOVERY_REVIEW_STALE","http":409,"recoverability":"reload_recovery_preview","meaning":"run/checkpoint/material proposal inputs changed since recovery review fingerprint was issued"}
+    {"code":"IMPORT_RECOVERY_AUTHORIZATION_REQUIRED","http":409,"recoverability":"authorize_current_recovery_review","meaning":"recovery-required proposal cannot be processed until the exact current recovery preview is explicitly authorized"},
+    {"code":"IMPORT_RECOVERY_REVIEW_STALE","http":409,"recoverability":"reload_recovery_preview","meaning":"run/checkpoint/material proposal inputs changed since recovery review fingerprint was issued"},
+    {"code":"IMPORT_RECOVERY_REJECT_AFTER_ACCEPTANCE","http":409,"recoverability":"finish_proposal_review_and_finalize","meaning":"whole recovery run cannot be rejected after one or more domain proposals have already been accepted; accepted history must remain and the run must be completed through proposal dispositions/finalization"}
   ],
-  "non_error_states":["exact replay no-op","newer identical no-domain-change","deferred proposal","unresolved Customer candidate","unknown controlled value warning","RFC source branch artifact skipped","equivalent duplicate warning","unpublished validating staging"],
+  "non_error_states":["exact replay no-op","newer identical no-domain-change","deferred proposal","authorized recovery review with proposals still pending","unresolved Customer candidate","unknown controlled value warning","RFC source branch artifact skipped","equivalent duplicate warning","unpublished validating staging"],
   "rule":"Warnings and row-level errors never silently acquire domain authority or force unrelated valid target scopes to fail unless a workbook-level integrity rule makes safe isolation impossible."
 }
