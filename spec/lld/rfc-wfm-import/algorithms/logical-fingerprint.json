@@ -1,0 +1,44 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-04",
+  "name":"ImportLogicalFingerprintAndReplay",
+  "serialization_profile":"SOMA_IMPORT_LOGICAL_V1",
+  "fingerprint_input":[
+    "source_family",
+    "source_profile_id/header_registry_id/vocabulary_registry_id/parser_profile_id",
+    "for every logical matrix row: identity classification token, canonical identities when valid, canonical field keys, field class/value-state/value-kind and validated normalized value or deterministic validation token",
+    "duplicate/conflict classification tokens needed to reproduce exact source disposition"
+  ],
+  "excluded":[
+    "raw XLSX/ZIP bytes and package ordering",
+    "filesystem path/name/mtime/collision suffix",
+    "worksheet/row/column physical ordering except bounded row locator retained separately as provenance",
+    "unallowlisted/discarded field values",
+    "formula text/cached values",
+    "import capture/current clock",
+    "source candidate chronology itself"
+  ],
+  "canonicalization":[
+    "each scalar is serialized as UTF-8 with explicit type tag and unsigned length prefix; integers use canonical decimal ASCII",
+    "rows sort by identity-state, canonical primary identity, canonical parent identity, then row logical hash; invalid rows sort by deterministic validated-finding signature",
+    "fields sort by canonical field_key",
+    "exact equivalent duplicate rows collapse to one logical row plus deterministic duplicate-count token",
+    "conflicting rows for one canonical identity remain separately represented by their distinct row logical hashes and a conflict token",
+    "SHA-256 over the single canonical byte stream yields lowercase 64-hex logical_fingerprint_sha256"
+  ],
+  "replay_decision":[
+    "read current source-family checkpoint after staging fingerprint is known",
+    "if no checkpoint: NEW_SOURCE",
+    "if candidate chronology equals checkpoint chronology and fingerprint equals checkpoint fingerprint: EXACT_REPLAY_NOOP",
+    "if candidate chronology is newer and fingerprint equals checkpoint fingerprint: NEWER_IDENTICAL_NO_DOMAIN_CHANGE",
+    "if candidate chronology equals checkpoint chronology and fingerprint differs: CHRONOLOGY_CONTENT_CONFLICT",
+    "if candidate chronology is older: OLDER_SOURCE_RECOVERY_REQUIRED",
+    "if candidate chronology is newer and fingerprint differs: NEW_SOURCE"
+  ],
+  "rules":[
+    "exact replay generates no new domain observations/proposals/audit changes merely from reprocessing",
+    "newer identical content may update bounded check recency/checkpoint chronology in one technical command but creates no duplicate per-entity observations/proposals",
+    "equal chronology/different content and older source never auto-accept",
+    "logical fingerprint proves deterministic processed equality, not publisher authenticity or absence of human editing"
+  ]
+}
