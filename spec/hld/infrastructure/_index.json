@@ -1,0 +1,60 @@
+{
+  "schema": "SOMA-HLD-PACKET-V1",
+  "id": "HLD-09",
+  "name": "Infrastructure Physical Model",
+  "status": "review_ready",
+  "purpose": "Define registered physical Infrastructure identity, placement, containment, Cloud, descriptive IP, reusable model/compatibility knowledge and installed Component history without replacing operational Device Reference identity or introducing Beta 1.0 topology/credential authority.",
+  "primary_requirement_ids": [
+    "BETA-REQ-0102",
+    "BETA-REQ-0103",
+    "BETA-REQ-0104",
+    "BETA-REQ-0105",
+    "BETA-REQ-0106",
+    "BETA-REQ-0107",
+    "BETA-REQ-0108",
+    "BETA-REQ-0110"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0020",
+    "BETA-REQ-0023",
+    "BETA-REQ-0024",
+    "BETA-REQ-0027",
+    "BETA-REQ-0033",
+    "BETA-REQ-0034",
+    "BETA-REQ-0049",
+    "BETA-REQ-0109",
+    "BETA-REQ-0121",
+    "BETA-REQ-0125"
+  ],
+  "implementation_authority": ["F6"],
+  "decisions": [
+    {"id":"HLD09-D001","decision":"Device Reference is the operational cross-domain device identity. A registered Network Element is a physical Infrastructure instance that an operational Device Reference may resolve to without replacing that Device Reference relationship identity."},
+    {"id":"HLD09-D002","decision":"Every registered Network Element has immutable internal identity, nonblank operational name and exactly one authoritative Site; model, serial, placement, Cloud and descriptive IP data are independently optional facts/relationships."},
+    {"id":"HLD09-D003","decision":"Physical placement follows Site -> Room -> Rack. A Rack belongs to one Room and therefore one Site; Rack placement may record row, column and position semantics and can never imply a Site different from the Network Element's authoritative Site."},
+    {"id":"HLD09-D004","decision":"Reusable Model/BOM/component compatibility knowledge is separate from installed Component-instance identity/history. Installed Component instances belong to the physical Network Element and preserve their own placement/slot/serial/chronology facts."},
+    {"id":"HLD09-D005","decision":"Network Element containment is an acyclic one-parent forest independent from physical Rack placement, Cloud assignment, model compatibility, IP inventory and connectivity."},
+    {"id":"HLD09-D006","decision":"Cloud Type is reusable reference knowledge; Cloud Deployment is an independently identified Site-scoped instance. A Network Element may belong to at most one same-Site Cloud Deployment."},
+    {"id":"HLD09-D007","decision":"IP addresses are descriptive zero-many facts with at most one primary address; IP equality or similarity never establishes Network Element identity or topology."},
+    {"id":"HLD09-D008","decision":"Beta 1.0 has no canonical interfaces, connectivity, reachability, discovery, topology or SSH capability. Placement/IP/containment must not be interpreted as connectivity."},
+    {"id":"HLD09-D009","decision":"Reusable device/authentication secrets are prohibited from ordinary SOMA Infrastructure/domain/evidence/log/workbook state; Beta 1.0 exposes no device credential or SSH controls."},
+    {"id":"HLD09-D010","decision":"Infrastructure XLSX exchange is versioned, macro-free and staged before acceptance; external workbook identity/labels are reconciliation evidence, omission/blanks are non-destructive by default, and source workbooks are never modified."}
+  ],
+  "packet_files": ["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
+  "downstream_hld_ids": ["HLD-10","HLD-11","HLD-12","HLD-13","HLD-14"],
+  "downstream_lld_ids": ["LLD-08"],
+  "unresolved_here_by_design": [
+    "exact Room/Rack/position relational schema and uniqueness rules",
+    "exact reusable Model/BOM compatibility schema and source-management UI",
+    "exact installed Component instance/slot schema and replacement-history API",
+    "exact Infrastructure XLSX workbook columns/version serialization",
+    "exact future 1.x connectivity ADR and credential-provider integration"
+  ],
+  "completion_evidence": {
+    "required_packet_files_present": true,
+    "device_reference_vs_network_element_boundary_fixed": true,
+    "site_room_rack_physical_model_fixed": true,
+    "model_compatibility_vs_installed_component_history_fixed": true,
+    "containment_cloud_ip_connectivity_separation_fixed": true,
+    "ready_for_owner_review": true
+  }
+}
