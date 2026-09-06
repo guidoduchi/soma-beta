@@ -1,0 +1,26 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-01",
+  "name":"StrictVersionedJson",
+  "parse": {
+    "decoder":"json.loads(text, object_pairs_hook=reject_duplicate_keys, parse_constant=reject_nonfinite)",
+    "encoding":"input bytes decode UTF-8 strictly before json parsing",
+    "reject":["duplicate object keys","NaN","Infinity","-Infinity","malformed UTF-8/Unicode","wrong top-level type","unknown contract version without explicit upgrader"]
+  },
+  "contract_registry": {
+    "key":"contract_name + version",
+    "contract_fields":["top_level_type","allowed_fields","required_fields","types","nullability","bounds","enum/semantic validators","unknown_field_policy","sensitivity policy"],
+    "unknown_field_policy":"must be explicitly reject, preserve-readonly, or quarantine; silent discard followed by overwrite is forbidden"
+  },
+  "validation_order":["UTF-8 byte limit","strict parse","top-level type","version","depth/cardinality/string/byte bounds","field allowlist and required members","primitive types/nullability","enum/value constraints","semantic cross-field constraints","sensitivity prohibition"],
+  "canonical_json": {
+    "used_only_for":["request_hash","logical fingerprint/checksum where owning contract requires it"],
+    "serialization":"json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(',', ':')) encoded UTF-8 after contract-defined string normalization",
+    "ordinary_storage":"property order has no business meaning and need not be canonical"
+  },
+  "upgrade": {
+    "rule":"validate old document with its exact historical contract, transform to one next accepted version, validate result, then commit atomically",
+    "failure":"prior stored document remains untouched; no default reset or partial overwrite"
+  },
+  "security":["whole domain objects/ORM dumps are never accepted as fallback payloads","credentials, unrestricted Communication/Notes/provider bodies, raw exceptions and environment dumps are prohibited unless a narrower owning security contract explicitly allows one bounded field","sanitization cannot turn prohibited source material into permission to persist it"]
+}
