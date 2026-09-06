@@ -1,0 +1,27 @@
+{
+  "schema":"SOMA-LLD-TESTS-V1",
+  "lld_id":"LLD-02",
+  "scenarios":[
+    {"id":"LLD02-T001","name":"immutable_reference_identity","prove":["rename Customer/Contact/Dispatch Location leaves UUID unchanged","all dependent relationships still resolve immutable ID"]},
+    {"id":"LLD02-T002","name":"duplicate_names_are_valid","prove":["two active Contacts may share exact name","two Customer Organizations may share exact normalized name","no uniqueness constraint or silent merge fires"]},
+    {"id":"LLD02-T003","name":"matching_golden_vectors","prove":["NFKC applied","Unicode whitespace runs collapse to one ASCII space","casefold applied","accents preserved","punctuation preserved","Python 3.13 and 3.14 produce accepted identical golden results"]},
+    {"id":"LLD02-T004","name":"contact_email_scope","prove":["same normalized email under different Customer affiliations does not create global collision","same email within requested scope may return multiple candidates and AMBIGUOUS","unbound scope searches only currently unbound Contacts"]},
+    {"id":"LLD02-T005","name":"matching_is_read_only","prove":["UNRESOLVED/UNIQUE_CANDIDATE/AMBIGUOUS queries create no rows/audit/lifecycle events","unique candidate does not itself merge/link"]},
+    {"id":"LLD02-T006","name":"affiliation_continuity","prove":["Contact starts unbound or with one current affiliation","change closes prior row and inserts new current row atomically","contact_id never changes","partial/dual-current state impossible"]},
+    {"id":"LLD02-T007","name":"historical_org_context_survives","prove":["later Contact affiliation change does not rewrite organization-at-use snapshots stored by consuming domains","historical affiliation rows remain queryable"]},
+    {"id":"LLD02-T008","name":"contact_archive_blockers","prove":["registered active requester/assignment dependency blocks archive","all blockers returned deterministically","no lifecycle state/event/audit mutation when blocked"]},
+    {"id":"LLD02-T009","name":"dispatch_archive_blockers","prove":["active Site-dedicated relationship blocks independent archive","unfinished logistics dependency blocks archive","Site/logistics domain state is never silently unlinked"]},
+    {"id":"LLD02-T010","name":"reactivation","prove":["explicit reactivation preserves archived history","new conflict blocks reactivation atomically","active selectors include record only after successful commit"]},
+    {"id":"LLD02-T011","name":"dispatch_customer_neutrality","prove":["dispatch_locations schema has no Customer ownership/preference field","same active location can be used by valid operation roles without changing master identity","operation role remains on consuming operation"]},
+    {"id":"LLD02-T012","name":"site_dedicated_dispatch_atomicity","prove":["LLD-08 coordinator creates site-derived Dispatch Location and one-to-one Site relation in same UoW","failure inserting Site/relation rolls back location","second Site using same dedicated Dispatch Location is rejected by LLD-08 relation constraints"]},
+    {"id":"LLD02-T013","name":"site_derived_address","prove":["site-derived location stores no standalone address","current address is read through SiteDispatchAddressProvider","later Site address change updates current projection but not prior LLD-07 logistics snapshots"]},
+    {"id":"LLD02-T014","name":"singleton_user_profile_identity","prove":["first-run can create one metadata identity","second singleton insert fails","Contact cannot be used as login identity","no verifier/password/key material exists in LLD-02 tables"]},
+    {"id":"LLD02-T015","name":"settings_read_purity","prove":["absent known setting returns DEFAULT with no row creation","unknown key rejected","read produces no audit/receipt/default persistence"]},
+    {"id":"LLD02-T016","name":"settings_atomic_write_and_upgrade","prove":["semantic owner + strict JSON validation occur before write","stale revision blocks write","failed upgrade preserves old value/version","successful write/upgrade commits value+receipt+audit atomically"]},
+    {"id":"LLD02-T017","name":"settings_secret_exclusion","prove":["password/verifier/key/token/device-credential definitions cannot register in ordinary setting store","unsafe JSON never falls back to generic serialization"]},
+    {"id":"LLD02-T018","name":"reference_lifecycle_append_only","prove":["accepted create/archive/reactivate/correction lifecycle events cannot update/delete","required audit references resulting lifecycle identity","audit failure rolls back reference mutation/event"]},
+    {"id":"LLD02-T019","name":"stale_reference_edit","prove":["two editors use same base revision","first commit increments revision","second gets STALE_REVISION and cannot overwrite first"]},
+    {"id":"LLD02-T020","name":"dependency_validator_ownership","prove":["validator registry calls explicit domain validators using same UoW","LLD-02 contains no direct SQL against Tickets/Inventory/Infrastructure/Communications private tables","validator failure rolls back lifecycle command"]}
+  ],
+  "release_rule":"All deterministic scenarios pass under Python 3.13 and 3.14 foundation matrix; test fixtures contain synthetic reference data only."
+}
