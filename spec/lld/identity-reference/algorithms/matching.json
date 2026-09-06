@@ -1,0 +1,38 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-02",
+  "name":"ReferenceCandidateMatching",
+  "normalizer":{
+    "function":"normalize_match_key(raw: str) -> str",
+    "steps":[
+      "reject non-string input",
+      "apply Unicode NFKC compatibility normalization",
+      "replace each maximal run of Unicode whitespace characters (str.isspace()) including surrounding whitespace with one ASCII U+0020 space, then remove leading/trailing separator",
+      "apply Unicode casefold()",
+      "do not strip accents/diacritics",
+      "do not strip or rewrite punctuation",
+      "reject empty normalized result"
+    ],
+    "determinism":"same Python Unicode database/runtime line must produce governed golden-vector results; Python 3.13 and 3.14 CI must both pass the same accepted vector corpus before release",
+    "prohibitions":["no fuzzy distance","no phonetic key","no accent folding","no punctuation removal","no locale-sensitive lowercasing","no substring/contains identity match"]
+  },
+  "customer_org_match":{
+    "active_scope":"all active Customer Organizations",
+    "keys":["name_match_key"],
+    "result":"0 matches -> UNRESOLVED; 1 -> UNIQUE_CANDIDATE; >1 -> AMBIGUOUS",
+    "rule":"UNIQUE_CANDIDATE remains candidate evidence and does not by itself authorize merge/reassignment"
+  },
+  "contact_match":{
+    "scope":"exactly one of customer_org_id or UNBOUND",
+    "active_only":true,
+    "name_key":"contacts.name_match_key",
+    "email_key":"active contact_channels where channel_kind='email' using match_key",
+    "customer_scope_query":"candidate Contact must have is_current=1 affiliation to the supplied customer_org_id",
+    "unbound_scope_query":"candidate Contact must have no is_current=1 affiliation row",
+    "candidate_union":"union candidate IDs from supplied governed keys; repeated evidence for the same Contact collapses to one candidate ID",
+    "result":"0 candidate IDs -> UNRESOLVED; 1 -> UNIQUE_CANDIDATE; >1 -> AMBIGUOUS",
+    "rule":"equal normalized email in different Customer scopes is not a global identity collision; equal keys within one scope may remain ambiguous"
+  },
+  "write_time_key_rule":"Every accepted write that changes a matched descriptive/channel value computes the match key with this same function inside application validation before persistence; repositories reject missing/inconsistent derived key input.",
+  "review_rule":"A matcher has no write capability. Selection/link/merge/reassignment is performed only by a separate owning command after operator/reconciliation authority and fresh state revalidation."
+}
