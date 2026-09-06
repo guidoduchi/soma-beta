@@ -5,6 +5,9 @@
   "status": "review_ready",
   "purpose": "Define physical spare demand, fulfillment, unit identity, RMA obligations, reviewed maintenance consequences, logistics, Fault Tags, warehouse loops and append-oriented correction without acquiring Task-lifecycle or communication authority.",
   "primary_requirement_ids": [
+    "BETA-REQ-0014",
+    "BETA-REQ-0015",
+    "BETA-REQ-0016",
     "BETA-REQ-0079",
     "BETA-REQ-0080",
     "BETA-REQ-0081",
