@@ -1,0 +1,50 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-01",
+  "name":"LocalHostLifecycle",
+  "instance_paths": {
+    "input":"launcher supplies one canonical instance root; default Windows root is resolved by LLD-12 packaging, not environment-variable guessing inside domain code",
+    "relative_paths":{"database":"data/soma.db","lock":"data/soma.instance.lock","registry":"runtime/runtime.json","diagnostics":"diagnostics/"},
+    "rule":"canonicalized database and lock remain inside the resolved instance root; unexpected final reparse/symlink redirection is rejected"
+  },
+  "data_instance_lock": {
+    "mechanism":"hold an OS-level exclusive lock on the first byte of soma.instance.lock for the full authoritative host lifetime using the supported Windows file-lock implementation",
+    "authority":"file existence/content alone proves nothing; only the held OS lock establishes path ownership",
+    "contended":"do not migrate/start a second host; hand control to LLD-12 verified-existing-instance flow or exit INSTANCE_OWNED",
+    "crash":"OS releases the lock automatically; stale lock file may remain and is non-authoritative"
+  },
+  "loopback_socket": {
+    "family":"AF_INET",
+    "host":"127.0.0.1",
+    "port":0,
+    "windows_option":"set SO_EXCLUSIVEADDRUSE before bind; do not enable SO_REUSEADDR",
+    "sequence":["create socket","apply exclusive-address option","bind 127.0.0.1:0","listen","read assigned port","retain ownership and pass already-bound socket to uvicorn.Server.serve(sockets=[socket])"],
+    "reason":"OS chooses the free port while SOMA already owns the socket, eliminating free-port probe/bind races"
+  },
+  "uvicorn_config": {
+    "app":"SOMA Starlette application factory result",
+    "workers":1,
+    "proxy_headers":false,
+    "server_header":false,
+    "access_log":false,
+    "reload":false,
+    "lifespan":"on",
+    "http":"h11/minimal default",
+    "ws":"disabled unless LLD-10 later proves a required websocket use case"
+  },
+  "runtime_registry": {
+    "schema":"SOMA-RUNTIME-REGISTRY-V1",
+    "fields":["registry_version","origin","pid","process_birth_id","run_id","protocol_version","data_instance_id","readiness_locator"],
+    "prohibitions":["no reusable password","no raw data-encryption key","no portable-backup recovery material","no unrestricted command/session token","no domain/customer data"],
+    "publication":"serialize deterministic UTF-8 JSON to same-directory temporary file, flush, fsync file where supported, os.replace to runtime.json; only publish after server is listening and security context is ready",
+    "removal":"remove only after proving registry run_id + data_instance_id belong to the shutting-down host; stale foreign registry is never blindly deleted"
+  },
+  "request_execution": {
+    "event_loop":"ASGI parsing/routing/response and lightweight guards only",
+    "application_calls":"dispatch blocking application-service/repository work to host-owned request executor (max 4 workers)",
+    "background_calls":"durable coordinator dispatches file/CPU/blocking jobs to separate executor (max 2 workers)",
+    "sqlite":"each executor invocation obtains/closes its own thread-confined connection; no connection is captured by ASGI task state"
+  },
+  "host_states":["STARTING","MIGRATING","VERIFYING","LISTENING_NOT_READY","READY","QUIESCING","STOPPED","FAILED"],
+  "readiness":"only READY accepts ordinary application queries/mutations; migration/status control paths have their separately governed availability"
+}
