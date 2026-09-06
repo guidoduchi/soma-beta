@@ -1,0 +1,81 @@
+{
+  "schema": "SOMA-HLD-OWNERSHIP-V1",
+  "hld_id": "HLD-03",
+  "owns": [
+    {
+      "capability": "shared reference identity",
+      "rule": "Customer Organization, Contact, Dispatch Location and Local User Profile identities are distinct first-class records with immutable internal identity."
+    },
+    {
+      "capability": "Contact identity and affiliation history",
+      "rule": "Contact identity is independent from name/email and Customer affiliation; current affiliation is at most one while prior affiliations remain historical evidence."
+    },
+    {
+      "capability": "reference candidate matching",
+      "rule": "Shared candidate reconciliation is deterministic, scope-aware and exact; ambiguity is returned rather than guessed."
+    },
+    {
+      "capability": "reference lifecycle",
+      "rule": "Shared reference archival/reactivation semantics preserve history and block changes that would strand active dependencies."
+    },
+    {
+      "capability": "Dispatch Location master identity",
+      "rule": "Dispatch Location remains customer-neutral and operation-neutral even when linked to one Site or reused by logistics operations."
+    },
+    {
+      "capability": "typed settings registry",
+      "rule": "The shared Settings surface routes typed settings to their semantic owner and HLD-02 persistence without becoming a duplicate source of truth."
+    }
+  ],
+  "shared_with": [
+    {
+      "capability": "Site to dedicated Dispatch Location",
+      "owner_modules": ["HLD-03", "HLD-09"],
+      "boundary": "HLD-09 owns Site creation/ownership; HLD-03 owns Dispatch Location identity. The application command creates/links both atomically without either module directly mutating the other's private persistence."
+    },
+    {
+      "capability": "Contact communication channels",
+      "owner_modules": ["HLD-03", "HLD-10", "HLD-08"],
+      "boundary": "HLD-03 owns reusable Contact/channel identity and validity; communications/inventory own when an action requires or snapshots a channel."
+    },
+    {
+      "capability": "reference matching during import",
+      "owner_modules": ["HLD-03", "HLD-05"],
+      "boundary": "HLD-03 owns matching semantics; HLD-05 owns source staging/proposal/review workflow."
+    }
+  ],
+  "does_not_own": [
+    {
+      "capability": "authentication secrets, password verifier, auto-login material",
+      "owner": "HLD-13"
+    },
+    {
+      "capability": "Site, Cloud Deployment, Room, Rack, Network Element, Component",
+      "owner": "HLD-09"
+    },
+    {
+      "capability": "Spare Request requester lifecycle and logistics snapshots",
+      "owner": "HLD-08"
+    },
+    {
+      "capability": "ticket-specific handler/requester/current-assignment facts",
+      "owner": "HLD-04/HLD-05 as applicable"
+    },
+    {
+      "capability": "Product Line, Contract and Contract Product Line reference semantics",
+      "owner": "HLD-07"
+    },
+    {
+      "capability": "transaction/audit/history mechanics",
+      "owner": "HLD-14 with HLD-02 persistence mechanics"
+    }
+  ],
+  "authority_rules": [
+    "Equal names never establish identity.",
+    "Email is matching/channel data, not a global Contact key.",
+    "Customer affiliation change never creates a replacement Contact by default.",
+    "Reference matching never silently mutates or merges records.",
+    "Archived references remain history-visible but are not eligible for new active relationships until explicit reactivation.",
+    "Domain-specific settings remain semantically owned by their domain even when edited from a shared Settings workspace."
+  ]
+}
