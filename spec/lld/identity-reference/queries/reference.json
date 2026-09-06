@@ -2,87 +2,18 @@
   "schema":"SOMA-LLD-QUERIES-V1",
   "lld_id":"LLD-02",
   "queries":[
-    {
-      "name":"GetReferenceById",
-      "targets":["CustomerOrganization","Contact","DispatchLocation","LocalUserProfile"],
-      "input":["immutable id"],
-      "output":"current reference projection plus revision/lifecycle; Customer Organization includes current active Customer Account Code claim summary and history count; Contact includes current affiliation plus active-channel count/first bounded page only; Dispatch Location includes current_address projection source",
-      "rules":["historical lookup may return archived records","no query mutates or materializes defaults","large channel/history collections use dedicated paginated subqueries rather than unbounded inline expansion","Dispatch site-derived address is obtained through SiteDispatchAddressProvider rather than copied from LLD-08 tables"]
-    },
-    {
-      "name":"ListActiveReferences",
-      "targets":["CustomerOrganization","Contact","DispatchLocation"],
-      "pagination":"deterministic keyset cursor over normalized display sort key then immutable ID; caller limit is clamped to bounds.json page policy, never OFFSET-scanned for ordinary navigation",
-      "rules":["archived excluded","exact total is optional and computed only when the governed UI/export explicitly asks for it","set-based projection avoids N+1 per-row affiliation/channel/Site queries","Dispatch Location remains customer-neutral; optional Site/customer context is presentation metadata only"]
-    },
-    {
-      "name":"MatchCustomerOrganization",
-      "algorithm":"algorithms/matching.json customer_org_match",
-      "input":["optional raw Customer Account Code","optional raw Customer Organization label; at least one governed key required","candidate cursor/limit"],
-      "output":"CandidateResult",
-      "rules":["Customer Account Code is preferred stable external evidence","multiple reviewed account-code claimants return AMBIGUOUS","display name alone never authorizes identity mutation","account-code/name conflict returns AMBIGUOUS review state","candidate_count reflects the complete union while candidate_ids are bounded/paginated","matcher never assigns/reassigns the code"]
-    },
-    {
-      "name":"PreviewCustomerAccountCodeConflict",
-      "algorithm":"algorithms/account-code-review.json preview",
-      "input":["raw Customer Account Code","proposed_action=CONFIRM_SHARED_CLAIM|REASSIGN_CLAIM","target_customer_org_id","optional from_customer_org_id","claimant cursor/limit"],
-      "output":["review_snapshot_hash","normalized code display evidence","target/source revisions","exact claimant count","bounded claimant items","continuation","proposed_action"],
-      "rules":["read-only","hash binds the complete claimant set even when display items paginate","preview is advisory and mutating command recomputes snapshot under its UnitOfWork","review_context_id from an import/proposal may be carried separately but never substitutes for the snapshot hash"]
-    },
-    {
-      "name":"GetCustomerAccountCodeHistory",
-      "input":["customer_org_id","cursor","limit"],
-      "output":["exact_count","items(customer_org_identifier_id,value_text,lifecycle_state,created_at_utc,superseded_at_utc)","continuation"],
-      "order":"created_at_utc, customer_org_identifier_id",
-      "rule":"superseded claims remain historical evidence and never become current matching authority"
-    },
-    {
-      "name":"GetContactChannels",
-      "input":["contact_id","include_archived=false","cursor","limit"],
-      "output":["exact_count when requested","bounded channel items","continuation"],
-      "order":"channel_kind, created_at_utc, contact_channel_id",
-      "rules":["ordinary recipient selection requests active channels only","historical/admin view may request archived channels","no unbounded Contact detail collection"]
-    },
-    {
-      "name":"ValidateContactChannelForUse",
-      "input":["contact_id","contact_channel_id or AUTO_SELECT","purpose"],
-      "algorithm":"algorithms/contact-channel.json",
-      "output":"ChannelUseValidation",
-      "rules":["pure query/prerequisite validation","AUTO_SELECT never guesses between multiple usable channels unless the consuming workflow has a separately accepted deterministic selection rule","no DNS/network/email-service access"]
-    },
-    {
-      "name":"MatchContact",
-      "algorithm":"algorithms/matching.json contact_match",
-      "input":["scope customer_org_id or UNBOUND","optional raw name","optional raw email","candidate cursor/limit"],
-      "output":"CandidateResult",
-      "rules":["only active Contact/channel/current-affiliation rows participate","email equality outside the requested scope is not a candidate collision for that scope","candidate_count reflects complete union and candidate IDs are returned in stable immutable-ID order with pagination","ambiguous result remains ambiguous regardless of visible page"]
-    },
-    {
-      "name":"GetContactAffiliationHistory",
-      "input":["contact_id","cursor","limit"],
-      "output":["exact_count","items(contact_affiliation_id,customer_org_id,is_current,opened_at_utc,closed_at_utc)","continuation"],
-      "order":"opened_at_utc, contact_affiliation_id",
-      "rule":"history is read from preserved relationship rows; current Customer labels do not rewrite historical operational snapshots owned by other domains"
-    },
-    {
-      "name":"PreviewReferenceArchive",
-      "input":["ReferenceTarget","base_revision","cursor","limit"],
-      "mode":"read-only preview using algorithms/archive-validation.json preview",
-      "output":["current revision","exact_blocker_count","bounded blockers","continuation","would_be_eligible"],
-      "rule":"would_be_eligible derives from exact blocker count over every registered validator, never from the visible page; preview is advisory and ArchiveReference reruns bounded guards inside its authoritative UnitOfWork"
-    },
-    {
-      "name":"GetSetting",
-      "input":["setting_key"],
-      "output":["effective value","source=PERSISTED|DEFAULT","persisted revision or null","contract name/version","semantic owner"],
-      "rules":["unknown key rejected","absent row returns code-defined default without insertion","secret-classified definitions are not exposed through ordinary setting storage"]
-    },
-    {
-      "name":"ListSettingsForOwner",
-      "input":["semantic owner module"],
-      "output":"registered definitions joined to optional persisted values",
-      "rules":["registry order is deterministic","registry is code-bounded rather than operational-data-sized","missing rows remain source DEFAULT","query has zero persistence side effects"]
-    }
+    {"name":"GetReferenceById","targets":["CustomerOrganization","Contact","DispatchLocation","LocalUserProfile"],"input":["immutable id"],"output":"current reference projection plus revision/lifecycle; Customer includes current Account Code claim summary/history count; Contact includes current affiliation plus active-channel count/first bounded page; Dispatch includes current_address projection source","rules":["historical lookup may return archived records","no query mutates/materializes defaults","large collections use dedicated paginated subqueries","site-derived address comes through SiteDispatchAddressProvider"]},
+    {"name":"ListActiveReferences","targets":["CustomerOrganization","Contact","DispatchLocation"],"pagination":"deterministic keyset cursor over normalized display sort key then immutable ID; caller limit clamped to bounds.json; no OFFSET scan for ordinary navigation","rules":["archived excluded","exact total optional/on-demand","set-based projection avoids N+1 queries","Dispatch optional Site/customer context is presentation metadata only"]},
+    {"name":"MatchCustomerOrganization","algorithm":"algorithms/matching.json customer_org_match","input":["optional raw Customer Account Code","optional raw Customer Organization label","candidate cursor/limit"],"output":"CandidateResult","rules":["Account Code is preferred stable external evidence","multiple reviewed claimants return AMBIGUOUS","display name alone never authorizes identity mutation","candidate_count reflects complete union while IDs paginate","matcher never assigns/reassigns code"]},
+    {"name":"PreviewCustomerAccountCodeConflict","algorithm":"algorithms/account-code-review.json preview","input":["raw Customer Account Code","proposed_action=CONFIRM_SHARED_CLAIM|REASSIGN_CLAIM","target_customer_org_id","optional from_customer_org_id","claimant cursor/limit"],"output":["review_snapshot_hash","normalized code display evidence","customer_reference_generation","target/source revisions/current claims","exact claimant count","bounded claimant items","continuation","proposed_action"],"rules":["read-only","hash binds complete conflict state through generation/count/target/source state even when display paginates","mutating command recomputes snapshot under UnitOfWork","review_context_id is separate provenance only"]},
+    {"name":"GetCustomerAccountCodeHistory","input":["customer_org_id","cursor","limit"],"output":["exact_count","items(customer_org_identifier_id,value_text,lifecycle_state,created_at_utc,superseded_at_utc,created_command_id,superseded_command_id)","continuation"],"order":"created_at_utc, customer_org_identifier_id","rule":"superseded claims remain historical evidence; opening/superseding command provenance is queryable and never becomes current matching authority"},
+    {"name":"GetContactChannels","input":["contact_id","include_archived=false","cursor","limit"],"output":["exact_count when requested","bounded channel items","continuation"],"order":"channel_kind, created_at_utc, contact_channel_id","rules":["ordinary recipient selection requests active channels only","historical/admin view may request archived channels","no unbounded Contact detail collection"]},
+    {"name":"ValidateContactChannelForUse","input":["contact_id","contact_channel_id or AUTO_SELECT","purpose"],"algorithm":"algorithms/contact-channel.json","output":"ChannelUseValidation","rules":["pure prerequisite query","AUTO_SELECT never guesses between multiple usable channels unless consuming workflow has separately accepted deterministic rule","no DNS/network/email-service access"]},
+    {"name":"MatchContact","algorithm":"algorithms/matching.json contact_match","input":["scope customer_org_id or UNBOUND","optional raw name","optional raw email","candidate cursor/limit"],"output":"CandidateResult","rules":["only active Contact/channel/current-affiliation rows participate","email equality outside requested scope is not candidate collision","candidate_count reflects complete union and IDs paginate in stable immutable-ID order","ambiguous remains ambiguous regardless visible page"]},
+    {"name":"GetContactAffiliationHistory","input":["contact_id","cursor","limit"],"output":["exact_count","items(contact_affiliation_id,customer_org_id,is_current,opened_at_utc,closed_at_utc,opened_command_id,closed_command_id)","continuation"],"order":"opened_at_utc, contact_affiliation_id","rule":"history reads preserved relationship rows including opening/closing command provenance; current Customer labels do not rewrite historical operational snapshots"},
+    {"name":"PreviewReferenceArchive","input":["ReferenceTarget","base_revision","cursor","limit"],"mode":"read-only preview using algorithms/archive-validation.json","output":["current revision","exact_blocker_count","bounded blockers","continuation","would_be_eligible"],"rule":"eligibility derives from complete blocker count; ArchiveReference reruns bounded guards inside authoritative UnitOfWork"},
+    {"name":"GetSetting","input":["setting_key"],"output":["effective value","source=PERSISTED|DEFAULT","persisted revision or null","contract name/version","semantic owner"],"rules":["unknown key rejected","absent row returns code-defined default without insertion","secret-classified definitions are not exposed"]},
+    {"name":"ListSettingsForOwner","input":["semantic owner module"],"output":"registered definitions joined to optional persisted values","rules":["registry order deterministic","registry code-bounded rather than operational-data-sized","missing rows source DEFAULT","zero persistence side effects"]}
   ],
-  "performance_rules":["ordinary collection queries use keyset cursors over supporting indexes","exact COUNT is not performed on every list by default; it is requested only where the UI/workflow needs it","query implementations use bounded joins/subqueries and must not issue one SQL query per returned row","all route-supplied type/sort identifiers resolve through closed enums and never become raw SQL fragments"]
+  "performance_rules":["ordinary collection queries use keyset cursors over supporting indexes","exact COUNT not performed by default except workflows that require it","bounded joins/subqueries; no one-SQL-query-per-row behavior","route-supplied type/sort identifiers resolve through closed enums and never raw SQL fragments"]
 }
