@@ -1,0 +1,18 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-07",
+  "name":"NEED_AGGREGATION_V1",
+  "steps":[
+    "normalize accepted Device Part Unit BOM to bom_key before writer lock",
+    "inside UnitOfWork re-read Device Part Unit SR/BOM and query spare_need_active_keys by exact (service_request_id,bom_key)",
+    "if no active key exists create one Spare Need with planned_quantity initialized from reviewed command intent (normally one for first contributor unless explicit batch quantity is accepted), lifecycle created event and active key",
+    "if active key exists use that Need and never create duplicate",
+    "if Device Part Unit already has active contributor relation to same Need return semantic NO_CHANGE",
+    "if it has active contributor relation to another Need reject/correct explicitly; do not silently move it",
+    "insert contributor relationship and rebuild contributor_count from active rows",
+    "never change planned_quantity because contributor_count changed",
+    "commit Need/event/contributor/projection/audit atomically"
+  ],
+  "batch_rule":"A reviewed batch registering N same-SR/same-BOM Device Part Units may create all units and one Need in one UnitOfWork; contributor_count=N while planned_quantity follows explicit accepted planning input, not an implicit overwrite.",
+  "separation":"Same BOM on another Service Request always creates/uses a different Need aggregate."
+}
