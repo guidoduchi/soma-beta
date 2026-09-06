@@ -12,31 +12,13 @@
       "name":"PublishStagedImportRun",
       "visibility":"internal durable-job transition",
       "input":["import_run_id","complete parser result/fingerprint/counts","expected run revision"],
-      "steps":[
-        "while run_state=validating, normalized rows/fields/findings may be appended in bounded transactions as unpublished technical staging; queries/proposals treat them as nonexistent source evidence",
-        "after parser reaches complete EOF, recompute exact child counts and logical fingerprint from the unpublished rows and classify replay/chronology against the current source-family checkpoint",
-        "if exact replay, delete unpublished findings/fields/rows through the guarded staging-cleanup path while the run is still validating, then atomically set fingerprint/count metadata and mark run noop with completed_at; create no SourceObservation/proposal/domain history",
-        "if newer-identical, likewise delete unpublished row evidence before publication, atomically set fingerprint/count metadata and transition run to noop_pending_checkpoint; create no proposals",
-        "if equal chronology/different content or older chronology, generate the same smallest-safe-scope reconciliation proposals from the complete source set, force ordinary acceptance closed by run_state=recovery_required, and atomically publish rows/findings/proposals as immutable recovery evidence",
-        "otherwise generate all reconciliation proposals from the complete staging set and atomically publish by transitioning run staged/waiting_review with exact counters/fingerprint/revision",
-        "only staged/waiting_review/recovery_required/noop_pending_checkpoint/noop runs are visible to review/history queries"
-      ],
+      "steps":["while run_state=validating, normalized rows/fields/findings may be appended in bounded transactions as unpublished technical staging; queries/proposals treat them as nonexistent source evidence","after parser reaches complete EOF, recompute exact child counts and logical fingerprint from the unpublished rows and classify replay/chronology against the current source-family checkpoint","if exact replay, delete unpublished findings/fields/rows through the guarded staging-cleanup path while the run is still validating, then atomically set fingerprint/count metadata and mark run noop with completed_at; create no SourceObservation/proposal/domain history","if newer-identical, likewise delete unpublished row evidence before publication, atomically set fingerprint/count metadata and transition run to noop_pending_checkpoint; create no proposals","if equal chronology/different content or older chronology, generate the same smallest-safe-scope reconciliation proposals from the complete source set, force ordinary acceptance closed by run_state=recovery_required, and atomically publish rows/findings/proposals as immutable recovery evidence","otherwise generate all reconciliation proposals from the complete staging set and atomically publish by transitioning run staged/waiting_review with exact counters/fingerprint/revision","only staged/waiting_review/recovery_required/noop_pending_checkpoint/noop runs are visible to review/history queries"],
       "rules":["crash before publish cannot make partial run reviewable","failed/partial parse cannot advance checkpoint","SourceObservation immutability begins at publication, not during technical staging","recovery-required proposals are visible/readable but cannot be accepted without an exact current authorized recovery review","source omission produces no RFC/WFM disappearance proposals"]
     },
     {
       "name":"AcceptReconciliationProposal",
       "input":["proposal_id","proposal_revision","proposal_fingerprint","base_state_token","reason/review context when required","command_id"],
-      "steps":[
-        "load pending proposal and exact published source/run/profile evidence",
-        "reject blocked proposal",
-        "when parent run is recovery_required recompute the current recovery review fingerprint from exact run/checkpoint/material proposal inputs and require the latest import_recovery_review for that fingerprint has decision=authorized; otherwise return IMPORT_RECOVERY_AUTHORIZATION_REQUIRED or IMPORT_RECOVERY_REVIEW_STALE",
-        "inside one short UoW recompute current authoritative base-state token via owning LLD readers and revalidate recovery authorization when applicable",
-        "on target token mismatch return IMPORT_PROPOSAL_STALE with no accepted disposition/domain mutation",
-        "enter one outer idempotent command envelope; the owning domain service receives the same UoW/command context and must not commit independently",
-        "invoke the exact LLD-02/03/05 mutation service selected by proposal_kind; wfm_provisional_eligibility invokes LLD-03 RFC lifecycle authority, and terminal RFC source projection uses LLD-03 terminal-epoch/cascade-proposal semantics",
-        "append accepted proposal disposition and required audit/result references in the same UoW",
-        "transition proposal accepted, refresh run counters, commit"
-      ],
+      "steps":["load pending proposal and exact published source/run/profile evidence","reject blocked proposal","when parent run is recovery_required recompute the current recovery review fingerprint from exact run/checkpoint/material proposal inputs and require the latest import_recovery_review for that fingerprint has decision=authorized; otherwise return IMPORT_RECOVERY_AUTHORIZATION_REQUIRED or IMPORT_RECOVERY_REVIEW_STALE","inside one short UoW recompute current authoritative base-state token via owning LLD readers and revalidate recovery authorization when applicable","on target token mismatch return IMPORT_PROPOSAL_STALE with no accepted disposition/domain mutation","enter one outer idempotent command envelope; the owning domain service receives the same UoW/command context and must not commit independently","invoke the exact LLD-02/03/05 mutation service selected by proposal_kind; wfm_provisional_eligibility invokes LLD-03 RFC lifecycle authority, and terminal RFC source projection uses LLD-03 terminal-epoch/cascade-proposal semantics","append accepted proposal disposition and required audit/result references in the same UoW","transition proposal accepted, refresh run counters, commit"],
       "rules":["one acceptance never implicitly accepts sibling proposals","source acceptance never executes RFC terminal cascade or Objective regrouping","Beta 1.0 RFC/WFM mutation auto-accept policy is empty","recovery authorization permits review execution only; it never accepts proposals itself"]
     },
     {
@@ -54,17 +36,7 @@
     {
       "name":"FinalizeImportRunReview",
       "input":["import_run_id","base run revision","command_id"],
-      "steps":[
-        "inside UoW require run is staged/waiting_review or an authorized recovery_required run and has zero pending proposals",
-        "recompute exact proposal/disposition counters and verify no blocked unresolved scope is being hidden",
-        "for recovery_required revalidate the exact latest recovery authorization/review fingerprint and capture current checkpoint before finalization",
-        "insert receipt",
-        "derive final run state accepted when all target proposals accepted/no_change, rejected when all actionable proposals rejected/superseded, otherwise partially_accepted including mixes with rejected/deferred",
-        "ordinary new-source path advances source-family checkpoint to this explicitly processed source set when chronology is newer/currently absent",
-        "equal-chronology authorized correction replaces the checkpoint fingerprint/run at the same chronology after all proposal decisions are consistent; older-source recovery never decreases or replaces the higher checkpoint chronology",
-        "for recovery_required append one import_recovery_event bound to the exact authorization fingerprint/prior checkpoint and final decision set",
-        "record bounded review-finalization audit, set completed_at, increment revision and commit atomically"
-      ],
+      "steps":["inside UoW require run is staged/waiting_review or an authorized recovery_required run and has zero pending proposals","recompute exact proposal/disposition counters and verify no blocked unresolved scope is being hidden","for recovery_required revalidate the exact latest recovery authorization/review fingerprint and capture current checkpoint before finalization","insert receipt","derive final run state accepted when all target proposals accepted/no_change, rejected when all actionable proposals rejected/superseded, otherwise partially_accepted including mixes with rejected/deferred","ordinary new-source path advances source-family checkpoint to this explicitly processed source set when chronology is newer/currently absent","equal-chronology authorized correction replaces the checkpoint fingerprint/run at the same chronology after all proposal decisions are consistent; older-source recovery never decreases or replaces the higher checkpoint chronology","for recovery_required append one import_recovery_event bound to the exact authorization fingerprint/prior checkpoint and final decision set","record bounded review-finalization audit, set completed_at, increment revision and commit atomically"],
       "rules":["checkpoint represents latest explicitly processed source observation set at its retained monotonic chronology, not proof every proposed domain mutation was accepted","RFC/WFM omission still has no lifecycle meaning","a deferred proposal remains historical decision evidence and may later be reconsidered independently","recovery finalization cannot occur under a stale or later-deferred/rejected recovery review"]
     },
     {
@@ -77,20 +49,9 @@
     {
       "name":"ResolveImportRecovery",
       "input":["recovery_required run_id","exact review_fingerprint","decision reject|defer|authorize_correction","reason_category","command_id"],
-      "steps":[
-        "inside UoW recompute recovery review fingerprint from exact current run/checkpoint/material proposal inputs and require exact match",
-        "allocate next review_ordinal under the writer lock and insert command receipt before recovery-review row",
-        "for authorize_correction append import_recovery_review decision=authorized only; leave run recovery_required and proposals pending for normal per-proposal reviewed decisions",
-        "for defer append decision=deferred only; leave run/proposals unchanged and closed to acceptance until a later fresh authorization",
-        "for reject append decision=rejected, supersede every still-pending proposal with recovery-origin disposition, set run rejected/completed with exact counters, leave checkpoint unchanged, audit and commit",
-        "no branch of this command performs RFC/WFM/Task domain mutation"
-      ],
-      "rules":["authorization is append-only review authority, not domain acceptance","latest exact-fingerprint recovery review controls the gate","a later defer/reject closes earlier authorization without deleting it","older-source checkpoint chronology never moves backward"]
+      "steps":["inside UoW recompute recovery review fingerprint from exact current run/checkpoint/material proposal inputs and require exact match","allocate next review_ordinal under the writer lock and insert command receipt before recovery-review row","for authorize_correction append import_recovery_review decision=authorized only; leave run recovery_required and proposals pending for normal per-proposal reviewed decisions","for defer append decision=deferred only; leave run/proposals unchanged and closed to acceptance until a later fresh authorization","for reject first require accepted_proposal_count=0; otherwise return IMPORT_RECOVERY_REJECT_AFTER_ACCEPTANCE, then append decision=rejected, supersede every still-pending proposal with recovery-origin disposition, set run rejected/completed with exact counters, leave checkpoint unchanged, audit and commit","no branch of this command performs RFC/WFM/Task domain mutation"],
+      "rules":["authorization is append-only review authority, not domain acceptance","latest exact-fingerprint recovery review controls the gate","a later defer/reject closes earlier authorization without deleting it","whole-run reject cannot undo already accepted proposal history","older-source checkpoint chronology never moves backward"]
     }
   ],
-  "worker_recovery":[
-    "startup finds durable import jobs/runs left discovering/validating by prior process and classifies them interrupted through LLD-01 job recovery",
-    "an unpublished partial run is never treated as complete; deterministic restart either resumes from a verified parser checkpoint owned by the durable job or marks it failed and starts a new run",
-    "unpublished rows belonging to interrupted/failed validating runs never participate in replay/proposal/domain queries and may be removed by the guarded technical-staging cleanup; published rows are immutable operational source evidence and are never cleaned as staging"
-  ]
+  "worker_recovery":["startup finds durable import jobs/runs left discovering/validating by prior process and classifies them interrupted through LLD-01 job recovery","an unpublished partial run is never treated as complete; deterministic restart either resumes from a verified parser checkpoint owned by the durable job or marks it failed and starts a new run","unpublished rows belonging to interrupted/failed validating runs never participate in replay/proposal/domain queries and may be removed by the guarded technical-staging cleanup; published rows are immutable operational source evidence and are never cleaned as staging"]
 }
