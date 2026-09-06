@@ -1,0 +1,76 @@
+{
+  "schema": "SOMA-HLD-INVARIANTS-V1",
+  "hld_id": "HLD-03",
+  "invariants": [
+    {
+      "id": "HLD03-INV-001",
+      "rule": "Every persistent reference entity retains an immutable opaque SOMA relational identity independent of descriptive/business identifiers.",
+      "acceptance_hook": "Rename/change matching attributes without changing relational identity or dependent relationships."
+    },
+    {
+      "id": "HLD03-INV-002",
+      "rule": "Exactly one Local User Profile authenticates an installation; Contacts never become additional login profiles.",
+      "acceptance_hook": "Attempt to create a second authenticating profile or use a Contact as authentication identity and require rejection."
+    },
+    {
+      "id": "HLD03-INV-003",
+      "rule": "Contact identity cannot be established, merged, or selected solely by equal name, email, or other descriptive similarity.",
+      "acceptance_hook": "Duplicate-name/email-scope fixtures preserve independent contacts and ambiguous candidate state."
+    },
+    {
+      "id": "HLD03-INV-004",
+      "rule": "A Contact has zero or one current Customer Organization affiliation while prior affiliations remain historical evidence under the same Contact identity.",
+      "acceptance_hook": "Affiliation reassignment closes prior current relation and preserves operation-specific historical context."
+    },
+    {
+      "id": "HLD03-INV-005",
+      "rule": "Reference matching is deterministic, exact and scope-aware; fuzzy similarity never creates identity authority and multiple qualified candidates remain ambiguous.",
+      "acceptance_hook": "Golden normalization vectors plus multi-candidate cases produce stable unresolved/unique/ambiguous outcomes."
+    },
+    {
+      "id": "HLD03-INV-006",
+      "rule": "Dispatch Location is Customer-Organization-neutral and operation-neutral; logistics role or optional Site context cannot redefine its identity.",
+      "acceptance_hook": "Reuse a standalone/linked location across valid operation roles without introducing customer ownership."
+    },
+    {
+      "id": "HLD03-INV-007",
+      "rule": "Each Site has exactly one dedicated Dispatch Location, while a Dispatch Location links to at most one Site and may exist without one.",
+      "acceptance_hook": "Site creation atomically creates/links one location; second-site link and Site-without-location persistence are rejected."
+    },
+    {
+      "id": "HLD03-INV-008",
+      "rule": "Current mutable Dispatch Location/Site address data never rewrites immutable logistics snapshots already owned by operational history.",
+      "acceptance_hook": "Change current master address and verify prior request/pickup snapshots remain unchanged."
+    },
+    {
+      "id": "HLD03-INV-009",
+      "rule": "Archived reference records remain queryable as history but are ineligible for new active relationships until explicit reactivation.",
+      "acceptance_hook": "Archived Contact/Dispatch Location is absent from new-active selectors but resolvable in historical views."
+    },
+    {
+      "id": "HLD03-INV-010",
+      "rule": "Archival cannot strand an active unfinished dependency; blockers are returned without partial lifecycle mutation.",
+      "acceptance_hook": "Active requester/Site/logistics/dependent-record scenarios block archive atomically."
+    },
+    {
+      "id": "HLD03-INV-011",
+      "rule": "Reactivation is explicit, revalidated against current constraints, and audited without erasing the archived interval/history.",
+      "acceptance_hook": "Reactivate valid and newly-conflicting references and verify revalidation/history behavior."
+    },
+    {
+      "id": "HLD03-INV-012",
+      "rule": "A matching/reconciliation query never mutates a reference record; create, merge/link, reassignment, archive and correction are separate commands.",
+      "acceptance_hook": "Run matching/preview repeatedly and verify zero authoritative mutations until an explicit command is accepted."
+    },
+    {
+      "id": "HLD03-INV-013",
+      "rule": "Settings are typed and semantically owned by one module; the shared Settings workspace/registry does not become independent domain authority.",
+      "acceptance_hook": "Domain setting validation remains identical whether changed from Settings UI or another governed command surface."
+    },
+    {
+      "id": "HLD03-INV-014",
+      "rule": "Reading an absent setting/reference default never persists it implicitly.",
+      "acceptance_hook": "Read-only settings/reference queries leave storage unchanged."
+    }
+  ]
+}
