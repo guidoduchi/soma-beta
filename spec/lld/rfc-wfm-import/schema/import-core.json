@@ -1,0 +1,95 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-04",
+  "table_mode":"All authoritative LLD-04 tables use SQLite STRICT mode and LLD-01 FK/index/protection verification.",
+  "tables":[
+    {
+      "name":"import_runs",
+      "columns":[
+        "import_run_id TEXT PRIMARY KEY",
+        "source_family TEXT NOT NULL CHECK(source_family IN ('rfc_enhanced','wfm_service_provider'))",
+        "invocation_kind TEXT NOT NULL CHECK(invocation_kind IN ('automatic','manual','recovery'))",
+        "source_profile_id TEXT NOT NULL",
+        "header_registry_id TEXT NOT NULL",
+        "vocabulary_registry_id TEXT NOT NULL",
+        "parser_profile_id TEXT NOT NULL",
+        "candidate_filename TEXT NOT NULL CHECK(length(candidate_filename)>0)",
+        "candidate_file_size_bytes INTEGER NOT NULL CHECK(candidate_file_size_bytes>=0)",
+        "candidate_stable_mtime_ns INTEGER NOT NULL CHECK(candidate_stable_mtime_ns>=0)",
+        "candidate_chronology_kind TEXT NOT NULL CHECK(candidate_chronology_kind IN ('filesystem_mtime_ns','embedded_filename_timestamp_utc'))",
+        "candidate_chronology_value INTEGER NOT NULL CHECK(candidate_chronology_value>=0)",
+        "logical_fingerprint_sha256 TEXT CHECK(logical_fingerprint_sha256 IS NULL OR length(logical_fingerprint_sha256)=64)",
+        "run_state TEXT NOT NULL CHECK(run_state IN ('discovering','validating','staged','waiting_review','partially_accepted','accepted','rejected','noop','recovery_required','failed'))",
+        "started_at_utc INTEGER NOT NULL CHECK(started_at_utc>=0)",
+        "staged_at_utc INTEGER CHECK(staged_at_utc IS NULL OR staged_at_utc>=started_at_utc)",
+        "completed_at_utc INTEGER CHECK(completed_at_utc IS NULL OR completed_at_utc>=started_at_utc)",
+        "observed_row_count INTEGER NOT NULL DEFAULT 0 CHECK(observed_row_count>=0)",
+        "valid_identity_count INTEGER NOT NULL DEFAULT 0 CHECK(valid_identity_count>=0)",
+        "invalid_row_count INTEGER NOT NULL DEFAULT 0 CHECK(invalid_row_count>=0)",
+        "warning_count INTEGER NOT NULL DEFAULT 0 CHECK(warning_count>=0)",
+        "proposal_count INTEGER NOT NULL DEFAULT 0 CHECK(proposal_count>=0)",
+        "pending_proposal_count INTEGER NOT NULL DEFAULT 0 CHECK(pending_proposal_count>=0)",
+        "accepted_proposal_count INTEGER NOT NULL DEFAULT 0 CHECK(accepted_proposal_count>=0)",
+        "rejected_proposal_count INTEGER NOT NULL DEFAULT 0 CHECK(rejected_proposal_count>=0)",
+        "deferred_proposal_count INTEGER NOT NULL DEFAULT 0 CHECK(deferred_proposal_count>=0)",
+        "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
+        "CHECK((run_state IN ('staged','waiting_review','partially_accepted','accepted','rejected','noop','recovery_required') AND logical_fingerprint_sha256 IS NOT NULL AND staged_at_utc IS NOT NULL) OR run_state IN ('discovering','validating','failed'))"
+      ],
+      "rules":[
+        "import_run_id is immutable UUIDv4 identity",
+        "candidate_filename is display/provenance only and never identity or business chronology",
+        "no raw workbook bytes, formulas, discarded columns or unrestricted row payload are stored in import_runs",
+        "run counters are exact derived/maintained summary values validated against immutable child rows before terminal run transition",
+        "run state is workflow coordination only and never RFC/WFM lifecycle authority"
+      ]
+    },
+    {
+      "name":"import_source_checkpoints",
+      "columns":[
+        "source_family TEXT PRIMARY KEY CHECK(source_family IN ('rfc_enhanced','wfm_service_provider'))",
+        "source_profile_id TEXT NOT NULL",
+        "accepted_candidate_chronology_kind TEXT NOT NULL CHECK(accepted_candidate_chronology_kind IN ('filesystem_mtime_ns','embedded_filename_timestamp_utc'))",
+        "accepted_candidate_chronology_value INTEGER NOT NULL CHECK(accepted_candidate_chronology_value>=0)",
+        "accepted_logical_fingerprint_sha256 TEXT NOT NULL CHECK(length(accepted_logical_fingerprint_sha256)=64)",
+        "accepted_import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "last_checked_at_utc INTEGER NOT NULL CHECK(last_checked_at_utc>=0)",
+        "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)"
+      ],
+      "rules":[
+        "RFC and WFM checkpoints are independent and separate from Communication coverage/business chronology",
+        "checkpoint advances only through accepted/noop-newer-identical/reviewed-recovery command paths",
+        "same chronology plus different logical fingerprint never advances checkpoint",
+        "older chronology never advances checkpoint without explicit reviewed recovery",
+        "checkpoint chronology is source-family import ordering evidence and never entity lifecycle chronology"
+      ]
+    },
+    {
+      "name":"import_recovery_events",
+      "columns":[
+        "import_recovery_event_id TEXT PRIMARY KEY",
+        "source_family TEXT NOT NULL CHECK(source_family IN ('rfc_enhanced','wfm_service_provider'))",
+        "import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "prior_checkpoint_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "recovery_reason_category TEXT NOT NULL",
+        "review_fingerprint_sha256 TEXT NOT NULL CHECK(length(review_fingerprint_sha256)=64)",
+        "occurred_at_utc INTEGER NOT NULL CHECK(occurred_at_utc>=0)",
+        "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
+      ],
+      "rules":["append-only evidence of explicit older-source recovery authority","recovery never erases/reorders prior accepted observations","recovery applies only to the exact reviewed run/checkpoint pair"]
+    }
+  ],
+  "indexes":[
+    "CREATE INDEX idx_import_runs_family_state ON import_runs(source_family,run_state,started_at_utc,import_run_id)",
+    "CREATE INDEX idx_import_runs_family_chronology ON import_runs(source_family,candidate_chronology_value,import_run_id)",
+    "CREATE INDEX idx_import_runs_fingerprint ON import_runs(source_family,logical_fingerprint_sha256,import_run_id)",
+    "CREATE INDEX idx_import_checkpoint_run_fk ON import_source_checkpoints(accepted_import_run_id,source_family)",
+    "CREATE INDEX idx_import_recovery_run_fk ON import_recovery_events(import_run_id,import_recovery_event_id)",
+    "CREATE INDEX idx_import_recovery_prior_fk ON import_recovery_events(prior_checkpoint_run_id,import_recovery_event_id)",
+    "CREATE INDEX idx_import_recovery_command_fk ON import_recovery_events(command_id,import_recovery_event_id)"
+  ],
+  "protection":[
+    "import_recovery_events BEFORE UPDATE/DELETE raises IMPORT_RECOVERY_APPEND_ONLY",
+    "import_runs immutable provenance/profile/candidate fields cannot change after staging; only governed state/count/completion/revision transitions remain writable",
+    "checkpoint updates require expected revision and exact source-family/profile compatibility inside one UnitOfWork"
+  ]
+}
