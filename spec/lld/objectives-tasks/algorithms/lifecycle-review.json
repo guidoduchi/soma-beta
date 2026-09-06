@@ -1,0 +1,90 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-05",
+  "name":"TASK_OBJECTIVE_LIFECYCLE_REVIEW_V1",
+  "task_execution_projection":[
+    "fold append-only task_execution_events in deterministic recorded_at_utc,event_id order while applying correction events to exact target evidence",
+    "not_started: no current-effective start and no current-effective termination/cancel event",
+    "in_progress: one current-effective start exists and no current-effective end/termination closes it",
+    "ended: current-effective start and end exist, end>=start, and no later effective termination supersedes the open execution interpretation",
+    "terminated: current-effective manual_cancel/rfc_terminal_terminate/source_terminal_consequence closes executable work; actual_start remains null when no accepted start, otherwise preserves actual start; termination does not fabricate actual end",
+    "a correction may replace/withdraw exact occurrence time only when the resulting full chronology remains valid; prior evidence remains immutable",
+    "recorded_at is never substituted for an unknown/missing effective occurrence time"
+  ],
+  "task_review_state":[
+    "if task_outcome_current exists and its event remains valid against corrected execution evidence, review_state=reviewed with accepted outcome/reviewed_at",
+    "otherwise if execution_state in ended|terminated, review_state=awaiting_review",
+    "otherwise if current Objective envelope is due/past and Task still has no accepted outcome, surface awaiting_review/due_unreviewed without creating execution or outcome",
+    "otherwise review_state=not_due_or_in_progress"
+  ],
+  "task_outcome_acceptance_matrix":{
+    "completed":["requires execution_state=ended with accepted actual_start and actual_end","does not accept provider Complete, Objective end, review time or termination alone as completion"],
+    "incomplete":["requires accepted actual_start and execution_state in ended|terminated","reason_category required when the current evidence does not itself explain incompleteness"],
+    "cancelled_without_execution":["requires no current-effective accepted actual_start and execution_state=terminated","manual_cancel, RFC terminal consequence or reviewed source-terminal consequence may supply termination evidence; provider status by itself may not"]
+  },
+  "correction_rule":[
+    "ordinary ReviewTaskOutcome cannot overwrite an existing current accepted outcome; use CorrectTaskOutcome",
+    "CorrectTaskOutcome appends a new event correction_of exact current event and must satisfy the current corrected execution matrix",
+    "Task identity, execution evidence, prior outcome event and reviewed_at remain preserved",
+    "a correction that materially changes an Objective aggregate invalidates the prior Objective review fingerprint but never edits/deletes objective_review_events"
+  ],
+  "effective_locks":{
+    "plan_lock_true_if":["explicit current plan lock","accepted Task start/execution history","provider terminal evidence whose local consequence is protected/unresolved","terminal/historical Objective membership where plan rewrite would alter protected structure"],
+    "membership_lock_true_if":["explicit current membership lock","accepted Task start/execution history","terminal/reviewed historical Objective structure","protected retry/history consequence that would be rewritten by move"],
+    "rule":"current UTC clock crossing a plan boundary never creates either lock by itself; corrections use their explicit governed path rather than pretending the lock does not exist"
+  },
+  "task_executable":{
+    "true_when":"Task has no current-effective termination/cancelled outcome, is not provider/local terminal work retained as historical-only, and domain-specific RFC/WFM eligibility allows execution",
+    "false_when":["cancelled_without_execution reviewed","execution terminated","provider Plan Cancel/Complete local consequence accepted as termination","RFC terminal cascade applied to the Task"],
+    "rule":"provider status alone does not flip local executable=false until the governed local consequence decision/cascade applies, except a purely historical Task created/adopted from already-terminal provider evidence that never entered active executable state"
+  },
+  "objective_aggregate_derivation":[
+    "load current nonsuperseded Objective membership, each pinned plan revision, Task execution projection, Task current outcome, operational-count inclusion and current valid review fingerprint",
+    "envelope=min pinned plan start / max pinned plan end; member_count must be >0",
+    "actual_start_utc=min accepted actual_start across member Tasks when any exists; otherwise null",
+    "actual_end_utc is null while any started member remains in_progress; when at least one Task started and all started Tasks are terminal, use max(actual_end_utc or effective_termination_utc) across those started Tasks with known terminal occurrence; unknown terminal occurrence leaves aggregate actual_end unknown",
+    "if Objective is superseded => execution_state=superseded and no new editable aggregate outcome",
+    "else if creation_origin=historical_provider_complete and no accepted Task actual execution exists => execution_state=historical_structure; aggregate_outcome is null unless all current members are excluded from operational counts, then excluded_from_operational_counts",
+    "else if any member execution_state=in_progress => execution_state=in_progress",
+    "else if Objective has evidence that at least one member began execution and a governed transition leaves zero executable members before all Task outcomes are reviewed => execution_state=awaiting_review with attention_reason=lost_last_executable",
+    "else if all current member Tasks have valid current accepted outcomes => derive aggregate outcome; execution_state=reviewed only when a current objective_review_event fingerprint matches exact membership/outcome/inclusion inputs, otherwise awaiting_review",
+    "else if current time >= envelope.end_utc => execution_state=awaiting_review with attention_reason=due_unreviewed; no Task outcome is fabricated",
+    "else execution_state=planned",
+    "if current task_plan_current differs from a membership-pinned plan revision for any current member, add attention_reason=plan_membership_mismatch unless a higher safety attention reason is present"
+  ],
+  "objective_outcome_derivation":{
+    "included_population":"current members whose effective operational-count inclusion is true; exclusions never delete membership/history",
+    "excluded_all":"when included population is empty and at least one member is excluded => excluded_from_operational_counts",
+    "cancelled":"all included member outcomes are cancelled_without_execution AND no current or corrected historical member actual_start exists",
+    "completed":"all included member outcomes are completed",
+    "incomplete":"all included member outcomes are incomplete OR mixture of completed/incomplete containing at least one incomplete and no cancelled outcome only when the UI/report chooses normalized failure class; canonical stored aggregate remains mixed for heterogeneous outcomes",
+    "mixed":"two or more distinct included Task outcome tokens are present",
+    "rule":"canonical aggregate uses mixed for any heterogeneous Task outcomes; whole-Objective Cancelled is therefore impossible after any Task began execution"
+  },
+  "objective_review_fingerprint":{
+    "fields":"version; objective_id/revision; sorted current task_id + membership revision + pinned plan revision + execution revision + current outcome event/revision + inclusion revision/default; supersession state",
+    "hash":"SHA-256 canonical UTF-8",
+    "rule":"reviewed_at is server recording time after exact fingerprint revalidation; it does not enter actual execution chronology"
+  },
+  "source_terminal_review":[
+    "when accepted LLD-04 WFM projection changes to Complete or Plan Cancel, provider source status remains immutable evidence/current source projection only",
+    "if the Task still has local executable work or Objective consequence, create/supersede wfm_source_terminal_reviews pending row bound to exact source projection revision and local input fingerprint; do not append execution/outcome evidence",
+    "local input fingerprint includes task revision, execution revision/state, outcome revision, current plan revision, membership objective/pin/revision, effective locks and provider source projection revision",
+    "retain_local_work records the reviewed decision only; a later materially changed source/local state may create a fresh review",
+    "terminate_local_work appends one source_terminal_consequence execution event in the same UoW and transitions the exact review; no Task outcome is added",
+    "after termination rebuild affected Objective aggregate; if it was in progress and now has zero executable Tasks set lost_last_executable/awaiting review, otherwise preserve surviving work and show source-terminal warning",
+    "Plan Cancel/Complete source evidence never changes SR/RFC lifecycle, Inventory or Communications through this command"
+  ],
+  "rfc_terminal_participant":[
+    "capture_applicable_wfms under LLD-03 caller UoW selects exact active locally executable WFM Tasks whose current owning RFC is in the exact cascade RFC set; returns ordered task_id/task revision/task_no",
+    "preview reports affected Objectives, surviving executable counts and any in-progress last-executable loss; any incomplete authority returns INDETERMINATE",
+    "apply revalidates captured identities/revisions/ownership and appends rfc_terminal_terminate execution events for applicable Tasks only; provider source projection remains untouched and no Task outcome is accepted",
+    "unrelated Local Tasks and WFM Tasks outside the exact RFC scope are untouched",
+    "all Task/Objective projection rebuilds occur in caller UnitOfWork and any failure rolls the entire RFC cascade back"
+  ],
+  "objective_cancel":[
+    "whole Objective cancel command first proves no current-effective or historical-uncorrected Task start exists for any member",
+    "it records explicit cancellation evidence/outcome per Task rather than writing an Objective-owned cancellation truth",
+    "aggregate Cancelled follows only from member outcomes and valid Objective review fingerprint"
+  ]
+}
