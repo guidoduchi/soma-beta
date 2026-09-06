@@ -1,0 +1,77 @@
+{
+  "schema": "SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id": "HLD-03",
+  "upstream_authority": [
+    "spec/hld/foundation-runtime/_index.json",
+    "spec/requirements/CP001/BETA-REQ-0010.json",
+    "spec/requirements/CP001/BETA-REQ-0021.json",
+    "spec/requirements/CP001/BETA-REQ-0022.json",
+    "spec/requirements/CP001/BETA-REQ-0023.json",
+    "spec/requirements/CP001/BETA-REQ-0024.json",
+    "spec/requirements/CP001/BETA-REQ-0025.json",
+    "spec/requirements/CP001/BETA-REQ-0026.json",
+    "spec/requirements/CP002/BETA-REQ-0028.json",
+    "spec/requirements/CP002/BETA-REQ-0029.json",
+    "spec/requirements/CP002/BETA-REQ-0030.json",
+    "spec/requirements/CP002/BETA-REQ-0031.json",
+    "spec/requirements/CP002/BETA-REQ-0034.json"
+  ],
+  "supporting_authority": [
+    "BETA-REQ-0020",
+    "BETA-REQ-0027",
+    "BETA-REQ-0032",
+    "BETA-REQ-0033",
+    "BETA-REQ-0035",
+    "BETA-REQ-0058",
+    "BETA-REQ-0067",
+    "BETA-REQ-0136",
+    "BETA-REQ-0165",
+    "BETA-REQ-0173",
+    "BETA-REQ-0177"
+  ],
+  "required_hld_dependencies": [
+    {
+      "id": "HLD-02",
+      "provides": ["opaque-id persistence support", "relational constraints", "typed settings persistence", "transaction boundary"]
+    },
+    {
+      "id": "HLD-13",
+      "provides": ["Local User Profile authentication/credential security"]
+    },
+    {
+      "id": "HLD-14",
+      "provides": ["affiliation/archive/reactivate/correction audit and history semantics"]
+    }
+  ],
+  "peer_dependencies": [
+    {
+      "id": "HLD-05",
+      "interaction": "consumes deterministic reference candidate matching and returns reviewed source proposals"
+    },
+    {
+      "id": "HLD-08",
+      "interaction": "consumes Contact requester and Dispatch Location logistics references and owns frozen operation snapshots/dependency semantics"
+    },
+    {
+      "id": "HLD-09",
+      "interaction": "owns Site and invokes atomic Site + dedicated Dispatch Location creation/linking"
+    },
+    {
+      "id": "HLD-04",
+      "interaction": "consumes Customer/Contact references and preserves operation-specific relationship context"
+    },
+    {
+      "id": "HLD-10",
+      "interaction": "consumes validated Contact channels without taking ownership of Contact identity"
+    }
+  ],
+  "forbidden_dependency_direction": [
+    "Contact -> LocalUserProfile identity substitution",
+    "descriptive matching attribute -> relational identity",
+    "import adapter -> silent reference merge/reassignment",
+    "DispatchLocation -> CustomerOrganization ownership",
+    "Settings workspace -> domain semantic ownership",
+    "Site/Inventory/Tickets -> direct mutation of reference private persistence outside explicit application commands"
+  ],
+  "downstream_lld": ["LLD-02 Identity, Settings, Contacts, Organizations, Locations"]
+}
