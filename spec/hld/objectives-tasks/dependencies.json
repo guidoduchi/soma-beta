@@ -1,0 +1,29 @@
+{
+  "schema": "SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id": "HLD-06",
+  "requires": [
+    {"hld_id":"HLD-02","for":"short authoritative transactions, revision checks and durable proposal/job state"},
+    {"hld_id":"HLD-03","for":"reference identity where Task context resolves Contacts/Customers/settings"},
+    {"hld_id":"HLD-04","for":"RFC hierarchy, WFM ownership context, SR/Device Reference relationships and terminal cascade inputs"},
+    {"hld_id":"HLD-05","for":"accepted WFM source-plan observations and source-vs-operational-plan conflict proposals"}
+  ],
+  "constrained_by": [
+    {"hld_id":"HLD-14","for":"canonical UTC instants, effective-vs-recording time, audit/history and transaction semantics"}
+  ],
+  "consumed_by": [
+    {"hld_id":"HLD-07","for":"reporting/time context only; SLA cannot infer Task execution from Objective plan"},
+    {"hld_id":"HLD-08","for":"reviewed Task physical-consequence inputs; Inventory cannot own Task outcome"},
+    {"hld_id":"HLD-11","for":"Objective/Task workbench commands and regroup/review UI"},
+    {"hld_id":"HLD-12","for":"timeline, operational counts and narrative projections"}
+  ],
+  "forbidden_dependencies": [
+    "Task lifecycle must not depend on Inventory state labels.",
+    "Objective grouping must not depend on Customer/RFC partitions as temporal boundaries.",
+    "Task plan must not be derived by reading mutable UI state.",
+    "Actual execution must not be inferred from WFM provider completion or Objective clock passage.",
+    "Objective aggregate outcome must not be independently writable around member Task outcomes."
+  ],
+  "lld_handoffs": [
+    {"lld_id":"LLD-05","scope":"Task/Objective schema, commands, overlap grouping, execution, review, retry and historical proposal algorithms"}
+  ]
+}
