@@ -2,7 +2,7 @@
   "schema":"SOMA-LLD-PACKET-V1",
   "id":"LLD-04",
   "name":"RFC/WFM Import and Reconciliation",
-  "status":"drafting",
+  "status":"review_ready",
   "requirement_ids":["BETA-REQ-0145","BETA-REQ-0146","BETA-REQ-0159","BETA-REQ-0160","BETA-REQ-0176"],
   "supporting_requirement_ids":["BETA-REQ-0012","BETA-REQ-0013","BETA-REQ-0030","BETA-REQ-0056","BETA-REQ-0059","BETA-REQ-0061","BETA-REQ-0074","BETA-REQ-0147","BETA-REQ-0148","BETA-REQ-0149","BETA-REQ-0150","BETA-REQ-0151","BETA-REQ-0155","BETA-REQ-0156","BETA-REQ-0158","BETA-REQ-0161","BETA-REQ-0165","BETA-REQ-0169","BETA-REQ-0170","BETA-REQ-0172"],
   "hld_dependencies":["HLD-03","HLD-04","HLD-05","HLD-06","HLD-14"],
@@ -10,6 +10,53 @@
   "scope":["shared RFC/WFM import directory semantics","versioned source profiles/filename classification","safe direct-file discovery and stabilization","untrusted XLSX validation/parser boundary","versioned header/vocabulary registries","immutable import runs and source observations","deterministic logical fingerprint/replay chronology checkpoints","smallest-safe-scope reconciliation proposals/dispositions","explicit older-source recovery","RFC accepted-source handoff to LLD-03","WFM accepted-source proposal handoff to LLD-05","SR-link and Customer reconciliation candidate generation","review/auto-accept classification and preview projections"],
   "not_owned_here":["RFC authoritative current lifecycle/hierarchy/relationships -> LLD-03","WFM/Task identity/current source projection/operational plan/Objective consequences -> LLD-05","Customer/Contact master identity -> LLD-02","Communication evidence -> LLD-09","frontend implementation -> LLD-10","authentication/anti-forgery -> LLD-12"],
   "required_directories":["profiles","schema","commands","queries","algorithms","ui","tests"],
-  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"construction_complete":false,"formal_double_review_deferred_until_full_beta_lld_set":true,"implementation_ready":false},
+  "packet_files":[
+    "bounds.json","errors.json","interfaces.json","routes.json","technology.json",
+    "profiles/auto-accept-policy.json","profiles/header-registry.json","profiles/settings.json","profiles/source-profiles.json","profiles/vocabularies.json",
+    "schema/import-core.json","schema/observations.json","schema/reconciliation.json",
+    "commands/import.json",
+    "queries/import.json",
+    "algorithms/discovery.json","algorithms/logical-fingerprint.json","algorithms/reconciliation.json","algorithms/recovery.json","algorithms/rfc-parser.json","algorithms/wfm-parser.json","algorithms/xlsx-security.json",
+    "ui/review-state.json",
+    "tests/acceptance.json","tests/failure-injection.json","tests/security.json"
+  ],
+  "transaction_boundaries":[
+    "Workbook discovery, stabilization, security validation, parsing, normalization, logical fingerprinting and proposal calculation occur outside authoritative domain mutation transactions.",
+    "Unpublished validating-run staging may be written in bounded technical transactions but is excluded from source authority, review and domain queries until atomic publication of the complete run.",
+    "Every accepted reconciliation proposal uses exactly one outer LLD-01 UnitOfWork and one command receipt; LLD-02/03/05 owner services participate in that same UnitOfWork and never commit independently.",
+    "Run finalization and source-checkpoint update are atomic; equal-chronology correction may replace fingerprint/run at the same chronology only through authorized recovery, while older-source recovery never moves chronology backward.",
+    "Recovery authorization/rejection/defer decisions are append-only review authority; they never themselves mutate RFC/WFM/Task domain state."
+  ],
+  "failure_modes":[
+    "unsafe, unstable, inaccessible or malformed workbook candidates fail visibly without silent fallback to an older candidate",
+    "partial or interrupted validating runs remain unpublished and cannot establish source presence, replay authority, proposals or checkpoint advancement",
+    "identity/header/content ambiguity blocks only the smallest safe scope unless workbook-level integrity makes the complete source inseparable",
+    "proposal acceptance fails closed on stale proposal fingerprint, target base-state token, Customer reference generation, RFC hierarchy or Task plan/execution state",
+    "recovery-required runs remain closed to ordinary acceptance until an exact current recovery review is authorized, and whole-run rejection is forbidden after accepted proposal mutations",
+    "cross-domain nested commit, partial participant mutation and checkpoint/run disagreement are prevented by same-UoW rollback and explicit failure-injection tests"
+  ],
+  "acceptance_tests":["tests/acceptance.json","tests/failure-injection.json","tests/security.json"],
+  "implementation_gate":{
+    "hld_owner_accepted":true,
+    "all_required_files_complete":true,
+    "acceptance_tests_explicit":true,
+    "construction_complete":true,
+    "formal_double_review_deferred_until_full_beta_lld_set":true,
+    "owner_lld_acceptance_required":true,
+    "implementation_ready":false
+  },
+  "construction_evidence":[
+    "all required packet directories are populated and the exact packet file set is pinned",
+    "RFC and WFM filename/source-profile/header/vocabulary semantics are versioned and deterministic",
+    "direct-file discovery and XLSX validation treat workbooks as untrusted local input and reject reparse/path/resource hazards",
+    "immutable published source observations are separated from unpublished technical staging and authoritative domain state",
+    "logical replay and chronology checkpoints distinguish exact replay, newer-identical source, equal-chronology conflict and older-source recovery",
+    "proposal generation and disposition operate at the smallest safe scope and omission has no lifecycle meaning",
+    "accepted RFC mutations cross only LLD-03 owner interfaces; accepted WFM/Task mutations are pinned as LLD-05 interfaces without inventing Task schema",
+    "Beta 1.0 RFC/WFM domain mutation auto-accept policy is empty; terminal/customer/timeframe/link and competing-source changes require review",
+    "recovery review is append-only, stale-bound and cannot reject a whole run after accepted proposal mutations",
+    "happy-path, replay, chronology, ambiguity, stale-state, crash, security and partial-participant failure vectors are explicit"
+  ],
+  "known_unresolved_blockers":[],
   "design_principle":"Every workbook is untrusted immutable source evidence first. Discovery, parsing, fingerprinting, presence recording and proposal generation never become domain mutation; accepted changes cross only bounded owning-domain command interfaces after exact-source, chronology, replay and stale-state checks."
 }
