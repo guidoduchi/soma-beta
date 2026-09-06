@@ -1,0 +1,61 @@
+{
+  "schema": "SOMA-HLD-DATA-FLOW-V1",
+  "hld_id": "HLD-02",
+  "flows": {
+    "authoritative_command": [
+      "Application service receives an already transport-validated command.",
+      "A unit-of-work obtains an authoritative connection from the owned connection factory.",
+      "The connection proves required SQLite enforcement before the transaction begins.",
+      "Required authoritative state is loaded and the owning domain policy revalidates the command against the current revision/state.",
+      "Structural constraints and domain mutation are applied inside the bounded transaction.",
+      "Required domain-event/audit persistence participates in the same commit boundary according to HLD-14.",
+      "Commit publishes the complete accepted result; failure rolls the unit back and returns a stable failure category."
+    ],
+    "long_running_or_external_work": [
+      "Adapter/job captures the minimum authoritative revision/input identities needed for work.",
+      "The transaction is released before workbook/mail/file parsing, expensive computation, waiting, or operator review.",
+      "Intermediate restart-safe job/proposal/checkpoint state is persisted separately when required.",
+      "Before authoritative mutation, a fresh short transaction reloads the target and revalidates stale/conflict conditions.",
+      "Only the accepted minimal result is committed; source content itself does not remain an open database transaction."
+    ],
+    "startup_migration": [
+      "HLD-01 host acquires canonical data-instance ownership.",
+      "Migration coordinator obtains exclusive migrator authority and rereads package manifest, database ledger, and schema.",
+      "Unknown/missing/drifted/future/invalid states are classified before mutation.",
+      "Each required accepted migration applies schema/data change and migration-ledger evidence atomically.",
+      "On any failure the database remains at the last committed migration state.",
+      "Post-migration exact-schema, foreign-key and required append-only/integrity checks execute.",
+      "Only a passing current state returns persistence readiness to HLD-01."
+    ],
+    "observational_status": [
+      "Status determines whether the target exists without creating it.",
+      "Existing targets are opened through explicit read-only/query-only semantics when safe.",
+      "Manifest/ledger/schema/integrity state is classified without migration, repair, checkpoint, vacuum, write pragma, timestamp touch, lock disruption, or default creation.",
+      "If a live verified SOMA host owns the database, detailed live status is requested through that host where required; unsafe offline inspection reports limited/unavailable instead of disturbing the writer."
+    ],
+    "typed_json_write": [
+      "Owning capability selects an explicit named/versioned JSON contract.",
+      "Input is parsed with strict duplicate/nonfinite/malformed rejection and validated for shape, semantics, bounds, and version.",
+      "Unknown fields/versions follow the explicit contract policy; no silent loss is followed by overwrite.",
+      "Upgrade or normal write commits atomically and failure preserves the prior valid document."
+    ],
+    "projection_rebuild": [
+      "Projection/cache state is treated as disposable and non-authoritative.",
+      "Owning canonical relational facts/events are read from SQLite.",
+      "Projection is deterministically regenerated and may be replaced without altering canonical lifecycle/audit evidence.",
+      "A projection that cannot be rebuilt from accepted authority is not permitted as a cache and must be modeled as authoritative domain data instead."
+    ],
+    "restore_publication": [
+      "HLD-13 authenticates/decrypts and prepares a candidate restore without replacing the live instance prematurely.",
+      "HLD-02 validates that the candidate is a supported database with coherent migration lineage, exact schema expectations, foreign keys, and required integrity/append-only protections.",
+      "Only a verified candidate may be atomically published as the restored data instance under HLD-13 recovery rules.",
+      "Failure leaves the prior valid instance unchanged."
+    ]
+  },
+  "performance_rules": [
+    "Keep write transactions bounded to authoritative validation/mutation, never operator think-time or source parsing.",
+    "Index every effective child-side FK path used by ordinary joins or parent integrity checks unless a documented measured exception exists.",
+    "Prefer relational queries over denormalized duplicate truth; add rebuildable projections only for measured query needs.",
+    "Batch operations preflight outside the write transaction where possible, then revalidate/commit bounded deterministic partitions according to owning-domain atomicity."
+  ]
+}
