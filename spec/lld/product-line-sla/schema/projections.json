@@ -1,0 +1,24 @@
+{
+  "schema":"SOMA-LLD-PROJECTION-SCHEMA-V1",
+  "lld_id":"LLD-06",
+  "persistence":"Live individual/cohort SLA projections are computed from accepted indexed inputs for an explicit as_of_utc. Beta 1.0 does not make a mutable cache row authoritative because active elapsed time changes with the canonical clock. Completed report snapshots are persisted separately in schema/reporting.json.",
+  "individual_sla_result":{
+    "fields":["service_request_id","as_of_utc","classification_state classified|unclassified|incompatible","contract_product_line_id?","policy_revision_id?","severity?","report_date_utc?","endpoint_kind current|first_resolved_closed|cancelled|missing","endpoint_utc?","suspension_duration numerator/denominator","effective_elapsed numerator/denominator?","calculation_state calculable|missing_report_date|unclassified|severity_unresolved|cancelled_excluded|policy_missing","tier_results[]","input_fingerprint"],
+    "tier_result_fields":["policy_tier_id","required_percentage_millionths","maximum_duration numerator/denominator","individual_state active_within|active_exceeded|terminal_met|terminal_exceeded","inclusive_boundary_met boolean"],
+    "rules":["unclassified and missing Report Date are independent states","Cancelled preserves chronology but has no cohort tier result","one SR may have several tier results for its severity"]
+  },
+  "cohort_key":{
+    "fields":["calendar_month_yyyy_mm","customer_org_id","contract_id","contract_product_line_id","severity","policy_tier_id"],
+    "timezone":"America/Guayaquil",
+    "rule":"compliance state/outcome is never part of identity"
+  },
+  "cohort_result":{
+    "fields":["cohort_key","as_of_utc","policy_revision_id","required_percentage_millionths","maximum_duration numerator/denominator","denominator","terminal_met_count","terminal_exceeded_count","active_within_count","active_exceeded_count","lower_bound_met_count","best_possible_met_count","lower_bound_percentage rational","best_possible_percentage rational","state pending|currently_met|at_risk|breached|final_met","is_final boolean","member_exact_count","input_fingerprint"],
+    "rules":["lower_bound_met_count equals terminal_met_count","best_possible_met_count equals terminal_met_count + active_within_count","active_exceeded is already impossible to meet the current tier absent later correction/suspension evidence","is_final requires calendar month closed at as_of and zero active cohort members","Final Met requires is_final and terminal_met percentage meets configured threshold","final failure uses Breached rather than inventing Final Failed enum"]
+  },
+  "warning_projection":{
+    "conditions":["sla_unclassified","sla_uncalculable_missing_report_date","individual_tier_exceeded","cohort_at_risk","cohort_breached","suspension_end_missing_or_expired","suspension_ending_soon"],
+    "rule":"warning condition keys are stable derived identifiers for LLD-11/LLD-12 presentation/deduplication; LLD-06 does not turn warnings into lifecycle facts"
+  },
+  "cache_rule":"If implementation later adds a local performance cache within Beta 1.0, every cache row must bind exact as_of/input_fingerprint and be safely discardable/rebuildable. Cache absence/staleness must never alter result correctness."
+}
