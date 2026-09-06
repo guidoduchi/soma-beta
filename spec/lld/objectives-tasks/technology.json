@@ -1,0 +1,33 @@
+{
+  "schema":"SOMA-LLD-TECHNOLOGY-V1",
+  "lld_id":"LLD-05",
+  "runtime":[
+    "Python 3.13/3.14 domain/service layer over LLD-01 SQLite STRICT persistence and UnitOfWork abstractions",
+    "Python standard-library datetime/zoneinfo for schedule conversion; LLD-12 packaging must guarantee an offline IANA tzdata source on supported Windows installations",
+    "hashlib.sha256 over canonical bounded proposal/input serialization for stale/rejection fingerprints"
+  ],
+  "algorithm_choices":{
+    "overlap_components":"sort eligible interval tuples by (start_utc,end_utc,task_id), then perform one sweep maintaining component max_end; a new interval joins iff start_utc < current_component_max_end; start_utc == max_end starts a new strict-overlap component",
+    "complexity":"O(n log n) time from sorting and O(n) compact tuple/work-index memory; pairwise O(n^2) overlap enumeration is forbidden",
+    "proposal_diff":"persist only affected Task/Objectives and exact expected revisions/plan revisions/membership revisions; large previews page over persisted rows",
+    "ordinal":"derive month bucket and 1-based ordinal from effective actual start when known otherwise current reviewed Objective envelope start, in current Objective timezone; tie by immutable objective_id; never persist current ordinal as identity"
+  },
+  "projection_strategy":[
+    "objective_envelope_projection and objective_aggregate_projection are rebuildable but transactionally maintained in the same UoW as Task plan-pin/membership/execution/outcome changes",
+    "Objective envelope derives from current membership rows' pinned accepted plan_revision_id, not from an unreviewed newer Task current-plan pointer",
+    "Task execution/outcome current rows are rebuildable projections over append-only evidence/review events",
+    "startup/spec validation must verify required indexes, FK coverage, projection revision consistency and no current Objective strict-overlap violation before accepting writes; drift fails closed into diagnostics/recovery rather than silently repairing operational history"
+  ],
+  "concurrency":[
+    "all expensive global grouping and preview work uses an LLD-01 snapshot outside writer lock",
+    "acceptance opens one short BEGIN IMMEDIATE UoW, revalidates exact affected revisions/locks and indexed envelope overlaps, inserts the command receipt, applies row-wise changes/projections/audit, then commits",
+    "single-process writer serialization plus commit-time overlap query prevents concurrent accepted overlapping Objectives",
+    "background grouping jobs never mutate Task plans or Objective memberships without the normal reviewed acceptance command"
+  ],
+  "security":[
+    "all identifiers/state enums dispatch through closed code registries/static SQL",
+    "timezone name is validated via ZoneInfo lookup and never used as a filesystem path",
+    "reason strings and proposal summaries obey bounds.json and named audit payload schemas",
+    "client-supplied calculated envelopes, aggregate states, overlap claims, reviewed_at, actor IDs or lock booleans are never trusted authority"
+  ]
+}
