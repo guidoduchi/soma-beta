@@ -1,0 +1,34 @@
+{
+  "schema":"SOMA-HLD-BOUNDARIES-V1",
+  "hld_id":"HLD-09",
+  "owns":[
+    "Network Element physical-instance identity and lifecycle",
+    "Site/Room/Rack placement relationships and placement history",
+    "Network Element containment relationships and corrections",
+    "Cloud Type and Site-scoped Cloud Deployment",
+    "descriptive Network Element IP-address inventory",
+    "reusable Model/BOM/component compatibility knowledge",
+    "installed Component-instance identity/history under a Network Element",
+    "Infrastructure XLSX staging/acceptance semantics in cooperation with HLD-05"
+  ],
+  "does_not_own":[
+    "operational Device Reference identity or ticket relationships (HLD-04)",
+    "Task execution/outcome or Inventory physical-consequence authority (HLD-06/HLD-08)",
+    "Customer Organization identity or Dispatch Location lifecycle (HLD-03)",
+    "communication/message evidence (HLD-10)",
+    "authentication/device secrets (HLD-13)",
+    "connectivity/topology/interface/discovery/reachability in Beta 1.0"
+  ],
+  "identity_boundaries":[
+    "Device Reference may exist forever without a Network Element resolution.",
+    "Regularization links a Device Reference to exactly one registered Network Element without rewriting the operational Device Reference identity/history.",
+    "Network Element identity is not derived from model, serial, IP, Rack, Cloud, hostname, external workbook row, or containment position.",
+    "Installed Component identity is not the reusable compatibility/BOM template identity."
+  ],
+  "physical_boundaries":[
+    "Site is the authoritative physical Site for every registered Network Element.",
+    "Room belongs to one Site; Rack belongs to one Room and therefore derives one Site.",
+    "Network Element Rack placement must resolve to the same authoritative Site.",
+    "Containment and Rack placement are independent relationships and neither implies the other."
+  ]
+}
