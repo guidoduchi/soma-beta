@@ -18,16 +18,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Parse manifest with YAML semantics
+        run: |
+          ruby -ryaml -rbase64 -e 'd=YAML.load_file(%q{.github/workflows/rc006-a2-freeze-allocate-workbench.yml}); s=d.fetch(%q{jobs}).fetch(%q{freeze-allocate}).fetch(%q{env}).fetch(%q{MANIFEST_B64}); File.binwrite(%q{/tmp/workbench-manifest.json}, Base64.decode64(s))'
       - name: Diagnose all manifest/source mismatches
         run: |
           python - <<'PY'
-          import base64,json,subprocess
+          import json,subprocess
           from pathlib import Path
-          wf=Path('.github/workflows/rc006-a2-freeze-allocate-workbench.yml').read_text(encoding='utf-8')
-          assert 'MANIFEST_B64:' in wf and 'PYTHONDONTWRITEBYTECODE:' in wf
-          block=wf.split('MANIFEST_B64:',1)[1].split('PYTHONDONTWRITEBYTECODE:',1)[0]
-          encoded=''.join(block.split())
-          manifest=json.loads(base64.b64decode(encoded).decode('utf-8'))
+          manifest=json.loads(Path('/tmp/workbench-manifest.json').read_text(encoding='utf-8'))
           assert len(manifest)==211
           raw=subprocess.check_output(['git','show','61bbd665535e942ef3b05c5ed45661639d3a37a9:docs/WORKBENCH_CONTRACT.md'])
           lines=raw.decode('utf-8').splitlines()
