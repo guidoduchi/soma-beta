@@ -2,15 +2,59 @@
   "schema":"SOMA-LLD-PACKET-V1",
   "id":"LLD-03",
   "name":"Service Requests, RFCs, Device References, Ticket Relationships",
-  "status":"drafting",
+  "status":"review_ready",
   "requirement_ids":["BETA-REQ-0011","BETA-REQ-0012","BETA-REQ-0038","BETA-REQ-0039","BETA-REQ-0040","BETA-REQ-0052","BETA-REQ-0053","BETA-REQ-0057","BETA-REQ-0075","BETA-REQ-0076","BETA-REQ-0147","BETA-REQ-0148","BETA-REQ-0149","BETA-REQ-0150","BETA-REQ-0152","BETA-REQ-0153","BETA-REQ-0154","BETA-REQ-0165"],
   "supporting_requirement_ids":["BETA-REQ-0010","BETA-REQ-0013","BETA-REQ-0019","BETA-REQ-0027","BETA-REQ-0030","BETA-REQ-0041","BETA-REQ-0044","BETA-REQ-0049","BETA-REQ-0058","BETA-REQ-0062","BETA-REQ-0066","BETA-REQ-0151","BETA-REQ-0155","BETA-REQ-0161","BETA-REQ-0163"],
   "implementation_authority_ids":["F4"],
   "hld_dependencies":["HLD-03","HLD-04","HLD-05","HLD-09","HLD-14"],
-  "foundation_dependencies":["LLD-01 UnitOfWork/idempotency/audit/STRICT schema conventions","LLD-02 Customer/Contact identity and matching interfaces"],
-  "scope":["Service Request internal/business identity lifecycle","RFC exact identity/lifecycle/provenance","two-level RFC forest","SR-to-root-RFC relationships","RFC Customer ownership state","operational Device Reference identity and SR/RFC links","Working Notes","RFC local archive/restore","narrow untouched-manual-draft deletion eligibility","ticket workbench-facing projections"],
-  "not_owned_here":["WFM/Local Task persistence and execution -> LLD-05","RFC/WFM workbook parsing/reconciliation staging -> LLD-04","Network Element/Device Reference regularization target -> LLD-08","communications evidence/links -> LLD-09","frontend components -> LLD-10","SLA classification/calculation -> LLD-06"],
+  "foundation_dependencies":["LLD-01 UnitOfWork/idempotency/audit/STRICT schema conventions","LLD-02 Customer/Contact/Local User Profile identity and matching interfaces"],
+  "scope":["Service Request internal/business identity lifecycle","RFC exact identity and accepted current source/lifecycle projection","two-level RFC forest","SR-to-root-RFC relationships","RFC Customer ownership state","operational Device Reference identity and SR/RFC links","Working Notes with immutable creator provenance","restart-persistent RFC terminal-cascade proposal/orchestration","operation-scoped RFC archive/restore","narrow untouched-manual-draft hard deletion","ticket workbench-facing projections"],
+  "not_owned_here":["WFM/Local Task persistence/execution/Objective consequences -> LLD-05","RFC/WFM workbook discovery/parsing/staging/immutable source observations and vocabulary -> LLD-04","Network Element/Device Reference regularization target -> LLD-08","Communication evidence/links/retention and cascade consequences -> LLD-09","frontend components and deliberate-interaction rendering -> LLD-10","authentication/session/action-proof implementation -> LLD-12","SLA classification/calculation -> LLD-06"],
   "required_directories":["schema","commands","queries","algorithms","ui","tests"],
-  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"implementation_ready":false},
-  "design_principle":"Ticket identity and relationship history survive source adoption, hierarchy correction, terminal state and regularization; derived roles/context are queried from current relationships rather than persisted as competing authority."
+  "packet_files":[
+    "bounds.json","interfaces.json","errors.json","routes.json",
+    "schema/allocators.json","schema/tickets.json","schema/device-references.json","schema/relationships.json","schema/sr-source-projection.json","schema/rfc-lifecycle.json",
+    "commands/tickets.json","commands/rfc-lifecycle.json",
+    "queries/tickets.json","queries/rfc-lifecycle.json",
+    "algorithms/identifiers.json","algorithms/rfc-hierarchy.json","algorithms/rfc-hard-delete.json","algorithms/sr-source-current.json","algorithms/rfc-source-lifecycle.json","algorithms/rfc-terminal-cascade.json","algorithms/rfc-archive.json",
+    "ui/workbench-state.json",
+    "tests/core-acceptance.json","tests/rfc-lifecycle-acceptance.json","tests/rfc-lifecycle-failure-injection.json"
+  ],
+  "transaction_boundaries":[
+    "Workbook/source parsing, normalization, previews and expensive diff work occur outside writer transactions under owning LLDs.",
+    "Every LLD-03 authoritative mutation uses one short LLD-01 BEGIN IMMEDIATE UnitOfWork with idempotency receipt, owned mutation and required audit committed atomically.",
+    "Terminal RFC source acceptance and creation/supersession of its pending cascade proposal are one transaction but execute no downstream cascade.",
+    "Terminal-cascade execution revalidates exact scope and invokes LLD-05/LLD-09 participants inside the same UnitOfWork; participants never commit independently.",
+    "Archive/operation membership/events and RFC archive-state changes are atomic; hard-delete receipt/audit/delete are atomic and unexpected FKs fail closed."
+  ],
+  "failure_modes":[
+    "typed domain failures are defined in errors.json and inherit LLD-01 transport/idempotency/stale/persistence failures",
+    "stale relationship/cascade/archive/delete previews fail closed and require refreshed exact state",
+    "INDETERMINATE cross-domain lifecycle/delete dependencies block destructive or cascade action",
+    "crash and participant half-commit behavior is explicitly covered by tests/rfc-lifecycle-failure-injection.json"
+  ],
+  "acceptance_tests":["tests/core-acceptance.json","tests/rfc-lifecycle-acceptance.json","tests/rfc-lifecycle-failure-injection.json"],
+  "implementation_gate":{
+    "hld_owner_accepted":true,
+    "all_required_files_complete":true,
+    "acceptance_tests_explicit":true,
+    "construction_complete":true,
+    "formal_double_review_deferred_until_full_beta_lld_set":true,
+    "owner_lld_acceptance_required":true,
+    "implementation_ready":false
+  },
+  "construction_evidence":[
+    "all six required packet directories populated and exact packet file set pinned",
+    "LSR allocator reaches LSR-99999999 and fails cleanly only at explicit exhausted sentinel",
+    "working-note creator identity is directly preserved",
+    "RFC source/lifecycle current projection is separate from immutable import evidence and duplicate identity-row source authority removed",
+    "terminal RFC evidence atomically creates restart-persistent exact-scope cascade proposal without executing consequences",
+    "cascade uses same-UoW bounded Task/Objective and Communication participant interfaces with stale/deliberate-confirmation guards",
+    "archive/restore provenance is operation-scoped and ordered by RFC revision rather than timestamp ties",
+    "hard deletion has explicit preview/freshness/audit/FK fail-closed semantics",
+    "FK/index and STRICT-schema obligations are explicitly represented",
+    "happy-path, edge, stale, crash and partial-participant failure vectors are explicit"
+  ],
+  "known_unresolved_blockers":[],
+  "design_principle":"Ticket identity and relationship history survive source adoption, hierarchy correction, terminal state, archival and regularization; current source/lifecycle projections are rebuildable, irreversible evidence remains with its owner, and cross-domain consequences occur only through bounded history-preserving same-transaction interfaces."
 }
