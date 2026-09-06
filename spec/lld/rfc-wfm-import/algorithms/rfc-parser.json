@@ -1,0 +1,43 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-04",
+  "name":"EnhancedRfcRowParserV1",
+  "profile":"RFC_ENHANCED_V1 + RFC_HEADERS_V1 + RFC_STATUS_V1",
+  "row_identity":[
+    "resolve Task ID by header registry, normalize surrounding spreadsheet whitespace only, then call LLD-03 exact RFC identifier parser",
+    "VALID NC+14 produces entity_kind=rfc and observed_valid_identity",
+    "a value beginning with one exact canonical NC+14 followed by additional non-whitespace source suffix characters is classified as RECOGNIZED_SOURCE_BRANCH_ARTIFACT and becomes invalid_row + RFC_SOURCE_BRANCH_ARTIFACT finding; it never resolves or mutates the base RFC",
+    "any other unusable/malformed identity becomes invalid_row + RFC_ID_INVALID finding",
+    "identityless logical row fabricates no RFC"
+  ],
+  "active_fields":[
+    {"key":"external_created_at","kind":"instant","blank":"unknown/preserve","time":"explicit offset or America/Guayaquil"},
+    {"key":"creator","kind":"text","blank":"unknown/preserve"},
+    {"key":"customer_account_number","kind":"text","blank":"unknown/preserve"},
+    {"key":"customer_account_name","kind":"text","blank":"unknown/preserve"},
+    {"key":"severity","kind":"text","blank":"unknown/preserve"},
+    {"key":"summary","kind":"text","blank":"unknown/preserve"},
+    {"key":"status","kind":"controlled","vocabulary":"RFC_STATUS_V1","blank":"preserve","unknown":"warning/preserve"},
+    {"key":"owner_external_id","kind":"text","blank":"unknown/preserve"},
+    {"key":"owner_name","kind":"text","blank":"unknown/preserve"},
+    {"key":"l1_handler_name","kind":"text","blank":"unknown/preserve"},
+    {"key":"l2_handler_name","kind":"text","blank":"unknown/preserve"},
+    {"key":"last_update","kind":"instant","blank":"unknown/preserve","time":"explicit offset or America/Guayaquil"}
+  ],
+  "deferred_fields":["service_type","scenario","product_line_code","product_line","product_code","product_name"],
+  "row_chronology":"usable Last Update Time becomes source_row_chronology_utc. Missing/unusable Last Update remains NULL; file mtime/import time/Create Time never substitutes. A changed accepted field with no chronology comparable to an existing accepted field is review-required rather than assumed newer.",
+  "duplicate_partition":[
+    "group valid rows by canonical rfc_no after parsing",
+    "rows with identical canonical allowlisted logical field state/value sets are equivalent duplicates: preserve physical observation provenance, add duplicate warning, and generate one effective logical observation for proposal computation",
+    "rows with different meaningful allowlisted logical content for same rfc_no are conflicting source evidence: record all observations/findings and block only that RFC's proposal scope until reviewed/resolved",
+    "a conflict does not reject unrelated valid RFC identities"
+  ],
+  "proposal_seeds":[
+    "exact existing/manual RFC -> adoption/current source projection seed",
+    "missing exact RFC -> RFC create/adopt seed",
+    "recognized Customer account/name facts -> Customer reconciliation seed, never direct assignment",
+    "Summary -> SR-link candidate extraction seed under reconciliation algorithm",
+    "terminal recognized Status -> high-risk RFC source projection seed whose acceptance invokes LLD-03 terminal proposal creation"
+  ],
+  "prohibitions":["no hierarchy inference","no Task/WFM creation from RFC rows","no Product Line/SLA/Infrastructure inference from deferred/discarded fields","no source omission lifecycle authority"]
+}
