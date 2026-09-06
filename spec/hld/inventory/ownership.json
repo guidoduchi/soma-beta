@@ -2,7 +2,7 @@
   "schema": "SOMA-HLD-OWNERSHIP-V1",
   "hld_id": "HLD-08",
   "authoritative_records": [
-    {"name":"DevicePartUnit","owns":"actual component identity/slot/BOM/serial/condition under Device context"},
+    {"name":"DevicePartUnit","owns":"operational service/fault component identity under Device Reference context, including slot/BOM/serial/condition/fault evidence where known; it may remain valid without registered Infrastructure"},
     {"name":"SpareNeed","owns":"SR-level BOM demand, planned quantity and contributor relationships"},
     {"name":"SpareRequest","owns":"local request identity, Need allocations, requested logistics and submission lifecycle"},
     {"name":"SpareRequestSubmission","owns":"immutable accepted submitted quantities/membership/recipient/logistics-intent evidence"},
@@ -19,11 +19,13 @@
     "Official identifier correction preserves prior value as alias and does not replace internal identity.",
     "One RMA has at most one direct inbound Spare Part Unit; dismantled extracted units get independent identities while preserving origin provenance.",
     "One active submitted Fault Tag membership may own a given open RMA return obligation/physical return unit at a time.",
-    "Equal BOM/serial/official identifiers create reconciliation candidates only and never authorize silent merge."
+    "Equal BOM/serial/official identifiers create reconciliation candidates only and never authorize silent merge.",
+    "When a Device Part Unit corresponds to a registered HLD-09 Installed Component, an explicit resolution relation may link the two immutable identities; neither identity replaces, merges, or silently becomes the other."
   ],
   "projection_rules": [
     "Stock is derived from Spare Part Unit condition/location/reservation/compatibility/disposition.",
     "Current RMA/Spare Request/Fault Tag states derive from accepted append-oriented lifecycle evidence.",
-    "Current ticket/Device context for Fault Tag membership is derived through existing relationships, not copied as competing truth."
+    "Current ticket/Device context for Fault Tag membership is derived through existing relationships, not copied as competing truth.",
+    "Registered Infrastructure component master/history is consumed through the optional DevicePartUnit-to-InstalledComponent resolution and remains HLD-09 authority."
   ]
 }
