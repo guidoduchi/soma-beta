@@ -1,0 +1,41 @@
+{
+  "schema":"SOMA-LLD-BOUNDS-V1",
+  "lld_id":"LLD-05",
+  "text_bounds":{
+    "local_task_name":{"min_graphemes":1,"max_graphemes":240,"max_utf8_bytes":1024,"rule":"manual overflow rejects; no silent truncation"},
+    "reason_text":{"min_graphemes":1,"max_graphemes":1000,"max_utf8_bytes":4096,"rule":"required only where a reviewed correction/retention choice needs operator rationale; audit stores the bounded allowlisted reason field only"},
+    "warning_summary":{"max_graphemes":320,"max_utf8_bytes":1536,"rule":"generated from closed reason codes plus bounded identifiers, never arbitrary workbook/body content"}
+  },
+  "time_bounds":{
+    "storage":"canonical UTC whole-second INTEGER instants",
+    "valid_interval":"end_utc > start_utc; zero/negative duration rejected",
+    "local_input":"IANA timezone + local wall time; nonexistent wall times reject and ambiguous wall times require explicit fold/offset choice",
+    "rounding":"none; no :00/:30 coercion",
+    "unknown":"unknown/absent remains null and never becomes a fabricated instant"
+  },
+  "identity_bounds":{
+    "objective_tracking_id":{"format":"MW-########","sequence_min":1,"sequence_max":99999999,"reuse":false},
+    "wfm_task_no":{"format":"TK##############","exact_digits":14},
+    "internal_ids":"LLD-02 lowercase canonical UUIDv4 text"
+  },
+  "collection_bounds":{
+    "query_default_page_size":100,
+    "query_max_page_size":1000,
+    "rule":"page limits constrain rendering/materialization only; exact totals, grouping authority, exports and persisted proposal membership are never inferred from one page",
+    "grouping_workset_soft_threshold":100000,
+    "grouping_workset_rule":"the sweep-line algorithm is O(n log n); above the soft threshold computation must run as a durable bounded-memory job and may not fall back to O(n^2) pairwise comparison",
+    "proposal_members":"no product/business maximum; stored row-wise and paged deterministically"
+  },
+  "execution_bounds":{
+    "bulk_start_tasks":"one Objective execution command may start an explicitly selected persisted proposal/set; transport does not require one unbounded client array",
+    "history_query":"cursor paginated by immutable event identity/time ordering",
+    "writer_rule":"expensive grouping, diff, ordinal and preview calculation occurs outside BEGIN IMMEDIATE; commit revalidates only indexed affected state plus interval-overlap guards"
+  },
+  "timezone_setting":{
+    "contract":"OBJECTIVE_TIMEZONE_V1",
+    "default":"America/Guayaquil",
+    "supported":"any IANA zone resolvable by the packaged offline tzdata/ZoneInfo runtime, including Pacific/Galapagos",
+    "storage_owner":"LLD-02 SettingStore",
+    "semantic_owner":"LLD-05"
+  }
+}
