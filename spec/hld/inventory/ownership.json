@@ -1,0 +1,29 @@
+{
+  "schema": "SOMA-HLD-OWNERSHIP-V1",
+  "hld_id": "HLD-08",
+  "authoritative_records": [
+    {"name":"DevicePartUnit","owns":"actual component identity/slot/BOM/serial/condition under Device context"},
+    {"name":"SpareNeed","owns":"SR-level BOM demand, planned quantity and contributor relationships"},
+    {"name":"SpareRequest","owns":"local request identity, Need allocations, requested logistics and submission lifecycle"},
+    {"name":"SpareRequestSubmission","owns":"immutable accepted submitted quantities/membership/recipient/logistics-intent evidence"},
+    {"name":"RMA","owns":"official C10 obligation identity, promised BOM, target assignment and current return obligation"},
+    {"name":"SparePartUnit","owns":"actual inventory physical-unit identity, BOM/serial/condition/custody/provenance"},
+    {"name":"InventoryPhysicalConsequence","owns":"accepted installation/removal/unused/faulty/incompatible/dismantled physical consequence tied to an already reviewed Task outcome"},
+    {"name":"ActualLogisticsEvent","owns":"actual dispatch/pickup/delivery/receipt/custody occurrence with independently addressable participants"},
+    {"name":"FaultTag","owns":"return-attempt identity, return method, submitted membership set, typed correction/replacement/resend lineage"},
+    {"name":"FaultTagMembership","owns":"one open RMA obligation + one selected physical return unit and its warehouse progression"},
+    {"name":"InventoryLifecycleEvent","owns":"append-oriented accepted Inventory transition/correction facts used to rebuild current projections"}
+  ],
+  "identity_rules": [
+    "SR7/C10/BOM/serial/tracking labels are business/display evidence, never relational identity.",
+    "Official identifier correction preserves prior value as alias and does not replace internal identity.",
+    "One RMA has at most one direct inbound Spare Part Unit; dismantled extracted units get independent identities while preserving origin provenance.",
+    "One active submitted Fault Tag membership may own a given open RMA return obligation/physical return unit at a time.",
+    "Equal BOM/serial/official identifiers create reconciliation candidates only and never authorize silent merge."
+  ],
+  "projection_rules": [
+    "Stock is derived from Spare Part Unit condition/location/reservation/compatibility/disposition.",
+    "Current RMA/Spare Request/Fault Tag states derive from accepted append-oriented lifecycle evidence.",
+    "Current ticket/Device context for Fault Tag membership is derived through existing relationships, not copied as competing truth."
+  ]
+}
