@@ -1,0 +1,30 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-04",
+  "name":"RfcWfmWorkbookDiscovery",
+  "input":"source_family plus configured rfc_wfm_import_directory or explicit manually selected file",
+  "automatic_steps":[
+    "load the exact accepted directory setting; if unset/inaccessible return typed result and do not search elsewhere",
+    "enumerate direct directory entries only using platform APIs that expose reparse/symlink/file attributes",
+    "reject nonregular files, symbolic links, Windows reparse points and names outside the exact source-family profile",
+    "for each family-shaped candidate perform bounded stability probes: size and mtime must remain identical across two probes separated by at least 1000 ms and file must be openable for read without sharing-state indicating an active writer",
+    "derive candidate rank: RFC uses stable mtime_ns; WFM extracts the profile timestamp token and uses its raw fixed-width token for deterministic pre-validation ordering then validates the selected token as a real profile-local datetime",
+    "sort by family chronology descending and profile tie-break; collision suffix integer never contributes chronology",
+    "select exactly one highest-ranked candidate",
+    "pass only that candidate to XLSX/security/profile validation; if it fails return failure for that candidate and never fall back automatically to an older candidate"
+  ],
+  "manual_steps":[
+    "normalize operator-selected local path and prove it names one regular non-reparse .xlsx file",
+    "perform the same stability and XLSX security checks",
+    "classify/validate the selected workbook as the requested source family using headers/content profile even if its physical filename does not satisfy automatic discovery naming",
+    "require WFM supported source chronology; manual selection cannot invent it from mtime"
+  ],
+  "stability":{"probe_interval_ms":1000,"max_probe_attempts":3,"rule":"failure to reach stable state produces FILE_UNSTABLE and no parsing/domain mutation"},
+  "windows_rules":[
+    "resolved path must remain under the configured directory for automatic discovery after case-insensitive Windows canonical path comparison",
+    "manual selection may be outside configured directory but is never added to automatic search scope",
+    "UNC/alternate-root/device namespace paths are rejected unless a future accepted profile explicitly supports them",
+    "directory junction/reparse traversal is rejected"
+  ],
+  "output":"one CandidateDescriptor containing family/profile, safe path handle/reference, filename, stable size/mtime, chronology kind/value and discovery provenance; no business entity mutation"
+}
