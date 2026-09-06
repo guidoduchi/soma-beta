@@ -8,8 +8,8 @@
       "columns":[
         "source_observation_id TEXT PRIMARY KEY",
         "import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
-        "source_family TEXT NOT NULL CHECK(source_family IN ('rfc_enhanced','wfm_service_provider'))",
-        "entity_kind TEXT NOT NULL CHECK(entity_kind IN ('rfc','wfm','invalid_row'))",
+        "source_family TEXT NOT NULL CHECK(source_family IN ('advanced_search_sr','rfc_enhanced','wfm_service_provider'))",
+        "entity_kind TEXT NOT NULL CHECK(entity_kind IN ('service_request','rfc','wfm','invalid_row'))",
         "identity_state TEXT NOT NULL CHECK(identity_state IN ('valid','invalid'))",
         "canonical_primary_id TEXT",
         "canonical_parent_rfc_no TEXT",
@@ -19,83 +19,24 @@
         "source_row_chronology_utc INTEGER CHECK(source_row_chronology_utc IS NULL OR source_row_chronology_utc>=0)",
         "presence_state TEXT NOT NULL CHECK(presence_state IN ('observed_valid_identity','observed_invalid_identity'))",
         "recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)",
-        "CHECK((identity_state='valid' AND entity_kind IN ('rfc','wfm') AND canonical_primary_id IS NOT NULL AND presence_state='observed_valid_identity') OR (identity_state='invalid' AND entity_kind='invalid_row' AND canonical_primary_id IS NULL AND canonical_parent_rfc_no IS NULL AND presence_state='observed_invalid_identity'))",
-        "CHECK((source_family='rfc_enhanced' AND (entity_kind='rfc' OR entity_kind='invalid_row')) OR (source_family='wfm_service_provider' AND (entity_kind='wfm' OR entity_kind='invalid_row')))",
+        "CHECK((identity_state='valid' AND entity_kind IN ('service_request','rfc','wfm') AND canonical_primary_id IS NOT NULL AND presence_state='observed_valid_identity') OR (identity_state='invalid' AND entity_kind='invalid_row' AND canonical_primary_id IS NULL AND canonical_parent_rfc_no IS NULL AND presence_state='observed_invalid_identity'))",
+        "CHECK((source_family='advanced_search_sr' AND (entity_kind='service_request' OR entity_kind='invalid_row')) OR (source_family='rfc_enhanced' AND (entity_kind='rfc' OR entity_kind='invalid_row')) OR (source_family='wfm_service_provider' AND (entity_kind='wfm' OR entity_kind='invalid_row')))",
         "CHECK((entity_kind='wfm' AND canonical_parent_rfc_no IS NOT NULL) OR entity_kind<>'wfm')"
       ],
-      "rules":[
-        "once parent run is published, rows are immutable normalized source evidence independent from whether any proposal is accepted",
-        "valid source presence is authoritative only for published staged/review/recovery runs and remains recorded when later proposal is rejected/deferred/unresolved",
-        "RFC canonical_primary_id is exact NC+14; WFM canonical_primary_id is exact TK+14 and canonical_parent_rfc_no is exact NC+14",
-        "recognized RFC branch artifact rows use invalid_row evidence/finding classification and never canonicalize into the base RFC",
-        "physical row order is provenance only; logical fingerprint serialization sorts by canonical identities/field keys after duplicate/conflict classification"
-      ]
+      "rules":["once parent run is published, rows are immutable normalized source evidence independent from whether any proposal is accepted","valid source presence is authoritative only for published staged/review/recovery runs and remains recorded when later proposal is rejected/deferred/unresolved","Service Request canonical_primary_id is exact eight ASCII digits; RFC canonical_primary_id is exact NC+14; WFM canonical_primary_id is exact TK+14 and canonical_parent_rfc_no is exact NC+14","recognized RFC branch artifact rows use invalid_row evidence/finding classification and never canonicalize into the base RFC","physical row order is provenance only; logical fingerprint serialization sorts by canonical identities/field keys after duplicate/conflict classification"]
     },
     {
       "name":"source_observation_fields",
-      "columns":[
-        "source_observation_field_id TEXT PRIMARY KEY",
-        "source_observation_id TEXT NOT NULL REFERENCES source_observations(source_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
-        "field_key TEXT NOT NULL",
-        "field_class TEXT NOT NULL CHECK(field_class IN ('active','deferred'))",
-        "value_state TEXT NOT NULL CHECK(value_state IN ('usable','blank','unknown','malformed'))",
-        "value_kind TEXT NOT NULL CHECK(value_kind IN ('text','controlled','instant','duration_seconds'))",
-        "source_text TEXT",
-        "normalized_text TEXT",
-        "integer_value INTEGER",
-        "vocabulary_id TEXT",
-        "field_logical_sha256 TEXT NOT NULL CHECK(length(field_logical_sha256)=64)",
-        "CHECK((value_state='usable' AND value_kind IN ('text','controlled') AND source_text IS NOT NULL AND normalized_text IS NOT NULL AND integer_value IS NULL) OR (value_state='usable' AND value_kind IN ('instant','duration_seconds') AND source_text IS NOT NULL AND normalized_text IS NULL AND integer_value IS NOT NULL) OR (value_state<>'usable' AND normalized_text IS NULL AND integer_value IS NULL))",
-        "CHECK((value_kind='controlled' AND vocabulary_id IS NOT NULL) OR (value_kind<>'controlled' AND vocabulary_id IS NULL))"
-      ],
-      "rules":[
-        "only registered allowlisted active/deferred fields are persisted",
-        "unallowlisted/discarded columns are never copied into observation fields",
-        "source_text is bounded allowlisted review evidence only; it is never executed/interpreted as code",
-        "normalized_text/integer_value exist only for usable validated values; malformed/unknown/blank rows cannot smuggle authoritative normalized meaning",
-        "deferred fields are retained with provenance but generate no Beta 1.0 domain mutation unless separately activated by authority",
-        "one source observation has at most one field row per canonical field_key"
-      ]
+      "columns":["source_observation_field_id TEXT PRIMARY KEY","source_observation_id TEXT NOT NULL REFERENCES source_observations(source_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT","field_key TEXT NOT NULL","field_class TEXT NOT NULL CHECK(field_class IN ('active','deferred'))","value_state TEXT NOT NULL CHECK(value_state IN ('usable','blank','unknown','malformed'))","value_kind TEXT NOT NULL CHECK(value_kind IN ('text','controlled','instant','duration_seconds'))","source_text TEXT","normalized_text TEXT","integer_value INTEGER","vocabulary_id TEXT","field_logical_sha256 TEXT NOT NULL CHECK(length(field_logical_sha256)=64)","CHECK((value_state='usable' AND value_kind IN ('text','controlled') AND source_text IS NOT NULL AND normalized_text IS NOT NULL AND integer_value IS NULL) OR (value_state='usable' AND value_kind IN ('instant','duration_seconds') AND source_text IS NOT NULL AND normalized_text IS NULL AND integer_value IS NOT NULL) OR (value_state<>'usable' AND normalized_text IS NULL AND integer_value IS NULL))","CHECK((value_kind='controlled' AND vocabulary_id IS NOT NULL) OR (value_kind<>'controlled' AND vocabulary_id IS NULL))"],
+      "rules":["only registered allowlisted active/deferred fields are persisted","unallowlisted/discarded columns are never copied into observation fields","source_text is bounded allowlisted review evidence only; it is never executed/interpreted as code","normalized_text/integer_value exist only for usable validated values; malformed/unknown/blank rows cannot smuggle authoritative normalized meaning","deferred fields are retained with provenance but generate no Beta 1.0 domain mutation unless separately activated by authority","one source observation has at most one field row per canonical field_key"]
     },
     {
       "name":"import_findings",
-      "columns":[
-        "import_finding_id TEXT PRIMARY KEY",
-        "import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
-        "source_observation_id TEXT REFERENCES source_observations(source_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
-        "field_key TEXT",
-        "finding_code TEXT NOT NULL",
-        "severity TEXT NOT NULL CHECK(severity IN ('info','warning','error','high_risk'))",
-        "scope_kind TEXT NOT NULL CHECK(scope_kind IN ('workbook','sheet','row','field','identity','chronology','replay','proposal'))",
-        "message_text TEXT NOT NULL CHECK(length(message_text)>0)",
-        "recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)"
-      ],
-      "rules":[
-        "finding_code is from a closed LLD-04 catalogue; message_text is bounded deterministic operator explanation, never raw exception/environment serialization",
-        "published findings never become domain authority but remain immutable review evidence",
-        "invalid identity rows can have findings without creating target entities",
-        "source absence for RFC/WFM never produces per-record disappearance findings"
-      ]
+      "columns":["import_finding_id TEXT PRIMARY KEY","import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT","source_observation_id TEXT REFERENCES source_observations(source_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT","field_key TEXT","finding_code TEXT NOT NULL","severity TEXT NOT NULL CHECK(severity IN ('info','warning','error','high_risk'))","scope_kind TEXT NOT NULL CHECK(scope_kind IN ('workbook','sheet','row','field','identity','chronology','replay','proposal','population'))","message_text TEXT NOT NULL CHECK(length(message_text)>0)","recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)"],
+      "rules":["finding_code is from a closed LLD-04 catalogue; message_text is bounded deterministic operator explanation, never raw exception/environment serialization","published findings never become domain authority but remain immutable review evidence","invalid identity rows can have findings without creating target entities","Advanced Search population omission is represented by a dedicated reconciliation proposal bound to prior evidence rather than fabricating a current source observation","RFC/WFM source absence still never produces per-record disappearance findings"]
     }
   ],
-  "indexes":[
-    "CREATE INDEX idx_source_observation_run ON source_observations(import_run_id,sheet_ordinal,row_ordinal,source_observation_id)",
-    "CREATE INDEX idx_source_observation_identity ON source_observations(source_family,identity_state,canonical_primary_id,import_run_id,source_observation_id)",
-    "CREATE INDEX idx_source_observation_parent ON source_observations(canonical_parent_rfc_no,import_run_id,source_observation_id) WHERE canonical_parent_rfc_no IS NOT NULL",
-    "CREATE UNIQUE INDEX uq_source_observation_field ON source_observation_fields(source_observation_id,field_key)",
-    "CREATE INDEX idx_finding_run ON import_findings(import_run_id,severity,import_finding_id)",
-    "CREATE INDEX idx_finding_observation_fk ON import_findings(source_observation_id,import_finding_id)"
-  ],
-  "index_rules":[
-    "source_observation_fields.source_observation_id FK is already covered by UNIQUE(source_observation_id,field_key); a redundant duplicate FK index is forbidden",
-    "nullable import_findings.source_observation_id uses a full leading-prefix index, not a partial nonnull index, so LLD-01 exact FK coverage is uniform over persisted rows",
-    "source_observations.canonical_parent_rfc_no partial index is not FK coverage; it is only an optional WFM lookup optimization"
-  ],
-  "protection":[
-    "BEFORE UPDATE on source_observations/source_observation_fields/import_findings always raises append-only protection",
-    "BEFORE DELETE on these rows permits only the dedicated unpublished-staging cleanup path while the owning import_run is still validating; all rows belonging to a staged/waiting_review/recovery_required/partially_accepted/accepted/rejected run are undeletable",
-    "replay/newer-identical cleanup deletes findings then fields then observations while run is validating, then transitions the empty-evidence run to noop/noop_pending_checkpoint so no duplicate SourceObservation history survives",
-    "failed/interrupted unpublished staging may be technically cleaned under the same guard; this is not operational-history purge because the run was never published as exact-source evidence",
-    "field-key/value-kind/source-family registry consistency is verified at persistence boundary and migration verifier has golden invalid-write tests"
-  ]
+  "indexes":["CREATE INDEX idx_source_observation_run ON source_observations(import_run_id,sheet_ordinal,row_ordinal,source_observation_id)","CREATE INDEX idx_source_observation_identity ON source_observations(source_family,identity_state,canonical_primary_id,import_run_id,source_observation_id)","CREATE INDEX idx_source_observation_parent ON source_observations(canonical_parent_rfc_no,import_run_id,source_observation_id) WHERE canonical_parent_rfc_no IS NOT NULL","CREATE UNIQUE INDEX uq_source_observation_field ON source_observation_fields(source_observation_id,field_key)","CREATE INDEX idx_finding_run ON import_findings(import_run_id,severity,import_finding_id)","CREATE INDEX idx_finding_observation_fk ON import_findings(source_observation_id,import_finding_id)"],
+  "index_rules":["source_observation_fields.source_observation_id FK is already covered by UNIQUE(source_observation_id,field_key); a redundant duplicate FK index is forbidden","nullable import_findings.source_observation_id uses a full leading-prefix index, not a partial nonnull index, so LLD-01 exact FK coverage is uniform over persisted rows","source_observations.canonical_parent_rfc_no partial index is not FK coverage; it is only an optional WFM lookup optimization"],
+  "protection":["BEFORE UPDATE on source_observations/source_observation_fields/import_findings always raises append-only protection","BEFORE DELETE on these rows permits only the dedicated unpublished-staging cleanup path while the owning import_run is still validating; all rows belonging to a staged/waiting_review/recovery_required/partially_accepted/accepted/rejected run are undeletable","replay/newer-identical cleanup deletes findings then fields then observations while run is validating, then transitions the empty-evidence run to noop/noop_pending_checkpoint so no duplicate SourceObservation history survives","failed/interrupted unpublished staging may be technically cleaned under the same guard; this is not operational-history purge because the run was never published as exact-source evidence","field-key/value-kind/source-family registry consistency is verified at persistence boundary and migration verifier has golden invalid-write tests"]
 }
