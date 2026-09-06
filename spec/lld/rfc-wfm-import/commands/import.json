@@ -5,12 +5,7 @@
     {
       "name":"StartRfcWfmImportCheck",
       "input":["source_family","invocation_kind automatic|manual","optional manually_selected_path","command_id"],
-      "steps":[
-        "validate authenticated invocation and source family",
-        "inside short UoW perform command idempotency and create one durable LLD-01 job with bounded source-family/profile/manual-selection reference; no workbook bytes",
-        "audit check initiation and commit",
-        "worker executes discovery/security/parsing outside domain mutation transactions"
-      ],
+      "steps":["validate authenticated invocation and source family","inside short UoW perform command idempotency and create one durable LLD-01 job with bounded source-family/profile/manual-selection reference; no workbook bytes","audit check initiation and commit","worker executes discovery/security/parsing outside domain mutation transactions"],
       "rules":["automatic invocation requires configured directory","manual selection may be outside directory but cannot bypass source validation","one source check never scans Communications or mutates RFC/WFM/Task state"]
     },
     {
@@ -20,27 +15,18 @@
       "steps":[
         "while run_state=validating, normalized rows/fields/findings may be appended in bounded transactions as unpublished technical staging; queries/proposals treat them as nonexistent source evidence",
         "after parser reaches complete EOF, recompute exact child counts and logical fingerprint from the unpublished rows and classify replay/chronology against the current source-family checkpoint",
-        "if exact replay, delete unpublished findings/fields/rows through the guarded staging-cleanup path while the run is still validating, then atomically mark run noop; create no SourceObservation/proposal/domain history",
-        "if newer-identical, likewise delete unpublished row evidence before publication, then leave the run eligible only for RecordNewerIdenticalSourceCheck; no per-entity source observation/proposal duplication survives",
+        "if exact replay, delete unpublished findings/fields/rows through the guarded staging-cleanup path while the run is still validating, then atomically set fingerprint/count metadata and mark run noop; create no SourceObservation/proposal/domain history",
+        "if newer-identical, likewise delete unpublished row evidence before publication, atomically set fingerprint/count metadata and transition run to noop_pending_checkpoint; create no proposals",
         "if equal chronology/different content or older chronology, atomically publish the complete rows as immutable evidence by transitioning run to recovery_required; create no ordinary domain-acceptance authority",
         "otherwise generate all reconciliation proposals from the complete staging set and atomically publish by transitioning run staged/waiting_review with exact counters/fingerprint/revision",
-        "only staged/waiting_review/recovery_required/noop runs are visible to review/history queries"
+        "only staged/waiting_review/recovery_required/noop_pending_checkpoint/noop runs are visible to review/history queries"
       ],
       "rules":["crash before publish cannot make partial run reviewable","failed/partial parse cannot advance checkpoint","SourceObservation immutability begins at publication, not during technical staging","source omission produces no RFC/WFM disappearance proposals"]
     },
     {
       "name":"AcceptReconciliationProposal",
       "input":["proposal_id","proposal_revision","proposal_fingerprint","base_state_token","reason/review context when required","command_id"],
-      "steps":[
-        "load pending proposal and exact published source/run/profile evidence",
-        "reject blocked/recovery-required/unsafe-auto path",
-        "inside one short UoW recompute current authoritative base-state token via owning LLD readers",
-        "on mismatch return IMPORT_PROPOSAL_STALE with no accepted disposition/domain mutation",
-        "enter one outer idempotent command envelope; the owning domain service receives the same UoW/command context and must not commit independently",
-        "invoke the exact LLD-02/03/05 mutation service selected by proposal_kind; terminal RFC source projection therefore uses LLD-03 terminal-epoch/cascade-proposal semantics",
-        "append accepted proposal disposition and required audit/result references in the same UoW",
-        "transition proposal accepted, refresh run counters, commit"
-      ],
+      "steps":["load pending proposal and exact published source/run/profile evidence","reject blocked/recovery-required/unsafe-auto path","inside one short UoW recompute current authoritative base-state token via owning LLD readers","on mismatch return IMPORT_PROPOSAL_STALE with no accepted disposition/domain mutation","enter one outer idempotent command envelope; the owning domain service receives the same UoW/command context and must not commit independently","invoke the exact LLD-02/03/05 mutation service selected by proposal_kind; terminal RFC source projection therefore uses LLD-03 terminal-epoch/cascade-proposal semantics","append accepted proposal disposition and required audit/result references in the same UoW","transition proposal accepted, refresh run counters, commit"],
       "rules":["one acceptance never implicitly accepts sibling proposals","source acceptance never executes RFC terminal cascade or Objective regrouping","Beta 1.0 RFC/WFM mutation auto-accept policy is empty"]
     },
     {
@@ -58,21 +44,14 @@
     {
       "name":"FinalizeImportRunReview",
       "input":["import_run_id","base run revision","command_id"],
-      "steps":[
-        "inside UoW require run is ordinary staged/waiting_review and has zero pending proposals",
-        "recompute exact proposal/disposition counters and verify no blocked unresolved scope is being hidden",
-        "insert receipt",
-        "derive final run state accepted when all target proposals accepted/no_change, rejected when all actionable proposals rejected, otherwise partially_accepted including mixes with rejected/deferred",
-        "advance/replace source-family checkpoint to this run's chronology/fingerprint only when chronology is newer than current or checkpoint absent; never move backward",
-        "record bounded review-finalization audit and commit"
-      ],
+      "steps":["inside UoW require run is ordinary staged/waiting_review and has zero pending proposals","recompute exact proposal/disposition counters and verify no blocked unresolved scope is being hidden","insert receipt","derive final run state accepted when all target proposals accepted/no_change, rejected when all actionable proposals rejected, otherwise partially_accepted including mixes with rejected/deferred","advance/replace source-family checkpoint to this run's chronology/fingerprint only when chronology is newer than current or checkpoint absent; never move backward","record bounded review-finalization audit and commit"],
       "rules":["checkpoint represents latest explicitly processed source observation set, not proof every proposed domain mutation was accepted","RFC/WFM omission still has no lifecycle meaning","a deferred proposal remains historical decision evidence and may later be reconsidered independently"]
     },
     {
       "name":"RecordNewerIdenticalSourceCheck",
       "visibility":"internal no-domain-mutation path",
-      "input":["noop-ready import_run_id","expected checkpoint revision","command_id"],
-      "steps":["prove unpublished per-row staging has already been cleaned and no proposals exist","inside UoW revalidate newer chronology and identical logical fingerprint","insert receipt","advance checkpoint chronology/run/last_checked while preserving fingerprint","mark run noop/completed","audit bounded source-check recency","commit"],
+      "input":["noop_pending_checkpoint import_run_id","expected run revision","expected checkpoint revision","command_id"],
+      "steps":["prove run state is noop_pending_checkpoint, unpublished per-row staging has been cleaned and no proposals exist","inside UoW revalidate candidate chronology is newer and logical fingerprint equals current checkpoint","insert receipt","advance checkpoint chronology/run/last_checked while preserving fingerprint","transition run noop/set completed_at/increment revision","audit bounded source-check recency","commit"],
       "rule":"creates no duplicate per-entity source observations, proposals or domain audit changes"
     },
     {
