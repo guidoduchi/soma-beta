@@ -1,0 +1,103 @@
+{
+  "schema": "SOMA-HLD-PACKET-V1",
+  "id": "HLD-02",
+  "name": "Foundation Runtime and Persistence",
+  "status": "review_ready",
+  "purpose": "Fix the authoritative local persistence, migration, transaction-duration, typed-document, durable-job, and publication boundaries that every domain implementation depends on.",
+  "primary_requirement_ids": [
+    "BETA-REQ-0003",
+    "BETA-REQ-0018",
+    "BETA-REQ-0073",
+    "BETA-REQ-0131",
+    "BETA-REQ-0132",
+    "BETA-REQ-0133",
+    "BETA-REQ-0134",
+    "BETA-REQ-0136"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0019",
+    "BETA-REQ-0072",
+    "BETA-REQ-0077",
+    "BETA-REQ-0135",
+    "BETA-REQ-0137",
+    "BETA-REQ-0138",
+    "BETA-REQ-0140",
+    "BETA-REQ-0141",
+    "BETA-REQ-0142",
+    "BETA-REQ-0143",
+    "BETA-REQ-0144"
+  ],
+  "decisions": [
+    {
+      "id": "HLD02-D001",
+      "decision": "SQLite is the single authoritative Beta 1.0 operational datastore and all authoritative connections use one SOMA-owned verified connection factory."
+    },
+    {
+      "id": "HLD02-D002",
+      "decision": "Application write transactions are intentionally short: external/file parsing, expensive computation and operator review happen outside the transaction, followed by fresh state revalidation and bounded commit."
+    },
+    {
+      "id": "HLD02-D003",
+      "decision": "Migration changes and ledger evidence publish atomically under one exclusive migrator; accepted migration bytes and identity are immutable and non-disposable data is corrected forward only."
+    },
+    {
+      "id": "HLD02-D004",
+      "decision": "Migration/status inspection is a pure observational mode and must not initialize, mutate, repair, checkpoint, migrate, or create defaults."
+    },
+    {
+      "id": "HLD02-D005",
+      "decision": "Restart-relevant job/proposal/checkpoint state is durable and explicit rather than browser/process-memory-only."
+    },
+    {
+      "id": "HLD02-D006",
+      "decision": "JSON persistence is allowed only through named/versioned bounded contracts; normalized relational domain facts do not migrate into generic JSON blobs."
+    },
+    {
+      "id": "HLD02-D007",
+      "decision": "Caches/projections/runtime registries/diagnostics are non-authoritative; any cache/projection must be rebuildable from accepted authority."
+    },
+    {
+      "id": "HLD02-D008",
+      "decision": "HLD-14 owns audit/event/history semantics while HLD-02 owns their common relational/transactional persistence mechanics."
+    }
+  ],
+  "packet_files": [
+    "_index.json",
+    "boundaries.json",
+    "ownership.json",
+    "dependencies.json",
+    "data-flow.json",
+    "invariants.json"
+  ],
+  "downstream_hld_ids": [
+    "HLD-03",
+    "HLD-04",
+    "HLD-05",
+    "HLD-06",
+    "HLD-07",
+    "HLD-08",
+    "HLD-09",
+    "HLD-10",
+    "HLD-11",
+    "HLD-12",
+    "HLD-13",
+    "HLD-14"
+  ],
+  "downstream_lld_ids": ["LLD-01"],
+  "unresolved_here_by_design": [
+    "exact SQLite driver/wrapper and connection-factory API",
+    "journal/synchronous/busy-timeout configuration and encryption-compatible SQLite settings",
+    "exact migration file/manifest serialization and digest representation",
+    "exact repository/unit-of-work interfaces",
+    "exact durable job table/schema and lease/checkpoint mechanics",
+    "exact typed JSON registry/upgrader interfaces",
+    "exact database backup/restore encryption and publication mechanics delegated to HLD-13/LLD-12"
+  ],
+  "completion_evidence": {
+    "required_packet_files_present": true,
+    "authoritative_persistence_boundary_fixed": true,
+    "migration_publication_boundary_fixed": true,
+    "transaction_duration_policy_fixed": true,
+    "ready_for_owner_review": true
+  }
+}
