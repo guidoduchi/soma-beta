@@ -4,7 +4,7 @@
   "purpose": "Define stable high-level ownership boundaries for Beta 1.0 before implementation-level design.",
   "modules": [
     {"id":"HLD-01","path":"spec/hld/product-boundary","name":"Product Boundary and Runtime Topology","status":"review_ready"},
-    {"id":"HLD-02","path":"spec/hld/foundation-runtime","name":"Foundation Runtime and Persistence","status":"planned"},
+    {"id":"HLD-02","path":"spec/hld/foundation-runtime","name":"Foundation Runtime and Persistence","status":"review_ready"},
     {"id":"HLD-03","path":"spec/hld/identity-reference","name":"Identity, Settings, and Reference Data","status":"planned"},
     {"id":"HLD-04","path":"spec/hld/tickets","name":"Tickets and RFC Hierarchy","status":"planned"},
     {"id":"HLD-05","path":"spec/hld/import-reconciliation","name":"Import and Reconciliation","status":"planned"},
