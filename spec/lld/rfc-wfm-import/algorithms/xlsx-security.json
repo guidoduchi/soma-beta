@@ -1,0 +1,34 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-04",
+  "name":"UntrustedXlsxBoundary",
+  "input":"stable CandidateDescriptor plus XLSX_RESOURCE_V1",
+  "pre_open_checks":[
+    "verify file signature/container is ZIP-based OOXML compatible with .xlsx; password/encrypted ZIP is unsupported",
+    "read central directory without extracting to filesystem",
+    "enforce compressed/expanded/entry-count/per-part/expansion-ratio ceilings before materializing content",
+    "normalize every ZIP part name and reject absolute paths, parent traversal, backslash/alternate separator ambiguity, duplicate normalized part names and alternate-stream/device-like names",
+    "require supported workbook/content-type relationships and reject macro-enabled/VBA project/ActiveX/OLE embedded executable/package parts",
+    "reject external workbook/data/attachedTemplate/hyperlink relationships that require fetching or executing an external resource; ordinary inert hyperlink text is not followed",
+    "reject XML parts containing DOCTYPE or ENTITY declarations before XML parsing"
+  ],
+  "parse_mode":[
+    "parse only supported OOXML workbook, relationships, sharedStrings, styles needed for date interpretation and worksheet XML",
+    "use streaming/event parsing and bounded text accumulation; no formula engine exists in the import path",
+    "formula cells in a registered semantic matrix column are unsupported and fail the affected workbook because cached results are not accepted as independent source facts",
+    "formula cells outside the semantic matrix are security-scanned/resource-counted but carry no domain meaning and are never evaluated",
+    "macros/scripts/data connections/executable embedded content are never executed and unsupported active content causes safe failure before staging publication"
+  ],
+  "matrix_discovery":[
+    "scan worksheets in workbook order for a header row whose normalized cells resolve through the source-family header registry and include all required identity headers",
+    "header search is bounded to the first 100 nonempty physical rows per worksheet",
+    "exactly one logical matrix is accepted per source family workbook in V1; zero is SOURCE_MATRIX_NOT_FOUND and more than one is SOURCE_MATRIX_AMBIGUOUS",
+    "outside-matrix cells receive security/resource scanning only and are not persisted/fingerprinted as domain data"
+  ],
+  "date_rules":[
+    "Excel numeric dates are converted only when the resolved field contract is temporal and the workbook date-system/style combination is supported",
+    "text timestamps use strict source-profile parser; explicit offset wins, otherwise America/Guayaquil for RFC/WFM operational row times",
+    "the Excel 1900 leap-year compatibility quirk is handled by the selected parser contract and covered by golden fixtures; invalid/ambiguous values become field findings rather than guessed times"
+  ],
+  "failure":"Any workbook-level security/container/matrix integrity failure marks the ImportRun failed and publishes no staged proposal/domain mutation. Resource-limit failure never produces a partial accepted parse."
+}
