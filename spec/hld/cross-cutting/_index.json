@@ -1,0 +1,28 @@
+{
+  "schema":"SOMA-HLD-PACKET-V1",
+  "id":"HLD-14",
+  "name":"Temporal, Audit, History, Transactions, and Derived State",
+  "status":"review_ready",
+  "purpose":"Define cross-domain temporal types/authority, lifecycle-versus-audit evidence, append/correction history, transaction/idempotency rules, stale-revision protection and rebuildable derived-state behavior shared by every Beta 1.0 domain.",
+  "primary_requirement_ids":["BETA-REQ-0017","BETA-REQ-0019","BETA-REQ-0135","BETA-REQ-0143","BETA-REQ-0144","BETA-REQ-0177"],
+  "supporting_requirement_ids":["BETA-REQ-0010","BETA-REQ-0018","BETA-REQ-0047","BETA-REQ-0050","BETA-REQ-0071","BETA-REQ-0088","BETA-REQ-0109","BETA-REQ-0127","BETA-REQ-0131","BETA-REQ-0132","BETA-REQ-0136","BETA-REQ-0142","BETA-REQ-0146","BETA-REQ-0158","BETA-REQ-0162","BETA-REQ-0167","BETA-REQ-0168","BETA-REQ-0172","BETA-REQ-0174","BETA-REQ-0175"],
+  "decisions":[
+    {"id":"HLD14-D001","decision":"Known application instants persist canonically as UTC whole seconds. Date-only values, durations, unknown effective times and unresolved chronology are represented as distinct temporal types, never fabricated instants."},
+    {"id":"HLD14-D002","decision":"America/Guayaquil is ordinary operational and fixed SLA calendar authority. User-selected IANA timezone affects only Objective/Task schedule input/presentation/calendar/MW context."},
+    {"id":"HLD14-D003","decision":"Changing Objective timezone re-renders existing canonical instants; preserving a wall-clock schedule is a separate reviewed reschedule that creates new accepted plan facts."},
+    {"id":"HLD14-D004","decision":"Source adapters preserve explicit source timezone/offset/profile provenance. Missing or ambiguous chronology remains unresolved rather than using discovery/import/recording/current time as a substitute."},
+    {"id":"HLD14-D005","decision":"Lifecycle evidence, application audit, proposal/job history and technical diagnostics are separate authorities and combined History views must label their source type."},
+    {"id":"HLD14-D006","decision":"When an accepted command requires domain mutation, lifecycle evidence and audit, all required authoritative writes commit atomically or all roll back."},
+    {"id":"HLD14-D007","decision":"Audit rows are application-boundary append-only immutable records inserted exactly once. Idempotency resolves before insertion and duplicate audit identity is an integrity error, never an ignored conflict."},
+    {"id":"HLD14-D008","decision":"Correction, reversal, cancellation, archival, restoration, supersession, replacement and resend preserve original accepted history and append new exact-target evidence; they do not rewrite prior facts."},
+    {"id":"HLD14-D009","decision":"Hard deletion is exceptional and only an owning-domain rule may authorize it after dependency validation; required minimized non-reconstructable audit evidence survives where the authority requires it."},
+    {"id":"HLD14-D010","decision":"Derived projections/caches/materializations are rebuildable and non-authoritative. Recalculation emits no lifecycle event solely because derived state changed."},
+    {"id":"HLD14-D011","decision":"Commands that depend on mutable facts carry/revalidate base revisions or equivalent preconditions inside the authoritative transaction; stale UI/import/regroup previews cannot commit by last-write-wins."},
+    {"id":"HLD14-D012","decision":"Cross-domain operations coordinate explicit owning-domain commands under one application transaction where atomicity is required; no module directly mutates another domain's tables to simulate orchestration."}
+  ],
+  "packet_files":["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
+  "downstream_hld_ids":[],
+  "downstream_lld_ids":["LLD-01","LLD-03","LLD-04","LLD-05","LLD-06","LLD-07","LLD-08","LLD-09","LLD-10","LLD-11","LLD-12"],
+  "unresolved_here_by_design":["exact temporal value-object/SQL column representations","exact transaction coordinator/unit-of-work API","exact revision-token mechanism per aggregate","exact audit action payload registry entries","exact projection rebuild/invalidation implementation","exact cross-domain deadlock/lock-order policy after schema is known"],
+  "completion_evidence":{"required_packet_files_present":true,"temporal_authority_fixed":true,"evidence_audit_diagnostics_separation_fixed":true,"atomic_mutation_audit_rule_fixed":true,"append_correction_history_fixed":true,"derived_state_non_authority_fixed":true,"ready_for_owner_review":true}
+}
