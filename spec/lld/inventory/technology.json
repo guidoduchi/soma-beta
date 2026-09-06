@@ -1,0 +1,12 @@
+{
+  "schema":"SOMA-LLD-TECHNOLOGY-V1",
+  "lld_id":"LLD-07",
+  "runtime":"Python 3.13/3.14 on supported Windows 10/11 Beta targets",
+  "persistence":"SQLite STRICT through LLD-01 only; append-oriented event/relationship tables plus compact rebuildable current projections; no event-sourcing framework or separate inventory database",
+  "matching":"PART_CODE_V1/SERIAL_MATCH_V1 implemented with stdlib unicodedata/casefold and precomputed indexed match keys; recommendation is deterministic exact-key first and never fuzzy identity authority",
+  "projection_reducers":"pure Python domain reducers over bounded event/history slices with invariant tests; commands maintain current projection in the same UnitOfWork as accepted event mutation, while maintenance/recovery can rebuild and compare projections from immutable events",
+  "artifacts":"Spare Request/Fault Tag MSG generation remains owned/coordinated with LLD-09/LLD-10 communication artifact boundary; LLD-07 supplies versioned immutable draft payloads and treats resulting files as operator-managed artifacts, never lifecycle evidence",
+  "concurrency":"large Stock recommendation, duplicate search, contributor/material impact preview and bulk preflight run against stable read snapshots. One accepted Inventory command uses one short BEGIN IMMEDIATE UnitOfWork and revalidates every affected current projection/relationship before append+projection update.",
+  "security":"optional internal evidence references are opaque typed references only; no manual file bytes/path upload field is accepted by Inventory commands in Beta 1.0. Free-form provider payloads and communication bodies are excluded from Inventory tables/audit payloads.",
+  "performance":"Stock eligibility derives by indexed lifecycle/allocation/disposition predicates over physical-unit tables. No Python full-table scan is permitted for normal Stock list, active obligation exclusivity, active reservation or Need aggregation checks."
+}
