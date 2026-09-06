@@ -1,0 +1,9 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-08",
+  "name":"ADDRESS_MATCH_V1",
+  "normalization":["require valid finite UTF-8 text within Site address bounds","Unicode NFKC","map CR/LF/TAB and Unicode whitespace to ordinary spaces","trim leading/trailing whitespace and collapse internal whitespace runs to one space","Unicode default casefold","do not remove digits, letters, punctuation or reorder address tokens"],
+  "candidate_logic":["exact address_match_key equality is a strong duplicate candidate, never entity equality","same normalized Site name + equal address key increases review prominence but still never auto-merges","same city/label/name with differing address key is descriptive similarity only","Customer Organization scope is shown but same physical-looking address across Customers remains separate until explicit reviewed decision"],
+  "creation_rule":"CreateSite preview queries indexed address_match_key/name_match_key candidates and shows them before creation. Acceptance may still create a distinct Site; no normalized key is globally unique.",
+  "safety":"Normalizer is matching-only. Current display retains operator-approved address_text; later correction appends Site history and updates site-derived Dispatch Location display without rewriting historical logistics snapshots."
+}
