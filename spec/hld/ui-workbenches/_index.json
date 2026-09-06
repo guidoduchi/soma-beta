@@ -4,7 +4,7 @@
   "name":"UI, Workbenches, and Interaction State",
   "status":"review_ready",
   "purpose":"Define the shared interaction grammar, responsive workbench composition, application working-copy/conflict model, command presentation, confirmation tiers and accessibility boundaries without turning UI state into domain authority.",
-  "primary_requirement_ids":["BETA-REQ-0123","BETA-REQ-0124","BETA-REQ-0125","BETA-REQ-0126","BETA-REQ-0127","BETA-REQ-0128","BETA-REQ-0129","BETA-REQ-0130","BETA-REQ-0139"],
+  "primary_requirement_ids":["BETA-REQ-0123","BETA-REQ-0124","BETA-REQ-0125","BETA-REQ-0126","BETA-REQ-0127","BETA-REQ-0128","BETA-REQ-0129","BETA-REQ-0130","BETA-REQ-0139","BETA-REQ-0164","BETA-REQ-0169"],
   "supporting_requirement_ids":["BETA-REQ-0038","BETA-REQ-0051","BETA-REQ-0074","BETA-REQ-0090","BETA-REQ-0100","BETA-REQ-0110","BETA-REQ-0122","BETA-REQ-0135","BETA-REQ-0140"],
   "decisions":[
     {"id":"HLD11-D001","decision":"Keyboard focus, active row/node, single selection, multi-selection membership, expansion and opened record are independent UI states and never silently substitute for one another."},
@@ -23,6 +23,6 @@
   "packet_files":["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
   "downstream_hld_ids":["HLD-12","HLD-13","HLD-14"],
   "downstream_lld_ids":["LLD-10"],
-  "unresolved_here_by_design":["exact frontend framework/language/build tool","exact component library and state-management library","exact responsive breakpoint/container-query thresholds","exact action-to-confirmation registry serialization","exact working-copy persistence lifetime/size limits","exact visual skin token values and rendering tolerances"],
+  "unresolved_here_by_design":["exact frontend framework/language/build tool","exact component library and state-management library","exact responsive breakpoint/container-query thresholds","exact action-to-confirmation registry serialization","exact working-copy persistence lifetime/size limits","exact visual skin token values and rendering tolerances","exact semantic field-bound registry and measured pagination/virtualization limits"],
   "completion_evidence":{"required_packet_files_present":true,"interaction_state_grammar_fixed":true,"responsive_capability_boundary_fixed":true,"working_copy_conflict_boundary_fixed":true,"confirmation_tiers_fixed":true,"ready_for_owner_review":true}
 }
