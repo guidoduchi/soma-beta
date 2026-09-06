@@ -96,13 +96,14 @@
     "CREATE INDEX idx_proposal_run_state ON reconciliation_proposals(import_run_id,proposal_state,risk_class,reconciliation_proposal_id)",
     "CREATE INDEX idx_proposal_target ON reconciliation_proposals(target_kind,target_internal_id,target_business_id,proposal_state,reconciliation_proposal_id)",
     "CREATE INDEX idx_proposal_observation_fk ON reconciliation_proposals(source_observation_id,reconciliation_proposal_id)",
-    "CREATE INDEX idx_proposal_change_field_fk ON reconciliation_proposal_changes(source_observation_field_id,reconciliation_proposal_id,ordinal) WHERE source_observation_field_id IS NOT NULL",
+    "CREATE INDEX idx_proposal_change_field_fk ON reconciliation_proposal_changes(source_observation_field_id,reconciliation_proposal_id,ordinal)",
     "CREATE INDEX idx_disposition_proposal_fk ON proposal_dispositions(reconciliation_proposal_id,occurred_at_utc,proposal_disposition_id)",
     "CREATE INDEX idx_disposition_command_fk ON proposal_dispositions(command_id,proposal_disposition_id)",
     "CREATE INDEX idx_equivalence_target ON proposal_equivalence_decisions(proposal_kind,target_internal_id,target_business_id,material_input_fingerprint_sha256,proposal_equivalence_decision_id)",
     "CREATE INDEX idx_equivalence_source_fk ON proposal_equivalence_decisions(source_proposal_id,proposal_equivalence_decision_id)",
     "CREATE INDEX idx_equivalence_command_fk ON proposal_equivalence_decisions(command_id,proposal_equivalence_decision_id)"
   ],
+  "index_rules":["PRIMARY KEY(reconciliation_proposal_id,ordinal) already covers the proposal FK on reconciliation_proposal_changes; no redundant duplicate proposal-FK index is created","nullable FK indexes are full indexes rather than active/nonnull partial indexes so LLD-01 FK coverage verification can reason over all persisted rows"],
   "protection":[
     "proposal changes and dispositions/equivalence rows reject UPDATE/DELETE",
     "proposal UPDATE permits only governed pending->accepted/rejected/deferred/superseded/no_change terminal transition fields; terminal proposals reject further UPDATE",
