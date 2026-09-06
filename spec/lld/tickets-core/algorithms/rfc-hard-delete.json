@@ -1,0 +1,46 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-03",
+  "name":"RfcUntouchedManualDraftHardDelete",
+  "purpose":"Permit hard deletion only for the exceptionally narrow RFC state explicitly allowed by authority; otherwise preserve identity/history through lifecycle/archive/correction.",
+  "eligibility":{
+    "all_must_be_true":[
+      "RFC was created manually/provisionally under local authority and has no accepted RFC/WFM source adoption/provenance",
+      "RFC has no active or historical RFC hierarchy edge as parent or child",
+      "RFC has no active or historical SR relationship",
+      "RFC has no active or historical Device Reference relationship",
+      "RFC has no Working Notes or removed/edited note audit history",
+      "RFC owns no WFM identity and no WFM/Task history",
+      "RFC participates in no Task/Objective/execution/review history",
+      "RFC has no Communication link/history whose retention depends on it",
+      "RFC has no Inventory/spare-use/dependency history",
+      "RFC has no accepted lifecycle/status/source evidence beyond its local creation",
+      "RFC has no prior archive/restore/correction history",
+      "audit provider classifies it as untouched-delete-eligible rather than history-bearing",
+      "all dependency providers return eligible; INDETERMINATE fails closed"
+    ]
+  },
+  "preview":{
+    "mode":"read-only",
+    "output":"eligible boolean plus typed blockers from bounded dependency providers",
+    "rule":"preview is advisory and cannot authorize deletion"
+  },
+  "commit":{
+    "transaction":"one short BEGIN IMMEDIATE UnitOfWork",
+    "steps":[
+      "load exact RFC/revision",
+      "rerun every eligibility guard against current state using indexed existence checks",
+      "if any blocker/indeterminate exists return RFC_HARD_DELETE_BLOCKED and make no mutation",
+      "insert command_receipt",
+      "delete only the RFC row and strictly local creation-only technical rows proven unprotected",
+      "insert required audit evidence for the deletion decision only if the accepted audit contract permits preserving evidence outside the deleted RFC; if audit would itself make the RFC non-untouched under policy, the command is disallowed rather than weakening the gate",
+      "commit"
+    ]
+  },
+  "rules":[
+    "no cascade is used to manufacture eligibility",
+    "a manual RFC with any independently nondeletable WFM is not hard-deletable",
+    "ordinary imported/adopted/history-bearing RFCs use archive/terminal/correction flows instead",
+    "hard deletion never applies merely because RFC is archived, terminal, old, omitted from workbook, or currently has no active WFM"
+  ]
+}
