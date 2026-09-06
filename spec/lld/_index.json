@@ -1,15 +1,16 @@
 {
   "schema": "SOMA-LLD-INDEX-V1",
-  "status": "blocked-pending-hld-owner-acceptance",
+  "status": "active",
   "purpose": "Define implementation-ready packets small enough for deterministic AI coding and review.",
   "review_gate": {
     "required_hld_review_passes": 2,
-    "pass_1": "semantic ownership, authority, identity, lifecycle, chronology and traceability consistency",
-    "pass_2": "implementation readiness, dependency direction, cross-packet handoffs and unresolved-choice routing",
+    "pass_1": "PASS",
+    "pass_2": "PASS",
+    "hld_owner_acceptance": "ACCEPTED",
     "owner_acceptance_required_before_lld_drafting": true
   },
   "packets": [
-    {"id":"LLD-01","path":"spec/lld/foundation-runtime","name":"Foundation Runtime, Persistence, Migrations, Audit","status":"planned","hld_dependencies":["HLD-01","HLD-02","HLD-13","HLD-14"]},
+    {"id":"LLD-01","path":"spec/lld/foundation-runtime","name":"Foundation Runtime, Persistence, Migrations, Audit","status":"drafting","hld_dependencies":["HLD-01","HLD-02","HLD-13","HLD-14"]},
     {"id":"LLD-02","path":"spec/lld/identity-reference","name":"Identity, Settings, Contacts, Organizations, Locations","status":"planned","hld_dependencies":["HLD-03","HLD-13","HLD-14"]},
     {"id":"LLD-03","path":"spec/lld/tickets-core","name":"Service Requests, RFCs, Device References, Ticket Relationships","status":"planned","hld_dependencies":["HLD-03","HLD-04","HLD-05","HLD-09","HLD-14"]},
     {"id":"LLD-04","path":"spec/lld/rfc-wfm-import","name":"RFC/WFM Import and Reconciliation","status":"planned","hld_dependencies":["HLD-02","HLD-04","HLD-05","HLD-06","HLD-13","HLD-14"]},
