@@ -1,0 +1,34 @@
+{
+  "schema":"SOMA-HLD-INVARIANTS-V1",
+  "hld_id":"HLD-09",
+  "invariants":[
+    {"id":"HLD09-I001","rule":"Every registered Network Element has one immutable internal identity, nonblank operational name and exactly one authoritative Site."},
+    {"id":"HLD09-I002","rule":"Device Reference remains the operational identity even after regularization; resolving it to a Network Element never replaces historical SR/RFC/Task/Inventory relationships."},
+    {"id":"HLD09-I003","rule":"Network Element identity is not established by model, serial, IP, hostname, Rack, Cloud, containment parent, workbook row or other descriptive similarity."},
+    {"id":"HLD09-I004","rule":"Physical placement chain is Site -> Room -> Rack; Rack derives exactly one Site through its Room."},
+    {"id":"HLD09-I005","rule":"Any Network Element Rack placement and Cloud Deployment assignment must resolve to the same authoritative Site as the Network Element."},
+    {"id":"HLD09-I006","rule":"Rack row/column/position are placement semantics, not entity identity, and corrections preserve placement history."},
+    {"id":"HLD09-I007","rule":"Containment is a one-parent acyclic forest and is independent from Rack placement, Cloud assignment, model compatibility, IP inventory and connectivity."},
+    {"id":"HLD09-I008","rule":"Cloud Type is reusable reference knowledge; Cloud Deployment is an independently identified Site-scoped instance; a Network Element has at most one current Deployment."},
+    {"id":"HLD09-I009","rule":"A Network Element may have zero-many descriptive IP addresses with at most one accepted primary; absence/duplication/similarity of IP does not establish identity or topology."},
+    {"id":"HLD09-I010","rule":"Reusable Model/BOM/component compatibility data and actual installed Component-instance identity/history are separate authorities and cannot overwrite one another."},
+    {"id":"HLD09-I011","rule":"Installed Component history belongs to the physical Network Element instance and preserves instance-specific slot/serial/chronology facts when known."},
+    {"id":"HLD09-I012","rule":"Beta 1.0 has no canonical interface, connectivity, reachability, discovery, topology or SSH domain model; no other Infrastructure fact may imply one."},
+    {"id":"HLD09-I013","rule":"Reusable device/authentication secrets never persist in ordinary Infrastructure/domain/evidence/audit/log/Notes/IP/workbook state."},
+    {"id":"HLD09-I014","rule":"Infrastructure workbook imports stage and review before mutation; blank/omitted optional cells are non-destructive by default and source workbooks are never modified."},
+    {"id":"HLD09-I015","rule":"Terminal ticket history does not freeze later Device Reference regularization or Infrastructure correction; those actions never reopen or rewrite the ticket lifecycle."},
+    {"id":"HLD09-I016","rule":"SQLite remains complete authoritative Infrastructure storage; any graph/index/search representation is a rebuildable projection only."}
+  ],
+  "acceptance_hooks":[
+    "minimum Network Element registration and later progressive completion",
+    "Device Reference regularization after terminal tickets without identity rewrite",
+    "Site/Room/Rack same-Site validation including row/column/position",
+    "containment self-cycle/indirect-cycle/second-parent rejection",
+    "same-Site Cloud Deployment and cross-Site rejection",
+    "zero/multiple IPs and at-most-one-primary without identity inference",
+    "reusable compatibility vs installed Component-instance divergence/history",
+    "secret-field rejection and no SSH/device-credential UI",
+    "no topology inference from IP/placement/containment/Cloud",
+    "Infrastructure XLSX round-trip staging, omission safety and idempotency"
+  ]
+}
