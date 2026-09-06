@@ -1,0 +1,21 @@
+{
+  "schema":"SOMA-LLD-UI-HANDOFF-V1",
+  "lld_id":"LLD-01",
+  "owner":"LLD-01 supplies state/error contract; LLD-10 owns visual implementation; LLD-12 owns launcher/tray integration",
+  "host_states":[
+    {"state":"STARTING","mutation_allowed":false,"operator_meaning":"host process is initializing local resources"},
+    {"state":"MIGRATING","mutation_allowed":false,"operator_meaning":"accepted migration work is in progress"},
+    {"state":"VERIFYING","mutation_allowed":false,"operator_meaning":"schema/integrity/readiness checks are running"},
+    {"state":"LISTENING_NOT_READY","mutation_allowed":false,"operator_meaning":"loopback server exists but ordinary application use is not yet authorized"},
+    {"state":"READY","mutation_allowed":true,"operator_meaning":"ordinary authenticated application operation is available"},
+    {"state":"QUIESCING","mutation_allowed":false,"operator_meaning":"shutdown is in progress; new mutations are rejected"},
+    {"state":"FAILED","mutation_allowed":false,"operator_meaning":"startup/runtime failed with a stable actionable error code"}
+  ],
+  "startup_error_contract": {
+    "required_fields":["code","summary","recoverability","safe_next_action","correlation_id_if_available"],
+    "prohibited_fields":["password/token/key material","raw exception/environment dump","unrestricted path/customer/domain body"],
+    "examples":["INSTANCE_OWNED","MIGRATION_DRIFT","UNSUPPORTED_FUTURE_SCHEMA","INTEGRITY_FAILURE","LOOPBACK_BIND_FAILED","SECURITY_NOT_READY"]
+  },
+  "migration_status_labels":["Not initialized","Current","Migrations pending","Drift detected","Ledger mismatch","Unsupported future version","Invalid database","Integrity failure","Live instance — current","Live instance — limited","Offline inspection unavailable due to sidecar state","Inspection failed"],
+  "interaction_rules":["status inspection never offers an implicit Repair/Initialize button","drift/future/integrity failures require a governed recovery path rather than one-click normalization","retry is shown only for retryable/transient categories","UI never converts LISTENING_NOT_READY into Ready because the HTTP port responds","browser close never implies host stop"]
+}
