@@ -5,6 +5,7 @@
   "text_fields":[
     {"field":"local_user_profiles.username","min_utf8_bytes":1,"max_utf8_bytes":512,"max_lines":1,"reject":["NUL","CR","LF"]},
     {"field":"customer_organizations.name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
+    {"field":"customer_org_identifiers.value_text:customer_account_code","min_utf8_bytes":1,"max_utf8_bytes":512,"max_lines":1,"reject":["NUL","CR","LF"],"rule":"complete accepted value is normalized under UNICODE_MATCH_V1; no truncation/substr extraction"},
     {"field":"contacts.name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
     {"field":"contact_channels.value_text","min_utf8_bytes":1,"max_utf8_bytes":2048,"max_lines":1,"reject":["NUL","CR","LF"],"additional":"channel-kind definition may impose a lower bound/grammar; email matching uses the complete accepted value and no truncation"},
     {"field":"dispatch_locations.name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
@@ -14,7 +15,7 @@
   ],
   "collections":[
     {"field":"Contact active channels returned in one entity detail","pagination":"cursor when implementation dataset exceeds measured UI batch; no authoritative total cap"},
-    {"field":"archive dependency blockers","max_response_items":500,"overflow":"return bounded first page plus exact total/continuation; never treat omitted blockers as eligibility"},
+    {"field":"archive dependency blockers","max_response_items":500,"overflow":"return bounded deterministic page plus exact total/continuation; eligibility uses complete has_blocker/exact_count and never treats omitted details as absence"},
     {"field":"candidate IDs in AMBIGUOUS result","max_response_items":200,"overflow":"return exact total + deterministic cursor; state remains AMBIGUOUS regardless of visible page"}
   ],
   "settings":"Each SettingDefinition supplies its own max_utf8_bytes/depth/collection bounds; LLD-02 has no universal setting-value size constant beyond LLD-01 absolute parser safety ceilings.",
