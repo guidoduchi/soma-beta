@@ -1,0 +1,21 @@
+{
+  "schema":"SOMA-HLD-BOUNDARIES-V1",
+  "hld_id":"HLD-14",
+  "owns":[
+    "cross-domain temporal type semantics and timezone authority",
+    "application audit versus lifecycle/proposal/job/diagnostic evidence separation",
+    "cross-domain append/correction/history-preservation rules",
+    "authoritative transaction and stale-revision revalidation principles",
+    "cross-domain idempotency-before-audit rule",
+    "rebuildable derived-state/cache/projection authority boundary"
+  ],
+  "does_not_own":[
+    "domain-specific lifecycle state machines or deletion eligibility — owning HLD modules",
+    "SQLite connection/migration implementation — HLD-02",
+    "security key/authentication/diagnostic-sink implementation — HLD-13",
+    "exact UI conflict/review composition — HLD-11",
+    "source-specific chronology extraction rules — HLD-05/HLD-10, constrained by this temporal authority",
+    "exact schema, lock order and unit-of-work API — LLD"
+  ],
+  "cross_domain_rule":"A cross-domain command may coordinate several owners atomically only through explicit application-service orchestration; it never transfers semantic ownership or permits direct foreign-domain table mutation as a shortcut."
+}
