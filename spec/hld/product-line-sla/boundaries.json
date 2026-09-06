@@ -1,0 +1,34 @@
+{
+  "schema": "SOMA-HLD-BOUNDARIES-V1",
+  "hld_id": "HLD-07",
+  "owns": [
+    "Product Line reusable reference identity",
+    "Contract and Contract Product Line SLA policy authority",
+    "SR-to-CPL classification result and classification history",
+    "current individual SLA duration/state projection",
+    "canonical monthly SLA cohort membership and cohort state",
+    "SLA policy revisions/templates/tier interpretation",
+    "completed SLA/report evidence needed to reproduce historical results"
+  ],
+  "does_not_own": [
+    "SR lifecycle/status source facts",
+    "Customer Organization identity",
+    "Objective/Task scheduling timezone",
+    "import source interpretation",
+    "report UI presentation state",
+    "general operational retention/deletion"
+  ],
+  "crossing_rules": [
+    "HLD-05 supplies accepted source facts such as Report Date/status/suspension; SLA never reads raw workbook truth directly.",
+    "HLD-04 supplies accepted SR identity/Customer/status facts; SLA classification does not change ticket lifecycle.",
+    "HLD-14 supplies canonical temporal arithmetic and immutable-history semantics.",
+    "HLD-12 may project SLA results but cannot redefine cohort membership or policy.",
+    "Completed report evidence is historical authority and never cleanup authorization."
+  ],
+  "classification_boundary": {
+    "product_line": "reusable across Customers",
+    "contract": "owned by exactly one Customer Organization",
+    "contract_product_line": "customer-specific association that owns SLA policy",
+    "service_request": "at most one current customer-compatible CPL classification"
+  }
+}
