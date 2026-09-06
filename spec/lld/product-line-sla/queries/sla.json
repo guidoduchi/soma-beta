@@ -1,0 +1,19 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-06",
+  "queries":[
+    {"name":"ListProductLines","inputs":["lifecycle filter","cursor","limit"],"order":"name casefolded for presentation then product_line_id","returns":"exact total + page"},
+    {"name":"ListContracts","inputs":["customer_org_id/all","lifecycle filter","cursor","limit"],"order":"customer_org_id, contract_reference, contract_id"},
+    {"name":"ListContractProductLines","inputs":["customer/contract/product-line/lifecycle filters","cursor","limit"],"returns":"CPL plus owning Contract Customer and current policy revision summary"},
+    {"name":"GetPolicyHistory","inputs":["contract_product_line_id","cursor","limit"],"order":"revision_ordinal DESC","returns":"immutable policy revisions and exact tiers"},
+    {"name":"ListClassificationMappings","inputs":["Customer/key/target/active filters","cursor","limit"],"order":"customer_org_id,mapping_key_type,normalized_key,mapping_id"},
+    {"name":"GetSrClassification","inputs":["service_request_id"],"returns":"current valid CPL or unclassified plus resolved Customer compatibility/current policy"},
+    {"name":"GetSrClassificationHistory","inputs":["service_request_id","cursor","limit"],"order":"recorded_at_utc DESC, classification_event_id DESC"},
+    {"name":"GetIndividualSla","inputs":["service_request_id","optional as_of_utc defaults canonical now"],"implementation":"INDIVIDUAL_SLA_V1","returns":"classification/calculation states, exact elapsed rational, per-tier individual results and warning inputs"},
+    {"name":"ListCanonicalCohorts","inputs":["calendar month","Customer scope","CPL/severity filters","as_of_utc","cursor","limit"],"implementation":"COHORT_STATE_V1","order":"month,customer_org_id,contract_id,contract_product_line_id,severity,policy_tier_id","returns":"exact cohort count + page; zero-denominator cohort keys are not fabricated"},
+    {"name":"GetCohortMembers","inputs":["exact cohort key","as_of_utc","cursor","limit"],"order":"service_request_id","returns":"member individual tier state and exact total"},
+    {"name":"ListSlaWarnings","inputs":["Customer scope","warning kinds","cursor","limit"],"order":"severity-independent deterministic condition key then target id","returns":"derived conditions only; no warning row is lifecycle authority"}
+  ],
+  "index_rules":["Report-Date month candidate selection uses accepted source projection indexes owned by LLD-03/04 and Customer/CPL classification index","CPL/Contract Customer compatibility is joined by immutable ids, never labels","policy tiers are loaded by current policy revision + severity with bounded tier count","pagination is deterministic and exact totals are not inferred from loaded page size"],
+  "privacy_rule":"List/drilldown queries expose only fields needed by the requested SLA/catalog view and never retrieve full source observations, Communications bodies or Working Notes."
+}
