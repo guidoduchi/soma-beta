@@ -1,0 +1,64 @@
+{
+  "schema": "SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id": "HLD-04",
+  "upstream_authority": [
+    "spec/hld/foundation-runtime/_index.json",
+    "spec/hld/identity-reference/_index.json",
+    "spec/authority/implementation-clarifications.json",
+    "spec/requirements/CP001/BETA-REQ-0011.json",
+    "spec/requirements/CP001/BETA-REQ-0012.json",
+    "spec/requirements/CP002/BETA-REQ-0038.json",
+    "spec/requirements/CP002/BETA-REQ-0039.json",
+    "spec/requirements/CP002/BETA-REQ-0040.json",
+    "spec/requirements/CP002/BETA-REQ-0052.json",
+    "spec/requirements/CP003/BETA-REQ-0053.json",
+    "spec/requirements/CP003/BETA-REQ-0057.json",
+    "spec/requirements/CP003/BETA-REQ-0075.json",
+    "spec/requirements/CP003/BETA-REQ-0076.json",
+    "spec/requirements/CP006/BETA-REQ-0147.json",
+    "spec/requirements/CP006/BETA-REQ-0148.json",
+    "spec/requirements/CP006/BETA-REQ-0149.json",
+    "spec/requirements/CP006/BETA-REQ-0150.json",
+    "spec/requirements/CP006/BETA-REQ-0152.json",
+    "spec/requirements/CP007/BETA-REQ-0153.json",
+    "spec/requirements/CP007/BETA-REQ-0154.json",
+    "spec/requirements/CP007/BETA-REQ-0165.json"
+  ],
+  "supporting_authority": [
+    "BETA-REQ-0013",
+    "BETA-REQ-0019",
+    "BETA-REQ-0027",
+    "BETA-REQ-0030",
+    "BETA-REQ-0041",
+    "BETA-REQ-0044",
+    "BETA-REQ-0049",
+    "BETA-REQ-0058",
+    "BETA-REQ-0062",
+    "BETA-REQ-0066",
+    "BETA-REQ-0151",
+    "BETA-REQ-0155",
+    "BETA-REQ-0161",
+    "BETA-REQ-0163"
+  ],
+  "required_hld_dependencies": [
+    {"id":"HLD-02","provides":["relational persistence","transactions","migrations","durable history mechanics"]},
+    {"id":"HLD-03","provides":["Customer Organization identity","reference matching","Contact references"]},
+    {"id":"HLD-14","provides":["audit/history/idempotency/correction transaction semantics"]}
+  ],
+  "peer_dependencies": [
+    {"id":"HLD-05","interaction":"source observations/proposals/adoption feed accepted ticket projections through explicit commands"},
+    {"id":"HLD-06","interaction":"WFM/Local Task relationships consume RFC identity/hierarchy and terminal cascade scope without transferring Task lifecycle ownership"},
+    {"id":"HLD-09","interaction":"Device Reference may resolve/regularize to Network Element while ticket relationships remain to Device Reference"},
+    {"id":"HLD-10","interaction":"Communication links attach to ticket identities and react only to governed terminal consequences"},
+    {"id":"HLD-07","interaction":"SLA classification consumes SR/Customer/ticket lifecycle facts without owning ticket identity"}
+  ],
+  "forbidden_dependency_direction": [
+    "subordinate RFC -> direct Service Request join",
+    "Infrastructure NetworkElement -> replacement of Ticket DeviceReference relationship",
+    "provider/import evidence -> silent RFC hierarchy mutation",
+    "ticket link/unlink -> implicit SR/RFC lifecycle transition",
+    "terminal RFC evidence -> direct Task/Objective/Communication cascade without separate governed confirmation",
+    "WFM/Task state -> competing RFC hierarchy authority"
+  ],
+  "downstream_lld": ["LLD-03 Service Requests, RFCs, Device References, Ticket Relationships"]
+}
