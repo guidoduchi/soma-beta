@@ -1,0 +1,26 @@
+{
+  "schema":"SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id":"HLD-10",
+  "incoming":[
+    {"from":"HLD-02","uses":["durable job/checkpoint persistence","short transactions","typed JSON/persistence boundaries"]},
+    {"from":"HLD-03","uses":["Contact identity for optional reconciliation only; names/addresses do not become auth identity"]},
+    {"from":"HLD-04","uses":["SR/RFC/WFM identities, aliases and terminal/cascade decisions"]},
+    {"from":"HLD-06","uses":["Objective/WFM/Task identity where explicitly trackable"]},
+    {"from":"HLD-08","uses":["Spare Request/RMA/Fault Tag identities and Inventory proposal targets"]}
+  ],
+  "outgoing":[
+    {"to":"HLD-11","provides":["communication panels, proposal review states, coverage/job status and terminal summaries"]},
+    {"to":"HLD-12","provides":["derived communication counts/ages/coverage only"]},
+    {"to":"HLD-13","provides":["local-source trust boundary, redaction requirements, parser/library attack surface"]},
+    {"to":"HLD-14","provides":["append-oriented link/proposal/purge history and chronology distinctions"]}
+  ],
+  "forbidden_dependencies":[
+    "Communication parsing/matching cannot write owning-domain lifecycle state directly.",
+    "Source coverage/discovery/index times cannot substitute for unknown external message/business chronology.",
+    "Master data such as Network Element, Device Reference, Site, Rack, Contact or Customer alone cannot satisfy the trackable-entity gate.",
+    "Provider terminal RFC evidence cannot unlink Communications before confirmed local cascade.",
+    "Purging reconstructable message content cannot cascade-delete domain entities, audit history, backups or external source files.",
+    "MSG generation/export cannot mark a message sent or advance communication coverage."
+  ],
+  "transaction_boundary":"Jobs may parse/match outside write transactions. Each committed batch revalidates Source Scope, canonical identity, target registry and current protected dependencies, then atomically persists messages/links/proposals/coverage checkpoint and required audit. Orphan due-time purge uses its own transaction and revalidates all protected dependencies immediately before deletion of reconstructable content."
+}
