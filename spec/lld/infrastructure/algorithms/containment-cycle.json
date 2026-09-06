@@ -1,0 +1,9 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-08",
+  "name":"CONTAINMENT_CYCLE_GUARD_V1",
+  "steps":["if proposed parent is null, clearing is cycle-safe after ordinary revision checks","reject proposed_parent==child as CONTAINMENT_SELF","walk current parent chain starting at proposed parent using indexed current_parent point lookup","if child is encountered reject CONTAINMENT_CYCLE","if a repeated node is encountered before child, existing data is corrupt and operation fails DEPENDENCY_INDETERMINATE rather than normalizing it silently","stop at null parent; proposed relationship is acyclic","inside writer transaction re-run the complete walk against current rows before append/current replacement"],
+  "cardinality":"child_network_element_id is primary key of current containment projection; a second current parent cannot coexist",
+  "rules":["moving parent appends one event and replaces current edge; it never rewrites old event","containment changes do not move Rack placement, Site, Cloud, Model, IP or Device Reference resolution","algorithm is iterative and bounded by configured hard containment depth; exceeding hard limit fails closed rather than truncating ancestry"],
+  "complexity":"O(depth) indexed point reads with O(depth) visited-id set"
+}
