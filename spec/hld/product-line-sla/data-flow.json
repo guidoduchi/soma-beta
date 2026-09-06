@@ -1,0 +1,59 @@
+{
+  "schema": "SOMA-HLD-DATA-FLOW-V1",
+  "hld_id": "HLD-07",
+  "flows": [
+    {
+      "name": "classify_service_request",
+      "steps": [
+        "resolve SR Customer from accepted ticket/reference authority",
+        "enumerate only CPLs whose Contract belongs to that Customer",
+        "apply deterministic trusted mapping where uniquely sufficient",
+        "otherwise stage reviewed selection with eligible/incompatible/stale/unresolved partitions",
+        "commit one independently auditable classification result per accepted target",
+        "recompute live individual/cohort projections without changing completed reports"
+      ]
+    },
+    {
+      "name": "calculate_individual_sla",
+      "steps": [
+        "require accepted Report Date and compatible CPL policy",
+        "resolve endpoint: current canonical instant when active, first accepted effective Resolved/Closed when terminal eligible",
+        "sum only accepted source-reported suspension",
+        "compute max(0, endpoint - Report Date - suspension) in exact whole-second/integer-or-decimal arithmetic",
+        "derive current individual state from applicable policy tier",
+        "retain uncalculable/unknown explicitly rather than guessing"
+      ]
+    },
+    {
+      "name": "build_monthly_cohort",
+      "steps": [
+        "select eligible non-Cancelled SRs by accepted Report Date month in America/Guayaquil",
+        "partition by Customer, Contract, CPL, severity and policy tier",
+        "compute individual current/final eligibility and denominator/numerator bounds",
+        "derive Pending/Currently Met/At Risk/Breached/Final Met under accepted rules",
+        "never include derived compliance outcome in cohort identity",
+        "keep open-month states non-final"
+      ]
+    },
+    {
+      "name": "revise_policy_or_classification",
+      "steps": [
+        "append/activate new policy revision or reviewed SR classification",
+        "recompute current individual/cohort projections from accepted facts",
+        "preserve all previous policy/classification history",
+        "leave completed report evidence unchanged"
+      ]
+    },
+    {
+      "name": "complete_report",
+      "steps": [
+        "open one consistent accepted-state read boundary with exact as-of/scope",
+        "resolve cohort membership, policy revisions, classifications and calculations inside that boundary",
+        "generate artifact from the same represented state",
+        "verify artifact completion/integrity",
+        "only then publish immutable CompletedReportEvidence",
+        "failed/cancelled generation retains bounded attempt history and mutates no operational truth"
+      ]
+    }
+  ]
+}
