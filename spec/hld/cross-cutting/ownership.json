@@ -1,0 +1,19 @@
+{
+  "schema":"SOMA-HLD-OWNERSHIP-V1",
+  "hld_id":"HLD-14",
+  "authorities":[
+    {"fact":"canonical application instant representation and cross-domain timezone semantics","owner":"HLD-14","consumers":["all HLD modules"]},
+    {"fact":"domain lifecycle occurrence/effective chronology","owner":"owning domain under HLD-14 temporal rules","consumers":["audit/history/reporting"]},
+    {"fact":"application audit event identity, recording chronology and minimal action evidence","owner":"HLD-14","consumers":["all authoritative command handlers"]},
+    {"fact":"proposal/job attempt history","owner":"owning workflow","consumers":["History/UI projections"]},
+    {"fact":"technical diagnostics","owner":"HLD-13","consumers":["History/support surfaces only as diagnostics"]},
+    {"fact":"derived projection/cache/materialization","owner":"projection owner as disposable state","consumers":["HLD-11","HLD-12","reports"]}
+  ],
+  "time_authority":[
+    "Known application instants are canonical UTC whole seconds.",
+    "America/Guayaquil governs ordinary operational and SLA calendar interpretation unless a specific authority says otherwise.",
+    "Objective/Task selectable IANA timezone is scheduling/presentation context only and does not reinterpret import, communication, audit, SLA or other-domain chronology.",
+    "Occurrence/effective time and audit recording time are distinct facts whenever both exist.",
+    "Unknown external/effective chronology remains unknown rather than being replaced by recording/import/discovery/current time."
+  ]
+}
