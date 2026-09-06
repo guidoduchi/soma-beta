@@ -1,0 +1,25 @@
+{
+  "schema": "SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id": "HLD-08",
+  "incoming": [
+    {"from":"HLD-03","uses":["Customer Organization","Contact","Dispatch Location"]},
+    {"from":"HLD-04","uses":["Service Request identity/context","Device Reference context"]},
+    {"from":"HLD-06","uses":["Task identity","reviewed Task outcome","Task correction/retry authority"]},
+    {"from":"HLD-02","uses":["short authoritative transactions","typed persistence","durable proposal/job state"]}
+  ],
+  "outgoing": [
+    {"to":"HLD-09","provides":["physical spare/unit relationships that may resolve against Infrastructure without transferring Inventory ownership"]},
+    {"to":"HLD-10","provides":["Inventory proposal targets and lifecycle facts; Communications remains evidence/proposal authority only"]},
+    {"to":"HLD-11","provides":["Inventory actions, projections, warnings, bulk preflight and lifecycle states"]},
+    {"to":"HLD-12","provides":["Inventory summary projections and operational counts"]},
+    {"to":"HLD-14","provides":["append-oriented Inventory events and correction/supersession relationships"]}
+  ],
+  "forbidden_dependencies": [
+    "Inventory must not call Communications to infer or execute Task outcomes.",
+    "Inventory must not mutate Objective or Task lifecycle state.",
+    "Inventory must not treat Network Element or Site master data as ownership of Device Reference operational relationships.",
+    "Inventory must not use generated/exported MSG artifacts as proof of submission, dispatch, receipt or warehouse outcome.",
+    "Inventory must not hard-delete accepted lifecycle history as a correction mechanism."
+  ],
+  "transaction_boundary": "Inventory commands validate target identity/dependencies, revalidate current projection, append the minimal authoritative events/relationships and required audit atomically, then publish derived projections. External parsing, operator review, artifact generation and long-running work occur outside the write transaction."
+}
