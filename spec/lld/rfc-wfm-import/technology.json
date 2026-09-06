@@ -1,0 +1,19 @@
+{
+  "schema":"SOMA-LLD-TECHNOLOGY-V1",
+  "lld_id":"LLD-04",
+  "runtime":"Python 3.13/3.14 on supported Windows 10/11 Beta targets",
+  "xlsx_stack":{
+    "preflight":"Python stdlib os/pathlib/stat + zipfile performs path/reparse/stability/container/resource/part-name/content-type/relationship preflight before workbook library opens the file",
+    "semantic_reader":"openpyxl in read-only streaming mode with formulas not evaluated and external links disabled; exact compatible package version is pinned by LLD-12/release lock after Python 3.13/3.14 compatibility matrix passes",
+    "load_contract":["read_only=True","data_only=False","keep_links=False"],
+    "rules":[
+      "openpyxl is never exposed to a file that failed ZIP/resource/XML-active-content preflight",
+      "semantic formula cells are rejected; no cached formula result becomes accepted source value",
+      "no macro-enabled workbook or embedded executable content is accepted",
+      "adapter code wraps library objects immediately into bounded primitive parser values and never persists workbook/cell objects"
+    ]
+  },
+  "why_not_custom_ooxml":"Beta does not implement a bespoke general XLSX engine. Security-critical package preflight is small and explicit, while worksheet/date/style decoding uses a mature reader behind strict resource/profile tests. This reduces custom parsing surface without granting the library authority to execute formulas or fetch resources.",
+  "concurrency":"Discovery/parsing/fingerprinting/proposal computation runs outside authoritative writer transactions; database staging batches are bounded. Domain acceptance remains short serialized LLD-01 UnitOfWork mutations.",
+  "dependency_gate":"Before implementation acceptance, the pinned workbook-library version must pass the full LLD-04 malicious/large/golden fixture suite on both supported Python versions. A dependency upgrade is not semantic authority and requires replaying those fixtures."
+}
