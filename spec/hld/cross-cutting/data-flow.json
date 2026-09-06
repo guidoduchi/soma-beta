@@ -1,0 +1,12 @@
+{
+  "schema":"SOMA-HLD-DATA-FLOW-V1",
+  "hld_id":"HLD-14",
+  "flows":[
+    {"name":"authoritative_command","steps":["receive intent plus immutable target identity and base revision/preconditions","load current owning-domain truth inside authoritative transaction","revalidate lifecycle/dependencies/temporal inputs and command idempotency","apply owning-domain mutation and required lifecycle evidence","validate and insert required closed-schema audit event exactly once","commit all required authoritative writes atomically","publish/recompute disposable projections after or consistently with commit"]},
+    {"name":"stale_command","steps":["base revision/precondition no longer matches current truth","authoritative mutation is not applied","no accepted lifecycle or audit success event is fabricated","return current-vs-proposed conflict evidence for reviewed retry/rebase"]},
+    {"name":"correction","steps":["identify exact accepted event/relationship/fact being disputed","validate owning-domain correction eligibility","append correction/supersession/reversal evidence with independent chronology and reason","append required audit referencing both original and new evidence","recompute current projection without deleting the original accepted history"]},
+    {"name":"temporal_input","steps":["classify input as instant, date-only, duration, unknown or unresolved-source chronology","for Objective/Task schedule wall-clock input, convert using selected IANA scheduling zone and preserve context","persist known instant as UTC whole seconds","retain source/profile/offset conversion provenance where applicable","ambiguity or missing authority remains unresolved rather than fabricated"]},
+    {"name":"projection_rebuild","steps":["read accepted authoritative identities/relationships/events/snapshots","deterministically recompute current/list/dashboard/reportable projection","write/cache only disposable rebuildable state where used","emit no lifecycle event merely because derived state was recalculated"]},
+    {"name":"exceptional_hard_delete","steps":["owning domain proves explicit deletion eligibility and dependency safety","impact preview/confirmation is completed when required","transaction removes only the authorized mutable/domain record scope","independently surviving entities/evidence are preserved","required minimized non-reconstructable audit evidence is appended atomically","derived projections are rebuilt"]}
+  ]
+}
