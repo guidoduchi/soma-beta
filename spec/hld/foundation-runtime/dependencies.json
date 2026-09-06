@@ -1,0 +1,72 @@
+{
+  "schema": "SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id": "HLD-02",
+  "upstream_authority": [
+    "spec/hld/product-boundary/_index.json",
+    "spec/requirements/CP001/BETA-REQ-0003.json",
+    "spec/requirements/CP001/BETA-REQ-0018.json",
+    "spec/requirements/CP003/BETA-REQ-0073.json",
+    "spec/requirements/CP006/BETA-REQ-0131.json",
+    "spec/requirements/CP006/BETA-REQ-0132.json",
+    "spec/requirements/CP006/BETA-REQ-0133.json",
+    "spec/requirements/CP006/BETA-REQ-0134.json",
+    "spec/requirements/CP006/BETA-REQ-0136.json",
+    "docs/FOUNDATION_RUNTIME_CONTRACT.md"
+  ],
+  "supporting_authority": [
+    "BETA-REQ-0019",
+    "BETA-REQ-0072",
+    "BETA-REQ-0077",
+    "BETA-REQ-0135",
+    "BETA-REQ-0137",
+    "BETA-REQ-0138",
+    "BETA-REQ-0140",
+    "BETA-REQ-0141",
+    "BETA-REQ-0142",
+    "BETA-REQ-0143",
+    "BETA-REQ-0144"
+  ],
+  "required_hld_dependencies": [
+    {
+      "id": "HLD-01",
+      "provides": ["single-host topology", "application lifetime", "loopback exposure", "startup/shutdown sequence boundary"]
+    },
+    {
+      "id": "HLD-13",
+      "provides": ["data-at-rest encryption", "backup/recovery security", "runtime trust", "diagnostic redaction/security"]
+    },
+    {
+      "id": "HLD-14",
+      "provides": ["transaction semantics", "audit/event semantics", "idempotency", "history and temporal authority"]
+    }
+  ],
+  "downstream_consumers": [
+    "HLD-03",
+    "HLD-04",
+    "HLD-05",
+    "HLD-06",
+    "HLD-07",
+    "HLD-08",
+    "HLD-09",
+    "HLD-10",
+    "HLD-11",
+    "HLD-12"
+  ],
+  "dependency_direction": [
+    "domain/application service -> repository/query/unit-of-work interface -> connection factory -> SQLite",
+    "migration coordinator -> exclusive data-instance migration ownership -> schema+ledger transaction -> integrity/readiness checks",
+    "job coordinator -> durable job/checkpoint records -> adapter/application service -> bounded authoritative transaction",
+    "typed setting/document owner -> JSON contract registry -> validated atomic persistence",
+    "HLD-14 audit/event semantics -> HLD-02 append-only persistence mechanics"
+  ],
+  "forbidden_dependency_direction": [
+    "domain code -> raw unmanaged SQLite connection",
+    "browser -> database",
+    "adapter/parser -> direct authoritative table mutation",
+    "migration/status command -> silent product-semantic change",
+    "read-only status -> target creation/migration/repair",
+    "diagnostics/runtime registry -> authoritative domain projection",
+    "cache/projection -> unique unrecoverable fact"
+  ],
+  "downstream_lld": ["LLD-01 Foundation Runtime, Persistence, Migrations, Audit"]
+}
