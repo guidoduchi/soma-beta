@@ -1,0 +1,33 @@
+{
+  "schema":"SOMA-LLD-UI-HANDOFF-V1",
+  "lld_id":"LLD-03",
+  "owner":"LLD-03 supplies ticket/domain state; LLD-10 owns frontend implementation",
+  "service_request_tabs":["Overview","Devices","Spare Parts","RFCs","Tasks","Notes"],
+  "rfc_tabs":["Overview","Service Requests and Devices","Related RFCs","Tasks","Notes"],
+  "states":[
+    "current accepted source facts",
+    "explicit incomplete/unresolved facts",
+    "terminal presentation without replacement identity",
+    "RFC local archived presentation distinct from source terminal state",
+    "unregistered Device Reference",
+    "registered/resolved Device Reference projection",
+    "RFC Customer unresolved warning",
+    "hierarchy/subordinate-origin relationship preview",
+    "stale relationship review",
+    "high-risk reparent review required"
+  ],
+  "rules":[
+    "UI working copy never mutates ticket/domain state until command commit.",
+    "SR RFC tab renders direct roots with nested subordinate/WFM branches; it never fabricates subordinate direct SR links.",
+    "RFC Service Requests and Devices tab may originate a link action from a subordinate, but preview resolves the governing root and preserves subordinate-origin provenance.",
+    "RFC Related RFCs list virtualizes/keyset-pages large child sets; no 20-child product limit is presented.",
+    "Device Reference view shows current operational identity first; optional Network Element resolution is secondary derived context.",
+    "Three-second Device Reference promotion belongs to LLD-10/LLD-08 interaction/Infrastructure command and never changes the ticket relationship target.",
+    "Notes edits/removals are explicit commands with stale-revision handling; source import cannot produce note edit controls.",
+    "Archived RFC remains accessible/history-visible and can still receive exact source reconciliation; archive is not presented as provider cancellation/completion."
+  ],
+  "preview_contracts":[
+    "Hierarchy/link previews show immutable IDs/business IDs, current revisions, exact proposed relation changes, Customer mismatch/unresolved state, and downstream warnings without merging identities.",
+    "Preview is advisory; commit reruns all authoritative checks and returns stale conflict when changed."
+  ]
+}
