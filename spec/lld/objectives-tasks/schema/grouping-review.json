@@ -29,7 +29,7 @@
         "objective_id TEXT NOT NULL REFERENCES objectives(objective_id) ON DELETE RESTRICT ON UPDATE RESTRICT",
         "accepted_plan_revision_id TEXT NOT NULL REFERENCES task_plan_revisions(plan_revision_id) ON DELETE RESTRICT ON UPDATE RESTRICT",
         "membership_revision INTEGER NOT NULL CHECK(membership_revision>0)",
-        "last_event_id TEXT NOT NULL",
+        "last_event_id TEXT NOT NULL REFERENCES objective_membership_events(membership_event_id) ON DELETE RESTRICT ON UPDATE RESTRICT",
         "last_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT ON UPDATE RESTRICT"
       ],
       "rules":["service verifies accepted_plan_revision belongs to task and remains a valid positive-duration accepted Task plan","one Task has at most one current Objective","current plan may later differ; mismatch is regroup input, not silent envelope rewrite"]
@@ -68,7 +68,7 @@
       "name":"objective_aggregate_projection",
       "columns":[
         "objective_id TEXT PRIMARY KEY REFERENCES objectives(objective_id) ON DELETE RESTRICT ON UPDATE RESTRICT",
-        "execution_state TEXT NOT NULL CHECK(execution_state IN ('planned','in_progress','awaiting_review','reviewed','superseded'))",
+        "execution_state TEXT NOT NULL CHECK(execution_state IN ('planned','historical_structure','in_progress','awaiting_review','reviewed','superseded'))",
         "aggregate_outcome TEXT NULL CHECK(aggregate_outcome IS NULL OR aggregate_outcome IN ('completed','incomplete','cancelled','mixed','excluded_from_operational_counts'))",
         "actual_start_utc INTEGER NULL CHECK(actual_start_utc IS NULL OR actual_start_utc>=0)",
         "actual_end_utc INTEGER NULL CHECK(actual_end_utc IS NULL OR actual_end_utc>=0)",
@@ -79,7 +79,7 @@
         "revision INTEGER NOT NULL CHECK(revision>0)",
         "last_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT ON UPDATE RESTRICT"
       ],
-      "rules":["rebuildable only from member Task execution/outcome/inclusion plus current Objective membership/supersession","Objective start/outcome are not independently writable","lost_last_executable is set only from governed lifecycle consequence while Objective had accepted started work"]
+      "rules":["rebuildable only from member Task execution/outcome/inclusion plus current Objective membership/supersession","historical_structure is non-executable provider-history structure and carries no actual start/end merely from source Complete","Objective start/outcome are not independently writable","lost_last_executable is set only from governed lifecycle consequence while Objective had accepted started work"]
     },
     {
       "name":"objective_review_events",
