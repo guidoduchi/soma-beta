@@ -1,0 +1,29 @@
+{
+  "schema":"SOMA-LLD-FAILURE-INJECTION-V1",
+  "lld_id":"LLD-02",
+  "cases":[
+    {"id":"LLD02-FI-001","fault":"duplicate-name/equal-match-key candidates exist during Contact creation","expected":"creation may proceed as a new identity when operator explicitly creates; no existing Contact is silently selected/merged"},
+    {"id":"LLD02-FI-002","fault":"two active scoped Contacts share the same governed email match key","expected":"matching returns AMBIGUOUS with both immutable IDs; no mutation occurs"},
+    {"id":"LLD02-FI-003","fault":"candidate preview was UNIQUE but another matching Contact commits before acceptance","expected":"authoritative command reruns matching/preconditions and returns conflict/review state rather than using stale candidate selection"},
+    {"id":"LLD02-FI-004","fault":"Contact affiliation command uses stale base_revision","expected":"STALE_REVISION; prior current affiliation remains unchanged and no receipt/lifecycle/audit row commits"},
+    {"id":"LLD02-FI-005","fault":"attempt to persist second current affiliation for same Contact","expected":"SQLite partial-unique/CHECK constraints reject it even if application validation is bypassed"},
+    {"id":"LLD02-FI-006","fault":"attempt to persist is_current=1 with closed_at_utc or is_current=0 without closed_at_utc","expected":"SQLite CHECK rejects contradictory affiliation chronology"},
+    {"id":"LLD02-FI-007","fault":"archive preview has no blockers but an active dependent record appears before commit","expected":"archive reruns validators inside the authoritative UnitOfWork and returns ARCHIVE_BLOCKED; reference remains active"},
+    {"id":"LLD02-FI-008","fault":"one archive dependency validator raises/returns indeterminate failure","expected":"fail closed with DEPENDENCY_VALIDATION_FAILED; no archive mutation/receipt/lifecycle/audit commits"},
+    {"id":"LLD02-FI-009","fault":"Dispatch Location is dedicated to active Site","expected":"independent Dispatch archive returns ARCHIVE_BLOCKED and never unlinks or archives Site"},
+    {"id":"LLD02-FI-010","fault":"unfinished logistics operation references Dispatch Location","expected":"archive blocked; no automatic reassignment/unlinking occurs"},
+    {"id":"LLD02-FI-011","fault":"cross-domain Site + dedicated Dispatch creation fails after Dispatch insert but before Site relation insert","expected":"shared UnitOfWork rolls back Dispatch creation, lifecycle evidence, receipt and audit; no orphan dedicated location remains"},
+    {"id":"LLD02-FI-012","fault":"attempt to write standalone address to site_derived Dispatch Location","expected":"domain validation/SQLite constraints reject; Site remains current-address authority"},
+    {"id":"LLD02-FI-013","fault":"malformed/duplicate-key/nonfinite/oversized Settings JSON","expected":"strict LLD-01 JSON validation rejects before persistence; prior setting revision remains unchanged"},
+    {"id":"LLD02-FI-014","fault":"unknown Settings key or secret-classified key supplied to ordinary registry","expected":"SETTING_UNKNOWN or SETTING_SECRET_FORBIDDEN; no generic JSON escape path"},
+    {"id":"LLD02-FI-015","fault":"setting preview/base revision becomes stale before write","expected":"STALE_REVISION/SETTING_REVISION_CONFLICT; no last-write-wins"},
+    {"id":"LLD02-FI-016","fault":"lifecycle event insert succeeds logically but audit insert fails","expected":"entire authoritative transaction rolls back including command receipt, entity/lifecycle mutation and setting/reference changes"},
+    {"id":"LLD02-FI-017","fault":"command_id replay uses same hash after successful commit","expected":"return committed result without duplicate lifecycle/audit evidence"},
+    {"id":"LLD02-FI-018","fault":"command_id replay uses different hash","expected":"IDEMPOTENCY_CONFLICT; no new mutation"},
+    {"id":"LLD02-FI-019","fault":"matching input exceeds semantic byte/line/cardinality bound","expected":"FIELD_BOUND_EXCEEDED; no truncation, partial normalization or persistence"},
+    {"id":"LLD02-FI-020","fault":"archived Contact/Dispatch is supplied to new-active relationship selector/command","expected":"REFERENCE_ARCHIVED; historical query remains resolvable by immutable ID"},
+    {"id":"LLD02-FI-021","fault":"reactivation conflicts with current structural/dependency constraints","expected":"REACTIVATION_BLOCKED; archived interval/history remains unchanged"},
+    {"id":"LLD02-FI-022","fault":"repository SQL/constraint exception occurs after receipt insertion but before commit","expected":"UnitOfWork rollback removes receipt and every partial row; stable error crosses boundary, raw SQLite exception does not"}
+  ],
+  "coverage_rule":"Every LLD-02 mutation family must have at least one rollback, stale-state, and invariant-bypass failure case before implementation acceptance."
+}
