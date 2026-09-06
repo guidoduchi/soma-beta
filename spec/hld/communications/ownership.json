@@ -1,0 +1,21 @@
+{
+  "schema":"SOMA-HLD-OWNERSHIP-V1",
+  "hld_id":"HLD-10",
+  "owners":[
+    {"concept":"Communication Source Scope","authority":"HLD-10","notes":"Stable mailbox/account population identity; source path is mutable configuration only."},
+    {"concept":"Coverage/high-water","authority":"HLD-10","notes":"Per-source-scope processing evidence, never business/message chronology."},
+    {"concept":"Canonical Communication","authority":"HLD-10","notes":"Immutable local message identity/content retained only when governed protection exists."},
+    {"concept":"Communication participant set/direction","authority":"HLD-10","notes":"Typed evidence derived from source/folder/participants; ambiguity remains explicit."},
+    {"concept":"Communication link","authority":"HLD-10","notes":"Independently identified relation from canonical Communication to one governed operational target."},
+    {"concept":"Communication-derived proposal","authority":"HLD-10 proposal + owning domain acceptance","notes":"HLD-10 owns source/proposal evidence; target domain owns resulting mutation."},
+    {"concept":"MSG draft provenance","authority":"HLD-10 plus originating domain command","notes":"Draft artifact identity never becomes sent-message identity."},
+    {"concept":"Orphan/purge state","authority":"HLD-10","notes":"Content-minimization lifecycle only; does not delete operational domain history."},
+    {"concept":"Terminal Communication summary","authority":"HLD-10 projection evidence","notes":"Frozen minimized counts/chronology immediately before governed link removal."}
+  ],
+  "domain_command_boundary":[
+    "SR direct link removal consumes the authoritatively accepted SR terminal event.",
+    "RFC direct link removal consumes only the separately confirmed local RFC cascade decision.",
+    "Inventory/Objective/Ticket proposals must invoke the respective owning-domain command after fresh revalidation.",
+    "A later source message alone cannot reopen a ticket, reattach a terminal RFC link, or alter Inventory/Task outcomes."
+  ]
+}
