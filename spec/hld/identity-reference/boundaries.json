@@ -1,0 +1,62 @@
+{
+  "schema": "SOMA-HLD-BOUNDARIES-V1",
+  "hld_id": "HLD-03",
+  "name": "Identity, Settings, and Reference Data",
+  "identity_boundary": {
+    "relational_identity": "persistent reference entities use immutable opaque SOMA identifiers; names, emails, addresses, account labels and other descriptive/business attributes are not relational primary identity",
+    "authentication_identity": "exactly one Local User Profile exists per installation as the authenticating administrator identity; authentication secrets and credential mechanics belong to HLD-13",
+    "operational_people": "requesters, handlers, owners, executors and customer contacts are reusable Contact records, not login profiles",
+    "role_model": "operational role is relationship/context data; one Contact may participate in multiple roles without cloning identity"
+  },
+  "reference_entities": {
+    "CustomerOrganization": {
+      "identity": "opaque internal SOMA identity",
+      "descriptive_data": "name and supported external account/matching attributes",
+      "rule": "descriptive equality never independently proves shared identity"
+    },
+    "Contact": {
+      "identity": "opaque internal SOMA identity",
+      "current_customer_affiliation": "zero or one current affiliation",
+      "history": "affiliation transitions are explicit historical relationships and do not replace Contact identity",
+      "matching": "names/emails are candidate-matching data only and ambiguous matches require review"
+    },
+    "DispatchLocation": {
+      "identity": "opaque reusable physical logistics-location identity",
+      "customer_ownership": "none",
+      "site_relationship": "zero or one Site may be linked from the Dispatch Location side; every Site has exactly one dedicated Dispatch Location",
+      "operational_role": "delivery, self-pickup, or Fault Tag pickup-origin meaning belongs to the logistics operation, not to Dispatch Location identity"
+    },
+    "LocalUserProfile": {
+      "cardinality": "exactly one persistent authenticating profile per installation",
+      "not_a_contact": true,
+      "credential_owner": "HLD-13"
+    }
+  },
+  "matching_boundary": {
+    "method": "deterministic scope-aware exact-key reconciliation only",
+    "fuzzy_matching": false,
+    "ambiguity": "zero/one/many candidate state is preserved; multiple candidates never auto-select or auto-merge",
+    "mutation": "matching produces candidate/review context; identity merge/reassignment requires an explicit governed command"
+  },
+  "reference_lifecycle": {
+    "default": "history-preserving archival/reactivation rather than destructive removal once protected history exists",
+    "archived_records": "remain visible in historical evidence but are excluded from new active selectors/relationships",
+    "archive_guard": "archival is blocked when it would strand an active dependent relationship",
+    "reactivation": "explicit and audited"
+  },
+  "settings_boundary": {
+    "registry": "settings are typed, namespaced, application-owned contracts persisted through HLD-02",
+    "ownership": "each setting has one semantic owner module; the Settings workspace is a command surface, not a competing authority",
+    "read_behavior": "reading a missing setting does not create a persisted default",
+    "secrets": "credentials/secrets do not use ordinary settings storage and belong to HLD-13"
+  },
+  "delegated_design": {
+    "HLD-09": "Site/Cloud/Room/Rack/Network Element ownership and Site creation semantics beyond the dedicated Dispatch Location relationship",
+    "HLD-08": "Spare Request requester role, logistics-operation use, immutable logistics snapshots and active logistics dependency checks",
+    "HLD-05": "import/reconciliation workflows that consume reference candidate matching",
+    "HLD-04": "ticket relationships that consume Contacts and Customer Organizations",
+    "HLD-13": "Local User Profile authentication/password/auto-login/security",
+    "HLD-14": "audit/history/transaction semantics for affiliation, archive/reactivate and correction",
+    "LLD-02": "tables, indexes, commands, exact normalization keys, selector queries and dependency validators"
+  }
+}
