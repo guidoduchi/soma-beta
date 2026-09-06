@@ -1,0 +1,22 @@
+{
+  "schema":"SOMA-LLD-NONFUNCTIONAL-TESTS-V1",
+  "lld_id":"LLD-02",
+  "performance":[
+    {"id":"LLD02-P001","name":"indexed_exact_matching","proof":"On representative synthetic populations, EXPLAIN/query instrumentation confirms Customer name, Customer Account Code, Contact name/email and affiliation-scope matching use the declared supporting indexes and do not depend on fuzzy/full-table similarity scans."},
+    {"id":"LLD02-P002","name":"keyset_list_scaling","proof":"Advancing later pages uses opaque keyset predicates on declared sort indexes; ordinary navigation does not use OFFSET proportional to preceding row count."},
+    {"id":"LLD02-P003","name":"no_n_plus_one_reference_lists","proof":"SQL statement count for one list page is bounded independently of number of returned rows; adding rows to a page does not issue one affiliation/channel/Site query per row."},
+    {"id":"LLD02-P004","name":"bounded_contact_detail","proof":"Contact detail returns bounded channel data/count and dedicated cursor continuation; repository never loads all historical/current channels without an explicit bounded page."},
+    {"id":"LLD02-P005","name":"short_archive_writer_lock","proof":"Instrumentation proves ArchiveReference/ReactivateReference call only guard_archive/guard_reactivate while BEGIN IMMEDIATE is held; count/list blocker methods are never invoked under write lock."},
+    {"id":"LLD02-P006","name":"blocker_scale_independent_commit","proof":"Synthetic very-large dependency set increases read-preview pages/count cost but does not cause ArchiveReference commit path to materialize blocker bodies; blocked command rolls back before receipt insertion."},
+    {"id":"LLD02-P007","name":"preflight_outside_writer","proof":"Unicode normalization, email syntax parsing, static field bounds and state-independent setting validation execute before BEGIN IMMEDIATE; instrumentation rejects external I/O/operator waits in state-dependent validation."}
+  ],
+  "security":[
+    {"id":"LLD02-S001","name":"static_sql_surface","proof":"Repository SQL identifiers are static code; route reference_type/sort/cursor/key inputs pass closed decoding and all values are bound parameters."},
+    {"id":"LLD02-S002","name":"recipient_header_injection","proof":"CR/LF/NUL/C0-C1 control recipient inputs fail EMAIL_CHANNEL_V1 before persistence/use; no raw failed value reaches generated message headers."},
+    {"id":"LLD02-S003","name":"offline_channel_validation","proof":"Network call monitor remains zero during Contact channel storage/use validation; no DNS/SMTP/email-service/deliverability request is made."},
+    {"id":"LLD02-S004","name":"history_write_protection","proof":"Direct SQL attempts to delete masters/history or mutate closed affiliation/superseded identifier/lifecycle-event evidence fail through accepted protection triggers."},
+    {"id":"LLD02-S005","name":"secret_storage_exclusion","proof":"Ordinary setting/channel/reference APIs reject password, verifier, key, token or device-credential storage paths governed by LLD-12."},
+    {"id":"LLD02-S006","name":"bounded_adversarial_unicode","proof":"Maximum-bound Unicode normalization/casefold expansion remains within declared memory/output ceilings; oversized input is rejected before unbounded expansion."}
+  ],
+  "rule":"These are structural acceptance properties rather than hardware-specific latency thresholds; measured latency tuning may optimize implementation but may not weaken the ownership, boundedness or transaction rules."
+}
