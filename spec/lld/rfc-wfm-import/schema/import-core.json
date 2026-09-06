@@ -19,7 +19,7 @@
         "candidate_chronology_kind TEXT NOT NULL CHECK(candidate_chronology_kind IN ('filesystem_mtime_ns','embedded_filename_timestamp_utc'))",
         "candidate_chronology_value INTEGER NOT NULL CHECK(candidate_chronology_value>=0)",
         "logical_fingerprint_sha256 TEXT CHECK(logical_fingerprint_sha256 IS NULL OR length(logical_fingerprint_sha256)=64)",
-        "run_state TEXT NOT NULL CHECK(run_state IN ('discovering','validating','staged','waiting_review','partially_accepted','accepted','rejected','noop','recovery_required','failed'))",
+        "run_state TEXT NOT NULL CHECK(run_state IN ('discovering','validating','staged','waiting_review','partially_accepted','accepted','rejected','noop_pending_checkpoint','noop','recovery_required','failed'))",
         "started_at_utc INTEGER NOT NULL CHECK(started_at_utc>=0)",
         "staged_at_utc INTEGER CHECK(staged_at_utc IS NULL OR staged_at_utc>=started_at_utc)",
         "completed_at_utc INTEGER CHECK(completed_at_utc IS NULL OR completed_at_utc>=started_at_utc)",
@@ -33,13 +33,15 @@
         "rejected_proposal_count INTEGER NOT NULL DEFAULT 0 CHECK(rejected_proposal_count>=0)",
         "deferred_proposal_count INTEGER NOT NULL DEFAULT 0 CHECK(deferred_proposal_count>=0)",
         "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
-        "CHECK((run_state IN ('staged','waiting_review','partially_accepted','accepted','rejected','noop','recovery_required') AND logical_fingerprint_sha256 IS NOT NULL AND staged_at_utc IS NOT NULL) OR run_state IN ('discovering','validating','failed'))"
+        "CHECK((run_state IN ('staged','waiting_review','partially_accepted','accepted','rejected','noop_pending_checkpoint','noop','recovery_required') AND logical_fingerprint_sha256 IS NOT NULL AND staged_at_utc IS NOT NULL) OR run_state IN ('discovering','validating','failed'))"
       ],
       "rules":[
         "import_run_id is immutable UUIDv4 identity",
         "candidate_filename is display/provenance only and never identity or business chronology",
         "no raw workbook bytes, formulas, discarded columns or unrestricted row payload are stored in import_runs",
         "run counters are exact derived/maintained summary values validated against immutable child rows before terminal run transition",
+        "noop_pending_checkpoint is permitted only for newer candidate chronology with identical accepted logical fingerprint after unpublished row cleanup; it has no domain proposals",
+        "noop is terminal no-domain-change state; exact replay may enter directly, while newer-identical enters only after checkpoint update succeeds",
         "run state is workflow coordination only and never RFC/WFM lifecycle authority"
       ]
     },
@@ -57,9 +59,9 @@
       ],
       "rules":[
         "RFC and WFM checkpoints are independent and separate from Communication coverage/business chronology",
-        "checkpoint advances only through accepted/noop-newer-identical/reviewed-recovery command paths",
-        "same chronology plus different logical fingerprint never advances checkpoint",
-        "older chronology never advances checkpoint without explicit reviewed recovery",
+        "checkpoint advances only through explicitly processed source-set, newer-identical, or reviewed-recovery command paths",
+        "same chronology plus different logical fingerprint never advances checkpoint without reviewed correction",
+        "older recovery never decrements the checkpoint chronology",
         "checkpoint chronology is source-family import ordering evidence and never entity lifecycle chronology"
       ]
     },
@@ -75,7 +77,7 @@
         "occurred_at_utc INTEGER NOT NULL CHECK(occurred_at_utc>=0)",
         "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
       ],
-      "rules":["append-only evidence of explicit older-source recovery authority","recovery never erases/reorders prior accepted observations","recovery applies only to the exact reviewed run/checkpoint pair"]
+      "rules":["append-only evidence of explicit chronology/content recovery authority","recovery never erases/reorders prior accepted observations","recovery applies only to the exact reviewed run/checkpoint pair"]
     }
   ],
   "indexes":[
