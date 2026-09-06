@@ -1,128 +1,129 @@
 {
   "schema":"SOMA-LLD-COMMANDS-V1",
   "lld_id":"LLD-02",
-  "command_ordering":"Every ordinary accepted LLD-02 command follows LLD-01 ordering: idempotency check -> pure bounded preflight -> open UnitOfWork -> load/revalidate authoritative state -> allocate immutable IDs -> insert command_receipt -> domain/lifecycle writes -> audit -> commit. Any later failure rolls the receipt back with the command.",
-  "preflight_rule":"Pure normalization, field-bound checks and syntax validation occur before BEGIN IMMEDIATE where possible; every state-dependent precondition and uniqueness/eligibility decision is revalidated inside the authoritative UnitOfWork. No external I/O, DNS, operator wait or unbounded computation occurs while the write transaction is held.",
+  "command_ordering":"Every ordinary accepted LLD-02 command follows LLD-01 ordering: idempotency check -> pure bounded preflight -> open UnitOfWork -> load/revalidate authoritative state -> detect semantic NO_CHANGE when applicable -> allocate immutable IDs -> insert command_receipt -> domain/lifecycle writes -> audit -> commit. Any later failure rolls the receipt back with the command.",
+  "preflight_rule":"Pure normalization, field-bound checks and syntax validation occur before BEGIN IMMEDIATE where possible. State-dependent uniqueness/eligibility/review freshness is always revalidated inside the authoritative UnitOfWork. No external I/O, DNS, operator wait or unbounded computation occurs while the write transaction is held.",
+  "semantic_no_change":"algorithms/no-change.json",
   "commands":[
     {
       "name":"CreateCustomerOrganization",
       "input":["command_id","name","optional Customer Account Code","actor/source"],
       "transaction_boundary":"one LLD-01 authoritative UnitOfWork after pure preflight",
-      "steps":["validate semantic bounds and compute governed match keys in pure preflight","inside UnitOfWork, when account code supplied detect any active different claimant and return ACCOUNT_CODE_CONFLICT_REVIEW with no mutation","allocate customer_org_id, optional identifier_id and lifecycle_event_id","insert command_receipt","insert active record revision 1","insert optional active customer_account_code identifier referencing receipt","append created lifecycle event referencing receipt","insert audit/result references","commit"],
-      "rules":["matching candidates may be shown before command but equal name never blocks creation solely as identity duplication","Customer Account Code is preferred external matching evidence but never the relational ID","reviewed duplicate-code preservation uses ConfirmCustomerAccountCodeSharedClaim after Customer creation; ordinary create does not silently create a multiply claimed code","no implicit merge/adoption"]
+      "steps":["validate bounds and compute governed match keys","inside UnitOfWork detect any active different Account Code claimant and return ACCOUNT_CODE_CONFLICT_REVIEW with no mutation","allocate customer_org_id/optional identifier_id/lifecycle_event_id","insert command_receipt","insert active Customer revision 1","insert optional active Account Code claim","append created lifecycle event","insert audit/result references","commit"],
+      "rules":["equal name never blocks explicit creation solely as identity duplication","Customer Account Code is external matching evidence, never relational ID","reviewed duplicate-code preservation uses ConfirmCustomerAccountCodeSharedClaim after Customer creation","no implicit merge/adoption"]
     },
     {
       "name":"SetCustomerAccountCode",
       "input":["customer_org_id","base_revision","raw Customer Account Code","reason_category","command_id"],
-      "transaction_boundary":"one UnitOfWork after bounded normalization preflight",
-      "steps":["normalize complete account code in pure preflight","inside UnitOfWork load active Customer and revalidate revision","query active canonical claimants for exact normalized code","if any other Customer claims the code return ACCOUNT_CODE_CONFLICT_REVIEW with bounded claimant identities/count and no mutation","allocate identifier ID","insert command_receipt","supersede this Customer's prior active account-code row when different","insert new active claim when not already the same accepted value","increment Customer revision when canonical claim changes","insert audit referencing superseded/new identifier identities","commit"],
-      "rules":["prior claims remain history","same already-active code under same Customer is idempotent only through normal command-receipt semantics","source/import observations never call this without reviewed acceptance"]
+      "transaction_boundary":"one UnitOfWork after normalization preflight",
+      "steps":["inside UnitOfWork load active Customer/revalidate revision","query complete active claimant state for normalized code","if target already owns exactly the requested accepted claim apply SemanticNoChange","if any other Customer claims the code and target does not already hold it return ACCOUNT_CODE_CONFLICT_REVIEW","otherwise insert receipt, supersede target's different prior active code if any, insert new active claim, increment Customer revision, audit, commit"],
+      "rules":["prior claims remain history","source/import evidence never calls this without its owning reviewed acceptance"]
     },
     {
       "name":"ConfirmCustomerAccountCodeSharedClaim",
-      "purpose":"explicit reviewed acceptance that one normalized Customer Account Code currently has more than one canonical Customer Organization claimant",
-      "input":["customer_org_id","base_revision","raw Customer Account Code","review_context_id","reason_category","command_id"],
-      "transaction_boundary":"one UnitOfWork after bounded normalization preflight",
-      "steps":["require nonempty reviewed conflict context","inside UnitOfWork load active target Customer and revalidate revision","normalize/revalidate exact code and load bounded identities/count of existing active claimants","require at least one different active claimant or reject as wrong command path","allocate identifier ID","insert command_receipt","supersede target Customer's different active account-code claim when present","insert active shared claim for target Customer without mutating other claimants","increment target Customer revision","insert audit carrying review_context_id and every affected local identifier identity plus bounded existing-claimant summary","commit"],
-      "rules":["does not merge Customers","does not silently choose a winner","future account-code matching remains AMBIGUOUS while multiple active claimants remain","other claimant records/history are untouched","this command is unavailable to safe auto-accept paths"]
+      "purpose":"explicit reviewed acceptance that one normalized Customer Account Code may currently have more than one canonical Customer Organization claimant",
+      "input":["customer_org_id","base_revision","raw Customer Account Code","proposed_action=CONFIRM_SHARED_CLAIM","review_snapshot_hash","optional review_context_id","reason_category","command_id"],
+      "implementation":"algorithms/account-code-review.json commit_validation + algorithms/no-change.json",
+      "transaction_boundary":"one UnitOfWork after normalization preflight",
+      "steps":["inside UnitOfWork validate exact review_snapshot_hash against current claimant/target state","require at least one different active claimant","load/revalidate target Customer","if target already owns exact claim apply SemanticNoChange","otherwise allocate identifier ID, insert receipt, supersede target's different active code if present, insert active shared claim, increment target revision, audit exact reviewed correction, commit"],
+      "rules":["does not merge Customers","does not choose a winner","future matching remains AMBIGUOUS while multiple active claimants survive","review_context_id is provenance/correlation only","unavailable to safe-auto-accept paths"]
     },
     {
       "name":"ReassignCustomerAccountCode",
-      "purpose":"explicit reviewed resolution moving one active account-code claim from one Customer Organization to another",
-      "input":["from_customer_org_id","from_base_revision","to_customer_org_id","to_base_revision","raw Customer Account Code","review_context_id","reason_category","command_id"],
-      "transaction_boundary":"one UnitOfWork after bounded normalization preflight",
-      "steps":["inside UnitOfWork require distinct active Customers and revalidate both revisions","normalize/revalidate exact code and prove from-Customer has an active claim for that code","allocate new identifier ID","insert command_receipt","supersede from-Customer account-code claim","supersede any different active account-code claim on to-Customer","insert active code claim for to-Customer","increment both Customer revisions","insert one reasoned audit action referencing changed identifier/Customer identities and review_context_id","commit"],
-      "rules":["does not merge Customer Organizations","does not rewrite historical operational Customer context","does not silently supersede any third Customer that also has the same reviewed active claim; such remaining claimants keep the code ambiguous","cannot be triggered merely by equal display names","failure anywhere rolls all claim/revision/audit changes back"]
+      "purpose":"explicit reviewed correction moving one active Account Code claim from one Customer Organization to another",
+      "input":["from_customer_org_id","from_base_revision","to_customer_org_id","to_base_revision","raw Customer Account Code","proposed_action=REASSIGN_CLAIM","review_snapshot_hash","optional review_context_id","reason_category","command_id"],
+      "implementation":"algorithms/account-code-review.json commit_validation",
+      "transaction_boundary":"one UnitOfWork after normalization preflight",
+      "steps":["inside UnitOfWork validate exact review_snapshot_hash against current claimant/source/target state","require distinct active Customers and revalidate both revisions","prove source has active claim for reviewed code","insert receipt","supersede source claim","supersede target's different active code if one was part of reviewed snapshot","insert reviewed code claim for target","increment affected Customer revisions","audit all changed identifiers/Customers and review binding","commit"],
+      "rules":["does not merge Customers","does not rewrite historical Customer context","does not silently alter any third Customer sharing the code","failure anywhere rolls back every claim/revision/audit change"]
     },
     {
       "name":"CreateContact",
       "input":["command_id","name","optional initial email channel","optional initial customer_org_id","actor/source"],
       "transaction_boundary":"one UnitOfWork after pure name/channel validation",
-      "steps":["validate/normalize name and optional email through ContactChannelPolicy before opening write transaction","inside UnitOfWork validate referenced active Customer when supplied","allocate contact_id plus optional channel/affiliation/lifecycle IDs","insert command_receipt","insert active Contact","insert optional active validated email channel","insert optional current affiliation referencing receipt","append created lifecycle event referencing receipt","insert audit/result references","commit"],
-      "rules":["zero affiliation and zero communication channels are valid","equal name/email candidate evidence never silently selects an existing Contact","initial affiliation preserves Contact identity independence"]
+      "steps":["validate/normalize name and optional email via ContactChannelPolicy","inside UnitOfWork validate referenced active Customer if supplied","allocate Contact/optional channel/affiliation/lifecycle IDs","insert receipt","insert Contact","insert optional active channel","insert optional current affiliation","append created lifecycle event","audit","commit"],
+      "rules":["zero affiliation and zero channels are valid","equal name/email evidence never silently selects an existing Contact"]
     },
     {
       "name":"UpdateContactDescriptiveData",
       "input":["contact_id","base_revision","name","command_id"],
       "transaction_boundary":"one UnitOfWork after pure name validation",
-      "steps":["compute governed name match key in pure preflight","inside UnitOfWork load immutable active Contact and revalidate revision","allocate lifecycle_event_id","insert command_receipt","update Contact name/name_match_key and increment revision","append descriptive_corrected lifecycle event","insert audit/result references including bounded prior/new descriptive evidence","commit"],
-      "rules":["does not change contact_id, affiliation or channels","channel changes use dedicated commands","historical operational snapshots owned elsewhere are never rewritten"]
+      "steps":["inside UnitOfWork load active Contact/revalidate revision","if stored accepted name+derived key already equal request apply SemanticNoChange","otherwise insert receipt, update name/key/revision, append descriptive_corrected lifecycle event, audit bounded prior/new evidence, commit"],
+      "rules":["does not alter contact_id, affiliation or channels"]
     },
     {
       "name":"AddContactChannel",
       "input":["contact_id","contact_base_revision","channel_kind","value_text","command_id"],
       "transaction_boundary":"one UnitOfWork after ContactChannelPolicy.validate_storage preflight",
-      "steps":["validate and normalize matching key in pure preflight","inside UnitOfWork load active Contact and revalidate Contact revision","allocate contact_channel_id","insert command_receipt","insert active channel revision 1","increment Contact revision so stale aggregate editors detect membership change","insert audit referencing Contact/channel identities and bounded value delta","commit"],
-      "rules":["equal channel values are allowed","adding a channel never merges Contacts","no DNS/network/deliverability check occurs"]
+      "steps":["inside UnitOfWork load active Contact/revalidate revision","allocate channel ID","insert receipt","insert active channel revision 1","increment Contact revision","audit","commit"],
+      "rules":["equal channel values are allowed","adding channel never merges Contacts","no DNS/network/deliverability check"]
     },
     {
       "name":"UpdateContactChannel",
       "input":["contact_id","contact_base_revision","contact_channel_id","channel_base_revision","value_text","command_id"],
-      "transaction_boundary":"one UnitOfWork after ContactChannelPolicy.validate_storage preflight",
-      "steps":["inside UnitOfWork load active Contact and active owned channel; revalidate both revisions","insert command_receipt","update stored value_text/match_key and increment channel revision","increment Contact revision","insert audit with bounded prior/new value evidence","commit"],
-      "rules":["channel_kind is immutable for a channel identity; changing kind requires archive + add","generated communication snapshots owned by LLD-09 remain unchanged"]
+      "transaction_boundary":"one UnitOfWork after channel validation preflight",
+      "steps":["inside UnitOfWork load active Contact and owned active channel/revalidate both revisions","if stored accepted value+key equal request apply SemanticNoChange","otherwise insert receipt, update value/key/channel revision, increment Contact revision, audit bounded prior/new evidence, commit"],
+      "rules":["channel_kind immutable for channel identity; changing kind requires archive + add","generated communication snapshots remain unchanged"]
     },
     {
       "name":"ArchiveContactChannel",
       "input":["contact_id","contact_base_revision","contact_channel_id","channel_base_revision","reason_category","command_id"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["inside UnitOfWork load active Contact and active owned channel; revalidate both revisions","insert command_receipt","set channel lifecycle_state archived and increment channel revision","increment Contact revision","insert audit","commit"],
-      "rules":["archive does not delete the channel row","archived channel no longer participates in matching or recipient selection","underlying Contact and operational records remain valid"]
+      "steps":["inside UnitOfWork load active Contact and owned active channel/revalidate both revisions","insert receipt","archive channel/increment channel revision","increment Contact revision","audit","commit"],
+      "rules":["does not delete channel row","archived channel no longer matches or qualifies for recipient selection","underlying Contact/operational records remain valid"]
     },
     {
       "name":"ChangeContactAffiliation",
       "input":["contact_id","base_revision","new_customer_org_id or null","reason_category","command_id"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["inside UnitOfWork load active Contact and current affiliation","validate new Customer is active when non-null","resolve idempotent replay through receipt lookup before mutation","allocate new affiliation ID when needed","insert command_receipt","close current affiliation row when present using accepted occurrence time","insert new current affiliation row when non-null referencing receipt","increment Contact revision","insert audit referencing relationship change","commit"],
-      "rules":["same Contact identity is retained","historical affiliation rows are never rewritten to current","name equality cannot authorize this command","operational records preserve their own organization-at-use context"]
+      "steps":["inside UnitOfWork load active Contact/current affiliation/revalidate revision","validate new Customer active when non-null","if requested affiliation equals current exact target including null apply SemanticNoChange","otherwise allocate new affiliation ID when needed, insert receipt, close current affiliation with closing provenance, insert new current affiliation when non-null, increment Contact revision, audit relationship change, commit"],
+      "rules":["same Contact identity retained","historical affiliations never rewritten to current","operational records preserve organization-at-use context"]
     },
     {
       "name":"CreateStandaloneDispatchLocation",
       "input":["name","address_text","command_id"],
-      "transaction_boundary":"one UnitOfWork after pure field validation",
-      "steps":["validate nonblank bounded name/address and compute name_match_key before opening write transaction","inside UnitOfWork allocate dispatch_location_id and lifecycle_event_id","insert command_receipt","insert active address_mode standalone","append created lifecycle event referencing receipt","insert audit/result references","commit"],
-      "rules":["no Customer ownership/preference relationship is created","operation role is not written to the master"]
+      "transaction_boundary":"one UnitOfWork after pure validation",
+      "steps":["validate bounded name/address and compute key","inside UnitOfWork allocate location/lifecycle IDs, insert receipt, insert active standalone location, append created lifecycle event, audit, commit"],
+      "rules":["no Customer ownership/preference relationship","operation role not stored on master"]
     },
     {
       "name":"CreateDedicatedDispatchLocationForSite",
-      "visibility":"cross-domain service used by LLD-08 coordinator, not standalone public commit",
+      "visibility":"internal cross-domain service used by LLD-08 coordinator",
       "input":["existing UnitOfWork","already-inserted parent command_receipt","name","precomputed governed name_match_key","command context"],
-      "steps":["require caller has completed bounded preflight plus idempotency/revalidation and inserted the shared command_receipt in this UnitOfWork","allocate dispatch_location_id/lifecycle_event_id","insert active address_mode site_derived with null standalone address","append created lifecycle event referencing shared receipt","return identity/event to LLD-08 coordinator which inserts the one-to-one Site relation and final audit/result references before shared commit"],
-      "rule":"failure of Site/relation/audit creation rolls back Dispatch Location, lifecycle event and receipt in the same UnitOfWork"
+      "steps":["verify precomputed key belongs to exact supplied name and active matching profile","allocate location/lifecycle IDs","insert site_derived location with null standalone address","append created lifecycle event referencing shared receipt","return identity/event to LLD-08 coordinator for Site relation + final audit before shared commit"],
+      "rule":"failure of Site/relation/audit rolls back Dispatch Location/lifecycle/receipt in same UnitOfWork"
     },
     {
       "name":"UpdateReferenceDescriptiveData",
       "targets":["customer_organization","dispatch_location"],
       "input":["target_id","base_revision","allowed descriptive fields","command_id"],
-      "transaction_boundary":"one UnitOfWork after pure field validation/normalization",
-      "steps":["inside UnitOfWork load active target and revalidate revision/lifecycle eligibility","allocate lifecycle_event_id","insert command_receipt","apply change and increment revision","append descriptive_corrected lifecycle event","insert audit/result references with bounded prior/new evidence","commit"],
-      "rules":["cannot change immutable ID","Customer Account Code is changed only through dedicated governed commands and not generic descriptive update","Dispatch Location cannot change customer ownership because no such field exists","site_derived address cannot be overwritten here; Site address is owned by LLD-08"]
+      "transaction_boundary":"one UnitOfWork after pure validation/normalization",
+      "steps":["inside UnitOfWork load active target/revalidate revision","if all governed stored fields/derived keys equal request apply SemanticNoChange","otherwise insert receipt, update allowed fields/increment revision, append descriptive_corrected lifecycle event, audit bounded prior/new evidence, commit"],
+      "rules":["cannot change immutable ID","Account Code uses dedicated commands","Dispatch has no Customer ownership","site_derived address cannot be overwritten here"]
     },
     {
       "name":"ArchiveReference",
       "implementation":"algorithms/archive-validation.json archive",
-      "targets":["customer_organization","contact","dispatch_location"],
-      "ordering":"archive algorithm uses bounded guard checks inside the write UnitOfWork and inserts receipt only after every guard passes"
+      "targets":["customer_organization","contact","dispatch_location"]
     },
     {
       "name":"ReactivateReference",
       "implementation":"algorithms/archive-validation.json reactivate",
-      "targets":["customer_organization","contact","dispatch_location"],
-      "ordering":"reactivation algorithm uses bounded guard checks inside the write UnitOfWork and inserts receipt only after every guard passes"
+      "targets":["customer_organization","contact","dispatch_location"]
     },
     {
       "name":"WriteSetting",
       "input":["setting_key","base_revision or ABSENT","value","command_id","actor/source"],
-      "transaction_boundary":"one UnitOfWork after strict JSON + state-independent semantic preflight",
-      "steps":["outside write transaction resolve closed SettingDefinition, perform strict JSON validation and any state-independent semantic validation","inside UnitOfWork revalidate persisted revision/absence and run only bounded state-dependent owner checks through explicit interfaces","insert command_receipt","INSERT new row or UPDATE existing row explicitly with next revision; SQL REPLACE is forbidden","insert audit","commit"],
-      "rules":["no external I/O or operator wait inside state-dependent validation","no write occurs merely because a default exists","unknown setting key is rejected","secret-classified settings are rejected from this store and routed to LLD-12-owned storage"]
+      "transaction_boundary":"one UnitOfWork after strict JSON + state-independent preflight",
+      "steps":["outside write transaction resolve closed SettingDefinition and strict JSON/state-independent validation","inside UnitOfWork revalidate persisted revision/absence and run bounded state-dependent owner checks","if same contract/version and SettingDefinition.semantic_equals(current,requested) apply SemanticNoChange","otherwise insert receipt, INSERT or explicit UPDATE setting with next revision, audit, commit"],
+      "rules":["SQL REPLACE forbidden","reading/default does not write","secret-classified settings rejected from this store"]
     },
     {
       "name":"CreateLocalUserProfileIdentity",
       "visibility":"first-run setup coordinator only",
       "input":["username","profile_id","existing UnitOfWork from LLD-12 setup coordinator"],
-      "steps":["require caller's shared setup command ordering/idempotency contract","require no singleton row","validate bounded username before transaction or before calling this helper","insert singleton metadata identity","return without internal commit"],
-      "rule":"LLD-12 owns verifier/auto-login creation and the coordinator commits metadata+required authentication state atomically or rolls all back"
+      "steps":["require shared setup idempotency/order","require no singleton row","validate bounded username","insert singleton metadata identity","return without internal commit"],
+      "rule":"LLD-12 owns verifier/auto-login and commits metadata+authentication state atomically or rolls all back"
     }
   ]
 }
