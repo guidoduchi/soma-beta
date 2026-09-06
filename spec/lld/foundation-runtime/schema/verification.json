@@ -1,0 +1,21 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-VERIFICATION-V1",
+  "lld_id":"LLD-01",
+  "release_schema_manifest": {
+    "path":"src/soma/schema_manifest.json",
+    "generated_from":"accepted migration lineage plus LLD-approved schema contracts",
+    "committed":"yes; release/runtime does not regenerate expected truth from the database it is verifying",
+    "objects":["table","index","trigger"],
+    "per_object_fields":["type","name","table_name","canonical_sql_or_structural_contract"],
+    "rule":"unknown, missing or structurally different authoritative object blocks readiness unless explicitly classified as SQLite-owned/internal"
+  },
+  "exact_schema_check":["read sqlite_schema using parameterized read queries","exclude documented sqlite_* internal objects only","compare object name/type/table and canonical structural contract against release manifest","verify required columns via PRAGMA table_xinfo including name/type/notnull/default/pk/hidden","verify STRICT/WITHOUT ROWID flags where specified","verify foreign keys via PRAGMA foreign_key_list including parent/child columns and ON UPDATE/DELETE actions","verify indexes via PRAGMA index_list/index_xinfo including uniqueness and ordered leading columns","verify required append-only triggers exist with accepted trigger identity/behavior","fail closed on extra authoritative-looking objects rather than silently ignoring them"],
+  "fk_index_coverage": {
+    "algorithm":"for each foreign key child-column sequence, find a non-partial usable index whose ordered key-column leading prefix exactly covers the child sequence; a wider composite index is valid only when FK columns are the leading prefix in order",
+    "exception_file":"src/soma/fk_index_exceptions.json",
+    "exception_contract":["table","fk_id","measured_reason","accepted_lld_or_decision_reference"],
+    "default":"no exception; missing effective index blocks readiness and tests"
+  },
+  "integrity_checks":["PRAGMA foreign_key_check returns zero rows","PRAGMA quick_check returns exactly ok during ordinary startup","PRAGMA integrity_check is required after restore and in explicit deep-maintenance verification","instance_metadata has exactly one valid row","schema_migrations exactly matches accepted manifest prefix/current state","audit append-only triggers reject update/delete probes inside rolled-back verification transaction"],
+  "publication_rule":"host state cannot become READY until all required current-version checks pass"
+}
