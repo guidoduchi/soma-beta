@@ -1,0 +1,24 @@
+{
+  "schema":"SOMA-LLD-PACKET-V1",
+  "id":"LLD-05",
+  "name":"Objectives, Tasks, Grouping, Execution, Review",
+  "status":"drafting",
+  "requirement_ids":["BETA-REQ-0043","BETA-REQ-0046","BETA-REQ-0047","BETA-REQ-0048","BETA-REQ-0050","BETA-REQ-0051","BETA-REQ-0157","BETA-REQ-0158","BETA-REQ-0162","BETA-REQ-0166","BETA-REQ-0167","BETA-REQ-0168","BETA-REQ-0170","BETA-REQ-0171","BETA-REQ-0172"],
+  "supporting_requirement_ids":["BETA-REQ-0010","BETA-REQ-0017","BETA-REQ-0018","BETA-REQ-0019","BETA-REQ-0038","BETA-REQ-0041","BETA-REQ-0042","BETA-REQ-0044","BETA-REQ-0045","BETA-REQ-0049","BETA-REQ-0155","BETA-REQ-0156","BETA-REQ-0161","BETA-REQ-0163","BETA-REQ-0169","BETA-REQ-0177"],
+  "hld_dependencies":["HLD-03","HLD-04","HLD-05","HLD-06","HLD-08","HLD-14"],
+  "foundation_dependencies":["LLD-01 UnitOfWork/idempotency/audit/STRICT schema/durable-job conventions","LLD-02 DomainIdFactory and typed SettingStore","LLD-03 RFC identity/hierarchy/SR-link/terminal-cascade participant contract","LLD-04 WFM immutable source evidence, accepted source projection and source-plan reconciliation handoff"],
+  "scope":["Local Task and WFM Task operational identity","WFM owning-RFC assignment history","accepted operational Task-plan revisions","Objective identity and stable MW tracking handle","Objective membership pinned to reviewed Task-plan revisions","derived Objective envelope and aggregate execution/review projections","global strict-overlap grouping and exact regroup proposals","Task execution, cancellation, reviewed outcome and append-only corrections","Task retry and activity-lineage review","terminal RFC cascade Task/Objective participant","historical provider-Complete Objective proposals","operational-count inclusion/exclusion","Objective scheduling timezone semantics","Objective archive and narrow hard-delete eligibility"],
+  "not_owned_here":["immutable WFM workbook/source observations and source vocabulary -> LLD-04","RFC lifecycle/hierarchy/SR-RFC authority -> LLD-03","Inventory reservation/spare-use/physical-unit consequences -> LLD-07","Communication evidence -> LLD-09","UI working-copy state/components -> LLD-10","authentication/action-proof verification -> LLD-12","SLA chronology -> LLD-06"],
+  "required_directories":["schema","commands","queries","algorithms","ui","tests"],
+  "packet_files":[
+    "bounds.json","errors.json","interfaces.json","routes.json","technology.json",
+    "schema/core.json","schema/grouping-review.json",
+    "commands/objectives-tasks.json",
+    "queries/objectives-tasks.json",
+    "algorithms/overlap-grouping.json","algorithms/lifecycle-review.json","algorithms/retry-historical.json",
+    "ui/workbench-state.json",
+    "tests/acceptance.json","tests/failure-injection.json"
+  ],
+  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"construction_complete":false,"formal_double_review_deferred_until_full_beta_lld_set":true,"implementation_ready":false},
+  "design_principle":"Task is the independent attempt and execution authority. Objective is a reviewed grouping whose membership pins exact accepted Task-plan revisions; source plans, current operational plans, reviewed Objective membership/envelope and actual execution remain separate so no import, plan edit, clock passage or aggregate action can silently fabricate regrouping or execution."
+}
