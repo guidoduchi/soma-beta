@@ -32,7 +32,6 @@
         "rfc_no TEXT NOT NULL UNIQUE CHECK(length(rfc_no)=16 AND substr(rfc_no,1,2)='NC' AND substr(rfc_no,3) NOT GLOB '*[^0-9]*')",
         "customer_org_id TEXT REFERENCES customer_organizations(customer_org_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
         "local_archive_state TEXT NOT NULL DEFAULT 'active' CHECK(local_archive_state IN ('active','archived'))",
-        "external_created_at_utc INTEGER CHECK(external_created_at_utc IS NULL OR external_created_at_utc>=0)",
         "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
         "created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)",
         "updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"
@@ -43,7 +42,7 @@
         "there is no persisted master/subordinate/standalone role flag",
         "customer_org_id is zero-or-one current canonical Customer and cannot be inferred from Infrastructure",
         "local_archive_state is reversible SOMA-local presentation state and is independent from provider lifecycle/status",
-        "external_created_at_utc remains nullable and distinct from SOMA created_at_utc/import/file chronology",
+        "all accepted source-owned RFC facts including external source creation chronology are held in schema/rfc-lifecycle.json rather than duplicated on the identity row",
         "there is no mutable ever_imported/adopted boolean; accepted source provenance is derived from source-observation history owned with reconciliation"
       ]
     },
@@ -93,9 +92,10 @@
     "note-table BEFORE UPDATE rejects working_note_id/owner/created_by_local_user_profile_id/created_at_utc changes; only body_text/revision/updated_at_utc may change through governed command",
     "note-table BEFORE DELETE is permitted only through explicit RemoveWorkingNote command path whose prior body/time/creator are included in required audit; repositories expose no generic delete"
   ],
-  "deferred_in_this_file":[
-    "current source-owned SR/RFC field projection tables and accepted observation lineage",
-    "RFC hierarchy/relationship history tables defined in schema/relationships.json",
-    "narrow hard-delete guards defined by command/algorithm contracts"
+  "delegated_files":[
+    "SR current source projection and compact accepted observations -> schema/sr-source-projection.json",
+    "RFC current source/lifecycle projection, terminal-cascade history and archive-operation history -> schema/rfc-lifecycle.json",
+    "RFC hierarchy/relationship history -> schema/relationships.json",
+    "narrow hard-delete guards -> algorithms/rfc-hard-delete.json and governed command/query contracts"
   ]
 }
