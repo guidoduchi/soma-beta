@@ -1,0 +1,10 @@
+{
+  "schema":"SOMA-LLD-ARTIFACT-CONTRACT-V2","lld_id":"LLD-08","artifact_id":"SOMA_INFRASTRUCTURE_WORKBOOK_V1","format":"xlsx","profile":"algorithms/workbook-profile.json#INFRASTRUCTURE_WORKBOOK_PROFILE_V1",
+  "modes":["registration_template","discovery","round_trip"],
+  "filename":"SOMA_Infrastructure_<mode>_<YYYYMMDD_HHMMSS>_<8hex>.xlsx; timestamp is America/Guayaquil presentation chronology and 8hex is first 8 chars of export_id without identity meaning",
+  "sheets_order":["Metadata","Network Elements","IP Addresses"],
+  "writer":"openpyxl write-only; no formulas/macros/external links/hidden authoritative sheets","verifier":"reopen generated file read-only; verify exact profile/version/sheet order/required headers/row counts, absence of active content and SHA-256 before publication evidence",
+  "publication":"write unique temp file in chosen destination, fsync/close as supported, verify, then atomic same-filesystem replace into a filename that must not already exist; collision chooses a new suffix rather than overwriting operator file",
+  "failure":"failed/unverified temp artifacts are deleted only when job proves ownership; existing operator files are never edited/deleted",
+  "source_round_trip":"import reader uses the same profile and SourceInstallationScopeId=data_instance_id; exporter/importer versions must match exactly."
+}

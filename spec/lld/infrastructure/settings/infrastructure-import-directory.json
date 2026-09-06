@@ -1,0 +1,9 @@
+{
+  "schema":"SOMA-LLD-SETTING-DEFINITION-V2","lld_id":"LLD-08","key":"infrastructure.import_directory","owner":"LLD-08","contract_id":"INFRA_IMPORT_DIRECTORY_V1","version":1,
+  "storage_owner":"LLD-02 SettingStore","storage_class":"non_secret_local_path","default_provider":"installation_data_directory / 'Infrastructure Import' (computed, not persisted until operator write)",
+  "value_type":{"kind":"object","required":{"path":"absolute Windows directory path <=4096 UTF-8 bytes"}},
+  "validator":["path must be absolute and directory-shaped","no NUL","runtime access validation is observational and never creates directory silently","Check now uses exactly this directory nonrecursively"],
+  "semantic_equality":"Windows normalized absolute path using ordinal case-insensitive comparison after filesystem-safe normalization; no symlink/reparse identity claim is made by string normalization",
+  "unknown_fields":"reject","bounds":{"max_utf8_bytes":4096},
+  "rules":["setting owns discovery location only, never export destination","inaccessible path remains persisted preference but Check now returns WORKBOOK_DIRECTORY_UNAVAILABLE","no fallback to parent/home/drive scan"]
+}

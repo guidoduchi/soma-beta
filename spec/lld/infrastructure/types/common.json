@@ -1,0 +1,14 @@
+{
+  "schema":"SOMA-LLD-TYPE-REGISTRY-V2","lld_id":"LLD-08","unknown_fields":"reject",
+  "types":[
+    {"id":"INFRA_ENTITY_REF_V1","kind":"object","required":{"kind":"enum:site|room|rack|network_element|cloud_type|cloud_deployment|model|installed_component|device_reference|device_part_unit|ip|workbook_run","id":"uuid"}},
+    {"id":"INFRA_MUTATION_RESULT_V1","kind":"object","required":{"command_id":"uuid","target":"INFRA_ENTITY_REF_V1","revision":"integer>=1","result_refs":"array<INFRA_ENTITY_REF_V1>,max64","no_change":"boolean"}},
+    {"id":"INFRA_JOB_ACCEPTED_V1","kind":"object","required":{"command_id":"uuid","job_id":"uuid","job_type":"string","state":"enum:queued|running|waiting_review|completed|failed|cancelled"}},
+    {"id":"INFRA_WORKBOOK_RUN_RESULT_V1","kind":"object","required":{"command_id":"uuid","run_id":"uuid","state":"enum:staged|reviewed|accepted|rejected|failed","revision":"integer>=1"}},
+    {"id":"INFRA_WORKBOOK_ACCEPT_RESULT_V1","kind":"object","required":{"command_id":"uuid","run_id":"uuid","state":"enum:accepted","created":"integer>=0","updated":"integer>=0","unchanged":"integer>=0","result_refs":"array<INFRA_ENTITY_REF_V1>,max64"}},
+    {"id":"INFRA_RACK_PLACEMENT_INPUT_V1","kind":"object","required":{"rack_id":"uuid","u_start":"integer:1..120","u_span":"integer:1..120"}},
+    {"id":"INFRA_IP_CREATE_INPUT_V1","kind":"object","required":{"address":"string<=256bytes","make_primary":"boolean"}},
+    {"id":"INFRA_EXPORT_SCOPE_V1","kind":"object","required":{"scope_kind":"enum:all|customer|site|network_elements"},"optional":{"customer_org_id":"uuid","site_id":"uuid","network_element_ids":"array<uuid>,max100000"},"semantic_rule":"only fields applicable to scope_kind may be non-null"},
+    {"id":"INFRA_WORKBOOK_ROW_DISPOSITION_V1","kind":"object","required":{"proposal_id":"uuid","expected_revision":"integer>=1","decision":"enum:accept|reject","proposal_fingerprint":"sha256"}}
+  ]
+}

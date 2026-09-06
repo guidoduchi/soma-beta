@@ -1,0 +1,7 @@
+{
+  "schema":"SOMA-LLD-IMPLEMENTATION-MAP-V2","lld_id":"LLD-08","root":"src/soma/infrastructure",
+  "modules":{"domain":"domain/{sites,placement,network_elements,relationships,models,components,workbooks}.py","repositories":"repositories/{sites,placement,network_elements,relationships,models,components,workbooks}.py","services":"services/{sites,placement,regularization,relationships,components,workbooks}.py","queries":"queries/{explorer,details,history,candidates,workbooks}.py","transport":"api/routes_infrastructure.py","jobs":"jobs/infrastructure_workbooks.py","types":"contracts/infrastructure.py"},
+  "dependency_direction":["transport -> application services/queries/types","services -> domain repositories + declared cross-packet interfaces + LLD-01 UoW/audit/jobs","repositories -> LLD-01 configured connection abstractions only","domain/types -> no transport/framework/database imports","jobs -> services/repositories/artifact adapters; no domain authority outside accepted commands"],
+  "cross_packet":["LLD-02 DispatchLocationService/SettingStore","LLD-03 DeviceReferenceResolutionReader provider boundary","LLD-07 InventoryPhysicalConsequenceReader + DevicePartInstalledComponentResolution provider boundary","LLD-12 DeliberateActionProofVerifier/auth policy"],
+  "forbidden":["direct writes to LLD-02/03/05/07 tables outside declared shared-UoW interfaces","network/SSH/topology modules in Beta 1.0","business logic in transport adapters"]
+}

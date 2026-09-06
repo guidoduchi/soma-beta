@@ -1,0 +1,14 @@
+{
+  "schema":"SOMA-LLD-AUDIT-REGISTRY-V2","lld_id":"LLD-08","payload_version":1,"payload_schema":"INFRA_AUDIT_PAYLOAD_V1","sensitivity":"bounded_non_secret_metadata_only",
+  "payload_contract":{"required":["operation","target_refs","base_revisions","result_refs"],"optional":["reason_code","preview_fingerprint","workbook_run_id","warning_codes"],"prohibited":["passwords","keys","tokens","full workbook rows/XML","unbounded notes"]},
+  "actions":[
+    ["infrastructure.site.create","site"],["infrastructure.site.update","site"],["infrastructure.site.customer_correct","site"],["infrastructure.site.lifecycle","site"],
+    ["infrastructure.room.create","room"],["infrastructure.room.lifecycle","room"],["infrastructure.rack.create","rack"],["infrastructure.rack.update","rack"],["infrastructure.rack.lifecycle","rack"],
+    ["infrastructure.network_element.placement","network_element"],["infrastructure.network_element.create","network_element"],["infrastructure.network_element.update","network_element"],["infrastructure.network_element.lifecycle","network_element"],
+    ["infrastructure.device_reference.regularize","device_reference"],["infrastructure.containment.set","network_element"],["infrastructure.cloud_type.create","cloud_type"],["infrastructure.cloud_deployment.create","cloud_deployment"],["infrastructure.cloud_deployment.lifecycle","cloud_deployment"],["infrastructure.cloud_assignment.set","network_element"],
+    ["infrastructure.ip.add","ip"],["infrastructure.ip.primary_set","ip"],["infrastructure.ip.correct","ip"],["infrastructure.model.create","model"],["infrastructure.model.update","model"],["infrastructure.model.lifecycle","model"],["infrastructure.model.assignment","network_element"],["infrastructure.model.compatibility","model"],
+    ["infrastructure.component.register","installed_component"],["infrastructure.component.lifecycle","installed_component"],["infrastructure.device_part_component.resolve","device_part_unit"],
+    ["infrastructure.workbook.export_request","workbook_export"],["infrastructure.workbook.check_request","workbook_run"],["infrastructure.workbook.reject","workbook_run"],["infrastructure.workbook.accept","workbook_run"]
+  ],
+  "rule":"Each tuple is action_type,target_type with action_version=1; result refs must be immutable IDs inserted into audit_event_results in deterministic ordinal order."
+}

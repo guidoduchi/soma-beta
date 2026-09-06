@@ -1,0 +1,20 @@
+{
+  "schema":"SOMA-LLD-MIGRATION-ALLOCATION-V1",
+  "status":"design_allocation_not_runtime_manifest",
+  "runtime_contract":"LLD-01 AcceptedMigrationRunner; runtime accepted files/hashes live under src/soma/migrations only after reviewed implementation",
+  "allocations":[
+    {"sequence":1,"packet_id":"LLD-01","migration_id":"beta_0001_foundation","filename":"0001_foundation.sql"},
+    {"sequence":2,"packet_id":"LLD-02","migration_id":"beta_0002_identity_reference","filename":"0002_identity_reference.sql"},
+    {"sequence":3,"packet_id":"LLD-03","migration_id":"beta_0003_tickets_core","filename":"0003_tickets_core.sql"},
+    {"sequence":4,"packet_id":"LLD-04","migration_id":"beta_0004_ticket_import","filename":"0004_ticket_import.sql"},
+    {"sequence":5,"packet_id":"LLD-05","migration_id":"beta_0005_objectives_tasks","filename":"0005_objectives_tasks.sql"},
+    {"sequence":6,"packet_id":"LLD-06","migration_id":"beta_0006_product_line_sla","filename":"0006_product_line_sla.sql"},
+    {"sequence":7,"packet_id":"LLD-07","migration_id":"beta_0007_inventory","filename":"0007_inventory.sql"},
+    {"sequence":8,"packet_id":"LLD-08","migration_id":"beta_0008_infrastructure","filename":"0008_infrastructure.sql"},
+    {"sequence":9,"packet_id":"LLD-09","migration_id":"beta_0009_communications","filename":"0009_communications.sql"},
+    {"sequence":10,"packet_id":"LLD-10","migration_id":"beta_0010_ui_workbenches","filename":"0010_ui_workbenches.sql"},
+    {"sequence":11,"packet_id":"LLD-11","migration_id":"beta_0011_overview","filename":"0011_overview.sql"},
+    {"sequence":12,"packet_id":"LLD-12","migration_id":"beta_0012_security_packaging","filename":"0012_security_packaging.sql"}
+  ],
+  "rules":["sequence is globally reserved and contiguous; implementation agents never choose a number","allocation does not mean runtime SQL/hash is accepted","future forward migration allocation begins at sequence 13 and requires explicit design update","accepted runtime migration bytes/hash freeze under LLD-01 rules"]
+}

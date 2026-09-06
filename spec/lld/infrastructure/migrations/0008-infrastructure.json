@@ -1,0 +1,14 @@
+{
+  "schema":"SOMA-LLD-MIGRATION-OWNERSHIP-V2",
+  "lld_id":"LLD-08",
+  "sequence":8,
+  "migration_id":"beta_0008_infrastructure",
+  "runtime_filename":"0008_infrastructure.sql",
+  "allocation_source":"spec/lld/migrations.json",
+  "status":"design_allocated_not_runtime_accepted",
+  "schema_sources":["schema/site-placement.json","schema/models-components.json","schema/relationships.json","schema/workbook.json"],
+  "ownership_rule":"Every LLD-08 table/index/trigger declared by the four schema sources is created by this initial forward migration; no other packet may create or mutate its schema ownership.",
+  "dependency_sequences":[1,2,3,5,7],
+  "verification":["SQLite STRICT for all LLD-08 tables","all declared FK/index/unique/partial-index guards materialized","foreign_key_check clean","LLD-01 release schema/FK-index verification includes LLD-08 objects"],
+  "runtime_acceptance":"Actual SQL canonical bytes and SHA-256 are produced/reviewed during implementation after owner acceptance; this design file does not fabricate a runtime hash."
+}
