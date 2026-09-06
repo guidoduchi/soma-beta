@@ -1,0 +1,65 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-05",
+  "name":"OBJECTIVE_STRICT_OVERLAP_GROUPING_V1",
+  "authority":"BETA-REQ-0048, BETA-REQ-0157, BETA-REQ-0158; HLD06-D005..D006",
+  "definitions":{
+    "strict_overlap":"a.start_utc < b.end_utc AND a.end_utc > b.start_utc",
+    "exact_touch":"a.end_utc = b.start_utc OR b.end_utc = a.start_utc; exact touch is not an automatic overlap edge",
+    "ordinary_eligible_task":"Task has a complete current accepted operational plan, is not provider/local cancelled/terminal executable history, has no accepted start/protected membership lock that forbids restructure, has no unresolved same-activity competing-attempt block, and belongs to ordinary scheduling rather than the historical provider-Complete path",
+    "membership_interval":"for current accepted Objective topology use objective_task_membership_current.accepted_plan_revision_id; never silently substitute a newer task_plan_current revision",
+    "desired_interval":"for regroup calculation use current accepted task_plan_current interval when ordinary eligibility permits; a current membership pinned to an older plan therefore produces an explicit repin/move/consolidation diff"
+  },
+  "component_algorithm":[
+    "materialize only compact tuples (task_id,start_utc,end_utc,current_plan_revision_id,current objective/membership revision/effective lock/risk flags) under one stable snapshot; preserve exact total separately",
+    "sort eligible tuples by (start_utc ASC,end_utc ASC,task_id ASC)",
+    "initialize current component with first tuple and component_max_end=end_utc",
+    "for each subsequent tuple: if tuple.start_utc < component_max_end, append to current component and component_max_end=max(component_max_end,tuple.end_utc); otherwise close current component and begin a new component",
+    "because component_max_end carries the farthest reachable end, the sweep computes transitive connected components of the strict interval-overlap graph without enumerating all pairwise edges",
+    "exact touch where tuple.start_utc == component_max_end begins a new component",
+    "component envelope is min member start and max member end",
+    "Customer Organization, root/subordinate RFC, unknown-customer and multi-context partitions are calculated after temporal components solely for explanation/warnings"
+  ],
+  "current_objective_mapping":[
+    "within each desired temporal component collect current nonsuperseded Objectives containing its Tasks and current Objectives whose envelopes strictly overlap the desired component envelope",
+    "zero current Objectives => propose create when ordinary automatic eligibility permits",
+    "one current Objective => compare exact current membership pins with desired current Task plan revisions; propose join/move/repin/envelope change as required",
+    "two or more current planned Objectives reached by one desired component => propose consolidation; accepted Objectives may not remain overlapping",
+    "consolidation survivor is deterministic lowest objective tracking_sequence among eligible existing planned Objectives, tie impossible under uniqueness; all other eligible planned Objectives become superseded rather than deleted",
+    "if component encounters terminal/historical Objective restructure need, do not manufacture a solution; classify GROUPING_INDETERMINATE/blocked conflict for review",
+    "in-progress Objective change is high-risk and limited to the exact command contract; algorithm never proposes moving/consolidating started protected work as ordinary acceptance"
+  ],
+  "manual_exact_touch_merge":[
+    "operator may explicitly request merge of exactly touching Objectives/Tasks",
+    "manual merge is not produced by the automatic strict-overlap graph",
+    "preview must include exact member/plan/objective revisions and prove the union will not strictly overlap any third current Objective",
+    "acceptance uses the same proposal persistence/revalidation path and preserves superseded Objective identities"
+  ],
+  "competing_attempt_rule":[
+    "distinct WFM TK identities are always distinct Tasks",
+    "only Tasks sharing the same reviewed activity_lineage_id are candidates for the one-active-attempt conflict",
+    "if two active WFM attempts in that lineage strictly overlap their current accepted operational intervals, mark WFM_COMPETING_ATTEMPT and exclude the ambiguous work from automatic regroup acceptance until reviewed",
+    "different reviewed activities under one RFC may group normally in the same Objective"
+  ],
+  "proposal_fingerprint":{
+    "serialization_order":"version token; sorted affected task_id + task revision + current plan revision + desired interval + current membership objective/plan pin/revision + effective lock state + competing-attempt classification; sorted affected objective_id + objective revision + envelope revision + aggregate execution state; explicit manual-merge/reconsideration flag when applicable",
+    "hash":"SHA-256 over canonical UTF-8 serialization",
+    "excludes":["Customer/RFC display labels that do not alter grouping authority","unrelated source recency","UI sort/filter state","wall-clock time except an explicit eligibility classification captured as material input"],
+    "rejection_rule":"exact matching prior rejected input fingerprint suppresses automatic redisplay; only material fingerprint change or explicit reconsideration clears suppression"
+  },
+  "commit_revalidation":[
+    "load proposal and all exact expected task/objective revisions in current UnitOfWork",
+    "recompute current plan/membership pins/effective locks/Objective execution state and material fingerprint",
+    "if mismatch return GROUPING_PROPOSAL_STALE before receipt/domain mutation",
+    "recompute requested resulting envelopes from proposed membership pins",
+    "query all current nonsuperseded envelopes outside affected/superseded set with indexed strict-overlap predicate",
+    "any unexpected overlap returns OBJECTIVE_OVERLAP and aborts",
+    "insert receipt, apply exact membership events/current pins and Objective creation/supersession, rebuild projections, rerun overlap guard, audit, commit"
+  ],
+  "performance":{
+    "time":"O(n log n) for sorting + O(n) sweep",
+    "memory":"O(n) compact tuple/proposal working set; no workbook/source bodies",
+    "forbidden":"O(n^2) all-pairs overlap scan or a business maximum on number of Tasks per component",
+    "large_workset":"above bounds.json soft threshold use LLD-01 durable job with bounded pages/chunks for tuple extraction and proposal persistence; final component semantics remain identical"
+  }
+}
