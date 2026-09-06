@@ -1,0 +1,26 @@
+{
+  "schema":"SOMA-HLD-PACKET-V1",
+  "id":"HLD-12",
+  "name":"Overview and Cross-domain Projections",
+  "status":"review_ready",
+  "purpose":"Define Overview/main-view composition as rebuildable read projections over accepted owning-domain truth, with explicit scope, freshness, coverage, unknown/partial state and navigation back to authoritative workspaces.",
+  "primary_requirement_ids":["BETA-REQ-0128"],
+  "supporting_requirement_ids":["BETA-REQ-0051","BETA-REQ-0064","BETA-REQ-0065","BETA-REQ-0071","BETA-REQ-0088","BETA-REQ-0113","BETA-REQ-0115","BETA-REQ-0116","BETA-REQ-0122","BETA-REQ-0129","BETA-REQ-0135","BETA-REQ-0143","BETA-REQ-0171","BETA-REQ-0175"],
+  "decisions":[
+    {"id":"HLD12-D001","decision":"Overview owns no independent operational truth; every card/count/trend/timeline/warning is a derived projection over accepted owning-domain identities, relationships, events, snapshots and coverage."},
+    {"id":"HLD12-D002","decision":"Customer and period scope are explicit query inputs applied consistently to cards, rows, trends, warnings, narrative and exports where applicable."},
+    {"id":"HLD12-D003","decision":"Unknown, partial, stale, excluded and unresolved states remain explicit and are never coerced into zero, complete, healthy or failed values."},
+    {"id":"HLD12-D004","decision":"Drafts, unsaved working copies and rejected/deferred proposals never affect authoritative Overview values."},
+    {"id":"HLD12-D005","decision":"Communication metrics derive from canonical HLD-10 links/coverage; MSG drafts are excluded from sent evidence and terminal summaries remain minimized."},
+    {"id":"HLD12-D006","decision":"Objective context derives through Tasks; Overview does not create direct mutable SR-to-Objective relationships."},
+    {"id":"HLD12-D007","decision":"Inventory metrics consume HLD-08 projections and expose constituent partial/action-required positions rather than false aggregate completion."},
+    {"id":"HLD12-D008","decision":"SLA cards/cohort health consume HLD-07 live calculations or immutable report snapshots and must disclose as-of/scope/denominator/policy context appropriate to the presentation."},
+    {"id":"HLD12-D009","decision":"Operational narrative is a deterministic human-readable projection of accepted current/near-term facts, not a separately editable journal or AI-generated source of truth."},
+    {"id":"HLD12-D010","decision":"Overview projections may be cached/materialized only as disposable rebuildable read models; authoritative writes always occur through the owning domain."}
+  ],
+  "packet_files":["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
+  "downstream_hld_ids":["HLD-14"],
+  "downstream_lld_ids":["LLD-11"],
+  "unresolved_here_by_design":["exact Overview card set/order/visual density","exact query/materialized-view strategy and cache invalidation","exact period presets and trend comparison windows","exact narrative sentence templates and prioritization","exact Needs Attention ranking/tie rules"],
+  "completion_evidence":{"required_packet_files_present":true,"no_dashboard_owned_truth_boundary_fixed":true,"scope_unknown_partial_rules_fixed":true,"cross_domain_projection_sources_fixed":true,"ready_for_owner_review":true}
+}
