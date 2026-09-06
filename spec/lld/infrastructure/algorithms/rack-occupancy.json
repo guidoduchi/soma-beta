@@ -1,0 +1,9 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-08",
+  "name":"RACK_OCCUPANCY_V1",
+  "interval":"half-open [u_start, u_start + u_span)",
+  "steps":["load Rack and derive Site through Room","require Network Element authoritative Site equals Rack-derived Site","require u_start>=1 and u_span>=1 and u_start+u_span-1<=rack.height_u","inside current UnitOfWork query current placements on same rack where existing.u_start < candidate_end AND existing.u_start+existing.u_span > candidate_start excluding the target Network Element","any result returns RACK_U_OCCUPIED with bounded blocker summary","otherwise placement is valid and event/current projection may commit"],
+  "rules":["exactly touching intervals are allowed","containment relation is ignored for occupancy and is not mutated","unracked placement stores rack/u fields null","Rack height reduction runs the same guard against every current placement and fails if any end exceeds new height","row/column labels do not affect U occupancy or identity"],
+  "complexity":"indexed one-Rack overlap search; no whole-Infrastructure pairwise scan"
+}
