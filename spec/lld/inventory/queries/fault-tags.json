@@ -1,0 +1,12 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-07",
+  "queries":[
+    {"name":"FaultTagListQuery","inputs":["state/archive/attention/SR/SR7/C10","cursor","limit<=500"],"returns":["FT tracking identity","state/counts","archived flag","open/rejected obligation counts","derived SR/Spare Request diversity summary","lineage indicators","action blockers"],"rules":["current ticket/device context is derived through memberships/RMAs/consequences","submitted historical snapshot is not current mutable truth"]},
+    {"name":"FaultTagDetailQuery","inputs":["fault_tag_id"],"returns":["current draft fields when editable","immutable first-submission snapshot when present","membership identities/current RMA and unit truth","submitted display snapshot values distinctly labeled historical","per-membership receipt/final decision","replacement/resend lineage","actual logistics/proposals/history"]},
+    {"name":"EligibleFaultTagMembershipQuery","inputs":["optional SR/request/RMA/BOM filters","cursor","limit<=500"],"returns":["open RMA obligation","typed selected physical return unit","supporting physical consequence/Task review fingerprint","eligibility/conflict reason","current active submitted membership if conflicting"],"rules":["condition/newness/BOM/serial/provenance alone never establishes eligibility","one obligation and exact unit can be active in at most one submitted membership"]},
+    {"name":"WarehouseQueueQuery","inputs":["awaiting_receipt|awaiting_final|rejected","cursor","limit<=500"],"returns":["membership/Fault Tag/RMA/unit identities","receipt/final-decision chronology","derived request/SR/device context","manual/proposal actions"]},
+    {"name":"FaultTagLineageQuery","inputs":["fault_tag_id"],"returns":["linear correction predecessor/successor chain","resend predecessor/successors by disjoint membership scope","preserved tracking ids/states/reasons"]}
+  ],
+  "side_effects":"none"
+}
