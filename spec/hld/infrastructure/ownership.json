@@ -1,0 +1,28 @@
+{
+  "schema":"SOMA-HLD-OWNERSHIP-V1",
+  "hld_id":"HLD-09",
+  "owners":[
+    {"concept":"Network Element","authority":"HLD-09","notes":"Registered physical Infrastructure instance; immutable internal identity with exactly one Site."},
+    {"concept":"Device Reference resolution","authority":"HLD-09 link + HLD-04 operational identity","notes":"Infrastructure may create/correct the resolution relation; operational relationships continue to point to Device Reference."},
+    {"concept":"Site/Room/Rack placement","authority":"HLD-09","notes":"Physical placement chain; row/column/position remain placement semantics, not identity."},
+    {"concept":"Containment","authority":"HLD-09","notes":"One-parent acyclic Network Element forest independent from placement."},
+    {"concept":"Cloud Type","authority":"HLD-09","notes":"Reusable reference classification."},
+    {"concept":"Cloud Deployment","authority":"HLD-09","notes":"Independently identified Site-scoped deployment."},
+    {"concept":"IP inventory","authority":"HLD-09","notes":"Descriptive addressing only; no topology/reachability authority."},
+    {"concept":"Model/BOM/component compatibility","authority":"HLD-09","notes":"Reusable compatibility/reference knowledge separate from installed instances."},
+    {"concept":"Installed Component instance","authority":"HLD-09","notes":"Per-Network-Element physical component identity/history, including slot/serial/chronology where known."},
+    {"concept":"Infrastructure workbook observation","authority":"HLD-05 staging + HLD-09 acceptance","notes":"Workbook is untrusted evidence; accepted HLD-09 command owns domain mutation."}
+  ],
+  "derived_context":[
+    "Network Element Customer context derives through its authoritative Site and owning Customer Organization relationships rather than copied mutable labels.",
+    "Rack Site derives through Rack -> Room -> Site.",
+    "Cloud Type for a Network Element derives through its accepted Cloud Deployment.",
+    "Operational ticket/Inventory views may display Network Element data through Device Reference resolution without changing ownership."
+  ],
+  "prohibitions":[
+    "Infrastructure does not infer RFC Customer ownership.",
+    "Infrastructure does not establish connectivity from containment, placement, Cloud or IP data.",
+    "Infrastructure does not store reusable device passwords, keys or SSH secrets.",
+    "Infrastructure does not mutate terminal ticket history when Device Reference resolution is corrected later."
+  ]
+}
