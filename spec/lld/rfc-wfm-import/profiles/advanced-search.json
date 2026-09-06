@@ -1,0 +1,89 @@
+{
+  "schema": "SOMA-LLD-ADVANCED-SEARCH-PROFILE-V1",
+  "lld_id": "LLD-04",
+  "source_family": "advanced_search_sr",
+  "profile_id": "ADVANCED_SEARCH_SR_V1",
+  "workbook_family": "Advanced Search (Service Request)",
+  "directory_setting_key": "advanced_search_import_directory",
+  "automatic_filename": {
+    "grammar": "exact literal 'Advanced Search(Service Request)' + exactly 14 ASCII digits YYYYMMDDHHMMSS + '.xlsx'",
+    "example": "Advanced Search(Service Request)20260906153045.xlsx",
+    "matching": "case-sensitive anchored full filename; no trim, fuzzy match, substring family guess, wildcard family guess or collision suffix",
+    "timestamp": {
+      "timezone": "Asia/Shanghai",
+      "authority_name": "China Standard Time",
+      "precision": "whole seconds",
+      "validation": "strict Gregorian YYYYMMDDHHMMSS; malformed date/time is ineligible",
+      "meaning": "automatic source-population chronology only; never an SR Report Date, Last Update, SLA instant or Objective scheduling instant"
+    },
+    "ranking": ["embedded timestamp descending", "UTF-8 filename bytes ascending"],
+    "rules": [
+      "automatic discovery inspects only direct stable regular non-reparse files in the configured Advanced Search inbox",
+      "newest selected candidate is validated; invalid newest candidate fails visibly and automatic discovery never falls back to an older workbook",
+      "filesystem mtime, collision-like suffixes and workbook internal timestamps never replace the embedded automatic chronology"
+    ]
+  },
+  "manual_selection": {
+    "rule": "operator may explicitly select one local .xlsx outside the configured inbox; the path still passes the shared XLSX/path/reparse/stability security boundary",
+    "filename": "manual preview may inspect a safe file whose physical name does not match automatic grammar",
+    "publication_chronology": "ordinary publication/checkpoint comparison requires a usable supported Advanced Search population chronology. In Beta 1.0 the supported chronology is the valid embedded ADVANCED_SEARCH_SR_V1 filename timestamp; manual input lacking it remains SOURCE_CHRONOLOGY_UNRESOLVED and cannot publish authoritative population/checkpoint/domain acceptance.",
+    "prohibitions": ["filesystem mtime is not substituted", "import time is not substituted", "row Last Update is not population chronology"]
+  },
+  "operational_time_semantics": {
+    "offset_present": "use explicit offset",
+    "offset_absent_timezone": "America/Guayaquil",
+    "storage": "canonical UTC whole-second instant",
+    "rule": "operational cell timestamps remain distinct from Asia/Shanghai filename chronology and from the selectable Objective timezone"
+  },
+  "header_registry": {
+    "registry_id": "ADVANCED_SEARCH_HEADERS_V1",
+    "normalization_profile": "IMPORT_HEADER_KEY_V1",
+    "active_fields": [
+      {"key":"sr_no","aliases":["SRNo"],"class":"required_identity","kind":"identity"},
+      {"key":"problem_summary","aliases":["Problem Summary"],"class":"optional_active","kind":"text"},
+      {"key":"report_date","aliases":["Report Date"],"class":"optional_active","kind":"instant"},
+      {"key":"customer_contact_label","aliases":["Customer Contact"],"class":"optional_active","kind":"text"},
+      {"key":"customer_severity","aliases":["Customer Severity"],"class":"optional_active","kind":"controlled"},
+      {"key":"current_handler_label","aliases":["Current Handler"],"class":"optional_active","kind":"text"},
+      {"key":"status","aliases":["Status"],"class":"optional_active","kind":"controlled"},
+      {"key":"customer_org_label","aliases":["Customer Org."],"class":"optional_active","kind":"text"},
+      {"key":"customer_account_code","aliases":["Customer Account Code"],"class":"optional_active","kind":"text"},
+      {"key":"suspend_planned_end","aliases":["Suspend Planned End Date"],"class":"optional_active","kind":"instant"},
+      {"key":"suspension_duration","aliases":["Suspension Duration"],"class":"optional_active","kind":"duration_seconds"},
+      {"key":"last_update","aliases":["Last Update"],"class":"optional_active","kind":"instant"}
+    ],
+    "future_use_fields": [
+      {"key":"resolve_by","aliases":["ResolveBy"],"class":"deferred","kind":"instant"},
+      {"key":"resolve_by_suspend","aliases":["Resolve By Suspend"],"class":"deferred","kind":"instant"},
+      {"key":"owner","aliases":["Owner"],"class":"deferred","kind":"text"},
+      {"key":"l2_assignee","aliases":["L2 Assignee"],"class":"deferred","kind":"text"},
+      {"key":"l3_assignee","aliases":["L3 Assignee"],"class":"deferred","kind":"text"},
+      {"key":"related_sr","aliases":["Related SR"],"class":"deferred","kind":"text"},
+      {"key":"authorization_no","aliases":["Authorization No."],"class":"deferred","kind":"text"},
+      {"key":"escalation_no","aliases":["Escalation No"],"class":"deferred","kind":"text"},
+      {"key":"pr_number","aliases":["Pr Number"],"class":"deferred","kind":"text"}
+    ],
+    "discarded_fields": [
+      {"source_header":"Product","rule":"always discarded after staging security/header classification; never retained as SourceObservation field and never drives Contract, Product Line, CPL, product family, Network Element, Device Reference, SLA or Inventory authority"}
+    ],
+    "rules": [
+      "SRNo is the only universally required usable row identity",
+      "missing optional-active/deferred headers produce coverage findings and never clear prior accepted values",
+      "column order is irrelevant; duplicate semantic headers block workbook interpretation",
+      "unregistered headers are discarded after bounded security scanning and do not enter logical fingerprint or reconciliation"
+    ]
+  },
+  "controlled_vocabularies": [
+    {"id":"ADVANCED_SEARCH_STATUS_V1","field":"status","recognized":[{"canonical":"Closed","class":"terminal_closed"},{"canonical":"Resolved","class":"terminal_resolved"},{"canonical":"Cancelled","class":"terminal_cancelled"},{"canonical":"Customer Agreed Suspend","class":"active_suspension_status"}],"unknown_nonblank":"warning evidence only; cannot overwrite a previously recognized canonical status","blank":"preserve prior recognized canonical status"},
+    {"id":"ADVANCED_SEARCH_SEVERITY_V1","field":"customer_severity","rule":"source-specific exact normalized value must resolve through the accepted severity registry used by LLD-06; unknown nonblank remains warning evidence and never guesses/fuzzy-maps to a severity","closure":"exact canonical source token set is pinned before LLD-04 returns review_ready"}
+  ],
+  "field_semantics": [
+    "Current Handler is source-owned current-assignment text. A usable newer accepted observation may change it; an accepted blank may clear the source-assignment display only. It never creates competing locally authoritative handler text.",
+    "Current Handler and Customer Contact may seed reviewed Contact reconciliation but never silently create, merge, select or re-affiliate a Contact.",
+    "Customer Account Code is preferred Customer Organization matching evidence; labels are descriptive candidate evidence only.",
+    "Suspend Planned End Date represents active suspension context only when accepted status is Customer Agreed Suspend and the end is a valid future instant under the consuming as-of context.",
+    "Suspension Duration is cumulative source-reported duration and is never inferred between workbooks. Blank parses as source-reported exact zero; a new blank/zero contradicting accepted nonzero evidence requires review before erasure.",
+    "ResolveBy and Resolve By Suspend are retained as future-use provenance only and cannot drive Beta 1.0 SLA/risk/expiration/notification/workflow."
+  ],
+  "evolution": "Any filename/header/timezone/vocabulary/field-authority grammar change creates a new immutable profile or registry version; historical ImportRuns preserve the exact versions used."
+}

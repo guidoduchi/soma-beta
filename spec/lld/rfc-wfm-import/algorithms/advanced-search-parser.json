@@ -1,0 +1,28 @@
+{
+  "schema": "SOMA-LLD-ALGORITHM-V1",
+  "lld_id": "LLD-04",
+  "name": "AdvancedSearchSrRowParserV1",
+  "profile": "ADVANCED_SEARCH_SR_V1 + ADVANCED_SEARCH_HEADERS_V1",
+  "preconditions": ["candidate passed shared path/reparse/stability/XLSX security boundary","source family is exactly advanced_search_sr","required SRNo semantic header resolves exactly once","all security/resource limits remain in force through complete EOF"],
+  "row_identity": ["resolve SRNo by semantic header, trim only accepted spreadsheet whitespace, then require exactly eight ASCII digits","valid identity becomes entity_kind=service_request and canonical_primary_id is the exact eight digits","missing, blank, malformed, prefixed/suffixed or longer digit sequence becomes invalid_row with SR_ID_INVALID and fabricates no Service Request","similar summary/customer/contact/device evidence can never adopt or identify an SR"],
+  "active_field_parsing": [
+    {"key":"problem_summary","kind":"text","blank":"blank evidence; preserve accepted source projection"},
+    {"key":"report_date","kind":"instant","blank":"missing; never substitute import/file/current time","time":"explicit offset else America/Guayaquil"},
+    {"key":"customer_contact_label","kind":"text","blank":"missing candidate evidence"},
+    {"key":"customer_severity","kind":"controlled","blank":"missing/preserve","unknown":"warning/preserve"},
+    {"key":"current_handler_label","kind":"text","blank":"usable explicit source-display clear candidate; does not mutate Contact"},
+    {"key":"status","kind":"controlled","blank":"preserve","unknown":"warning/preserve"},
+    {"key":"customer_org_label","kind":"text","blank":"missing candidate evidence"},
+    {"key":"customer_account_code","kind":"text","blank":"missing candidate evidence"},
+    {"key":"suspend_planned_end","kind":"instant","blank":"missing/preserve","time":"explicit offset else America/Guayaquil"},
+    {"key":"suspension_duration","kind":"duration_seconds","blank":"usable exact zero source report; regression against prior nonzero is review-required"},
+    {"key":"last_update","kind":"instant","blank":"unknown chronology","time":"explicit offset else America/Guayaquil"}
+  ],
+  "deferred_fields": ["resolve_by","resolve_by_suspend","owner","l2_assignee","l3_assignee","related_sr","authorization_no","escalation_no","pr_number"],
+  "discarded_fields": ["Product", "every unregistered header"],
+  "row_chronology": "usable Last Update is field/source row chronology. Missing/unusable Last Update remains NULL; filename chronology, filesystem mtime, import time and Report Date never substitute for row chronology. A changed field without chronology comparable to prior accepted field evidence becomes review-required rather than assumed newer.",
+  "duplicate_partition": ["group valid rows by canonical eight-digit SR identity after parsing","exact equivalent allowlisted logical rows may collapse to one effective logical observation plus deterministic duplicate-count warning while physical provenance remains bounded","different meaningful allowlisted logical content for the same SR identity is conflicting source evidence; retain observations/findings and block only that SR proposal scope until reviewed","conflict for one SR never rejects unrelated valid SR identities"],
+  "proposal_seeds": ["missing exact official SR -> sr_create_or_adopt seed","existing exact official SR -> in-place source adoption/projection seed preserving service_request_id and all SOMA-owned history","field-level recognized source delta -> sr_source_projection seed","Customer Account Code/Customer Org. label -> reviewed Customer Organization reconciliation candidate seed","Customer Contact label -> reviewed Contact reconciliation candidate seed","Current Handler -> separate reviewed Contact reconciliation candidate seed while source assignment remains text authority","recognized terminal-to-nonterminal reversal -> high-risk sr_terminal_reversal_review seed","new blank/zero Suspension Duration contradicting prior accepted nonzero -> high-risk sr_suspension_regression_review seed"],
+  "population_postpass": ["after complete conflict classification, compute valid canonical SR identity set for the candidate population","compare only against the latest previously accepted Advanced Search population under exact source-family/checkpoint lineage","a previously observed SR omitted from the new population seeds a high-risk source-disappearance review/warning; omission never deletes, archives, finalizes or mutates the SR","later valid reappearance resolves to the same surviving SR and may clear current disappearance warning through governed acceptance"],
+  "prohibitions": ["no source omission deletion/archive/finalization","no overwrite of SOMA-owned relationships, Working Notes, Tasks, Objectives, Inventory, Infrastructure, review or audit history","no Product-derived classification/SLA/Infrastructure/Inventory behavior","no fuzzy Customer/Contact/SR identity selection","no source status to Task/Objective execution mutation"]
+}

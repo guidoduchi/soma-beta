@@ -1,23 +1,9 @@
 {
-  "schema":"SOMA-LLD-SETTING-DEFINITIONS-V1",
-  "lld_id":"LLD-04",
-  "definitions":[
-    {
-      "setting_key":"rfc_wfm_import_directory",
-      "semantic_owner":"LLD-04",
-      "contract_name":"RFC_WFM_IMPORT_DIRECTORY",
-      "current_version":1,
-      "default_provider":"UNSET_WITH_DOWNLOADS_UI_SUGGESTION",
-      "validator":"absolute local Windows directory path; reject NUL, relative paths, file paths, device namespace, UNC/network path in Beta 1.0, and values exceeding 4096 UTF-8 bytes; existence/accessibility is checked at use time rather than required forever at save time",
-      "semantic_equals":"Windows normalized absolute path comparison using platform case-insensitive semantics without resolving/following reparse traversal",
-      "unknown_field_policy":"reject",
-      "storage_class":"ordinary_nonsecret",
-      "max_utf8_bytes":4096,
-      "max_depth":2,
-      "max_collection_items":4,
-      "value_contract":{"type":"object","required":["path"],"fields":{"path":"string"}},
-      "rules":["absence remains truly unset","Downloads is a UI suggestion only and is never persisted/searchable until operator accepts/selects it","changing directory affects future automatic discovery only and does not reinterpret historical ImportRuns","filename source-family patterns are not settings; they belong immutable versioned SourceProfiles"]
-    }
+  "schema": "SOMA-LLD-SETTING-DEFINITIONS-V1",
+  "lld_id": "LLD-04",
+  "definitions": [
+    {"setting_key":"rfc_wfm_import_directory","semantic_owner":"LLD-04","contract_name":"RFC_WFM_IMPORT_DIRECTORY","current_version":1,"default_provider":"UNSET_WITH_DOWNLOADS_UI_SUGGESTION","validator":"absolute local Windows directory path; reject NUL, relative paths, file paths, device namespace, UNC/network path in Beta 1.0, and values exceeding 4096 UTF-8 bytes; existence/accessibility is checked at use time rather than required forever at save time","semantic_equals":"Windows normalized absolute path comparison using platform case-insensitive semantics without resolving/following reparse traversal","unknown_field_policy":"reject","storage_class":"ordinary_nonsecret","max_utf8_bytes":4096,"max_depth":2,"max_collection_items":4,"value_contract":{"type":"object","required":["path"],"fields":{"path":"string"}},"rules":["absence remains truly unset","Downloads is a UI suggestion only and is never persisted/searchable until operator accepts/selects it","changing directory affects future RFC/WFM automatic discovery only and does not reinterpret historical ImportRuns","filename source-family patterns are immutable profile data rather than settings"]},
+    {"setting_key":"advanced_search_import_directory","semantic_owner":"LLD-04","contract_name":"ADVANCED_SEARCH_IMPORT_DIRECTORY","current_version":1,"default_provider":"UNSET_WITH_DOWNLOADS_UI_SUGGESTION","validator":"absolute local Windows directory path; reject NUL, relative paths, file paths, device namespace, UNC/network path in Beta 1.0, and values exceeding 4096 UTF-8 bytes; existence/accessibility is checked at use time rather than required forever at save time","semantic_equals":"Windows normalized absolute path comparison using platform case-insensitive semantics without resolving/following reparse traversal","unknown_field_policy":"reject","storage_class":"ordinary_nonsecret","max_utf8_bytes":4096,"max_depth":2,"max_collection_items":4,"value_contract":{"type":"object","required":["path"],"fields":{"path":"string"}},"rules":["absence remains truly unset","Downloads is a UI suggestion only and is never persisted/searchable until operator accepts/selects it","automatic Advanced Search discovery inspects direct entries only in this configured inbox","the RFC/WFM directory is not silently reused as Advanced Search inbox","changing directory affects future automatic discovery only and does not reinterpret historical ImportRuns","filename grammar/timezone belongs ADVANCED_SEARCH_SR_V1 rather than this setting"]}
   ],
-  "registry_handoff":"Composition-root SettingDefinitionRegistry from LLD-02 loads this exact code-defined definition; LLD-02 persists/validates contract version but LLD-04 remains semantic authority."
+  "registry_handoff": "Composition-root SettingDefinitionRegistry from LLD-02 loads these exact code-defined definitions; LLD-02 persists/validates contract versions but LLD-04 remains semantic authority."
 }
