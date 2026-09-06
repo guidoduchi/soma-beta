@@ -1,0 +1,8 @@
+{
+  "schema":"SOMA-HLD-BOUNDARIES-V1",
+  "hld_id":"HLD-11",
+  "owns":["shared shell/navigation interaction grammar","list/grid/tree selection/open/focus/membership state","scroll ownership","bounded autocomplete/relationship chooser behavior","responsive composition primitives","confirmation-tier presentation and deliberate-hold interaction","semantic-token/skin/appearance presentation rules","modal/focus/motion behavior","UI working copies, save/discard/conflict presentation and safe Undo availability","Ticket/Objective/Inventory/Infrastructure workbench composition and cross-pane state preservation","visual/export fixture governance presentation hooks"],
+  "does_not_own":["domain command validity or lifecycle transitions","canonical entity identity/cardinality","source/import/communication evidence authority","SLA calculations","Task execution/outcome","Inventory physical consequences","security/encryption/authentication policy","audit/history semantics beyond UI projection"],
+  "authority_rule":"UI presents owning-domain facts and invokes owning-domain commands. A visible control, loaded row, selection, typed text, drag/drop, hold completion, dialog acceptance or recovered working copy never by itself creates authoritative domain state.",
+  "workbench_boundary":["Workbenches are focused operational surfaces rather than disconnected command dialogs.","Wide layouts may use split working/evidence panes; narrow layouts preserve both through switchable panes/drawers/stacks.","Canonical Communication content remains owned by HLD-10 and is never copied into ticket records merely for display.","Domain-specific tab order/content is a presentation specialization over shared HLD-11 interaction primitives."]
+}
