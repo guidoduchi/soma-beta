@@ -1,0 +1,24 @@
+{
+  "schema":"SOMA-LLD-PACKET-V1",
+  "id":"LLD-06",
+  "name":"Product Line Classification, SLA, Reporting",
+  "status":"drafting",
+  "requirement_ids":["BETA-REQ-0064","BETA-REQ-0065","BETA-REQ-0071","BETA-REQ-0173","BETA-REQ-0174","BETA-REQ-0175"],
+  "supporting_requirement_ids":["BETA-REQ-0010","BETA-REQ-0017","BETA-REQ-0018","BETA-REQ-0019","BETA-REQ-0058","BETA-REQ-0063","BETA-REQ-0066","BETA-REQ-0069","BETA-REQ-0070","BETA-REQ-0075","BETA-REQ-0128","BETA-REQ-0135","BETA-REQ-0143","BETA-REQ-0165","BETA-REQ-0169","BETA-REQ-0177"],
+  "hld_dependencies":["HLD-02","HLD-03","HLD-04","HLD-05","HLD-07","HLD-14"],
+  "foundation_dependencies":["LLD-01 Snapshot/UnitOfWork/idempotency/audit/durable-job/STRICT schema conventions","LLD-02 Customer Organization identity and Customer Account Code matching evidence","LLD-03 Service Request identity/lifecycle/current Customer context and accepted source projection readers","LLD-04 accepted source-observation provenance for Report Date/status/severity/suspension evidence"],
+  "scope":["reusable Product Line identity","Customer-owned Contract identity","Contract Product Line identity and lifecycle","immutable SLA policy revisions and exact cohort tiers","IT/NFV default policy templates and derived Non-fault inquiry tiers","deterministic reviewed SR classification and mapping rules","individual per-tier SLA projection","canonical America/Guayaquil monthly cohort projection","live cohort state and exact percentage arithmetic","suspension/endpoint warning inputs","immutable completed report evidence after verified XLSX artifact generation","report staging/failure cleanup and minimum historical snapshot evidence"],
+  "not_owned_here":["Service Request source facts/lifecycle/Customer authority -> LLD-03/LLD-04","Customer Organization master identity -> LLD-02","Objective/Task scheduling timezone -> LLD-05","Overview/dashboard presentation -> LLD-11","generic UI working-copy/batch interaction -> LLD-10","authentication/action proof and release dependency pinning -> LLD-12","general retention/deletion -> owning domains"],
+  "required_directories":["schema","commands","queries","algorithms","ui","tests"],
+  "target_packet_files":[
+    "bounds.json","errors.json","interfaces.json","routes.json","technology.json",
+    "schema/catalog-classification.json","schema/policy.json","schema/projections.json","schema/reporting.json",
+    "commands/catalog-classification.json","commands/reporting.json",
+    "queries/sla.json","queries/reporting.json",
+    "algorithms/policy-validation.json","algorithms/individual-sla.json","algorithms/cohort-state.json","algorithms/report-snapshot.json",
+    "ui/review-state.json",
+    "tests/acceptance.json","tests/failure-injection.json"
+  ],
+  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"construction_complete":false,"formal_double_review_deferred_until_full_beta_lld_set":true,"implementation_ready":false},
+  "design_principle":"Reusable Product Line identity never carries global SLA authority. Current SLA truth is a reproducible projection over the SR's resolved Customer-compatible Contract Product Line, its current immutable policy revision and accepted source chronology; completed report evidence freezes only the minimum represented state after artifact verification and never becomes operational cleanup authority."
+}
