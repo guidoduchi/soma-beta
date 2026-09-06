@@ -1,0 +1,18 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-07",
+  "name":"RETURN_SELECTION_V1",
+  "preconditions":["exact reviewed Task outcome fingerprint still current","accepted Inventory physical consequence current-effective","RMA identity/assignment/direct inbound relationships current when applicable"],
+  "mapping":[
+    {"physical_disposition":"installed_used","return_unit":"removed_device_part_unit_id","rule":"successful replacement normally returns removed target component"},
+    {"physical_disposition":"unused","return_unit":"inbound_spare_part_unit_id","rule":"unused replacement returns inbound unit"},
+    {"physical_disposition":"inbound_faulty","return_unit":"inbound_spare_part_unit_id"},
+    {"physical_disposition":"incompatible","return_unit":"inbound_spare_part_unit_id"},
+    {"physical_disposition":"dismantled","return_unit":"parent_dismantled_unit_id","rule":"parent assembly remains direct received return item; extracted children are separate identities"},
+    {"physical_disposition":"removed_only","return_unit":"removed_device_part_unit_id"},
+    {"physical_disposition":"no_physical_change","return_unit":"none unless separately reviewed rule establishes obligation"},
+    {"physical_disposition":"other_reviewed","return_unit":"explicit operator-reviewed typed unit required"}
+  ],
+  "steps":["derive exactly one typed physical unit candidate or explicit none","validate candidate identity participates in the accepted consequence and is not contradictory installed/returned elsewhere","append select/correct/clear return-selection event","rebuild rma_return_obligation_current and Fault Tag eligibility in same UnitOfWork"],
+  "rules":["RMA stores relationship to physical unit, never copied serial/BOM as return truth","condition/BOM/serial/provenance alone cannot establish return eligibility","warehouse rejection may later append reopen_after_rejection for same obligation/unit without deleting prior attempt history"]
+}
