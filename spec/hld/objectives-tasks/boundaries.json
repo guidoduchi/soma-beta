@@ -1,0 +1,37 @@
+{
+  "schema": "SOMA-HLD-BOUNDARIES-V1",
+  "hld_id": "HLD-06",
+  "owns": [
+    "Local Task operational identity and Task lifecycle",
+    "accepted operational Task planning and plan revisions",
+    "Task execution facts, cancellation, reviewed outcomes and retry lineage",
+    "Objective identity, lifecycle and Task membership",
+    "derived Objective temporal envelope",
+    "automatic overlap grouping and reviewed regroup proposals",
+    "Objective review state and aggregate Task-outcome projection",
+    "historical Objective proposals and operational-count inclusion projection"
+  ],
+  "does_not_own": [
+    "provider WFM source identity/status or source-plan evidence",
+    "RFC hierarchy, SR relationships or RFC terminal evidence",
+    "Device Reference identity",
+    "Inventory allocation, spare-use or physical-consequence truth",
+    "Communication evidence",
+    "global temporal serialization rules outside Objective/Task scheduling",
+    "UI working-copy state"
+  ],
+  "crossing_rules": [
+    "HLD-05 may supply WFM source-plan evidence only as a candidate/input to Task planning.",
+    "HLD-04 may supply RFC hierarchy/lifecycle context but cannot directly rewrite Objective membership or Task execution history.",
+    "HLD-08 consumes reviewed Task physical consequences and never infers them from Objective success or source status.",
+    "HLD-12 consumes Objective/Task projections and cannot create scheduling or execution facts.",
+    "HLD-11 presents commands/proposals but does not own Task or Objective state.",
+    "HLD-14 governs canonical temporal/audit semantics used by this domain."
+  ],
+  "aggregate_boundary": {
+    "task": "independent work attempt and scheduling/execution fact owner",
+    "objective": "Maintenance Window aggregate over accepted Task membership; envelope and aggregate state are derived from member facts",
+    "source_plan": "external evidence only",
+    "actual_execution": "independent accepted occurrence evidence; never inferred from plan or Objective clock"
+  }
+}
