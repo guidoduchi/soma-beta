@@ -4,13 +4,17 @@
   "inherits":"LLD-01 stable transport/error categories",
   "domain_errors":[
     {"code":"REFERENCE_ARCHIVED","http":409,"recoverability":"explicit_reactivation","meaning":"archived master cannot receive a new active operational relationship or ordinary edit requiring active state"},
-    {"code":"ARCHIVE_BLOCKED","http":409,"recoverability":"resolve_reported_dependencies","meaning":"one or more active dependencies would be stranded; no archival mutation occurred"},
-    {"code":"DEPENDENCY_VALIDATION_FAILED","http":503,"recoverability":"retry_or_fix_dependency_owner","meaning":"archive/reactivation eligibility could not be proven because an owning-domain dependency validator failed; command failed closed"},
-    {"code":"REACTIVATION_BLOCKED","http":409,"recoverability":"resolve_reported_conflicts","meaning":"current constraints prevent reactivation; archived history remains unchanged"},
+    {"code":"ARCHIVE_BLOCKED","http":409,"recoverability":"inspect_preview_and_resolve_dependencies","meaning":"one or more active dependencies would be stranded; no archival mutation or receipt committed; detailed blockers are obtained through bounded read-only preview"},
+    {"code":"DEPENDENCY_VALIDATION_FAILED","http":503,"recoverability":"retry_or_fix_dependency_owner","meaning":"archive/reactivation eligibility could not be proven because an owning-domain dependency guard failed or was indeterminate; command failed closed"},
+    {"code":"REACTIVATION_BLOCKED","http":409,"recoverability":"inspect_preview_and_resolve_conflicts","meaning":"current constraints prevent reactivation; archived history remains unchanged"},
     {"code":"CUSTOMER_ORG_INACTIVE","http":409,"recoverability":"select_or_reactivate_customer","meaning":"requested current affiliation requires an active Customer Organization"},
-    {"code":"ACCOUNT_CODE_CONFLICT_REVIEW","http":409,"recoverability":"review_existing_claim_and_assign_or_reassign","meaning":"normalized Customer Account Code is already canonically claimed by another Customer Organization; no automatic reassignment occurs"},
-    {"code":"ACCOUNT_CODE_SOURCE_NOT_OWNER","http":409,"recoverability":"reload_review_correct_source","meaning":"reviewed account-code reassignment expected the source Customer to own the current canonical claim but authoritative state no longer agrees"},
+    {"code":"ACCOUNT_CODE_CONFLICT_REVIEW","http":409,"recoverability":"review_existing_claims_then_resolve_or_confirm_shared_claim","meaning":"normalized Customer Account Code already has one or more different active Customer claimants; ordinary assignment does not steal, merge, or silently add another claimant"},
+    {"code":"ACCOUNT_CODE_SOURCE_NOT_OWNER","http":409,"recoverability":"reload_review_correct_source","meaning":"reviewed account-code reassignment expected the source Customer to hold an active claim but authoritative state no longer agrees"},
+    {"code":"ACCOUNT_CODE_SHARED_CONTEXT_REQUIRED","http":409,"recoverability":"perform_reviewed_conflict_workflow","meaning":"shared-claim command lacks valid reviewed conflict context or no longer represents an actual multi-claim conflict"},
     {"code":"MATCH_PROFILE_UNSUPPORTED","http":503,"recoverability":"run_supported_upgrade_or_restore_compatible_build","meaning":"database matching profile is not supported by this application build; matching reads/writes are blocked rather than reinterpreted"},
+    {"code":"CHANNEL_INVALID","http":400,"recoverability":"correct_channel_value","meaning":"Contact channel fails its closed storage policy; value is not persisted or truncated"},
+    {"code":"CHANNEL_NOT_USABLE","http":409,"recoverability":"select_or_register_usable_channel","meaning":"recipient-dependent action has no selected active channel usable for the requested purpose; underlying Contact and operational record remain valid"},
+    {"code":"CHANNEL_NOT_OWNED","http":404,"recoverability":"reload_contact","meaning":"requested channel does not belong to the identified Contact"},
     {"code":"SETTING_UNKNOWN","http":400,"recoverability":"use_registered_setting","meaning":"setting key is absent from the closed SettingDefinition registry"},
     {"code":"SETTING_CONTRACT_MISMATCH","http":409,"recoverability":"registered_upgrade_or_software_update","meaning":"persisted/requested setting contract/version cannot be interpreted under the current registered definition"},
     {"code":"SETTING_SECRET_FORBIDDEN","http":400,"recoverability":"use_LLD12_secret_owner","meaning":"secret-classified material cannot be persisted in ordinary setting_values"},
@@ -18,6 +22,6 @@
     {"code":"MATCH_INPUT_INVALID","http":400,"recoverability":"correct_input","meaning":"candidate key is blank/invalid after governed normalization or scope is malformed"},
     {"code":"FIELD_BOUND_EXCEEDED","http":400,"recoverability":"correct_input","meaning":"semantic field/collection exceeds its field-specific accepted bound; value was not truncated"}
   ],
-  "non_error_states":["UNRESOLVED","UNIQUE_CANDIDATE","AMBIGUOUS","contact-affiliation mismatch warning"],
-  "rule":"Ambiguity, source-account-code conflict evidence and affiliation mismatch are review states unless a canonical mutation command collides with an existing accepted claim; none may be converted into guessed identity mutation."
+  "non_error_states":["UNRESOLVED","UNIQUE_CANDIDATE","AMBIGUOUS","contact-affiliation mismatch warning","channel MISSING|ARCHIVED|INVALID prerequisite state"],
+  "rule":"Ambiguity, source-account-code conflict evidence, recipient prerequisite failure and affiliation mismatch do not invalidate unrelated domain entities and may not be converted into guessed identity mutation."
 }
