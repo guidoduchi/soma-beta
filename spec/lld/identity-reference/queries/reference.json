@@ -23,6 +23,13 @@
       "rules":["Customer Account Code is preferred stable external evidence","multiple reviewed account-code claimants return AMBIGUOUS","display name alone never authorizes identity mutation","account-code/name conflict returns AMBIGUOUS review state","candidate_count reflects the complete union while candidate_ids are bounded/paginated","matcher never assigns/reassigns the code"]
     },
     {
+      "name":"PreviewCustomerAccountCodeConflict",
+      "algorithm":"algorithms/account-code-review.json preview",
+      "input":["raw Customer Account Code","proposed_action=CONFIRM_SHARED_CLAIM|REASSIGN_CLAIM","target_customer_org_id","optional from_customer_org_id","claimant cursor/limit"],
+      "output":["review_snapshot_hash","normalized code display evidence","target/source revisions","exact claimant count","bounded claimant items","continuation","proposed_action"],
+      "rules":["read-only","hash binds the complete claimant set even when display items paginate","preview is advisory and mutating command recomputes snapshot under its UnitOfWork","review_context_id from an import/proposal may be carried separately but never substitutes for the snapshot hash"]
+    },
+    {
       "name":"GetCustomerAccountCodeHistory",
       "input":["customer_org_id","cursor","limit"],
       "output":["exact_count","items(customer_org_identifier_id,value_text,lifecycle_state,created_at_utc,superseded_at_utc)","continuation"],
