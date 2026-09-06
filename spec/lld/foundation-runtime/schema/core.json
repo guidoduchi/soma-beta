@@ -48,5 +48,5 @@
     }
   ],
   "indexes":["CREATE INDEX idx_audit_recorded_at ON audit_events(recorded_at_utc)","CREATE INDEX idx_audit_target ON audit_events(target_type, target_id, recorded_at_utc)","CREATE INDEX idx_audit_command ON audit_events(command_id)","CREATE INDEX idx_jobs_state_due ON durable_jobs(state, next_attempt_at_utc)","CREATE INDEX idx_jobs_type_state ON durable_jobs(job_type, state)","CREATE INDEX idx_job_attempts_job ON job_attempts(job_id, ordinal)"],
-  "schema_rules":["STRICT tables are preferred for foundation tables where supported by the approved SQLite runtime","foreign-key child columns must have effective leading-prefix indexes unless an explicit measured exception exists","domain tables are added only by their owning LLD/migrations","runtime registry and diagnostics are external technical state, not SQLite tables"]
+  "schema_rules":["all LLD-01 foundation tables SHALL use SQLite STRICT table mode","foreign-key child columns must have effective leading-prefix indexes unless an explicit measured exception exists","domain tables are added only by their owning LLD/migrations","runtime registry and diagnostics are external technical state, not SQLite tables"]
 }
