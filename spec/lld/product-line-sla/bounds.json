@@ -1,0 +1,46 @@
+{
+  "schema":"SOMA-LLD-BOUNDS-V1",
+  "lld_id":"LLD-06",
+  "text_bounds":{
+    "product_line_name":{"max_graphemes":160,"max_utf8_bytes":640,"blank":"reject"},
+    "contract_name":{"max_graphemes":200,"max_utf8_bytes":800,"blank":"reject"},
+    "contract_reference":{"max_graphemes":120,"max_utf8_bytes":480,"blank":"reject"},
+    "policy_name":{"max_graphemes":160,"max_utf8_bytes":640,"blank":"reject"},
+    "reason_code":{"max_graphemes":96,"max_utf8_bytes":384,"blank":"reject_when_required"},
+    "report_label":{"max_graphemes":160,"max_utf8_bytes":640,"blank":"reject_when_supplied"}
+  },
+  "collections":{
+    "policy_tiers_per_revision":{"soft_warning":32,"hard_limit":128,"rule":"a valid policy must still define at least one tier for every supported base severity and all generated Non-fault tiers"},
+    "batch_classification_targets":{"page_limit_default":100,"page_limit_max":500,"authoritative_total":"exact count separate from rendered page","mutation":"one independently auditable result per target; no silent skip"},
+    "cohort_member_page":{"default":100,"max":500,"pagination":"deterministic cursor"},
+    "report_member_staging_batch":{"default":500,"max":2000,"rule":"staging batches never alter operational state and must remain within LLD-01 short-writer thresholds"}
+  },
+  "percentage":{
+    "representation":"required_percentage_millionths INTEGER",
+    "meaning":"millionths of one percentage point; 100%=100000000, 85%=85000000",
+    "range":"1..100000000",
+    "input_scale":"at most 6 decimal places in percentage units",
+    "comparison":"integer cross-multiplication only; never binary floating point"
+  },
+  "duration":{
+    "policy_representation":"maximum_duration_seconds INTEGER",
+    "range":"1..3155760000",
+    "input":"exact decimal days/hours accepted only when conversion yields an integral number of seconds; no rounding",
+    "source_suspension":"ExactDuration rational seconds numerator/positive denominator supplied by source owner; canonical reduction required",
+    "arithmetic":"integer/rational exact comparison; clamp elapsed at zero before tier comparison"
+  },
+  "reporting":{
+    "period_types":["daily","weekly","monthly","selected_range"],
+    "timezone":"America/Guayaquil fixed for SLA cohort and reporting-period authority",
+    "artifact_extension":".xlsx",
+    "artifact_path_max_utf8_bytes":4096,
+    "snapshot_members":"bounded by available local storage rather than product row cap; generated/persisted in bounded batches with exact totals",
+    "failed_attempt_retention":"retain bounded attempt metadata/audit only; staged member/result payload is removed after terminal failed/cancelled handling"
+  },
+  "performance":{
+    "classification_write":"indexed point/current-customer/CPL checks only inside writer transaction",
+    "individual_projection":"O(number_of_policy_tiers_for_severity)",
+    "cohort_query":"indexed Report-Date month + classification + severity/policy partition; never full-table Python filtering",
+    "report_generation":"stable accepted-state snapshot materialized to bounded staging before XLSX generation; no long writer transaction"
+  }
+}
