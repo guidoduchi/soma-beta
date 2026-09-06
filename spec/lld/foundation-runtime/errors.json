@@ -1,0 +1,35 @@
+{
+  "schema":"SOMA-LLD-ERROR-CATALOGUE-V1",
+  "lld_id":"LLD-01",
+  "transport_contract":{
+    "shape":["code","summary","recoverability","safe_next_action","correlation_id"],
+    "rules":["code is stable machine-readable API surface","summary is bounded operator-safe text","raw sqlite/starlette/uvicorn/OS exception text never crosses the application boundary","correlation_id is opaque and non-sensitive","HTTP status is transport mapping only and never substitutes for code"]
+  },
+  "categories":[
+    {"code":"VALIDATION_FAILED","http":400,"recoverability":"operator_input","meaning":"bounded transport/application input failed validation before authoritative mutation"},
+    {"code":"UNAUTHENTICATED","http":401,"recoverability":"reauthenticate","meaning":"LLD-12 did not establish an authenticated local application/run context"},
+    {"code":"FORBIDDEN","http":403,"recoverability":"none_without_authority_change","meaning":"authenticated caller is not permitted to perform the requested control/application action"},
+    {"code":"NOT_FOUND","http":404,"recoverability":"refresh_or_correct_target","meaning":"immutable target identity does not resolve in the requested scope"},
+    {"code":"STALE_REVISION","http":409,"recoverability":"reload_review_retry","meaning":"authoritative state changed after the caller's base revision/precondition was produced"},
+    {"code":"IDEMPOTENCY_CONFLICT","http":409,"recoverability":"new_command_identity","meaning":"command_id already committed with a different request hash"},
+    {"code":"INSTANCE_OWNED","http":409,"recoverability":"activate_verified_instance_or_exit","meaning":"another process holds authoritative ownership of the canonical data instance"},
+    {"code":"MIGRATION_PENDING","http":503,"recoverability":"complete_startup","meaning":"ordinary operation is unavailable until accepted migrations finish"},
+    {"code":"MIGRATION_DRIFT","http":503,"recoverability":"governed_recovery","meaning":"accepted migration bytes/manifest/ledger no longer agree"},
+    {"code":"MIGRATION_LEDGER_MISMATCH","http":503,"recoverability":"governed_recovery","meaning":"database ledger and accepted migration lineage are inconsistent"},
+    {"code":"UNSUPPORTED_FUTURE_SCHEMA","http":503,"recoverability":"upgrade_application","meaning":"database schema/migration lineage is newer than this application can safely interpret"},
+    {"code":"INVALID_DATABASE","http":503,"recoverability":"restore_or_correct_target","meaning":"target is not a valid supported SOMA SQLite database"},
+    {"code":"INTEGRITY_FAILURE","http":503,"recoverability":"governed_recovery","meaning":"schema/FK/append-only/database integrity verification failed"},
+    {"code":"PERSISTENCE_BUSY","http":503,"recoverability":"bounded_retry","meaning":"SQLite remained unavailable beyond the governed busy timeout; no partial command result is accepted"},
+    {"code":"PERSISTENCE_FAILURE","http":500,"recoverability":"retry_or_support","meaning":"unexpected persistence failure caused authoritative rollback"},
+    {"code":"AUDIT_VALIDATION_FAILED","http":500,"recoverability":"implementation_or_contract_fix","meaning":"required audit payload/action contract could not be validated; associated authoritative mutation is rolled back"},
+    {"code":"AUDIT_INTEGRITY_FAILURE","http":500,"recoverability":"governed_recovery","meaning":"append-only/identity protection for required audit evidence failed"},
+    {"code":"SECURITY_NOT_READY","http":503,"recoverability":"security_recovery","meaning":"LLD-12 security/key/run-auth prerequisites are not ready; authoritative service remains unavailable"},
+    {"code":"LOOPBACK_BIND_FAILED","http":503,"recoverability":"retry_startup","meaning":"SOMA could not exclusively bind a supported loopback socket"},
+    {"code":"HOST_NOT_READY","http":503,"recoverability":"wait_or_inspect_startup","meaning":"server process exists but authoritative readiness has not passed"},
+    {"code":"HOST_QUIESCING","http":503,"recoverability":"wait_for_shutdown_or_restart","meaning":"new mutation was rejected because shutdown quiescence has begun"},
+    {"code":"OFFLINE_STATUS_UNSAFE","http":409,"recoverability":"use_verified_live_status_or_retry_offline","meaning":"offline inspection cannot prove a race-safe immutable view of the data instance"},
+    {"code":"JOB_CLAIM_CONFLICT","http":409,"recoverability":"coordinator_retry","meaning":"durable job claim/checkpoint no longer matches the current run/attempt"},
+    {"code":"INTERNAL_ERROR","http":500,"recoverability":"retry_or_support","meaning":"bounded unexpected internal failure; response contains no raw exception or sensitive context"}
+  ],
+  "logging_rule":"Diagnostic mapping may include sanitized exception classification internally, but the public/stable error code remains the only machine contract consumed by clients and other LLD packets."
+}
