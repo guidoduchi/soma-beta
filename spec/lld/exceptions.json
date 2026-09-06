@@ -1,0 +1,9 @@
+{
+  "schema": "SOMA-AI-LLD-INTEGRITY-EXCEPTIONS-V1",
+  "exceptions": [],
+  "rules": [
+    "BLOCKER findings cannot be waived for ai_implementation_ready.",
+    "HIGH exceptions require explicit project-owner acceptance plus compensating evidence.",
+    "Exceptions are narrow to exact check/packet/scope and never become product-semantic authority."
+  ]
+}

@@ -1,0 +1,49 @@
+name: LLD Spec Integrity
+
+on:
+  push:
+    branches:
+      - design/beta-1.0-hld-lld
+    paths:
+      - 'spec/lld/**'
+      - 'tools/lld/**'
+      - '.github/workflows/lld-spec-integrity.yml'
+  pull_request:
+    paths:
+      - 'spec/lld/**'
+      - 'tools/lld/**'
+      - '.github/workflows/lld-spec-integrity.yml'
+  workflow_dispatch:
+    inputs:
+      enforcement:
+        description: Integrity enforcement level
+        required: true
+        default: ai-ready
+        type: choice
+        options:
+          - report
+          - ai-ready
+          - review-ready
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Validate AI-first LLD specification
+        env:
+          MANUAL_ENFORCEMENT: ${{ github.event.inputs.enforcement }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="${MANUAL_ENFORCEMENT:-ai-ready}"
+          python tools/lld/validate_spec.py --enforce "$mode"
