@@ -49,8 +49,8 @@
       "name":"ListWorkingNotes",
       "targets":["service_request","rfc"],
       "input":["ticket_id","cursor","page_size"],
-      "output":"keyset page ordered by created_at_utc, working_note_id",
-      "rules":["current active note content only; audit/history surfaces provide prior edited/removed content","imports never participate in note mutation"]
+      "output":"keyset page of active note identity, current body, revision, immutable created_at_utc, updated_at_utc, and creating Local User Profile identity ordered by created_at_utc, working_note_id",
+      "rules":["current active note content only; audit/history surfaces provide prior edited/removed content","creator identity remains available independently of mutable display metadata","imports never participate in note mutation"]
     },
     {
       "name":"PreviewRfcHierarchyMutation",
@@ -61,8 +61,8 @@
     {
       "name":"PreviewSrRfcLink",
       "input":["service_request_id","origin/target rfc_id"],
-      "output":"resolved governing root, current duplicate state, subordinate-origin provenance, relationship/context impact summary",
-      "rule":"preview cannot merge entities/devices/tasks/notes and cannot authorize stale mutation"
+      "output":"resolved governing root, current duplicate state, subordinate-origin provenance, exact current SR/RFC lifecycle evidence and revisions, terminal/historical review-required state, relationship/context impact summary",
+      "rules":["a proposed new link involving terminal/historical current presentation is review-required and the review binds to the exact lifecycle evidence shown","an already-active pair remains semantic NO_CHANGE","preview cannot merge entities/devices/tasks/notes and cannot authorize stale mutation"]
     }
   ],
   "pagination":"All unbounded collections use deterministic keyset cursors and field-specific page limits; no product business cap such as 20 RFC children is introduced."
