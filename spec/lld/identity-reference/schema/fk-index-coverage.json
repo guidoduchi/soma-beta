@@ -1,0 +1,21 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-INDEX-COVERAGE-V1",
+  "lld_id":"LLD-02",
+  "purpose":"Complete the LLD-01 requirement that every foreign-key child path has an effective leading-prefix index unless a measured exception is explicitly accepted.",
+  "supplemental_required_indexes":[
+    "CREATE INDEX idx_customer_identifier_created_command ON customer_org_identifiers(created_command_id)",
+    "CREATE INDEX idx_customer_identifier_superseded_command ON customer_org_identifiers(superseded_command_id) WHERE superseded_command_id IS NOT NULL",
+    "CREATE INDEX idx_contact_affiliation_opened_command ON contact_affiliations(opened_command_id)",
+    "CREATE INDEX idx_contact_affiliation_closed_command ON contact_affiliations(closed_command_id) WHERE closed_command_id IS NOT NULL",
+    "CREATE INDEX idx_reference_lifecycle_command ON reference_lifecycle_events(command_id)",
+    "CREATE INDEX idx_setting_values_command ON setting_values(command_id)"
+  ],
+  "already_covered_foreign_keys":[
+    {"child":"customer_org_identifiers.customer_org_id","index":"idx_customer_identifier_history(customer_org_id,... )"},
+    {"child":"contact_channels.contact_id","index":"idx_contact_channels_contact(contact_id,... )"},
+    {"child":"contact_affiliations.contact_id","index":"idx_contact_affiliation_history(contact_id,... )"},
+    {"child":"contact_affiliations.customer_org_id","index":"idx_contact_affiliation_customer_current(customer_org_id,... )"}
+  ],
+  "verification":"LLD-01 FK-to-index analyser evaluates the complete migrated schema, including reference-core.json, settings.json and this supplemental index set. Missing/disabled/reordered leading-prefix coverage blocks implementation acceptance.",
+  "performance_rule":"No duplicate index is created when an existing PRIMARY KEY, UNIQUE or composite index already provides the required leading prefix. Partial indexes are used only when the foreign-key column is nullable and the partial predicate still covers every non-null child row relevant to FK enforcement."
+}
