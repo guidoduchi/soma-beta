@@ -1,0 +1,26 @@
+{
+  "schema":"SOMA-HLD-BOUNDARIES-V1",
+  "hld_id":"HLD-13",
+  "owns":[
+    "Local Administrator authentication trust boundary and credential-lifecycle separation",
+    "live-data encryption-key authority boundary and Windows-protected key ownership",
+    "portable-backup verification/recovery trust boundary",
+    "authenticated local-instance discovery/control protocol boundary",
+    "prohibited-secret and sensitive-data classification boundary",
+    "external diagnostic emission/sanitization/support-export boundary"
+  ],
+  "does_not_own":[
+    "SQLite schema, migration sequencing, repositories or transaction implementation — HLD-02/HLD-14",
+    "domain command authorization semantics beyond the single-admin installation model — owning HLD modules",
+    "domain audit event meaning/history projection — HLD-14",
+    "workbook/PST semantic validation — HLD-05/HLD-10, while HLD-13 supplies security constraints",
+    "device credential storage or SSH — excluded from Beta 1.0",
+    "exact cryptographic algorithms/parameters/Windows API calls — LLD"
+  ],
+  "trust_zones":[
+    {"zone":"authoritative host","rule":"Only the verified SOMA host owning the canonical data instance may mutate operational truth."},
+    {"zone":"same-machine browser","rule":"Browser requests are untrusted input despite loopback origin and must pass run/session/anti-forgery validation."},
+    {"zone":"local files and external evidence","rule":"Workbook, PST/OST, MSG and backup files are untrusted until their owning validation/verification contracts succeed."},
+    {"zone":"diagnostic/support outputs","rule":"Non-authoritative outputs receive only minimized sanitized allowlisted context and never secrets/body-equivalent content."}
+  ]
+}
