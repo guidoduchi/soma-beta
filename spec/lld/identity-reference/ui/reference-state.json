@@ -13,8 +13,9 @@
   ],
   "customer_account_code":{
     "preferred_evidence":"surface exact Account Code match separately from display-name evidence",
-    "conflict":"ACCOUNT_CODE_CONFLICT_REVIEW shows existing claimant count/identities through bounded paging and offers reviewed resolve/reassign/preserve-shared-claim actions; no default winner",
-    "shared_claim":"when more than one active canonical claimant exists, label the code as ambiguous/reviewed shared evidence rather than unique ownership",
+    "conflict":"ACCOUNT_CODE_CONFLICT_REVIEW opens PreviewCustomerAccountCodeConflict for the exact proposed action; show claimant count/paged identities and no default winner",
+    "review_binding":"confirmation submits the exact server-derived review_snapshot_hash. REVIEW_CONTEXT_STALE forces reload/review; UI must not silently resubmit a newly generated hash without renewed operator confirmation",
+    "shared_claim":"when more than one eligible canonical claimant exists, label code as ambiguous/reviewed shared evidence rather than unique ownership",
     "history":"superseded claims remain visible on explicit history surface"
   },
   "contact_affiliation":{
@@ -25,18 +26,19 @@
   "contact_channels":{
     "optional":"Contact editor permits zero channels",
     "current":"active/archived channels are explicit and paginated when needed",
-    "recipient_action":"recipient-dependent workflows request ValidateContactChannelForUse; MISSING/ARCHIVED/INVALID blocks only that communication-dependent action and offers eligible alternate Contact/channel or governed channel registration where the owning workflow permits",
+    "recipient_action":"recipient-dependent workflows request ValidateContactChannelForUse; MISSING/ARCHIVED/INVALID blocks only that communication-dependent action; MULTIPLE_USABLE requires explicit channel selection unless the consuming workflow has separately accepted deterministic selection authority",
+    "multiple_usable":"display exact usable_count and bounded candidate channels; never choose first row, oldest, newest, or lexical order as implicit business authority",
     "safety":"recipient values render strictly as text; LLD-10 must not inject raw channel values as HTML"
   },
   "archive":{
     "preview":"show exact blocker count and bounded paginated blockers grouped in deterministic validator/domain order with safe_next_action",
-    "blocked":"Archive command may return blocker-with-preview-required after transactional guard; UI refreshes read-only preview instead of expecting blocker enumeration under the writer lock",
+    "blocked":"Archive command may return blocker-with-preview-required after transactional guard; UI refreshes read-only preview instead of expecting blocker enumeration under writer lock",
     "eligible":"requires explicit archive action; commit may still return stale/blocker conflict after revalidation",
     "reactivation":"explicit action with fresh conflict validation"
   },
   "dispatch_location":{
     "customer_neutrality":"do not show Customer ownership/preference as editable Dispatch Location fields",
-    "address_source":"label current address as Standalone or Site-derived when useful; Site-derived address edits navigate to/execute the LLD-08 Site owner rather than writing Dispatch Location address",
+    "address_source":"label current address as Standalone or Site-derived when useful; Site-derived address edits navigate to/execute LLD-08 Site owner rather than writing Dispatch Location address",
     "operation_role":"delivery/pickup/return role is selected/stored by consuming logistics workflow, not edited on location master"
   },
   "settings":{
@@ -44,5 +46,6 @@
     "validation":"semantic owner errors remain field/action specific",
     "secrets":"ordinary Settings surface never receives raw secret values belonging to LLD-12"
   },
-  "conflict_rule":"Every edit/archive/reactivate/channel/account-code/setting mutation carries the last accepted revision/equivalent precondition; STALE_REVISION reloads current state and preserves user's recoverable working copy under LLD-10 rules."
+  "no_change":"NO_CHANGE is presented as successful already-current state without pretending a domain change occurred; UI does not invent a history/audit event for it.",
+  "conflict_rule":"Every edit/archive/reactivate/channel/account-code/setting mutation carries last accepted revision/equivalent precondition; STALE_REVISION or REVIEW_CONTEXT_STALE reloads current state and preserves recoverable working copy under LLD-10 rules."
 }
