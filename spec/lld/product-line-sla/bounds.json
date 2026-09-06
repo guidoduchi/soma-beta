@@ -23,11 +23,13 @@
     "comparison":"integer cross-multiplication only; never binary floating point"
   },
   "duration":{
-    "policy_representation":"maximum_duration_seconds INTEGER",
-    "range":"1..3155760000",
-    "input":"exact decimal days/hours accepted only when conversion yields an integral number of seconds; no rounding",
-    "source_suspension":"ExactDuration rational seconds numerator/positive denominator supplied by source owner; canonical reduction required",
-    "arithmetic":"integer/rational exact comparison; clamp elapsed at zero before tier comparison"
+    "representation":"reduced rational seconds numerator/positive denominator",
+    "numerator_range":"1..9223372036854775807 after validated unit conversion and reduction",
+    "denominator_range":"1..1000000000",
+    "policy_input":"exact finite decimal days/hours/seconds converted to a rational number of seconds and reduced without rounding",
+    "non_fault_derivation":"Minor maximum duration multiplied by exact 3/2 then reduced; no integral-second assumption",
+    "source_suspension":"ExactDuration using same rational contract supplied by accepted source owner",
+    "arithmetic":"cross-multiply with checked/bounded Python integers; clamp elapsed at zero before tier comparison"
   },
   "reporting":{
     "period_types":["daily","weekly","monthly","selected_range"],
