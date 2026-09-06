@@ -1,0 +1,28 @@
+{
+  "schema":"SOMA-HLD-PACKET-V1",
+  "id":"HLD-10",
+  "name":"Communications Evidence",
+  "status":"review_ready",
+  "purpose":"Define read-only local PST/OST source processing, canonical message identity, operational links, proposals, coverage, background processing, terminal unlink/orphan purge and communication summaries without acquiring owning-domain lifecycle authority.",
+  "primary_requirement_ids":["BETA-REQ-0111","BETA-REQ-0112","BETA-REQ-0113","BETA-REQ-0114","BETA-REQ-0115","BETA-REQ-0116","BETA-REQ-0117","BETA-REQ-0118","BETA-REQ-0119","BETA-REQ-0120","BETA-REQ-0121","BETA-REQ-0122"],
+  "supporting_requirement_ids":["BETA-REQ-0019","BETA-REQ-0089","BETA-REQ-0091","BETA-REQ-0135","BETA-REQ-0136","BETA-REQ-0146","BETA-REQ-0161"],
+  "decisions":[
+    {"id":"HLD10-D001","decision":"Communication Source Scope, canonical Communication identity, entity links, domain proposals, MSG drafts, background jobs and orphan housekeeping are distinct authorities and never implicit cross-writes."},
+    {"id":"HLD10-D002","decision":"Beta 1.0 communication ingestion is local/read-only PST/OST processing only; SOMA does not connect to mail services or mutate external stores."},
+    {"id":"HLD10-D003","decision":"Automatic processing is target-gated by a versioned registry of accepted operational identities; descriptive/master/reference data alone is not trackable identity."},
+    {"id":"HLD10-D004","decision":"Canonical message identity is immutable and scoped to one Source Scope; provider-stable identity is preferred and deterministic versioned fallback identity is used only when required."},
+    {"id":"HLD10-D005","decision":"Only matched/protected communications persist as reconstructable content; one canonical message can hold independently addressable links to many governed entities."},
+    {"id":"HLD10-D006","decision":"Communication-derived domain facts are proposals only. Owning-domain commands perform every accepted SR/RFC/Inventory/Objectives mutation after fresh validation."},
+    {"id":"HLD10-D007","decision":"RFC direct Communication unlink occurs only after separately confirmed local terminal cascade, never merely from provider terminal evidence/import acceptance."},
+    {"id":"HLD10-D008","decision":"After the final protected dependency is removed, reconstructable content enters a default seven-exact-day orphan grace; due purge revalidates dependencies transactionally and preserves only non-reconstructable minimized evidence."},
+    {"id":"HLD10-D009","decision":"Forward coverage/high-water, targeted backfill and explicit Deep Scan are separate operations; unknown source chronology remains unknown and no job may claim unprocessed coverage."},
+    {"id":"HLD10-D010","decision":"Communication Processing uses one coalesced per-scope pipeline and durable background jobs; orphan housekeeping is a separate idempotent scheduler."},
+    {"id":"HLD10-D011","decision":"Generated MSG draft identity is distinct from a later observed sent Communication; artifact generation/export never proves sending."},
+    {"id":"HLD10-D012","decision":"Workbench communication summaries are projections of canonical links/coverage; terminal summaries freeze minimized counts/chronology before governed unlink and never preserve hidden message bodies."}
+  ],
+  "packet_files":["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
+  "downstream_hld_ids":["HLD-11","HLD-12","HLD-13","HLD-14"],
+  "downstream_lld_ids":["LLD-09"],
+  "unresolved_here_by_design":["exact PST/OST/MSG parsing library and supported subset","exact Source Scope provider-origin identity fields","exact fallback canonicalization byte contract","exact durable job/checkpoint tables and retry limits","exact orphan-grace configurable min/max limits","exact search-index implementation for retained communication content"],
+  "completion_evidence":{"required_packet_files_present":true,"source_scope_message_link_proposal_boundaries_fixed":true,"terminal_unlink_and_orphan_purge_fixed":true,"coverage_and_job_model_fixed":true,"ready_for_owner_review":true}
+}
