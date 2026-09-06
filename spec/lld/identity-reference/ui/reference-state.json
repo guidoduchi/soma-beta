@@ -9,28 +9,40 @@
   "candidate_states":[
     {"state":"UNRESOLVED","ui_rule":"offer explicit create/select-alternative workflow only where owning domain permits; do not create automatically"},
     {"state":"UNIQUE_CANDIDATE","ui_rule":"show immutable candidate identity and supporting exact-match evidence; candidate is not an implicit accepted link"},
-    {"state":"AMBIGUOUS","ui_rule":"show all bounded qualified candidates with scope/evidence; require explicit operator resolution or stronger evidence"}
+    {"state":"AMBIGUOUS","ui_rule":"show exact candidate_count plus bounded/paginated qualified candidates with scope/evidence; require explicit resolution or stronger evidence; page size never changes ambiguity"}
   ],
+  "customer_account_code":{
+    "preferred_evidence":"surface exact Account Code match separately from display-name evidence",
+    "conflict":"ACCOUNT_CODE_CONFLICT_REVIEW shows existing claimant count/identities through bounded paging and offers reviewed resolve/reassign/preserve-shared-claim actions; no default winner",
+    "shared_claim":"when more than one active canonical claimant exists, label the code as ambiguous/reviewed shared evidence rather than unique ownership",
+    "history":"superseded claims remain visible on explicit history surface"
+  },
   "contact_affiliation":{
     "current":"show current Customer Organization or Unbound",
-    "history":"history surface lists closed affiliations without rewriting the Contact identity",
+    "history":"history surface is paginated and lists closed affiliations without rewriting Contact identity",
     "mismatch_warning":"when consuming domain reports Contact-current-affiliation != operation Customer context, show warning/review choices; never silently reassign or duplicate Contact"
   },
+  "contact_channels":{
+    "optional":"Contact editor permits zero channels",
+    "current":"active/archived channels are explicit and paginated when needed",
+    "recipient_action":"recipient-dependent workflows request ValidateContactChannelForUse; MISSING/ARCHIVED/INVALID blocks only that communication-dependent action and offers eligible alternate Contact/channel or governed channel registration where the owning workflow permits",
+    "safety":"recipient values render strictly as text; LLD-10 must not inject raw channel values as HTML"
+  },
   "archive":{
-    "preview":"show every dependency blocker grouped by owning domain with safe_next_action",
-    "blocked":"Archive command disabled/failed with fresh blocker set; UI must not offer cascade unlink/delete as an implicit workaround",
+    "preview":"show exact blocker count and bounded paginated blockers grouped in deterministic validator/domain order with safe_next_action",
+    "blocked":"Archive command may return blocker-with-preview-required after transactional guard; UI refreshes read-only preview instead of expecting blocker enumeration under the writer lock",
     "eligible":"requires explicit archive action; commit may still return stale/blocker conflict after revalidation",
     "reactivation":"explicit action with fresh conflict validation"
   },
   "dispatch_location":{
     "customer_neutrality":"do not show Customer ownership/preference as editable Dispatch Location fields",
     "address_source":"label current address as Standalone or Site-derived when useful; Site-derived address edits navigate to/execute the LLD-08 Site owner rather than writing Dispatch Location address",
-    "operation_role":"delivery/pickup/return role is selected/stored by the consuming logistics workflow, not edited on the location master"
+    "operation_role":"delivery/pickup/return role is selected/stored by consuming logistics workflow, not edited on location master"
   },
   "settings":{
     "source_badge":"distinguish DEFAULT from PERSISTED without creating a row",
     "validation":"semantic owner errors remain field/action specific",
-    "secrets":"ordinary Settings surface never receives raw secret values that belong to LLD-12"
+    "secrets":"ordinary Settings surface never receives raw secret values belonging to LLD-12"
   },
-  "conflict_rule":"Every edit/archive/reactivate/setting write carries the last accepted revision; STALE_REVISION reloads current state and preserves the user's recoverable working copy under LLD-10 rules."
+  "conflict_rule":"Every edit/archive/reactivate/channel/account-code/setting mutation carries the last accepted revision/equivalent precondition; STALE_REVISION reloads current state and preserves user's recoverable working copy under LLD-10 rules."
 }
