@@ -1,0 +1,26 @@
+{
+  "schema":"SOMA-LLD-TESTS-V1",
+  "lld_id":"LLD-03",
+  "scenarios":[
+    {"id":"LLD03-T001","name":"sr_internal_identity_survives_official_adoption","prove":["manual SR starts with LSR-########","reviewed official eight-digit assignment preserves service_request_id/local_sr_no/relationships/history","later exact source resolves same row"]},
+    {"id":"LLD03-T002","name":"lsr_allocator_nonreuse","prove":["sequence begins LSR-00000001","concurrent creations serialize within UoW","rollback returns allocator state with no phantom committed ID","committed ID never reused"]},
+    {"id":"LLD03-T003","name":"official_sr_uniqueness","prove":["same eight-digit official identity cannot belong to two SRs","presentation SR/TT labels do not enter stored identity","malformed/truncated values rejected"]},
+    {"id":"LLD03-T004","name":"rfc_exact_identity","prove":["NC+14 accepted","longer value containing canonical substring rejected by domain parser","recognized source branch artifact is staged/skipped rather than resolving base RFC","exact manual/source adoption preserves rfc_id"]},
+    {"id":"LLD03-T005","name":"rfc_roles_are_derived","prove":["standalone becomes master after child edge","child is subordinate","no role column exists","detaching child recomputes both roles"]},
+    {"id":"LLD03-T006","name":"rfc_forest_invariants","prove":["self link rejected","parent that is subordinate rejected","child that already parents another rejected","second active parent rejected","depth-three/cycle impossible at DB/application boundary"]},
+    {"id":"LLD03-T007","name":"no_child_count_business_cap","prove":[">20 valid subordinate RFCs remain representable/queryable","keyset pagination returns stable pages","no arbitrary domain rejection"]},
+    {"id":"LLD03-T008","name":"rfc_customer_branch_consistency","prove":["known different Customers block hierarchy mutation","unknown Customer permits hierarchy with explicit warning","Infrastructure-only evidence cannot set RFC Customer"]},
+    {"id":"LLD03-T009","name":"reparent_preserves_history","prove":["old edge becomes superseded with closing command/time","new edge gets new immutable identity","RFC/WFM identities unchanged","post-history reparent requires high-risk reviewed context"]},
+    {"id":"LLD03-T010","name":"master_only_sr_link","prove":["root/master accepts direct SR link","subordinate direct link rejected","subordinate-origin action resolves proposal to governing root and preserves origin provenance"]},
+    {"id":"LLD03-T011","name":"sr_rfc_lifecycle_independence","prove":["link/unlink active or terminal SR/RFC does not reopen/restart/close/archive/cancel either ticket","no SLA reset or terminal cascade is triggered"]},
+    {"id":"LLD03-T012","name":"sr_rfc_link_idempotency","prove":["duplicate active link -> NO_CHANGE receipt only","already-absent unlink -> NO_CHANGE receipt only","lost-response retry cannot later become mutation"]},
+    {"id":"LLD03-T013","name":"inherited_sr_context","prove":["subordinate obtains SR context from parent root query","no subordinate sr_rfc_link row is fabricated","reparent changes current inherited context while old edge/link history remains"]},
+    {"id":"LLD03-T014","name":"standalone_rfc_device_reference","prove":["RFC with no SR links can hold Device References","subordinate can hold different set from master","branch UI keeps provenance per owning RFC"]},
+    {"id":"LLD03-T015","name":"device_reference_regularization_preserves_links","prove":["unregistered Device Reference participates in SR/RFC workflow","LLD-08 resolution to Network Element leaves device_reference_id and all link rows unchanged","no network_element_id shortcut exists in ticket relationship tables"]},
+    {"id":"LLD03-T016","name":"equal_device_names_do_not_merge","prove":["two Device References may have equal operational_name","name/hostname candidate does not authorize identity merge/resolution"]},
+    {"id":"LLD03-T017","name":"rfc_archive_is_local_only","prove":["archive changes only selected/revalidated local_archive_state members","provider lifecycle/source reconciliation continues","SR links/hierarchy/Task/Communication state unchanged"]},
+    {"id":"LLD03-T018","name":"working_notes_are_local","prove":["source import cannot edit/remove notes","edit preserves original creation time","remove records prior content/time in audit","owner FK prevents orphan note"]},
+    {"id":"LLD03-T019","name":"stale_relationship_preview","prove":["hierarchy/SR-link preview is advisory","changed base revision/hierarchy before commit causes stale/review result","no stale preview authorizes mutation"]},
+    {"id":"LLD03-T020","name":"strict_schema_and_fk_indexes","prove":["all LLD-03 tables STRICT","all FK child columns have leading-prefix indexes","append/history rows reject forbidden delete/rewrite","migration verifier detects missing guard/index"]}
+  ]
+}
