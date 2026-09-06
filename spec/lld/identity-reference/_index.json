@@ -1,0 +1,15 @@
+{
+  "schema":"SOMA-LLD-PACKET-V1",
+  "id":"LLD-02",
+  "name":"Identity, Settings, Contacts, Organizations, Locations",
+  "status":"drafting",
+  "requirement_ids":["BETA-REQ-0010","BETA-REQ-0021","BETA-REQ-0022","BETA-REQ-0023","BETA-REQ-0024","BETA-REQ-0025","BETA-REQ-0026","BETA-REQ-0028","BETA-REQ-0029","BETA-REQ-0030","BETA-REQ-0031","BETA-REQ-0034","BETA-REQ-0136"],
+  "supporting_requirement_ids":["BETA-REQ-0020","BETA-REQ-0027","BETA-REQ-0032","BETA-REQ-0033","BETA-REQ-0035","BETA-REQ-0058","BETA-REQ-0067","BETA-REQ-0165","BETA-REQ-0173","BETA-REQ-0177"],
+  "hld_dependencies":["HLD-03","HLD-13","HLD-14"],
+  "foundation_dependency":"LLD-01 connection/UoW/idempotency/audit/strict-JSON/error conventions",
+  "scope":["shared opaque domain-ID convention","singleton Local User Profile metadata identity","Customer Organization identity/lifecycle","Contact identity/channels/affiliation history/lifecycle","Dispatch Location identity/current-address boundary/lifecycle","deterministic exact candidate matching","cross-domain archive dependency-validator contract","typed setting value registry"],
+  "not_owned_here":["password verifier/auto-login/session security -> LLD-12","Site/Room/Rack/Network Element persistence -> LLD-08","Spare Request requester/logistics snapshots -> LLD-07","ticket handler/requester assignment -> LLD-03","source reconciliation workflow/proposals -> LLD-03/04","frontend component implementation -> LLD-10"],
+  "required_directories":["schema","commands","queries","algorithms","ui","tests"],
+  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"implementation_ready":false},
+  "design_principle":"Reference identity is immutable and reusable; descriptive equality produces candidates only, lifecycle preserves history, and cross-domain dependencies are validated through owned interfaces inside the same UnitOfWork."
+}
