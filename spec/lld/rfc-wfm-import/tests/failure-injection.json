@@ -1,0 +1,26 @@
+{
+  "schema":"SOMA-LLD-FAILURE-TESTS-V1",
+  "lld_id":"LLD-04",
+  "scenarios":[
+    {"id":"LLD04-F001","cut":"after durable check job commit before discovery","prove":"restart recovers/retries job; no ImportRun/domain mutation is fabricated"},
+    {"id":"LLD04-F002","cut":"after ImportRun validating creation before any row","prove":"run remains unpublished; restart may fail/restart it; no source presence/checkpoint mutation"},
+    {"id":"LLD04-F003","cut":"mid unpublished staging batches","prove":"partial rows excluded from review/domain/replay authority; restart never marks them complete without EOF/fingerprint/count verification"},
+    {"id":"LLD04-F004","cut":"after EOF before PublishStagedImportRun","prove":"run still validating; no proposals/source authority/checkpoint; deterministic republish/reparse safe"},
+    {"id":"LLD04-F005","cut":"during exact-replay staging cleanup","prove":"cleanup+terminal transition failure leaves validating/no domain history; retry can safely clean/reparse; no duplicate published observations survive"},
+    {"id":"LLD04-F006","cut":"after newer-identical run enters noop_pending_checkpoint before checkpoint command","prove":"domain unchanged; restart identifies pending technical checkpoint update; idempotent command advances checkpoint once then run noop"},
+    {"id":"LLD04-F007","cut":"during newer-identical checkpoint update before run noop","prove":"checkpoint and run transition share one UoW and both roll back; no checkpoint/run disagreement"},
+    {"id":"LLD04-F008","cut":"after new source observations published before proposal acceptance","prove":"source presence/history survives restart; no target mutation has occurred; pending proposals remain reviewable"},
+    {"id":"LLD04-F009","cut":"inside proposal acceptance after owning RFC/WFM mutation but before accepted disposition","prove":"same UoW rolls back owner mutation, receipt/audit and disposition; proposal stays pending"},
+    {"id":"LLD04-F010","cut":"inside terminal RFC acceptance after terminal projection but before LLD-03 pending cascade rows","prove":"LLD-03 same-UoW contract rolls back terminal projection; never terminal-without-required-proposal"},
+    {"id":"LLD04-F011","cut":"cross-domain mutation service attempts nested commit","prove":"test double/framework rejects nested commit; outer UnitOfWork remains sole transaction authority"},
+    {"id":"LLD04-F012","race":"target revision/base token changes after proposal review before accept","prove":"IMPORT_PROPOSAL_STALE; no accepted disposition/domain mutation; old proposal evidence retained"},
+    {"id":"LLD04-F013","race":"Customer reference generation changes between candidate proposal and accept","prove":"base token changes, stale acceptance blocked; ambiguity never guessed"},
+    {"id":"LLD04-F014","race":"RFC hierarchy changes after subordinate-origin SR link proposal","prove":"LLD-03 governing-root revalidation rejects stale target; no direct subordinate link fabricated"},
+    {"id":"LLD04-F015","race":"Task plan/execution lock changes before WFM plan proposal accept","prove":"LLD-05 base token rejects stale source-plan consequence; source observation remains intact"},
+    {"id":"LLD04-F016","cut":"run finalization after run state calculation before checkpoint write","prove":"run final state/checkpoint/audit share one UoW; rollback leaves run review state unchanged and checkpoint old"},
+    {"id":"LLD04-F017","cut":"equal-chronology recovery after domain corrections before recovery event/checkpoint replacement","prove":"recovery completion contract fails closed; checkpoint not silently replaced; commands are idempotently resumable from recorded per-proposal dispositions"},
+    {"id":"LLD04-F018","cut":"older recovery completion","prove":"accepted correction evidence may survive per-target commits but final recovery event is appended exactly once; source checkpoint chronology never decreases"},
+    {"id":"LLD04-F019","cut":"one target in multi-selection accept fails","prove":"each independently safe proposal has its own atomic result; failed target does not roll back already committed unrelated target and UI reports every target; no silent skip"},
+    {"id":"LLD04-F020","race":"a formerly equivalent rejected proposal becomes materially different","prove":"material-input fingerprint differs so suppression no longer applies; new current-state proposal may be reviewed while old rejection remains immutable"}
+  ]
+}
