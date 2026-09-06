@@ -1,0 +1,108 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-05",
+  "queries":[
+    {
+      "name":"TaskList",
+      "input":["filters kind|execution_state|review_state|objective_id|rfc_id|sr_id|historical|operational_count_inclusion","cursor","limit"],
+      "returns":["task_id","kind","display_name/task_no","owning_rfc context for WFM","current operational plan","membership/objective tracking id","derived execution/review state","provider lifecycle summary for WFM","warning codes"],
+      "ordering":"current operational-plan start nulls last, then task_id; alternate explicit sort registries allowed",
+      "rule":"cursor pagination never changes exact total semantics and never treats provider status as Task execution/outcome"
+    },
+    {
+      "name":"TaskWorkbench",
+      "input":["task_id","snapshot"],
+      "returns":["immutable identity/kind","Local Task name or WFM Task No.","WFM owning RFC + derived root/subordinate/SR context","current provider source projection/source plan","current operational Task plan + history summary","current Objective membership with pinned plan revision","actual execution projection/history summary","current reviewed Task outcome/reviewed_at","effective plan/membership locks and reasons","retry predecessor/successor/activity lineage","direct SR/RFC/Device Reference relationships permitted by kind","operational-count inclusion","pending source-terminal/regroup/historical warnings"],
+      "rule":"source plan, current operational plan, membership-pinned plan, Objective envelope and actual execution are rendered as distinct named facts"
+    },
+    {
+      "name":"ObjectiveList",
+      "input":["filters execution_state|aggregate_outcome|review_attention|archive|customer|rfc|sr|date_range|operational_count","cursor","limit","Objective timezone"],
+      "returns":["objective_id","tracking_id","derived current monthly ordinal","envelope start/end","aggregate execution/review state/outcome","member exact count","included/excluded counts","derived Customer/RFC/SR/Device context summary","warning codes"],
+      "ordering":"effective start in selected Objective timezone/UTC instant then objective_id; unscheduled current Objectives do not exist",
+      "rule":"Customer/RFC/SR/Device filters derive through Tasks and never require Objective-owned duplicate relationship columns"
+    },
+    {
+      "name":"ObjectiveWorkbench",
+      "input":["objective_id","snapshot"],
+      "returns":["stable identity/tracking_id","derived monthly ordinal structure {timezone,year_month,ordinal,effective_start_basis}","reviewed envelope from membership-pinned Task plans","current Task rows with current-plan-vs-pinned-plan mismatch indicators","derived SR/RFC/Device/Customer contexts with provenance","aggregate execution/review state","Task-level actual execution and outcome","current valid Objective review or stale-review marker","archive/supersession state","predecessor/successor context derived from Task retries","source-terminal and missing-related-WFM warnings","operational-count inclusion disclosure"],
+      "rule":"the Objective never exposes editable direct SR/RFC/Device/Inventory relationships"
+    },
+    {
+      "name":"ObjectiveContextByTaskRelationships",
+      "input":["objective_id","snapshot","cursor","limit"],
+      "returns":["context rows typed sr|rfc|device|customer with source_task_id and relationship provenance","exact totals by context type"],
+      "rules":["Local Task SR/RFC links are direct Task relationships","WFM RFC context comes from its owning RFC; SR context derives through governing-root SR links","Device context is direct Task-to-DeviceReference only","RFC/customer unresolved state remains explicit"]
+    },
+    {
+      "name":"GroupingProposalList",
+      "input":["state/risk/origin filters","cursor","limit"],
+      "returns":["proposal id/kind/risk/input fingerprint","affected Task exact count","affected Objective exact count","summary diff","warnings","created time"],
+      "rule":"large proposal membership is not materialized in list rows"
+    },
+    {
+      "name":"GroupingProposalDetail",
+      "input":["proposal_id","task_change_cursor/limit","objective_change_cursor/limit"],
+      "returns":["exact persisted input fingerprint","expected revisions","paged exact Task changes","paged exact Objective changes","current stale/equivalent-rejection classification","Customer/RFC/work-package explanatory partitions","overlap component envelope"],
+      "rule":"preview never reinterprets a stale proposal as current; caller must explicitly recompute"
+    },
+    {
+      "name":"TaskGroupingEligibility",
+      "input":["task_id","snapshot","as_of_utc"],
+      "returns":["eligible boolean","classification ordinary_future|unscheduled|cancelled|terminal_history|started_or_protected|competing_attempt|plan_membership_mismatch|historical_candidate","current plan revision/interval","current membership/lock/source revisions"],
+      "rule":"wall-clock passage alone does not create plan/membership locks; ordinary automatic creation uses future/noncancelled eligibility while historical provider-Complete structure uses its separate proposal path"
+    },
+    {
+      "name":"ObjectiveOverlapNeighbors",
+      "input":["start_utc","end_utc","exclude objective ids","snapshot_or_uow"],
+      "returns":["current nonsuperseded Objective ids/envelopes satisfying start < candidate_end AND end > candidate_start"],
+      "rule":"exact touch is excluded; authoritative acceptance uses current UnitOfWork version of this query"
+    },
+    {
+      "name":"ObjectiveMonthlyOrdinal",
+      "input":["objective_id","IANA Objective timezone","snapshot"],
+      "returns":["year_month or null","ordinal or null","effective_start_utc or null","basis actual_start|planned_start|none","timezone"],
+      "algorithm":"choose aggregate actual_start_utc when known else objective envelope start_utc; convert only for calendar month bucket/presentation; within same bucket order by effective_start_utc then immutable objective_id and return 1-based position",
+      "rules":["current ordinal is derived and may recalculate","cross-month Objective belongs to effective start month","historical completed report labels are frozen by reporting owner rather than this live query"]
+    },
+    {
+      "name":"ObjectiveReviewQueue",
+      "input":["as_of_utc","filters","cursor","limit"],
+      "returns":["Objective rows whose aggregate is awaiting_review or whose prior review fingerprint is stale","reason codes due_unreviewed|lost_last_executable|mixed_outcomes|corrected_after_review"],
+      "rule":"due is a projection from accepted plan/execution state; it never fabricates Task outcome or actual end"
+    },
+    {
+      "name":"WfmSourceTerminalReviewQueue",
+      "input":["state=pending","cursor","limit"],
+      "returns":["task id/task no","provider lifecycle/status evidence ref","source projection revision","local execution/objective context","exact input fingerprint","impact summary"],
+      "rule":"provider Complete/Plan Cancel may be visible here without any local termination having occurred"
+    },
+    {
+      "name":"HistoricalObjectiveProposalList",
+      "input":["state filters","cursor","limit"],
+      "returns":["proposal","WFM task no","provider Complete provenance","operational plan interval/revision","overlap/conflict warning","state"],
+      "rule":"no actual execution/outcome fields are inferred from provider completion"
+    },
+    {
+      "name":"RfcTerminalTaskCascadePreview",
+      "owner_interface":"LLD-03 RfcTerminalTaskParticipant",
+      "input":["exact RFC cascade proposal snapshot"],
+      "returns":["captured applicable WFM identities/revisions/task_nos","affected Objective ids","surviving executable counts","objectives that would acquire warning","in-progress Objectives that would lose final executable Task","INDETERMINATE if complete bounded authority cannot be established"],
+      "rule":"read-only preview preserves provider WFM status and excludes unrelated Local Tasks"
+    },
+    {
+      "name":"TaskHardDeletePreview",
+      "input":["task_id","snapshot"],
+      "returns":["eligible|blocked|indeterminate","protected-history reason codes","exact draft-dependent rows","cross-domain dependency classification"],
+      "rule":"detail is bounded/paged; commit reruns complete indexed guards in current UoW"
+    },
+    {
+      "name":"ObjectiveHardDeletePreview",
+      "input":["objective_id","snapshot"],
+      "returns":["eligible|blocked","current member ids/count","protected-history reasons","exact preview fingerprint"],
+      "rule":"only untouched manual Objective correction path can be eligible; Task identities are retained unless separately eligible/deleted"
+    }
+  ],
+  "pagination":{"strategy":"deterministic keyset cursors signed/validated by server transport policy","default_limit":100,"max_limit":1000,"exact_totals":"computed separately or maintained as exact projection/count query; never page length"},
+  "read_consistency":"Workbench/review previews use one LLD-01 stable read snapshot. Authoritative acceptance re-reads all safety-critical revisions/relationships under current UnitOfWork."
+}
