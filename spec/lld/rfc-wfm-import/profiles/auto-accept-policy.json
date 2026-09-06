@@ -1,0 +1,28 @@
+{
+  "schema":"SOMA-LLD-AUTO-ACCEPT-POLICY-V1",
+  "lld_id":"LLD-04",
+  "policy_id":"RFC_WFM_AUTO_ACCEPT_V1",
+  "mutation_classes":[],
+  "automatic_non_mutations":[
+    "exact logical replay at same accepted chronology/fingerprint -> run NO_CHANGE/no domain mutation",
+    "newer candidate chronology with identical accepted logical fingerprint -> bounded source-check recency/checkpoint update only; no per-entity source observation duplication or domain mutation",
+    "proposal whose computed target change set is empty -> system no_change disposition"
+  ],
+  "always_review_or_block":[
+    "RFC terminal status entry/correction/reversal",
+    "RFC hierarchy or reparenting",
+    "RFC Customer/ownership reconciliation",
+    "WFM parent RFC correction/adoption with ownership consequence",
+    "material WFM source-plan change or operational-plan reconciliation",
+    "provisional RFC Implement-eligibility",
+    "SR-link candidate acceptance",
+    "competing WFM attempt/activity-lineage disposition",
+    "older-source recovery",
+    "equal-chronology different-content conflict",
+    "any disappearance/empty-population interpretation",
+    "any Objective regrouping consequence",
+    "identity conflict or branch-artifact correction"
+  ],
+  "rationale":"The accepted contracts permit safe auto-accept only from an explicit low-risk allowlist but do not require RFC/WFM mutations to auto-accept. Beta 1.0 starts with an empty mutation allowlist until representative operational evidence justifies a separately accepted policy expansion. This does not turn replay/no-op handling into a review burden because those paths mutate no domain authority.",
+  "evolution":"Any nonempty mutation allowlist requires a new policy version with exact proposal kinds/change classes, risk proof and acceptance fixtures; existing runs retain the policy version used."
+}
