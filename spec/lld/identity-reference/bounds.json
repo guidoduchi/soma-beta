@@ -1,22 +1,31 @@
 {
   "schema":"SOMA-LLD-BOUNDS-V1",
   "lld_id":"LLD-02",
-  "policy":"Bounds are field-specific semantic contracts. Backend rejects overflow with actionable validation; it never truncates. UTF-8 byte count is len(value.encode('utf-8')).",
+  "policy":"Bounds are field-specific semantic contracts. Backend rejects overflow with actionable validation; it never truncates. UTF-8 byte count is len(value.encode('utf-8')). Pure preflight enforces raw bounds before normalization/parser expansion; post-normalization bounds are enforced again where applicable.",
   "text_fields":[
     {"field":"local_user_profiles.username","min_utf8_bytes":1,"max_utf8_bytes":512,"max_lines":1,"reject":["NUL","CR","LF"]},
     {"field":"customer_organizations.name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
     {"field":"customer_org_identifiers.value_text:customer_account_code","min_utf8_bytes":1,"max_utf8_bytes":512,"max_lines":1,"reject":["NUL","CR","LF"],"rule":"complete accepted value is normalized under UNICODE_MATCH_V1; no truncation/substr extraction"},
     {"field":"contacts.name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
-    {"field":"contact_channels.value_text","min_utf8_bytes":1,"max_utf8_bytes":2048,"max_lines":1,"reject":["NUL","CR","LF"],"additional":"channel-kind definition may impose a lower bound/grammar; email matching uses the complete accepted value and no truncation"},
+    {"field":"contact_channels.value_text","min_utf8_bytes":1,"max_utf8_bytes":2048,"max_lines":1,"reject":["NUL","CR","LF","C0/C1 controls"],"additional":"channel-kind definition may impose a lower bound/grammar; EMAIL_CHANNEL_V1 validates complete value and performs no truncation/DNS lookup"},
     {"field":"dispatch_locations.name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
-    {"field":"dispatch_locations.standalone_address_text","min_utf8_bytes":1,"max_utf8_bytes":8192,"max_lines":32,"reject":["NUL"],"newline":"normalize accepted CRLF/CR input to LF before validation/persistence only when the address field contract explicitly receives multiline text"},
+    {"field":"dispatch_locations.standalone_address_text","min_utf8_bytes":1,"max_utf8_bytes":8192,"max_lines":32,"reject":["NUL"],"newline":"normalize accepted CRLF/CR input to LF before validation/persistence only for this multiline address contract"},
     {"field":"matching normalized key","min_utf8_bytes":1,"max_utf8_bytes":2048,"max_lines":1,"reject":["NUL","CR","LF"]},
-    {"field":"reference_lifecycle_events.reason_category","max_utf8_bytes":128,"max_lines":1,"rule":"closed code/category value where supplied, not arbitrary narrative"}
+    {"field":"reference_lifecycle_events.reason_category","max_utf8_bytes":128,"max_lines":1,"rule":"closed code/category value where supplied, not arbitrary narrative"},
+    {"field":"review_context_id","min_utf8_bytes":1,"max_utf8_bytes":256,"max_lines":1,"reject":["NUL","CR","LF"],"rule":"opaque reference to governed review evidence, never free-form review narrative"}
   ],
+  "page_policy":{
+    "default_items":50,
+    "max_items":200,
+    "cursor":"opaque bounded server-issued cursor; invalid/oversized cursor rejected rather than interpreted as SQL",
+    "rules":["candidate/blocker/list/history pages use these defaults unless a more restrictive owning contract applies","visible page size never changes exact ambiguity/eligibility state","ordinary navigation uses keyset cursors rather than OFFSET over large tables"]
+  },
   "collections":[
-    {"field":"Contact active channels returned in one entity detail","pagination":"cursor when implementation dataset exceeds measured UI batch; no authoritative total cap"},
-    {"field":"archive dependency blockers","max_response_items":500,"overflow":"return bounded deterministic page plus exact total/continuation; eligibility uses complete has_blocker/exact_count and never treats omitted details as absence"},
-    {"field":"candidate IDs in AMBIGUOUS result","max_response_items":200,"overflow":"return exact total + deterministic cursor; state remains AMBIGUOUS regardless of visible page"}
+    {"field":"Contact active/archive channel list","page_policy":"default 50 / max 200; no unbounded Contact detail expansion"},
+    {"field":"Contact affiliation history","page_policy":"default 50 / max 200"},
+    {"field":"Customer Account Code claim/history list","page_policy":"default 50 / max 200"},
+    {"field":"archive dependency blockers","page_policy":"default 50 / max 200","overflow":"exact_count + continuation; never treat omitted blockers as eligibility"},
+    {"field":"candidate IDs in AMBIGUOUS result","page_policy":"default 50 / max 200","overflow":"exact candidate_count + continuation; state remains AMBIGUOUS regardless of visible page"}
   ],
   "settings":"Each SettingDefinition supplies its own max_utf8_bytes/depth/collection bounds; LLD-02 has no universal setting-value size constant beyond LLD-01 absolute parser safety ceilings.",
   "ui_handoff":"LLD-10 may show grapheme-aware counters/warnings for human-facing fields, but server acceptance remains governed by these field-specific bounds and semantic validators."
