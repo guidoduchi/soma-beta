@@ -1,0 +1,56 @@
+{
+  "schema": "SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id": "HLD-01",
+  "upstream_authority": [
+    "spec/requirements/CP001/BETA-REQ-0001.json",
+    "spec/requirements/CP001/BETA-REQ-0002.json",
+    "spec/requirements/CP001/BETA-REQ-0004.json",
+    "spec/requirements/CP001/BETA-REQ-0005.json",
+    "spec/requirements/CP001/BETA-REQ-0006.json",
+    "spec/requirements/CP001/BETA-REQ-0007.json",
+    "spec/requirements/CP001/BETA-REQ-0009.json",
+    "spec/requirements/CP006/BETA-REQ-0138.json",
+    "spec/requirements/CP006/BETA-REQ-0140.json",
+    "spec/authority/implementation-clarifications.json",
+    "docs/ARCHITECTURE.md"
+  ],
+  "required_hld_dependencies": [
+    {
+      "id": "HLD-02",
+      "provides": ["authoritative SQLite boundary", "migration/readiness gate", "connection ownership", "durable runtime/job state"]
+    },
+    {
+      "id": "HLD-11",
+      "provides": ["browser client architecture", "interaction state", "workbench shell", "client-side failure/reload behavior"]
+    },
+    {
+      "id": "HLD-13",
+      "provides": ["exact local-run trust", "origin/anti-forgery controls", "encryption", "backup/recovery", "diagnostics security"]
+    },
+    {
+      "id": "HLD-14",
+      "provides": ["transaction semantics", "audit/history rules", "temporal authority", "idempotency", "derived-state rules"]
+    }
+  ],
+  "dependency_direction": [
+    "browser -> local application boundary",
+    "local application boundary -> application services/domain owners",
+    "application services/domain owners -> HLD-02 persistence interfaces",
+    "source adapters -> staging/proposals -> application services/domain owners",
+    "background coordinator -> durable job state + application service commands",
+    "domain owners -> explicit cross-domain interfaces/projections only"
+  ],
+  "forbidden_dependency_direction": [
+    "browser -> SQLite/files as authoritative mutation",
+    "source adapter -> domain table mutation",
+    "background job -> domain table mutation outside application transactions",
+    "domain module -> another domain module's private tables/files",
+    "diagnostics/cache/runtime registry -> domain truth",
+    "frontend framework -> domain model ownership",
+    "Alpha schema/migration code -> Beta runtime migration lineage"
+  ],
+  "downstream_lld": [
+    "LLD-01 Foundation Runtime",
+    "LLD-12 Security / Packaging"
+  ]
+}
