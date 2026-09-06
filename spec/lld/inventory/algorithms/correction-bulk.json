@@ -1,0 +1,16 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-07",
+  "name":"INVENTORY_CORRECTION_BULK_V1",
+  "correction_classification":[
+    "false_event: accepted event did not occur; append exact targeted suppression/correction where contract permits",
+    "relationship_correction: exact Inventory relation was wrong; close/supersede that relation and append reviewed replacement without changing participating identities",
+    "identifier_alias_correction: preserve entity and former SR7/C10 alias; establish new current alias",
+    "material_submitted_fault_tag_correction: never edit submitted membership; require replacement Fault Tag",
+    "genuine_later_development: not a correction; route to normal lifecycle command such as rejection/resend"
+  ],
+  "bulk_preflight":["load exact target projections/dependencies under stable snapshot","partition all requested targets into eligible/incompatible/stale/missing_input/individual_review","build canonical fingerprint from action kind + ordered exact eligible target identities/revisions/material dependencies","display every partition; never silently skip"],
+  "bulk_commit":["inside one UnitOfWork re-read every intended eligible target","any stale/incompatible intended target aborts whole accepted scope","insert one command receipt and one batch identity","append one independent lifecycle event/result for each target","rebuild every affected projection","audit batch plus per-target result references and commit atomically"],
+  "correction_after_bulk":"A later correction targets one event/relationship identity from the batch and does not reverse unaffected batch members.",
+  "hard_delete":"dependency preview is exact and fail-closed; only genuinely untouched draft-like records may be physically removed, allocator/audit/history rules still survive."
+}
