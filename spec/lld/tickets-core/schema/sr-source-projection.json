@@ -1,0 +1,72 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-03",
+  "purpose":"Persist compact accepted Advanced Search field deltas and a fast current source-owned SR projection without retaining whole workbook rows or letting source data overwrite SOMA-owned relationships/history.",
+  "field_registry":{
+    "active":["problem_summary","report_date","customer_contact_label","customer_severity","current_handler_label","status","customer_org_label","customer_account_code","suspend_planned_end","suspension_duration","last_update"],
+    "identity":"SRNo is service_requests.official_sr_no and is not duplicated as a mutable field observation",
+    "future_use_provenance":["resolve_by","resolve_by_suspend","owner","l2_assignee","l3_assignee","related_sr","authorization_no","escalation_no","pr_number"],
+    "rule":"future-use fields have provenance-only authority in Beta 1.0 and cannot drive relationships/SLA/Infrastructure/Inventory/UI workflow unless separately activated by accepted requirement"
+  },
+  "tables":[
+    {
+      "name":"sr_source_field_observations",
+      "columns":[
+        "sr_source_field_observation_id TEXT PRIMARY KEY",
+        "service_request_id TEXT NOT NULL REFERENCES service_requests(service_request_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "field_key TEXT NOT NULL",
+        "value_kind TEXT NOT NULL CHECK(value_kind IN ('text','instant','duration_seconds','controlled'))",
+        "text_value TEXT",
+        "integer_value INTEGER",
+        "source_chronology_utc INTEGER NOT NULL CHECK(source_chronology_utc>=0)",
+        "source_evidence_id TEXT NOT NULL",
+        "accepted_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)",
+        "CHECK((value_kind IN ('text','controlled') AND text_value IS NOT NULL AND integer_value IS NULL) OR (value_kind IN ('instant','duration_seconds') AND text_value IS NULL AND integer_value IS NOT NULL))"
+      ],
+      "rules":[
+        "only accepted usable allowlisted values are inserted as field observations",
+        "unchanged accepted values are not redundantly appended merely because a newer workbook repeats them",
+        "unknown/malformed/blank/missing evidence is represented by staging/review findings and does not insert a replacing usable observation unless field contract explicitly authorizes clearing",
+        "source_evidence_id references the accepted import/reconciliation evidence identity supplied by the HLD-05/LLD-03 Advanced Search pipeline; exact table FK is resolved with that pipeline before packet completion",
+        "BEFORE UPDATE/DELETE raises SR_SOURCE_OBSERVATION_APPEND_ONLY"
+      ]
+    },
+    {
+      "name":"sr_current_source_projection",
+      "purpose":"rebuildable current source-owned values selected field-by-field from newest accepted usable observations",
+      "columns":[
+        "service_request_id TEXT PRIMARY KEY REFERENCES service_requests(service_request_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "problem_summary_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "report_date_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "customer_contact_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "customer_severity_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "current_handler_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "status_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "customer_org_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "customer_account_code_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "suspend_planned_end_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "suspension_duration_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "last_update_observation_id TEXT REFERENCES sr_source_field_observations(sr_source_field_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)"
+      ],
+      "rules":[
+        "projection row is derived/rebuildable and owns no unique history",
+        "each pointer must reference an observation for the same Service Request and expected field_key; database/application verification enforces this",
+        "current field selection uses source chronology and field-specific usability, not whole-row recency",
+        "missing/blank/unknown newer evidence never clears a prior recognized value unless explicit field rule permits clearing"
+      ]
+    }
+  ],
+  "indexes":[
+    "CREATE INDEX idx_sr_source_field_history ON sr_source_field_observations(service_request_id,field_key,source_chronology_utc,sr_source_field_observation_id)",
+    "CREATE INDEX idx_sr_source_evidence ON sr_source_field_observations(source_evidence_id,service_request_id,field_key)"
+  ],
+  "status_rules":[
+    "recognized Closed/Resolved/Cancelled source status may establish terminal current presentation",
+    "missing/blank/unknown status cannot erase recognized terminal evidence",
+    "terminal-to-nonterminal reversal requires separate high-risk reviewed correction and preserves prior terminal observation",
+    "source disappearance is a reviewed warning/evidence state and never deletes/archives/finalizes the SR"
+  ],
+  "privacy_storage":"full source workbook rows/copies and unallowlisted fields are not stored as generic SR history; only bounded accepted deltas/provenance required by contract persist."
+}
