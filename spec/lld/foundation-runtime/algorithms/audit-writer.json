@@ -1,0 +1,16 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-01",
+  "name":"AuditWriter",
+  "input_contract": {
+    "required":["audit_event_id","action_type","action_version","actor_kind","target_type","command_id","payload_schema","payload_version","payload"],
+    "optional":["actor_id","target_id","reason_category","correlation_id","job_id","import_run_id","proposal_id","batch_id","resulting_event_refs"],
+    "recorded_at_utc":"assigned by AuditWriter from canonical UTC whole-second clock at insertion preparation; caller does not supply arbitrary recording time"
+  },
+  "validation_order":["action_type + action_version resolve exact static payload contract","core identifiers/types/bounds validate","reason category validates against action contract when required","payload passes StrictVersionedJson and action-specific closed allowlist","sensitivity classifier confirms prohibited fields/content categories absent","resulting event references are bounded exact type+identity pairs","canonical stored payload is serialized with allow_nan=false and UTF-8 byte bound rechecked"],
+  "insert_order_inside_uow":["command idempotency already resolved","command_receipt inserted for the accepted command","plain INSERT audit_events","plain INSERT audit_event_results in deterministic ordinal order","no commit inside AuditWriter"],
+  "error_policy":["unknown action contract -> AUDIT_ACTION_UNKNOWN","invalid/oversized/sensitive payload -> AUDIT_PAYLOAD_INVALID","duplicate audit identity -> AUDIT_DUPLICATE_ID integrity failure","database insert failure -> AUDIT_PERSISTENCE_FAILURE","any required audit failure aborts/rolls back the owning authoritative command"],
+  "append_only_enforcement":["repository exposes no update/delete API","database triggers reject UPDATE/DELETE","migrations verify trigger identities/behavior before readiness","ordinary cleanup/retention/job code has no audit deletion capability"],
+  "correction_rule":"correction/reversal/deletion records use a new audit_event_id and minimal payload referencing exact prior identity/action/evidence as allowed; prior audit row/payload is never edited",
+  "payload_registry_ownership":"LLD-01 defines validator/registry mechanics; each domain LLD must register its action payload schemas before that command can be implementation-ready"
+}
