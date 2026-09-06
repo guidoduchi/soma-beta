@@ -1,0 +1,99 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-01",
+  "tables":[
+    {
+      "name":"schema_migrations",
+      "purpose":"accepted migration ledger",
+      "columns":[
+        "sequence INTEGER PRIMARY KEY CHECK(sequence > 0)",
+        "migration_id TEXT NOT NULL UNIQUE",
+        "sha256 TEXT NOT NULL CHECK(length(sha256)=64)",
+        "applied_at_utc INTEGER NOT NULL CHECK(applied_at_utc >= 0)",
+        "app_version TEXT NOT NULL"
+      ],
+      "mutation":"insert only through migration runner; accepted rows are never edited/deleted by ordinary runtime"
+    },
+    {
+      "name":"command_receipts",
+      "purpose":"committed-command idempotency before audit insertion",
+      "columns":[
+        "command_id TEXT PRIMARY KEY",
+        "command_type TEXT NOT NULL",
+        "request_hash TEXT NOT NULL CHECK(length(request_hash)=64)",
+        "target_type TEXT NOT NULL",
+        "target_id TEXT",
+        "committed_at_utc INTEGER NOT NULL CHECK(committed_at_utc >= 0)",
+        "result_type TEXT",
+        "result_id TEXT"
+      ],
+      "rules":["insert in same authoritative transaction as accepted mutation/audit","same command_id + same request_hash returns committed result without new audit","same command_id + different request_hash is integrity failure","failed/rolled-back command creates no committed receipt"]
+    },
+    {
+      "name":"audit_events",
+      "purpose":"application-boundary append-only audit ledger",
+      "columns":[
+        "audit_event_id TEXT PRIMARY KEY",
+        "action_type TEXT NOT NULL",
+        "action_version INTEGER NOT NULL CHECK(action_version > 0)",
+        "recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc >= 0)",
+        "actor_kind TEXT NOT NULL",
+        "actor_id TEXT",
+        "target_type TEXT NOT NULL",
+        "target_id TEXT",
+        "reason_category TEXT",
+        "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "correlation_id TEXT",
+        "job_id TEXT",
+        "import_run_id TEXT",
+        "proposal_id TEXT",
+        "batch_id TEXT",
+        "payload_schema TEXT NOT NULL",
+        "payload_version INTEGER NOT NULL CHECK(payload_version > 0)",
+        "payload_json TEXT NOT NULL CHECK(json_valid(payload_json))"
+      ],
+      "bounds":{"payload_utf8_bytes_max":16384,"payload_depth_max":6,"payload_object_members_max":64,"payload_array_items_max":64},
+      "protection":["BEFORE UPDATE trigger raises AUDIT_APPEND_ONLY","BEFORE DELETE trigger raises AUDIT_APPEND_ONLY","INSERT uses plain INSERT; duplicate audit_event_id is an integrity failure; no INSERT OR IGNORE/REPLACE"]
+    },
+    {
+      "name":"audit_event_results",
+      "purpose":"immutable references from one audit event to resulting lifecycle/domain events without copying event bodies",
+      "columns":[
+        "audit_event_id TEXT NOT NULL REFERENCES audit_events(audit_event_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "ordinal INTEGER NOT NULL CHECK(ordinal >= 0)",
+        "result_type TEXT NOT NULL",
+        "result_id TEXT NOT NULL",
+        "PRIMARY KEY(audit_event_id, ordinal)",
+        "UNIQUE(audit_event_id, result_type, result_id)"
+      ],
+      "protection":["BEFORE UPDATE trigger raises AUDIT_APPEND_ONLY","BEFORE DELETE trigger raises AUDIT_APPEND_ONLY"]
+    },
+    {
+      "name":"durable_jobs",
+      "purpose":"restart-safe technical/workflow coordination; never domain lifecycle authority",
+      "columns":[
+        "job_id TEXT PRIMARY KEY",
+        "job_type TEXT NOT NULL",
+        "contract_version INTEGER NOT NULL CHECK(contract_version > 0)",
+        "state TEXT NOT NULL CHECK(state IN ('queued','running','waiting_review','retry_wait','completed','failed','cancelled'))",
+        "created_at_utc INTEGER NOT NULL CHECK(created_at_utc >= 0)",
+        "updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc >= created_at_utc)",
+        "attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0)",
+        "next_attempt_at_utc INTEGER",
+        "payload_json TEXT NOT NULL CHECK(json_valid(payload_json))",
+        "checkpoint_json TEXT CHECK(checkpoint_json IS NULL OR json_valid(checkpoint_json))",
+        "last_error_code TEXT"
+      ],
+      "bounds":{"payload_utf8_bytes_max":65536,"checkpoint_utf8_bytes_max":65536,"depth_max":8,"collection_items_max":512},
+      "rules":["job payload/checkpoint contracts are named by job_type + contract_version","no credentials/unrestricted communication bodies/whole provider payloads","job state cannot substitute for domain acceptance state"]
+    }
+  ],
+  "indexes":[
+    "CREATE INDEX idx_audit_recorded_at ON audit_events(recorded_at_utc)",
+    "CREATE INDEX idx_audit_target ON audit_events(target_type, target_id, recorded_at_utc)",
+    "CREATE INDEX idx_audit_command ON audit_events(command_id)",
+    "CREATE INDEX idx_jobs_state_due ON durable_jobs(state, next_attempt_at_utc)",
+    "CREATE INDEX idx_jobs_type_state ON durable_jobs(job_type, state)"
+  ],
+  "schema_rules":["STRICT tables are preferred for foundation tables where supported by the approved SQLite runtime","foreign-key child columns must have effective leading-prefix indexes unless an explicit measured exception exists","domain tables are added only by their owning LLD/migrations","runtime registry and diagnostics are external technical state, not SQLite tables"]
+}
