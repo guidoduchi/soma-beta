@@ -7,12 +7,14 @@
       "visibility":"internal cross-packet command invoked by LLD-04 accepted reconciliation; not a raw workbook route",
       "input":["rfc_id","base RFC/projection revisions","accepted field delta set with immutable source_evidence_ids","status vocabulary classification/authority when Status changes","review context when terminal reversal/high-risk correction applies","command_id"],
       "steps":[
-        "inside shared UoW load exact RFC/current projection/hierarchy",
+        "inside shared UoW load exact RFC/current projection/hierarchy and resolve idempotent replay before mutation",
         "validate accepted evidence identities and LLD-04 precedence through RfcSourceEvidenceProvider",
+        "determine the exact current-field changes and any terminal-epoch/cascade effect",
+        "insert command receipt before any projection/cascade row that references command_id; rollback removes the receipt on any later failure",
         "apply only accepted usable current field changes",
         "for transition into terminal allocate terminal_epoch_id and atomically capture/insert exact pending cascade proposal and immutable RFC/WFM membership",
         "for terminal reversal require exact fresh high-risk review, clear current terminal epoch and supersede any still-pending proposal for that epoch without undoing executed history",
-        "insert receipt/audit and commit with the owning reconciliation transaction"
+        "append minimal audit/result references and commit with the owning reconciliation transaction"
       ],
       "rules":[
         "source acceptance never overwrites RFC hierarchy, SR links, Device Reference links, Working Notes, archive state or canonical Customer without their governed commands",
@@ -36,11 +38,12 @@
       "input":["pending proposal_id","base proposal revision","scope_fingerprint","deliberate_action_proof","command_id"],
       "steps":[
         "verify deliberate action proof against authenticated session/proposal revision/fingerprint",
-        "inside one UoW revalidate same current terminal epoch/evidence and exact RFC/WFM membership",
+        "inside one UoW resolve idempotent replay, revalidate same current terminal epoch/evidence and exact RFC/WFM membership",
         "if any scope/member/revision differs return RFC_TERMINAL_CASCADE_STALE with no mutation",
+        "insert command receipt before participant/domain rows can reference command_id; rollback removes it on participant failure",
         "invoke LLD-05 Task/Objective participant and LLD-09 Communication participant using this same UoW",
         "if any participant fails or is indeterminate roll back everything and keep proposal pending",
-        "insert receipt/audit/result references, transition proposal to executed, commit atomically"
+        "transition proposal to executed, append minimal audit/result references, commit atomically"
       ],
       "rules":["safe auto-accept cannot call this command","SRs and unrelated Local Tasks are never cascade targets","provider WFM evidence is never rewritten"]
     },
@@ -53,7 +56,7 @@
         "if no member changes return semantic NO_CHANGE",
         "allocate archive operation ID and insert receipt/operation row",
         "transition only active reviewed members to archived and increment revisions",
-        "insert immutable operation membership plus archived event for each changed member",
+        "insert immutable operation membership plus archived event for each changed member using resulting RFC revision as event order",
         "audit exact changes and commit"
       ],
       "rules":["archive affects RFC local presentation only","pre-existing archived members are never claimed by this operation","branch archive requires explicit exact preview"]
@@ -63,10 +66,10 @@
       "input":["rfc_archive_operation_id","command_id"],
       "steps":[
         "inside UoW load immutable operation membership",
-        "for each member read current archive state and latest archive event",
+        "for each member read current archive state and latest-by-resulting-revision archive event",
         "select only members still archived by this exact origin operation; later restored/rearchived members are excluded",
         "if no member remains eligible return semantic NO_CHANGE",
-        "insert receipt, transition eligible members to active/increment revision, append restored events referencing origin operation, audit per-member outcomes, commit"
+        "insert receipt, transition eligible members to active/increment revision, append restored events with resulting revisions referencing origin operation, audit per-member outcomes, commit"
       ],
       "rules":["restore never activates a member this operation did not itself archive","source lifecycle/status and downstream domains remain untouched"]
     },
