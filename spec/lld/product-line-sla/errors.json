@@ -1,0 +1,31 @@
+{
+  "schema":"SOMA-LLD-ERRORS-V1",
+  "lld_id":"LLD-06",
+  "errors":[
+    ["SLA_CATALOG_NOT_FOUND",404,"Requested Product Line/Contract/CPL/policy/classification target does not exist."],
+    ["SLA_CATALOG_ARCHIVED",409,"Requested catalog target is not eligible for the new active operation."],
+    ["SLA_CONTRACT_CUSTOMER_IMMUTABLE",409,"Ordinary edit cannot transfer a Contract to another Customer Organization."],
+    ["SLA_CPL_POLICY_MISSING",409,"Contract Product Line has no current accepted SLA policy and is not eligible for active classification."],
+    ["SLA_POLICY_INVALID",422,"Policy percentages/durations/severity structure or derived Non-fault tiers violate POLICY_VALIDATION_V1."],
+    ["SLA_POLICY_STALE",409,"Contract Product Line/current-policy revision changed since preview."],
+    ["SLA_CLASSIFICATION_CUSTOMER_UNRESOLVED",409,"Service Request Customer Organization is unresolved; no CPL may be fabricated."],
+    ["SLA_CLASSIFICATION_CROSS_CUSTOMER",409,"Target Contract Product Line belongs to a different Customer Organization."],
+    ["SLA_CLASSIFICATION_MAPPING_MISSING",409,"No active trusted classification mapping applies."],
+    ["SLA_CLASSIFICATION_MAPPING_AMBIGUOUS",409,"More than one active trusted mapping applies; operator review is required."],
+    ["SLA_CLASSIFICATION_STALE",409,"Service Request Customer/source/CPL/policy/classification state changed since preview."],
+    ["SLA_CLASSIFICATION_INCOMPATIBLE",409,"Target CPL is inactive, policyless or otherwise incompatible with current SR Customer state."],
+    ["SLA_INPUT_INDETERMINATE",503,"Accepted SR/source/customer input required for authoritative SLA evaluation could not be determined safely."],
+    ["SLA_REPORT_SCOPE_INVALID",422,"Report period, timezone-derived boundary, Customer scope or destination request is invalid."],
+    ["SLA_REPORT_ATTEMPT_STATE",409,"Report attempt is not in the required state for this transition."],
+    ["SLA_REPORT_SNAPSHOT_MISMATCH",409,"Persisted staged count/hash/section result does not match the exact snapshot generation."],
+    ["SLA_REPORT_CONTRIBUTOR_FAILED",503,"A required report section contributor failed or returned indeterminate/incomplete output."],
+    ["SLA_REPORT_ARTIFACT_WRITE_FAILED",503,"XLSX artifact could not be produced completely."],
+    ["SLA_REPORT_ARTIFACT_VERIFY_FAILED",503,"Generated artifact failed reopen/shape/count/hash verification and cannot become completed evidence."],
+    ["SLA_REPORT_COMPLETED_IMMUTABLE",409,"Completed report evidence cannot be updated, cancelled, minimized or cleaned by this operation."],
+    ["SLA_REPORT_CANCEL_UNSAFE",409,"Report job cannot be cancelled at the requested instant; cancellation waits for the next safe boundary."],
+    ["SLA_DEPENDENCY_INDETERMINATE",503,"Cross-domain lifecycle/classification/report dependency could not be classified safely; mutation is blocked."],
+    ["SLA_STALE",409,"A required revision or exact input fingerprint changed; refresh and review again."]
+  ],
+  "projection_states_not_errors":["unclassified","missing_report_date","severity_unresolved","cancelled_excluded","pending","currently_met","at_risk","breached","final_met"],
+  "rule":"Missing chronology/classification and live compliance states are truthful domain projection states, not transport failures. Errors are reserved for invalid commands, unsafe ambiguity, stale authority, persistence/job/artifact failures or indeterminate dependencies."
+}
