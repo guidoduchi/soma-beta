@@ -1,0 +1,15 @@
+{
+  "schema":"SOMA-HLD-OWNERSHIP-V1",
+  "hld_id":"HLD-12",
+  "owners":[
+    {"concept":"Tickets summary","authority":"HLD-04 source + HLD-12 projection","notes":"Counts/status/historical placement derive from accepted ticket state."},
+    {"concept":"Objective summary/timeline","authority":"HLD-06 source + HLD-12 projection","notes":"Association derives through Tasks; plan/execution layers remain distinct."},
+    {"concept":"Inventory summary","authority":"HLD-08 source + HLD-12 projection","notes":"Needs/allocations/RMAs/returns/warehouse/action-required positions remain constituent-aware."},
+    {"concept":"Infrastructure summary","authority":"HLD-09 source + HLD-12 projection","notes":"Read-only registered/placement/regularization context."},
+    {"concept":"Communication summary","authority":"HLD-10 source + HLD-12 projection","notes":"Counts/age/coverage derive from canonical links and frozen terminal summaries."},
+    {"concept":"SLA/cohort summary","authority":"HLD-07 source + HLD-12 projection","notes":"Current/live state or immutable report evidence remains explicitly identified."},
+    {"concept":"Needs Attention","authority":"HLD-12 ranking over owning-domain warning/action-required projections","notes":"Ranking/presentation never becomes lifecycle authority."},
+    {"concept":"Operational narrative","authority":"HLD-12 deterministic formatter over accepted projections","notes":"Not editable truth and not a source of domain mutations."}
+  ],
+  "scope_rule":"Customer Organization and period scope are explicit immutable-identity/time query parameters. Unassigned/multi/unresolved conditions stay representable and never disappear because a filter expects a resolved owner."
+}
