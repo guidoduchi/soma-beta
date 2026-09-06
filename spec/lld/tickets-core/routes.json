@@ -1,0 +1,37 @@
+{
+  "schema":"SOMA-LLD-ROUTES-V1",
+  "lld_id":"LLD-03",
+  "prefix":"/api/v1",
+  "routes":[
+    {"method":"POST","path":"/api/v1/tickets/service-requests","handler":"CreateManualServiceRequest","success":201},
+    {"method":"GET","path":"/api/v1/tickets/service-requests/{service_request_id}","handler":"GetServiceRequest","success":200},
+    {"method":"POST","path":"/api/v1/tickets/service-requests/{service_request_id}/attach-official-id","handler":"AttachOfficialServiceRequestIdentity","success":200},
+    {"method":"POST","path":"/api/v1/tickets/rfcs","handler":"CreateOrAdoptRfcIdentity","success":201},
+    {"method":"GET","path":"/api/v1/tickets/rfcs/{rfc_id}","handler":"GetRfc","success":200},
+    {"method":"POST","path":"/api/v1/tickets/rfcs/{rfc_id}/customer","handler":"SetRfcCustomer","success":200},
+    {"method":"POST","path":"/api/v1/tickets/rfcs/{parent_rfc_id}/subordinates","handler":"RfcHierarchyService.add_subordinate","success":200},
+    {"method":"POST","path":"/api/v1/tickets/rfcs/{child_rfc_id}/reparent","handler":"RfcHierarchyService.reparent","success":200},
+    {"method":"POST","path":"/api/v1/tickets/rfcs/{child_rfc_id}/detach","handler":"RfcHierarchyService.detach","success":200},
+    {"method":"GET","path":"/api/v1/tickets/rfcs/{root_rfc_id}/branch","handler":"GetRfcBranch","success":200},
+    {"method":"POST","path":"/api/v1/tickets/service-requests/{service_request_id}/rfcs","handler":"LinkServiceRequestToRfc","success":200},
+    {"method":"DELETE","path":"/api/v1/tickets/service-requests/{service_request_id}/rfcs/{root_rfc_id}","handler":"UnlinkServiceRequestFromRfc","success":200},
+    {"method":"POST","path":"/api/v1/tickets/device-references","handler":"CreateDeviceReference","success":201},
+    {"method":"PATCH","path":"/api/v1/tickets/device-references/{device_reference_id}","handler":"CorrectDeviceReferenceName","success":200},
+    {"method":"POST","path":"/api/v1/tickets/{ticket_type}/{ticket_id}/device-references/{device_reference_id}","handler":"LinkDeviceReference","success":200},
+    {"method":"DELETE","path":"/api/v1/tickets/{ticket_type}/{ticket_id}/device-references/{device_reference_id}","handler":"UnlinkDeviceReference","success":200},
+    {"method":"POST","path":"/api/v1/tickets/rfcs/{rfc_id}/archive","handler":"ArchiveRfc","success":200},
+    {"method":"POST","path":"/api/v1/tickets/rfcs/{rfc_id}/restore","handler":"RestoreRfc","success":200},
+    {"method":"GET","path":"/api/v1/tickets/{ticket_type}/{ticket_id}/notes","handler":"ListWorkingNotes","success":200},
+    {"method":"POST","path":"/api/v1/tickets/{ticket_type}/{ticket_id}/notes","handler":"AddWorkingNote","success":201},
+    {"method":"PATCH","path":"/api/v1/tickets/{ticket_type}/{ticket_id}/notes/{working_note_id}","handler":"EditWorkingNote","success":200},
+    {"method":"DELETE","path":"/api/v1/tickets/{ticket_type}/{ticket_id}/notes/{working_note_id}","handler":"RemoveWorkingNote","success":200}
+  ],
+  "auth":"all routes require authenticated local application session; mutating routes additionally require anti-forgery and command_id",
+  "route_rules":[
+    "DELETE on relationship/note routes means governed unlink/remove command, not generic record destruction.",
+    "No ordinary hard-delete RFC endpoint exists until hard-delete eligibility algorithm/route is separately completed and proven.",
+    "ticket_type is a closed enum resolved to static owner code; never concatenated into SQL/table names.",
+    "subordinate SR-origin proposals target governing root; client cannot force a subordinate direct link.",
+    "Device Reference link routes always target device_reference_id and never accept network_element_id as replacement identity."
+  ]
+}
