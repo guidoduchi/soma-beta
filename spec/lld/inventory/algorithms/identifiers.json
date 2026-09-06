@@ -1,0 +1,16 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-07",
+  "name":"INVENTORY_IDENTIFIERS_V1",
+  "rules":[
+    "SPR-########, LSU-######## and FT-######## use their own monotonic allocator kind and zero-padded decimal sequence; allocated sequence is never reused after correction or hard deletion",
+    "official Spare Request id is exactly SR followed by seven digits; C10 is exactly C followed by ten digits; canonical comparison is ordinal ASCII after trim and no case folding is needed because accepted form is uppercase",
+    "SR7/C10 assignment checks current and former alias tables globally; a former value is non-reusable",
+    "identifier correction preserves owning internal entity, demotes current alias to former and appends one new current alias in the same UnitOfWork",
+    "LSU is SOMA display identity for manual/legacy/extracted local units and never replaces spare_part_unit_id",
+    "BOM/serial normalization generates matching keys only; equality creates duplicate/reconciliation candidate and never identity merge",
+    "temporary tracking identity and official provider identity remain independently visible in history and communication matching"
+  ],
+  "exhaustion":"allocator next_sequence=100000000 is sentinel; allocation fails before any entity mutation",
+  "tests":["leading-zero preservation","global former-alias non-reuse","allocator rollback/retry","same business identifier cannot select/merge a different internal entity"]
+}
