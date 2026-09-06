@@ -7,6 +7,9 @@
     {"method":"POST","path":"/api/v1/reference/customer-organizations","handler":"CreateCustomerOrganization","auth":"authenticated local application session + anti-forgery","success":201},
     {"method":"GET","path":"/api/v1/reference/customer-organizations/{customer_org_id}","handler":"GetReferenceById","auth":"authenticated local application session","success":200},
     {"method":"PATCH","path":"/api/v1/reference/customer-organizations/{customer_org_id}","handler":"UpdateReferenceDescriptiveData","auth":"authenticated local application session + anti-forgery","success":200},
+    {"method":"PUT","path":"/api/v1/reference/customer-organizations/{customer_org_id}/customer-account-code","handler":"SetCustomerAccountCode","auth":"authenticated local application session + anti-forgery","success":200},
+    {"method":"GET","path":"/api/v1/reference/customer-organizations/{customer_org_id}/customer-account-code/history","handler":"GetCustomerAccountCodeHistory","auth":"authenticated local application session","success":200},
+    {"method":"POST","path":"/api/v1/reference/customer-account-code/reassign","handler":"ReassignCustomerAccountCode","auth":"authenticated local application session + anti-forgery + reviewed conflict context","success":200},
 
     {"method":"GET","path":"/api/v1/reference/contacts","handler":"ListActiveReferences(contact)","auth":"authenticated local application session","success":200},
     {"method":"POST","path":"/api/v1/reference/contacts","handler":"CreateContact","auth":"authenticated local application session + anti-forgery","success":201},
@@ -31,9 +34,10 @@
     {"method":"PUT","path":"/api/v1/settings/{setting_key}","handler":"WriteSetting","auth":"authenticated local application session + anti-forgery","success":200}
   ],
   "route_rules":[
-    "There is no DELETE route for Customer Organization, Contact, Dispatch Location, affiliation history, or lifecycle evidence in LLD-02.",
+    "There is no DELETE route for Customer Organization, Contact, Dispatch Location, external-identifier history, affiliation history, or lifecycle evidence in LLD-02.",
     "All mutating requests carry command_id and base_revision/equivalent precondition where the target already exists.",
-    "Match routes are pure candidate queries and never create/link/merge records.",
+    "Customer Account Code reassignment is a reasoned reviewed correction and cannot be encoded as an ordinary Customer PATCH.",
+    "Match routes are pure candidate queries and never create/link/merge/assign external identifiers.",
     "Archived records are retrieved by immutable ID/history routes but ordinary active-list selectors exclude them.",
     "CreateDedicatedDispatchLocationForSite is an internal cross-domain application-service interface used by LLD-08, not a public HTTP route.",
     "Local User Profile identity creation is first-run LLD-12 coordination and is not exposed as ordinary reference CRUD.",
