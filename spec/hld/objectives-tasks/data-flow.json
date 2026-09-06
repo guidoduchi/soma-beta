@@ -1,0 +1,78 @@
+{
+  "schema": "SOMA-HLD-DATA-FLOW-V1",
+  "hld_id": "HLD-06",
+  "flows": [
+    {
+      "name": "create_or_plan_task",
+      "steps": [
+        "create Local Task or reference accepted WFM Task identity",
+        "accept or leave absent the operational Task plan",
+        "if created from an Objective envelope, initialize Task plan once from that envelope then treat it as an independent Task fact",
+        "persist Task unscheduled when no complete accepted interval exists",
+        "when schedulable, evaluate grouping proposal against all eligible Tasks"
+      ]
+    },
+    {
+      "name": "group_tasks",
+      "steps": [
+        "select eligible Tasks with accepted positive-duration intervals",
+        "build global strict-overlap connected components transitively",
+        "keep exact-touch intervals separate unless separately reviewed together",
+        "derive proposed Objective envelope from min Task start and max Task end",
+        "surface Customer/RFC/multi-context only as explanatory warnings/partitions",
+        "if bridging work intersects existing Objectives, propose consolidation instead of accepting overlap",
+        "accept regroup only after revision/lock/non-overlap revalidation in one atomic commit"
+      ]
+    },
+    {
+      "name": "reconcile_wfm_plan",
+      "steps": [
+        "receive immutable provider source-plan evidence from HLD-05",
+        "compare with accepted operational Task plan",
+        "review choices: adopt source, retain manual plan with reason, correct, or remain unresolved",
+        "recompute Objective grouping/envelope proposal only when current history/locks permit",
+        "never alter actual execution chronology from source-plan changes"
+      ]
+    },
+    {
+      "name": "execute_and_review",
+      "steps": [
+        "Objective may enter In-Progress without starting every Task",
+        "start/cancel/complete each Task independently and record actual chronology",
+        "derive due/review queue from accepted execution state without fabricating outcome",
+        "review individual Task outcome and record reviewed_at separately from execution times",
+        "derive Objective aggregate state/outcome from member Task facts",
+        "publish reviewed physical-consequence inputs to Inventory only when explicitly established"
+      ]
+    },
+    {
+      "name": "correct_or_retry",
+      "steps": [
+        "correction targets existing attempt/history and appends new interpretation/evidence",
+        "retry creates a new Task identity linked to predecessor",
+        "retry scheduling re-enters normal grouping rules",
+        "prior attempt identity, outcome and Objective ancestry remain preserved"
+      ]
+    },
+    {
+      "name": "terminal_rfc_effect",
+      "steps": [
+        "consume separately confirmed RFC cascade consequences from HLD-04",
+        "remove/cancel only the applicable active WFM executable work defined by that cascade",
+        "preserve unrelated Local Tasks and unaffected Objective work",
+        "if In-Progress Objective retains executable Tasks, continue with warning",
+        "if none remain, project Incomplete — Awaiting Review rather than auto-completing/cancelling",
+        "preserve all prior Task/Objective history"
+      ]
+    },
+    {
+      "name": "historical_structure",
+      "steps": [
+        "provider Complete plus valid accepted source plan may create a historical-Objective proposal",
+        "review structure without claiming execution/outcome/Inventory facts",
+        "without a usable interval retain terminal unassigned Task history",
+        "optional operational-count exclusion changes only reporting projection and discloses included/excluded populations"
+      ]
+    }
+  ]
+}
