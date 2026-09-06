@@ -1,0 +1,29 @@
+{
+  "schema": "SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id": "HLD-05",
+  "requires": [
+    {"hld_id":"HLD-01","for":"local host/background execution and same-machine file access boundary"},
+    {"hld_id":"HLD-02","for":"durable jobs/checkpoints, short authoritative transactions and typed persistence"},
+    {"hld_id":"HLD-03","for":"Customer/Contact reference identity and deterministic reconciliation targets"},
+    {"hld_id":"HLD-04","for":"SR/RFC/WFM domain identity, hierarchy and lifecycle commands"}
+  ],
+  "consumed_by": [
+    {"hld_id":"HLD-06","for":"accepted WFM source-plan evidence and Task-plan conflict proposals"},
+    {"hld_id":"HLD-07","for":"accepted SR/customer/classification source facts"},
+    {"hld_id":"HLD-11","for":"staging/review/proposal presentation"},
+    {"hld_id":"HLD-12","for":"import warnings and needs-attention projections"},
+    {"hld_id":"HLD-13","for":"parser/resource/sensitive-output security controls"},
+    {"hld_id":"HLD-14","for":"audit/history/transaction semantics"}
+  ],
+  "forbidden_dependencies": [
+    "Adapters must not depend on UI components to establish domain validity.",
+    "Domain entities must not query raw workbook rows as current truth.",
+    "Import jobs must not depend on network availability.",
+    "Source checkpoints must not derive from Communication coverage state.",
+    "Domain lifecycle code must not interpret workbook omission as deletion authority."
+  ],
+  "lld_handoffs": [
+    {"lld_id":"LLD-03","scope":"Advanced Search reconciliation surfaces that create/update Service Request facts"},
+    {"lld_id":"LLD-04","scope":"RFC/WFM discovery, parsing, staging, adoption, replay and review"}
+  ]
+}
