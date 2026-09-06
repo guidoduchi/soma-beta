@@ -57,7 +57,7 @@
     },
     {
       "id": "HLD01-D007",
-      "decision": "HLD-01 intentionally does not select the Python web framework, frontend framework/language/build tool, tray toolkit, installer, port-selection algorithm, or exact browser versions; those are LLD-01/LLD-12 decisions constrained by this topology."
+      "decision": "HLD-01 intentionally does not select implementation technologies beyond the Python-host topology. LLD-01 selects the Python server/host integration and loopback-port mechanics; LLD-10 selects the browser client/frontend framework, language and build tool; LLD-12 selects tray/installer/package integration and supported-browser packaging constraints. All remain constrained by offline operation and no installed Node.js runtime requirement."
     }
   ],
   "packet_files": [
@@ -69,13 +69,13 @@
     "invariants.json"
   ],
   "downstream_hld_ids": ["HLD-02", "HLD-11", "HLD-13", "HLD-14"],
-  "downstream_lld_ids": ["LLD-01", "LLD-12"],
+  "downstream_lld_ids": ["LLD-01", "LLD-10", "LLD-12"],
   "unresolved_here_by_design": [
     "O-006 exact Windows editions/builds, browser versions, runner images, packaging combinations",
     "O-010 exact tray toolkit and low-level background lifecycle implementation",
-    "exact Python server framework",
-    "exact frontend stack/build tooling",
-    "exact loopback port-selection algorithm"
+    "exact Python server framework and loopback port-selection algorithm -> LLD-01",
+    "exact frontend framework/language/build tooling -> LLD-10",
+    "exact tray toolkit, installer technology and browser/package support matrix -> LLD-12"
   ],
   "completion_evidence": {
     "required_packet_files_present": true,
