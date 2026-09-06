@@ -6,7 +6,7 @@
       "name":"GetReferenceById",
       "targets":["CustomerOrganization","Contact","DispatchLocation","LocalUserProfile"],
       "input":["immutable id"],
-      "output":"current reference projection plus revision/lifecycle; Contact includes current affiliation and active channels; Dispatch Location includes current_address projection source",
+      "output":"current reference projection plus revision/lifecycle; Customer Organization includes active Customer Account Code plus identifier history on explicit request; Contact includes current affiliation and active channels; Dispatch Location includes current_address projection source",
       "rules":["historical lookup may return archived records","no query mutates or materializes defaults","Dispatch site-derived address is obtained through SiteDispatchAddressProvider rather than copied from LLD-08 tables"]
     },
     {
@@ -18,8 +18,16 @@
     {
       "name":"MatchCustomerOrganization",
       "algorithm":"algorithms/matching.json customer_org_match",
-      "input":["raw name or other explicitly registered governed key"],
-      "output":"CandidateResult"
+      "input":["optional raw Customer Account Code","optional raw Customer Organization label; at least one governed key required"],
+      "output":"CandidateResult",
+      "rules":["Customer Account Code is preferred stable external evidence","display name alone never authorizes identity mutation","account-code/name conflict returns AMBIGUOUS review state","matcher never assigns/reassigns the code"]
+    },
+    {
+      "name":"GetCustomerAccountCodeHistory",
+      "input":["customer_org_id"],
+      "output":["customer_org_identifier_id","value_text","lifecycle_state","created_at_utc","superseded_at_utc"],
+      "order":"created_at_utc, customer_org_identifier_id",
+      "rule":"superseded claims remain historical evidence and never become current matching authority"
     },
     {
       "name":"MatchContact",
