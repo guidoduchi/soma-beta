@@ -1,0 +1,15 @@
+{
+  "schema":"SOMA-LLD-PACKET-V1",
+  "id":"LLD-04",
+  "name":"RFC/WFM Import and Reconciliation",
+  "status":"drafting",
+  "requirement_ids":["BETA-REQ-0145","BETA-REQ-0146","BETA-REQ-0159","BETA-REQ-0160","BETA-REQ-0176"],
+  "supporting_requirement_ids":["BETA-REQ-0012","BETA-REQ-0013","BETA-REQ-0030","BETA-REQ-0056","BETA-REQ-0059","BETA-REQ-0061","BETA-REQ-0074","BETA-REQ-0147","BETA-REQ-0148","BETA-REQ-0149","BETA-REQ-0150","BETA-REQ-0151","BETA-REQ-0155","BETA-REQ-0156","BETA-REQ-0158","BETA-REQ-0161","BETA-REQ-0165","BETA-REQ-0169","BETA-REQ-0170","BETA-REQ-0172"],
+  "hld_dependencies":["HLD-03","HLD-04","HLD-05","HLD-06","HLD-14"],
+  "foundation_dependencies":["LLD-01 UnitOfWork/idempotency/audit/durable-job/STRICT schema conventions","LLD-02 Customer exact matching interfaces","LLD-03 RFC identity/source-projection/hierarchy/SR-link/terminal-cascade command interfaces"],
+  "scope":["shared RFC/WFM import directory semantics","versioned source profiles/filename classification","safe direct-file discovery and stabilization","untrusted XLSX validation/parser boundary","versioned header/vocabulary registries","immutable import runs and source observations","deterministic logical fingerprint/replay chronology checkpoints","smallest-safe-scope reconciliation proposals/dispositions","explicit older-source recovery","RFC accepted-source handoff to LLD-03","WFM accepted-source proposal handoff to LLD-05","SR-link and Customer reconciliation candidate generation","review/auto-accept classification and preview projections"],
+  "not_owned_here":["RFC authoritative current lifecycle/hierarchy/relationships -> LLD-03","WFM/Task identity/current source projection/operational plan/Objective consequences -> LLD-05","Customer/Contact master identity -> LLD-02","Communication evidence -> LLD-09","frontend implementation -> LLD-10","authentication/anti-forgery -> LLD-12"],
+  "required_directories":["profiles","schema","commands","queries","algorithms","ui","tests"],
+  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"construction_complete":false,"formal_double_review_deferred_until_full_beta_lld_set":true,"implementation_ready":false},
+  "design_principle":"Every workbook is untrusted immutable source evidence first. Discovery, parsing, fingerprinting, presence recording and proposal generation never become domain mutation; accepted changes cross only bounded owning-domain command interfaces after exact-source, chronology, replay and stale-state checks."
+}
