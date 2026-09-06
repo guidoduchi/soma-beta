@@ -1,0 +1,19 @@
+{
+  "schema":"SOMA-HLD-INVARIANTS-V1",
+  "hld_id":"HLD-12",
+  "invariants":[
+    {"id":"HLD12-I001","rule":"Overview/main operational views are derived projections only and never own independent editable operational truth."},
+    {"id":"HLD12-I002","rule":"Every displayed count/card/timeline/warning/narrative item is traceable to accepted owning-domain identities, relationships, events, snapshots or explicit coverage state."},
+    {"id":"HLD12-I003","rule":"Customer/period scope applies consistently across all compatible Overview projections and supports explicit unassigned/unresolved populations where governed."},
+    {"id":"HLD12-I004","rule":"Unknown, partial, stale, excluded and unresolved states remain semantically distinct from zero, healthy, complete, failed or absent."},
+    {"id":"HLD12-I005","rule":"Unsaved working copies, rejected/deferred proposals and unaccepted import/communication observations never affect authoritative Overview values."},
+    {"id":"HLD12-I006","rule":"Objective association shown for tickets derives through Tasks; no direct mutable ticket-Objective relation exists for Overview convenience."},
+    {"id":"HLD12-I007","rule":"SLA monthly membership uses HLD-07 fixed America/Guayaquil cohort authority and is unaffected by Objective display timezone."},
+    {"id":"HLD12-I008","rule":"Resolved Status Date remains discarded and is never displayed, persisted, inferred or reconstructed from another timestamp."},
+    {"id":"HLD12-I009","rule":"MSG drafts never contribute to sent communication counts/interaction age; terminal summaries never reconstruct purged bodies."},
+    {"id":"HLD12-I010","rule":"Inventory mixed/partial states expose constituent counts/positions rather than projecting false aggregate completion."},
+    {"id":"HLD12-I011","rule":"Any materialized/cache read model is disposable and rebuildable from authoritative accepted state; cache contents never authorize domain mutation."},
+    {"id":"HLD12-I012","rule":"Operational narrative is deterministic derived presentation and cannot be edited into domain truth or treated as an independent event source."}
+  ],
+  "acceptance_hooks":["all/specific/unassigned Customer scope consistency","mixed/unknown/partial/stale projection semantics","Task-derived SR Objective context","live vs immutable SLA report context","Communication canonical counts and MSG exclusion","Inventory partial/action-required constituents","no Resolved Status Date reconstruction","cache rebuild and stale-marker behavior","Needs Attention navigation to owning domain","deterministic narrative from typed accepted facts"]
+}
