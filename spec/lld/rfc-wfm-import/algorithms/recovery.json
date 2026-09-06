@@ -2,31 +2,45 @@
   "schema":"SOMA-LLD-ALGORITHM-V1",
   "lld_id":"LLD-04",
   "name":"ImportChronologyRecovery",
-  "input":"staged ImportRun classified CHRONOLOGY_CONTENT_CONFLICT or OLDER_SOURCE_RECOVERY_REQUIRED plus current source-family checkpoint",
+  "input":"published recovery_required ImportRun classified CHRONOLOGY_CONTENT_CONFLICT or OLDER_SOURCE_RECOVERY_REQUIRED plus current source-family checkpoint and its recovery-locked proposals",
   "preview":[
     "show source family/profile, selected candidate physical provenance, candidate chronology, current checkpoint chronology, both logical fingerprints and exact staged proposal/findings counts",
     "for older source, explicitly state that accepting evidence will not make old file/business facts 'new today' and will not infer omission/lifecycle",
-    "compute review_fingerprint over exact run/checkpoint identity + chronology/fingerprints + current proposal material-input fingerprints",
-    "preview mutates nothing"
+    "compute review_fingerprint over exact run identity/revision + checkpoint run identity/revision + both chronologies/fingerprints + ordered current proposal material-input/proposal fingerprints",
+    "preview mutates nothing and all recovery-run proposals remain acceptance-locked until exact authorization"
+  ],
+  "authorization":[
+    "ResolveImportRecovery serializes review_ordinal allocation and appends an immutable import_recovery_review",
+    "authorized review permits subsequent per-proposal accept/reject/defer only while its exact review fingerprint remains current",
+    "authorization does not accept any proposal or mutate RFC/WFM/Task authority",
+    "a later deferred/rejected review for the same current material state closes prior authorization through append-only ordering",
+    "material target/proposal/checkpoint change makes the old fingerprint stale and requires a new preview/review"
   ],
   "equal_chronology_different_content":[
-    "ordinary acceptance is blocked",
-    "review may reject the conflicting run, defer it, or authorize it as a source-correction recovery against the same chronology",
-    "authorized correction keeps prior observations immutable, applies accepted target proposals through normal owning-domain commands, appends import_recovery_event, and may replace the checkpoint fingerprint at the same chronology only after all accepted recovery work is committed consistently",
-    "rejected/deferred correction leaves checkpoint unchanged"
+    "ordinary acceptance is blocked until authorized recovery review",
+    "review may reject the conflicting run, defer it, or authorize source-correction processing against the same chronology",
+    "authorized correction keeps prior observations immutable and applies individually accepted target proposals through normal owning-domain commands",
+    "after all proposals have terminal dispositions, finalization appends import_recovery_event and may replace checkpoint fingerprint/run at the same chronology so future replay is compared against the explicitly processed corrected source set",
+    "rejected/deferred recovery review leaves checkpoint unchanged"
   ],
   "older_source":[
-    "ordinary acceptance is blocked",
-    "review may use the run only as explicit historical/correction evidence and accept individual target proposals through normal stale-safe owning-domain commands",
-    "accepted older recovery appends import_recovery_event and run/disposition evidence but never decrements the source-family checkpoint chronology",
+    "ordinary acceptance is blocked until authorized recovery review",
+    "review may use the run only as explicit historical/correction evidence and process individual target proposals through normal stale-safe owning-domain commands",
+    "accepted older recovery finalization appends import_recovery_event and run/disposition evidence but never decrements or replaces the higher source-family checkpoint chronology",
     "older recovery therefore cannot cause automatic discovery to treat even older files as new or cause omission inference",
     "a later genuinely newer source still compares against the monotonic highest accepted checkpoint"
   ],
+  "rejection":[
+    "rejecting the recovery source set appends decision=rejected review evidence and supersedes every still-pending proposal with recovery-origin dispositions in one metadata UnitOfWork",
+    "run becomes rejected/completed and checkpoint remains unchanged",
+    "already accepted domain proposals cannot exist before authorization; after an authorized partial processing session the operator finalizes rather than using whole-run reject to undo accepted domain history"
+  ],
   "transaction_rules":[
     "each accepted domain proposal remains its own smallest safe UnitOfWork unless an owning-domain invariant requires a bounded atomic group",
-    "recovery-event/checkpoint mutation is committed only after the run reaches a consistent reviewed terminal disposition; crash before that leaves current checkpoint unchanged",
-    "command receipt precedes recovery rows that reference it",
+    "proposal acceptance rechecks both domain base-state token and recovery authorization fingerprint inside its UnitOfWork",
+    "recovery-event/checkpoint/final-run mutation is committed only after the run reaches a consistent reviewed terminal disposition; crash before that leaves current checkpoint unchanged",
+    "command receipt precedes recovery review/event rows that reference it",
     "no recovery path bypasses terminal/hierarchy/customer/timeframe/competing-attempt review requirements"
   ],
-  "idempotency":"Replaying the same reviewed recovery command_id/request hash returns the committed recovery result; a second distinct recovery against unchanged exact run/checkpoint is NO_CHANGE or already-disposed rather than duplicate history."
+  "idempotency":"Replaying the same recovery-review/finalization command_id/request hash returns the committed result. A later distinct review appends a new ordinal; it never overwrites prior review or recovery evidence."
 }
