@@ -85,14 +85,28 @@
   "indexes":[
     "CREATE UNIQUE INDEX uq_rfc_active_parent ON rfc_hierarchy_edges(child_rfc_id) WHERE edge_state='active'",
     "CREATE INDEX idx_rfc_active_children ON rfc_hierarchy_edges(parent_rfc_id,child_rfc_id) WHERE edge_state='active'",
+    "CREATE INDEX idx_rfc_hierarchy_parent_fk ON rfc_hierarchy_edges(parent_rfc_id,rfc_hierarchy_edge_id)",
     "CREATE INDEX idx_rfc_hierarchy_history_child ON rfc_hierarchy_edges(child_rfc_id,opened_at_utc,rfc_hierarchy_edge_id)",
+    "CREATE INDEX idx_rfc_hierarchy_open_command ON rfc_hierarchy_edges(opened_command_id,rfc_hierarchy_edge_id)",
+    "CREATE INDEX idx_rfc_hierarchy_close_command ON rfc_hierarchy_edges(closed_command_id,rfc_hierarchy_edge_id) WHERE closed_command_id IS NOT NULL",
     "CREATE UNIQUE INDEX uq_sr_rfc_active_pair ON sr_rfc_links(service_request_id,rfc_id) WHERE link_state='active'",
     "CREATE INDEX idx_sr_rfc_active_by_rfc ON sr_rfc_links(rfc_id,service_request_id) WHERE link_state='active'",
     "CREATE INDEX idx_sr_rfc_history ON sr_rfc_links(service_request_id,rfc_id,opened_at_utc,sr_rfc_link_id)",
+    "CREATE INDEX idx_sr_rfc_rfc_fk ON sr_rfc_links(rfc_id,sr_rfc_link_id)",
+    "CREATE INDEX idx_sr_rfc_open_command ON sr_rfc_links(opened_command_id,sr_rfc_link_id)",
+    "CREATE INDEX idx_sr_rfc_close_command ON sr_rfc_links(closed_command_id,sr_rfc_link_id) WHERE closed_command_id IS NOT NULL",
     "CREATE UNIQUE INDEX uq_rfc_device_active_pair ON rfc_device_reference_links(rfc_id,device_reference_id) WHERE link_state='active'",
     "CREATE INDEX idx_rfc_device_by_device ON rfc_device_reference_links(device_reference_id,rfc_id) WHERE link_state='active'",
+    "CREATE INDEX idx_rfc_device_rfc_fk ON rfc_device_reference_links(rfc_id,rfc_device_reference_link_id)",
+    "CREATE INDEX idx_rfc_device_device_fk ON rfc_device_reference_links(device_reference_id,rfc_device_reference_link_id)",
+    "CREATE INDEX idx_rfc_device_open_command ON rfc_device_reference_links(opened_command_id,rfc_device_reference_link_id)",
+    "CREATE INDEX idx_rfc_device_close_command ON rfc_device_reference_links(closed_command_id,rfc_device_reference_link_id) WHERE closed_command_id IS NOT NULL",
     "CREATE UNIQUE INDEX uq_sr_device_active_pair ON sr_device_reference_links(service_request_id,device_reference_id) WHERE link_state='active'",
-    "CREATE INDEX idx_sr_device_by_device ON sr_device_reference_links(device_reference_id,service_request_id) WHERE link_state='active'"
+    "CREATE INDEX idx_sr_device_by_device ON sr_device_reference_links(device_reference_id,service_request_id) WHERE link_state='active'",
+    "CREATE INDEX idx_sr_device_sr_fk ON sr_device_reference_links(service_request_id,sr_device_reference_link_id)",
+    "CREATE INDEX idx_sr_device_device_fk ON sr_device_reference_links(device_reference_id,sr_device_reference_link_id)",
+    "CREATE INDEX idx_sr_device_open_command ON sr_device_reference_links(opened_command_id,sr_device_reference_link_id)",
+    "CREATE INDEX idx_sr_device_close_command ON sr_device_reference_links(closed_command_id,sr_device_reference_link_id) WHERE closed_command_id IS NOT NULL"
   ],
   "database_guards":[
     "BEFORE INSERT active rfc_hierarchy_edge rejects parent already appearing as active child",
@@ -102,5 +116,6 @@
     "BEFORE UPDATE of active hierarchy/link rows permits only governed active-to-terminal transition fields; historical rows reject further UPDATE",
     "BEFORE DELETE on hierarchy/link history raises append-only protection"
   ],
+  "index_rule":"Full-history FK indexes are distinct from active-only operational indexes. Partial active indexes cannot satisfy LLD-01 FK child-index coverage for historical rows.",
   "dependency":"device_references table is defined separately in schema/device-references.json after exact descriptive/matching authority is pinned; relationship FKs are part of the accepted LLD-03 schema set and migrations are published only when the complete set resolves."
 }
