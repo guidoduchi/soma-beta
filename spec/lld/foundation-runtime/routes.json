@@ -1,0 +1,56 @@
+{
+  "schema":"SOMA-LLD-ROUTES-V1",
+  "lld_id":"LLD-01",
+  "prefix":"/api/v1",
+  "routes":[
+    {
+      "method":"GET",
+      "path":"/api/v1/runtime/health",
+      "handler":"GetRuntimeHealth",
+      "auth":"LLD-12 authenticated local run-control context",
+      "allowed_host_states":["LISTENING_NOT_READY","READY","QUIESCING"],
+      "success":200,
+      "response":["protocol_version","run_id","data_instance_id","host_state","app_version","migration_sequence","migration_id","integrity_state","started_at_utc"],
+      "rules":["never redirects","never returns reusable secrets","ordinary client readiness requires host_state READY plus LLD-12 verification"]
+    },
+    {
+      "method":"POST",
+      "path":"/api/v1/runtime/shutdown",
+      "handler":"ShutdownHost",
+      "auth":"LLD-12 authenticated local control context + anti-forgery protection",
+      "allowed_host_states":["READY","LISTENING_NOT_READY"],
+      "success":202,
+      "request":["run_id","data_instance_id","command_id"],
+      "response":["shutdown_state","run_id","data_instance_id"],
+      "rules":["exact run/data identity revalidated","idempotent for same committed shutdown command","new mutations are rejected after quiescence begins","never accepts GET"]
+    },
+    {
+      "method":"GET",
+      "path":"/api/v1/runtime/status",
+      "handler":"GetFoundationDiagnosticsState",
+      "auth":"authenticated local application session",
+      "allowed_host_states":["READY"],
+      "success":200,
+      "rules":["technical counts/status only","no secrets/customer bodies/raw exceptions","side-effect free"]
+    },
+    {
+      "method":"GET",
+      "path":"/api/v1/migrations/status",
+      "handler":"GetMigrationStatus",
+      "auth":"authenticated local control/application context when served by live host",
+      "allowed_host_states":["LISTENING_NOT_READY","READY"],
+      "success":200,
+      "rules":["live-host route is observational","offline CLI/status adapter uses the separate race-safe lock + immutable read-only path and is not implemented as a hidden HTTP write"]
+    }
+  ],
+  "global_transport_rules":[
+    "Only exact 127.0.0.1 origin selected by the current run is supported in Beta 1.0; no wildcard/LAN binding.",
+    "LLD-12 middleware validates Host/origin/session/anti-forgery requirements before mutation handlers run.",
+    "Request bodies use explicit Content-Type application/json and bounded byte limits supplied by the owning route/LLD; unknown fields follow the route contract rather than being silently persisted.",
+    "Transport validation produces value objects; Starlette Request/Response objects do not cross into domain/foundation application services.",
+    "All errors use errors.json stable code contract; raw framework/database exceptions are mapped internally.",
+    "No foundation route exposes arbitrary SQL, filesystem path mutation, migration repair, audit deletion/update, or job-state forcing.",
+    "Domain API routes are owned by their domain/UI LLD packets and reuse LLD-01 application boundary/UoW/error conventions rather than importing these route handlers."
+  ],
+  "future_routes_not_owned_here":["login/session routes -> LLD-12","domain CRUD/command/query routes -> LLD-02..LLD-09","UI asset/navigation routes -> LLD-10","backup/restore/export controls -> LLD-12"]
+}
