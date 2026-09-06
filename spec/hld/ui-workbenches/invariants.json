@@ -1,0 +1,23 @@
+{
+  "schema":"SOMA-HLD-INVARIANTS-V1",
+  "hld_id":"HLD-11",
+  "invariants":[
+    {"id":"HLD11-I001","rule":"Focus, active row/node, selected record, multi-selection membership, expansion and opened record remain distinct UI states."},
+    {"id":"HLD11-I002","rule":"Single click selects without opening; double-click/Enter open the active eligible record; nested controls never additionally open the row."},
+    {"id":"HLD11-I003","rule":"Scroll input belongs to the nearest legitimate hovered/focused/gesture-origin scroll surface and never changes selection, accepts a suggestion, opens a record, confirms a hold or submits a command."},
+    {"id":"HLD11-I004","rule":"Autocomplete results are bounded/query-scoped; stale responses cannot replace current results; typed text/similarity never creates an entity or relationship."},
+    {"id":"HLD11-I005","rule":"Responsive reflow preserves all material facts, warnings, evidence, actions, validation, labels, order, keyboard navigation and working-copy state."},
+    {"id":"HLD11-I006","rule":"A deliberate hold lasts one continuous three exact elapsed seconds on a monotonic source and completion only requests a command; domain validation still decides acceptance."},
+    {"id":"HLD11-I007","rule":"Device Reference promotion always uses the deliberate-hold tier and preserves original operational Device Reference identity after successful regularization."},
+    {"id":"HLD11-I008","rule":"Unsaved working copy, accepted revision and persistent domain Draft state are never conflated; unsaved state cannot influence authoritative projections."},
+    {"id":"HLD11-I009","rule":"Stale identity/evidence/lifecycle edits never resolve through last-write-wins; conflicts require reviewed reapplication against current revision."},
+    {"id":"HLD11-I010","rule":"Undo is available only while the exact inverse remains valid/bounded/safe; accepted evidence/lifecycle uses owning-domain history-preserving commands instead."},
+    {"id":"HLD11-I011","rule":"Relationship/context previews never authorize silent entity merge or duplicate authoritative facts across domains."},
+    {"id":"HLD11-I012","rule":"Canonical Communication content exists once under HLD-10 even when displayed from multiple workbenches; drafts remain separate from sent evidence."},
+    {"id":"HLD11-I013","rule":"Unavailable predictable commands expose blocker/remediation when useful; a known-invalid command is not enabled merely to fail later."},
+    {"id":"HLD11-I014","rule":"Bulk preflight partitions every selected target explicitly; no incompatible/stale target is silently skipped or coerced."},
+    {"id":"HLD11-I015","rule":"Skin/appearance/motion choices cannot alter information architecture, workflow, command semantics, status meaning, confirmation friction or accessibility."},
+    {"id":"HLD11-I016","rule":"State/warnings never depend on color, motion, position or a single sensory channel alone; keyboard/pointer/touch preserve equivalent domain results."}
+  ],
+  "acceptance_hooks":["single-click vs double-click/Enter open parity","nested-control no-open behavior","independent nested scroll ownership","bounded autocomplete with stale-response supersession","wide/narrow workbench capability/state preservation","three-second hold cancel/revalidate/one-command behavior","dirty-vs-Draft-vs-accepted revision","stale conflict no-LWW","independent action-scoped Undo expiration","relationship preview no-identity-merge","bulk explicit partitions and per-target results","skin/light/dark/high-contrast semantic parity"]
+}
