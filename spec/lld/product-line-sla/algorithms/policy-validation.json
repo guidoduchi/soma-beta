@@ -1,0 +1,25 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-06",
+  "name":"POLICY_VALIDATION_V1",
+  "input":"template id or explicit Critical/Major/Minor tier definitions",
+  "steps":[
+    "resolve percentages from finite decimal percentage text into required_percentage_millionths exactly; reject <=0, >100%, more than 6 decimal percentage places, NaN/infinity/exponent ambiguity or any rounded conversion",
+    "resolve each finite positive duration input (days/hours/seconds) into an exact rational number of seconds; reduce numerator/denominator by gcd and enforce bounds",
+    "require at least one tier for each base severity critical, major and minor; reject independently supplied non_fault_inquiry tiers because Beta derives them",
+    "within each base severity reject exact duplicate percentage+duration tier pairs; assign deterministic tier_ordinal by ascending maximum duration then ascending required percentage then canonical input identity",
+    "for every Minor tier generate one Non-fault inquiry tier preserving required_percentage_millionths and tier ordinal while multiplying duration by exact 3/2 and reducing the resulting fraction",
+    "validate generated total tier count against semantic collection bound and ensure every derived tier points to its exact Minor source tier",
+    "serialize the complete base+derived policy canonically and compute policy content fingerprint for preview/idempotent semantic equality"
+  ],
+  "templates":{
+    "IT_DEFAULT_V1":{"critical":["100% within 7 days"],"major":["85% within 15 days","100% within 30 days"],"minor":["85% within 45 days","100% within 60 days"],"derived_non_fault":["85% within 67.5 days","100% within 90 days"]},
+    "NFV_DEFAULT_V1":{"critical":["100% within 3 days"],"major":["100% within 15 days"],"minor":["100% within 90 days"],"derived_non_fault":["100% within 135 days"]}
+  },
+  "rules":[
+    "tiers are independent cohort requirements; policy need not use an 85/100 pair",
+    "inclusive maximum duration is retained exactly and presentation rounding has no authority",
+    "template source is provenance only after materialization under a specific Contract Product Line",
+    "policy revision validation never reads or rewrites existing SRs; retroactive live recalculation occurs by selecting the new current revision on subsequent projections"
+  ]
+}
