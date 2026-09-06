@@ -1,0 +1,11 @@
+{
+  "schema":"SOMA-LLD-TESTS-V1",
+  "lld_id":"LLD-07",
+  "suite":"resubmission_regression",
+  "cases":[
+    {"id":"LLD07-RS001","given":"Spare Request has submission S1 then accepted false-submission correction","when":"draft is edited and real submission S2 is accepted","then":"S1 snapshot remains immutable corrected history, S2 gets distinct event/snapshot and current projection points only to S2"},
+    {"id":"LLD07-RS002","given":"Spare Request S1 false-corrected","when":"S2 snapshot insertion fails","then":"request remains Draft/current_submission_snapshot_id null and S1 corrected history remains intact"},
+    {"id":"LLD07-RS003","given":"Fault Tag has submission S1 then accepted false-submission correction","when":"same surviving draft membership is later submitted in real S2","then":"two tag snapshots and two membership snapshots coexist; current projection points to S2 and S1 remains corrected history"},
+    {"id":"LLD07-RS004","given":"Fault Tag S1 false-corrected and draft membership changed","when":"S2 accepted","then":"S2 snapshots exact current draft memberships only while S1 preserves original membership set"}
+  ]
+}
