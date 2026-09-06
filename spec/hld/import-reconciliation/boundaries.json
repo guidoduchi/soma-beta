@@ -1,0 +1,36 @@
+{
+  "schema": "SOMA-HLD-BOUNDARIES-V1",
+  "hld_id": "HLD-05",
+  "owns": [
+    "source-family discovery and candidate selection",
+    "safe bounded workbook inspection and parsing",
+    "versioned source profiles, header registries and field authority",
+    "logical source fingerprints and replay classification",
+    "source observations and source-family checkpoints",
+    "field/relationship diff generation",
+    "proposal classification and review disposition",
+    "bounded import-run/job history and source coverage warnings"
+  ],
+  "does_not_own": [
+    "Service Request or RFC lifecycle truth",
+    "RFC hierarchy truth",
+    "Task execution or Objective grouping",
+    "Inventory physical consequences",
+    "Customer Organization identity",
+    "SLA policy or cohort results",
+    "Communication matching/coverage",
+    "domain audit semantics beyond emitting governed references"
+  ],
+  "crossing_rules": [
+    "Adapters may emit normalized observations but may not write owning-domain aggregates directly.",
+    "Only accepted proposals invoke owning-domain commands.",
+    "Every owning-domain command revalidates current state inside its own transaction boundary.",
+    "Rejected, deferred or unresolved observations remain import/proposal evidence only.",
+    "Import status or source presence never substitutes for domain lifecycle state."
+  ],
+  "source_family_variation": {
+    "advanced_search": "May use its own discovery schedule, field allowlist and source semantics while converging on the common staging/review model.",
+    "enhanced_rfc": "Uses exact RFC identity/header rules and deterministic candidate ranking; filesystem ranking metadata is not RFC business chronology.",
+    "wfm": "Uses exact RFC No./Task No. identity and supported embedded source chronology; repeated RFC No. with different Task No. is valid."
+  }
+}
