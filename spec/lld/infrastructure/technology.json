@@ -1,0 +1,13 @@
+{
+  "schema":"SOMA-LLD-TECHNOLOGY-V1",
+  "lld_id":"LLD-08",
+  "runtime":"Python 3.13/3.14 on supported Windows 10/11 Beta targets",
+  "sqlite":"Authoritative Infrastructure state uses LLD-01 SQLite STRICT tables, FK enforcement, WAL/read snapshots and short BEGIN IMMEDIATE writes; no graph database or separately administered server.",
+  "normalization":{"unicode":"LLD-02 UNICODE_MATCH_V1 for names/labels","address":"ADDRESS_MATCH_V1 defined by algorithms/address-duplicates.json and used only for duplicate candidates","ip":"stdlib ipaddress canonicalization defined by algorithms/ip-normalization.json"},
+  "xlsx":{"preflight":"reuse the hardened ZIP/path/resource/active-content principles established by LLD-04 through a shared implementation utility; Infrastructure owns its own workbook profile and staging authority","semantic_reader":"openpyxl read-only streaming mode, data_only=false, keep_links=false, formulas rejected in authoritative cells","writer":"openpyxl write-only mode for template/discovery/round-trip exports; no formulas/macros/external links","dependency_gate":"one LLD-12 pinned openpyxl version must pass both LLD-04 malicious workbook fixtures and LLD-08 round-trip/security fixtures on Python 3.13/3.14"},
+  "workbook_identity":"SHA-256 is used for deterministic logical/file identity and replay detection, not authenticity proof; same-installation targeting relies on explicit installation scope + immutable local identity columns, never hash/name/serial/IP alone.",
+  "containment":"Iterative indexed parent-chain walk rather than recursive Python call stack; database current-parent cardinality plus service cycle validation.",
+  "rack_occupancy":"Integer U interval arithmetic and indexed overlap queries; no floating-point placement semantics.",
+  "secrets":"Input validation rejects password/private-key/token/recovery-code/credential-like workbook headers or domain fields. Logs/audit carry only bounded redacted error/reference data.",
+  "deferred":"No SSH client, SNMP, network scanner, interface/port model, graph engine, reachability library or topology package is part of Beta 1.0 dependencies."
+}
