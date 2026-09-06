@@ -1,0 +1,37 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-02",
+  "name":"ContactChannelValidation",
+  "beta_1_0_definitions":[
+    {
+      "channel_kind":"email",
+      "storage_profile":"EMAIL_CHANNEL_V1",
+      "storage_validation":[
+        "input must be a string within bounds.json contact_channels.value_text pre-normalization bound",
+        "remove only leading/trailing code points from the pinned UNICODE_MATCH_V1 White_Space set; do not otherwise rewrite the operator value for storage",
+        "reject empty result, NUL, CR, LF, C0/C1 control characters and any second logical line",
+        "parse the complete remaining value as exactly one addr-spec using Python stdlib email.headerregistry.Address(addr_spec=value); parsing failure is CHANNEL_INVALID",
+        "do not perform DNS, SMTP, network, mailbox-existence or deliverability checks",
+        "persist the trimmed accepted value_text and compute match_key separately through UNICODE_MATCH_V1; the matching key is evidence and does not replace the address actually stored"
+      ],
+      "use_validation":{
+        "purpose":"msg_recipient",
+        "rules":["Contact and channel must both be active","rerun EMAIL_CHANNEL_V1 syntax validation just in time","return usable value_text only after successful validation","do not contact DNS, SMTP or any external email service","failure blocks only the communication-dependent action and never invalidates the Contact/Ticket/Task/Objective/Spare Need/Spare Request"]
+      }
+    }
+  ],
+  "result":{
+    "states":["USABLE","MISSING","ARCHIVED","INVALID"],
+    "fields":["state","contact_id","contact_channel_id","channel_kind","value_text_if_usable","reason_code"],
+    "rule":"MISSING/ARCHIVED/INVALID are ordinary prerequisite states for a recipient-requiring workflow, not reasons to invalidate the underlying operational entity"
+  },
+  "determinism":{
+    "rule":"EMAIL_CHANNEL_V1 accepted/rejected golden vectors must produce identical results on supported Python 3.13 and 3.14 lines",
+    "upgrade":"if a future supported Python/parser change alters an accepted golden vector, SOMA must version the channel policy or add an explicit compatibility shim before release rather than silently changing stored-channel eligibility"
+  },
+  "security_rules":[
+    "recipient values are data only and never interpolated into HTML, shell, SQL or header text without the owning serializer's escaping rules",
+    "CR/LF/control rejection prevents recipient-header injection through the master channel value",
+    "LLD-09 generated artifact stores its own immutable recipient Contact identity and exact address snapshot effective at generation time"
+  ]
+}
