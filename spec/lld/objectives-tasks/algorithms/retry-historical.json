@@ -1,0 +1,77 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-05",
+  "name":"TASK_RETRY_AND_HISTORICAL_STRUCTURE_V1",
+  "local_retry":[
+    "predecessor Task remains immutable and must not already have a direct retry successor",
+    "allocate a new opaque Task identity; never reuse predecessor task_id and never clone accepted execution/outcome/review evidence",
+    "new Local Task name defaults to predecessor current descriptive name but is a reviewed input and obeys bounds",
+    "new Task requires its own accepted positive-duration plan before scheduled grouping; retry_clone origin records predecessor plan provenance but the new interval is independently reviewed",
+    "SR/RFC/Device Reference relationships are cloned only from explicitly selected current predecessor relationships shown in preview; closed/history-only relationships are not silently reopened",
+    "Inventory-owned reservation/spare-use relationships are never copied directly by LLD-05; selected eligible Inventory relationships cross the future LLD-07 preview/apply participant and any missing/indeterminate authority fails closed",
+    "append exactly one immutable immediate task_retry_relations edge predecessor->successor; predecessor unique and successor unique prevent forks/merges in direct retry chain",
+    "new retry enters ordinary global grouping after commit; Objective predecessor/successor context is query-derived through Task retry edges and may therefore be many-to-many across Objectives"
+  ],
+  "wfm_retry":[
+    "a retry WFM must already possess a distinct canonical TK+14 identity; no command derives or increments provider Task No.",
+    "exact same TK is the same WFM attempt and cannot become its own retry",
+    "LinkWfmRetryAttempt revalidates both identities, immediate-edge uniqueness and no cycle before appending retry relation",
+    "reviewed retry lineage normally assigns predecessor/successor to one activity_lineage_id unless explicit evidence classifies them as distinct activities instead",
+    "provider source facts/status/plans of both attempts remain independent",
+    "the successor enters normal plan reconciliation and grouping; no Objective is cloned or linked directly as a retry target"
+  ],
+  "retry_cycle_guard":[
+    "direct schema uniqueness prevents more than one immediate predecessor/successor",
+    "service rejects self-reference",
+    "before insert walk predecessor chain from proposed predecessor and successor chain from proposed successor using indexed point lookups until null; encountering the other target rejects TASK_RETRY_CYCLE",
+    "guard is bounded by number of Task attempts and does not hold unbounded rows in memory"
+  ],
+  "activity_lineage_review":[
+    "lineage is a reviewed SOMA operational classification, never inferred solely from same RFC, Task Name, Summary or overlapping time",
+    "distinct_activity leaves/assigns separate lineage context so multiple distinct WFMs may coexist in one Objective",
+    "same_activity assigns one shared lineage and triggers active-overlap conflict evaluation",
+    "retry_lineage requires a legal retry edge and shared lineage",
+    "unresolved_source_error preserves all identities and blocks automatic competing-attempt resolution",
+    "lineage correction appends events and preserves prior classifications"
+  ],
+  "historical_proposal_creation":[
+    "trigger only from an accepted LLD-04 WFM source projection whose provider_lifecycle_class=complete, with a complete valid accepted source plan and no current Objective membership",
+    "Plan Cancel is historical source evidence but is not eligible for historical Objective creation",
+    "provider Complete/source plan do not create Task execution/outcome/Device/Inventory facts",
+    "capture exact source projection revision, accepted source observation id and source plan start/end in historical_objective_proposals",
+    "if task_plan_current is absent, expected_matching_operational_plan_revision_id=null and the proposal may later establish a dedicated historical_source_structure plan upon acceptance",
+    "if task_plan_current exactly equals source interval, capture that revision as expected matching plan",
+    "if a current operational plan exists and differs materially, do not create an immediately acceptable historical structure; expose normal source-vs-operational-plan reconciliation first",
+    "proposal fingerprint additionally binds Task identity/revision, current membership absence, execution/outcome absence, plan current revision/absence and current Objective overlap set"
+  ],
+  "historical_acceptance":[
+    "inside current UnitOfWork revalidate exact provider Complete source projection revision/observation/source plan, Task unassigned state, no accepted execution/outcome and exact proposal fingerprint",
+    "if no current operational plan exists, insert the one outer receipt then append task_plan_revision origin=historical_source_structure using exact accepted source interval/timezone provenance and set task_plan_current",
+    "if current operational plan exists, it must exactly match the captured source interval and expected matching revision; any difference returns HISTORICAL_PROPOSAL_STALE/NOT_ELIGIBLE and requires separate plan review",
+    "use the resulting exact plan revision as Objective membership pin",
+    "prove interval strictly overlaps no current nonsuperseded Objective; historical acceptance never restructures existing current Objectives",
+    "allocate new stable MW tracking identity, create Objective creation_origin=historical_provider_complete, append historical_add membership, rebuild envelope and aggregate execution_state=historical_structure",
+    "leave actual_start_utc/actual_end_utc null and task_outcome_current absent",
+    "audit only source/plan/structure references and commit atomically"
+  ],
+  "historical_rejection_and_refresh":[
+    "rejection preserves WFM/source evidence and leaves Task unassigned",
+    "later source-plan correction, source projection revision, accepted plan reconciliation, execution evidence or Objective membership materially stales/supersedes the old proposal",
+    "a fresh eligible state may create a new proposal; old proposal/disposition remains immutable"
+  ],
+  "operational_count_exclusion":[
+    "only Task history classified as historical/provider-backfill is eligible for exclusion from current operational counts",
+    "append inclusion event; default absent row means included",
+    "exclusion never changes Task identity/source/plan/membership/execution/outcome/audit",
+    "Objective included_task_count/excluded_task_count is derived from current members",
+    "when every member of a historical Objective is excluded, aggregate_outcome=excluded_from_operational_counts while execution_state remains historical_structure or reviewed historical presentation as defined by reporting owner",
+    "reports/filters must disclose included and excluded populations separately"
+  ],
+  "hard_delete_classification":[
+    "Task is immediately BLOCKED when source-adopted/provenance-bearing, has any accepted execution/outcome/retry/activity-lineage correction, historical Objective participation, closed protected relationship, archive/review/cascade consequence or other protected operational evidence",
+    "manual WFM/Local Task with only current draft-like plan/current relationships may proceed only if all local dependencies are exactly previewed and LLD-07 returns CLEAR",
+    "INDETERMINATE from any dependency provider fails closed",
+    "Objective hard deletion is limited to untouched manual creation with no protected operation/review/archive/regroup/supersession history; automatic/historical Objectives are blocked",
+    "hard deletion never reuses MW tracking sequence, Task identity or provider Task No. and never deletes audit_events"
+  ]
+}
