@@ -1,0 +1,21 @@
+{
+  "schema":"SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id":"HLD-11",
+  "incoming":[
+    {"from":"HLD-04","uses":["Ticket/RFC identity, hierarchy, relationships and lifecycle command availability"]},
+    {"from":"HLD-05","uses":["import staging/review/impact states"]},
+    {"from":"HLD-06","uses":["Objective/Task plan, grouping, execution, review and correction projections"]},
+    {"from":"HLD-07","uses":["CPL/SLA classification, calculation and report evidence"]},
+    {"from":"HLD-08","uses":["Inventory lifecycle actions, warnings, bulk partitions and physical consequence projections"]},
+    {"from":"HLD-09","uses":["Infrastructure hierarchy/placement/regularization projections"]},
+    {"from":"HLD-10","uses":["canonical Communication summaries/content/coverage/job states"]},
+    {"from":"HLD-02","uses":["accepted revisions and optional recoverable working-copy persistence"]}
+  ],
+  "outgoing":[
+    {"to":"HLD-12","provides":["shared cards/filters/scope/action-state presentation primitives"]},
+    {"to":"HLD-13","provides":["UI security envelope, secret redaction/display boundaries and local-session interaction surfaces"]},
+    {"to":"HLD-14","provides":["revision/conflict/working-copy/Undo presentation constraints"]}
+  ],
+  "forbidden_dependencies":["Unsaved UI state cannot affect authoritative counts, SLA, matching, inventory availability, relationships or reports.","A hold animation/dialog/selection cannot authorize a domain command without current server/domain validation.","Responsive reflow cannot remove or change business capability or evidence meaning.","UI may not duplicate canonical Communication bodies into ticket/request records.","UI may not silently merge identities while consolidating relationship context.","Theme/skin choices cannot alter workflow, command names/availability, status meaning or accessibility."],
+  "command_boundary":"The client submits explicit command intent plus target identity, accepted base revision and required inputs. The host/domain revalidates authorization, revision, dependencies and business invariants. On success the client replaces/reconciles its projection from authoritative result; on failure the working copy remains non-authoritative and safe for review/retry."
+}
