@@ -1,0 +1,33 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-02",
+  "name":"SemanticNoChange",
+  "inherits":"LLD-01 ExecuteAuthoritativeCommand.no_change_rule",
+  "applies_after_fresh_preconditions_to":[
+    "SetCustomerAccountCode",
+    "ConfirmCustomerAccountCodeSharedClaim when target already has the exact active claim and reviewed conflict still exists",
+    "UpdateContactDescriptiveData",
+    "UpdateContactChannel",
+    "ChangeContactAffiliation",
+    "UpdateReferenceDescriptiveData",
+    "WriteSetting"
+  ],
+  "rule":"After command-specific identity/revision/lifecycle/security preconditions pass inside the UnitOfWork, compare the requested accepted authoritative state with the current state using the command's exact stored semantics. If they are identical, insert only the LLD-01 command_receipt with result_type='NO_CHANGE', COMMIT, and return current target identity/revision. Do not increment a revision, close/open a relationship, create/supersede an identifier, append lifecycle evidence, or insert an application audit event.",
+  "equality":{
+    "customer_account_code":"same active value_text and match_key already belong to the target Customer; other existing shared claimants do not turn an already-present target claim into a change",
+    "contact_name":"stored accepted name text and derived match key are identical",
+    "contact_channel":"same owned active channel identity, stored accepted value_text and match_key are identical",
+    "contact_affiliation":"requested customer_org_id equals the exact current affiliation target, including null/unbound",
+    "customer_or_dispatch_descriptive":"all governed requested stored fields and derived keys equal current values",
+    "setting":"same registered contract name/version and SettingDefinition semantic_equals(current_value, requested_value)=true"
+  },
+  "non_applicable":[
+    "Create* commands allocate new identity and therefore are not semantic no-ops",
+    "ArchiveReference requires active target; already archived is a lifecycle-precondition failure rather than NO_CHANGE",
+    "ReactivateReference requires archived target; already active is a lifecycle-precondition failure rather than NO_CHANGE",
+    "ArchiveContactChannel requires active channel; already archived is not NO_CHANGE",
+    "ReassignCustomerAccountCode changes ownership while its source claim exists and therefore is not a no-op"
+  ],
+  "retry_safety":"The committed NO_CHANGE receipt binds command_id and request_hash. A lost-response retry returns the original NO_CHANGE result even if later unrelated commands change the target, preventing an old retry from becoming a new mutation.",
+  "history_rule":"No-change operator intent is technical idempotency evidence in command_receipts only; it is not fabricated as domain lifecycle or 'manual change' audit evidence because no authoritative fact changed."
+}
