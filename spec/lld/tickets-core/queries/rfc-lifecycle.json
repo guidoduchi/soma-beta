@@ -1,0 +1,47 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-03",
+  "queries":[
+    {
+      "name":"GetRfcLifecycleProjection",
+      "input":["rfc_id"],
+      "output":"current accepted RFC source fields with exact evidence references, derived status_class/authority, current terminal epoch if any, local archive state, unresolved warnings",
+      "rule":"source evidence bodies/history are read through LLD-04; this query exposes accepted current ticket projection only"
+    },
+    {
+      "name":"GetPendingRfcTerminalCascade",
+      "input":["rfc_id or proposal_id"],
+      "output":"pending proposal identity/revision/terminal evidence/epoch, immutable captured RFC/WFM membership, scope fingerprint and restart-persistent state",
+      "rule":"executed/superseded history remains queryable through historical filter but is never returned as executable pending authority"
+    },
+    {
+      "name":"PreviewRfcTerminalCascade",
+      "input":["pending proposal_id"],
+      "output":"persisted captured scope versus freshly recomputed RFC/WFM scope, stale reasons, LLD-05 Task/Objective impact preview, LLD-09 Communication impact preview, deliberate-confirmation requirement",
+      "rules":["read-only","no scope refresh or downstream mutation","INDETERMINATE participant preview fails closed for execution readiness"]
+    },
+    {
+      "name":"PreviewRfcArchive",
+      "input":["rfc_id","scope_kind exact_rfc|reviewed_branch"],
+      "output":"exact member IDs/revisions/archive states, members that would change, already-archived excluded members, scope_fingerprint and lifecycle-neutral consequence summary",
+      "rule":"branch preview is explicit and bounded to current root plus direct subordinates"
+    },
+    {
+      "name":"GetRfcArchiveOperation",
+      "input":["rfc_archive_operation_id"],
+      "output":"immutable requested scope/fingerprint, members actually archived by the operation, latest per-member archive event and current restore eligibility",
+      "rule":"operation membership never implies that a member is still archived by that operation after later independent actions"
+    },
+    {
+      "name":"PreviewRfcHardDelete",
+      "input":["rfc_id"],
+      "output":"eligible boolean, exact RFC revision, typed blockers, per-domain determinate/indeterminate guard results, bounded provider freshness tokens and eligibility_fingerprint",
+      "rules":[
+        "read-only and advisory",
+        "manual creation audit is classified separately from post-creation protected history",
+        "any source adoption/provenance, relationship/history/lifecycle/archive/correction dependency or INDETERMINATE provider makes eligible=false",
+        "command recomputes every guard and fingerprint inside the deletion UoW"
+      ]
+    }
+  ]
+}
