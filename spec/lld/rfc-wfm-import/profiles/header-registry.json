@@ -1,0 +1,57 @@
+{
+  "schema":"SOMA-LLD-HEADER-REGISTRY-V1",
+  "lld_id":"LLD-04",
+  "normalization":{"profile_id":"IMPORT_HEADER_KEY_V1","steps":["Unicode NFKC","trim surrounding Unicode whitespace","collapse internal Unicode whitespace runs to one ASCII space","Unicode casefold"],"prohibitions":["no accent stripping","no punctuation stripping","no fuzzy similarity","no positional fallback"]},
+  "registries":[
+    {
+      "source_family":"rfc_enhanced","registry_id":"RFC_HEADERS_V1",
+      "fields":[
+        {"key":"rfc_no","class":"required_identity","aliases":["Task ID"]},
+        {"key":"external_created_at","class":"optional_active","aliases":["Create Time"]},
+        {"key":"creator","class":"optional_active","aliases":["Creator"]},
+        {"key":"customer_account_number","class":"optional_active","aliases":["Customer Account Number"]},
+        {"key":"customer_account_name","class":"optional_active","aliases":["Customer Account Name"]},
+        {"key":"severity","class":"optional_active","aliases":["Severity"]},
+        {"key":"summary","class":"optional_active","aliases":["Summary"]},
+        {"key":"status","class":"optional_active","aliases":["Status"]},
+        {"key":"owner_external_id","class":"optional_active","aliases":["Owner"]},
+        {"key":"owner_name","class":"optional_active","aliases":["Owner Name"]},
+        {"key":"l1_handler_name","class":"optional_active","aliases":["L1 Handler Name"]},
+        {"key":"l2_handler_name","class":"optional_active","aliases":["L2 Handler Name"]},
+        {"key":"last_update","class":"optional_active","aliases":["Last Update Time"]},
+        {"key":"service_type","class":"deferred","aliases":["Service Type"]},
+        {"key":"scenario","class":"deferred","aliases":["Scenario"]},
+        {"key":"product_line_code","class":"deferred","aliases":["Product Line Code"]},
+        {"key":"product_line","class":"deferred","aliases":["Product Line"]},
+        {"key":"product_code","class":"deferred","aliases":["Product Code"]},
+        {"key":"product_name","class":"deferred","aliases":["Product Name"]}
+      ]
+    },
+    {
+      "source_family":"wfm_service_provider","registry_id":"WFM_HEADERS_V1",
+      "fields":[
+        {"key":"rfc_no","class":"required_identity","aliases":["RFC No.","RFC No"]},
+        {"key":"rfc_status","class":"optional_active","aliases":["RFC Status"]},
+        {"key":"task_no","class":"required_identity","aliases":["Task No.","Task No"]},
+        {"key":"task_status","class":"optional_active","aliases":["Task Status"]},
+        {"key":"dispatch_progress","class":"optional_active","aliases":["Dispatch Progress"]},
+        {"key":"planned_start","class":"optional_active","aliases":["Planned Start Time"]},
+        {"key":"planned_end","class":"optional_active","aliases":["Planned End Time"]},
+        {"key":"rep_office","class":"optional_active","aliases":["Rep Office"]},
+        {"key":"risk_level","class":"optional_active","aliases":["Risk Level"]},
+        {"key":"task_name","class":"optional_active","aliases":["Task Name"]},
+        {"key":"description","class":"optional_active","aliases":["Description"]},
+        {"key":"customer_organization","class":"optional_active","aliases":["Customer Organization"]}
+      ]
+    }
+  ],
+  "resolution_rules":[
+    "each physical header normalizes once and may resolve to at most one registry field",
+    "two physical columns resolving to the same semantic field are a duplicate-semantic-header conflict and block the workbook before row mutation",
+    "missing required identity header rejects the workbook",
+    "missing optional-active or deferred headers create coverage findings and never clear prior accepted domain truth",
+    "unregistered headers are discarded from domain staging after security/resource scanning and do not enter logical identity/fingerprint except through the registry-version identifier",
+    "column order is irrelevant; logical serialization orders by canonical field key"
+  ],
+  "evolution":"Alias/class changes require a new registry_id/version; historical runs retain the registry used."
+}
