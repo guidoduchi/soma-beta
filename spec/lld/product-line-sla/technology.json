@@ -3,7 +3,8 @@
   "lld_id":"LLD-06",
   "runtime":"Python 3.13/3.14 on supported Windows 10/11 Beta targets",
   "arithmetic":{
-    "implementation":"Python integers plus decimal.Decimal only at validated input/output boundaries; persisted policy thresholds use integer seconds and integer millionths-of-percentage; source suspension is normalized to reduced rational seconds",
+    "implementation":"Python integers own authoritative arithmetic. Policy thresholds and source-reported suspension use reduced rational seconds (numerator/denominator); configured percentages use integer millionths of one percentage point. decimal.Decimal is allowed only for validated human input/output conversion into these exact forms.",
+    "comparison":"duration comparisons use cross multiplication; cohort percentages use integer count cross multiplication against required_percentage_millionths",
     "forbidden":["binary float for SLA duration/percentage decisions","premature display rounding before inclusive threshold comparison","Objective timezone in SLA/cohort arithmetic"]
   },
   "timezone":{
