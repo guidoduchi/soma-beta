@@ -1,0 +1,50 @@
+{
+  "schema": "SOMA-HLD-DATA-FLOW-V1",
+  "hld_id": "HLD-05",
+  "flows": [
+    {
+      "name": "discover_and_stage",
+      "steps": [
+        "enumerate only governed candidate files for the source family",
+        "stability/security inspect before parsing",
+        "select candidate deterministically under source-family chronology rules",
+        "parse with versioned header/field registry and bounded resource policy",
+        "normalize allowlisted source meaning",
+        "compute logical fingerprint",
+        "persist bounded ImportRun/SourceObservation evidence",
+        "produce diff/proposal without domain mutation"
+      ]
+    },
+    {
+      "name": "review_and_accept",
+      "steps": [
+        "load proposal against current accepted domain revision",
+        "classify targets as safe, warning, high-risk, conflict, unresolved or invalid",
+        "auto-accept only an explicitly registered low-risk class",
+        "operator reviews remaining smallest safe target scopes",
+        "accepted target invokes owning-domain command",
+        "owning domain revalidates current state and commits its mutation/audit atomically",
+        "record proposal disposition and advance source checkpoint only consistently with accepted import work"
+      ]
+    },
+    {
+      "name": "replay",
+      "steps": [
+        "compare source chronology and logical fingerprint to accepted checkpoint",
+        "exact replay returns no domain mutation",
+        "newer identical logical content may update bounded recency/checkpoint evidence",
+        "equal chronology with differing content becomes conflict",
+        "older evidence enters explicit reviewed recovery and never silently rewinds accepted truth"
+      ]
+    },
+    {
+      "name": "partial_failure",
+      "steps": [
+        "workbook-level integrity/identity/safety failure rejects the run before mutation",
+        "target-local duplicate/conflict/validation defects remain isolated when the rest is independently explainable",
+        "identityless logical rows fabricate no entity",
+        "rejected/deferred/unresolved targets preserve source presence without fabricating disappearance"
+      ]
+    }
+  ]
+}
