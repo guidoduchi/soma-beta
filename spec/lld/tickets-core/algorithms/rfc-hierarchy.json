@@ -1,0 +1,47 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-03",
+  "name":"RfcHierarchyMutation",
+  "derive_role":{
+    "standalone":"RFC has no active parent and no active children",
+    "master":"RFC has no active parent and one or more active children",
+    "subordinate":"RFC has exactly one active parent",
+    "rule":"role is query-derived only; no mutable role field exists"
+  },
+  "validate_parent_child":{
+    "input":["parent_rfc_id","child_rfc_id","current command/review context"],
+    "transaction":"one short LLD-01 UnitOfWork after pure ID validation",
+    "checks":[
+      "parent and child are distinct existing RFC identities",
+      "child has no different active parent",
+      "parent has no active parent",
+      "child has no active children",
+      "child has no active direct sr_rfc_links because direct SR links terminate only at roots",
+      "if both parent.customer_org_id and child.customer_org_id are known they are equal",
+      "unknown Customer on either side remains permitted but returns RFC_CUSTOMER_UNRESOLVED warning",
+      "provider/import evidence alone does not call this mutation path without an accepted reviewed hierarchy proposal"
+    ],
+    "result":"VALID, VALID_WITH_WARNING, or typed blocker; never guesses a hierarchy from identifier suffixes or source row proximity"
+  },
+  "add_subordinate":{
+    "steps":["revalidate hierarchy constraints inside UnitOfWork","if exact active edge already exists return semantic NO_CHANGE receipt","allocate edge ID","insert receipt","insert active rfc_hierarchy_edges row","increment parent and child revisions","insert audit/result references","commit"]
+  },
+  "reparent_subordinate":{
+    "input":["child_rfc_id","old_parent_rfc_id","new_parent_rfc_id","base revisions","reason_category","review_snapshot when high-risk"],
+    "risk":"high-risk when the child/branch has WFM or other protected operational history; owning WFM/history providers determine this through bounded dependency interface",
+    "steps":["load old active edge and involved RFCs","revalidate revisions and exact old/new branch state","run history/risk provider","where high-risk require exact fresh reviewed correction context","validate new parent-child pair","insert receipt","supersede old edge with closing provenance","insert new active edge","increment changed RFC revisions","audit old/new hierarchy identities and reason","commit"],
+    "rules":["reparent preserves RFC identities and old edge history","reparent never changes WFM identity/ownership itself","reparent never copies inherited SR context into subordinate direct links"]
+  },
+  "detach_subordinate":{
+    "effect":"child becomes a root/standalone unless it independently has children (which is impossible while it was subordinate)",
+    "steps":["revalidate exact active edge/revisions/history risk","require reviewed correction where applicable","insert receipt","supersede edge","increment parent/child revisions","audit","commit"]
+  },
+  "database_defence":[
+    "partial UNIQUE(child_rfc_id) for active edges",
+    "active-edge INSERT trigger rejects parent that is active child",
+    "active-edge INSERT trigger rejects child that is active parent",
+    "active-edge INSERT trigger rejects child with active direct SR links",
+    "known Customer mismatch trigger/command guard rejects active hierarchy creation; Customer correction command separately revalidates branch consistency"
+  ],
+  "performance":["all hierarchy validity checks are indexed point/EXISTS queries","no recursive traversal is required because accepted depth is exactly two","child lists use keyset pagination with no business child-count cap"]
+}
