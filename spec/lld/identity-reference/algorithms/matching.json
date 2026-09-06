@@ -5,12 +5,12 @@
   "normalization_profile":{
     "id":"UNICODE_MATCH_V1",
     "unicode_version":"17.0.0",
-    "nfkc_provider":"unicodedata2==17.0.0",
+    "nfkc_provider":"unicodedata2==17.0.1 (Unicode data 17.0.0)",
     "casefold_provider":"repository-versioned full Unicode CaseFolding mapping generated from Unicode 17.0.0 CaseFolding.txt",
     "whitespace_provider":"repository-versioned Unicode 17.0.0 White_Space code-point set",
     "runtime_rule":"Python built-in unicodedata version, str.casefold() and str.isspace() are not authority for matching because supported Python lines may ship different Unicode databases",
     "asset_rule":"generated CaseFolding/White_Space assets are source-controlled implementation assets with recorded Unicode source version/checksum and deterministic regeneration test; changing the profile/version requires an accepted migration/reindex plan for stored match keys",
-    "packaging_rule":"LLD-12 must include required third-party attribution/license notice for unicodedata2 without changing SOMA proprietary product ownership"
+    "packaging_rule":"LLD-12 must lock and package unicodedata2 17.0.1 for supported Windows/Python lines and retain required Apache-2.0 third-party notice without changing SOMA proprietary product ownership"
   },
   "normalizer":{
     "function":"normalize_match_key(raw: str) -> str",
