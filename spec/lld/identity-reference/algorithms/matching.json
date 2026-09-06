@@ -27,10 +27,18 @@
     "prohibitions":["no fuzzy distance","no phonetic key","no accent folding","no punctuation removal","no locale-sensitive lowercasing","no substring/contains identity match","no direct Python-runtime Unicode tables as unversioned authority"]
   },
   "customer_org_match":{
-    "active_scope":"all active Customer Organizations",
-    "keys":["name_match_key"],
-    "result":"0 matches -> UNRESOLVED; 1 -> UNIQUE_CANDIDATE; >1 -> AMBIGUOUS",
-    "rule":"UNIQUE_CANDIDATE remains candidate evidence and does not by itself authorize merge/reassignment"
+    "input":["optional raw Customer Account Code","optional raw Customer Organization label"],
+    "active_scope":"active Customer Organizations only",
+    "account_code":"normalize complete supplied code; query active customer_org_identifiers identifier_type='customer_account_code' by exact match_key; accepted canonical master state yields zero or one active claimant",
+    "name":"normalize supplied label and query customer_organizations.name_match_key; duplicate names may yield multiple candidates",
+    "precedence_and_conflict":[
+      "if account-code candidate exists and no name candidate identifies a different Customer, return UNIQUE_CANDIDATE for the account-code claimant with explanation ACCOUNT_CODE_MATCH",
+      "if account-code candidate exists and supplied name evidence yields any different Customer candidate, return AMBIGUOUS over the union with explanation ACCOUNT_CODE_NAME_CONFLICT; operator review is required",
+      "if account code is supplied but has no canonical claimant, name candidates remain proposal evidence only: zero -> UNRESOLVED, one -> UNIQUE_CANDIDATE with explanation ACCOUNT_CODE_UNRESOLVED_NAME_CANDIDATE, many -> AMBIGUOUS",
+      "if account code is absent, name-only candidate behavior is zero -> UNRESOLVED, one -> UNIQUE_CANDIDATE, many -> AMBIGUOUS"
+    ],
+    "source_conflict_rule":"multiply claimed/conflicting account-code observations detected in LLD-03/04 staging never auto-create multiple canonical active claims; they require reviewed assignment/reassignment before master mutation",
+    "identity_rule":"Customer Account Code is preferred stable external matching evidence but never replaces customer_org_id"
   },
   "contact_match":{
     "scope":"exactly one of customer_org_id or UNBOUND",
@@ -44,9 +52,9 @@
     "rule":"equal normalized email in different Customer scopes is not a global identity collision; equal keys within one scope may remain ambiguous"
   },
   "stored_key_versioning":{
-    "rule":"every persisted match_key column is paired logically with the installation's accepted matching profile UNICODE_MATCH_V1; startup schema/application compatibility verifies the supported profile before matching writes/queries",
+    "rule":"every persisted match_key column is governed by reference_metadata.matching_profile_id; matching queries/writes refuse an unsupported profile",
     "upgrade":"a future profile change is not an in-place reinterpretation: it requires a governed forward migration that recomputes all affected keys transactionally and proves candidate behavior before publication"
   },
-  "write_time_key_rule":"Every accepted write that changes a matched descriptive/channel value computes the match key with this same profile inside application validation before persistence; repositories reject missing/inconsistent derived key input.",
+  "write_time_key_rule":"Every accepted write that changes a matched descriptive/channel/external-identifier value computes the match key with this same profile inside application validation before persistence; repositories reject missing/inconsistent derived key input.",
   "review_rule":"A matcher has no write capability. Selection/link/merge/reassignment is performed only by a separate owning command after operator/reconciliation authority and fresh state revalidation."
 }
