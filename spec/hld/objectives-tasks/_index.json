@@ -1,0 +1,70 @@
+{
+  "schema": "SOMA-HLD-PACKET-V1",
+  "id": "HLD-06",
+  "name": "Objectives, Tasks, Scheduling, and Execution",
+  "status": "review_ready",
+  "purpose": "Define the authoritative Task/Objectives model for scheduling, overlap grouping, execution, review, correction, retries, historical proposals, and cross-domain consequences without conflating source plans, operational plans, Objective envelopes or actual execution.",
+  "primary_requirement_ids": [
+    "BETA-REQ-0043",
+    "BETA-REQ-0046",
+    "BETA-REQ-0047",
+    "BETA-REQ-0048",
+    "BETA-REQ-0050",
+    "BETA-REQ-0051",
+    "BETA-REQ-0157",
+    "BETA-REQ-0158",
+    "BETA-REQ-0162",
+    "BETA-REQ-0166",
+    "BETA-REQ-0167",
+    "BETA-REQ-0168",
+    "BETA-REQ-0170",
+    "BETA-REQ-0171",
+    "BETA-REQ-0172"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0041",
+    "BETA-REQ-0042",
+    "BETA-REQ-0044",
+    "BETA-REQ-0045",
+    "BETA-REQ-0049",
+    "BETA-REQ-0156",
+    "BETA-REQ-0161",
+    "BETA-REQ-0163",
+    "BETA-REQ-0177"
+  ],
+  "decisions": [
+    {"id":"HLD06-D001","decision":"Task is the independent scheduling/execution attempt; Objective is the Maintenance Window aggregate that groups zero-or-more draft candidates but persists only with at least one Task."},
+    {"id":"HLD06-D002","decision":"A Task may remain unscheduled or belong to at most one persisted Objective; Objective membership requires a valid accepted Task interval."},
+    {"id":"HLD06-D003","decision":"WFM source plan, accepted operational Task plan, derived Objective envelope and actual execution are separate authorities."},
+    {"id":"HLD06-D004","decision":"The Objective envelope is derived as min accepted member-plan start and max accepted member-plan end; it does not overwrite member Task plans after initialization."},
+    {"id":"HLD06-D005","decision":"Automatic grouping computes global transitive connected components of strict positive-duration overlap. Customer and RFC context explain partitions/warnings but do not create temporal boundaries."},
+    {"id":"HLD06-D006","decision":"Grouping/regrouping is a reviewable non-authoritative proposal. Accepted Objectives may not overlap; bridging work proposes consolidation rather than creating overlap."},
+    {"id":"HLD06-D007","decision":"Objective start never implicitly starts member Tasks. Task execution, cancellation and reviewed outcome are independently recorded per Task."},
+    {"id":"HLD06-D008","decision":"Objective aggregate state/outcome is derived from member Task facts. Whole-Objective Cancelled is valid only when no Task began execution; mixed Task outcomes remain mixed."},
+    {"id":"HLD06-D009","decision":"Review acceptance time is separate from execution chronology; correction changes prior recorded interpretation through append-only history, while retry creates a new Task attempt identity."},
+    {"id":"HLD06-D010","decision":"Plan/membership locks derive from accepted execution/history/explicit lock, not wall-clock passage."},
+    {"id":"HLD06-D011","decision":"Distinct WFM Task Nos are distinct attempts. Competing-attempt restriction applies only to overlapping active attempts of the same reviewed activity lineage."},
+    {"id":"HLD06-D012","decision":"Provider Complete plus valid source plan may propose historical Objective structure, but never fabricates execution, Task outcome, Device work, spare use or Inventory consequence."},
+    {"id":"HLD06-D013","decision":"Objective scheduling timezone is an IANA presentation/input context only; persisted known instants remain canonical UTC and other-domain chronology is unaffected."},
+    {"id":"HLD06-D014","decision":"Once Objective/Task accepted execution or protected history exists, hard deletion is permanently unavailable; only an unaccepted UI draft may be discarded."}
+  ],
+  "packet_files": ["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
+  "downstream_hld_ids": ["HLD-07","HLD-08","HLD-11","HLD-12","HLD-14"],
+  "downstream_lld_ids": ["LLD-05"],
+  "unresolved_here_by_design": [
+    "O-003 exact detailed Task outcome transition/correction reason vocabulary beyond accepted outcomes",
+    "exact Objective tracking-ID serialization and monthly ordinal presentation format",
+    "exact interval-component implementation/data structure and scaling thresholds",
+    "exact regroup proposal persistence schema and rejection-fingerprint representation",
+    "exact Task execution command/API shapes",
+    "exact historical operational-count inclusion controls and UI placement"
+  ],
+  "completion_evidence": {
+    "required_packet_files_present": true,
+    "task_vs_objective_authority_fixed": true,
+    "plan_vs_execution_layers_fixed": true,
+    "global_overlap_grouping_fixed": true,
+    "review_retry_history_boundary_fixed": true,
+    "ready_for_owner_review": true
+  }
+}
