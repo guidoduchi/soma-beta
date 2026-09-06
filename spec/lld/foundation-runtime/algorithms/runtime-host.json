@@ -18,8 +18,8 @@
     "host":"127.0.0.1",
     "port":0,
     "windows_option":"set SO_EXCLUSIVEADDRUSE before bind; do not enable SO_REUSEADDR",
-    "sequence":["create socket","apply exclusive-address option","bind 127.0.0.1:0","listen","read assigned port","retain ownership and pass already-bound socket to uvicorn.Server.serve(sockets=[socket])"],
-    "reason":"OS chooses the free port while SOMA already owns the socket, eliminating free-port probe/bind races"
+    "sequence":["create socket","apply exclusive-address option","bind 127.0.0.1:0 without a separate free-port probe","read assigned port","retain the already-bound socket and pass it to uvicorn.Server.serve(sockets=[socket]); Uvicorn/asyncio owns listen/accept lifecycle thereafter"],
+    "reason":"OS chooses the free port while SOMA already owns the bound address, eliminating free-port probe/bind races without double-listen behavior"
   },
   "uvicorn_config": {
     "app":"SOMA Starlette application factory result",
