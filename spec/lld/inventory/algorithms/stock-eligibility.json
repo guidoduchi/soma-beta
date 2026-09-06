@@ -1,0 +1,14 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-07",
+  "name":"STOCK_ELIGIBILITY_V1",
+  "candidate_rule":"A Spare Part Unit is Stock-eligible only when current physical projection says serviceable/new-compatible disposition is available, no active Task allocation exists, no accepted installed relationship is current, no open return obligation/Fault Tag ownership conflicts, and no quarantine/scrap/dismantled/returned state applies.",
+  "compatibility":[
+    "exact accepted BOM compatibility is highest-confidence candidate evidence",
+    "serial equality is duplicate/reconciliation evidence only and never compatibility identity",
+    "Device/Model/Installed Component compatibility may be consumed from explicit future LLD-08 interface when available; absent or indeterminate compatibility is shown as unknown and never auto-reserved",
+    "operator may deliberately request externally even when compatible Stock exists"
+  ],
+  "query_plan":["use indexed spare_part_current_projection disposition/condition and BOM key first","exclude active task_unit_allocation_current and current return/installed conflicts through indexed anti-joins","paginate deterministic by compatibility class then LSU/display/internal id"],
+  "mutation_rule":"A read suggestion never writes reservation, Need resolution or Task state. Reservation revalidates eligibility inside UnitOfWork."
+}
