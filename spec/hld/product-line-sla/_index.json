@@ -1,0 +1,57 @@
+{
+  "schema": "SOMA-HLD-PACKET-V1",
+  "id": "HLD-07",
+  "name": "Product Line and SLA",
+  "status": "review_ready",
+  "purpose": "Define reusable Product Line identity, customer-specific Contract Product Line SLA authority, SR classification, exact elapsed calculations, canonical monthly cohorts, live SLA projections and immutable report evidence.",
+  "primary_requirement_ids": [
+    "BETA-REQ-0064",
+    "BETA-REQ-0065",
+    "BETA-REQ-0071",
+    "BETA-REQ-0173",
+    "BETA-REQ-0174",
+    "BETA-REQ-0175"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0063",
+    "BETA-REQ-0069",
+    "BETA-REQ-0070",
+    "BETA-REQ-0128",
+    "BETA-REQ-0135",
+    "BETA-REQ-0143",
+    "BETA-REQ-0165",
+    "BETA-REQ-0171",
+    "BETA-REQ-0177"
+  ],
+  "implementation_authority_ids": ["F5"],
+  "decisions": [
+    {"id":"HLD07-D001","decision":"Product Line is reusable reference identity; each Contract belongs to exactly one Customer Organization; each Contract Product Line couples one Contract to one Product Line and owns its customer-specific SLA policy."},
+    {"id":"HLD07-D002","decision":"An SR has at most one active Contract Product Line classification and it must belong to the SR's resolved Customer; classification is deterministic/reviewed and Advanced Search Product has no authority."},
+    {"id":"HLD07-D003","decision":"Current SLA calculation is a reproducible projection over accepted SR facts plus the current accepted Contract Product Line policy; policy/classification revisions recalculate current projections without rewriting completed report evidence."},
+    {"id":"HLD07-D004","decision":"Effective SLA duration is max(0, endpoint - accepted Report Date - cumulative accepted source-reported suspension), using exact whole-second/integer-or-decimal arithmetic without premature rounding."},
+    {"id":"HLD07-D005","decision":"Active endpoint is current canonical instant; eligible terminal endpoint is first accepted effective Resolved/Closed; Cancelled preserves history but is excluded from cohorts; missing Report Date is explicitly uncalculable."},
+    {"id":"HLD07-D006","decision":"Canonical SLA cohort membership uses Report Date month in America/Guayaquil and partitions by Customer, Contract, Contract Product Line, severity and policy tier. Compliance outcome/state is derived after membership and is never a cohort-key dimension."},
+    {"id":"HLD07-D007","decision":"Individual SR SLA state and cohort compliance percentage/state are separate projections."},
+    {"id":"HLD07-D008","decision":"Daily/Weekly/range views are dated progress snapshots of canonical monthly contractual cohorts; an open month is never labeled final."},
+    {"id":"HLD07-D009","decision":"A completed report becomes immutable historical evidence only after successful artifact verification from one consistent accepted-state snapshot."},
+    {"id":"HLD07-D010","decision":"Failed/cancelled report attempts and SLA recalculation never authorize operational cleanup or history deletion."}
+  ],
+  "packet_files": ["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
+  "downstream_hld_ids": ["HLD-11","HLD-12","HLD-14"],
+  "downstream_lld_ids": ["LLD-06"],
+  "unresolved_here_by_design": [
+    "O-001 whether immutable completed report evidence is stored as snapshot, reconstructed from immutable inputs, or both",
+    "exact SLA tier storage/index schema and policy revision representation",
+    "exact report artifact format/layout and generation library",
+    "exact live-projection cache strategy",
+    "exact batch-classification UI pagination and technical limits"
+  ],
+  "completion_evidence": {
+    "required_packet_files_present": true,
+    "customer_specific_sla_authority_fixed": true,
+    "exact_duration_formula_fixed": true,
+    "canonical_cohort_key_fixed_without_outcome": true,
+    "completed_report_immutability_fixed": true,
+    "ready_for_owner_review": true
+  }
+}
