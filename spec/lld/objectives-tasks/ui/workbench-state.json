@@ -1,0 +1,73 @@
+{
+  "schema":"SOMA-LLD-UI-V1",
+  "lld_id":"LLD-05",
+  "ownership":"LLD-05 defines domain-visible states, actions, warnings and preview payloads. LLD-10 owns concrete components, layout, responsive behavior, focus, keyboard interaction, working copies and confirmation widgets.",
+  "objectives_workspace":{
+    "primary_views":["timeline/calendar","list","awaiting review","grouping proposals","historical proposals","archived/history"],
+    "row_fields":["stable MW tracking id","derived monthly ordinal when applicable","reviewed envelope in selected Objective timezone","aggregate execution/review state","member count","derived SR/RFC/Customer/Device context summary","warning/attention indicators"],
+    "rules":["monthly ordinal is visually secondary to stable tracking identity","multi-customer/multi-RFC context is explicit but never visually implies a temporal partition","archived unfinished safety state remains discoverable through Needs Attention even if hidden from ordinary list"]
+  },
+  "objective_creation":{
+    "ui_draft_state":"may temporarily contain zero Tasks but has no Objective identity/tracking id/persisted row until CreateObjectiveFromPreview commits",
+    "minimum_commit":"at least one Task with a complete accepted/prospective interval",
+    "task_sources":["create Local Task","select eligible existing Local Task","select eligible WFM","review WFM source plan as scheduling candidate"],
+    "preview_states":["independent create","join existing Objective","bridge/consolidation required","exact-touch separate with optional manual merge","blocked competing attempt","unscheduled/incomplete plan","stale"],
+    "rule":"editing an Objective envelope never silently overwrites member Task plans; the editor is expressed as reviewed Task plan changes plus regroup preview"
+  },
+  "objective_workbench":{
+    "sections":["Summary","Tasks","Scheduling and Grouping","Execution and Review","Derived Context","History"],
+    "summary":["tracking identity","derived monthly ordinal","membership-pinned envelope","aggregate state/outcome","Objective timezone label","archive/supersession status"],
+    "tasks_table":["Task identity/name","kind Local/WFM","owning RFC context","source plan when WFM","current operational plan","membership-pinned plan","actual execution","reviewed Task outcome","operational-count inclusion","warnings"],
+    "derived_context":["SRs with source Task provenance","RFC/root/subordinate context","Customer partitions/unresolved warnings","Device References","Inventory summary only through future LLD-07 Task relationships"],
+    "forbidden_controls":["direct Objective-to-SR link","direct Objective-to-RFC link","direct Objective-to-Device link","direct Objective spare-use/outcome authoring","editable Objective aggregate outcome"]
+  },
+  "temporal_layers":{
+    "display_order":["provider source plan","current accepted operational Task plan","Objective membership-pinned Task plan/envelope","actual execution"],
+    "mismatch":"when current Task plan differs from membership pin, show both intervals and PLAN_MEMBERSHIP_MISMATCH; never visually replace pinned interval before regroup acceptance",
+    "unknown":"unknown source/execution times display as unknown, never substituted from reviewed_at or plan"
+  },
+  "execution_flow":{
+    "objective_start":"requires explicit nonempty selection of member Tasks to start; UI must state that unselected Tasks will remain unstarted",
+    "task_actions":["Start","End actual execution","Cancel without execution","Review outcome","Correct execution evidence","Correct outcome","Retry"],
+    "review_outcomes":["Completed","Incomplete","Cancelled without execution"],
+    "awaiting_review":"display/projection state, not a selectable accepted Task outcome",
+    "whole_objective_cancel":"enabled only when preview proves no member Task ever began accepted execution",
+    "mixed":"show per-Task outcomes; do not offer an Objective-level override that erases mixed truth"
+  },
+  "grouping_review":{
+    "must_show":["proposal kind/risk","exact Task/Objective counts","old -> proposed membership","current plan revision and membership pin","old -> proposed envelopes","consolidation survivor and superseded Objective identities","strict-overlap explanation","Customer/RFC contextual partitions/warnings","lock/in-progress limitations","stale/equivalent-rejection state"],
+    "large_diff":"paged/virtualized exact detail with exact totals; acceptance binds persisted proposal rather than loaded page",
+    "rejection":"reasoned rejection stores minimized fingerprint; UI offers explicit Reconsider when the material fingerprint is unchanged",
+    "exact_touch":"automatic preview keeps separate; optional manual merge is explicit and reviewed"
+  },
+  "wfm_source_terminal_review":{
+    "trigger":"accepted provider Complete or Plan Cancel while local executable work/consequence still exists",
+    "must_show":["provider status/source provenance","Task local execution/outcome","Objective membership/state","impact if local work terminates","surviving Objective work count","source/local fingerprint freshness"],
+    "choices":["Retain local work","Terminate local work"],
+    "warning":"provider terminal evidence has already been accepted as source evidence; this decision controls only local Task consequence and does not alter provider status"
+  },
+  "historical_objective_review":{
+    "must_show":["WFM Task No.","provider Complete provenance","accepted source plan","existing operational plan if any","proposed historical MW envelope","overlap conflicts","explicit statement: no execution/outcome/Device/Inventory consequence will be created"],
+    "acceptance":"if no operational plan exists, explain that the exact accepted source interval will become a dedicated historical structure plan revision; if a different operational plan exists, block acceptance and route to plan reconciliation",
+    "operational_counts":"individual historical Task inclusion toggle is separate from structure acceptance"
+  },
+  "retry_review":{
+    "local":"show predecessor immutable attempt, proposed new Task identity placeholder, new independent interval, selectable current SR/RFC/Device links, and future LLD-07 eligible Inventory relationship selections when available",
+    "wfm":"requires separately existing distinct TK attempt; UI only links reviewed retry lineage",
+    "rule":"never present retry as reopening/resetting the old Task or cloning an Objective identity"
+  },
+  "timezone":{
+    "setting":"OBJECTIVE_TIMEZONE_V1",
+    "change_preview":"presentation-only for existing UTC instants",
+    "ambiguous_input":"require explicit first/second occurrence choice or offset in DST fold",
+    "nonexistent_input":"block with actionable timezone-gap error; no automatic shift",
+    "rule":"wall-clock preservation across timezone change is offered only as separate reviewed reschedule"
+  },
+  "history_and_destructive_actions":{
+    "archive":"presentation lifecycle only",
+    "hard_delete":"only surface after exact eligibility preview; unavailable with protected history",
+    "last_task_removal":"if it would empty a manual untouched Objective, UI must atomically offer/delete that Objective through exact preview; otherwise block OBJECTIVE_EMPTY",
+    "correction":"select exact prior plan/execution/outcome evidence; show preserved prior evidence and resulting projection before commit"
+  },
+  "accessibility_handoff":["all domain actions require keyboard-equivalent interaction under LLD-10","warnings use text/icon/state not color alone","responsive presentation cannot remove source/current/pinned/actual temporal distinctions or hide exact proposal totals"]
+}
