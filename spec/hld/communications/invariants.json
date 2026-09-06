@@ -1,0 +1,23 @@
+{
+  "schema":"SOMA-HLD-INVARIANTS-V1",
+  "hld_id":"HLD-10",
+  "invariants":[
+    {"id":"HLD10-I001","rule":"Communication Source Scope identity is stable and path-independent; moving/renaming the same local store cannot create a second logical source scope."},
+    {"id":"HLD10-I002","rule":"Automatic processing is ineligible until at least one governed trackable operational entity exists; master/reference/descriptive data alone never satisfies the gate."},
+    {"id":"HLD10-I003","rule":"Unknown external chronology remains unknown; import/discovery/index/current time cannot substitute for missing message/business time."},
+    {"id":"HLD10-I004","rule":"A canonical Communication has immutable local identity scoped to one Source Scope; fallback canonicalization is versioned/deterministic and collisions preserve candidates rather than silently merge."},
+    {"id":"HLD10-I005","rule":"Only matched/protected Communications persist reconstructable content; unmatched inspection is transient."},
+    {"id":"HLD10-I006","rule":"One canonical Communication may link independently to multiple operational entities; removing/correcting one link never removes or mutates the others."},
+    {"id":"HLD10-I007","rule":"Communication-derived proposals cannot mutate any owning domain before accepted through that domain's command boundary."},
+    {"id":"HLD10-I008","rule":"Provider terminal RFC evidence/import acceptance/pending cascade proposal never removes RFC direct Communication links; only confirmed local cascade does."},
+    {"id":"HLD10-I009","rule":"Orphan grace starts only when the last protected dependency is authoritatively removed; default duration is seven exact elapsed days and any restored dependency cancels pending purge."},
+    {"id":"HLD10-I010","rule":"Due purge revalidates all protected dependencies transactionally before removing reconstructable content and must preserve only non-reconstructable minimized evidence."},
+    {"id":"HLD10-I011","rule":"Communication purge never deletes operational entities, append-only audit, external PST/OST source, existing portable exports or protected backups."},
+    {"id":"HLD10-I012","rule":"Coverage/high-water advances only through durably committed provider position/time; failed/cancelled/restarted jobs preserve the last committed point and expose incomplete coverage."},
+    {"id":"HLD10-I013","rule":"Targeted backfill is identity/range bounded and never globally rewinds unrelated source coverage; Deep Scan always requires explicit confirmation."},
+    {"id":"HLD10-I014","rule":"At most one ordinary processing run executes per Source Scope; timer/manual/startup triggers coalesce rather than create unbounded parallel work."},
+    {"id":"HLD10-I015","rule":"MSG draft generation/export is never proof of sending and never creates canonical sent Communication identity or processing coverage."},
+    {"id":"HLD10-I016","rule":"Terminal communication summaries contain minimized counts/direction/chronology/coverage only and never retain a hidden body or reconstructable equivalent."}
+  ],
+  "acceptance_hooks":["path move preserves Source Scope/message identity","no-target no-read gate","unknown earliest time produces warning rather than fabricated coverage","provider identity and fallback collision reconciliation","one message many independent target links","proposal reject/defer causes no domain mutation","RFC provider terminal evidence does not unlink before cascade","seven-day orphan grace cancellation/restoration and due revalidation","purge preserves external files/backups/domain history","coalesced scheduler and crash/cancel checkpoint recovery","MSG draft vs later sent-message provenance","terminal summary survives content purge without body navigation"]
+}
