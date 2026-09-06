@@ -2,15 +2,15 @@
   "schema":"SOMA-LLD-PACKET-V1",
   "id":"LLD-08",
   "name":"Site, Room, Rack, Network Element, Components",
-  "status":"drafting",
+  "status":"review_ready",
   "requirement_ids":["BETA-REQ-0102","BETA-REQ-0103","BETA-REQ-0104","BETA-REQ-0105","BETA-REQ-0106","BETA-REQ-0107","BETA-REQ-0108","BETA-REQ-0110"],
   "supporting_requirement_ids":["BETA-REQ-0020","BETA-REQ-0023","BETA-REQ-0024","BETA-REQ-0027","BETA-REQ-0033","BETA-REQ-0034","BETA-REQ-0049","BETA-REQ-0109","BETA-REQ-0121","BETA-REQ-0125","BETA-REQ-0135","BETA-REQ-0137"],
   "hld_dependencies":["HLD-02","HLD-03","HLD-04","HLD-05","HLD-08","HLD-09","HLD-13","HLD-14"],
-  "foundation_dependencies":["LLD-01 UnitOfWork/idempotency/audit/STRICT schema/job conventions","LLD-02 Customer Organization and Dispatch Location identities plus Site↔Dispatch ownership reservation","LLD-03 Device Reference operational identity/resolution boundary","LLD-07 Device Part Unit identity and optional Installed Component resolution interface","future LLD-10 UI working-copy/three-second deliberate-hold interaction","future LLD-12 authentication/action-proof and release dependency pinning"],
+  "foundation_dependencies":["LLD-01 UnitOfWork/idempotency/audit/STRICT schema/job conventions and DataInstanceIdentityReader","LLD-02 Customer Organization and Dispatch Location identities plus Site↔Dispatch ownership reservation","LLD-03 Device Reference operational identity/resolution boundary","LLD-07 Device Part Unit identity, InventoryPhysicalConsequenceReader and optional Installed Component resolution interface","future LLD-10 UI working-copy/three-second deliberate-hold interaction","future LLD-12 authentication/DeliberateActionProof and release dependency pinning"],
   "scope":["Site physical Datacenter identity and stable Customer ownership","one-to-one Site↔dedicated Dispatch Location relationship and site-derived address provider","Room/Rack identity and physical placement/occupancy history","Network Element physical-instance identity/site/model/serial lifecycle","Device Reference→Network Element regularization without operational identity replacement","one-parent acyclic Network Element containment","Cloud Type and Site-scoped Cloud Deployment assignment","descriptive zero-many IP inventory with at-most-one primary","reusable Network Element Model/BOM/component compatibility knowledge","Installed Component instance identity/history under Network Element","Device Part Unit→Installed Component optional resolution","versioned macro-free Infrastructure workbook generation, discovery, staging, review and atomic acceptance","secret/connectivity/topology exclusion"],
   "not_owned_here":["Customer Organization and Dispatch Location master lifecycle -> LLD-02","operational Device Reference/ticket relationships -> LLD-03","Inventory Device Part Unit/physical consequence/return lifecycle -> LLD-07","Task execution/outcome -> LLD-05","Communication identity -> LLD-09","generic UI draft/undo -> LLD-10","credentials/authentication/secrets -> LLD-12","connectivity/topology/interface/SSH -> deferred 1.x"],
   "required_directories":["schema","commands","queries","algorithms","ui","tests"],
-  "target_packet_files":[
+  "packet_file_manifest":[
     "bounds.json","errors.json","interfaces.json","routes.json","technology.json",
     "schema/site-placement.json","schema/models-components.json","schema/relationships.json","schema/workbook.json",
     "commands/site-placement.json","commands/network-elements.json","commands/models-components.json","commands/relationships.json","commands/workbook.json",
@@ -19,6 +19,39 @@
     "ui/workspace-state.json",
     "tests/acceptance.json","tests/failure-injection.json","tests/workbook-security.json"
   ],
-  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"construction_complete":false,"formal_double_review_deferred_until_full_beta_lld_set":true,"implementation_ready":false},
+  "transaction_boundaries":[
+    "Standalone Infrastructure mutations use one LLD-01 UnitOfWork and insert the single command_receipt before any receipt-FK child/event/projection row; reducers/repositories never create nested receipts or commits.",
+    "CreateSite coordinates LLD-02 dedicated Dispatch Location creation plus Site and one-to-one link inside the same outer UnitOfWork; any participant failure rolls back all three identities/relationships.",
+    "Device Reference regularization verifies required session-bound deliberate-action proof before mutation, then creates/links only through LLD-08 in one outer UnitOfWork and never retargets LLD-03/05/07 operational relationships.",
+    "Maintenance-derived Installed Component changes consume LLD-07 InventoryPhysicalConsequenceReader for current evidence validation; LLD-08 has no Inventory or Task writer.",
+    "Workbook parsing/staging/proposal calculation and XLSX writing occur outside long writer transactions. Accepted selected workbook mutations revalidate through the same manual domain services in one all-or-nothing outer UnitOfWork; staging cleanup is post-terminal technical minimization only."
+  ],
+  "failure_modes":[
+    "stale revisions/fingerprints, same-Site violations, Rack occupancy conflicts, primary-IP races, containment cycles, component slot conflicts and archived/master changes fail before commit and preserve prior state",
+    "archive/dependency or Inventory-consequence INDETERMINATE results fail closed",
+    "any required cross-domain participant, audit/result, projection or replay-index failure rolls back the owning authoritative UnitOfWork",
+    "unsafe/locked/corrupt/unsupported workbook input produces bounded failure evidence without source modification or domain mutation",
+    "crash after an accepted workbook commit but before technical staging cleanup leaves valid authoritative state and retryable cleanup rather than an incomplete domain transaction"
+  ],
+  "acceptance_tests":{
+    "domain_acceptance":{"path":"tests/acceptance.json","count":76},
+    "failure_injection":{"path":"tests/failure-injection.json","count":48},
+    "workbook_security":{"path":"tests/workbook-security.json","count":36},
+    "explicit_total":160,
+    "execution_status":"design_explicit_not_yet_executed; automation/execution required before implementation-ready and final owner acceptance"
+  },
+  "construction_evidence":{
+    "all_target_packet_files_present":true,
+    "site_dispatch_authority_separated":true,
+    "placement_containment_cloud_ip_relationship_families_separated":true,
+    "device_reference_operational_identity_preserved":true,
+    "model_compatibility_vs_installed_component_instance_separated":true,
+    "maintenance_component_inventory_handoff_explicit":true,
+    "same_installation_scope_bound_to_foundation_data_instance_id":true,
+    "receipt_fk_ordering_explicit":true,
+    "workbook_nondestructive_staging_and_atomic_acceptance_explicit":true,
+    "secret_topology_ssh_exclusion_explicit":true
+  },
+  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":true,"acceptance_tests_explicit":true,"construction_complete":true,"formal_double_review_deferred_until_full_beta_lld_set":true,"implementation_ready":false},
   "design_principle":"Infrastructure registers physical truth without replacing operational identities. Site placement, containment, Cloud assignment, descriptive IPs, reusable compatibility knowledge, installed Component history and workbook evidence remain independent relationship authorities; none may silently imply connectivity, identity equality or another domain lifecycle fact."
 }
