@@ -1,0 +1,7 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-08",
+  "name":"IP_NORMALIZATION_V1",
+  "steps":["trim ordinary surrounding whitespace","reject empty input and any '%' zone/interface suffix in Beta 1.0","parse with Python stdlib ipaddress.ip_address; host addresses only, not CIDR/network text","emit family 4 or 6 and canonical compressed lowercase text","before insert/update check exact canonical duplicate on same Network Element","query cross-Network-Element same canonical address as duplicate candidates/warnings only","primary selection is a separate reviewed relation/event and revalidates at-most-one current primary"],
+  "rules":["IPv4 leading-zero ambiguous forms follow stdlib rejection rather than permissive reinterpretation","IPv4-mapped IPv6 remains the canonical IPv6 form returned by ipaddress and is not silently collapsed to IPv4","loopback/link-local/private/public semantics may be displayed as descriptive diagnostics but never block identity or infer topology unless a future contract says so","IP absence is valid and no address is synthesized","address correction preserves IP relationship identity/event history; a genuinely separate address may receive separate network_element_ip_id"]
+}
