@@ -13,7 +13,7 @@
     {"id":"HLD-08","path":"spec/hld/inventory","name":"Inventory Lifecycle","status":"review_ready"},
     {"id":"HLD-09","path":"spec/hld/infrastructure","name":"Infrastructure Physical Model","status":"review_ready"},
     {"id":"HLD-10","path":"spec/hld/communications","name":"Communications Evidence","status":"review_ready"},
-    {"id":"HLD-11","path":"spec/hld/ui-workbenches","name":"UI, Workbenches, and Interaction State","status":"planned"},
+    {"id":"HLD-11","path":"spec/hld/ui-workbenches","name":"UI, Workbenches, and Interaction State","status":"review_ready"},
     {"id":"HLD-12","path":"spec/hld/overview","name":"Overview and Cross-domain Projections","status":"planned"},
     {"id":"HLD-13","path":"spec/hld/security-trust","name":"Security, Trust, Diagnostics, and Recovery","status":"planned"},
     {"id":"HLD-14","path":"spec/hld/cross-cutting","name":"Temporal, Audit, History, Transactions, and Derived State","status":"planned"}
