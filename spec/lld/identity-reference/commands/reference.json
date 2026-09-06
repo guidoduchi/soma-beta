@@ -5,10 +5,25 @@
   "commands":[
     {
       "name":"CreateCustomerOrganization",
-      "input":["command_id","name","actor/source"],
+      "input":["command_id","name","optional Customer Account Code","actor/source"],
       "transaction_boundary":"one LLD-01 authoritative UnitOfWork",
-      "steps":["validate semantic bounds","compute name_match_key","allocate customer_org_id and lifecycle_event_id","insert command_receipt","insert active record revision 1","append created lifecycle event referencing receipt","insert audit/result references","commit"],
-      "rules":["matching candidates may be shown before command but equal name never blocks creation solely as identity duplication","no implicit merge/adoption"]
+      "steps":["validate semantic bounds","compute name_match_key and optional account-code match_key","when account code supplied, prove no other active canonical claimant; otherwise return ACCOUNT_CODE_CONFLICT_REVIEW with no mutation","allocate customer_org_id, optional identifier_id and lifecycle_event_id","insert command_receipt","insert active record revision 1","insert optional active customer_account_code identifier referencing receipt","append created lifecycle event referencing receipt","insert audit/result references","commit"],
+      "rules":["matching candidates may be shown before command but equal name never blocks creation solely as identity duplication","Customer Account Code is preferred external matching evidence but never the relational ID","no implicit merge/adoption"]
+    },
+    {
+      "name":"SetCustomerAccountCode",
+      "input":["customer_org_id","base_revision","raw Customer Account Code","reason_category","command_id"],
+      "transaction_boundary":"one UnitOfWork",
+      "steps":["load active Customer by immutable ID and revalidate revision","validate/normalize complete account code","query active canonical claimant for exact normalized code","if another Customer owns the code return ACCOUNT_CODE_CONFLICT_REVIEW with claimant ID and no mutation","allocate identifier ID","insert command_receipt","supersede this Customer's prior active account-code row when different","insert new active claim when not already the same accepted value","increment Customer revision when canonical claim changes","insert audit referencing superseded/new identifier identities","commit"],
+      "rules":["prior claims remain history","same already-active code under same Customer is idempotent only through normal command-receipt semantics","source/import observations never call this without reviewed acceptance"]
+    },
+    {
+      "name":"ReassignCustomerAccountCode",
+      "purpose":"explicit reviewed resolution when an account code is canonically assigned to the wrong Customer Organization",
+      "input":["from_customer_org_id","from_base_revision","to_customer_org_id","to_base_revision","raw Customer Account Code","reason_category","command_id"],
+      "transaction_boundary":"one UnitOfWork",
+      "steps":["require distinct immutable Customer IDs and active targets","revalidate both revisions","normalize exact code and prove from-Customer is its current canonical claimant","allocate new identifier ID","insert command_receipt","supersede from-Customer account-code claim","supersede any different active account-code claim on to-Customer","insert active code claim for to-Customer","increment both Customer revisions","insert one reasoned audit action referencing every changed identifier/Customer identity","commit"],
+      "rules":["does not merge Customer Organizations","does not rewrite historical operational Customer context","cannot be triggered merely by equal display names","failure anywhere rolls all claim/revision/audit changes back"]
     },
     {
       "name":"CreateContact",
@@ -51,7 +66,7 @@
       "input":["target_id","base_revision","allowed descriptive fields","command_id"],
       "transaction_boundary":"one UnitOfWork",
       "steps":["load target","revalidate revision/lifecycle eligibility","validate fields and recompute matching keys","allocate lifecycle_event_id","insert command_receipt","apply change and increment revision","append descriptive_corrected lifecycle event","insert audit/result references","commit"],
-      "rules":["cannot change immutable ID","Dispatch Location cannot change customer ownership because no such field exists","site_derived address cannot be overwritten here; Site address is owned by LLD-08"]
+      "rules":["cannot change immutable ID","Customer Account Code is changed only through its dedicated governed command and not through generic descriptive update","Dispatch Location cannot change customer ownership because no such field exists","site_derived address cannot be overwritten here; Site address is owned by LLD-08"]
     },
     {
       "name":"ArchiveReference",
