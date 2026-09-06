@@ -1,0 +1,36 @@
+{
+  "schema":"SOMA-LLD-UI-HANDOFF-V1",
+  "lld_id":"LLD-02",
+  "owner":"LLD-02 supplies reference/query/action state; LLD-10 owns rendering/components/interactions",
+  "reference_states":[
+    {"state":"active","selectable_for_new_work":true,"meaning":"eligible subject to consuming-domain validation"},
+    {"state":"archived","selectable_for_new_work":false,"meaning":"history-visible only until explicit reactivation"}
+  ],
+  "candidate_states":[
+    {"state":"UNRESOLVED","ui_rule":"offer explicit create/select-alternative workflow only where owning domain permits; do not create automatically"},
+    {"state":"UNIQUE_CANDIDATE","ui_rule":"show immutable candidate identity and supporting exact-match evidence; candidate is not an implicit accepted link"},
+    {"state":"AMBIGUOUS","ui_rule":"show all bounded qualified candidates with scope/evidence; require explicit operator resolution or stronger evidence"}
+  ],
+  "contact_affiliation":{
+    "current":"show current Customer Organization or Unbound",
+    "history":"history surface lists closed affiliations without rewriting the Contact identity",
+    "mismatch_warning":"when consuming domain reports Contact-current-affiliation != operation Customer context, show warning/review choices; never silently reassign or duplicate Contact"
+  },
+  "archive":{
+    "preview":"show every dependency blocker grouped by owning domain with safe_next_action",
+    "blocked":"Archive command disabled/failed with fresh blocker set; UI must not offer cascade unlink/delete as an implicit workaround",
+    "eligible":"requires explicit archive action; commit may still return stale/blocker conflict after revalidation",
+    "reactivation":"explicit action with fresh conflict validation"
+  },
+  "dispatch_location":{
+    "customer_neutrality":"do not show Customer ownership/preference as editable Dispatch Location fields",
+    "address_source":"label current address as Standalone or Site-derived when useful; Site-derived address edits navigate to/execute the LLD-08 Site owner rather than writing Dispatch Location address",
+    "operation_role":"delivery/pickup/return role is selected/stored by the consuming logistics workflow, not edited on the location master"
+  },
+  "settings":{
+    "source_badge":"distinguish DEFAULT from PERSISTED without creating a row",
+    "validation":"semantic owner errors remain field/action specific",
+    "secrets":"ordinary Settings surface never receives raw secret values that belong to LLD-12"
+  },
+  "conflict_rule":"Every edit/archive/reactivate/setting write carries the last accepted revision; STALE_REVISION reloads current state and preserves the user's recoverable working copy under LLD-10 rules."
+}
