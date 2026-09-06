@@ -10,19 +10,22 @@
     {"concept":"Cloud Deployment","authority":"HLD-09","notes":"Independently identified Site-scoped deployment."},
     {"concept":"IP inventory","authority":"HLD-09","notes":"Descriptive addressing only; no topology/reachability authority."},
     {"concept":"Model/BOM/component compatibility","authority":"HLD-09","notes":"Reusable compatibility/reference knowledge separate from installed instances."},
-    {"concept":"Installed Component instance","authority":"HLD-09","notes":"Per-Network-Element physical component identity/history, including slot/serial/chronology where known."},
+    {"concept":"Installed Component instance","authority":"HLD-09","notes":"Registered per-Network-Element component master identity/history, including slot/serial/chronology where known; an HLD-08 Device Part Unit may resolve to it without identity replacement."},
+    {"concept":"Device Part Unit resolution","authority":"HLD-09 link + HLD-08 operational service identity","notes":"Optional explicit relation between an operational Device Part Unit and a registered Installed Component; each identity/history remains owned by its source domain."},
     {"concept":"Infrastructure workbook observation","authority":"HLD-05 staging + HLD-09 acceptance","notes":"Workbook is untrusted evidence; accepted HLD-09 command owns domain mutation."}
   ],
   "derived_context":[
     "Network Element Customer context derives through its authoritative Site and owning Customer Organization relationships rather than copied mutable labels.",
     "Rack Site derives through Rack -> Room -> Site.",
     "Cloud Type for a Network Element derives through its accepted Cloud Deployment.",
-    "Operational ticket/Inventory views may display Network Element data through Device Reference resolution without changing ownership."
+    "Operational ticket/Inventory views may display Network Element data through Device Reference resolution without changing ownership.",
+    "Inventory may display registered Installed Component context through the explicit DevicePartUnit-to-InstalledComponent resolution without copying Infrastructure master/history as Inventory truth."
   ],
   "prohibitions":[
     "Infrastructure does not infer RFC Customer ownership.",
     "Infrastructure does not establish connectivity from containment, placement, Cloud or IP data.",
     "Infrastructure does not store reusable device passwords, keys or SSH secrets.",
-    "Infrastructure does not mutate terminal ticket history when Device Reference resolution is corrected later."
+    "Infrastructure does not mutate terminal ticket history when Device Reference resolution is corrected later.",
+    "Infrastructure does not replace or merge an HLD-08 Device Part Unit merely because it resolves to a registered Installed Component."
   ]
 }
