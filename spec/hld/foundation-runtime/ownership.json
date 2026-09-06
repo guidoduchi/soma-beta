@@ -1,0 +1,74 @@
+{
+  "schema": "SOMA-HLD-OWNERSHIP-V1",
+  "hld_id": "HLD-02",
+  "owns": [
+    {
+      "capability": "authoritative SQLite access",
+      "rule": "One owned connection factory is the only supported authoritative SQLite entry point and proves foreign-key enforcement on every connection."
+    },
+    {
+      "capability": "migration lineage and publication",
+      "rule": "Migration identity/order/content/manifest governance, serialized application, atomic schema+ledger publication, drift detection, and readiness gating are Foundation Runtime responsibilities."
+    },
+    {
+      "capability": "observational migration status",
+      "rule": "Status inspection is side-effect free and cannot implicitly initialize, migrate, repair, checkpoint, or create diagnostics merely by observation."
+    },
+    {
+      "capability": "persistent document contracts",
+      "rule": "Named/versioned JSON document validation and upgrade mechanics are centrally governed while document meaning remains with its owning domain/runtime capability."
+    },
+    {
+      "capability": "durable runtime/job coordination",
+      "rule": "Restart-relevant job/checkpoint/proposal coordination uses explicit durable records and never depends only on browser or process memory."
+    },
+    {
+      "capability": "common persistence integrity",
+      "rule": "Common rules cover FK enforcement, effective FK indexes, schema publication checks, rollback/retry behavior, and no-partial-publication guarantees."
+    }
+  ],
+  "shared_with": [
+    {
+      "capability": "application audit persistence",
+      "semantic_owner": "HLD-14",
+      "mechanical_owner": "HLD-02",
+      "boundary": "HLD-14 defines what audit/event/history means and when it is required; HLD-02 provides append-only relational persistence/transaction mechanics."
+    },
+    {
+      "capability": "local runtime registry and shutdown coordination",
+      "semantic_owner": "HLD-01/HLD-13",
+      "mechanical_owner": "HLD-02 where durable/SQLite interaction is required",
+      "boundary": "Registry trust/authentication is not persistence authority."
+    },
+    {
+      "capability": "backup/restore",
+      "semantic_owner": "HLD-13",
+      "mechanical_owner": "HLD-02 for database integrity validation and reopen/publication checks"
+    }
+  ],
+  "does_not_own": [
+    {
+      "capability": "domain entities, business transitions, lifecycle meaning, and cross-domain relationship semantics",
+      "owner": "HLD-03 through HLD-10 and HLD-14"
+    },
+    {
+      "capability": "cryptographic algorithms, key storage, backup-envelope security, redaction policy",
+      "owner": "HLD-13"
+    },
+    {
+      "capability": "browser/client data model",
+      "owner": "HLD-11"
+    },
+    {
+      "capability": "application process/network topology",
+      "owner": "HLD-01"
+    }
+  ],
+  "authority_rules": [
+    "A database convenience cannot override owning-domain semantics.",
+    "A migration may change representation but may not silently change accepted product behavior.",
+    "A JSON document may not become an escape hatch for independently queryable relational facts.",
+    "A cache/projection may be dropped and rebuilt without loss of canonical truth.",
+    "A technical runtime record may coordinate work but never become domain lifecycle authority."
+  ]
+}
