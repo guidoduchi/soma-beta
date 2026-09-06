@@ -1,0 +1,62 @@
+{
+  "schema":"SOMA-LLD-UI-HANDOFF-V1",
+  "lld_id":"LLD-04",
+  "owner":"LLD-04 supplies review state/contracts; LLD-10 owns frontend components/interactions",
+  "source_surfaces":[
+    "shared RFC/WFM import directory status with Configure action owned through Settings",
+    "RFC Check now and Select file actions",
+    "WFM Check now and Select file actions",
+    "latest source checkpoint and last run status with chronology explicitly labelled as import/source ordering rather than business lifecycle"
+  ],
+  "run_summary":[
+    "candidate filename/source family/profile",
+    "logical fingerprint/replay classification",
+    "exact observed rows and valid identities",
+    "proposed creations",
+    "proposed updates",
+    "no-change observations",
+    "skipped branch artifacts/equivalent duplicates",
+    "invalid rows",
+    "warnings",
+    "high-risk/conflicting scopes",
+    "accepted/rejected/deferred/pending proposal totals"
+  ],
+  "review_groups":[
+    "Identity/adoption",
+    "RFC source fields/status",
+    "Customer reconciliation",
+    "SR link candidates",
+    "WFM source facts",
+    "WFM source-plan vs operational-plan",
+    "Provisional RFC/eligibility",
+    "Competing attempts",
+    "Invalid/skipped/warnings"
+  ],
+  "proposal_view":[
+    "show exact source family/run/candidate chronology/profile and row locator",
+    "show immutable target/business identities before descriptive text",
+    "show typed before/proposed values and why risk is low/medium/high/blocked",
+    "show current target state separately from proposal snapshot; stale state disables acceptance and offers refresh/reconsider flow",
+    "accept/reject/defer are explicit per-proposal actions; bulk action first presents complete eligible/stale/high-risk/blocked classification and never silently skips",
+    "rejected/deferred source presence stays visible in import history"
+  ],
+  "rfc_terminal_state":[
+    "terminal proposal clearly distinguishes accepting provider terminal evidence from executing local cascade",
+    "accept confirmation states that a pending cascade will be created but Tasks/Objectives/Communications will not yet change",
+    "after acceptance provide navigation to the RFC pending-cascade impact/hold surface owned by LLD-03/LLD-10"
+  ],
+  "wfm_plan_state":[
+    "provider source plan, accepted operational Task plan, Objective envelope and actual execution are displayed as distinct labelled facts",
+    "source acceptance and operational-plan decision are separate actions",
+    "Complete/Plan Cancel are visibly historical/cancelled provider evidence and never shown as proof of SOMA execution/outcome",
+    "an unresolved competing-attempt review does not fabricate retry lineage"
+  ],
+  "recovery_state":[
+    "equal-chronology/different-content and older-source cases use a dedicated high-risk recovery surface",
+    "show current checkpoint versus candidate chronology/fingerprint and exact review fingerprint",
+    "older-source recovery states explicitly that checkpoint chronology will not move backward",
+    "reject/defer/authorize-correction are distinct and stale recovery previews cannot submit"
+  ],
+  "accessibility":["state/risk never relies only on color","exact counts remain readable without loading every row","keyboard navigation/action equivalence follows shared UI contract","large lists virtualize/keyset-page without hiding unresolved conflicts"],
+  "auto_accept_presentation":"RFC_WFM_AUTO_ACCEPT_V1 has no domain-mutation classes. UI may explain replay/no-op automatic handling but shall not offer a misleading RFC/WFM mutation auto-accept toggle in Beta 1.0."
+}
