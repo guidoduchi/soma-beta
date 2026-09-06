@@ -18,22 +18,21 @@
       "visibility":"internal durable-job transition",
       "input":["import_run_id","complete parser result/fingerprint/counts","expected run revision"],
       "steps":[
-        "during validating state immutable observation/finding batches may be appended in bounded transactions but remain non-reviewable because run is unpublished",
-        "after parser reaches complete EOF, recompute exact child counts and logical fingerprint from persisted immutable staging rows",
-        "classify replay/chronology against current source-family checkpoint",
-        "if exact replay mark run noop and create no reconciliation proposals",
-        "if newer-identical mark run noop and record eligible bounded checkpoint-recency transition without per-entity observation/proposal duplication beyond this run's technical evidence policy",
-        "if equal chronology/different content or older chronology mark recovery_required and create no ordinary domain-acceptance authority",
-        "otherwise generate all reconciliation proposals, atomically set run staged/waiting_review with exact counters/fingerprint/revision",
-        "only staged/waiting_review/recovery_required/noop runs are visible to import-review queries"
+        "while run_state=validating, normalized rows/fields/findings may be appended in bounded transactions as unpublished technical staging; queries/proposals treat them as nonexistent source evidence",
+        "after parser reaches complete EOF, recompute exact child counts and logical fingerprint from the unpublished rows and classify replay/chronology against the current source-family checkpoint",
+        "if exact replay, delete unpublished findings/fields/rows through the guarded staging-cleanup path while the run is still validating, then atomically mark run noop; create no SourceObservation/proposal/domain history",
+        "if newer-identical, likewise delete unpublished row evidence before publication, then leave the run eligible only for RecordNewerIdenticalSourceCheck; no per-entity source observation/proposal duplication survives",
+        "if equal chronology/different content or older chronology, atomically publish the complete rows as immutable evidence by transitioning run to recovery_required; create no ordinary domain-acceptance authority",
+        "otherwise generate all reconciliation proposals from the complete staging set and atomically publish by transitioning run staged/waiting_review with exact counters/fingerprint/revision",
+        "only staged/waiting_review/recovery_required/noop runs are visible to review/history queries"
       ],
-      "rules":["crash before publish cannot make partial run reviewable","failed/partial parse cannot advance checkpoint","source omission produces no RFC/WFM disappearance proposals"]
+      "rules":["crash before publish cannot make partial run reviewable","failed/partial parse cannot advance checkpoint","SourceObservation immutability begins at publication, not during technical staging","source omission produces no RFC/WFM disappearance proposals"]
     },
     {
       "name":"AcceptReconciliationProposal",
       "input":["proposal_id","proposal_revision","proposal_fingerprint","base_state_token","reason/review context when required","command_id"],
       "steps":[
-        "load pending proposal and exact staged source/run/profile evidence",
+        "load pending proposal and exact published source/run/profile evidence",
         "reject blocked/recovery-required/unsafe-auto path",
         "inside one short UoW recompute current authoritative base-state token via owning LLD readers",
         "on mismatch return IMPORT_PROPOSAL_STALE with no accepted disposition/domain mutation",
@@ -48,7 +47,7 @@
       "name":"RejectReconciliationProposal",
       "input":["proposal_id","proposal_revision","proposal_fingerprint","reason_category","command_id"],
       "steps":["revalidate exact pending proposal/fingerprint","insert receipt","append rejected disposition and optional bounded equivalence decision","transition proposal rejected/update run counters","audit decision","commit"],
-      "rules":["no domain mutation","rejection does not erase valid source presence","newer chronology alone does not force redisplay when material-input equivalence remains exact"]
+      "rules":["no domain mutation","rejection does not erase valid published source presence","newer chronology alone does not force redisplay when material-input equivalence remains exact"]
     },
     {
       "name":"DeferReconciliationProposal",
@@ -72,8 +71,8 @@
     {
       "name":"RecordNewerIdenticalSourceCheck",
       "visibility":"internal no-domain-mutation path",
-      "input":["noop import_run_id","expected checkpoint revision","command_id"],
-      "steps":["inside UoW revalidate newer chronology and identical logical fingerprint","insert receipt","advance checkpoint chronology/run/last_checked while preserving fingerprint","mark run noop/completed","audit bounded source-check recency","commit"],
+      "input":["noop-ready import_run_id","expected checkpoint revision","command_id"],
+      "steps":["prove unpublished per-row staging has already been cleaned and no proposals exist","inside UoW revalidate newer chronology and identical logical fingerprint","insert receipt","advance checkpoint chronology/run/last_checked while preserving fingerprint","mark run noop/completed","audit bounded source-check recency","commit"],
       "rule":"creates no duplicate per-entity source observations, proposals or domain audit changes"
     },
     {
@@ -84,7 +83,7 @@
   ],
   "worker_recovery":[
     "startup finds durable import jobs/runs left discovering/validating by prior process and classifies them interrupted through LLD-01 job recovery",
-    "an unpublished partial run is never resumed as if complete; deterministic restart either resumes from a verified parser checkpoint owned by the durable job or marks it failed and starts a new run",
-    "source observations belonging to non-published failed runs never participate in replay/proposal/domain queries and may be removed only by separately governed technical-staging housekeeping, never as operational-history purge"
+    "an unpublished partial run is never treated as complete; deterministic restart either resumes from a verified parser checkpoint owned by the durable job or marks it failed and starts a new run",
+    "unpublished rows belonging to interrupted/failed validating runs never participate in replay/proposal/domain queries and may be removed by the guarded technical-staging cleanup; published rows are immutable operational source evidence and are never cleaned as staging"
   ]
 }
