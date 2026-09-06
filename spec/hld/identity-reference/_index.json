@@ -1,0 +1,93 @@
+{
+  "schema": "SOMA-HLD-PACKET-V1",
+  "id": "HLD-03",
+  "name": "Identity, Settings, and Reference Data",
+  "status": "review_ready",
+  "purpose": "Define stable reusable reference identities, lifecycle, exact candidate-matching boundaries, Site/Dispatch Location coupling, and typed settings ownership before domain LLDs consume them.",
+  "primary_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0021",
+    "BETA-REQ-0022",
+    "BETA-REQ-0023",
+    "BETA-REQ-0024",
+    "BETA-REQ-0025",
+    "BETA-REQ-0026",
+    "BETA-REQ-0028",
+    "BETA-REQ-0029",
+    "BETA-REQ-0030",
+    "BETA-REQ-0031",
+    "BETA-REQ-0034"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0020",
+    "BETA-REQ-0027",
+    "BETA-REQ-0032",
+    "BETA-REQ-0033",
+    "BETA-REQ-0035",
+    "BETA-REQ-0058",
+    "BETA-REQ-0067",
+    "BETA-REQ-0136",
+    "BETA-REQ-0165",
+    "BETA-REQ-0173",
+    "BETA-REQ-0177"
+  ],
+  "decisions": [
+    {
+      "id": "HLD03-D001",
+      "decision": "Reference entities use immutable opaque SOMA IDs; names, email, addresses and external/account labels remain attributes/matching data rather than relational identity."
+    },
+    {
+      "id": "HLD03-D002",
+      "decision": "Exactly one Local User Profile authenticates the installation and remains distinct from reusable Contacts representing operational people/roles."
+    },
+    {
+      "id": "HLD03-D003",
+      "decision": "Contact identity survives Customer affiliation changes; the current affiliation is 0..1 and previous affiliations remain explicit history."
+    },
+    {
+      "id": "HLD03-D004",
+      "decision": "Reference reconciliation is deterministic, exact and scope-aware; ambiguity is returned for review and fuzzy similarity never authorizes identity mutation."
+    },
+    {
+      "id": "HLD03-D005",
+      "decision": "Dispatch Location is a customer-neutral reusable physical logistics reference; operation role is stored by the logistics operation, not the location master."
+    },
+    {
+      "id": "HLD03-D006",
+      "decision": "Site creation owns one atomic cross-module creation/link of its dedicated Dispatch Location; current address may derive from Site while historical logistics snapshots remain immutable under Inventory."
+    },
+    {
+      "id": "HLD03-D007",
+      "decision": "Reference lifecycle is archive/reactivate by default once history exists; archived records are historical-only for selection and archive is blocked by active stranding dependencies."
+    },
+    {
+      "id": "HLD03-D008",
+      "decision": "Settings use one typed namespaced registry but semantic ownership stays with the owning module; reads never persist defaults implicitly."
+    }
+  ],
+  "packet_files": [
+    "_index.json",
+    "boundaries.json",
+    "ownership.json",
+    "dependencies.json",
+    "data-flow.json",
+    "invariants.json"
+  ],
+  "downstream_hld_ids": ["HLD-04", "HLD-05", "HLD-07", "HLD-08", "HLD-09", "HLD-10", "HLD-11", "HLD-13", "HLD-14"],
+  "downstream_lld_ids": ["LLD-02"],
+  "unresolved_here_by_design": [
+    "exact relational table/column/index layout",
+    "exact opaque-ID representation/generator shared convention",
+    "exact normalized candidate-key implementation and storage/index strategy",
+    "exact active-dependency validator registry/API",
+    "exact setting names/types/default constants and UI grouping",
+    "authentication credential implementation delegated to HLD-13/LLD-12"
+  ],
+  "completion_evidence": {
+    "required_packet_files_present": true,
+    "reference_identity_boundaries_fixed": true,
+    "matching_ambiguity_boundary_fixed": true,
+    "reference_lifecycle_boundary_fixed": true,
+    "ready_for_owner_review": true
+  }
+}
