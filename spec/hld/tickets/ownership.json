@@ -1,0 +1,81 @@
+{
+  "schema": "SOMA-HLD-OWNERSHIP-V1",
+  "hld_id": "HLD-04",
+  "owns": [
+    {
+      "capability": "Service Request record/lifecycle projection",
+      "rule": "Tickets owns canonical SR identity, accepted ticket fields, lifecycle projection, SR↔RFC links, Device Reference context and Working Notes."
+    },
+    {
+      "capability": "RFC record/lifecycle projection",
+      "rule": "Tickets owns canonical RFC identity, accepted status/customer/hierarchy projection, local archival state and reviewed relationship corrections."
+    },
+    {
+      "capability": "RFC forest",
+      "rule": "Tickets is the sole authority for the exact two-level RFC parent/child relationship and all Master/Subordinate/root role derivation."
+    },
+    {
+      "capability": "SR↔RFC relationship",
+      "rule": "Tickets owns direct many-to-many links at the master/root boundary and preserves subordinate-origin provenance without creating direct child links."
+    },
+    {
+      "capability": "RFC Device Reference context",
+      "rule": "Tickets owns RFC→Device Reference operational relationships, including standalone RFC and subordinate-specific device context."
+    },
+    {
+      "capability": "Working Notes",
+      "rule": "Tickets owns note identity/current content and history-bearing edit/remove commands; imports do not own Working Notes."
+    }
+  ],
+  "shared_with": [
+    {
+      "capability": "source-populated ticket fields",
+      "owner_modules": ["HLD-04", "HLD-05"],
+      "boundary": "HLD-05 owns observation/staging/provenance; HLD-04 owns the accepted current ticket projection and protected SOMA-owned fields."
+    },
+    {
+      "capability": "RFC terminal cascade",
+      "owner_modules": ["HLD-04", "HLD-06", "HLD-10"],
+      "boundary": "HLD-04 owns RFC evidence/exact hierarchy scope and pending cascade command; HLD-06 owns Task/Objective consequences; HLD-10 owns Communication unlink/orphan consequences."
+    },
+    {
+      "capability": "Device Reference",
+      "owner_modules": ["HLD-04", "HLD-06", "HLD-09"],
+      "boundary": "Operational relationships point to Device Reference; HLD-09 owns optional regularization to Network Element without replacing operational relationship identity."
+    },
+    {
+      "capability": "RFC Customer reconciliation",
+      "owner_modules": ["HLD-04", "HLD-03", "HLD-05"],
+      "boundary": "HLD-03 owns Customer identity/matching semantics, HLD-05 owns source evidence/proposals, HLD-04 owns accepted RFC Customer projection and hierarchy consistency."
+    }
+  ],
+  "does_not_own": [
+    {
+      "capability": "WFM/Local Task lifecycle, plan, execution, outcome, Objective membership",
+      "owner": "HLD-06"
+    },
+    {
+      "capability": "Network Element identity/placement/components",
+      "owner": "HLD-09"
+    },
+    {
+      "capability": "Inventory entities or physical consequences",
+      "owner": "HLD-08"
+    },
+    {
+      "capability": "SLA policy/cohort/result",
+      "owner": "HLD-07"
+    },
+    {
+      "capability": "Communication body/source/link retention rules",
+      "owner": "HLD-10"
+    }
+  ],
+  "authority_rules": [
+    "RFC hierarchy is relationship-derived; no mutable is_master/master_wfm field creates a second hierarchy authority.",
+    "SR direct linkage never targets a subordinate RFC.",
+    "RFC→DeviceReference and DeviceReference→NetworkElement are separate relationships with separate ownership.",
+    "Ticket relationship mutation never implies ticket lifecycle mutation.",
+    "Imported/source fields cannot overwrite SOMA-owned relationships or Working Notes merely because the workbook contains similar text."
+  ]
+}
