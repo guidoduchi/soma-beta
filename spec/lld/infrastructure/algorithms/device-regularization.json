@@ -1,0 +1,22 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-08",
+  "name":"DEVICE_REFERENCE_REGULARIZATION_V1",
+  "preview":[
+    "load immutable Device Reference identity/current descriptive name from LLD-03",
+    "if already resolved, show exact current Network Element and correction path rather than creating another resolution",
+    "search candidates using independent descriptive evidence: normalized operational name, manufacturer serial, represented IP, Site and Model when available",
+    "rank/display evidence without converting any score or exact descriptive match into identity authority",
+    "operator explicitly selects existing Network Element or chooses create-new with authoritative Site/nonblank name",
+    "bind selected target/current revisions and a scope fingerprint"
+  ],
+  "commit":[
+    "for UI promotion requiring the governed three-second hold, verify DeliberateActionProof against session/action/Device Reference revision/scope fingerprint; client boolean/timestamp is insufficient",
+    "inside one UnitOfWork re-read Device Reference, current resolution and selected Network Element or creation inputs",
+    "if create-new, create one Network Element and explicit unracked placement projection; optional descriptive/model/IP facts use normal services in same transaction",
+    "append resolution event/current row; never update any SR/RFC/Task/Inventory relationship target",
+    "audit Device Reference + Network Element result refs and commit"
+  ],
+  "correction":"Changing a wrong resolution appends correct/clear/link relationship history after exact review. It preserves both immutable identities and does not reopen terminal Tickets.",
+  "rules":["regularization may occur after terminal related Tickets","same Network Element may deliberately resolve multiple Device References only after explicit review","name/serial/IP/Model/Site equality never silently merges/links","unregistered Device Reference remains fully valid"]
+}
