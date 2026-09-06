@@ -1,0 +1,90 @@
+{
+  "schema":"SOMA-LLD-COMMANDS-V1",
+  "lld_id":"LLD-04",
+  "commands":[
+    {
+      "name":"StartRfcWfmImportCheck",
+      "input":["source_family","invocation_kind automatic|manual","optional manually_selected_path","command_id"],
+      "steps":[
+        "validate authenticated invocation and source family",
+        "inside short UoW perform command idempotency and create one durable LLD-01 job with bounded source-family/profile/manual-selection reference; no workbook bytes",
+        "audit check initiation and commit",
+        "worker executes discovery/security/parsing outside domain mutation transactions"
+      ],
+      "rules":["automatic invocation requires configured directory","manual selection may be outside directory but cannot bypass source validation","one source check never scans Communications or mutates RFC/WFM/Task state"]
+    },
+    {
+      "name":"PublishStagedImportRun",
+      "visibility":"internal durable-job transition",
+      "input":["import_run_id","complete parser result/fingerprint/counts","expected run revision"],
+      "steps":[
+        "during validating state immutable observation/finding batches may be appended in bounded transactions but remain non-reviewable because run is unpublished",
+        "after parser reaches complete EOF, recompute exact child counts and logical fingerprint from persisted immutable staging rows",
+        "classify replay/chronology against current source-family checkpoint",
+        "if exact replay mark run noop and create no reconciliation proposals",
+        "if newer-identical mark run noop and record eligible bounded checkpoint-recency transition without per-entity observation/proposal duplication beyond this run's technical evidence policy",
+        "if equal chronology/different content or older chronology mark recovery_required and create no ordinary domain-acceptance authority",
+        "otherwise generate all reconciliation proposals, atomically set run staged/waiting_review with exact counters/fingerprint/revision",
+        "only staged/waiting_review/recovery_required/noop runs are visible to import-review queries"
+      ],
+      "rules":["crash before publish cannot make partial run reviewable","failed/partial parse cannot advance checkpoint","source omission produces no RFC/WFM disappearance proposals"]
+    },
+    {
+      "name":"AcceptReconciliationProposal",
+      "input":["proposal_id","proposal_revision","proposal_fingerprint","base_state_token","reason/review context when required","command_id"],
+      "steps":[
+        "load pending proposal and exact staged source/run/profile evidence",
+        "reject blocked/recovery-required/unsafe-auto path",
+        "inside one short UoW recompute current authoritative base-state token via owning LLD readers",
+        "on mismatch return IMPORT_PROPOSAL_STALE with no accepted disposition/domain mutation",
+        "enter one outer idempotent command envelope; the owning domain service receives the same UoW/command context and must not commit independently",
+        "invoke the exact LLD-02/03/05 mutation service selected by proposal_kind; terminal RFC source projection therefore uses LLD-03 terminal-epoch/cascade-proposal semantics",
+        "append accepted proposal disposition and required audit/result references in the same UoW",
+        "transition proposal accepted, refresh run counters, commit"
+      ],
+      "rules":["one acceptance never implicitly accepts sibling proposals","source acceptance never executes RFC terminal cascade or Objective regrouping","Beta 1.0 RFC/WFM mutation auto-accept policy is empty"]
+    },
+    {
+      "name":"RejectReconciliationProposal",
+      "input":["proposal_id","proposal_revision","proposal_fingerprint","reason_category","command_id"],
+      "steps":["revalidate exact pending proposal/fingerprint","insert receipt","append rejected disposition and optional bounded equivalence decision","transition proposal rejected/update run counters","audit decision","commit"],
+      "rules":["no domain mutation","rejection does not erase valid source presence","newer chronology alone does not force redisplay when material-input equivalence remains exact"]
+    },
+    {
+      "name":"DeferReconciliationProposal",
+      "input":["proposal_id","proposal_revision","proposal_fingerprint","reason_category","command_id"],
+      "steps":["revalidate pending proposal","insert receipt","append deferred disposition/equivalence evidence","transition proposal deferred/update run counters","audit","commit"],
+      "rules":["defer mutates no domain authority","explicit reconsideration may create a fresh proposal bound to current state without rewriting old decision"]
+    },
+    {
+      "name":"FinalizeImportRunReview",
+      "input":["import_run_id","base run revision","command_id"],
+      "steps":[
+        "inside UoW require run is ordinary staged/waiting_review and has zero pending proposals",
+        "recompute exact proposal/disposition counters and verify no blocked unresolved scope is being hidden",
+        "insert receipt",
+        "derive final run state accepted when all target proposals accepted/no_change, rejected when all actionable proposals rejected, otherwise partially_accepted including mixes with rejected/deferred",
+        "advance/replace source-family checkpoint to this run's chronology/fingerprint only when chronology is newer than current or checkpoint absent; never move backward",
+        "record bounded review-finalization audit and commit"
+      ],
+      "rules":["checkpoint represents latest explicitly processed source observation set, not proof every proposed domain mutation was accepted","RFC/WFM omission still has no lifecycle meaning","a deferred proposal remains historical decision evidence and may later be reconsidered independently"]
+    },
+    {
+      "name":"RecordNewerIdenticalSourceCheck",
+      "visibility":"internal no-domain-mutation path",
+      "input":["noop import_run_id","expected checkpoint revision","command_id"],
+      "steps":["inside UoW revalidate newer chronology and identical logical fingerprint","insert receipt","advance checkpoint chronology/run/last_checked while preserving fingerprint","mark run noop/completed","audit bounded source-check recency","commit"],
+      "rule":"creates no duplicate per-entity source observations, proposals or domain audit changes"
+    },
+    {
+      "name":"ResolveImportRecovery",
+      "input":["recovery_required run_id","exact review_fingerprint","decision reject|defer|authorize_correction","reason_category","command_id"],
+      "steps":["follow algorithms/recovery.json","reject/defer records disposition with no domain mutation/checkpoint change","authorize_correction enables explicit per-proposal reviewed correction path and records immutable recovery event only after consistent completion","equal-chronology accepted correction may replace fingerprint at same chronology; older recovery never decrements checkpoint","commit according to recovery transaction contract"]
+    }
+  ],
+  "worker_recovery":[
+    "startup finds durable import jobs/runs left discovering/validating by prior process and classifies them interrupted through LLD-01 job recovery",
+    "an unpublished partial run is never resumed as if complete; deterministic restart either resumes from a verified parser checkpoint owned by the durable job or marks it failed and starts a new run",
+    "source observations belonging to non-published failed runs never participate in replay/proposal/domain queries and may be removed only by separately governed technical-staging housekeeping, never as operational-history purge"
+  ]
+}
