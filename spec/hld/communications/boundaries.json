@@ -1,0 +1,16 @@
+{
+  "schema":"SOMA-HLD-BOUNDARIES-V1",
+  "hld_id":"HLD-10",
+  "owns":["Communication Source Scope configuration/health/coverage","canonical retained Communication identity/content","typed Communication participants/direction evidence","independent Communication-to-entity link identity/history","communication-derived proposal identity/decision provenance","targeted backfill/Deep Scan/ordinary processing jobs","MSG draft provenance identity","terminal Communication summary and orphan-content housekeeping"],
+  "does_not_own":["SR/RFC/WFM/Objective/Inventory lifecycle state","Task execution/outcome","Contact/Customer/Infrastructure master identity","external PST/OST content or external mail-store mutation","report or import source chronology","portable backup retention policy"],
+  "separations":[
+    "Source Scope identity is not filesystem path identity.",
+    "Canonical Communication identity is not entity-link identity.",
+    "Entity link is not domain ownership or domain lifecycle state.",
+    "Proposal acceptance is not source-message mutation.",
+    "MSG draft is not observed sent Communication.",
+    "Coverage/high-water is not message chronology.",
+    "Orphan purge is reconstructable-content minimization, not operational-domain deletion."
+  ],
+  "external_boundary":"PST/OST stores are treated as read-only external evidence. Beta 1.0 performs no SMTP/Exchange/Graph/IMAP operations and never sends, receives, deletes, moves, marks or edits external mail items."
+}
