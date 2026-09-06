@@ -1,0 +1,25 @@
+{
+  "schema":"SOMA-LLD-TESTS-V1",
+  "lld_id":"LLD-04",
+  "suite":"security",
+  "scenarios":[
+    {"id":"LLD04-S001","name":"path_escape_and_reparse_rejected","prove":["automatic directory traversal never follows nested .. path","symlink/junction/reparse file rejected","alternate Windows device/stream namespace rejected","no fallback search"]},
+    {"id":"LLD04-S002","name":"unstable_file_never_parsed","prove":["size or mtime change across probe => IMPORT_FILE_UNSTABLE","open sharing indicates active writer => unstable","no ZIP/parser/domain mutation occurs"]},
+    {"id":"LLD04-S003","name":"zip_slip_part_rejected","prove":["../ absolute backslash-normalization and drive/device-like ZIP part names reject container","nothing extracted to filesystem"]},
+    {"id":"LLD04-S004","name":"duplicate_normalized_zip_part_rejected","prove":["two archive names normalize to same OOXML part identity","XLSX_UNSAFE_CONTAINER","parser never chooses one arbitrarily"]},
+    {"id":"LLD04-S005","name":"zip_bomb_limits","prove":["compressed/expanded/part/ratio ceilings enforced before materialization","over-limit file returns XLSX_RESOURCE_LIMIT","no partial source publication"]},
+    {"id":"LLD04-S006","name":"encrypted_container_rejected","prove":["encrypted/password ZIP unsupported","fails before workbook semantic parser","no password prompt or unsafe fallback"]},
+    {"id":"LLD04-S007","name":"macro_activex_ole_embedded_rejected","prove":["VBA/ActiveX/OLE executable/package parts cause safe failure","renaming macro workbook to .xlsx does not bypass content-type checks","nothing executes"]},
+    {"id":"LLD04-S008","name":"external_relationships_not_fetched","prove":["external workbook/data/template relationship rejected","reader never performs network/file fetch","inert hyperlink text is never followed/executed"]},
+    {"id":"LLD04-S009","name":"xml_dtd_entity_rejected","prove":["DOCTYPE/ENTITY declaration detected before XML parser","entity expansion payload never runs","bounded error only"]},
+    {"id":"LLD04-S010","name":"formula_semantic_cell_rejected","prove":["formula in registered semantic matrix column -> SOURCE_FORMULA_IN_SEMANTIC_FIELD","cached result ignored","outside-matrix formula receives scan/resource count only and has no domain meaning"]},
+    {"id":"LLD04-S011","name":"cell_and_field_overflow_not_truncated","prove":["absolute cell bound enforced","field-specific bound enforced","identity overflow invalidates row","optional text overflow isolates field/row finding per contract","no truncation enters fingerprint/domain"]},
+    {"id":"LLD04-S012","name":"worksheet_row_column_cell_limits","prove":["worksheet/matrix row/column/cell ceilings checked","limit error cannot publish partial parse","unrelated source checkpoint unchanged"]},
+    {"id":"LLD04-S013","name":"shared_string_limit","prove":["oversized shared string table rejected before unbounded allocation","individual text bound still enforced after lookup"]},
+    {"id":"LLD04-S014","name":"matrix_ambiguity_rejected","prove":["two sheets each contain required source identity header matrix","SOURCE_MATRIX_AMBIGUOUS","no first-sheet guessing"]},
+    {"id":"LLD04-S015","name":"duplicate_semantic_header_attack","prove":["visually similar/folded aliases mapping to same field detected","no last-column-wins","no hidden conflicting column can override identity/status"]},
+    {"id":"LLD04-S016","name":"unknown_columns_cannot_smuggle_authority","prove":["unregistered Product/custom/script-like columns security-scanned then discarded","cannot affect logical identity/fingerprint/domain proposals","raw discarded content not persisted"]},
+    {"id":"LLD04-S017","name":"malformed_timestamp_no_clock_fallback","prove":["invalid RFC row timestamp never replaced by mtime/import/current time","invalid WFM filename time never replaced by mtime","Objective timezone never reinterprets source chronology"]},
+    {"id":"LLD04-S018","name":"error_minimization","prove":["parser exception converted to closed finding/error code","no stack/environment/raw row/body serialized to audit/UI","operational file/customer data never enters source control/logs through error path"]}
+  ]
+}
