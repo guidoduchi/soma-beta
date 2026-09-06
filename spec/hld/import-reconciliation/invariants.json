@@ -1,0 +1,33 @@
+{
+  "schema": "SOMA-HLD-INVARIANTS-V1",
+  "hld_id": "HLD-05",
+  "invariants": [
+    {"id":"HLD05-I001","rule":"No operational domain mutation occurs before complete governed source validation and proposal acceptance."},
+    {"id":"HLD05-I002","rule":"Raw workbook content is never authoritative domain storage and is not used as a replacement database."},
+    {"id":"HLD05-I003","rule":"Only allowlisted fields can acquire source authority; unknown/discarded columns cannot influence identity, relationships, SLA, Inventory, Infrastructure or UI behavior."},
+    {"id":"HLD05-I004","rule":"Logical fingerprinting uses canonical allowlisted meaning; workbook packaging/order noise must not fabricate change."},
+    {"id":"HLD05-I005","rule":"Workbook omission has no lifecycle/deletion/unlink/cascade authority by default."},
+    {"id":"HLD05-I006","rule":"Source chronology, import chronology and business-event chronology are distinct and never silently substituted."},
+    {"id":"HLD05-I007","rule":"Exact replay is idempotent and produces no duplicate domain events or audit events."},
+    {"id":"HLD05-I008","rule":"Equal chronology with different logical content is conflict, never last-write-wins."},
+    {"id":"HLD05-I009","rule":"Fuzzy/descriptive similarity never establishes RFC/WFM/SR/reference identity."},
+    {"id":"HLD05-I010","rule":"WFM Task No. identity permits many distinct WFM tasks under one RFC; duplicate same-identity conflict is isolated to the affected safe scope."},
+    {"id":"HLD05-I011","rule":"High-risk classes cannot be configured into auto-accept."},
+    {"id":"HLD05-I012","rule":"The newest/highest-ranked malformed candidate fails visibly; automatic discovery does not silently fall back to older evidence."},
+    {"id":"HLD05-I013","rule":"Workbook processing is offline, bounded and non-executing; external references or active content cannot trigger network/code execution."},
+    {"id":"HLD05-I014","rule":"Import parsing/review performs no long-held SQLite write transaction; accepted mutations use short revalidated domain transactions."},
+    {"id":"HLD05-I015","rule":"Rejected/deferred/unresolved observations remain evidence and cannot fabricate entity disappearance."}
+  ],
+  "acceptance_hooks": [
+    "no-mutation-before-acceptance",
+    "package-rewrite-and-row-order-fingerprint-equivalence",
+    "replay/newer-identical/equal-time-conflict/older-recovery",
+    "missing-row-no-lifecycle-authority",
+    "malformed-newest-no-fallback",
+    "duplicate-semantic-header-conflict",
+    "identityless-row-no-entity",
+    "partial-target-conflict-isolation",
+    "high-risk-auto-accept-exclusion",
+    "zip-bomb/external-link/active-content rejection"
+  ]
+}
