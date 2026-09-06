@@ -1,0 +1,23 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-03",
+  "name":"TicketBusinessIdentifiers",
+  "service_request":{
+    "parse_official":"accept exactly eight ASCII decimal digits after presentation-only prefix/label removal performed by the explicitly owning source/UI adapter; canonical stored value is the eight digits only",
+    "local":"allocate through sr_local_id_allocator and format LSR-%08d",
+    "prohibitions":["never truncate/extract digits from malformed official input","never use presentation 'SR' or 'TT' label as canonical stored identity","never reuse committed LSR value"]
+  },
+  "rfc":{
+    "canonical":"exactly 'NC' followed by fourteen ASCII decimal digits",
+    "validate":"whole value must match canonical form; canonical substring inside a longer/malformed value never resolves identity",
+    "branch_artifact_classification":"source adapters may classify a value as recognized branch artifact only under their accepted source-family rule; branch artifact is skipped/non-mutating and is never normalized into the base RFC by this parser",
+    "malformed":"anything neither canonical nor explicitly recognized source branch artifact is invalid",
+    "prohibitions":["no truncation","no suffix stripping in domain parser","no fuzzy RFC identity"]
+  },
+  "device_reference":{
+    "identity":"UUIDv4 only",
+    "operational_name":"nonblank bounded descriptive text",
+    "rule":"operational_name/hostname equality can only support a downstream regularization candidate; it never proves Device Reference or Network Element identity"
+  },
+  "result_contract":"parsers return typed VALID/INVALID/RECOGNIZED_SOURCE_ARTIFACT outcomes with canonical value only when VALID; they never perform persistence mutation."
+}
