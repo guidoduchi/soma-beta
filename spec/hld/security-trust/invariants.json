@@ -1,0 +1,28 @@
+{
+  "schema":"SOMA-HLD-INVARIANTS-V1",
+  "hld_id":"HLD-13",
+  "invariants":[
+    "Exactly one Local Administrator authentication identity exists per installation; Contacts never authenticate.",
+    "Authentication credentials, live-data encryption keys, portable-backup recovery material and run-auth identities are cryptographically and lifecycle-distinct authorities.",
+    "Changing the administrator password does not redefine operational identity or require treating that password as the live-data key.",
+    "Portable restore performs complete verification before modifying live authoritative data.",
+    "Loopback, PID, port or registry presence alone never establishes trusted SOMA instance identity.",
+    "Only the process that owns the canonical data instance and passes authenticated run verification may be controlled as the active SOMA host.",
+    "Reusable device/authentication secrets never enter ordinary domain, evidence, Notes, workbook, audit payload, diagnostic, console, CI, crash or support-output state.",
+    "Beta 1.0 exposes no device credential or SSH control and has no local secret fallback for future external credential-provider failure.",
+    "Diagnostic records are non-authoritative and cannot satisfy or replace domain audit/history requirements.",
+    "Diagnostic emission failure cannot convert migration, audit, authorization, integrity or domain transaction failure into success.",
+    "Sensitive diagnostic data is prevented at the call site and sanitized before queuing; sanitizer failure omits data and never emits raw fallback.",
+    "Hashing, encryption, encoding, truncation or partial display does not by itself make sensitive material safe to log.",
+    "SOMA performs no automatic support/diagnostic upload in Beta 1.0.",
+    "Security-sensitive startup, shutdown and restore decisions use fresh bounded revalidation rather than stale registry/UI state."
+  ],
+  "acceptance_hooks":[
+    "password-change/key-independence scenarios",
+    "wrong-backup-secret/tamper/missing-artifact non-mutating restore scenarios",
+    "wildcard-bind, proxy/redirect, PID/port-reuse and forged-registry rejection scenarios",
+    "diagnostic secret/body canary scenarios including nested/encoded/truncated forms",
+    "sanitizer-failure no-raw-fallback scenario",
+    "diagnostic-writer failure leaves authoritative outcome unchanged scenario"
+  ]
+}
