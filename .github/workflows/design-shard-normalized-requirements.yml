@@ -1,0 +1,191 @@
+name: Design - Shard Normalized Requirements
+
+on:
+  push:
+    branches:
+      - design/beta-1.0-hld-lld
+    paths:
+      - '.github/workflows/design-shard-normalized-requirements.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate and validate requirement shards
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, re, shutil
+          from pathlib import Path
+
+          ROOT = Path('spec/requirements')
+          if ROOT.exists():
+              shutil.rmtree(ROOT)
+          ROOT.mkdir(parents=True)
+
+          def clean_cell(s):
+              s = s.strip()
+              s = re.sub(r'^\*\*(.*?)\*\*$', r'\1', s)
+              return s.strip()
+
+          def req_id(cell):
+              m = re.search(r'BETA-REQ-\d{4}', cell)
+              return m.group(0) if m else None
+
+          all_records = {}
+          global_index = []
+
+          for n in range(1, 8):
+              cp = f'CP{n:03d}'
+              cat_path = Path(f'docs/normalization/{cp}_CATALOGUE.md')
+              tr_path = Path(f'docs/normalization/{cp}_TRACEABILITY.md')
+              auth_path = Path(f'docs/normalization/{cp}_CLAUSE_AUTHORITY.md')
+              for p in (cat_path, tr_path, auth_path):
+                  assert p.exists(), p
+
+              catalogue = {}
+              for line in cat_path.read_text(encoding='utf-8').splitlines():
+                  if not line.startswith('|') or 'BETA-REQ-' not in line:
+                      continue
+                  cells = [clean_cell(x) for x in line.split('|')[1:-1]]
+                  assert len(cells) == 4, (cat_path, line)
+                  rid = req_id(cells[0]); assert rid
+                  catalogue[rid] = {
+                      'disposition': cells[1],
+                      'classification': [x.strip() for x in cells[2].split(';') if x.strip()],
+                      'obligation': cells[3],
+                  }
+
+              trace = {}
+              for line in tr_path.read_text(encoding='utf-8').splitlines():
+                  if not line.startswith('|') or 'BETA-REQ-' not in line:
+                      continue
+                  cells = [clean_cell(x) for x in line.split('|')[1:-1]]
+                  if len(cells) != 5:
+                      continue
+                  rid = req_id(cells[0]);
+                  if not rid:
+                      continue
+                  trace[rid] = {
+                      'use_case_or_invariant_seed': cells[1],
+                      'hld_owner_seed': cells[2],
+                      'future_lld_destination': cells[3],
+                      'acceptance_evidence_seed': cells[4],
+                  }
+
+              clauses = {}
+              supporting = {}
+              for line in auth_path.read_text(encoding='utf-8').splitlines():
+                  if not line.startswith('|') or 'BETA-REQ-' not in line:
+                      continue
+                  cells = [clean_cell(x) for x in line.split('|')[1:-1]]
+                  if len(cells) != 3:
+                      continue
+                  clause_m = re.search(r'`?([A-Z][A-Z0-9-]*-\d{3})`?', cells[0])
+                  owner = req_id(cells[1])
+                  if not clause_m or not owner:
+                      continue
+                  cid = clause_m.group(1)
+                  clauses.setdefault(owner, []).append(cid)
+                  if cells[2] != '—':
+                      supporting.setdefault(owner, []).append({'clause_id': cid, 'authority': cells[2]})
+
+              assert catalogue, cp
+              assert set(catalogue) == set(trace), (cp, set(catalogue) ^ set(trace))
+              cp_dir = ROOT / cp
+              cp_dir.mkdir()
+              cp_index = []
+
+              for rid in sorted(catalogue):
+                  assert rid not in all_records, rid
+                  c = catalogue[rid]
+                  t = trace[rid]
+                  support_rows = supporting.get(rid, [])
+                  support_ids = []
+                  for row in support_rows:
+                      for x in re.findall(r'BETA-REQ-\d{4}', row['authority']):
+                          if x != rid and x not in support_ids:
+                              support_ids.append(x)
+                  rec = {
+                      'schema': 'SOMA-NORMALIZED-REQUIREMENT-SHARD-V1',
+                      'id': rid,
+                      'status': 'accepted',
+                      'normalization_checkpoint': cp,
+                      'disposition': c['disposition'],
+                      'classification': c['classification'],
+                      'governing_obligation': c['obligation'],
+                      'canonical_clause_ids': clauses.get(rid, []),
+                      'supporting_requirement_ids': support_ids,
+                      'traceability': t,
+                      'authority_sources': {
+                          'catalogue': str(cat_path),
+                          'clauses': f'docs/normalization/{cp}_CLAUSES.md',
+                          'clause_authority': str(auth_path),
+                          'traceability': str(tr_path),
+                      },
+                  }
+                  out_path = cp_dir / f'{rid}.json'
+                  payload = json.dumps(rec, indent=2, ensure_ascii=False, sort_keys=False) + '\n'
+                  assert len(payload.encode('utf-8')) < 16384, (rid, len(payload))
+                  out_path.write_text(payload, encoding='utf-8', newline='\n')
+                  rel = out_path.as_posix()
+                  cp_index.append({'id': rid, 'path': rel})
+                  global_index.append({'id': rid, 'checkpoint': cp, 'path': rel})
+                  all_records[rid] = rec
+
+              (cp_dir / '_index.json').write_text(
+                  json.dumps({'schema':'SOMA-REQUIREMENT-INDEX-V1','checkpoint':cp,'count':len(cp_index),'requirements':cp_index}, indent=2) + '\n',
+                  encoding='utf-8', newline='\n'
+              )
+
+          expected = [f'BETA-REQ-{i:04d}' for i in range(1,178)]
+          actual = sorted(all_records)
+          assert actual == expected, {'missing': sorted(set(expected)-set(actual)), 'extra': sorted(set(actual)-set(expected))}
+          assert len(global_index) == 177
+          assert all(all_records[r]['canonical_clause_ids'] for r in expected), [r for r in expected if not all_records[r]['canonical_clause_ids']]
+          assert all(all_records[r]['traceability']['hld_owner_seed'] for r in expected)
+          assert all(all_records[r]['traceability']['future_lld_destination'] for r in expected)
+          assert all(all_records[r]['traceability']['acceptance_evidence_seed'] for r in expected)
+
+          (ROOT / '_index.json').write_text(
+              json.dumps({'schema':'SOMA-REQUIREMENT-INDEX-V1','count':177,'requirements':global_index}, indent=2) + '\n',
+              encoding='utf-8', newline='\n'
+          )
+          Path('spec/README.md').write_text(
+              '# SOMA AI-first design specification\n\n'
+              'This tree is the active machine-addressable design surface for Beta 1.0 HLD/LLD work. '
+              'The accepted normalized catalogues and clauses remain product authority; these shards are lossless navigation records for AI design and implementation work.\n\n'
+              '## Layout\n\n'
+              '- `requirements/CP001..CP007/` — one accepted normalized requirement per JSON file.\n'
+              '- `requirements/_index.json` — global immutable-ID path index.\n'
+              '- `authority/implementation-clarifications.json` — accepted implementation clarifications discovered during semantic reconciliation.\n'
+              '- `hld/` — modular high-level design, created next.\n'
+              '- `lld/` — implementation-ready domain packets, created after HLD ownership is fixed.\n\n'
+              'Design artifacts should answer what must be built, how it must be built, or how correctness is proven.\n',
+              encoding='utf-8', newline='\n'
+          )
+          print('SHARDS', len(all_records))
+          print('CHECKPOINT_COUNTS', {cp: len(list((ROOT/cp).glob('BETA-REQ-*.json'))) for cp in [f'CP{i:03d}' for i in range(1,8)]})
+          print('MAX_SHARD_BYTES', max(p.stat().st_size for p in ROOT.glob('CP*/BETA-REQ-*.json')))
+          PY
+
+          test "$(find spec/requirements -name 'BETA-REQ-*.json' -type f | wc -l)" -eq 177
+          git diff --check
+
+      - name: Commit shards and remove generator
+        run: |
+          set -euo pipefail
+          git config user.name "Guido Duchi"
+          git config user.email "grdf.1850@gmail.com"
+          git add spec/requirements spec/README.md
+          git rm .github/workflows/design-shard-normalized-requirements.yml
+          git diff --cached --check
+          git commit -m "Shard normalized requirements for AI-first design"
+          git push origin HEAD:design/beta-1.0-hld-lld
