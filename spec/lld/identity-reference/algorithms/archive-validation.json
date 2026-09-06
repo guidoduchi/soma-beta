@@ -11,10 +11,11 @@
       "load deterministic validator list from ReferenceDependencyRegistry for target type",
       "execute every validator against the same UnitOfWork; validators are read-only and query only their owning domain",
       "collect blockers as typed immutable-identity records; do not stop after the first blocker",
-      "if any blocker exists return ARCHIVE_BLOCKED with complete bounded blocker set and perform no mutation",
-      "otherwise set lifecycle_state archived and increment revision",
-      "append reference_lifecycle_events archived occurrence",
-      "insert command receipt + required audit through LLD-01",
+      "if any blocker exists return ARCHIVE_BLOCKED with complete bounded blocker set and perform no mutation/receipt",
+      "allocate lifecycle event ID and insert command_receipt",
+      "set lifecycle_state archived and increment revision",
+      "append reference_lifecycle_events archived occurrence referencing the receipt",
+      "insert required audit/result references",
       "commit"
     ],
     "rules":[
@@ -27,10 +28,10 @@
   },
   "reactivate":{
     "transaction":"one LLD-01 BEGIN IMMEDIATE UnitOfWork",
-    "steps":["load exact archived target","revalidate base_revision","run registered reactivation validators/current structural constraints","if conflicts exist return REACTIVATION_BLOCKED with no mutation","set active and increment revision","append reactivated lifecycle event","insert receipt/audit","commit"],
+    "steps":["load exact archived target","revalidate base_revision","run registered reactivation validators/current structural constraints","if conflicts exist return REACTIVATION_BLOCKED with no mutation/receipt","allocate lifecycle event ID and insert command_receipt","set active and increment revision","append reactivated lifecycle event referencing receipt","insert audit/result references","commit"],
     "rule":"reactivation never deletes or rewrites the prior archived interval/events"
   },
   "blocker_shape":["validator_id","dependency_type","dependency_id","reason_code","safe_next_action"],
   "ordering":"validators and returned blockers sort deterministically by validator_id, dependency_type, dependency_id so UI/tests receive stable results",
-  "failure_atomicity":"stale revision, validator exception, blocker, constraint error, lifecycle-event failure or audit failure rolls back all attempted lifecycle mutation."
+  "failure_atomicity":"stale revision, validator exception, blocker, constraint error, lifecycle-event failure or audit failure rolls back receipt and all attempted lifecycle mutation."
 }
