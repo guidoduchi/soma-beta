@@ -1,0 +1,16 @@
+{
+  "schema":"SOMA-LLD-PACKET-V1",
+  "id":"LLD-03",
+  "name":"Service Requests, RFCs, Device References, Ticket Relationships",
+  "status":"drafting",
+  "requirement_ids":["BETA-REQ-0011","BETA-REQ-0012","BETA-REQ-0038","BETA-REQ-0039","BETA-REQ-0040","BETA-REQ-0052","BETA-REQ-0053","BETA-REQ-0057","BETA-REQ-0075","BETA-REQ-0076","BETA-REQ-0147","BETA-REQ-0148","BETA-REQ-0149","BETA-REQ-0150","BETA-REQ-0152","BETA-REQ-0153","BETA-REQ-0154","BETA-REQ-0165"],
+  "supporting_requirement_ids":["BETA-REQ-0010","BETA-REQ-0013","BETA-REQ-0019","BETA-REQ-0027","BETA-REQ-0030","BETA-REQ-0041","BETA-REQ-0044","BETA-REQ-0049","BETA-REQ-0058","BETA-REQ-0062","BETA-REQ-0066","BETA-REQ-0151","BETA-REQ-0155","BETA-REQ-0161","BETA-REQ-0163"],
+  "implementation_authority_ids":["F4"],
+  "hld_dependencies":["HLD-03","HLD-04","HLD-05","HLD-09","HLD-14"],
+  "foundation_dependencies":["LLD-01 UnitOfWork/idempotency/audit/STRICT schema conventions","LLD-02 Customer/Contact identity and matching interfaces"],
+  "scope":["Service Request internal/business identity lifecycle","RFC exact identity/lifecycle/provenance","two-level RFC forest","SR-to-root-RFC relationships","RFC Customer ownership state","operational Device Reference identity and SR/RFC links","Working Notes","RFC local archive/restore","narrow untouched-manual-draft deletion eligibility","ticket workbench-facing projections"],
+  "not_owned_here":["WFM/Local Task persistence and execution -> LLD-05","RFC/WFM workbook parsing/reconciliation staging -> LLD-04","Network Element/Device Reference regularization target -> LLD-08","communications evidence/links -> LLD-09","frontend components -> LLD-10","SLA classification/calculation -> LLD-06"],
+  "required_directories":["schema","commands","queries","algorithms","ui","tests"],
+  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"implementation_ready":false},
+  "design_principle":"Ticket identity and relationship history survive source adoption, hierarchy correction, terminal state and regularization; derived roles/context are queried from current relationships rather than persisted as competing authority."
+}
