@@ -1,0 +1,57 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-02",
+  "id_convention":"All LLD-02 persistent entity/event/relationship identities use lowercase canonical UUIDv4 text from DomainIdFactory; descriptive/business values are never primary keys.",
+  "tables":[
+    {
+      "name":"local_user_profiles",
+      "purpose":"singleton installation authentication-profile identity metadata; no credential material",
+      "columns":["local_user_profile_id TEXT PRIMARY KEY","singleton_guard INTEGER NOT NULL UNIQUE CHECK(singleton_guard=1)","username TEXT NOT NULL CHECK(length(username)>0)","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
+      "rules":["exactly one row after first-run setup; second insert rejected","password verifier/auto-login/data-key material are absent and belong to LLD-12","username change, if LLD-12 permits it, preserves local_user_profile_id"]
+    },
+    {
+      "name":"customer_organizations",
+      "columns":["customer_org_id TEXT PRIMARY KEY","name TEXT NOT NULL CHECK(length(name)>0)","name_match_key TEXT NOT NULL CHECK(length(name_match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
+      "rules":["name/name_match_key are descriptive/matching evidence and are not unique","name_match_key must equal MatchingNormalizer(name) at every accepted write","ordinary runtime exposes archive/reactivate, not destructive deletion of history-bearing rows"]
+    },
+    {
+      "name":"contacts",
+      "columns":["contact_id TEXT PRIMARY KEY","name TEXT NOT NULL CHECK(length(name)>0)","name_match_key TEXT NOT NULL CHECK(length(name_match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
+      "rules":["equal names are allowed","name/name_match_key never authorize merge or global uniqueness","archived contact remains queryable historically but is excluded from new-active selectors"]
+    },
+    {
+      "name":"contact_channels",
+      "purpose":"reusable Contact communication/matching attributes; initial governed matching kind is email",
+      "columns":["contact_channel_id TEXT PRIMARY KEY","contact_id TEXT NOT NULL REFERENCES contacts(contact_id) ON UPDATE RESTRICT ON DELETE RESTRICT","channel_kind TEXT NOT NULL","value_text TEXT NOT NULL CHECK(length(value_text)>0)","match_key TEXT NOT NULL CHECK(length(match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
+      "rules":["channel_kind must exist in closed code-defined ContactChannelDefinition registry; Beta 1.0 registry includes email for candidate matching","match_key uses the exact governed MatchingNormalizer over the complete value_text","equal normalized channel values are allowed and may produce ambiguity","channel identity is independent from Contact identity and authentication"]
+    },
+    {
+      "name":"contact_affiliations",
+      "purpose":"explicit affiliation history under one continuous Contact identity",
+      "columns":["contact_affiliation_id TEXT PRIMARY KEY","contact_id TEXT NOT NULL REFERENCES contacts(contact_id) ON UPDATE RESTRICT ON DELETE RESTRICT","customer_org_id TEXT NOT NULL REFERENCES customer_organizations(customer_org_id) ON UPDATE RESTRICT ON DELETE RESTRICT","is_current INTEGER NOT NULL CHECK(is_current IN (0,1))","opened_at_utc INTEGER NOT NULL CHECK(opened_at_utc>=0)","closed_at_utc INTEGER CHECK(closed_at_utc IS NULL OR closed_at_utc>=opened_at_utc)","command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"],
+      "rules":["at most one current row per Contact via partial unique index","current row requires closed_at_utc IS NULL; historical row requires closed_at_utc NOT NULL","changing affiliation closes the previous current row and inserts a new row in one UnitOfWork","operational records that require organization-at-use preserve that context in their owning domain rather than deriving history from the Contact's current affiliation"]
+    },
+    {
+      "name":"dispatch_locations",
+      "columns":["dispatch_location_id TEXT PRIMARY KEY","name TEXT NOT NULL CHECK(length(name)>0)","name_match_key TEXT NOT NULL CHECK(length(name_match_key)>0)","address_mode TEXT NOT NULL CHECK(address_mode IN ('standalone','site_derived'))","standalone_address_text TEXT","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)","CHECK((address_mode='standalone' AND standalone_address_text IS NOT NULL AND length(standalone_address_text)>0) OR (address_mode='site_derived' AND standalone_address_text IS NULL))"],
+      "rules":["no Customer Organization ownership/preference column exists","Site relationship is owned by LLD-08 and is not duplicated here","site_derived current address is resolved through SiteDispatchAddressProvider; historical logistics snapshots belong to LLD-07","operation role such as delivery/pickup/fault-return is never stored on the location master"]
+    },
+    {
+      "name":"reference_lifecycle_events",
+      "purpose":"append-only reference lifecycle occurrence evidence distinct from application audit",
+      "columns":["reference_lifecycle_event_id TEXT PRIMARY KEY","target_type TEXT NOT NULL CHECK(target_type IN ('customer_organization','contact','dispatch_location'))","target_id TEXT NOT NULL","event_type TEXT NOT NULL CHECK(event_type IN ('created','archived','reactivated','descriptive_corrected'))","occurred_at_utc INTEGER NOT NULL CHECK(occurred_at_utc>=0)","command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT","reason_category TEXT"],
+      "rules":["target uses immutable evidence identity rather than a destructive FK so required history may survive exceptional target deletion authority","BEFORE UPDATE and BEFORE DELETE triggers raise REFERENCE_LIFECYCLE_APPEND_ONLY","all accepted lifecycle events are referenced from the corresponding LLD-01 audit event via audit_event_results"]
+    }
+  ],
+  "indexes":[
+    "CREATE INDEX idx_customer_org_active_name_match ON customer_organizations(lifecycle_state,name_match_key,customer_org_id)",
+    "CREATE INDEX idx_contacts_active_name_match ON contacts(lifecycle_state,name_match_key,contact_id)",
+    "CREATE INDEX idx_contact_channels_contact ON contact_channels(contact_id,lifecycle_state,channel_kind)",
+    "CREATE INDEX idx_contact_channels_match ON contact_channels(channel_kind,lifecycle_state,match_key,contact_id)",
+    "CREATE UNIQUE INDEX uq_contact_current_affiliation ON contact_affiliations(contact_id) WHERE is_current=1",
+    "CREATE INDEX idx_contact_affiliation_customer_current ON contact_affiliations(customer_org_id,is_current,contact_id)",
+    "CREATE INDEX idx_dispatch_active_name_match ON dispatch_locations(lifecycle_state,name_match_key,dispatch_location_id)",
+    "CREATE INDEX idx_reference_lifecycle_target ON reference_lifecycle_events(target_type,target_id,occurred_at_utc)"
+  ],
+  "cross_module_schema_rule":"LLD-08 creates/owns the Site↔Dispatch Location relationship with UNIQUE constraints on both Site and dispatch_location_id; LLD-02 never adds a site_id or customer_org_id shortcut to dispatch_locations."
+}
