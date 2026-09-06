@@ -1,0 +1,28 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-01",
+  "queries":[
+    {
+      "name":"GetMigrationStatus",
+      "mode":"strictly observational",
+      "input":["canonical target path","accepted migration manifest","optional verified live-instance client"],
+      "decision_tree":["if target path does not exist: return NOT_INITIALIZED without creating parent/database/sidecars/logs/defaults","if a verified live host owns target: request authenticated in-process status and return LIVE_* classification","if target is offline but -wal/-shm sidecars exist: return OFFLINE_SIDECARE_STATE_UNSAFE without opening/mutating target","otherwise open database URI mode=ro&immutable=1, perform read-only manifest/ledger/schema/integrity inspection, close"],
+      "statuses":["NOT_INITIALIZED","CURRENT","MIGRATIONS_PENDING","DRIFT","LEDGER_MISMATCH","UNSUPPORTED_FUTURE_VERSION","INVALID_DATABASE","INTEGRITY_FAILURE","LIVE_CURRENT","LIVE_MIGRATIONS_PENDING","LIVE_LIMITED","OFFLINE_SIDECARE_STATE_UNSAFE","INSPECTION_FAILURE"],
+      "prohibitions":["no mkdir/touch","no migration/repair/vacuum/checkpoint","no write pragma","no default/settings creation","no diagnostic emission solely because status was requested","no overwriting invalid files"]
+    },
+    {
+      "name":"GetRuntimeHealth",
+      "mode":"authenticated local control query",
+      "input":["LLD-12 authenticated run context"],
+      "output":["protocol_version","run_id","data_instance_id","host_state","app_version","migration_sequence","migration_id","integrity_state","started_at_utc"],
+      "rules":["never return authentication token/key material","never redirect","response run/data identity must exactly match LLD-12 verification expectations","READY is returned only after migration/schema/FK/append-only checks pass"]
+    },
+    {
+      "name":"GetFoundationDiagnosticsState",
+      "mode":"non-authoritative operational query",
+      "input":["current host state"],
+      "output":["executor queue depth categories","open authoritative connection count","active transaction count","durable jobs by state","last completed migration identity","sanitized recent foundation error codes"],
+      "rules":["counts/technical state only; no domain bodies or sensitive values","does not mutate technical or domain state","diagnostic failure cannot alter authoritative result"]
+    }
+  ]
+}
