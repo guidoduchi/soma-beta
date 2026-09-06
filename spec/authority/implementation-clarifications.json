@@ -1,0 +1,32 @@
+{
+  "schema": "SOMA-IMPLEMENTATION-AUTHORITY-V1",
+  "status": "accepted-for-hld-lld",
+  "source_checkpoint": "8a47edeea3a306980786c48988f842e53ec3befb",
+  "clarifications": [
+    {
+      "id": "F4",
+      "title": "RFC to Device Reference context",
+      "authority": "An RFC may hold Device Reference context directly, including when no Service Request is linked and when a subordinate RFC has device context distinct from its master/root RFC. The operational relationship is to a Device Reference. A Device Reference may remain unregistered or resolve to an Infrastructure Network Element without replacing the RFC relationship identity.",
+      "preserved_constraints": [
+        "RFC hierarchy remains strictly two-level.",
+        "Service Request direct RFC linkage targets the master/root RFC while subordinate provenance is preserved.",
+        "Network Element identity does not replace Device Reference identity in operational ticket relationships."
+      ]
+    },
+    {
+      "id": "F6",
+      "title": "Infrastructure physical model",
+      "authority": "The physical Infrastructure model is Site -> Room -> Rack. Rack placement may carry row, column, and position semantics. Reusable Model/BOM/component compatibility knowledge is distinct from per-Network-Element installed Component identity and history. Installed Component history belongs to the physical Network Element instance and must not be collapsed into reusable model compatibility data.",
+      "preserved_constraints": [
+        "Every regularized Network Element is anchored to one Site.",
+        "Rack placement cannot imply a different Site from the Network Element's authoritative Site.",
+        "Reusable compatibility data and installed-instance history remain separate authorities."
+      ]
+    },
+    {
+      "id": "F5",
+      "title": "SLA cohort identity correction",
+      "authority": "Compliance outcome is derived after cohort membership and is not part of cohort identity. The corrected current-HEAD Product Line/SLA rule governs implementation; the conflicting B002 assertion remains historical assurance evidence only."
+    }
+  ]
+}
