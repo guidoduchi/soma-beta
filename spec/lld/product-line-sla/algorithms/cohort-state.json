@@ -1,0 +1,42 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-06",
+  "name":"COHORT_STATE_V1",
+  "membership":[
+    "derive requested canonical calendar month boundaries in fixed America/Guayaquil and convert boundaries to UTC",
+    "select SRs whose accepted Report Date falls within that month and that have one current valid CPL classification compatible with resolved Customer",
+    "exclude Cancelled SRs from denominator entirely while retaining them in separate historical/excluded reporting population",
+    "require recognized severity and current accepted CPL policy; missing/unclassified/unusable inputs remain separate excluded/unresolved populations and never receive fabricated cohort membership",
+    "for each policy tier of the SR severity place the SR into the cohort key month + Customer + Contract + CPL + severity + policy_tier_id; outcome/state is not a key dimension"
+  ],
+  "member_classification":[
+    "calculate each member with INDIVIDUAL_SLA_V1 at the exact common as_of_utc",
+    "terminal_met contributes terminal_met_count and lower/best possible pass",
+    "terminal_exceeded contributes terminal_exceeded_count and cannot pass under current accepted evidence",
+    "active_within contributes active_within_count and remains best-possible pass but not lower-bound guaranteed pass",
+    "active_exceeded contributes active_exceeded_count and cannot meet the current tier under current accepted chronology absent a later governed correction/new suspension evidence"
+  ],
+  "counts_and_exact_percentage":[
+    "denominator = terminal_met + terminal_exceeded + active_within + active_exceeded",
+    "lower_bound_met_count = terminal_met_count",
+    "best_possible_met_count = terminal_met_count + active_within_count",
+    "compare count percentage to required_percentage_millionths by integer cross multiplication: met_count * 100000000 >= required_percentage_millionths * denominator",
+    "never convert counts or configured percentage to binary float"
+  ],
+  "state_matrix":[
+    "if denominator=0, no canonical cohort result row is emitted; caller reports an empty/unresolved population separately",
+    "is_final = calendar month has ended before/as_of AND active_within_count=0 AND active_exceeded_count=0",
+    "if is_final and lower-bound comparison passes -> final_met",
+    "if best-possible comparison fails -> breached, whether month is open or closed",
+    "else if lower-bound comparison passes -> currently_met",
+    "else if terminal_exceeded_count + active_exceeded_count > 0 -> at_risk",
+    "else -> pending",
+    "an open/current month is never final_met because is_final is false while calendar month is not closed"
+  ],
+  "rules":[
+    "a closed calendar month with still-active cohort members remains non-final and uses pending/currently_met/at_risk/breached according to the same bounds",
+    "later accepted policy revision recalculates live cohort tier identities/results from that CPL's new current policy; completed report snapshots retain the old captured policy revision/tier results",
+    "later accepted terminal reversal or source correction recalculates the same surviving SR without creating a new SR episode",
+    "Objective timezone cannot move membership between months"
+  ]
+}
