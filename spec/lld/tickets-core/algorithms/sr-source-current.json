@@ -1,0 +1,22 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-03",
+  "name":"ServiceRequestSourceFieldProjection",
+  "input":"accepted validated Advanced Search field deltas for one exact surviving Service Request plus source_evidence_id/source chronology",
+  "transaction":"one short LLD-01 UnitOfWork after workbook parsing/staging/review completes outside the write lock",
+  "steps":[
+    "resolve exact service_request_id from accepted SR identity/adoption decision",
+    "for each allowlisted active field independently classify accepted value as usable, non-usable warning, unchanged usable, or reviewed correction/reversal",
+    "for unchanged usable field create no redundant field observation",
+    "for new/changed usable field insert append-only sr_source_field_observations row",
+    "compare source chronology with current pointer for that field and update only the applicable projection pointer according to accepted precedence",
+    "never clear a current pointer from missing/blank/malformed/unknown evidence unless that field's explicit contract permits clearing",
+    "insert bounded review/warning references through the owning reconciliation evidence model",
+    "increment projection revision only when at least one current pointer changes",
+    "commit accepted field deltas/projection pointers/receipt/audit atomically"
+  ],
+  "field_independence":"A newer row is not a whole-record replacement. Problem Summary, Report Date, Contact label, Severity, Handler, Status, Customer label/code, suspend facts and Last Update each select their own newest accepted usable observation.",
+  "terminal_reversal":"recognized terminal-to-nonterminal Status never follows ordinary pointer replacement; it enters a high-risk correction path bound to exact prior terminal evidence, and rejection leaves current terminal pointer unchanged.",
+  "reference_reconciliation":"Customer Organization/Contact labels and Customer Account Code remain source evidence. LLD-02 candidate matching/review may establish reusable references, but unresolved/ambiguous references do not block persistence of the otherwise valid SR and never replace source observation history.",
+  "rebuild":"sr_current_source_projection can be rebuilt deterministically from append-only observations and accepted review/correction evidence; rebuild cannot create new domain history or audit events."
+}
