@@ -1,0 +1,13 @@
+{
+  "schema":"SOMA-LLD-FAILURE-INJECTION-V1",
+  "lld_id":"LLD-01",
+  "matrix":[
+    {"area":"migration","points":["before BEGIN","after DDL/DML statement N","before ledger insert","after ledger insert","before COMMIT","COMMIT error","process kill after committed migration before next migration","post-migration verifier failure"],"required_result":"database is absent for failed unpublished clean init or remains at last committed migration; no schema/ledger split"},
+    {"area":"authoritative command","points":["after state load","after domain mutation","after lifecycle evidence","after command receipt","during audit payload validation","after audit insert","during audit_event_results","COMMIT error"],"required_result":"complete rollback unless COMMIT completed; caller never receives accepted success for rolled-back work"},
+    {"area":"connection safety","points":["foreign_keys cannot be enabled","journal mode unexpected","trusted-schema policy unavailable/misconfigured","busy timeout exceeded","connection used from wrong thread"],"required_result":"unsafe connection is not returned; stable failure category only"},
+    {"area":"startup","points":["instance lock contention","security provider unavailable","database invalid","loopback socket bind fails","Uvicorn fails after socket bind","runtime registry atomic replace fails","self-health fails after listen"],"required_result":"host never reports READY; owned resources unwind without altering foreign/stale registry or another process"},
+    {"area":"shutdown","points":["active write completes","active write fails","background worker exceeds grace","WAL checkpoint fails","registry changed by another run before removal"],"required_result":"no new mutation begins after quiesce; exact ownership is preserved; unrelated process/registry is untouched"},
+    {"area":"strict JSON/audit","points":["duplicate key","nonfinite number","invalid UTF-8","oversize","overdepth","unknown action schema","sensitive canary","duplicate audit identity"],"required_result":"fail closed for authoritative audit/payload validation and roll back associated command; never fall back to raw serialization"}
+  ],
+  "execution_rules":["failure injection must run on both supported Python lines where behavior is runtime-sensitive","tests use isolated temporary directories/databases and no customer data","every injected failure asserts persisted state, filesystem side effects, host state and returned error category","a failure test that merely observes an exception without verifying rollback/state is insufficient"]
+}
