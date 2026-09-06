@@ -1,0 +1,93 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-04",
+  "tables":[
+    {
+      "name":"source_observations",
+      "columns":[
+        "source_observation_id TEXT PRIMARY KEY",
+        "import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "source_family TEXT NOT NULL CHECK(source_family IN ('rfc_enhanced','wfm_service_provider'))",
+        "entity_kind TEXT NOT NULL CHECK(entity_kind IN ('rfc','wfm','invalid_row'))",
+        "identity_state TEXT NOT NULL CHECK(identity_state IN ('valid','invalid'))",
+        "canonical_primary_id TEXT",
+        "canonical_parent_rfc_no TEXT",
+        "row_ordinal INTEGER NOT NULL CHECK(row_ordinal>=1)",
+        "sheet_ordinal INTEGER NOT NULL CHECK(sheet_ordinal>=1)",
+        "row_logical_sha256 TEXT NOT NULL CHECK(length(row_logical_sha256)=64)",
+        "source_row_chronology_utc INTEGER CHECK(source_row_chronology_utc IS NULL OR source_row_chronology_utc>=0)",
+        "presence_state TEXT NOT NULL CHECK(presence_state IN ('observed_valid_identity','observed_invalid_identity'))",
+        "recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)",
+        "CHECK((identity_state='valid' AND canonical_primary_id IS NOT NULL AND presence_state='observed_valid_identity') OR (identity_state='invalid' AND canonical_primary_id IS NULL AND presence_state='observed_invalid_identity'))",
+        "CHECK((entity_kind='wfm' AND identity_state='valid' AND canonical_parent_rfc_no IS NOT NULL) OR entity_kind<>'wfm' OR identity_state='invalid')"
+      ],
+      "rules":[
+        "rows are immutable normalized source evidence and remain independent from whether any proposal is accepted",
+        "valid source presence is recorded even when its later proposal is rejected/deferred/unresolved",
+        "RFC canonical_primary_id is exact NC+14; WFM canonical_primary_id is exact TK+14 and canonical_parent_rfc_no is exact NC+14",
+        "recognized RFC branch artifact rows use invalid_row evidence/finding classification and never canonicalize into the base RFC",
+        "physical row order is provenance only; logical fingerprint serialization sorts by canonical identities/field keys after duplicate/conflict classification"
+      ]
+    },
+    {
+      "name":"source_observation_fields",
+      "columns":[
+        "source_observation_field_id TEXT PRIMARY KEY",
+        "source_observation_id TEXT NOT NULL REFERENCES source_observations(source_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "field_key TEXT NOT NULL",
+        "field_class TEXT NOT NULL CHECK(field_class IN ('active','deferred'))",
+        "value_state TEXT NOT NULL CHECK(value_state IN ('usable','blank','unknown','malformed'))",
+        "value_kind TEXT NOT NULL CHECK(value_kind IN ('text','controlled','instant','duration_seconds'))",
+        "source_text TEXT",
+        "normalized_text TEXT",
+        "integer_value INTEGER",
+        "vocabulary_id TEXT",
+        "field_logical_sha256 TEXT NOT NULL CHECK(length(field_logical_sha256)=64)",
+        "CHECK((value_kind IN ('text','controlled') AND integer_value IS NULL) OR (value_kind IN ('instant','duration_seconds') AND normalized_text IS NULL))",
+        "CHECK(value_state<>'usable' OR source_text IS NOT NULL OR integer_value IS NOT NULL)"
+      ],
+      "rules":[
+        "only registered allowlisted active/deferred fields are persisted",
+        "unallowlisted/discarded columns are never copied into observation fields",
+        "source_text is bounded allowlisted review evidence only; it is never executed/interpreted as code",
+        "normalized_text/integer_value carry validated semantic representation; malformed/unknown values cannot gain authoritative normalized meaning",
+        "deferred fields are retained with provenance but generate no Beta 1.0 domain mutation unless separately activated by authority",
+        "one source observation has at most one field row per canonical field_key"
+      ]
+    },
+    {
+      "name":"import_findings",
+      "columns":[
+        "import_finding_id TEXT PRIMARY KEY",
+        "import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "source_observation_id TEXT REFERENCES source_observations(source_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "field_key TEXT",
+        "finding_code TEXT NOT NULL",
+        "severity TEXT NOT NULL CHECK(severity IN ('info','warning','error','high_risk'))",
+        "scope_kind TEXT NOT NULL CHECK(scope_kind IN ('workbook','sheet','row','field','identity','chronology','replay','proposal'))",
+        "message_text TEXT NOT NULL CHECK(length(message_text)>0)",
+        "recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)"
+      ],
+      "rules":[
+        "finding_code is from a closed LLD-04 catalogue; message_text is bounded deterministic operator explanation, never raw exception/environment serialization",
+        "findings never become domain authority",
+        "invalid identity rows can have findings without creating target entities",
+        "source absence for RFC/WFM never produces per-record disappearance findings"
+      ]
+    }
+  ],
+  "indexes":[
+    "CREATE INDEX idx_source_observation_run ON source_observations(import_run_id,sheet_ordinal,row_ordinal,source_observation_id)",
+    "CREATE INDEX idx_source_observation_identity ON source_observations(source_family,identity_state,canonical_primary_id,import_run_id,source_observation_id)",
+    "CREATE INDEX idx_source_observation_parent ON source_observations(canonical_parent_rfc_no,import_run_id,source_observation_id) WHERE canonical_parent_rfc_no IS NOT NULL",
+    "CREATE UNIQUE INDEX uq_source_observation_field ON source_observation_fields(source_observation_id,field_key)",
+    "CREATE INDEX idx_source_field_observation_fk ON source_observation_fields(source_observation_id,source_observation_field_id)",
+    "CREATE INDEX idx_finding_run ON import_findings(import_run_id,severity,import_finding_id)",
+    "CREATE INDEX idx_finding_observation_fk ON import_findings(source_observation_id,import_finding_id) WHERE source_observation_id IS NOT NULL"
+  ],
+  "protection":[
+    "BEFORE UPDATE/DELETE on source_observations/source_observation_fields raises IMPORT_OBSERVATION_APPEND_ONLY",
+    "BEFORE UPDATE/DELETE on import_findings raises IMPORT_FINDING_APPEND_ONLY",
+    "field-key/value-kind/source-family registry consistency is verified at persistence boundary and migration verifier has golden invalid-write tests"
+  ]
+}
