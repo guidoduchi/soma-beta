@@ -1,0 +1,35 @@
+{
+  "schema":"SOMA-LLD-VOCABULARY-REGISTRY-V1",
+  "lld_id":"LLD-04",
+  "normalization":"Unicode NFKC + surrounding/internal whitespace normalization + Unicode casefold for lookup; accepted display text preserves the profile canonical spelling",
+  "vocabularies":[
+    {
+      "id":"RFC_STATUS_V1",
+      "source_family":"rfc_enhanced",
+      "values":[
+        {"canonical":"Implement","class":"implement_eligible","risk_on_entry":"normal_nonterminal"},
+        {"canonical":"Closed","class":"terminal_closed","risk_on_entry":"high_terminal"},
+        {"canonical":"Cancelled","class":"terminal_cancelled","risk_on_entry":"high_terminal"}
+      ],
+      "unknown_rule":"unknown nonblank status is warning-only evidence and cannot replace a previously recognized current status or acquire terminal/eligibility authority",
+      "blank_rule":"blank status never clears recognized current status",
+      "progression_rule":"recognized terminal entry is high-risk; terminal-to-nonterminal or terminal-kind correction is history-preserving reviewed correction; ordinary acceptance never silently regresses status"
+    },
+    {
+      "id":"WFM_TASK_STATUS_V1",
+      "source_family":"wfm_service_provider",
+      "values":[
+        {"canonical":"Complete","class":"terminal_complete","activity":"historical_only"},
+        {"canonical":"Plan Cancel","class":"cancelled_historical","activity":"historical_only"}
+      ],
+      "unlisted_nonblank_rule":"preserve as warning-bearing source evidence with class 'unrecognized_nonterminal'; it cannot by status text alone prove execution, outcome, cancellation, terminality or RFC eligibility; other validated WFM facts may still be staged",
+      "blank_rule":"blank status is unknown and cannot erase recognized prior provider status"
+    }
+  ],
+  "cross_field_rules":[
+    "WFM Dispatch Progress blank is permitted without a missing-field warning when accepted Task Status is Plan Cancel; otherwise blank remains an explicit coverage/value finding according to the profile",
+    "RFC Status from WFM is provisional fallback evidence only and is classified using RFC_STATUS_V1, but accepted Enhanced RFC status has precedence and cannot be overwritten by WFM evidence",
+    "an unrecognized controlled value is never normalized into the nearest known value"
+  ],
+  "evolution":"Adding/renaming/reclassifying a controlled value creates a new vocabulary ID/version. Historical source observations retain the vocabulary version used and are never reinterpreted silently."
+}
