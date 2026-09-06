@@ -1,0 +1,22 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-03",
+  "tables":[
+    {
+      "name":"sr_local_id_allocator",
+      "columns":[
+        "singleton_guard INTEGER PRIMARY KEY CHECK(singleton_guard=1)",
+        "next_value INTEGER NOT NULL CHECK(next_value BETWEEN 1 AND 99999999)"
+      ],
+      "initial_row":"(1,1)",
+      "rules":[
+        "allocation occurs inside the same BEGIN IMMEDIATE UnitOfWork that inserts the Service Request",
+        "formatted identity is LSR- followed by exactly eight zero-padded decimal digits",
+        "after successful allocation next_value increments exactly once",
+        "rolled-back creation rolls allocator increment back with it",
+        "an allocated identifier committed to any SR is never reassigned even if future separately authorized deletion existed",
+        "value exhaustion blocks creation with SR_LOCAL_ID_EXHAUSTED; wrap/reuse is forbidden"
+      ]
+    }
+  ]
+}
