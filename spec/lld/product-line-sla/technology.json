@@ -1,0 +1,22 @@
+{
+  "schema":"SOMA-LLD-TECHNOLOGY-V1",
+  "lld_id":"LLD-06",
+  "runtime":"Python 3.13/3.14 on supported Windows 10/11 Beta targets",
+  "arithmetic":{
+    "implementation":"Python integers plus decimal.Decimal only at validated input/output boundaries; persisted policy thresholds use integer seconds and integer millionths-of-percentage; source suspension is normalized to reduced rational seconds",
+    "forbidden":["binary float for SLA duration/percentage decisions","premature display rounding before inclusive threshold comparison","Objective timezone in SLA/cohort arithmetic"]
+  },
+  "timezone":{
+    "library":"stdlib zoneinfo",
+    "sla_zone":"America/Guayaquil",
+    "rule":"cohort month/report period/SLA ordinary calendar interpretation are fixed to America/Guayaquil; LLD-05 Objective timezone is ignored by this domain"
+  },
+  "xlsx_report_stack":{
+    "writer":"openpyxl write-only workbook mode behind ReportArtifactWriter interface",
+    "why":"openpyxl is already admitted by LLD-04 and will be pinned once by LLD-12/release dependency lock; using one governed XLSX library avoids a second OOXML dependency",
+    "rules":["artifact generation reads only persisted report-attempt snapshot rows, never live mutable domain tables","formulas are not used for authoritative results; represented values are written as already-calculated snapshot facts","temporary output uses same-volume atomic replace/finalization strategy where filesystem permits","artifact is reopened/validated after close and SHA-256/size are captured before completed-report publication"]
+  },
+  "concurrency":"Live SLA calculations are read projections. Catalog/classification/policy writes use short UnitOfWork transactions. Report snapshot materialization uses a stable read snapshot plus bounded staging writes; XLSX generation and verification occur outside writer transactions.",
+  "cache_policy":"Beta 1.0 may persist rebuildable projection caches only when exact input fingerprints and invalidation hooks are present. Queries must remain correct by recomputation if caches are absent or stale.",
+  "dependency_gate":"The pinned openpyxl version must pass both LLD-04 read-security fixtures and LLD-06 report-generation/golden fixtures on Python 3.13 and 3.14 before release acceptance."
+}
