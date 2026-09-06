@@ -1,0 +1,111 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-04",
+  "tables":[
+    {
+      "name":"reconciliation_proposals",
+      "columns":[
+        "reconciliation_proposal_id TEXT PRIMARY KEY",
+        "import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "source_observation_id TEXT NOT NULL REFERENCES source_observations(source_observation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "proposal_kind TEXT NOT NULL CHECK(proposal_kind IN ('rfc_create_or_adopt','rfc_source_projection','rfc_customer_reconciliation','sr_rfc_link_candidate','wfm_create_or_adopt','wfm_source_projection','wfm_provisional_rfc','wfm_provisional_eligibility','wfm_plan_reconciliation','wfm_competing_attempt_review'))",
+        "target_kind TEXT NOT NULL CHECK(target_kind IN ('rfc','wfm','customer_organization','sr_rfc_relationship','task_plan','activity_lineage'))",
+        "target_internal_id TEXT",
+        "target_business_id TEXT",
+        "risk_class TEXT NOT NULL CHECK(risk_class IN ('low','medium','high','blocked'))",
+        "base_state_token_sha256 TEXT NOT NULL CHECK(length(base_state_token_sha256)=64)",
+        "proposal_fingerprint_sha256 TEXT NOT NULL CHECK(length(proposal_fingerprint_sha256)=64)",
+        "proposal_state TEXT NOT NULL CHECK(proposal_state IN ('pending','accepted','rejected','deferred','superseded','no_change'))",
+        "created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)",
+        "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
+        "decided_at_utc INTEGER",
+        "CHECK((proposal_state='pending' AND decided_at_utc IS NULL) OR (proposal_state<>'pending' AND decided_at_utc IS NOT NULL))"
+      ],
+      "rules":[
+        "one proposal represents the smallest independently explainable/revalidatable target mutation scope",
+        "proposal fingerprint binds exact source observation/change set/profile versions; base_state token binds authoritative current target state used to calculate the proposal",
+        "proposal is non-authoritative until accepted through owning-domain command",
+        "blocked proposals cannot be accepted; no_change proposals cause no domain command",
+        "proposal rows retain source presence regardless of disposition"
+      ]
+    },
+    {
+      "name":"reconciliation_proposal_changes",
+      "columns":[
+        "reconciliation_proposal_id TEXT NOT NULL REFERENCES reconciliation_proposals(reconciliation_proposal_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "ordinal INTEGER NOT NULL CHECK(ordinal>=0)",
+        "field_key TEXT NOT NULL",
+        "change_kind TEXT NOT NULL CHECK(change_kind IN ('create','set','clear','link','unlink','adopt','candidate','conflict'))",
+        "value_kind TEXT NOT NULL CHECK(value_kind IN ('none','text','controlled','instant','duration_seconds','identity'))",
+        "before_text TEXT",
+        "after_text TEXT",
+        "before_integer INTEGER",
+        "after_integer INTEGER",
+        "source_observation_field_id TEXT REFERENCES source_observation_fields(source_observation_field_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "PRIMARY KEY(reconciliation_proposal_id,ordinal)",
+        "CHECK((value_kind IN ('none','text','controlled','identity') AND before_integer IS NULL AND after_integer IS NULL) OR value_kind IN ('instant','duration_seconds'))"
+      ],
+      "rules":[
+        "changes are typed/bounded; no unrestricted generic JSON change object exists",
+        "before/after values include only minimal review-safe allowlisted values required to explain the proposed mutation",
+        "relationship candidates use immutable/business identities rather than copied entity snapshots"
+      ]
+    },
+    {
+      "name":"proposal_dispositions",
+      "columns":[
+        "proposal_disposition_id TEXT PRIMARY KEY",
+        "reconciliation_proposal_id TEXT NOT NULL REFERENCES reconciliation_proposals(reconciliation_proposal_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "decision TEXT NOT NULL CHECK(decision IN ('accepted','rejected','deferred','superseded','no_change'))",
+        "proposal_revision INTEGER NOT NULL CHECK(proposal_revision>0)",
+        "proposal_fingerprint_sha256 TEXT NOT NULL CHECK(length(proposal_fingerprint_sha256)=64)",
+        "base_state_token_sha256 TEXT NOT NULL CHECK(length(base_state_token_sha256)=64)",
+        "reason_category TEXT",
+        "decision_origin TEXT NOT NULL CHECK(decision_origin IN ('operator','replay_engine','recovery','system_no_change'))",
+        "occurred_at_utc INTEGER NOT NULL CHECK(occurred_at_utc>=0)",
+        "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
+      ],
+      "rules":[
+        "append-only immutable decision evidence",
+        "accepted disposition and owning-domain mutation commit in the same UnitOfWork; if domain mutation fails no accepted disposition remains",
+        "reject/defer changes no domain authority",
+        "a stale proposal is superseded rather than rewritten to a new base state"
+      ]
+    },
+    {
+      "name":"proposal_equivalence_decisions",
+      "columns":[
+        "proposal_equivalence_decision_id TEXT PRIMARY KEY",
+        "proposal_kind TEXT NOT NULL",
+        "target_internal_id TEXT",
+        "target_business_id TEXT",
+        "material_input_fingerprint_sha256 TEXT NOT NULL CHECK(length(material_input_fingerprint_sha256)=64)",
+        "decision TEXT NOT NULL CHECK(decision IN ('rejected','deferred'))",
+        "source_proposal_id TEXT NOT NULL REFERENCES reconciliation_proposals(reconciliation_proposal_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)",
+        "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
+      ],
+      "rules":[
+        "bounded equivalence evidence may suppress redisplaying a materially unchanged rejected/deferred proposal",
+        "newer source chronology alone does not invalidate equivalence when material proposal inputs are identical",
+        "material input change or explicit reconsideration creates a new review opportunity; prior decision remains immutable"
+      ]
+    }
+  ],
+  "indexes":[
+    "CREATE INDEX idx_proposal_run_state ON reconciliation_proposals(import_run_id,proposal_state,risk_class,reconciliation_proposal_id)",
+    "CREATE INDEX idx_proposal_target ON reconciliation_proposals(target_kind,target_internal_id,target_business_id,proposal_state,reconciliation_proposal_id)",
+    "CREATE INDEX idx_proposal_observation_fk ON reconciliation_proposals(source_observation_id,reconciliation_proposal_id)",
+    "CREATE INDEX idx_proposal_change_field_fk ON reconciliation_proposal_changes(source_observation_field_id,reconciliation_proposal_id,ordinal) WHERE source_observation_field_id IS NOT NULL",
+    "CREATE INDEX idx_disposition_proposal_fk ON proposal_dispositions(reconciliation_proposal_id,occurred_at_utc,proposal_disposition_id)",
+    "CREATE INDEX idx_disposition_command_fk ON proposal_dispositions(command_id,proposal_disposition_id)",
+    "CREATE INDEX idx_equivalence_target ON proposal_equivalence_decisions(proposal_kind,target_internal_id,target_business_id,material_input_fingerprint_sha256,proposal_equivalence_decision_id)",
+    "CREATE INDEX idx_equivalence_source_fk ON proposal_equivalence_decisions(source_proposal_id,proposal_equivalence_decision_id)",
+    "CREATE INDEX idx_equivalence_command_fk ON proposal_equivalence_decisions(command_id,proposal_equivalence_decision_id)"
+  ],
+  "protection":[
+    "proposal changes and dispositions/equivalence rows reject UPDATE/DELETE",
+    "proposal UPDATE permits only governed pending->accepted/rejected/deferred/superseded/no_change terminal transition fields; terminal proposals reject further UPDATE",
+    "all accepted domain-facing decisions use current authoritative base-state revalidation inside the same UnitOfWork"
+  ]
+}
