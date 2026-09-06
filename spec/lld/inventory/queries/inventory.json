@@ -1,0 +1,16 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-07",
+  "queries":[
+    {"name":"StockEligibilityQuery","inputs":["BOM/device/task/Need compatibility filters","cursor","limit<=500"],"returns":["physical unit identity/LSU if present","BOM/serial/condition/disposition/current custody","current allocation","compatibility classification exact|candidate|incompatible|unknown","availability blockers"],"rules":["reads Spare Part Unit/current allocation/return/consequence projections only","never reserves on read","BOM/serial equality does not prove identity"]},
+    {"name":"InventoryNeedsQuery","inputs":["SR/customer/state/BOM","cursor","limit<=500"],"returns":["Need identity","SR+BOM","planned quantity","derived contributor count","local/request allocation summaries","request histories","lifecycle/action blockers"],"rule":"prior fulfillment does not hide active reusable Need"},
+    {"name":"SpareRequestListQuery","inputs":["SR/customer/state/response-warning","cursor","limit<=500"],"returns":["SPR handle/current SR7 if any","submitted quantity/RMA count","lifecycle state","response-warning age","derived Customer/SR context","action blockers"]},
+    {"name":"SpareRequestDetailQuery","inputs":["request_id"],"returns":["draft allocations/logistics when editable","immutable submitted allocation/logistics snapshot","SR7 aliases","RMA ordered batches/current assignments","actual logistics","attention/proposals","history"]},
+    {"name":"RmaDetailQuery","inputs":["rma_id"],"returns":["current/former C10","promised BOM","target assignment history","direct inbound unit actual facts","physical consequence/return selection","Fault Tag membership/warehouse state","open/closed obligation","actual logistics"]},
+    {"name":"TaskInventoryContextQuery","inputs":["task_id"],"returns":["active/historical unit allocations","Needs","reviewed Inventory physical consequences","installed/removed/unused/faulty/incompatible/dismantled facts","open return obligations"],"rule":"Task execution/outcome labels come from LLD-05 reader, not Inventory copies"},
+    {"name":"InventoryAttentionQuery","inputs":["customer/attention kind/severity","cursor","limit<=500"],"returns":["exact target identity","attention kind","reason/blocker","derived context","next governed action"],"rule":"archival/presentation never suppresses unresolved action-required obligation from this surface"},
+    {"name":"InventoryHistoryQuery","inputs":["target kind/id","cursor","limit<=500"],"returns":["typed domain lifecycle events","relationship changes/corrections","application audit references","source/proposal references"],"rule":"labels each authority; projection recomputation is not misrepresented as lifecycle evidence"]}
+  ],
+  "pagination":"keyset/cursor pagination with stable ordered identity tiebreaker; exact totals returned separately where UI requires them",
+  "side_effects":"none"
+}
