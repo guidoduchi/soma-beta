@@ -2,39 +2,50 @@
   "schema":"SOMA-LLD-ALGORITHM-V1",
   "lld_id":"LLD-02",
   "name":"CustomerAccountCodeConflictReview",
-  "purpose":"Bind shared-claim/reassignment acceptance to the exact current Customer Account Code conflict the operator reviewed, so an opaque review identifier or stale UI cannot authorize a different correction.",
+  "purpose":"Bind shared-claim/reassignment acceptance to the exact reviewed Customer Account Code conflict without scanning an uncapped claimant set while SQLite's writer lock is held.",
   "preview":{
     "mode":"read-only authenticated application query",
     "input":["raw Customer Account Code","proposed_action","target_customer_org_id","optional from_customer_org_id"],
     "steps":[
       "validate and normalize complete code under UNICODE_MATCH_V1",
-      "load every active claimant for the normalized code in immutable customer_org_id order",
-      "load target Customer revision and its current active account-code claim if any",
-      "for reassignment also load source Customer revision and prove its current claim for the reviewed code",
-      "build canonical REVIEW_ACCOUNT_CODE_V1 document containing matching_profile_id, normalized code key, proposed_action, target Customer ID/revision/current-code-key-or-null, optional source Customer ID/revision, and complete sorted claimant Customer IDs plus their revisions",
-      "serialize with the packet's fixed canonical field order/UTF-8 encoding and compute SHA-256 review_snapshot_hash",
-      "return bounded display details plus the hash; claimant detail may paginate for display, but the hash is over the complete claimant set"
+      "read reference_metadata.customer_reference_generation",
+      "load target Customer revision and its current active Account Code claim if any",
+      "for reassignment also load source Customer revision and prove its current claim for reviewed code",
+      "count every active claimant for normalized code and fetch only bounded claimant display page in immutable customer_org_id order",
+      "build canonical REVIEW_ACCOUNT_CODE_V1 document containing matching_profile_id, customer_reference_generation, normalized code key, proposed_action, target Customer ID/revision/current-code-key-or-null, optional source Customer ID/revision, and exact claimant_count",
+      "serialize fixed canonical field order as UTF-8 and compute SHA-256 review_snapshot_hash",
+      "return the hash plus bounded claimant display details/continuation"
     ],
     "proposed_actions":["CONFIRM_SHARED_CLAIM","REASSIGN_CLAIM"],
-    "rule":"The hash is freshness/binding evidence, not authentication or a substitute for authenticated session + anti-forgery + explicit operator confirmation."
+    "binding_rule":"customer_reference_generation changes transactionally whenever Customer Organization or Account Code claim state changes. It therefore conservatively invalidates the review when claimant membership/eligibility or other Customer reference state changes, without hashing an unbounded claimant list under the writer lock.",
+    "rule":"The hash is freshness/binding evidence, not authentication and not a substitute for authenticated session + anti-forgery + explicit operator confirmation."
   },
   "commit_validation":{
-    "transaction":"inside the same LLD-01 UnitOfWork before command_receipt/domain mutation",
+    "transaction":"inside same LLD-01 UnitOfWork before command_receipt/domain mutation",
     "input":["review_snapshot_hash","same proposed action parameters"],
     "steps":[
-      "recompute REVIEW_ACCOUNT_CODE_V1 from authoritative current state using bounded indexed queries",
+      "load matching_profile_id and customer_reference_generation in O(1)",
+      "load target/source Customer rows and current Account Code claims with indexed point queries",
+      "count active claimants for normalized code using indexed COUNT without materializing claimant bodies",
+      "rebuild REVIEW_ACCOUNT_CODE_V1 from current generation/count/target/source state",
       "constant-time compare recomputed SHA-256 text to supplied review_snapshot_hash",
       "if different return REVIEW_CONTEXT_STALE with no receipt/mutation",
-      "run command-specific invariants (shared claim still has a different claimant; reassignment source still owns the code; targets remain active)",
-      "only then allow the owning command to insert its receipt and perform the reviewed mutation"
+      "run command-specific invariants (shared claim still has another claimant; reassignment source still owns code; targets remain active)",
+      "only then allow owning command to insert receipt and perform reviewed mutation"
     ],
-    "performance":"claimant set is expected small but is not product-capped; compute the hash by streaming claimant IDs/revisions in index order without materializing unbounded display objects."
+    "performance":"Commit validation is O(1) point work plus an indexed COUNT for one normalized code; it never streams claimant detail under BEGIN IMMEDIATE. Detailed claimant identities remain read-only/paginated preview data outside writer lock."
   },
-  "audit":"Successful reviewed correction records proposed_action, review_snapshot_hash, review_context_id when one exists, normalized-code evidence subject to audit payload policy, and affected immutable Customer/identifier identities. It does not claim cryptographic publisher authenticity or external-source truth.",
+  "generation_contract":{
+    "source":"reference_metadata.customer_reference_generation",
+    "maintenance":"protected SQLite triggers increment the generation on Customer Organization INSERT/UPDATE and Account Code identifier INSERT/accepted active->superseded UPDATE",
+    "conservative_staleness":"an unrelated Customer reference edit may invalidate an in-progress Account Code review; this is accepted because false-stale review is safer than accepting against changed reference state",
+    "overflow":"generation uses nonnegative SQLite INTEGER; practical exhaustion is outside supported Beta lifetime, and overflow/constraint failure blocks the associated mutation atomically"
+  },
+  "audit":"Successful reviewed correction records proposed_action, review_snapshot_hash, optional review_context_id, bounded normalized-code evidence under audit payload policy, and affected immutable Customer/identifier identities. It does not claim publisher authenticity or external-source truth.",
   "security":[
-    "client cannot choose claimant membership independently of the server-derived snapshot",
-    "review_context_id is correlation/provenance only and never sufficient authorization by itself",
-    "stale UI, replay against changed claimant state, or target-code changes fail before receipt/mutation",
-    "raw review narrative is not accepted through this algorithm; reason_category remains closed/bounded and source proposal evidence stays with its owning reconciliation domain"
+    "review_context_id is correlation/provenance only and never sufficient authorization",
+    "stale UI or changed Customer/reference state fails before receipt/mutation",
+    "client cannot override server generation/count/target/source state used for hash recomputation",
+    "raw review narrative is not accepted; reason_category stays closed/bounded and source proposal evidence stays with its owning reconciliation domain"
   ]
 }
