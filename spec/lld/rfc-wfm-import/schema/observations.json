@@ -1,6 +1,7 @@
 {
   "schema":"SOMA-LLD-SCHEMA-V1",
   "lld_id":"LLD-04",
+  "publication_boundary":"Rows under an import_run whose state is discovering/validating are unpublished technical staging. They acquire immutable SourceObservation/Finding authority only when the complete run atomically transitions to staged, waiting_review or recovery_required after EOF/count/fingerprint verification. Replay/noop cleanup occurs before that transition.",
   "tables":[
     {
       "name":"source_observations",
@@ -22,8 +23,8 @@
         "CHECK((entity_kind='wfm' AND identity_state='valid' AND canonical_parent_rfc_no IS NOT NULL) OR entity_kind<>'wfm' OR identity_state='invalid')"
       ],
       "rules":[
-        "rows are immutable normalized source evidence and remain independent from whether any proposal is accepted",
-        "valid source presence is recorded even when its later proposal is rejected/deferred/unresolved",
+        "once parent run is published, rows are immutable normalized source evidence independent from whether any proposal is accepted",
+        "valid source presence is authoritative only for published staged/review/recovery runs and remains recorded when later proposal is rejected/deferred/unresolved",
         "RFC canonical_primary_id is exact NC+14; WFM canonical_primary_id is exact TK+14 and canonical_parent_rfc_no is exact NC+14",
         "recognized RFC branch artifact rows use invalid_row evidence/finding classification and never canonicalize into the base RFC",
         "physical row order is provenance only; logical fingerprint serialization sorts by canonical identities/field keys after duplicate/conflict classification"
@@ -70,7 +71,7 @@
       ],
       "rules":[
         "finding_code is from a closed LLD-04 catalogue; message_text is bounded deterministic operator explanation, never raw exception/environment serialization",
-        "findings never become domain authority",
+        "published findings never become domain authority but remain immutable review evidence",
         "invalid identity rows can have findings without creating target entities",
         "source absence for RFC/WFM never produces per-record disappearance findings"
       ]
@@ -86,8 +87,10 @@
     "CREATE INDEX idx_finding_observation_fk ON import_findings(source_observation_id,import_finding_id) WHERE source_observation_id IS NOT NULL"
   ],
   "protection":[
-    "BEFORE UPDATE/DELETE on source_observations/source_observation_fields raises IMPORT_OBSERVATION_APPEND_ONLY",
-    "BEFORE UPDATE/DELETE on import_findings raises IMPORT_FINDING_APPEND_ONLY",
+    "BEFORE UPDATE on source_observations/source_observation_fields/import_findings always raises append-only protection",
+    "BEFORE DELETE on these rows permits only the dedicated unpublished-staging cleanup path while the owning import_run is still validating; all rows belonging to a staged/waiting_review/recovery_required/partially_accepted/accepted/rejected run are undeletable",
+    "replay/newer-identical cleanup deletes findings then fields then observations while run is validating, then transitions the empty-evidence run to noop so no duplicate SourceObservation history survives",
+    "failed/interrupted unpublished staging may be technically cleaned under the same guard; this is not operational-history purge because the run was never published as exact-source evidence",
     "field-key/value-kind/source-family registry consistency is verified at persistence boundary and migration verifier has golden invalid-write tests"
   ]
 }
