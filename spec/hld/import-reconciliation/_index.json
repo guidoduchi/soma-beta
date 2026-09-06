@@ -1,0 +1,68 @@
+{
+  "schema": "SOMA-HLD-PACKET-V1",
+  "id": "HLD-05",
+  "name": "Import and Reconciliation",
+  "status": "review_ready",
+  "purpose": "Define one safe observation-to-mutation architecture for official workbook sources so external evidence can be discovered, parsed, replayed, reviewed, and accepted without becoming a competing domain authority.",
+  "primary_requirement_ids": [
+    "BETA-REQ-0054",
+    "BETA-REQ-0055",
+    "BETA-REQ-0056",
+    "BETA-REQ-0057",
+    "BETA-REQ-0059",
+    "BETA-REQ-0060",
+    "BETA-REQ-0074",
+    "BETA-REQ-0145",
+    "BETA-REQ-0146",
+    "BETA-REQ-0159",
+    "BETA-REQ-0160",
+    "BETA-REQ-0176"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0053",
+    "BETA-REQ-0058",
+    "BETA-REQ-0061",
+    "BETA-REQ-0066",
+    "BETA-REQ-0068",
+    "BETA-REQ-0075",
+    "BETA-REQ-0076",
+    "BETA-REQ-0147",
+    "BETA-REQ-0148",
+    "BETA-REQ-0149",
+    "BETA-REQ-0150",
+    "BETA-REQ-0151",
+    "BETA-REQ-0165",
+    "BETA-REQ-0170",
+    "BETA-REQ-0172"
+  ],
+  "decisions": [
+    {"id":"HLD05-D001","decision":"Advanced Search, RFC and WFM use source-family adapters behind one common reconciliation pipeline."},
+    {"id":"HLD05-D002","decision":"Discovery and parsing create immutable/bounded source observations; source observations never directly mutate domain aggregates."},
+    {"id":"HLD05-D003","decision":"Authoritative mutation occurs only by accepting a proposal that invokes the owning domain command under fresh state revalidation."},
+    {"id":"HLD05-D004","decision":"Each source family owns an independent accepted chronology/checkpoint; source chronology, import chronology and business-event chronology are distinct."},
+    {"id":"HLD05-D005","decision":"Logical fingerprints are computed from canonical allowlisted source meaning, making exact replay a no-op and allowing newer identical content to update only bounded import-recency evidence."},
+    {"id":"HLD05-D006","decision":"Omission from a workbook has no lifecycle, deletion, unlinking, archival or cascade authority unless a separately accepted source-scope contract explicitly grants absence meaning."},
+    {"id":"HLD05-D007","decision":"Review/disposition operates at the smallest explainable idempotent target scope; one bad target does not force whole-import rejection unless workbook-level integrity or inseparable consistency fails."},
+    {"id":"HLD05-D008","decision":"Auto-accept is an allowlisted low-risk optimization only; terminal, hierarchy, ownership, timeframe, disappearance, empty-population and competing-attempt changes remain reviewed."},
+    {"id":"HLD05-D009","decision":"Workbook/file parsing is bounded, offline and non-executing; external fetches, active content and parser-driven domain side effects are prohibited."},
+    {"id":"HLD05-D010","decision":"Header/identity recognition is versioned and exact; fuzzy or positional inference never establishes source-field or entity identity."}
+  ],
+  "packet_files": ["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
+  "downstream_hld_ids": ["HLD-04","HLD-06","HLD-07","HLD-10","HLD-11","HLD-13","HLD-14"],
+  "downstream_lld_ids": ["LLD-03","LLD-04"],
+  "unresolved_here_by_design": [
+    "O-007 exact low-risk field/change classes eligible for auto-accept",
+    "exact XLSX parser/library and bounded parser resource limits",
+    "exact staging/proposal table schema",
+    "exact source-profile/header-registry serialization",
+    "exact pagination/virtualization limits for large staged reviews",
+    "exact background scheduling implementation for automatic discovery"
+  ],
+  "completion_evidence": {
+    "required_packet_files_present": true,
+    "observation_vs_domain_authority_boundary_fixed": true,
+    "replay_and_checkpoint_boundary_fixed": true,
+    "review_and_auto_accept_boundary_fixed": true,
+    "ready_for_owner_review": true
+  }
+}
