@@ -1,0 +1,41 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-03",
+  "name":"RfcTerminalCascade",
+  "capture":[
+    "load triggering RFC/current terminal epoch/status evidence and exact current hierarchy inside one UnitOfWork",
+    "derive exact_rfc or root_branch scope without recursion beyond the accepted two levels",
+    "capture RFC identities, revisions and derived roles in deterministic order",
+    "ask RfcTerminalTaskParticipant for applicable active nonterminal WFM identities/revisions for exactly those RFC identities",
+    "compute canonical SHA-256 scope_fingerprint over proposal contract version, terminal epoch/evidence, ordered RFC members and ordered WFM members",
+    "insert pending proposal and immutable member rows in the same transaction as terminal-status acceptance"
+  ],
+  "preview":{
+    "mode":"read-only",
+    "output":"persisted proposal plus comparison against current RFC hierarchy/revisions, current terminal epoch/evidence, current applicable WFM membership, Task/Objective impact preview and Communication consequence preview",
+    "rule":"preview never mutates or refreshes scope and never counts as deliberate confirmation"
+  },
+  "refresh_stale_pending":[
+    "only a still-current terminal epoch with a pending stale proposal is refreshable",
+    "capture a new exact scope using the same algorithm",
+    "inside one UnitOfWork supersede the old pending proposal with command/time provenance and insert the replacement pending proposal/member rows",
+    "do not execute downstream consequences during refresh"
+  ],
+  "execute":[
+    "require authenticated current session and DeliberateActionProofVerifier proof bound to proposal ID, proposal revision and scope_fingerprint; a client boolean is insufficient",
+    "inside one UnitOfWork load pending proposal and verify triggering RFC is still in the same terminal epoch with the same accepted terminal evidence authority",
+    "recompute exact RFC hierarchy/revisions and current applicable WFM membership; any material mismatch returns RFC_TERMINAL_CASCADE_STALE with no mutation",
+    "invoke RfcTerminalTaskParticipant.apply_terminal_cascade using the same UnitOfWork; it owns WFM/Task/Objective consequences and returns immutable result references",
+    "invoke RfcTerminalCommunicationParticipant.apply_terminal_cascade using the same UnitOfWork; it owns RFC Communication unlink/frozen-summary/orphan-grace consequences and returns immutable result references",
+    "if any required participant is unavailable, indeterminate or fails, roll back the whole transaction and leave proposal pending",
+    "insert command receipt and minimal audit/result references, transition proposal pending->executed, and commit all participant mutations atomically"
+  ],
+  "rules":[
+    "safe auto-accept/import acceptance can create a pending proposal only when terminal evidence itself is explicitly accepted under its allowed review policy; it can never execute the cascade",
+    "SR lifecycle and unrelated Local Tasks are outside cascade scope",
+    "provider WFM status evidence is preserved; LLD-05 appends local termination provenance rather than rewriting provider facts",
+    "surviving executable Objective work and loss-of-last-executable-Task behavior are exclusively enforced by LLD-05 participant contract",
+    "executed proposal is immutable history; erroneous cascade is corrected by later governed append/correction flows rather than editing execution evidence"
+  ],
+  "performance":"capture and revalidation use indexed two-level RFC queries plus bounded participant membership reads; no recursive graph traversal or unbounded in-transaction workbook processing is permitted."
+}
