@@ -1,0 +1,22 @@
+{
+  "schema":"SOMA-LLD-BOUNDS-V1",
+  "lld_id":"LLD-02",
+  "policy":"Bounds are field-specific semantic contracts. Backend rejects overflow with actionable validation; it never truncates. UTF-8 byte count is len(value.encode('utf-8')).",
+  "text_fields":[
+    {"field":"local_user_profiles.username","min_utf8_bytes":1,"max_utf8_bytes":512,"max_lines":1,"reject":["NUL","CR","LF"]},
+    {"field":"customer_organizations.name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
+    {"field":"contacts.name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
+    {"field":"contact_channels.value_text","min_utf8_bytes":1,"max_utf8_bytes":2048,"max_lines":1,"reject":["NUL","CR","LF"],"additional":"channel-kind definition may impose a lower bound/grammar; email matching uses the complete accepted value and no truncation"},
+    {"field":"dispatch_locations.name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
+    {"field":"dispatch_locations.standalone_address_text","min_utf8_bytes":1,"max_utf8_bytes":8192,"max_lines":32,"reject":["NUL"],"newline":"normalize accepted CRLF/CR input to LF before validation/persistence only when the address field contract explicitly receives multiline text"},
+    {"field":"matching normalized key","min_utf8_bytes":1,"max_utf8_bytes":2048,"max_lines":1,"reject":["NUL","CR","LF"]},
+    {"field":"reference_lifecycle_events.reason_category","max_utf8_bytes":128,"max_lines":1,"rule":"closed code/category value where supplied, not arbitrary narrative"}
+  ],
+  "collections":[
+    {"field":"Contact active channels returned in one entity detail","pagination":"cursor when implementation dataset exceeds measured UI batch; no authoritative total cap"},
+    {"field":"archive dependency blockers","max_response_items":500,"overflow":"return bounded first page plus exact total/continuation; never treat omitted blockers as eligibility"},
+    {"field":"candidate IDs in AMBIGUOUS result","max_response_items":200,"overflow":"return exact total + deterministic cursor; state remains AMBIGUOUS regardless of visible page"}
+  ],
+  "settings":"Each SettingDefinition supplies its own max_utf8_bytes/depth/collection bounds; LLD-02 has no universal setting-value size constant beyond LLD-01 absolute parser safety ceilings.",
+  "ui_handoff":"LLD-10 may show grapheme-aware counters/warnings for human-facing fields, but server acceptance remains governed by these field-specific bounds and semantic validators."
+}
