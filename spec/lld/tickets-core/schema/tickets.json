@@ -1,0 +1,83 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-03",
+  "table_mode":"All LLD-03 authoritative tables use SQLite STRICT mode and LLD-01 FK/index/protection verification.",
+  "tables":[
+    {
+      "name":"service_requests",
+      "columns":[
+        "service_request_id TEXT PRIMARY KEY",
+        "official_sr_no TEXT UNIQUE",
+        "local_sr_no TEXT UNIQUE",
+        "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
+        "created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)",
+        "updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)",
+        "CHECK(official_sr_no IS NOT NULL OR local_sr_no IS NOT NULL)",
+        "CHECK(official_sr_no IS NULL OR (length(official_sr_no)=8 AND official_sr_no NOT GLOB '*[^0-9]*'))",
+        "CHECK(local_sr_no IS NULL OR (length(local_sr_no)=12 AND substr(local_sr_no,1,4)='LSR-' AND substr(local_sr_no,5) NOT GLOB '*[^0-9]*'))"
+      ],
+      "rules":[
+        "service_request_id is immutable UUIDv4 relational identity",
+        "manual SR without official identity receives non-reusable LSR sequence",
+        "later official assignment preserves service_request_id and local_sr_no",
+        "an SR created directly with official identity need not fabricate a local_sr_no",
+        "official_sr_no uniqueness is business uniqueness, never relational identity",
+        "terminal/current source projections are separate accepted facts and never cause replacement entity creation"
+      ]
+    },
+    {
+      "name":"rfcs",
+      "columns":[
+        "rfc_id TEXT PRIMARY KEY",
+        "rfc_no TEXT NOT NULL UNIQUE CHECK(length(rfc_no)=16 AND substr(rfc_no,1,2)='NC' AND substr(rfc_no,3) NOT GLOB '*[^0-9]*')",
+        "customer_org_id TEXT REFERENCES customer_organizations(customer_org_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "local_archive_state TEXT NOT NULL DEFAULT 'active' CHECK(local_archive_state IN ('active','archived'))",
+        "external_created_at_utc INTEGER CHECK(external_created_at_utc IS NULL OR external_created_at_utc>=0)",
+        "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
+        "created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)",
+        "updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"
+      ],
+      "rules":[
+        "rfc_id is immutable SOMA identity; exact NC+14 is unique business identity",
+        "manual/provisional/source-adopted RFCs with the same exact rfc_no are one entity",
+        "there is no persisted master/subordinate/standalone role flag",
+        "customer_org_id is zero-or-one current canonical Customer and cannot be inferred from Infrastructure",
+        "local_archive_state is reversible SOMA-local presentation state and is independent from provider lifecycle/status",
+        "external_created_at_utc remains nullable and distinct from SOMA created_at_utc/import/file chronology",
+        "there is no mutable ever_imported/adopted boolean; accepted source provenance is derived from source-observation history owned with reconciliation"
+      ]
+    },
+    {
+      "name":"ticket_working_notes",
+      "columns":[
+        "working_note_id TEXT PRIMARY KEY",
+        "ticket_type TEXT NOT NULL CHECK(ticket_type IN ('service_request','rfc'))",
+        "ticket_id TEXT NOT NULL",
+        "body_text TEXT NOT NULL CHECK(length(body_text)>0)",
+        "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
+        "created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)",
+        "updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)",
+        "created_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
+      ],
+      "rules":[
+        "ticket_type/ticket_id resolves through closed application repository dispatch, never raw dynamic SQL",
+        "Working Notes are SOMA-owned and import adapters have no write authority to overwrite/delete them",
+        "note correction uses explicit revision/audit rules; protected historical revisions/evidence are not silently discarded"
+      ]
+    }
+  ],
+  "indexes":[
+    "CREATE INDEX idx_sr_official ON service_requests(official_sr_no) WHERE official_sr_no IS NOT NULL",
+    "CREATE INDEX idx_sr_local ON service_requests(local_sr_no) WHERE local_sr_no IS NOT NULL",
+    "CREATE INDEX idx_rfc_customer ON rfcs(customer_org_id,rfc_id)",
+    "CREATE INDEX idx_rfc_archive ON rfcs(local_archive_state,rfc_no,rfc_id)",
+    "CREATE INDEX idx_ticket_notes_target ON ticket_working_notes(ticket_type,ticket_id,created_at_utc,working_note_id)",
+    "CREATE INDEX idx_ticket_notes_command ON ticket_working_notes(created_command_id)"
+  ],
+  "deferred_in_this_file":[
+    "current source-owned SR/RFC field projection tables and accepted observation lineage",
+    "Device Reference descriptive/matching schema",
+    "RFC hierarchy/relationship history tables defined in schema/relationships.json",
+    "narrow hard-delete guards defined by command/algorithm contracts"
+  ]
+}
