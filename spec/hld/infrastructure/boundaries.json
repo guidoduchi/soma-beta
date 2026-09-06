@@ -8,11 +8,13 @@
     "Cloud Type and Site-scoped Cloud Deployment",
     "descriptive Network Element IP-address inventory",
     "reusable Model/BOM/component compatibility knowledge",
-    "installed Component-instance identity/history under a Network Element",
+    "registered Installed Component-instance identity/history under a Network Element",
+    "optional DevicePartUnit-to-InstalledComponent resolution relationship in cooperation with HLD-08",
     "Infrastructure XLSX staging/acceptance semantics in cooperation with HLD-05"
   ],
   "does_not_own":[
     "operational Device Reference identity or ticket relationships (HLD-04)",
+    "operational Device Part Unit service/fault identity and Spare/Inventory lifecycle (HLD-08)",
     "Task execution/outcome or Inventory physical-consequence authority (HLD-06/HLD-08)",
     "Customer Organization identity or Dispatch Location lifecycle (HLD-03)",
     "communication/message evidence (HLD-10)",
@@ -23,7 +25,8 @@
     "Device Reference may exist forever without a Network Element resolution.",
     "Regularization links a Device Reference to exactly one registered Network Element without rewriting the operational Device Reference identity/history.",
     "Network Element identity is not derived from model, serial, IP, Rack, Cloud, hostname, external workbook row, or containment position.",
-    "Installed Component identity is not the reusable compatibility/BOM template identity."
+    "Installed Component identity is not the reusable compatibility/BOM template identity.",
+    "An operational HLD-08 Device Part Unit may exist without registered Infrastructure; when it corresponds to a registered Installed Component, an explicit resolution relation links the two immutable identities without merge or ownership transfer."
   ],
   "physical_boundaries":[
     "Site is the authoritative physical Site for every registered Network Element.",
