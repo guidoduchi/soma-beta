@@ -1,0 +1,17 @@
+{
+  "schema":"SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id":"HLD-12",
+  "incoming":[
+    {"from":"HLD-03","uses":["Customer Organization identity/scope"]},
+    {"from":"HLD-04","uses":["Ticket/RFC accepted state and relationships"]},
+    {"from":"HLD-06","uses":["Task/Objectives plans, execution, review and inclusion projections"]},
+    {"from":"HLD-07","uses":["CPL/SLA calculations/cohorts/report snapshots"]},
+    {"from":"HLD-08","uses":["Inventory lifecycle and action-required projections"]},
+    {"from":"HLD-09","uses":["Infrastructure read projections"]},
+    {"from":"HLD-10","uses":["Communication link/coverage/summary projections"]},
+    {"from":"HLD-11","uses":["shared filter/card/navigation/interaction presentation primitives"]}
+  ],
+  "outgoing":[{"to":"HLD-14","provides":["cross-domain derived-state/caching requirements and as-of semantics"]}],
+  "forbidden_dependencies":["Overview cannot write or own lifecycle/source evidence.","Overview caches cannot be used to resolve identity or authorize commands.","Unsaved/rejected/unaccepted state cannot affect authoritative metrics.","Unknown/partial/stale cannot be normalized to zero/healthy/complete.","Overview cannot fabricate timestamps such as Resolved Status Date or use Objective timezone for SLA/report membership.","Operational narrative cannot become a free-form editable operational record."],
+  "refresh_boundary":"Read models consume committed owning-domain revisions/events. Cache refresh can be asynchronous only if freshness/as-of is explicit and stale data never authorizes a mutation; command execution always revalidates against owning-domain authority."
+}
