@@ -7,31 +7,34 @@
       "channel_kind":"email",
       "storage_profile":"EMAIL_CHANNEL_V1",
       "storage_validation":[
-        "input must be a string within bounds.json contact_channels.value_text pre-normalization bound",
-        "remove only leading/trailing code points from the pinned UNICODE_MATCH_V1 White_Space set; do not otherwise rewrite the operator value for storage",
+        "input must be string within bounds.json contact_channels.value_text pre-normalization bound",
+        "remove only leading/trailing code points from pinned UNICODE_MATCH_V1 White_Space set; do not otherwise rewrite operator value for storage",
         "reject empty result, NUL, CR, LF, C0/C1 control characters and any second logical line",
-        "parse the complete remaining value as exactly one addr-spec using Python stdlib email.headerregistry.Address(addr_spec=value); parsing failure is CHANNEL_INVALID",
+        "parse complete remaining value as exactly one addr-spec using Python stdlib email.headerregistry.Address(addr_spec=value); parsing failure is CHANNEL_INVALID",
         "do not perform DNS, SMTP, network, mailbox-existence or deliverability checks",
-        "persist the trimmed accepted value_text and compute match_key separately through UNICODE_MATCH_V1; the matching key is evidence and does not replace the address actually stored"
+        "persist trimmed accepted value_text and compute match_key separately through UNICODE_MATCH_V1; matching key is evidence and does not replace address actually stored"
       ],
       "use_validation":{
         "purpose":"msg_recipient",
-        "rules":["Contact and channel must both be active","rerun EMAIL_CHANNEL_V1 syntax validation just in time","return usable value_text only after successful validation","do not contact DNS, SMTP or any external email service","failure blocks only the communication-dependent action and never invalidates the Contact/Ticket/Task/Objective/Spare Need/Spare Request"]
+        "specific_channel":["Contact and selected channel must both be active","channel must belong to Contact","rerun EMAIL_CHANNEL_V1 syntax validation just in time","return USABLE with value_text only after successful validation"],
+        "auto_select":["load only bounded identity/value projections for active email channels using indexed Contact-channel query","validate each candidate without network access","zero usable -> MISSING (or INVALID only when one explicitly selected channel is malformed)","exactly one usable -> USABLE","more than one usable -> MULTIPLE_USABLE with exact usable_count plus bounded channel IDs/continuation; never choose one by row order"],
+        "rules":["do not contact DNS, SMTP or external email service","failure/ambiguity blocks only communication-dependent action and never invalidates Contact/Ticket/Task/Objective/Spare Need/Spare Request","a consuming workflow may bypass MULTIPLE_USABLE only if its own separately accepted contract names a deterministic eligible-channel selection rule"]
       }
     }
   ],
   "result":{
-    "states":["USABLE","MISSING","ARCHIVED","INVALID"],
-    "fields":["state","contact_id","contact_channel_id","channel_kind","value_text_if_usable","reason_code"],
-    "rule":"MISSING/ARCHIVED/INVALID are ordinary prerequisite states for a recipient-requiring workflow, not reasons to invalidate the underlying operational entity"
+    "states":["USABLE","MISSING","ARCHIVED","INVALID","MULTIPLE_USABLE"],
+    "fields":["state","contact_id","contact_channel_id_if_specific","channel_kind","value_text_if_usable","usable_count","bounded_candidate_channel_ids","continuation","reason_code"],
+    "rule":"MISSING/ARCHIVED/INVALID/MULTIPLE_USABLE are prerequisite states for recipient-requiring workflow, not reasons to invalidate underlying operational entity"
   },
   "determinism":{
     "rule":"EMAIL_CHANNEL_V1 accepted/rejected golden vectors must produce identical results on supported Python 3.13 and 3.14 lines",
-    "upgrade":"if a future supported Python/parser change alters an accepted golden vector, SOMA must version the channel policy or add an explicit compatibility shim before release rather than silently changing stored-channel eligibility"
+    "upgrade":"if future supported Python/parser change alters an accepted golden vector, version channel policy or add explicit compatibility shim before release rather than silently changing stored-channel eligibility"
   },
   "security_rules":[
-    "recipient values are data only and never interpolated into HTML, shell, SQL or header text without the owning serializer's escaping rules",
-    "CR/LF/control rejection prevents recipient-header injection through the master channel value",
-    "LLD-09 generated artifact stores its own immutable recipient Contact identity and exact address snapshot effective at generation time"
+    "recipient values are data only and never interpolated into HTML, shell, SQL or header text without owning serializer escaping",
+    "CR/LF/control rejection prevents recipient-header injection through master channel value",
+    "AUTO_SELECT never treats SQL row order as business authority",
+    "LLD-09 generated artifact stores immutable recipient Contact identity and exact address snapshot effective at generation time"
   ]
 }
