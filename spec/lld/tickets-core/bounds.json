@@ -1,0 +1,23 @@
+{
+  "schema":"SOMA-LLD-BOUNDS-V1",
+  "lld_id":"LLD-03",
+  "policy":"Field/page bounds are semantic or technical safety limits, never destructive record-retention caps. Backend rejects overflow and never truncates accepted identity or history.",
+  "text_fields":[
+    {"field":"device_references.operational_name","min_utf8_bytes":1,"max_utf8_bytes":1024,"max_lines":1,"reject":["NUL","CR","LF"]},
+    {"field":"sr_working_notes.body_text","min_utf8_bytes":1,"max_utf8_bytes":65536,"max_lines":512,"reject":["NUL"]},
+    {"field":"rfc_working_notes.body_text","min_utf8_bytes":1,"max_utf8_bytes":65536,"max_lines":512,"reject":["NUL"]},
+    {"field":"reason_category","max_utf8_bytes":128,"max_lines":1,"rule":"closed category value, not free narrative where reason_category is specified"}
+  ],
+  "fixed_identity_fields":[
+    {"field":"official_sr_no","grammar":"exactly 8 ASCII digits"},
+    {"field":"local_sr_no","grammar":"LSR- plus exactly 8 ASCII digits"},
+    {"field":"rfc_no","grammar":"NC plus exactly 14 ASCII digits"}
+  ],
+  "pages":[
+    {"collection":"RFC children","default":100,"max_page":500,"total_cap":null},
+    {"collection":"SR direct root RFCs","default":100,"max_page":500,"total_cap":null},
+    {"collection":"Ticket Device References","default":100,"max_page":500,"total_cap":null},
+    {"collection":"Working Notes","default":100,"max_page":500,"total_cap":null}
+  ],
+  "rule":"There is no arbitrary 20-child RFC business cap and no product-wide total record cap introduced by LLD-03."
+}
