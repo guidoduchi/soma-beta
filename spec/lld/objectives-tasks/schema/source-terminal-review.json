@@ -1,0 +1,37 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-05",
+  "purpose":"Persist the separation between accepted provider Complete/Plan Cancel evidence and any later reviewed local Task/Objective consequence.",
+  "tables":[
+    {
+      "name":"wfm_source_terminal_reviews",
+      "columns":[
+        "source_terminal_review_id TEXT PRIMARY KEY",
+        "task_id TEXT NOT NULL REFERENCES wfm_task_identities(task_id) ON DELETE RESTRICT ON UPDATE RESTRICT",
+        "source_projection_revision INTEGER NOT NULL CHECK(source_projection_revision>0)",
+        "provider_lifecycle_class TEXT NOT NULL CHECK(provider_lifecycle_class IN ('complete','plan_cancel'))",
+        "input_fingerprint TEXT NOT NULL CHECK(length(input_fingerprint)=64)",
+        "state TEXT NOT NULL CHECK(state IN ('pending','retain_local_work','terminate_local_work','superseded'))",
+        "local_consequence_event_id TEXT NULL REFERENCES task_execution_events(execution_event_id) ON DELETE RESTRICT ON UPDATE RESTRICT",
+        "revision INTEGER NOT NULL CHECK(revision>0)",
+        "created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)",
+        "decided_at_utc INTEGER NULL CHECK(decided_at_utc IS NULL OR decided_at_utc>=0)",
+        "last_command_id TEXT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT ON UPDATE RESTRICT"
+      ],
+      "rules":[
+        "accepted provider terminal evidence may create or supersede a pending review only when current local executable work or Objective consequence requires a decision",
+        "a pending review is bound to the exact accepted WFM source projection revision and current local execution/membership/plan-lock input fingerprint",
+        "retain_local_work records a reviewed local decision and does not modify provider status, Task execution, Task outcome or Objective membership",
+        "terminate_local_work references the exact local source_terminal_consequence execution event created by ResolveWfmSourceTerminalConsequence in the same UnitOfWork",
+        "new material source/local state supersedes stale pending review rather than editing its evidence",
+        "provider Complete/Plan Cancel alone never inserts local execution/outcome evidence"
+      ]
+    }
+  ],
+  "required_indexes":[
+    "wfm_source_terminal_reviews(task_id,state,created_at_utc,source_terminal_review_id)",
+    "wfm_source_terminal_reviews(input_fingerprint,state,source_terminal_review_id)",
+    "wfm_source_terminal_reviews(source_projection_revision,task_id)",
+    "all FK/command columns receive LLD-01 leading-prefix coverage"
+  ]
+}
