@@ -1,0 +1,42 @@
+{
+  "schema":"SOMA-LLD-BOUNDS-V1",
+  "lld_id":"LLD-07",
+  "text_bounds":{
+    "bom_code":{"max_graphemes":160,"max_utf8_bytes":640,"blank":"reject"},
+    "description":{"max_graphemes":500,"max_utf8_bytes":2000,"blank":"allow_when_optional"},
+    "manufacturer_serial":{"max_graphemes":200,"max_utf8_bytes":800,"blank":"normalize_to_missing"},
+    "slot_label":{"max_graphemes":120,"max_utf8_bytes":480,"blank":"normalize_to_missing"},
+    "location_custody_text":{"max_graphemes":240,"max_utf8_bytes":960,"blank":"allow_when_optional"},
+    "pickup_instructions":{"max_graphemes":1000,"max_utf8_bytes":4000,"max_lines":20,"blank":"allow"},
+    "reason_code":{"max_graphemes":96,"max_utf8_bytes":384,"blank":"reject_when_required"},
+    "display_snapshot_value":{"max_graphemes":500,"max_utf8_bytes":2000,"blank":"field_specific"}
+  },
+  "identifiers":{
+    "temporary_spare_request":"SPR-########; allocator 1..99999999 with 100000000 exhausted sentinel; lexicographic sequence order equals creation-allocation order and values are never reused",
+    "local_spare_unit":"LSU-########; allocator 1..99999999 with exhausted sentinel; established Beta requirement",
+    "fault_tag":"FT-########; allocator 1..99999999 with exhausted sentinel; values never reused",
+    "official_spare_request":"SR followed by exactly seven decimal digits",
+    "rma":"C followed by exactly ten decimal digits"
+  },
+  "quantities":{
+    "unit_quantity":"positive INTEGER whole units only",
+    "max_single_allocation":1000000,
+    "max_planned_need_quantity":1000000,
+    "rule":"bounds are technical safety limits, not fulfillment caps; requests above limit require split/review rather than integer overflow or silent truncation"
+  },
+  "collections":{
+    "need_contributors":{"page_default":100,"page_max":500,"exact_total":true},
+    "request_allocations":{"soft_warning":100,"hard_limit":2000},
+    "rmas_per_request":{"soft_warning":500,"hard_limit":10000,"exact_total":true},
+    "logistics_event_participants":{"soft_warning":500,"hard_limit":5000},
+    "fault_tag_memberships":{"soft_warning":500,"hard_limit":5000},
+    "bulk_action_targets":{"preview_page_default":100,"preview_page_max":500,"hard_limit_per_atomic_batch":2000,"rule":"larger operator selection is partitioned into separately confirmed atomic batches with one result per target; no silent truncation"}
+  },
+  "normalization":{
+    "part_code":"PART_CODE_V1 = Unicode NFKC, collapse/trim Unicode whitespace, Unicode casefold; punctuation, hyphens, slashes, accents and internal non-whitespace characters remain significant",
+    "serial_candidate":"SERIAL_MATCH_V1 uses same normalization profile and remains candidate evidence only, never physical identity",
+    "official_ids":"ASCII exact canonical validation; no fuzzy normalization beyond accepted display-prefix parsing at transport boundary"
+  },
+  "pagination":"All large Inventory lists use deterministic cursor pagination with exact count queries when required by UI/preflight; rendered-page size never becomes business cardinality.",
+  "writer_performance":"Authoritative transactions use indexed point/existence/quantity checks and bounded participant sets only. Compatibility recommendation, large contributor aggregation preview, duplicate search, communication parsing, artifact generation and bulk preflight occur outside the writer lock."
+}
