@@ -1,0 +1,53 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-04",
+  "name":"ServiceProviderWfmRowParserV1",
+  "profile":"WFM_SERVICE_PROVIDER_V1 + WFM_HEADERS_V1 + RFC_STATUS_V1 + WFM_TASK_STATUS_V1",
+  "row_identity":[
+    "resolve RFC No. and Task No. by header registry",
+    "RFC No. must be exact NC+14 and Task No. exact TK+14; no truncation/fuzzy/suffix stripping",
+    "both identities usable -> entity_kind=wfm, canonical_primary_id=Task No., canonical_parent_rfc_no=RFC No., observed_valid_identity",
+    "either required identity unusable -> invalid_row with field-specific finding and no WFM/RFC mutation",
+    "repeated RFC No. across distinct canonical Task Nos is valid and expected"
+  ],
+  "active_fields":[
+    {"key":"rfc_status","kind":"controlled","vocabulary":"RFC_STATUS_V1","authority":"provisional RFC hint only; cannot override accepted Enhanced RFC status"},
+    {"key":"task_status","kind":"controlled","vocabulary":"WFM_TASK_STATUS_V1"},
+    {"key":"dispatch_progress","kind":"text","blank":"valid without missing warning when task_status=Plan Cancel; otherwise explicit blank/coverage finding"},
+    {"key":"planned_start","kind":"instant","time":"explicit offset or America/Guayaquil"},
+    {"key":"planned_end","kind":"instant","time":"explicit offset or America/Guayaquil"},
+    {"key":"rep_office","kind":"text"},
+    {"key":"risk_level","kind":"text"},
+    {"key":"task_name","kind":"text"},
+    {"key":"description","kind":"text"},
+    {"key":"customer_organization","kind":"text","authority":"reviewed Customer candidate only"}
+  ],
+  "plan_validation":[
+    "planned_start blank and planned_end blank -> valid unscheduled provider source plan",
+    "exactly one usable endpoint -> WFM_PLAN_INCOMPLETE row-level error for scheduling facts; identity/other independent valid source fields may still stage at smallest safe scope",
+    "both usable require end > start; otherwise WFM_PLAN_INVALID_INTERVAL",
+    "accepted instants persist canonical UTC whole seconds and any valid minute/second is accepted; no half-hour rounding/restriction",
+    "source plan is immutable provider evidence and never silently becomes accepted operational Task plan or Objective membership"
+  ],
+  "row_chronology":"the accepted workbook embedded export timestamp is the WFM source-observation chronology for row/source revisions; planned start/end are business plan facts and do not order workbook observations.",
+  "duplicate_partition":[
+    "group by canonical Task No.; repeated RFC across different Task Nos is never duplicate",
+    "same Task No. + same owning RFC + identical allowlisted logical content is equivalent duplicate and may collapse for effective proposal generation with warning",
+    "same Task No. with conflicting owning RFC or meaningful field content records all observations and blocks only that Task identity's affected proposal scope",
+    "parent RFC correction after WFM history is always high-risk owning-domain review, never silent import reassignment"
+  ],
+  "status_semantics":[
+    "Complete and Plan Cancel may create/adopt exact WFM identity as historical provider evidence but never create active work, promote/reactivate RFC, accept operational plan or create Objective",
+    "unrecognized nonblank Task Status remains warning-bearing source evidence without terminal/active lifecycle authority",
+    "active nonterminal WFM acceptance requires owning RFC Implement eligibility from LLD-03 or separately reviewed provisional eligibility for a bootstrapped missing RFC"
+  ],
+  "proposal_seeds":[
+    "missing RFC exact identity -> provisional RFC creation seed under LLD-03 plus optional reviewed provisional eligibility seed only when applicable active WFM evidence supports it",
+    "existing RFC -> WFM create/adopt/source-projection seed under LLD-05",
+    "material source-plan difference -> plan reconciliation seed under LLD-05; source acceptance and operational-plan acceptance remain separate",
+    "Task Name -> SR-link candidate extraction only when owning RFC Summary yields no candidate under accepted precedence",
+    "Customer Organization -> reviewed Customer candidate only",
+    "activity-lineage/overlap evidence -> competing-attempt review seed; import never invents retry lineage"
+  ],
+  "prohibitions":["no Service Request creation","no RFC hierarchy creation","no Objective/grouping commit","no Task execution/outcome inference","no provider status overwrite from absence"]
+}
