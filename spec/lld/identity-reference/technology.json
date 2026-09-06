@@ -2,18 +2,27 @@
   "schema":"SOMA-LLD-TECHNOLOGY-V1",
   "lld_id":"LLD-02",
   "baseline_date":"2026-09-06",
+  "python":{"supported":["3.13","3.14"],"rule":"normalization/channel golden vectors and repository tests must pass on both supported interpreter lines"},
   "identifiers":{"library":"Python standard-library uuid","format":"lowercase canonical UUIDv4 text","rule":"opaque relational identity only; business identifiers remain separate validated attributes"},
   "unicode_matching":{
     "profile":"UNICODE_MATCH_V1",
     "unicode_version":"17.0.0",
-    "nfkc_dependency":"unicodedata2==17.0.0",
+    "nfkc_dependency":"unicodedata2==17.0.1",
     "casefold_asset":"generated full CaseFolding mapping pinned to Unicode 17.0.0",
     "whitespace_asset":"generated Unicode White_Space set pinned to Unicode 17.0.0",
     "reason":"supported Python 3.13/3.14 runtimes must produce byte-identical candidate keys independent of their built-in Unicode database version",
-    "supply_chain":"dependency remains pinned/hashed in governed dependency metadata; generated Unicode assets have deterministic source/checksum provenance and regeneration tests",
-    "license_handoff":"LLD-12 packaging includes applicable third-party notice/attribution"
+    "supply_chain":"dependency is pinned/hashed in governed dependency metadata; generated Unicode assets retain Unicode source version/checksum provenance and deterministic regeneration tests",
+    "license_handoff":"LLD-12 packaging includes applicable Apache-2.0 third-party notice/attribution"
+  },
+  "email_channel":{
+    "profile":"EMAIL_CHANNEL_V1",
+    "parser":"Python standard-library email.headerregistry.Address(addr_spec=value)",
+    "network_checks":false,
+    "deliverability_claim":false,
+    "rule":"syntax-only exact one-addr-spec validation; Contact may exist without any channel and recipient-dependent workflows revalidate selected active channels just in time"
   },
   "persistence":{"owner":"LLD-01","driver":"stdlib sqlite3","orm":"none","rules":["LLD-02 repositories use LLD-01 UnitOfWork/connection policy","static parameterized SQL only","no private connection/transaction configuration"]},
   "settings":{"serialization":"LLD-01 strict versioned JSON contracts","registry":"closed code-defined SettingDefinitionRegistry","secrets":"excluded; LLD-12 secure storage only"},
-  "dependency_policy":"LLD-02 adds no runtime package other than the pinned Unicode normalization dependency; all other behavior uses Python/LLD-01 owned facilities."
+  "performance":{"pagination":"keyset/opaque cursor","matching":"indexed exact keys only","archive_guards":"indexed bounded existence checks under write transaction; detailed blocker enumeration outside writer lock"},
+  "dependency_policy":"LLD-02 adds only the pinned Unicode normalization dependency required for cross-Python deterministic matching; all other behavior uses Python standard library or LLD-01 owned facilities."
 }
