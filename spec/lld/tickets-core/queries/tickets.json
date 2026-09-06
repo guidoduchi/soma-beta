@@ -1,0 +1,69 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-03",
+  "queries":[
+    {
+      "name":"GetServiceRequest",
+      "input":["service_request_id or exact business identity"],
+      "output":"immutable identity, official/local business IDs, revision, current accepted source projection when available, linked root RFC count, Device Reference count, warnings",
+      "rules":["business-ID lookup resolves one surviving SR","historical/terminal presentation never creates another entity"]
+    },
+    {
+      "name":"GetRfc",
+      "input":["rfc_id or canonical rfc_no"],
+      "output":"immutable identity, canonical RFC No., current Customer or unresolved, derived hierarchy role, local archive state, current accepted source projection, counts/warnings",
+      "rule":"master/subordinate/standalone role is derived from active rfc_hierarchy_edges"
+    },
+    {
+      "name":"GetRfcBranch",
+      "input":["root_rfc_id","cursor","page_size"],
+      "output":"root plus keyset-paginated direct subordinate rows with immutable IDs, RFC Nos., resolved/unresolved Customer state, archive/source status summaries",
+      "rules":["root must be parentless","no arbitrary child-count cap","no recursive traversal beyond one child level","known branch Customer mismatch is invariant failure, unresolved member is explicit warning"]
+    },
+    {
+      "name":"GetServiceRequestRfcBranches",
+      "input":["service_request_id","root cursor","child cursor/page size"],
+      "output":"active direct root RFC links plus each root's current subordinate branch; inherited relation provenance identifies direct root link",
+      "rules":["no subordinate direct link is synthesized","WFM/Task data joined through owning LLD interfaces, not copied into SR relationship rows"]
+    },
+    {
+      "name":"GetEffectiveServiceRequestContextForRfc",
+      "input":["rfc_id"],
+      "output":"for a root, its direct active SR relationships; for a subordinate, its parent root's direct active SR relationships plus inherited_via_root identity",
+      "rule":"inherited context is query-derived and never persisted as subordinate sr_rfc_links"
+    },
+    {
+      "name":"ListTicketDeviceReferences",
+      "targets":["service_request","rfc"],
+      "input":["target_id","cursor","page_size"],
+      "output":"active Device Reference identities/current operational names plus optional registration projection supplied by LLD-08",
+      "rules":["registration projection is optional derived metadata","query never substitutes network_element_id for device_reference_id"]
+    },
+    {
+      "name":"GetRfcDeviceContextForBranch",
+      "input":["root_rfc_id"],
+      "output":"root Device References and separately grouped per-subordinate Device References",
+      "rule":"sets are not unioned into copied branch ownership; UI may display a derived union with source RFC provenance"
+    },
+    {
+      "name":"ListWorkingNotes",
+      "targets":["service_request","rfc"],
+      "input":["ticket_id","cursor","page_size"],
+      "output":"keyset page ordered by created_at_utc, working_note_id",
+      "rules":["current active note content only; audit/history surfaces provide prior edited/removed content","imports never participate in note mutation"]
+    },
+    {
+      "name":"PreviewRfcHierarchyMutation",
+      "input":["proposed parent/child/reparent action"],
+      "output":"current roles/branch/customer warnings, affected edge identities, direct-SR-link blockers, history-risk state",
+      "rule":"read-only advisory preview; command reruns authoritative checks inside UoW"
+    },
+    {
+      "name":"PreviewSrRfcLink",
+      "input":["service_request_id","origin/target rfc_id"],
+      "output":"resolved governing root, current duplicate state, subordinate-origin provenance, relationship/context impact summary",
+      "rule":"preview cannot merge entities/devices/tasks/notes and cannot authorize stale mutation"
+    }
+  ],
+  "pagination":"All unbounded collections use deterministic keyset cursors and field-specific page limits; no product business cap such as 20 RFC children is introduced."
+}
