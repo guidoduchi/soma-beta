@@ -1,0 +1,37 @@
+{
+  "schema": "SOMA-HLD-INVARIANTS-V1",
+  "hld_id": "HLD-08",
+  "invariants": [
+    {"id":"HLD08-I001","rule":"Spare Need belongs to exactly one Service Request and active demand aggregates by SR + BOM while contributor Device Part Units remain explicit."},
+    {"id":"HLD08-I002","rule":"Stock is a projection over eligible Spare Part Units; it is not a second physical identity and never auto-consumes or reserves stock solely because availability exists."},
+    {"id":"HLD08-I003","rule":"Every Spare Request references one-or-more Spare Needs from exactly one Service Request; draft, generated MSG and accepted submission are distinct states/actions."},
+    {"id":"HLD08-I004","rule":"Official SR7 and C10 values are business identifiers, never relational identities; correction preserves prior values as non-reusable history/aliases where governed."},
+    {"id":"HLD08-I005","rule":"RMA is an obligation identity with at most one direct inbound Spare Part Unit and at most one current return-unit obligation; no physical placeholder is fabricated before receipt."},
+    {"id":"HLD08-I006","rule":"Device Part Unit and Spare Part Unit remain distinct physical identities even when one replaces the other in maintenance."},
+    {"id":"HLD08-I007","rule":"Task allocation does not prove installation/use. Only an HLD-06 reviewed Task outcome plus accepted Inventory physical-consequence review may establish installed/removed/return relationships."},
+    {"id":"HLD08-I008","rule":"Inventory cannot create, rewrite, cancel, complete or retry Task/Objective lifecycle facts."},
+    {"id":"HLD08-I009","rule":"Submission-logistics snapshots are immutable requested-intent evidence and never prove actual dispatch, pickup, delivery, receipt or custody."},
+    {"id":"HLD08-I010","rule":"A Fault Tag submitted membership binds exactly one open RMA return obligation to exactly one eligible physical return unit; one obligation/unit cannot belong to multiple active submitted memberships."},
+    {"id":"HLD08-I011","rule":"Warehouse receipt does not close an RMA return obligation; only explicit final acceptance closes it. Rejection preserves history and keeps the obligation unresolved for later resend."},
+    {"id":"HLD08-I012","rule":"False-event correction, material submitted correction/replacement and genuine warehouse rejection/resend use distinct typed histories and never erase the prior accepted event/attempt."},
+    {"id":"HLD08-I013","rule":"Equal BOM, serial, SR7, C10, name or label can create reconciliation candidates but never authorize silent identity merge or reassignment."},
+    {"id":"HLD08-I014","rule":"Every supported Inventory transition has a manual path that does not require uploaded evidence; Beta 1.0 exposes no manual evidence attachment/upload UI."},
+    {"id":"HLD08-I015","rule":"Communication-derived facts are proposals until accepted through the owning Inventory command boundary."},
+    {"id":"HLD08-I016","rule":"Accepted Inventory history is append-oriented and correction targets exact events/relationships; hard deletion is restricted to genuinely untouched drafts under governing eligibility rules."},
+    {"id":"HLD08-I017","rule":"Bulk actions preflight every target, mutate only compatible reviewed scope atomically, and retain one independently addressable lifecycle event/result per affected target."},
+    {"id":"HLD08-I018","rule":"Local Spare Part Units without external provenance remain valid; later provenance adoption must not replace their immutable internal identity or prior history."}
+  ],
+  "acceptance_hooks": [
+    "multi-device same-BOM Need aggregation and cross-SR separation",
+    "local/external/mixed fulfillment without automatic Need consumption",
+    "MSG generation does not establish submission",
+    "partial RMA authorization and deterministic assignment/reassignment",
+    "requested/promised/inbound/installed/returned BOM divergence preservation",
+    "Task-outcome correction causes Inventory supersession without Task-history rewrite",
+    "Fault Tag cross-request grouping with per-membership exclusivity",
+    "warehouse receipt vs acceptance vs rejection/resend",
+    "false submission correction vs replacement vs resend",
+    "manual parity with no evidence upload control",
+    "bulk partition/rollback/per-target audit behavior"
+  ]
+}
