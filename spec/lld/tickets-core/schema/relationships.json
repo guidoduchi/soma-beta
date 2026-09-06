@@ -1,0 +1,106 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-03",
+  "tables":[
+    {
+      "name":"rfc_hierarchy_edges",
+      "purpose":"history-preserving current/superseded master-subordinate relationship",
+      "columns":[
+        "rfc_hierarchy_edge_id TEXT PRIMARY KEY",
+        "parent_rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "child_rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "edge_state TEXT NOT NULL CHECK(edge_state IN ('active','superseded'))",
+        "opened_at_utc INTEGER NOT NULL CHECK(opened_at_utc>=0)",
+        "closed_at_utc INTEGER",
+        "opened_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "closed_command_id TEXT REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "CHECK(parent_rfc_id<>child_rfc_id)",
+        "CHECK((edge_state='active' AND closed_at_utc IS NULL AND closed_command_id IS NULL) OR (edge_state='superseded' AND closed_at_utc IS NOT NULL AND closed_command_id IS NOT NULL))"
+      ],
+      "rules":[
+        "partial unique index gives each child at most one active parent",
+        "insert guard rejects parent that is itself an active child and rejects child that currently has active children, which enforces two levels and prevents cycles",
+        "hierarchy role is always derived from active edges",
+        "reparent supersedes old edge and inserts a new edge atomically; old edge is immutable history"
+      ]
+    },
+    {
+      "name":"sr_rfc_links",
+      "purpose":"direct history-preserving SR relationship to root/master RFC only",
+      "columns":[
+        "sr_rfc_link_id TEXT PRIMARY KEY",
+        "service_request_id TEXT NOT NULL REFERENCES service_requests(service_request_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "link_state TEXT NOT NULL CHECK(link_state IN ('active','unlinked'))",
+        "opened_at_utc INTEGER NOT NULL CHECK(opened_at_utc>=0)",
+        "closed_at_utc INTEGER",
+        "opened_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "closed_command_id TEXT REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "reason_category TEXT",
+        "CHECK((link_state='active' AND closed_at_utc IS NULL AND closed_command_id IS NULL) OR (link_state='unlinked' AND closed_at_utc IS NOT NULL AND closed_command_id IS NOT NULL))"
+      ],
+      "rules":[
+        "active direct link is permitted only when rfc_id is currently parentless/root",
+        "duplicate active link is semantic NO_CHANGE",
+        "unlink of already-absent relation is semantic NO_CHANGE",
+        "unlink never changes SR/RFC lifecycle and never deletes prior link history",
+        "a hierarchy mutation that would make an RFC subordinate is blocked while that RFC has active direct SR links unless an explicit reviewed relationship correction resolves them first"
+      ]
+    },
+    {
+      "name":"rfc_device_reference_links",
+      "columns":[
+        "rfc_device_reference_link_id TEXT PRIMARY KEY",
+        "rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "device_reference_id TEXT NOT NULL REFERENCES device_references(device_reference_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "link_state TEXT NOT NULL CHECK(link_state IN ('active','unlinked'))",
+        "opened_at_utc INTEGER NOT NULL CHECK(opened_at_utc>=0)",
+        "closed_at_utc INTEGER",
+        "opened_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "closed_command_id TEXT REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "CHECK((link_state='active' AND closed_at_utc IS NULL AND closed_command_id IS NULL) OR (link_state='unlinked' AND closed_at_utc IS NOT NULL AND closed_command_id IS NOT NULL))"
+      ],
+      "rules":[
+        "RFC may have Device References with or without any SR relationship",
+        "subordinate-specific Device References are independent from the master's set",
+        "Network Element resolution never rewrites this FK or link identity"
+      ]
+    },
+    {
+      "name":"sr_device_reference_links",
+      "columns":[
+        "sr_device_reference_link_id TEXT PRIMARY KEY",
+        "service_request_id TEXT NOT NULL REFERENCES service_requests(service_request_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "device_reference_id TEXT NOT NULL REFERENCES device_references(device_reference_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "link_state TEXT NOT NULL CHECK(link_state IN ('active','unlinked'))",
+        "opened_at_utc INTEGER NOT NULL CHECK(opened_at_utc>=0)",
+        "closed_at_utc INTEGER",
+        "opened_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "closed_command_id TEXT REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "CHECK((link_state='active' AND closed_at_utc IS NULL AND closed_command_id IS NULL) OR (link_state='unlinked' AND closed_at_utc IS NOT NULL AND closed_command_id IS NOT NULL))"
+      ],
+      "rules":["SR operational device context targets Device Reference, not Network Element","regularization preserves the link"]
+    }
+  ],
+  "indexes":[
+    "CREATE UNIQUE INDEX uq_rfc_active_parent ON rfc_hierarchy_edges(child_rfc_id) WHERE edge_state='active'",
+    "CREATE INDEX idx_rfc_active_children ON rfc_hierarchy_edges(parent_rfc_id,child_rfc_id) WHERE edge_state='active'",
+    "CREATE INDEX idx_rfc_hierarchy_history_child ON rfc_hierarchy_edges(child_rfc_id,opened_at_utc,rfc_hierarchy_edge_id)",
+    "CREATE UNIQUE INDEX uq_sr_rfc_active_pair ON sr_rfc_links(service_request_id,rfc_id) WHERE link_state='active'",
+    "CREATE INDEX idx_sr_rfc_active_by_rfc ON sr_rfc_links(rfc_id,service_request_id) WHERE link_state='active'",
+    "CREATE INDEX idx_sr_rfc_history ON sr_rfc_links(service_request_id,rfc_id,opened_at_utc,sr_rfc_link_id)",
+    "CREATE UNIQUE INDEX uq_rfc_device_active_pair ON rfc_device_reference_links(rfc_id,device_reference_id) WHERE link_state='active'",
+    "CREATE INDEX idx_rfc_device_by_device ON rfc_device_reference_links(device_reference_id,rfc_id) WHERE link_state='active'",
+    "CREATE UNIQUE INDEX uq_sr_device_active_pair ON sr_device_reference_links(service_request_id,device_reference_id) WHERE link_state='active'",
+    "CREATE INDEX idx_sr_device_by_device ON sr_device_reference_links(device_reference_id,service_request_id) WHERE link_state='active'"
+  ],
+  "database_guards":[
+    "BEFORE INSERT active rfc_hierarchy_edge rejects parent already appearing as active child",
+    "BEFORE INSERT active rfc_hierarchy_edge rejects child already appearing as active parent",
+    "BEFORE INSERT active rfc_hierarchy_edge rejects child with active direct sr_rfc_links",
+    "BEFORE INSERT active sr_rfc_link rejects rfc_id appearing as active hierarchy child",
+    "BEFORE UPDATE of active hierarchy/link rows permits only governed active-to-terminal transition fields; historical rows reject further UPDATE",
+    "BEFORE DELETE on hierarchy/link history raises append-only protection"
+  ],
+  "dependency":"device_references table is defined separately in schema/device-references.json after exact descriptive/matching authority is pinned; relationship FKs are part of the accepted LLD-03 schema set and migrations are published only when the complete set resolves."
+}
