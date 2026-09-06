@@ -1,0 +1,36 @@
+{
+  "schema": "SOMA-HLD-INVARIANTS-V1",
+  "hld_id": "HLD-07",
+  "invariants": [
+    {"id":"HLD07-I001","rule":"Product Line is reusable across Customers; customer-specific SLA authority exists only at Contract Product Line."},
+    {"id":"HLD07-I002","rule":"Each Contract belongs to exactly one Customer Organization."},
+    {"id":"HLD07-I003","rule":"An SR has at most one active CPL classification and it must be compatible with the SR's resolved Customer."},
+    {"id":"HLD07-I004","rule":"Advanced Search Product is discarded and cannot establish Product Line/CPL/SLA authority."},
+    {"id":"HLD07-I005","rule":"Missing Report Date produces an explicitly uncalculable SLA result."},
+    {"id":"HLD07-I006","rule":"Suspension duration is accepted source evidence only and is never inferred from inactivity."},
+    {"id":"HLD07-I007","rule":"Eligible terminal SLA endpoint is the first accepted effective Resolved/Closed instant; Cancelled SRs remain historical but leave SLA cohorts."},
+    {"id":"HLD07-I008","rule":"SLA elapsed arithmetic is exact and clamped at zero; no premature rounding affects tier/state decisions."},
+    {"id":"HLD07-I009","rule":"Canonical cohort month uses accepted Report Date in America/Guayaquil; Objective timezone has no membership authority."},
+    {"id":"HLD07-I010","rule":"Canonical cohort key is Customer + Contract + CPL + severity + policy tier within month; compliance outcome/state is not a key dimension."},
+    {"id":"HLD07-I011","rule":"Individual SLA state and cohort compliance state/percentage are distinct projections."},
+    {"id":"HLD07-I012","rule":"An open monthly cohort is never labeled final."},
+    {"id":"HLD07-I013","rule":"Policy/classification changes recompute live projections but never rewrite completed report evidence."},
+    {"id":"HLD07-I014","rule":"Completed report evidence is published only after artifact verification from one consistent accepted-state snapshot."},
+    {"id":"HLD07-I015","rule":"Report generation, live recalculation or terminal status never grants cleanup/deletion authority over operational records."}
+  ],
+  "acceptance_hooks": [
+    "same-product-line-different-customer-policies",
+    "cross-customer-classification-rejected",
+    "missing-report-date-uncalculable",
+    "active-vs-first-resolved-closed-endpoint",
+    "cancelled-excluded-from-cohort",
+    "accepted-suspension-only",
+    "fractional-boundary-no-premature-rounding",
+    "guayaquil-report-date-month-and-objective-tz-isolation",
+    "cohort-key-excludes-outcome",
+    "open-month-non-final-state",
+    "policy-revision-recalculates-live-only",
+    "completed-report-immutable-after-later-change",
+    "artifact-failure-no-completed-report"
+  ]
+}
