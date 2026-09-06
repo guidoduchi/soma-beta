@@ -1,0 +1,40 @@
+{
+  "schema": "SOMA-HLD-BOUNDARIES-V1",
+  "hld_id": "HLD-02",
+  "name": "Foundation Runtime and Persistence",
+  "persistence_boundary": {
+    "authoritative_store": "one application-managed SQLite database per canonical SOMA data instance",
+    "connection_policy": "every authoritative SQLite connection is created by one SOMA-owned connection factory and verifies foreign-key enforcement before authoritative use",
+    "domain_access": "domain/application code reaches SQLite only through owned repository/query/unit-of-work interfaces; arbitrary direct connections and cross-domain table shortcuts are forbidden",
+    "schema_governance": "domain HLD/LLD packets own domain meaning; HLD-02 owns common relational, migration, integrity, connection, and publication rules",
+    "json_boundary": "JSON is allowed only for explicitly named/versioned document contracts and never replaces normalized independently queryable domain facts",
+    "projection_boundary": "rebuildable caches/projections may exist only when they own no unique fact and accept no independent authoritative write"
+  },
+  "transaction_boundary": {
+    "unit": "one accepted command or explicitly defined atomic command set",
+    "connection_scope": "a transaction/unit-of-work owns its connection for the bounded transaction; connections are not an unsafely shared global mutable handle",
+    "long_io_inside_write_transaction": false,
+    "rule": "file parsing, workbook/mail processing, expensive computation, operator think-time, and other long work occur outside write transactions; the final mutation reloads/revalidates authoritative state and commits briefly",
+    "audit_relationship": "required mutation/domain-event/audit persistence joins the same authoritative transaction according to HLD-14"
+  },
+  "migration_boundary": {
+    "single_migrator_per_data_instance": true,
+    "schema_and_ledger_commit_together": true,
+    "accepted_migration_identity_and_bytes_are_immutable": true,
+    "correction_model": "accepted migration defects are corrected only by a later forward migration for non-disposable data",
+    "readiness": "authoritative service is not published until migration, schema, ledger, foreign-key and required integrity checks pass",
+    "status_mode": "migration/status inspection is observational and must not create, mutate, repair, checkpoint, migrate, or touch the target"
+  },
+  "runtime_coordination": {
+    "durable_jobs": "restart-relevant job/proposal/checkpoint state lives in the authoritative database under named schemas rather than volatile client memory",
+    "runtime_registry": "minimal current-run discovery/coordination metadata exists outside SQLite and is non-authoritative; trust mechanics belong to HLD-13",
+    "diagnostics": "technical diagnostics live outside SQLite and are non-authoritative; redaction/rotation/security belong to HLD-13",
+    "source_files": "external workbooks/PST/OST/MSG files are not a second database and do not gain mutation authority by being present"
+  },
+  "delegated_design": {
+    "domain_HLDs": "domain entity/table meaning, relationships, state transitions, and domain indexes/constraints",
+    "HLD-13": "database/live-data encryption implementation, backup/restore protection, diagnostics security, runtime-registry trust",
+    "HLD-14": "transaction semantics, audit/event meaning, history, idempotency, temporal recording/effective time",
+    "LLD-01": "SQLite library configuration, connection factory API, pragmas, journal mode, migration format/manifest, repository/unit-of-work implementation, job persistence schema, JSON registry/upgraders"
+  }
+}
