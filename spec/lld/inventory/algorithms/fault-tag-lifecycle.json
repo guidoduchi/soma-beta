@@ -1,0 +1,13 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-07",
+  "name":"FAULT_TAG_LIFECYCLE_V1",
+  "draft":["membership editable only while current tag state=draft","pickup method may remain temporarily incomplete in UI draft but submission requires exactly one pickup-origin Dispatch Location","draft membership must reference one open RMA obligation, exact current selected typed unit and supporting physical consequence"],
+  "submission":["revalidate all memberships and exclusivity in one UnitOfWork","freeze tag/membership snapshots and append submitted events","active_submitted uniqueness is enforced independently for RMA obligation and typed unit","submission artifact generation alone has no authority"],
+  "warehouse":["warehouse_received is per membership and leaves RMA obligation open","final accepted/rejected is per membership and always requires explicit operator confirmation","accepted closes obligation; rejected leaves/reopens obligation and removes active submitted exclusivity","partial progression never affects other memberships","tag terminal aggregate occurs only when every submitted membership is accepted/rejected/cancelled/superseded"],
+  "false_submission_correction":["target exact submission event","allowed only when no real external submission occurred and downstream evidence does not contradict claim","preserve old event/snapshot as corrected history","restore same tag to draft and unlock current draft membership"] ,
+  "material_replacement":["actual submitted membership/logistics never edited","create new Fault Tag/new tracking id/new membership identities","predecessor becomes superseded and one corrects_replaces edge is appended","lineage must remain acyclic/linear and replacement must be independently submitted later"],
+  "resend":["requires genuine rejected membership with open return obligation","create new Fault Tag/new membership identities and resend_of edge","predecessor remains terminal historical attempt","selected resend scopes from one predecessor must not overlap each other while active"],
+  "archive":"presentation only; unresolved obligations remain visible in Needs Attention and lineage",
+  "hard_delete":"only untouched manual draft with no generation/proposal/submission/correction/warehouse/lineage/protected dependency; never cascades independently surviving entities/artifacts"
+}
