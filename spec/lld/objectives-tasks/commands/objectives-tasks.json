@@ -1,0 +1,225 @@
+{
+  "schema":"SOMA-LLD-COMMANDS-V1",
+  "lld_id":"LLD-05",
+  "ordering":"Pure format/text/timezone conversion and expensive previews occur before BEGIN IMMEDIATE. Every standalone authoritative command then resolves idempotency, revalidates current revisions/relationships/locks inside one LLD-01 UnitOfWork, inserts its command_receipt before receipt-FK children, applies owned mutation/projections/audit and commits. LLD-03/04 participant calls reuse the caller's already-inserted outer receipt and never create a second one.",
+  "commands":[
+    {
+      "name":"CreateLocalTask",
+      "input":["command_id","local_task_name","optional accepted schedule input","optional reviewed initial SR/RFC/Device Reference link selections"],
+      "steps":["validate bounded name and optional complete positive-duration schedule; convert local schedule via OBJECTIVE_TIMEZONE_V1 before writer lock","inside UoW revalidate selected LLD-03 identities and active relationship eligibility","allocate task_id","insert receipt then Local Task","when schedule supplied append task_plan_revision and current pointer","insert selected Task-owned relationships","audit minimal creation/relationship/plan refs and commit","after commit request grouping recompute for any schedulable future noncancelled Task"],
+      "rules":["Task may remain unscheduled","no Objective is silently created/joined by this mutation; grouping remains a separately reviewed proposal","no fabricated TK identity"]
+    },
+    {
+      "name":"RegisterManualWfmTask",
+      "input":["command_id","canonical task_no","existing rfc_id","optional accepted schedule input"],
+      "steps":["validate TK+14 and optional schedule","inside UoW load exact RFC/current lifecycle and require active WFM eligibility","if task_no exists under same RFC return semantic NO_CHANGE/adoption target; differing current parent requires ReassignWfmParent review","allocate task_id","insert receipt, Task(kind=wfm), WFM identity and initial RFC assignment event","optional operational plan is manual evidence only and never provider source plan","audit and commit","request grouping recompute when eligible"],
+      "rules":["if RFC does not exist, the enclosing UI flow first uses LLD-03 CreateOrAdoptRfcIdentity to create the provisional RFC; an orphan provisional RFC after later WFM failure is valid and never silently deleted","exact later source Task No. adopts this task in place"]
+    },
+    {
+      "name":"ReassignWfmParent",
+      "input":["task_id","assignment_revision","new_rfc_id","reason/review context","command_id"],
+      "steps":["load WFM/current and candidate RFC","classify history risk from plan/source/objective/execution/retry/outcome","require explicit high-risk review when protected operational history exists","revalidate new RFC active eligibility","insert receipt","update current_rfc_id/assignment_revision and append assignment event","recompute derived root/SR context only; preserve Task identity/Objectives/source history","audit and commit"],
+      "rules":["does not create WFM hierarchy flags","source-owned parent conflict may enter through LLD-04 review but uses same service semantics"]
+    },
+    {
+      "name":"SetTaskPlan",
+      "input":["task_id","task/base current-plan revision","schedule input","origin manual|objective_initialization|wfm_source_adoption|retry_clone","reason/source evidence when applicable","command_id"],
+      "steps":["validate/convert complete positive interval outside lock","inside UoW load Task, current execution/source-terminal/explicit lock state and reject effective ordinary plan lock","if semantically same UTC interval+context use NO_CHANGE","insert receipt","append immutable plan revision and update task_plan_current","if Task currently belongs to Objective do not change membership pin; rebuild aggregate attention so plan-membership mismatch is explicit","audit and commit","request grouping recompute"],
+      "rules":["accepted current Task plan and Objective membership-plan pin may temporarily differ without creating overlapping accepted Objectives","no wall-clock passage creates lock"]
+    },
+    {
+      "name":"CorrectTaskPlan",
+      "input":["task_id","exact current plan_revision_id","replacement schedule","reason_category","high-risk review when execution/terminal history exists","command_id"],
+      "steps":["validate replacement interval/timezone","inside UoW load exact Task plan/execution/history","require correction authority when ordinary plan lock exists","insert receipt","append correction plan revision targeting predecessor and make it current","never rewrite historical Objective membership pins; planned/current memberships require separate regroup while terminal/historical memberships remain frozen","audit prior/new plan refs and commit"],
+      "rules":["correction preserves Task attempt identity","completed reports remain outside this mutation"]
+    },
+    {
+      "name":"SetExplicitTaskLock",
+      "input":["task_id","lock projection revision","lock_kind plan|membership","action lock|unlock","reason_category","command_id"],
+      "steps":["inside UoW load current derived lock context","reject unlock as ineffective when execution/source-terminal/protected history independently locks the dimension","insert receipt","append lock event/update explicit lock projection","audit and commit"],
+      "rule":"explicit lock is history; current time never changes it automatically"
+    },
+    {
+      "name":"ChangeTaskRelationship",
+      "input":["task_id","relationship_kind sr|rfc|device","target_id","action link|unlink","reason when unlink","command_id"],
+      "steps":["inside UoW load Task and exact target","reject direct SR/RFC relationship on WFM; WFM SR/RFC context derives through owning RFC","Device Reference valid for either Task kind","if requested current state already holds use semantic NO_CHANGE","insert receipt then append/open or close relationship state preserving prior row","audit and commit"],
+      "rules":["Objective context recalculates only as derived view","regularized Device remains same Device Reference relationship"]
+    },
+    {
+      "name":"ReviewWfmActivityRelationship",
+      "input":["WFM task ids/revisions","decision distinct_activity|same_activity|retry_lineage|unresolved_source_error","optional lineage/retry context","reason_category","command_id"],
+      "steps":["load all exact distinct TK identities and current intervals/source/lifecycle state","insert receipt","distinct_activity records separate/no shared lineage; same_activity assigns reviewed shared lineage; retry_lineage additionally requires legal immediate predecessor/successor relation; unresolved_source_error preserves identities and conflict warning","recompute competing-attempt conflict projection from shared lineage + overlapping active intervals","audit decision and commit"],
+      "rules":["overlapping active attempts in one reviewed lineage remain a blocking conflict until reviewed resolution changes lifecycle/lineage","never collapse Task identities or create overlapping Objectives to evade conflict"]
+    },
+    {
+      "name":"StartTaskExecution",
+      "input":["task_id","execution revision","effective_start_utc or canonical-now","command_id"],
+      "steps":["inside UoW require execution_state=not_started and no cancelled/reviewed terminal outcome","validate effective time as known UTC whole second","insert receipt and append start event","rebuild Task execution and affected Objective aggregate projections","audit and commit"],
+      "rules":["Task may start independently; no other member Task starts implicitly","plan is not actual execution"]
+    },
+    {
+      "name":"StartObjectiveExecution",
+      "input":["objective_id","objective/envelope revision","explicit nonempty selected member task ids with execution revisions","effective_start_utc or canonical-now","command_id"],
+      "steps":["inside UoW revalidate Objective current membership and every selected Task is an executable current member with no accepted start/terminal outcome","insert receipt","append one start event per explicitly selected Task only","rebuild affected Task/Objective projections","audit Objective-scoped action plus exact started Task result refs and commit"],
+      "rules":["unselected Tasks remain not_started","Objective becomes derived in_progress because at least one member has actual start evidence; there is no independent Objective start timestamp authority"]
+    },
+    {
+      "name":"EndTaskExecution",
+      "input":["task_id","execution revision","effective_end_utc","command_id"],
+      "steps":["inside UoW require current accepted start and state=in_progress","require end>=actual start","insert receipt and append end event","rebuild Task execution; with no current accepted outcome derive Awaiting Review","rebuild affected Objective aggregate/Needs Attention projection","audit and commit"],
+      "rule":"ending execution never fabricates Completed/Incomplete outcome"
+    },
+    {
+      "name":"CorrectTaskExecutionEvidence",
+      "input":["task_id","exact target execution_event_id","replacement effective time or withdraw","reason_category","high-risk review context","command_id"],
+      "steps":["inside UoW prove target is current-effective evidence and correction produces a valid chronology","insert receipt and append correction event targeting exact prior evidence","rebuild execution/outcome validity and affected Objective aggregate; invalidate current Objective review fingerprint when material","audit correction refs and commit"],
+      "rules":["prior event remains immutable","cannot use correction to manufacture cancelled_without_execution while an uncorrected accepted start remains"]
+    },
+    {
+      "name":"CancelTaskWithoutExecution",
+      "input":["task_id","execution/outcome revisions","effective_cancel_utc","reason_category","command_id"],
+      "steps":["inside UoW prove no accepted start and no terminal execution/outcome","insert receipt","append manual_cancel execution event and reviewed outcome event=cancelled_without_execution using recording time as reviewed_at","update projections","rebuild affected Objective aggregate and commit audit"],
+      "rules":["effective cancellation and reviewed/recording time are distinct","provider WFM status is unchanged"]
+    },
+    {
+      "name":"ReviewTaskOutcome",
+      "input":["task_id","execution revision","outcome completed|incomplete|cancelled_without_execution","reason when required","command_id"],
+      "steps":["inside UoW revalidate exact execution evidence","completed/incomplete require accepted started work with terminal end/termination; cancelled_without_execution requires no accepted start and terminal cancellation/termination evidence","insert receipt and append outcome review event","set current outcome/reviewed_at","rebuild Objective aggregate/current-review validity","audit and commit"],
+      "rule":"reviewed_at is acceptance time and never substitutes for actual start/end/termination"
+    },
+    {
+      "name":"CorrectTaskOutcome",
+      "input":["task_id","exact current outcome_event_id","replacement outcome","reason_category","command_id"],
+      "steps":["inside UoW validate replacement against current corrected execution evidence","insert receipt and append new outcome event correction_of exact prior event","update current outcome","rebuild Objective aggregate and invalidate any Objective review whose fingerprint changed","audit and commit"],
+      "rule":"same Task attempt/history survives; retry is separate command"
+    },
+    {
+      "name":"ResolveWfmSourceTerminalConsequence",
+      "input":["task_id","exact WFM source projection revision","decision retain_local_work|terminate_local_work","reason_category","command_id"],
+      "steps":["inside UoW require current provider Complete or Plan Cancel evidence and exact pending/current source-consequence review fingerprint","insert receipt","retain_local_work appends decision evidence only and leaves execution/membership intact; terminate_local_work appends source_terminal_consequence termination evidence but no Task outcome","update consequence review/projections","if an in-progress Objective loses its last executable Task derive Incomplete — Awaiting Review attention; otherwise surviving work continues with warning","audit and commit"],
+      "rules":["never modifies provider status","provider Complete/Plan Cancel alone does not execute this command","terminal Objective membership is not silently restructured"]
+    },
+    {
+      "name":"CreateLocalTaskRetry",
+      "input":["predecessor_task_id","predecessor revision","new task name or inherited reviewed name","required new schedule","selected SR/RFC/Device link ids","optional selected Inventory relationship ids","command_id"],
+      "steps":["require predecessor has no direct successor and validate new schedule","outside lock preview selected owned relationships and optional LLD-07 participant impact","inside UoW revalidate predecessor/successor eligibility and selected relationship states","allocate new task_id","insert receipt, new Local Task, retry relation, retry-clone plan revision and selected Task-owned links","when Inventory selections supplied call LLD-07 participant in same UoW; unavailable/indeterminate fails closed","audit new attempt/predecessor refs and commit","request normal grouping recompute"],
+      "rules":["predecessor is never rewritten","new Task enters Objective only through normal reviewed grouping","no one-to-one Objective retry chain"]
+    },
+    {
+      "name":"LinkWfmRetryAttempt",
+      "input":["predecessor_wfm_task_id","successor_wfm_task_id with distinct TK","task revisions","reason/review context","command_id"],
+      "steps":["inside UoW prove both are distinct WFM identities, predecessor has no successor and successor has no predecessor","insert receipt/retry relation","assign/reconcile reviewed activity lineage","recompute competing-attempt conflict","audit and commit"],
+      "rule":"new provider attempt must already possess its distinct canonical TK identity; this command never fabricates one"
+    },
+    {
+      "name":"PreviewObjectiveCreation",
+      "kind":"pure preview",
+      "input":["existing Task ids and current plan revisions and/or UI-draft Local Task definitions with explicit plans","current Objective timezone"],
+      "steps":["validate every proposed member has/receives complete accepted interval","compute strict global overlap against all eligible Tasks/current Objective envelopes","if independent component has no overlap return create preview with exact prospective member/plan fingerprint","if any selected/prospective task joins/bridges current Objective work return regroup proposal preview instead of authorizing a new overlapping Objective"],
+      "rules":["UI draft may be empty temporarily but no persistence occurs","draft envelope is derived from proposed Task plans and is not independent truth"]
+    },
+    {
+      "name":"CreateObjectiveFromPreview",
+      "input":["exact create preview fingerprint","existing Task expected revisions/plans","optional draft Local Task definitions","command_id"],
+      "steps":["inside UoW revalidate every existing Task current plan/lock/unassigned state and exact global envelope nonoverlap","validate draft Local Tasks/plan conversions and affected LLD-03 references","allocate objective_id and non-reusable MW-########","insert receipt","create any draft Local Tasks and their plan revisions","insert Objective and one membership per member pinned to exact accepted plan revision","append membership events/rebuild envelope+aggregate projections","audit exact member/result refs and commit"],
+      "rules":["at least one Task required","if overlap now exists return stale/overlap and require regroup preview; never create overlapping Objective"]
+    },
+    {
+      "name":"RecomputeGroupingProposals",
+      "visibility":"pure/durable proposal calculation",
+      "input":["trigger task/objective ids or full recompute request"],
+      "steps":["under stable snapshot read compact eligible Task/current-plan/current membership/lock/objective tuples","run algorithms/overlap-grouping.json globally for affected temporal neighborhood or full workset","compare desired strict-overlap components/current accepted membership and plan pins","respect terminal/membership locks and accepted manual exceptions; produce exact create/join/move/repin/consolidate or conflict previews","suppress exact previously rejected material fingerprint unless explicitly reconsidered","persist non-authoritative proposal rows in bounded UoW/job transaction"],
+      "rules":["never changes Task plan/membership","Customer/RFC/work-package partitions are warnings only","exact-touch alone creates no automatic overlap edge"]
+    },
+    {
+      "name":"AcceptRegroupProposal",
+      "input":["proposal_id","proposal revision","input_fingerprint","required high-risk review proof/context","command_id"],
+      "steps":["load exact persisted proposal outside lock for display","inside one UoW re-read every affected Task current plan, membership pin/revision, effective locks, affected Objective state/envelope and current interval neighbors","reject terminal Objective restructuring","for in-progress Objective allow only high-risk add/repin of unstarted unlocked work whose accepted current plan remains inside the current in-progress envelope; no consolidation/split/move of started/protected work","recompute exact material fingerprint and global nonoverlap","choose consolidation survivor deterministically as lowest tracking_sequence existing planned Objective; create new Objective only when no existing survivor","insert receipt","apply membership add/move/repin rows/events, mark merged-away planned Objectives superseded, create Objective when required","rebuild envelope/aggregate projections and re-run indexed overlap guard","transition proposal accepted, audit exact diff/result refs and commit"],
+      "rules":["membership pins current accepted plan revision at acceptance","regroup never changes Task execution/outcome/source plan","all-or-nothing for one proposal"]
+    },
+    {
+      "name":"RejectRegroupProposal",
+      "input":["proposal_id","revision","input_fingerprint","reason_category","command_id"],
+      "steps":["inside UoW verify exact pending proposal/fingerprint","insert receipt","transition rejected and append minimized rejection fingerprint/reason","audit and commit"],
+      "rule":"newer unrelated source/global changes do not re-present identical material grouping input"
+    },
+    {
+      "name":"ReconsiderRegroupInputs",
+      "input":["exact rejection event/input fingerprint","reason_category","command_id"],
+      "steps":["inside UoW mark exact rejection event explicitly reconsidered without deleting it","insert receipt/audit and commit","run fresh grouping preview from current material inputs"],
+      "rule":"reconsideration is explicit operator decision, not silent fingerprint invalidation"
+    },
+    {
+      "name":"CancelObjectiveBeforeExecution",
+      "input":["objective_id","objective/aggregate revision","effective_cancel_utc","reason_category","command_id"],
+      "steps":["inside UoW load every current member and prove no accepted Task start exists","require no protected state makes bulk cancellation ambiguous","insert receipt","for each unstarted member append manual_cancel execution + reviewed cancelled_without_execution outcome events","rebuild projections","append Objective review event from exact current fingerprint with derived_outcome=cancelled","audit result refs and commit"],
+      "rules":["one started Task blocks whole-Objective Cancelled","WFM provider status remains unchanged"]
+    },
+    {
+      "name":"ReviewObjective",
+      "input":["objective_id","exact membership/outcome/inclusion review_fingerprint","reason when incomplete/mixed","command_id"],
+      "steps":["inside UoW require current nonsuperseded non-historical Objective and every current member has independently accepted outcome","derive aggregate solely from Task outcomes/inclusion","insert receipt and objective_review_event using server reviewed_at","rebuild aggregate as reviewed/current and audit","commit"],
+      "rules":["does not write execution times or Task outcomes","later Task outcome/membership/inclusion correction invalidates currentness by fingerprint without editing review event"]
+    },
+    {
+      "name":"ArchiveObjective",
+      "input":["objective_id","archive/aggregate revisions","reason_category","command_id"],
+      "steps":["inside UoW reject hiding active unfinished safety state unless its work remains forced-visible by projection; normal eligibility requires reviewed/cancelled/historical/superseded state","insert receipt/archive event/update archive projection","audit and commit"],
+      "rule":"archive changes presentation only; Task/membership/execution/source history unchanged"
+    },
+    {
+      "name":"RestoreObjective",
+      "input":["objective_id","archive revision","command_id"],
+      "steps":["inside UoW require currently archived","insert receipt/restore event/update projection","audit and commit"],
+      "rule":"no Task lifecycle change"
+    },
+    {
+      "name":"AcceptHistoricalObjectiveProposal",
+      "input":["historical_proposal_id","revision","input_fingerprint","command_id"],
+      "steps":["inside UoW revalidate WFM provider lifecycle=complete, exact source projection revision, unassigned Task, current accepted operational plan revision and no Task execution/outcome evidence","prove proposed envelope does not overlap any current accepted Objective; overlap returns stale/not eligible rather than rewriting terminal history","allocate Objective MW identity","insert receipt, historical Objective, membership pinned to exact operational plan revision and historical membership event","transition proposal accepted","rebuild envelope/aggregate as historical_structure with no execution/outcome","audit structure-only result and commit"],
+      "rules":["source Complete and plan never fabricate Task actual start/end/outcome, Device work, spare use or Inventory consequence","without valid operational plan proposal cannot be accepted"]
+    },
+    {
+      "name":"RejectHistoricalObjectiveProposal",
+      "input":["proposal id/revision/fingerprint","reason_category","command_id"],
+      "steps":["revalidate exact pending proposal","insert receipt","transition rejected/audit","commit"],
+      "rule":"WFM remains terminal unassigned history and may receive a later proposal only after material supporting evidence changes or explicit reconsideration workflow"
+    },
+    {
+      "name":"SetHistoricalTaskOperationalCountInclusion",
+      "input":["task_id","current inclusion revision/default","included boolean","reason_category","command_id"],
+      "steps":["inside UoW require provider-historical/historical-Objective eligibility","if requested current effective state equal use NO_CHANGE","insert receipt and inclusion event/current projection","rebuild Objective aggregate included/excluded counts; if all current historical members excluded set derived excluded_from_operational_counts","invalidate current reporting/review fingerprints but never identity/history","audit and commit"],
+      "rule":"exclusion is reporting-only"
+    },
+    {
+      "name":"SetObjectiveTimezone",
+      "input":["new IANA timezone","SettingStore base revision/absent precondition","command_id"],
+      "steps":["resolve exact IANA name offline before lock","preview proves presentation-only effect","inside UoW call LLD-02 typed SettingStore for OBJECTIVE_TIMEZONE_V1 using same command context","insert required audit through owning command envelope and commit"],
+      "rules":["does not rewrite Task plan/execution/source/report instants","preserving existing wall-clock labels under new zone requires separate explicit Task plan reschedule/correction"]
+    },
+    {
+      "name":"PreviewTaskHardDelete",
+      "kind":"pure preview",
+      "input":["task_id"],
+      "steps":["classify creation/source adoption/current and historical Objective membership/execution/outcome/retry/activity-lineage/closed relationship/archive-like protected evidence","query LLD-07 dependency provider when available","return exact eligible dependent draft links/current plan rows that would be removed plus BLOCKED/INDETERMINATE reasons"],
+      "rule":"source-adopted WFM or any protected execution/review/retry history is never eligible"
+    },
+    {
+      "name":"HardDeleteTask",
+      "input":["exact hard-delete preview fingerprint","task/base revisions","deliberate confirmation context","command_id"],
+      "steps":["inside UoW rerun complete local/cross-domain guards and exact dependency set","all providers must be CLEAR","insert receipt","delete only previewed eligible current draft relationships/plan/source-free manual-WFM identity and Task rows in FK-safe order","append minimal deletion audit/result refs and commit"],
+      "rule":"audit remains append-only; deletion is correction, not lifecycle/history purge"
+    },
+    {
+      "name":"HardDeleteObjective",
+      "input":["exact hard-delete/last-member preview fingerprint","objective revision","command_id"],
+      "steps":["inside UoW require creation_origin=manual, no execution/outcome/review/archive/historical/supersession/regroup-protected history and exact previewed current members/relationships","require each dependent membership removal is draft-safe and Tasks themselves remain valid outside Objective unless separately deleted","insert receipt","remove eligible membership/current projection/objective rows atomically","audit Objective deletion and retained Task ids then commit"],
+      "rule":"automatic-grouping/historical Objectives and history-bearing Objectives are not hard-deletable; this narrow path exists only to preserve persisted-objective nonempty invariant when an untouched manual Objective is discarded"
+    }
+  ],
+  "cross_domain_participant_behavior":{
+    "LLD04_apply_wfm_source_projection":["exact Task No. create/adopt uses caller UoW","replace rebuildable WFM source projection only","provider Complete/Plan Cancel creates/refreshes a source-terminal-consequence review marker when local executable work exists; no local termination occurs","provider Complete + valid source plan + unassigned Task may create/refresh historical proposal only when separate accepted operational plan eligibility exists","rebuild Objective attention warning only"],
+    "LLD04_apply_reviewed_operational_plan_from_source":["append accepted operational Task plan revision sourced to exact observation","do not advance any current Objective membership pin","request regroup proposal when Task becomes eligible or membership pin mismatches"],
+    "LLD03_apply_terminal_cascade":["revalidate captured task ids/revisions/Task Nos and current owning RFC among exact cascade RFC set","for each applicable WFM append rfc_terminal_terminate evidence without provider-status mutation or Task outcome","rebuild Task/Objective aggregate projections","surviving executable work continues with warning; when an already in-progress Objective has zero executable Tasks derive lost_last_executable / Incomplete — Awaiting Review","return immutable result refs; caller owns commit"]
+  }
+}
