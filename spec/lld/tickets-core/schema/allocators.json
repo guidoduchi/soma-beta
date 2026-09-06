@@ -6,16 +6,18 @@
       "name":"sr_local_id_allocator",
       "columns":[
         "singleton_guard INTEGER PRIMARY KEY CHECK(singleton_guard=1)",
-        "next_value INTEGER NOT NULL CHECK(next_value BETWEEN 1 AND 99999999)"
+        "next_value INTEGER NOT NULL CHECK(next_value BETWEEN 1 AND 100000000)"
       ],
       "initial_row":"(1,1)",
       "rules":[
         "allocation occurs inside the same BEGIN IMMEDIATE UnitOfWork that inserts the Service Request",
-        "formatted identity is LSR- followed by exactly eight zero-padded decimal digits",
-        "after successful allocation next_value increments exactly once",
+        "values 1 through 99999999 are allocatable and format as LSR- followed by exactly eight zero-padded decimal digits",
+        "next_value=100000000 is an exhausted sentinel and is never formatted or assigned as a Service Request identifier",
+        "when next_value is the exhausted sentinel creation fails with SR_LOCAL_ID_EXHAUSTED before any allocator or Service Request mutation",
+        "after successful allocation next_value increments exactly once, so allocating LSR-99999999 transitions the allocator atomically to the exhausted sentinel",
         "rolled-back creation rolls allocator increment back with it",
         "an allocated identifier committed to any SR is never reassigned even if future separately authorized deletion existed",
-        "value exhaustion blocks creation with SR_LOCAL_ID_EXHAUSTED; wrap/reuse is forbidden"
+        "wrap/reuse is forbidden"
       ]
     }
   ]
