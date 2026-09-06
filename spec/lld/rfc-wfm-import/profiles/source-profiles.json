@@ -1,0 +1,63 @@
+{
+  "schema":"SOMA-LLD-SOURCE-PROFILES-V1",
+  "lld_id":"LLD-04",
+  "directory_setting":{
+    "setting_key":"rfc_wfm_import_directory",
+    "owner":"LLD-04 semantic registry over LLD-02 settings persistence",
+    "default_state":"unset with UI suggestion of the current Windows Downloads directory; suggestion is never silently persisted or searched when unset",
+    "rules":["one directory is shared by RFC and WFM automatic discovery","directory value must be an absolute local path selected/reviewed by the operator","automatic discovery inspects direct entries only","missing/inaccessible directory fails truthfully and never broadens search"]
+  },
+  "profiles":[
+    {
+      "source_family":"rfc_enhanced",
+      "profile_id":"RFC_ENHANCED_V1",
+      "workbook_family":"Enhanced Excel Data Export",
+      "file_extension":".xlsx",
+      "filename_matcher":{
+        "kind":"declarative_exact_family_pattern",
+        "family_marker":"Enhanced Excel Data Export",
+        "embedded_timestamp":null,
+        "collision_suffix":"optional final Windows-style space + '(' + positive decimal integer + ')' before .xlsx; suffix is physical-name disambiguation only",
+        "matching":"case-sensitive Unicode code-point exact matching after filesystem name retrieval; no trim/fuzzy/substrings/wildcard family guessing",
+        "registry_rule":"the adapter compiles this declarative profile to one anchored full-filename matcher; profile/version and compiled matcher golden fixtures are release data and cannot change in place"
+      },
+      "candidate_chronology":{
+        "kind":"filesystem_mtime_ns",
+        "meaning":"discovery ranking only; never RFC business/source chronology",
+        "tie_break":["mtime_ns descending","UTF-8 filename bytes ascending"],
+        "rules":["collision suffix numeric magnitude is not chronology","copying an old workbook may rank it as a discovery candidate but does not make contained RFC facts operationally new"]
+      },
+      "manual_selection":"may select another local .xlsx file explicitly; manual selection still requires this source profile's workbook/header/content validation but does not require automatic-discovery filename eligibility"
+    },
+    {
+      "source_family":"wfm_service_provider",
+      "profile_id":"WFM_SERVICE_PROVIDER_V1",
+      "workbook_family":"Service Provider Plan Creation",
+      "file_extension":".xlsx",
+      "filename_matcher":{
+        "kind":"declarative_exact_family_pattern",
+        "family_marker":"Service Provider Plan Creation",
+        "embedded_timestamp":{"token":"one contiguous 14-ASCII-digit YYYYMMDDHHMMSS token","position":"after the exact family marker and before optional collision suffix/extension","timezone":"America/Guayaquil","validation":"strict calendar validity; no normalization of malformed components"},
+        "collision_suffix":"optional final Windows-style space + '(' + positive decimal integer + ')' before .xlsx; suffix is physical-name disambiguation only",
+        "matching":"case-sensitive exact family-marker/grammar matching; no fuzzy/substrings/wildcard family guessing",
+        "registry_rule":"the adapter compiles this declarative profile to one anchored full-filename matcher; profile/version and compiled matcher golden fixtures are release data and cannot change in place"
+      },
+      "candidate_chronology":{
+        "kind":"embedded_filename_timestamp_utc",
+        "source_timezone":"America/Guayaquil",
+        "precision":"whole seconds",
+        "tie_break":["embedded timestamp descending","UTF-8 filename bytes ascending"],
+        "rules":["invalid/missing supported timestamp makes an automatic candidate malformed","filesystem mtime never substitutes for invalid WFM embedded chronology","collision suffix magnitude is not chronology"]
+      },
+      "manual_selection":"manual source selection remains allowed but still requires a usable supported source chronology under the profile; manual selection does not silently substitute filesystem mtime"
+    }
+  ],
+  "classification_rules":[
+    "a direct file may classify into at most one source family",
+    "automatic discovery excludes files that match neither exact profile",
+    "ambiguous multi-profile classification is a registry integrity failure and no candidate is selected",
+    "symbolic links/reparse traversal/nonregular files never become candidates",
+    "candidate ranking is deterministic and selecting the highest-ranked candidate occurs before workbook parsing; a selected malformed workbook fails visibly with no older fallback"
+  ],
+  "profile_evolution":"A filename/header/timezone/vocabulary grammar change creates a new immutable profile/version. Historical ImportRuns retain the exact profile_id and registry versions used."
+}
