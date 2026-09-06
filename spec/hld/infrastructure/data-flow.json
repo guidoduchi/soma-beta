@@ -1,0 +1,42 @@
+{
+  "schema":"SOMA-HLD-DATA-FLOW-V1",
+  "hld_id":"HLD-09",
+  "flows":[
+    {
+      "id":"HLD09-F001",
+      "name":"Register or regularize Network Element",
+      "steps":["Resolve/create authoritative Site context","Create immutable Network Element identity with nonblank operational name","Optionally attach model/serial/placement/Cloud/IP facts through separately validated relationships","Optionally link one-or-more operational Device References to the Network Element","Preserve Device Reference identities and historical ticket relationships unchanged"]
+    },
+    {
+      "id":"HLD09-F002",
+      "name":"Physical placement",
+      "steps":["Select Site","Select/create Room under that Site","Select/create Rack under that Room","Optionally record row/column/position placement semantics","Validate Rack-derived Site equals Network Element authoritative Site","Commit placement relationship/history without altering containment"]
+    },
+    {
+      "id":"HLD09-F003",
+      "name":"Containment correction",
+      "steps":["Propose parent Network Element","Validate parent != child","Validate child has at most one current parent","Detect direct/indirect cycle","Commit accepted parent/child relationship and correction history","Do not infer Rack placement, Cloud or connectivity from containment"]
+    },
+    {
+      "id":"HLD09-F004",
+      "name":"Cloud assignment",
+      "steps":["Select reusable Cloud Type or existing Site-scoped Cloud Deployment","Create Deployment only within one Site","Validate Network Element and Deployment share Site","Assign at most one current Deployment to the Network Element","Derive Cloud Type through Deployment"]
+    },
+    {
+      "id":"HLD09-F005",
+      "name":"Model compatibility and installed components",
+      "steps":["Maintain reusable Model/BOM/component compatibility reference separately","Register actual installed Component instance under one Network Element when observed/known","Preserve instance-specific slot/serial/condition/chronology where applicable","On replacement/correction, preserve prior installed-instance history","Never rewrite reusable compatibility knowledge to represent one device's installed state"]
+    },
+    {
+      "id":"HLD09-F006",
+      "name":"Infrastructure workbook exchange",
+      "steps":["Generate versioned macro-free template/export","Operator edits external workbook outside SOMA","Explicit discovery/manual selection enters HLD-05 staging","Validate version/security/identity and compute non-destructive diff","Review proposed Infrastructure mutations","HLD-09 revalidates current state and commits accepted mutations atomically","Never modify the operator-managed source workbook"]
+    }
+  ],
+  "projection_rules":[
+    "Network Element display may derive Customer, Site, Room, Rack, Cloud Type and resolved Device Reference context from authoritative relationships.",
+    "Descriptive IPs may be displayed/searchable but do not produce topology/reachability/connectivity projections.",
+    "Reusable compatibility projections and installed-component projections must remain separately queryable.",
+    "Any future graph representation is disposable/rebuildable from SQLite authority and cannot become a write authority."
+  ]
+}
