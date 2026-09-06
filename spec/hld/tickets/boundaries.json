@@ -1,0 +1,53 @@
+{
+  "schema": "SOMA-HLD-BOUNDARIES-V1",
+  "hld_id": "HLD-04",
+  "name": "Tickets and RFC Hierarchy",
+  "entities": {
+    "ServiceRequest": {
+      "identity": "immutable SOMA entity identity plus official eight-digit or governed local business identity",
+      "role": "pivotal operational correlation context, not universal aggregate parent"
+    },
+    "RFC": {
+      "identity": "immutable SOMA entity identity plus canonical NC+14 business identity when official",
+      "hierarchy_role": "derived from parent/child relationships: parentless root; root with children is Master; child is Subordinate",
+      "customer": "zero or one current canonical Customer Organization; unresolved is explicit",
+      "status": "ticket lifecycle/source projection owned here; provider evidence and local downstream consequence remain distinct"
+    },
+    "WorkingNote": {
+      "ownership": "SOMA-owned ticket history; never overwritten by source import"
+    }
+  },
+  "relationships": {
+    "service_request_to_rfc": "many-to-many direct links terminate only at master/root RFCs; subordinate SR context is inherited through hierarchy",
+    "rfc_hierarchy": "acyclic one-parent forest with at most two RFC levels; a Subordinate can never parent another RFC",
+    "rfc_to_device_reference": "zero-to-many direct operational Device Reference context is allowed even with no linked SR; subordinate RFC context may differ from its root/master",
+    "device_reference_resolution": "RFC relationship remains to Device Reference whether it stays unregistered or resolves to an Infrastructure Network Element",
+    "wfm_to_rfc": "each WFM belongs to exactly one RFC; WFM/Task lifecycle and scheduling are HLD-06 authority",
+    "local_task_to_rfc": "Local Task may reference zero-to-many RFCs under HLD-06; this does not create RFC ownership of Task lifecycle"
+  },
+  "hierarchy_constraints": {
+    "max_depth": 2,
+    "parents_per_subordinate": 1,
+    "cycles": "forbidden",
+    "provider_inference": "provider/import evidence never silently creates hierarchy",
+    "resolved_customer_consistency": "resolved branch members share canonical Customer Organization identity; unresolved ownership remains a warning/state",
+    "child_count_business_cap": null,
+    "reparent_after_wfm_history": "high-risk history-preserving correction with full revalidation"
+  },
+  "lifecycle_boundaries": {
+    "sr_rfc_independence": "link/unlink never opens, closes, restarts, cancels, archives, or otherwise cascades either ticket lifecycle",
+    "terminal_rfc": "accepted terminal provider evidence updates the governed RFC projection and may create a pending cascade proposal; it does not itself execute Task/Objective/Communication consequences",
+    "archive": "RFC archival is local/reversible presentation state and source reconciliation continues while archived",
+    "hard_delete": "only a provably untouched manual draft may be hard-deleted under identity/provenance/relationship/WFM/audit guards",
+    "terminal_reversal": "source reversal/correction is reviewed and history-preserving rather than synthetic reopen"
+  },
+  "delegated_design": {
+    "HLD-05": "official workbook discovery, source observation, staging, adoption proposals, current source-field reconciliation",
+    "HLD-06": "WFM/Local Task identity, planning, execution, Objective membership and cascade Task/Objective consequences",
+    "HLD-09": "Device Reference regularization/resolution to Network Element and Infrastructure ownership",
+    "HLD-10": "Communication links and terminal-cascade communication consequences",
+    "HLD-07": "SR Product Line/SLA classification and SLA lifecycle projections",
+    "HLD-14": "relationship/audit/history/idempotency/correction transaction semantics",
+    "LLD-03": "ticket/RFC/relationship/notes schemas, commands, queries and workbench-facing projections"
+  }
+}
