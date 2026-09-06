@@ -38,7 +38,7 @@
     },
     {
       "capability": "browser interaction semantics and frontend implementation",
-      "owner": "HLD-11"
+      "owner": "HLD-11 / LLD-10"
     },
     {
       "capability": "cryptographic choices, local-run trust protocol details, diagnostics security, backup/recovery",
@@ -49,8 +49,16 @@
       "owner": "HLD-14"
     },
     {
-      "capability": "exact Python web framework, frontend framework/language/build tool, tray toolkit, installer technology, supported browser versions",
-      "owner": "LLD-01 and LLD-12"
+      "capability": "exact Python server framework and loopback-port mechanics",
+      "owner": "LLD-01"
+    },
+    {
+      "capability": "exact frontend framework, client language and browser build tooling",
+      "owner": "LLD-10"
+    },
+    {
+      "capability": "exact tray toolkit, installer technology and supported-browser/package integration",
+      "owner": "LLD-12"
     }
   ],
   "authority_rules": [
