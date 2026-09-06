@@ -1,0 +1,287 @@
+{
+  "schema": "SOMA-AI-LLD-SPEC-INTEGRITY-GATE-V1",
+  "status": "accepted_for_retrofit",
+  "applies_to": "spec/lld/LLD-01..LLD-12 packets and global LLD registries",
+  "purpose": "Fail closed before ai_implementation_ready when the machine-addressable design contains missing paths, unresolved contracts, ambiguous ownership or cross-file drift that would force an implementation AI to invent behavior.",
+  "severity_order": [
+    "BLOCKER",
+    "HIGH",
+    "MEDIUM",
+    "LOW"
+  ],
+  "pass_rule": "PASS requires zero BLOCKER or HIGH findings. MEDIUM/LOW findings require explicit accepted exception records before owner acceptance.",
+  "checks": [
+    {
+      "id": "SIG-001",
+      "severity": "BLOCKER",
+      "name": "packet_manifest_matches_filesystem",
+      "prove": [
+        "every packet-index normative path exists",
+        "every normative leaf under governed directories is indexed or explicitly nonnormative",
+        "no duplicate manifest path"
+      ],
+      "automation": "filesystem/tree walk"
+    },
+    {
+      "id": "SIG-002",
+      "severity": "BLOCKER",
+      "name": "mandatory_packet_properties",
+      "prove": [
+        "all V2 mandatory packet-index properties exist",
+        "ai_implementation_ready and owner_accepted are booleans",
+        "review_ready never implies ai_implementation_ready"
+      ],
+      "automation": "JSON structural validation"
+    },
+    {
+      "id": "SIG-003",
+      "severity": "BLOCKER",
+      "name": "route_resolution",
+      "prove": [
+        "every route references an existing command/query/internal handler",
+        "all routes use canonical /api/v1 prefix",
+        "every route resolves request_type,response_type,max_request_bytes,auth_policy,error_codes"
+      ],
+      "automation": "cross-reference registries"
+    },
+    {
+      "id": "SIG-004",
+      "severity": "BLOCKER",
+      "name": "command_contract_resolution",
+      "prove": [
+        "every authoritative command resolves exact request/response types",
+        "no unbound placeholder inputs remain",
+        "every mutation resolves transaction boundary, revision effects, audit action and test IDs"
+      ],
+      "automation": "command leaf validation + placeholder scan"
+    },
+    {
+      "id": "SIG-005",
+      "severity": "BLOCKER",
+      "name": "audit_registry_closure",
+      "prove": [
+        "every authoritative mutation references an existing action_type/version",
+        "referenced payload schema/version exists",
+        "sensitivity/target/result-ref policy exists"
+      ],
+      "automation": "audit cross-reference"
+    },
+    {
+      "id": "SIG-006",
+      "severity": "BLOCKER",
+      "name": "setting_registry_closure",
+      "prove": [
+        "every packet-owned semantic setting referenced by route/service is registered",
+        "definition includes key/owner/version/default/validator/equality/storage/bounds/value contract"
+      ],
+      "automation": "setting reference scan"
+    },
+    {
+      "id": "SIG-007",
+      "severity": "BLOCKER",
+      "name": "job_registry_closure",
+      "prove": [
+        "every enqueued/handled durable job type is registered",
+        "payload/checkpoint/retry/crash/cancellation/sensitivity/coalescing policies exist",
+        "unknown job versions fail closed"
+      ],
+      "automation": "job cross-reference"
+    },
+    {
+      "id": "SIG-008",
+      "severity": "BLOCKER",
+      "name": "cross_packet_interface_single_provider",
+      "prove": [
+        "every consumed cross-packet interface has exactly one declared provider",
+        "consumer/provider method signatures and versioned types match exactly",
+        "shared-UoW ownership semantics match"
+      ],
+      "automation": "interface signature registry"
+    },
+    {
+      "id": "SIG-009",
+      "severity": "BLOCKER",
+      "name": "migration_allocation_closure",
+      "prove": [
+        "every owned table/index/trigger is allocated to exactly one global migration",
+        "migration dependencies are ordered",
+        "no duplicate/ad-hoc sequence"
+      ],
+      "automation": "schema object to migration manifest reconciliation"
+    },
+    {
+      "id": "SIG-010",
+      "severity": "HIGH",
+      "name": "requirement_normative_coverage",
+      "prove": [
+        "every governing requirement ID in packet index maps to at least one normative leaf and test",
+        "supporting requirements do not silently become governing authority"
+      ],
+      "automation": "traceability graph"
+    },
+    {
+      "id": "SIG-011",
+      "severity": "HIGH",
+      "name": "command_test_traceability",
+      "prove": [
+        "every mutation has success coverage",
+        "stateful mutation has stale/precondition coverage",
+        "idempotent mutation has replay/no-change coverage when applicable",
+        "failure-injection coverage exists for multi-row/cross-domain/file/job atomicity"
+      ],
+      "automation": "tests/traceability.json reconciliation"
+    },
+    {
+      "id": "SIG-012",
+      "severity": "HIGH",
+      "name": "schema_fk_index_guard_closure",
+      "prove": [
+        "all authoritative tables use required STRICT policy",
+        "every child FK has usable leading-prefix index or accepted measured exception",
+        "append-only/projection pointer guards referenced by design exist and are migration-allocated"
+      ],
+      "automation": "schema contract analysis"
+    },
+    {
+      "id": "SIG-013",
+      "severity": "HIGH",
+      "name": "query_index_cursor_closure",
+      "prove": [
+        "every paged query uses deterministic total ordering",
+        "CURSOR_V1 exact key tuple and null order resolve",
+        "performance-critical query declares required supporting index"
+      ],
+      "automation": "query contract cross-reference"
+    },
+    {
+      "id": "SIG-014",
+      "severity": "HIGH",
+      "name": "state_machine_transition_closure",
+      "prove": [
+        "commands/events referenced by owned state machines appear in transition matrices",
+        "forbidden transitions/errors are explicit",
+        "correction/reversal preserves immutable prior evidence"
+      ],
+      "automation": "transition cross-reference"
+    },
+    {
+      "id": "SIG-015",
+      "severity": "HIGH",
+      "name": "implementation_module_map_closure",
+      "prove": [
+        "every command/query/repository/service/route/job maps to source-module destination",
+        "dependency direction obeys packet ownership",
+        "no two packets claim same authoritative module responsibility"
+      ],
+      "automation": "module map reconciliation"
+    },
+    {
+      "id": "SIG-016",
+      "severity": "HIGH",
+      "name": "artifact_contract_closure",
+      "prove": [
+        "every generated artifact has versioned format contract",
+        "writer and verifier reference same artifact contract",
+        "temporary/finalization/collision behavior is explicit"
+      ],
+      "automation": "artifact reference reconciliation"
+    },
+    {
+      "id": "SIG-017",
+      "severity": "HIGH",
+      "name": "unresolved_design_placeholder_scan",
+      "patterns": [
+        "TODO",
+        "TBD",
+        "FIXME",
+        "exact FK is resolved later",
+        "before .* LLD set is frozen",
+        "future handoff",
+        "future implementation blocks",
+        "placeholder",
+        "to be defined"
+      ],
+      "rule": "Potential matches are reviewed contextually; an unresolved authority/schema/interface placeholder inside packet scope blocks ai_implementation_ready.",
+      "automation": "text scan + allowlisted exception records"
+    },
+    {
+      "id": "SIG-018",
+      "severity": "HIGH",
+      "name": "leaf_granularity_budget",
+      "prove": [
+        "normative leaves <=12000 UTF-8 bytes unless explicit accepted granularity_exception",
+        "omnibus files are split when independent commands/tables/queries can be implemented separately"
+      ],
+      "automation": "byte-size scan"
+    },
+    {
+      "id": "SIG-019",
+      "severity": "HIGH",
+      "name": "command_envelope_idempotency_consistency",
+      "prove": [
+        "all mutating commands use COMMAND_ENVELOPE_V1",
+        "request hash inclusion/exclusion contract is exact",
+        "replay requires command_id+command_type+request_hash equality"
+      ],
+      "automation": "command/idempotency cross-reference"
+    },
+    {
+      "id": "SIG-020",
+      "severity": "MEDIUM",
+      "name": "error_catalogue_closure",
+      "prove": [
+        "every declared command/query/route failure resolves stable error code",
+        "no raw persistence/framework exception is machine contract",
+        "recoverability/safe next action exists where globally required"
+      ],
+      "automation": "error cross-reference"
+    },
+    {
+      "id": "SIG-021",
+      "severity": "MEDIUM",
+      "name": "revision_policy_closure",
+      "prove": [
+        "every mutable authoritative/projection entity has revision ownership",
+        "every command declares exact revision increments/nonincrements",
+        "NO_CHANGE never increments revisions"
+      ],
+      "automation": "revision matrix reconciliation"
+    },
+    {
+      "id": "SIG-022",
+      "severity": "MEDIUM",
+      "name": "bounds_closure",
+      "prove": [
+        "all text/JSON/list/page/file/request-size inputs resolve explicit bounds",
+        "no operator-controlled unbounded collection is materialized"
+      ],
+      "automation": "DTO/type/bounds cross-reference"
+    }
+  ],
+  "required_exception_record": {
+    "path": "spec/lld/exceptions.json",
+    "fields": [
+      "exception_id",
+      "check_id",
+      "packet_id",
+      "scope",
+      "rationale",
+      "risk",
+      "accepted_by_owner",
+      "accepted_at_commit"
+    ],
+    "rule": "Exceptions cannot waive BLOCKER findings for ai_implementation_ready; HIGH exceptions require explicit project-owner acceptance and compensating evidence."
+  },
+  "execution_order": [
+    "structural JSON/path checks",
+    "cross-reference registries",
+    "placeholder/granularity scans",
+    "traceability/schema/index checks",
+    "packet-specific semantic assertions",
+    "review pass evidence verification"
+  ],
+  "retrofit_policy": {
+    "LLD-01..LLD-07": "retain review_ready where semantic construction is complete but force ai_implementation_ready=false until V2 gate passes",
+    "LLD-08..LLD-12": "construct natively to V2 rather than retrofitting later"
+  }
+}
