@@ -1,0 +1,25 @@
+{
+  "schema": "SOMA-HLD-OWNERSHIP-V1",
+  "hld_id": "HLD-05",
+  "authoritative_records": [
+    {"name":"SourceProfile","owns":"versioned source-family interpretation, discovery rules, field aliases, source timezone/vocabulary semantics"},
+    {"name":"ImportRun","owns":"one processing attempt, selected source identity, parser/version context, bounded totals and result state"},
+    {"name":"SourceObservation","owns":"normalized allowlisted evidence from one exact source location/row/logical identity before domain acceptance"},
+    {"name":"SourceCheckpoint","owns":"accepted source-family chronology/fingerprint frontier, independent from domain chronology"},
+    {"name":"ReconciliationProposal","owns":"reviewable proposed differences and consequence classification against current accepted state"},
+    {"name":"ProposalDisposition","owns":"accepted/rejected/deferred/unresolved decision at the smallest governed scope"}
+  ],
+  "identity_rules": [
+    "SourceObservation identity is not domain entity identity.",
+    "RFC/WFM adoption requires exact canonical identifiers; descriptive similarity never adopts.",
+    "WFM Task No. is canonical row/entity identity within supported source semantics.",
+    "Header identity comes from a versioned exact alias registry, never column position or fuzzy matching.",
+    "Logical fingerprint identity is based only on governed canonical allowlisted meaning."
+  ],
+  "history_rules": [
+    "Import attempts, accepted observations, proposal decisions and domain lifecycle evidence remain separate histories.",
+    "A newer identical logical observation may update bounded source-recency/checkpoint evidence without fabricating domain history.",
+    "Equal source chronology with different logical content is a conflict, not last-write-wins.",
+    "Older source evidence requires an explicit recovery path rather than silently rewinding checkpoints."
+  ]
+}
