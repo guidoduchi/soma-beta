@@ -1,0 +1,27 @@
+{
+  "schema": "SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id": "HLD-07",
+  "requires": [
+    {"hld_id":"HLD-02","for":"consistent accepted-state reads, immutable history and short transactional writes"},
+    {"hld_id":"HLD-03","for":"Customer Organization and reusable reference identities"},
+    {"hld_id":"HLD-04","for":"Service Request identity, lifecycle and Customer context"},
+    {"hld_id":"HLD-05","for":"accepted Report Date/status/suspension observations and classification proposals"}
+  ],
+  "constrained_by": [
+    {"hld_id":"HLD-14","for":"canonical UTC arithmetic, fixed America/Guayaquil SLA calendar authority and immutable audit/history semantics"}
+  ],
+  "consumed_by": [
+    {"hld_id":"HLD-11","for":"classification/policy/report review UI"},
+    {"hld_id":"HLD-12","for":"Overview metrics, warnings and report projections"}
+  ],
+  "forbidden_dependencies": [
+    "SLA must not use Objective scheduling timezone for cohort month or elapsed-duration authority.",
+    "SLA must not read discarded Advanced Search Product as Product Line classification authority.",
+    "SLA must not infer suspension from inactivity or local timers.",
+    "Completed reports must not depend on mutable live projections for historical truth.",
+    "Cohort membership must not depend on the derived compliance outcome/state."
+  ],
+  "lld_handoffs": [
+    {"lld_id":"LLD-06","scope":"Product Line/Contract/CPL schema, policy revisions, classification, SLA arithmetic, cohort algorithms and report evidence"}
+  ]
+}
