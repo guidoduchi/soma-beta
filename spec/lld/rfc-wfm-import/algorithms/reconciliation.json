@@ -1,0 +1,49 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-04",
+  "name":"RfcWfmReconciliationProposalEngine",
+  "input":"one fully staged non-replay ImportRun with immutable effective observations plus current domain snapshots from LLD-02/03/05",
+  "rfc_flow":[
+    "for each conflict-free canonical RFC observation resolve exact RFC identity through LLD-03; similar labels never adopt",
+    "if missing, propose rfc_create_or_adopt preserving exact rfc_no; if existing manual/provisional, propose exact adoption/source provenance without replacing rfc_id",
+    "compute field-level accepted-source candidate changes against LLD-03 current RFC source projection using usable source chronology/precedence; missing/blank/unknown never clears recognized truth unless field contract allows",
+    "recognized terminal status entry/correction is high-risk rfc_source_projection; acceptance invokes LLD-03 ApplyAcceptedRfcSourceProjection so terminal evidence and pending cascade proposal commit atomically while cascade execution remains separate",
+    "Customer Account Number first, then name only as descriptive candidate, calls LLD-02 matching service and emits rfc_customer_reconciliation proposal; ambiguous/no match remains explicit and never silently creates/assigns unless a reviewed creation flow is chosen",
+    "run SR-candidate extraction over RFC Summary and create sr_rfc_link_candidate proposals only against existing exact SR identities; direct target resolves through current LLD-03 governing root at acceptance time"
+  ],
+  "wfm_flow":[
+    "for each conflict-free canonical WFM observation resolve exact Task No. through LLD-05 and exact parent RFC through LLD-03",
+    "when RFC is missing, emit wfm_provisional_rfc proposal using exact RFC identity and bounded WFM hints; never fabricate SR/hierarchy",
+    "active nonterminal WFM under missing/provisional RFC also emits separate high-risk wfm_provisional_eligibility proposal; historical Complete/Plan Cancel does not",
+    "emit wfm_create_or_adopt and independent wfm_source_projection proposals under LLD-05 while preserving exact Task identity and owner",
+    "material valid source-plan difference emits wfm_plan_reconciliation proposal; source evidence acceptance never accepts operational plan or Objective regrouping",
+    "query LLD-05 activity-lineage/conflict reader for same-lineage overlapping active attempt evidence and emit wfm_competing_attempt_review rather than invent retry/distinct-work classification",
+    "only when owning RFC Summary produced no valid SR candidate may WFM Task Name produce SR-link candidates; precedence is computed per owning RFC context, not row order"
+  ],
+  "sr_candidate_parser":{
+    "strong":"token boundary + case-insensitive SR or TT label + optional ASCII whitespace + exactly eight ASCII digits + token boundary",
+    "weak":"isolated exactly eight ASCII digits not adjacent to another digit and not recognized as a Gregorian date token under YYYYMMDD, DDMMYYYY or MMDDYYYY validation",
+    "rules":["substrings of longer numeric/alphanumeric identifiers are excluded","candidate parser never creates an SR","all strong/weak candidates require review","multiple distinct existing SR matches may produce independent proposals","duplicate textual mentions of the same candidate collapse with provenance count"]
+  },
+  "risk_matrix":[
+    {"kind":"rfc_create_or_adopt","default":"medium"},
+    {"kind":"rfc_source_projection","default":"medium","terminal_or_reversal":"high"},
+    {"kind":"rfc_customer_reconciliation","default":"high"},
+    {"kind":"sr_rfc_link_candidate","default":"medium","terminal_or_historical_target":"high"},
+    {"kind":"wfm_create_or_adopt","default":"medium"},
+    {"kind":"wfm_source_projection","default":"medium"},
+    {"kind":"wfm_provisional_rfc","default":"high"},
+    {"kind":"wfm_provisional_eligibility","default":"high"},
+    {"kind":"wfm_plan_reconciliation","default":"high"},
+    {"kind":"wfm_competing_attempt_review","default":"high"}
+  ],
+  "proposal_binding":[
+    "read domain targets through stable snapshots for proposal calculation",
+    "compute base_state_token from exact immutable target IDs, relevant revisions/current projection evidence/hierarchy/plan locks and dependency generations",
+    "compute proposal fingerprint from source observation IDs/field hashes/change set/profile IDs/base target identities, excluding transient UI/order/time",
+    "persist one proposal per smallest independently committable/reviewable target mutation",
+    "proposal creation mutates no domain authority"
+  ],
+  "acceptance_rule":"Before acceptance, owning command opens one LLD-01 UnitOfWork, recomputes current base-state token and proposal eligibility, inserts command receipt before receipt-FK children, invokes exactly the owning LLD-02/03/05 command(s), inserts accepted disposition/audit in the same UoW, and commits. Token mismatch returns stale and leaves proposal pending/superseded according to refreshed review flow.",
+  "auto_accept":"RFC_WFM_AUTO_ACCEPT_V1 contains no mutation classes; therefore every domain-changing RFC/WFM proposal is operator-reviewed in Beta 1.0."
+}
