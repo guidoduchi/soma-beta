@@ -95,8 +95,8 @@
     },
     {
       "name":"ResolveWfmSourceTerminalConsequence",
-      "input":["task_id","exact WFM source projection revision","decision retain_local_work|terminate_local_work","reason_category","command_id"],
-      "steps":["inside UoW require current provider Complete or Plan Cancel evidence and exact pending/current source-consequence review fingerprint","insert receipt","retain_local_work appends decision evidence only and leaves execution/membership intact; terminate_local_work appends source_terminal_consequence termination evidence but no Task outcome","update consequence review/projections","if an in-progress Objective loses its last executable Task derive Incomplete — Awaiting Review attention; otherwise surviving work continues with warning","audit and commit"],
+      "input":["source_terminal_review_id","task_id","exact source projection revision","exact input_fingerprint","decision retain_local_work|terminate_local_work","reason_category","command_id"],
+      "steps":["inside UoW require exact pending wfm_source_terminal_reviews row, current provider Complete or Plan Cancel evidence, matching source projection revision and recomputed local input fingerprint","insert receipt","retain_local_work transitions review only and leaves execution/membership intact; terminate_local_work appends source_terminal_consequence termination evidence but no Task outcome and links the review to that event","update review/projections","if an in-progress Objective loses its last executable Task derive Incomplete — Awaiting Review attention; otherwise surviving work continues with warning","audit and commit"],
       "rules":["never modifies provider status","provider Complete/Plan Cancel alone does not execute this command","terminal Objective membership is not silently restructured"]
     },
     {
@@ -176,8 +176,8 @@
     {
       "name":"AcceptHistoricalObjectiveProposal",
       "input":["historical_proposal_id","revision","input_fingerprint","command_id"],
-      "steps":["inside UoW revalidate WFM provider lifecycle=complete, exact source projection revision, unassigned Task, current accepted operational plan revision and no Task execution/outcome evidence","prove proposed envelope does not overlap any current accepted Objective; overlap returns stale/not eligible rather than rewriting terminal history","allocate Objective MW identity","insert receipt, historical Objective, membership pinned to exact operational plan revision and historical membership event","transition proposal accepted","rebuild envelope/aggregate as historical_structure with no execution/outcome","audit structure-only result and commit"],
-      "rules":["source Complete and plan never fabricate Task actual start/end/outcome, Device work, spare use or Inventory consequence","without valid operational plan proposal cannot be accepted"]
+      "steps":["inside UoW revalidate WFM provider lifecycle=complete, exact source projection revision/source plan, unassigned Task and no Task execution/outcome evidence","if an existing current operational plan exactly matches the proposal source interval, use that revision; otherwise insert receipt then append a dedicated task_plan_revision origin=historical_source_structure from the exact accepted source-plan evidence and make it current only when no protected conflicting current plan exists","prove the plan interval does not overlap any current accepted Objective; overlap returns stale/not eligible rather than rewriting terminal history","allocate Objective MW identity","ensure receipt exists exactly once, insert historical Objective, membership pinned to the exact selected/new historical plan revision and historical membership event","transition proposal accepted","rebuild envelope/aggregate as historical_structure with no execution/outcome","audit structure-only result and commit"],
+      "rules":["provider Complete plus valid accepted source plan is sufficient evidence to propose reviewed historical structure","accepting the historical structure may accept that exact source plan into a dedicated historical Task-plan revision, but source/import acceptance alone never does","source Complete/plan never fabricate Task actual start/end/outcome, Device work, spare use or Inventory consequence"]
     },
     {
       "name":"RejectHistoricalObjectiveProposal",
@@ -211,6 +211,13 @@
       "rule":"audit remains append-only; deletion is correction, not lifecycle/history purge"
     },
     {
+      "name":"PreviewObjectiveHardDelete",
+      "kind":"pure preview",
+      "input":["objective_id"],
+      "steps":["load exact Objective/current members and classify creation origin, membership events, execution/outcomes/reviews/archive/supersession/regroup history","eligible only when manual Objective remains untouched draft-like operational history and every current membership can be removed without deleting Task identity/history","return exact member ids/revisions/projection rows and preview fingerprint or blocked reasons"],
+      "rule":"automatic-grouping, historical-provider, executed, reviewed, archived, superseded or otherwise protected Objective is never eligible"
+    },
+    {
       "name":"HardDeleteObjective",
       "input":["exact hard-delete/last-member preview fingerprint","objective revision","command_id"],
       "steps":["inside UoW require creation_origin=manual, no execution/outcome/review/archive/historical/supersession/regroup-protected history and exact previewed current members/relationships","require each dependent membership removal is draft-safe and Tasks themselves remain valid outside Objective unless separately deleted","insert receipt","remove eligible membership/current projection/objective rows atomically","audit Objective deletion and retained Task ids then commit"],
@@ -218,7 +225,7 @@
     }
   ],
   "cross_domain_participant_behavior":{
-    "LLD04_apply_wfm_source_projection":["exact Task No. create/adopt uses caller UoW","replace rebuildable WFM source projection only","provider Complete/Plan Cancel creates/refreshes a source-terminal-consequence review marker when local executable work exists; no local termination occurs","provider Complete + valid source plan + unassigned Task may create/refresh historical proposal only when separate accepted operational plan eligibility exists","rebuild Objective attention warning only"],
+    "LLD04_apply_wfm_source_projection":["exact Task No. create/adopt uses caller UoW","replace rebuildable WFM source projection only","provider Complete/Plan Cancel creates/refreshes a source-terminal-consequence review marker when local executable work exists; no local termination occurs","provider Complete + valid source plan + unassigned Task may create/refresh a historical Objective proposal directly from that exact accepted source-plan evidence; no separate operational-plan acceptance is required to create the proposal","rebuild Objective attention warning only"],
     "LLD04_apply_reviewed_operational_plan_from_source":["append accepted operational Task plan revision sourced to exact observation","do not advance any current Objective membership pin","request regroup proposal when Task becomes eligible or membership pin mismatches"],
     "LLD03_apply_terminal_cascade":["revalidate captured task ids/revisions/Task Nos and current owning RFC among exact cascade RFC set","for each applicable WFM append rfc_terminal_terminate evidence without provider-status mutation or Task outcome","rebuild Task/Objective aggregate projections","surviving executable work continues with warning; when an already in-progress Objective has zero executable Tasks derive lost_last_executable / Incomplete — Awaiting Review","return immutable result refs; caller owns commit"]
   }
