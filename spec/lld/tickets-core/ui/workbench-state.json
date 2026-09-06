@@ -1,20 +1,24 @@
 {
   "schema":"SOMA-LLD-UI-HANDOFF-V1",
   "lld_id":"LLD-03",
-  "owner":"LLD-03 supplies ticket/domain state; LLD-10 owns frontend implementation",
+  "owner":"LLD-03 supplies ticket/domain state; LLD-10 owns frontend implementation and deliberate-interaction mechanics",
   "service_request_tabs":["Overview","Devices","Spare Parts","RFCs","Tasks","Notes"],
   "rfc_tabs":["Overview","Service Requests and Devices","Related RFCs","Tasks","Notes"],
   "states":[
     "current accepted source facts",
     "explicit incomplete/unresolved facts",
     "terminal presentation without replacement identity",
+    "pending RFC terminal cascade awaiting explicit deliberate confirmation",
+    "stale RFC terminal cascade requiring refreshed impact scope",
     "RFC local archived presentation distinct from source terminal state",
+    "archive-operation history and operation-scoped restore eligibility",
     "unregistered Device Reference",
     "registered/resolved Device Reference projection",
     "RFC Customer unresolved warning",
     "hierarchy/subordinate-origin relationship preview",
     "stale relationship review",
-    "high-risk reparent review required"
+    "high-risk reparent review required",
+    "RFC hard-delete eligible preview or typed blockers"
   ],
   "rules":[
     "UI working copy never mutates ticket/domain state until command commit.",
@@ -24,10 +28,18 @@
     "Device Reference view shows current operational identity first; optional Network Element resolution is secondary derived context.",
     "Three-second Device Reference promotion belongs to LLD-10/LLD-08 interaction/Infrastructure command and never changes the ticket relationship target.",
     "Notes edits/removals are explicit commands with stale-revision handling; source import cannot produce note edit controls.",
-    "Archived RFC remains accessible/history-visible and can still receive exact source reconciliation; archive is not presented as provider cancellation/completion."
+    "Archived RFC remains accessible/history-visible and can still receive exact source reconciliation; archive is not presented as provider cancellation/completion.",
+    "Accepted terminal RFC source evidence updates terminal presentation and shows the persisted pending cascade, but does not present Task/Objective/Communication consequences as already executed.",
+    "Terminal cascade impact shows exact captured RFC/WFM members, current-vs-captured stale differences and participant consequence summaries before confirmation.",
+    "Cascade execution uses the governed three-second deliberate hold or accepted accessible equivalent from LLD-10; backend execution requires session-bound proof for the exact proposal revision/fingerprint rather than trusting a client boolean.",
+    "Branch archive preview distinguishes members that will change from RFCs already archived; restore is presented from the originating archive operation so unrelated archived RFCs cannot be activated accidentally.",
+    "RFC hard delete is never a generic Delete button: the UI first shows exact eligibility/blockers and only exposes explicit confirmed hard-delete action for a still-eligible untouched manual draft."
   ],
   "preview_contracts":[
     "Hierarchy/link previews show immutable IDs/business IDs, current revisions, exact proposed relation changes, Customer mismatch/unresolved state, and downstream warnings without merging identities.",
-    "Preview is advisory; commit reruns all authoritative checks and returns stale conflict when changed."
+    "Terminal cascade preview compares immutable captured proposal scope with current hierarchy/WFM membership and separately previews Task/Objective and Communication consequences; preview cannot execute or refresh.",
+    "Archive preview binds exact member revisions/archive states to a scope fingerprint; operation restore shows only members still owned by that operation.",
+    "Hard-delete preview is advisory and bound to revision/provider freshness/eligibility fingerprint; commit reruns all guards.",
+    "Every preview is advisory; commit reruns authoritative checks and returns stale conflict when changed."
   ]
 }
