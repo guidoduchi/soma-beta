@@ -1,0 +1,47 @@
+{
+  "schema": "SOMA-HLD-DATA-FLOW-V1",
+  "hld_id": "HLD-08",
+  "flows": [
+    {
+      "id":"HLD08-F001",
+      "name":"Spare need and fulfillment planning",
+      "steps":["Register or reconcile Device Part Unit evidence under one Service Request","Aggregate active Spare Need by SR + BOM while preserving contributor relationships","Project compatible available Stock candidates","Operator chooses local, external or mixed fulfillment","Persist quantity-bearing allocations/reservations without auto-consuming the Need"]
+    },
+    {
+      "id":"HLD08-F002",
+      "name":"Spare Request submission",
+      "steps":["Create local Spare Request over one-or-more Needs from one SR","Save Draft remains editable","Generate MSG produces an artifact only","Accept indexed sent communication or explicit manual confirmation","Atomically freeze submitted Need quantities and submission-logistics snapshot","Start response-warning chronology only after accepted submission"]
+    },
+    {
+      "id":"HLD08-F003",
+      "name":"RMA authorization and receipt",
+      "steps":["Accept official SR7/RMA evidence manually or through reviewed communication proposal","Create/adopt RMA obligation without fabricating a physical unit","Deterministically preassign compatible target Device Part Unit when possible","Record actual inbound Spare Part Unit on physical receipt","Preserve promised BOM separately from inbound physical BOM/serial","Permit reviewed reassignment/correction without rewriting identities or source evidence"]
+    },
+    {
+      "id":"HLD08-F004",
+      "name":"Maintenance physical consequence",
+      "steps":["Consume already-reviewed Task outcome from HLD-06","Review affected target/unit relationships","Append Inventory-owned physical consequence","Derive installed/removed/unused/faulty/incompatible/dismantled relationships","Derive applicable RMA return unit","If Task outcome is later corrected, supersede/recalculate Inventory consequence without rewriting Task history"]
+    },
+    {
+      "id":"HLD08-F005",
+      "name":"Fault Tag first submission",
+      "steps":["Create Fault Tag draft and tracking identity","Select only eligible open RMA return obligations plus exact physical return units","Choose return method and pickup-origin Dispatch Location when required","Generate/export artifact without changing lifecycle","Accept indexed sent evidence or manual confirmation","Lock exact membership/logistics/display snapshot while current entity truth remains separately owned"]
+    },
+    {
+      "id":"HLD08-F006",
+      "name":"Warehouse and resend loop",
+      "steps":["Record warehouse receipt per membership","Require explicit final acceptance or rejection","Acceptance closes that RMA return obligation","Rejection preserves failed attempt and leaves obligation open","Create a distinct resend Fault Tag when needed","Keep correction/replacement/resend lineage typed and history-preserving"]
+    },
+    {
+      "id":"HLD08-F007",
+      "name":"Communication-assisted transition",
+      "steps":["HLD-10 indexes immutable source evidence","Communication adapter proposes one or more idempotent Inventory actions","Operator reviews or accepted low-risk policy approves each applicable target","HLD-08 command revalidates current Inventory state","Mutation and required audit commit atomically","Rejected/deferred proposals do not mutate Inventory"]
+    }
+  ],
+  "projection_rules": [
+    "Stock is computed from eligible Spare Part Units and is rebuildable.",
+    "Current Inventory lifecycle state is reduced from accepted append-oriented events/relationships.",
+    "Objective-visible spare context derives through member Tasks; Inventory does not allocate units directly to Objective.",
+    "Current ticket/device context in Fault Tag views is derived from authoritative relationships rather than copied mutable truth."
+  ]
+}
