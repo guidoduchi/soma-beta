@@ -1,0 +1,31 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-02",
+  "table":{
+    "name":"setting_values",
+    "purpose":"persist only explicit writes for code-defined typed settings; absent settings remain absent",
+    "columns":[
+      "setting_key TEXT PRIMARY KEY",
+      "contract_name TEXT NOT NULL",
+      "contract_version INTEGER NOT NULL CHECK(contract_version>0)",
+      "value_json TEXT NOT NULL CHECK(json_valid(value_json))",
+      "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
+      "updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=0)",
+      "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
+    ],
+    "rules":[
+      "setting_key must exist in the closed SettingDefinitionRegistry before read/write interpretation",
+      "contract_name/version must match the registered definition or an explicit registered upgrader path",
+      "value_json is parsed/validated through LLD-01 strict JSON contract before persistence",
+      "unknown keys/versions are rejected or quarantined by explicit upgrade policy; they are never silently treated as current",
+      "reading an absent setting returns the code-defined default from SettingDefinition without inserting a row",
+      "ordinary settings storage excludes passwords, verifier material, encryption keys, run-auth tokens, device credentials, unrestricted Communication bodies/provider payloads and complete domain-object copies",
+      "every accepted write uses base revision/equivalent precondition and LLD-01 authoritative command + audit boundary"
+    ]
+  },
+  "setting_definition":{
+    "required_fields":["setting_key","semantic_owner","contract_name","current_version","default_provider","validator","unknown_field_policy","max_utf8_bytes","max_depth","max_collection_items"],
+    "rule":"semantic_owner validates business meaning; LLD-02 registry/persistence mechanics do not become the setting's domain authority"
+  },
+  "upgrade_rule":"A registered upgrade parses and validates the old version, produces and validates the new version, then replaces value/contract_version/revision atomically in one UnitOfWork. Failure preserves the prior bytes/value."
+}
