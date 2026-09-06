@@ -3,6 +3,16 @@
   "lld_id":"LLD-01",
   "tables":[
     {
+      "name":"instance_metadata",
+      "purpose":"stable technical identity of the canonical SOMA data instance",
+      "columns":[
+        "singleton INTEGER PRIMARY KEY CHECK(singleton=1)",
+        "data_instance_id TEXT NOT NULL UNIQUE",
+        "created_at_utc INTEGER NOT NULL CHECK(created_at_utc >= 0)"
+      ],
+      "rules":["exactly one row is created by the initial accepted migration","data_instance_id is an opaque lowercase UUIDv4 technical identity","restore preserves the restored instance identity; creating a new empty instance allocates a new identity","runtime registry reads this identity after persistence verification and never derives it from path/port/PID"]
+    },
+    {
       "name":"schema_migrations",
       "purpose":"accepted migration ledger",
       "columns":[
