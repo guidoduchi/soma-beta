@@ -1,0 +1,76 @@
+{
+  "schema": "SOMA-HLD-INVARIANTS-V1",
+  "hld_id": "HLD-04",
+  "invariants": [
+    {
+      "id": "HLD04-INV-001",
+      "rule": "Service Request and RFC internal identities remain stable across manual creation, official-source adoption, terminal state, archive, correction and relationship changes.",
+      "acceptance_hook": "Adopt/enrich existing exact identities without replacing FK targets/history."
+    },
+    {
+      "id": "HLD04-INV-002",
+      "rule": "Direct SR↔RFC relationships target only root/master RFCs; subordinate RFCs receive SR context only through hierarchy inheritance.",
+      "acceptance_hook": "Reject direct subordinate link and verify inherited context/provenance."
+    },
+    {
+      "id": "HLD04-INV-003",
+      "rule": "RFC hierarchy is an acyclic one-parent forest with at most two levels; a subordinate can never parent another RFC.",
+      "acceptance_hook": "Self-cycle, indirect cycle, second parent and depth-three attempts fail atomically."
+    },
+    {
+      "id": "HLD04-INV-004",
+      "rule": "Root/Master/Subordinate/standalone RFC roles are derived from relationships; no independent mutable role flag is authoritative.",
+      "acceptance_hook": "Reparent/add/remove child recomputes roles without role-field reconciliation."
+    },
+    {
+      "id": "HLD04-INV-005",
+      "rule": "No arbitrary business child-count cap limits a valid RFC branch; scale is a UI/query/technical concern.",
+      "acceptance_hook": "Branches larger than twenty valid children remain representable/queryable."
+    },
+    {
+      "id": "HLD04-INV-006",
+      "rule": "Resolved RFC branch members share one canonical Customer Organization; unresolved ownership stays explicit and Infrastructure does not establish RFC Customer authority.",
+      "acceptance_hook": "Known mismatch blocks hierarchy mutation, unknown warns, Infrastructure-only evidence does not assign Customer."
+    },
+    {
+      "id": "HLD04-INV-007",
+      "rule": "SR↔RFC link/unlink is lifecycle-neutral and history-preserving; duplicate link/already-absent unlink is idempotent.",
+      "acceptance_hook": "Link/unlink terminal and active tickets without reopen/restart/cascade effects."
+    },
+    {
+      "id": "HLD04-INV-008",
+      "rule": "An RFC may own zero-to-many Device Reference contexts directly, including without an SR and with subordinate-specific differences.",
+      "acceptance_hook": "Standalone/subordinate RFC device scenarios persist independently of SR relationship."
+    },
+    {
+      "id": "HLD04-INV-009",
+      "rule": "RFC/SR operational device relationships always target Device Reference; regularization to Network Element never replaces those relationship identities.",
+      "acceptance_hook": "Promote/reconcile Device Reference and verify all ticket links retain the same Device Reference FK/identity."
+    },
+    {
+      "id": "HLD04-INV-010",
+      "rule": "Accepted terminal RFC evidence and execution of the local terminal cascade are separate authoritative operations.",
+      "acceptance_hook": "Accept terminal evidence and verify no Task/Objective/Communication consequence before explicit cascade confirmation."
+    },
+    {
+      "id": "HLD04-INV-011",
+      "rule": "RFC archival is reversible SOMA-local presentation state and does not stop exact-identity source reconciliation.",
+      "acceptance_hook": "Import newer exact RFC evidence while archived and surface reviewed restore/conflict behavior without identity change."
+    },
+    {
+      "id": "HLD04-INV-012",
+      "rule": "Hard deletion is limited to a provably untouched manual draft; imported/adopted/related/WFM/history-bearing RFCs remain history-preserved.",
+      "acceptance_hook": "Deletion eligibility vectors cover provenance, relationships, WFM history, audit and lifecycle evidence."
+    },
+    {
+      "id": "HLD04-INV-013",
+      "rule": "Working Notes are SOMA-owned and source import never overwrites or deletes them.",
+      "acceptance_hook": "Import changed source fields around existing notes and verify note identity/history remains intact."
+    },
+    {
+      "id": "HLD04-INV-014",
+      "rule": "WFM ownership of one RFC does not create a WFM hierarchy; WFM master/subordinate context is derived only from the owning RFC hierarchy.",
+      "acceptance_hook": "Reparent RFC and verify current WFM context recomputes without creating/changing WFM identity or hierarchy fields."
+    }
+  ]
+}
