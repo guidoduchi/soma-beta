@@ -7,23 +7,31 @@
       "name":"CreateCustomerOrganization",
       "input":["command_id","name","optional Customer Account Code","actor/source"],
       "transaction_boundary":"one LLD-01 authoritative UnitOfWork",
-      "steps":["validate semantic bounds","compute name_match_key and optional account-code match_key","when account code supplied, prove no other active canonical claimant; otherwise return ACCOUNT_CODE_CONFLICT_REVIEW with no mutation","allocate customer_org_id, optional identifier_id and lifecycle_event_id","insert command_receipt","insert active record revision 1","insert optional active customer_account_code identifier referencing receipt","append created lifecycle event referencing receipt","insert audit/result references","commit"],
-      "rules":["matching candidates may be shown before command but equal name never blocks creation solely as identity duplication","Customer Account Code is preferred external matching evidence but never the relational ID","no implicit merge/adoption"]
+      "steps":["validate semantic bounds","compute name_match_key and optional account-code match_key","when account code supplied, detect any active different claimant and return ACCOUNT_CODE_CONFLICT_REVIEW with no mutation","allocate customer_org_id, optional identifier_id and lifecycle_event_id","insert command_receipt","insert active record revision 1","insert optional active customer_account_code identifier referencing receipt","append created lifecycle event referencing receipt","insert audit/result references","commit"],
+      "rules":["matching candidates may be shown before command but equal name never blocks creation solely as identity duplication","Customer Account Code is preferred external matching evidence but never the relational ID","reviewed duplicate-code preservation uses ConfirmCustomerAccountCodeSharedClaim after Customer creation; ordinary create does not silently create a multiply claimed code","no implicit merge/adoption"]
     },
     {
       "name":"SetCustomerAccountCode",
       "input":["customer_org_id","base_revision","raw Customer Account Code","reason_category","command_id"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["load active Customer by immutable ID and revalidate revision","validate/normalize complete account code","query active canonical claimant for exact normalized code","if another Customer owns the code return ACCOUNT_CODE_CONFLICT_REVIEW with claimant ID and no mutation","allocate identifier ID","insert command_receipt","supersede this Customer's prior active account-code row when different","insert new active claim when not already the same accepted value","increment Customer revision when canonical claim changes","insert audit referencing superseded/new identifier identities","commit"],
+      "steps":["load active Customer by immutable ID and revalidate revision","validate/normalize complete account code","query all active canonical claimants for exact normalized code","if any other Customer claims the code return ACCOUNT_CODE_CONFLICT_REVIEW with bounded claimant identities and no mutation","allocate identifier ID","insert command_receipt","supersede this Customer's prior active account-code row when different","insert new active claim when not already the same accepted value","increment Customer revision when canonical claim changes","insert audit referencing superseded/new identifier identities","commit"],
       "rules":["prior claims remain history","same already-active code under same Customer is idempotent only through normal command-receipt semantics","source/import observations never call this without reviewed acceptance"]
     },
     {
-      "name":"ReassignCustomerAccountCode",
-      "purpose":"explicit reviewed resolution when an account code is canonically assigned to the wrong Customer Organization",
-      "input":["from_customer_org_id","from_base_revision","to_customer_org_id","to_base_revision","raw Customer Account Code","reason_category","command_id"],
+      "name":"ConfirmCustomerAccountCodeSharedClaim",
+      "purpose":"explicit reviewed acceptance that one normalized Customer Account Code currently has more than one canonical Customer Organization claimant",
+      "input":["customer_org_id","base_revision","raw Customer Account Code","review_context_id","reason_category","command_id"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["require distinct immutable Customer IDs and active targets","revalidate both revisions","normalize exact code and prove from-Customer is its current canonical claimant","allocate new identifier ID","insert command_receipt","supersede from-Customer account-code claim","supersede any different active account-code claim on to-Customer","insert active code claim for to-Customer","increment both Customer revisions","insert one reasoned audit action referencing every changed identifier/Customer identity","commit"],
-      "rules":["does not merge Customer Organizations","does not rewrite historical operational Customer context","cannot be triggered merely by equal display names","failure anywhere rolls all claim/revision/audit changes back"]
+      "steps":["require nonempty reviewed conflict context and active target Customer","revalidate target revision","normalize exact code and load bounded identities/count of existing active claimants","require at least one different active claimant or reject as wrong command path","allocate identifier ID","insert command_receipt","supersede target Customer's different active account-code claim when present","insert active shared claim for target Customer without mutating other claimants","increment target Customer revision","insert audit carrying review_context_id and every affected local identifier identity plus bounded existing-claimant summary","commit"],
+      "rules":["does not merge Customers","does not silently choose a winner","future account-code matching remains AMBIGUOUS while multiple active claimants remain","other claimant records/history are untouched","this command is unavailable to safe auto-accept paths"]
+    },
+    {
+      "name":"ReassignCustomerAccountCode",
+      "purpose":"explicit reviewed resolution moving one active account-code claim from one Customer Organization to another",
+      "input":["from_customer_org_id","from_base_revision","to_customer_org_id","to_base_revision","raw Customer Account Code","review_context_id","reason_category","command_id"],
+      "transaction_boundary":"one UnitOfWork",
+      "steps":["require distinct immutable Customer IDs and active targets","revalidate both revisions","normalize exact code and prove from-Customer has an active claim for that code","allocate new identifier ID","insert command_receipt","supersede from-Customer account-code claim","supersede any different active account-code claim on to-Customer","insert active code claim for to-Customer","increment both Customer revisions","insert one reasoned audit action referencing changed identifier/Customer identities and review_context_id","commit"],
+      "rules":["does not merge Customer Organizations","does not rewrite historical operational Customer context","does not silently supersede any third Customer that also has the same reviewed active claim; such remaining claimants keep the code ambiguous","cannot be triggered merely by equal display names","failure anywhere rolls all claim/revision/audit changes back"]
     },
     {
       "name":"CreateContact",
@@ -66,19 +74,19 @@
       "input":["target_id","base_revision","allowed descriptive fields","command_id"],
       "transaction_boundary":"one UnitOfWork",
       "steps":["load target","revalidate revision/lifecycle eligibility","validate fields and recompute matching keys","allocate lifecycle_event_id","insert command_receipt","apply change and increment revision","append descriptive_corrected lifecycle event","insert audit/result references","commit"],
-      "rules":["cannot change immutable ID","Customer Account Code is changed only through its dedicated governed command and not through generic descriptive update","Dispatch Location cannot change customer ownership because no such field exists","site_derived address cannot be overwritten here; Site address is owned by LLD-08"]
+      "rules":["cannot change immutable ID","Customer Account Code is changed only through its dedicated governed commands and not through generic descriptive update","Dispatch Location cannot change customer ownership because no such field exists","site_derived address cannot be overwritten here; Site address is owned by LLD-08"]
     },
     {
       "name":"ArchiveReference",
       "implementation":"algorithms/archive-validation.json archive",
       "targets":["customer_organization","contact","dispatch_location"],
-      "ordering":"archive algorithm inserts receipt after all blocker checks pass and before lifecycle/domain rows"
+      "ordering":"archive algorithm uses bounded guard checks inside the write UnitOfWork and inserts receipt only after every guard passes"
     },
     {
       "name":"ReactivateReference",
       "implementation":"algorithms/archive-validation.json reactivate",
       "targets":["customer_organization","contact","dispatch_location"],
-      "ordering":"reactivation algorithm inserts receipt after all conflict checks pass and before lifecycle/domain rows"
+      "ordering":"reactivation algorithm uses bounded guard checks inside the write UnitOfWork and inserts receipt only after every guard passes"
     },
     {
       "name":"WriteSetting",
