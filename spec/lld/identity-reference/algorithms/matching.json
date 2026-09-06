@@ -29,15 +29,16 @@
   "customer_org_match":{
     "input":["optional raw Customer Account Code","optional raw Customer Organization label"],
     "active_scope":"active Customer Organizations only",
-    "account_code":"normalize complete supplied code; query active customer_org_identifiers identifier_type='customer_account_code' by exact match_key; accepted canonical master state yields zero or one active claimant",
+    "account_code":"normalize complete supplied code; query every active customer_org_identifiers row with identifier_type='customer_account_code' and exact match_key; zero, one, or multiple reviewed canonical claimants may exist",
     "name":"normalize supplied label and query customer_organizations.name_match_key; duplicate names may yield multiple candidates",
     "precedence_and_conflict":[
-      "if account-code candidate exists and no name candidate identifies a different Customer, return UNIQUE_CANDIDATE for the account-code claimant with explanation ACCOUNT_CODE_MATCH",
-      "if account-code candidate exists and supplied name evidence yields any different Customer candidate, return AMBIGUOUS over the union with explanation ACCOUNT_CODE_NAME_CONFLICT; operator review is required",
+      "if account code has exactly one active claimant and no supplied name evidence identifies a different Customer, return UNIQUE_CANDIDATE for the account-code claimant with explanation ACCOUNT_CODE_MATCH",
+      "if account code has exactly one active claimant and supplied name evidence yields any different Customer candidate, return AMBIGUOUS over the union with explanation ACCOUNT_CODE_NAME_CONFLICT",
+      "if account code has multiple active claimants, return AMBIGUOUS over all account-code claimants plus any additional exact name candidates with explanation ACCOUNT_CODE_MULTIPLE_CLAIMS; no claimant silently outranks another",
       "if account code is supplied but has no canonical claimant, name candidates remain proposal evidence only: zero -> UNRESOLVED, one -> UNIQUE_CANDIDATE with explanation ACCOUNT_CODE_UNRESOLVED_NAME_CANDIDATE, many -> AMBIGUOUS",
       "if account code is absent, name-only candidate behavior is zero -> UNRESOLVED, one -> UNIQUE_CANDIDATE, many -> AMBIGUOUS"
     ],
-    "source_conflict_rule":"multiply claimed/conflicting account-code observations detected in LLD-03/04 staging never auto-create multiple canonical active claims; they require reviewed assignment/reassignment before master mutation",
+    "source_conflict_rule":"multiply claimed/conflicting account-code observations detected in LLD-03/04 staging never auto-create or overwrite canonical claims; reviewed master commands may resolve the conflict to one claimant or explicitly preserve multiple active claims, in which case future matching remains AMBIGUOUS",
     "identity_rule":"Customer Account Code is preferred stable external matching evidence but never replaces customer_org_id"
   },
   "contact_match":{
@@ -56,5 +57,5 @@
     "upgrade":"a future profile change is not an in-place reinterpretation: it requires a governed forward migration that recomputes all affected keys transactionally and proves candidate behavior before publication"
   },
   "write_time_key_rule":"Every accepted write that changes a matched descriptive/channel/external-identifier value computes the match key with this same profile inside application validation before persistence; repositories reject missing/inconsistent derived key input.",
-  "review_rule":"A matcher has no write capability. Selection/link/merge/reassignment is performed only by a separate owning command after operator/reconciliation authority and fresh state revalidation."
+  "review_rule":"A matcher has no write capability. Selection/link/merge/assignment/reassignment is performed only by a separate owning command after operator/reconciliation authority and fresh state revalidation."
 }
