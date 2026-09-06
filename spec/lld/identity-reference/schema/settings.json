@@ -1,6 +1,7 @@
 {
   "schema":"SOMA-LLD-SCHEMA-V1",
   "lld_id":"LLD-02",
+  "table_mode":"setting_values is SQLite STRICT and participates in LLD-01 exact-schema/FK-index verification.",
   "table":{
     "name":"setting_values",
     "purpose":"persist only explicit writes for code-defined typed settings; absent settings remain absent",
@@ -14,18 +15,20 @@
       "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
     ],
     "rules":[
-      "setting_key must exist in the closed SettingDefinitionRegistry before read/write interpretation",
-      "contract_name/version must match the registered definition or an explicit registered upgrader path",
+      "setting_key must exist in closed SettingDefinitionRegistry before read/write interpretation",
+      "contract_name/version must match registered definition or an explicit registered upgrader path",
       "value_json is parsed/validated through LLD-01 strict JSON contract before persistence",
-      "unknown keys/versions are rejected or quarantined by explicit upgrade policy; they are never silently treated as current",
-      "reading an absent setting returns the code-defined default from SettingDefinition without inserting a row",
+      "unknown setting keys are rejected with SETTING_UNKNOWN",
+      "unsupported persisted/requested contract versions are rejected with SETTING_CONTRACT_MISMATCH unless an explicit registered upgrader accepts the exact origin; Beta 1.0 defines no generic quarantine store/path",
+      "reading absent setting returns code-defined default without inserting a row",
       "ordinary settings storage excludes passwords, verifier material, encryption keys, run-auth tokens, device credentials, unrestricted Communication bodies/provider payloads and complete domain-object copies",
-      "every accepted write uses base revision/equivalent precondition and LLD-01 authoritative command + audit boundary"
+      "every accepted semantic change uses base revision/equivalent precondition and LLD-01 authoritative receipt + audit boundary; semantic no-change follows algorithms/no-change.json"
     ]
   },
   "setting_definition":{
-    "required_fields":["setting_key","semantic_owner","contract_name","current_version","default_provider","validator","unknown_field_policy","max_utf8_bytes","max_depth","max_collection_items"],
-    "rule":"semantic_owner validates business meaning; LLD-02 registry/persistence mechanics do not become the setting's domain authority"
+    "required_fields":["setting_key","semantic_owner","contract_name","current_version","default_provider","validator","semantic_equals","unknown_field_policy","storage_class","max_utf8_bytes","max_depth","max_collection_items"],
+    "rules":["semantic_owner validates business meaning; LLD-02 registry/persistence does not become domain authority","storage_class for setting_values is ordinary_nonsecret; secret-bearing definitions are rejected from this registry and belong to LLD-12"]
   },
-  "upgrade_rule":"A registered upgrade parses and validates the old version, produces and validates the new version, then replaces value/contract_version/revision atomically in one UnitOfWork. Failure preserves the prior bytes/value."
+  "upgrade_rule":"A registered upgrader parses/validates the exact old version, produces/validates the new version, then performs an explicit UPDATE of value_json/contract_version/revision/command_id atomically in one UnitOfWork. Failure preserves prior bytes/value; SQL REPLACE is forbidden.",
+  "index_dependency":"schema/fk-index-coverage.json provides required leading-prefix index for setting_values.command_id."
 }
