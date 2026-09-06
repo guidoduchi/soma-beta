@@ -11,6 +11,7 @@
     {"code":"ACCOUNT_CODE_CONFLICT_REVIEW","http":409,"recoverability":"review_existing_claims_then_resolve_or_confirm_shared_claim","meaning":"normalized Customer Account Code already has one or more different active Customer claimants; ordinary assignment does not steal, merge, or silently add another claimant"},
     {"code":"ACCOUNT_CODE_SOURCE_NOT_OWNER","http":409,"recoverability":"reload_review_correct_source","meaning":"reviewed account-code reassignment expected the source Customer to hold an active claim but authoritative state no longer agrees"},
     {"code":"ACCOUNT_CODE_SHARED_CONTEXT_REQUIRED","http":409,"recoverability":"perform_reviewed_conflict_workflow","meaning":"shared-claim command lacks valid reviewed conflict context or no longer represents an actual multi-claim conflict"},
+    {"code":"REVIEW_CONTEXT_STALE","http":409,"recoverability":"reload_conflict_preview_and_confirm_again","meaning":"the exact claimant/target/source state bound to the reviewed conflict snapshot changed before commit; no receipt or domain mutation occurred"},
     {"code":"MATCH_PROFILE_UNSUPPORTED","http":503,"recoverability":"run_supported_upgrade_or_restore_compatible_build","meaning":"database matching profile is not supported by this application build; matching reads/writes are blocked rather than reinterpreted"},
     {"code":"CHANNEL_INVALID","http":400,"recoverability":"correct_channel_value","meaning":"Contact channel fails its closed storage policy; value is not persisted or truncated"},
     {"code":"CHANNEL_NOT_USABLE","http":409,"recoverability":"select_or_register_usable_channel","meaning":"recipient-dependent action has no selected active channel usable for the requested purpose; underlying Contact and operational record remain valid"},
@@ -22,6 +23,6 @@
     {"code":"MATCH_INPUT_INVALID","http":400,"recoverability":"correct_input","meaning":"candidate key is blank/invalid after governed normalization or scope is malformed"},
     {"code":"FIELD_BOUND_EXCEEDED","http":400,"recoverability":"correct_input","meaning":"semantic field/collection exceeds its field-specific accepted bound; value was not truncated"}
   ],
-  "non_error_states":["UNRESOLVED","UNIQUE_CANDIDATE","AMBIGUOUS","contact-affiliation mismatch warning","channel MISSING|ARCHIVED|INVALID prerequisite state"],
-  "rule":"Ambiguity, source-account-code conflict evidence, recipient prerequisite failure and affiliation mismatch do not invalidate unrelated domain entities and may not be converted into guessed identity mutation."
+  "non_error_states":["UNRESOLVED","UNIQUE_CANDIDATE","AMBIGUOUS","contact-affiliation mismatch warning","channel MISSING|ARCHIVED|INVALID prerequisite state","NO_CHANGE"],
+  "rule":"Ambiguity, source-account-code conflict evidence, recipient prerequisite failure, semantic no-change and affiliation mismatch do not invalidate unrelated domain entities and may not be converted into guessed identity mutation."
 }
