@@ -49,7 +49,7 @@
     {"id":"HLD05-D010","decision":"Header/identity recognition is versioned and exact; fuzzy or positional inference never establishes source-field or entity identity."}
   ],
   "packet_files": ["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
-  "downstream_hld_ids": ["HLD-04","HLD-06","HLD-07","HLD-10","HLD-11","HLD-13","HLD-14"],
+  "downstream_hld_ids": ["HLD-06","HLD-07","HLD-10","HLD-11","HLD-13","HLD-14"],
   "downstream_lld_ids": ["LLD-03","LLD-04"],
   "unresolved_here_by_design": [
     "O-007 exact low-risk field/change classes eligible for auto-accept",
