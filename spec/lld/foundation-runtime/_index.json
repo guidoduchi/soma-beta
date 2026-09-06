@@ -1,0 +1,14 @@
+{
+  "schema":"SOMA-LLD-PACKET-V1",
+  "id":"LLD-01",
+  "name":"Foundation Runtime, Persistence, Migrations, Audit",
+  "status":"drafting",
+  "requirement_ids":["BETA-REQ-0002","BETA-REQ-0003","BETA-REQ-0018","BETA-REQ-0131","BETA-REQ-0132","BETA-REQ-0133","BETA-REQ-0134","BETA-REQ-0135","BETA-REQ-0136","BETA-REQ-0140","BETA-REQ-0143","BETA-REQ-0144"],
+  "supporting_requirement_ids":["BETA-REQ-0019","BETA-REQ-0137","BETA-REQ-0138","BETA-REQ-0141","BETA-REQ-0142"],
+  "hld_dependencies":["HLD-01","HLD-02","HLD-13","HLD-14"],
+  "scope":["Python host/server integration","canonical data-instance ownership","SQLite connection factory","unit-of-work and transaction policy","migration manifest/ledger/runner","exact schema and FK/index verification","side-effect-free migration status","foundation audit ledger","command idempotency receipts","durable background-job coordination","typed JSON foundation contracts","runtime health/shutdown integration points"],
+  "not_owned_here":["Local Administrator verifier/KDF and session security -> LLD-12","live-data AEAD/key-envelope implementation -> LLD-12","portable backup envelope/recovery UX -> LLD-12","frontend framework/client implementation -> LLD-10","domain entity schemas and business transitions -> LLD-02..LLD-09"],
+  "required_directories":["schema","commands","queries","algorithms","ui","tests"],
+  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"implementation_ready":false},
+  "design_principle":"Foundation code exposes small owned interfaces; domains never import SQLite tables or web-framework internals directly."
+}
