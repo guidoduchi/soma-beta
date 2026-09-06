@@ -33,7 +33,8 @@
         "rejected_proposal_count INTEGER NOT NULL DEFAULT 0 CHECK(rejected_proposal_count>=0)",
         "deferred_proposal_count INTEGER NOT NULL DEFAULT 0 CHECK(deferred_proposal_count>=0)",
         "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
-        "CHECK((run_state IN ('staged','waiting_review','partially_accepted','accepted','rejected','noop_pending_checkpoint','noop','recovery_required') AND logical_fingerprint_sha256 IS NOT NULL AND staged_at_utc IS NOT NULL) OR run_state IN ('discovering','validating','failed'))"
+        "CHECK((run_state IN ('staged','waiting_review','partially_accepted','accepted','rejected','noop_pending_checkpoint','noop','recovery_required') AND logical_fingerprint_sha256 IS NOT NULL AND staged_at_utc IS NOT NULL) OR run_state IN ('discovering','validating','failed'))",
+        "CHECK((run_state IN ('accepted','rejected','partially_accepted','noop','failed') AND completed_at_utc IS NOT NULL) OR (run_state NOT IN ('accepted','rejected','partially_accepted','noop','failed') AND completed_at_utc IS NULL))"
       ],
       "rules":[
         "import_run_id is immutable UUIDv4 identity",
@@ -42,6 +43,7 @@
         "run counters are exact derived/maintained summary values validated against immutable child rows before terminal run transition",
         "noop_pending_checkpoint is permitted only for newer candidate chronology with identical accepted logical fingerprint after unpublished row cleanup; it has no domain proposals",
         "noop is terminal no-domain-change state; exact replay may enter directly, while newer-identical enters only after checkpoint update succeeds",
+        "recovery_required is published exact-source evidence with proposals locked behind the exact current recovery-review fingerprint; it is not a terminal run state",
         "run state is workflow coordination only and never RFC/WFM lifecycle authority"
       ]
     },
@@ -66,6 +68,30 @@
       ]
     },
     {
+      "name":"import_recovery_reviews",
+      "columns":[
+        "import_recovery_review_id TEXT PRIMARY KEY",
+        "import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "checkpoint_import_run_id TEXT NOT NULL REFERENCES import_runs(import_run_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "review_ordinal INTEGER NOT NULL CHECK(review_ordinal>0)",
+        "run_revision INTEGER NOT NULL CHECK(run_revision>0)",
+        "checkpoint_revision INTEGER NOT NULL CHECK(checkpoint_revision>0)",
+        "review_fingerprint_sha256 TEXT NOT NULL CHECK(length(review_fingerprint_sha256)=64)",
+        "decision TEXT NOT NULL CHECK(decision IN ('authorized','rejected','deferred'))",
+        "reason_category TEXT NOT NULL",
+        "occurred_at_utc INTEGER NOT NULL CHECK(occurred_at_utc>=0)",
+        "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "UNIQUE(import_run_id,review_ordinal)"
+      ],
+      "rules":[
+        "append-only reviewed gate for a recovery_required exact source set",
+        "review fingerprint binds exact candidate run/checkpoint identities/revisions/chronologies/fingerprints and current material proposal inputs",
+        "the greatest review_ordinal is authoritative for the still-current exact review fingerprint; only decision=authorized permits proposal acceptance",
+        "a later deferred/rejected review for the same material state closes prior authorization without rewriting it",
+        "material run/checkpoint/proposal change creates a different fingerprint and requires fresh review"
+      ]
+    },
+    {
       "name":"import_recovery_events",
       "columns":[
         "import_recovery_event_id TEXT PRIMARY KEY",
@@ -77,7 +103,7 @@
         "occurred_at_utc INTEGER NOT NULL CHECK(occurred_at_utc>=0)",
         "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
       ],
-      "rules":["append-only evidence of explicit chronology/content recovery authority","recovery never erases/reorders prior accepted observations","recovery applies only to the exact reviewed run/checkpoint pair"]
+      "rules":["append-only evidence that an authorized chronology/content recovery reached consistent reviewed completion","recovery never erases/reorders prior accepted observations","recovery applies only to the exact reviewed run/checkpoint pair"]
     }
   ],
   "indexes":[
@@ -85,13 +111,17 @@
     "CREATE INDEX idx_import_runs_family_chronology ON import_runs(source_family,candidate_chronology_value,import_run_id)",
     "CREATE INDEX idx_import_runs_fingerprint ON import_runs(source_family,logical_fingerprint_sha256,import_run_id)",
     "CREATE INDEX idx_import_checkpoint_run_fk ON import_source_checkpoints(accepted_import_run_id,source_family)",
+    "CREATE INDEX idx_import_recovery_review_run_fk ON import_recovery_reviews(import_run_id,review_ordinal,import_recovery_review_id)",
+    "CREATE INDEX idx_import_recovery_review_checkpoint_fk ON import_recovery_reviews(checkpoint_import_run_id,import_recovery_review_id)",
+    "CREATE INDEX idx_import_recovery_review_command_fk ON import_recovery_reviews(command_id,import_recovery_review_id)",
     "CREATE INDEX idx_import_recovery_run_fk ON import_recovery_events(import_run_id,import_recovery_event_id)",
     "CREATE INDEX idx_import_recovery_prior_fk ON import_recovery_events(prior_checkpoint_run_id,import_recovery_event_id)",
     "CREATE INDEX idx_import_recovery_command_fk ON import_recovery_events(command_id,import_recovery_event_id)"
   ],
   "protection":[
-    "import_recovery_events BEFORE UPDATE/DELETE raises IMPORT_RECOVERY_APPEND_ONLY",
+    "import_recovery_reviews/import_recovery_events BEFORE UPDATE/DELETE raise append-only protection",
     "import_runs immutable provenance/profile/candidate fields cannot change after staging; only governed state/count/completion/revision transitions remain writable",
-    "checkpoint updates require expected revision and exact source-family/profile compatibility inside one UnitOfWork"
+    "checkpoint updates require expected revision and exact source-family/profile compatibility inside one UnitOfWork",
+    "recovery review ordinal allocation/read is serialized in the review command UnitOfWork and does not rely on occurred_at second precision for ordering"
   ]
 }
