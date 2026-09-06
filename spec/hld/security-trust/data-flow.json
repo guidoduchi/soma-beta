@@ -1,0 +1,12 @@
+{
+  "schema":"SOMA-HLD-DATA-FLOW-V1",
+  "hld_id":"HLD-13",
+  "flows":[
+    {"name":"bootstrap_and_login","steps":["first-run creates singleton Local Administrator verifier without creating operational encryption authority","host obtains/creates Windows-protected live-data key material independently","successful local authentication establishes bounded application session state","browser requests continue to require host-side session/anti-forgery validation"]},
+    {"name":"trusted_local_start","steps":["host acquires exclusive canonical data-instance ownership","configuration/migration/integrity readiness completes","host creates fresh unpredictable run/auth identity and atomic minimal runtime registry","launcher verifies exact loopback origin, PID plus independent birth identity, data/protocol/run identities and authenticated non-redirecting health","only then may launcher open/control the trusted instance"]},
+    {"name":"trusted_shutdown","steps":["launcher re-verifies current instance identity","authenticated graceful shutdown is requested","host quiesces authoritative work and releases owned resources","forced termination is considered only after fresh identity revalidation and bounded graceful failure"]},
+    {"name":"portable_backup","steps":["persistence creates a consistent backup payload under HLD-02/HLD-14 rules","HLD-13 wraps it in an independently encrypted portable backup set with recovery/integrity/authenticity material","complete set is self-verified before reporting success","restore validates secret, artifacts, compatibility and integrity before any live mutation","accepted restore then hands authoritative replacement/recovery mechanics to persistence"]},
+    {"name":"diagnostic_emit","steps":["caller supplies event identity and minimal structured context, never raw domain objects","semantic sensitivity classifier and sanitizers inspect bounded recursive values before queue/sink","unsafe fields/records are omitted on sanitization uncertainty without raw fallback","bounded external diagnostic writer emits/rotates independently of SQLite","diagnostic failure cannot change the success/failure result of authoritative work except that logging itself may be lost"]},
+    {"name":"support_export","steps":["operator explicitly initiates export","candidate diagnostic scope is previewed","current sanitization/canary policy is reapplied","non-authoritative sanitized bundle is produced locally","no automatic upload occurs"]}
+  ]
+}
