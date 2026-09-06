@@ -1,0 +1,34 @@
+{
+  "schema":"SOMA-HLD-INVARIANTS-V1",
+  "hld_id":"HLD-14",
+  "invariants":[
+    "Known application instants persist as canonical UTC whole seconds; date-only values, durations, unknown effective times and unresolved source chronology remain distinct non-instants.",
+    "America/Guayaquil governs ordinary operational and SLA calendar interpretation; Objective/Task selectable IANA timezone is confined to scheduling input/presentation and does not reinterpret other-domain chronology.",
+    "Timezone display changes never mutate existing canonical instants; wall-clock-preserving changes require a reviewed reschedule.",
+    "Import/discovery/indexing/current time never substitutes for missing external business chronology unless an explicit owning requirement defines that time as the fact itself.",
+    "Lifecycle occurrence/effective chronology and audit recording chronology are independently represented when both exist.",
+    "Lifecycle evidence, application audit, proposal/job history and technical diagnostics are never collapsed into one authority.",
+    "Every required authoritative mutation, lifecycle event and audit record succeeds atomically or rolls back together.",
+    "Accepted audit rows are append-only and immutable at the application/persistence boundary; duplicate audit identity is an explicit integrity failure.",
+    "Command idempotency is resolved before audit insertion; replay does not create duplicate accepted audit/lifecycle events.",
+    "Corrections preserve and reference original accepted evidence and append new evidence rather than overwriting history.",
+    "Hard deletion exists only where an owning-domain rule explicitly authorizes it after dependency validation; history preservation is the default.",
+    "Derived projections, caches, summaries and materialized read models are rebuildable and never authorize write-side truth.",
+    "Projection recomputation alone creates no lifecycle occurrence or acceptance audit event.",
+    "Stale revision/precondition mismatch blocks commit and returns conflict/review state; last-write-wins is prohibited for identity, evidence and lifecycle truth.",
+    "Cross-domain atomic workflows preserve each domain's validation/ownership and never implement orchestration through direct foreign-table mutation.",
+    "Historical snapshots/reports preserve the effective timezone/offset/as-of/policy context required to reproduce their accepted result."
+  ],
+  "acceptance_hooks":[
+    "UTC/date/duration/unknown temporal type vectors",
+    "Objective timezone redisplay-vs-reschedule scenarios",
+    "source-time ambiguity/non-fabrication scenarios",
+    "atomic mutation+lifecycle+audit rollback injection",
+    "audit duplicate/update/delete rejection scenarios",
+    "idempotent replay creates no duplicate accepted evidence",
+    "correction preserves original history",
+    "stale revision conflict blocks last-write-wins",
+    "projection rebuild emits no lifecycle event",
+    "exceptional deletion preserves required minimized audit and independent survivors"
+  ]
+}
