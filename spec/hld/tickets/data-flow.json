@@ -1,0 +1,66 @@
+{
+  "schema": "SOMA-HLD-DATA-FLOW-V1",
+  "hld_id": "HLD-04",
+  "flows": {
+    "manual_service_request": [
+      "Operator creates an SR through the ticket application service using official identity when known or the governed local identity path.",
+      "Ticket invariants validate identity uniqueness and accepted manual fields.",
+      "SR persists through HLD-02 with HLD-14 audit/history.",
+      "Later exact official-source evidence may adopt/enrich the same entity through HLD-05 without replacing internal identity."
+    ],
+    "link_service_request_to_rfc": [
+      "Operator/source-review identifies the applicable root/master RFC by immutable identity.",
+      "Command rejects a subordinate as the direct target and revalidates hierarchy revision/current identities.",
+      "Duplicate link is an idempotent no-op; accepted new link appends relationship history.",
+      "Neither SR nor RFC lifecycle state changes because of the relationship command.",
+      "Subordinate workbenches derive SR context through the master relationship and preserve subordinate-origin provenance."
+    ],
+    "manage_rfc_hierarchy": [
+      "Command captures the exact RFC identities and current hierarchy/customer revisions.",
+      "Validator checks one-parent rule, maximum depth two, self/indirect cycle prevention and resolved Customer consistency.",
+      "Post-WFM-history reparenting is classified high-risk and retains prior hierarchy history.",
+      "Accepted relation mutation commits atomically and all derived root/master/subordinate projections recompute from relationships."
+    ],
+    "attach_device_reference_to_rfc": [
+      "RFC command links an existing or newly created operational Device Reference directly to the exact RFC.",
+      "The link is valid with or without a Service Request and may differ between master and subordinate RFCs.",
+      "Later HLD-09 reconciliation/regularization may resolve the Device Reference to a Network Element.",
+      "Resolution never rewrites the RFC relationship to point directly at Network Element or changes Device Reference identity."
+    ],
+    "source_reconciliation": [
+      "HLD-05 stages exact source observations and source-owned field proposals against the RFC/SR identity.",
+      "Ticket application service applies accepted source-owned changes only after current-state/stale validation.",
+      "SOMA-owned relationships, Working Notes and local lifecycle/correction history are protected from source overwrite.",
+      "Exact manual identity adoption preserves internal identity, relationships and history."
+    ],
+    "terminal_rfc_evidence": [
+      "Accepted provider terminal evidence updates the governed RFC terminal projection/history.",
+      "The same atomic acceptance may create/update a pending cascade proposal scoped to the exact current RFC branch but does not execute downstream consequences.",
+      "Separate reviewed cascade confirmation revalidates captured scope and coordinates HLD-06 Task/Objective consequences plus HLD-10 Communication consequences.",
+      "Failure in any required cascade participant rolls the cascade transaction back according to HLD-14."
+    ],
+    "archive_restore_rfc": [
+      "Operator explicitly archives/restores SOMA-local RFC presentation state.",
+      "Branch-scoped operation revalidates exact eligible target membership and preserves pre-existing archive states.",
+      "Source import/reconciliation continues by exact identity while archived.",
+      "Newer active source evidence that conflicts with archive state creates reviewed restoration context rather than silently restoring."
+    ],
+    "rfc_customer_reconciliation": [
+      "HLD-05/HLD-03 provide supported Customer evidence and exact candidate matching, with account number stronger than descriptive name.",
+      "HLD-04 stages/accepts the RFC Customer proposal and validates resolved branch consistency.",
+      "Unresolved ownership remains explicit and does not fabricate hierarchy or block temporal grouping merely because Customer is unknown.",
+      "Infrastructure placement never establishes RFC Customer ownership."
+    ],
+    "working_note_change": [
+      "Operator creates/edits/removes an exact Working Note under the owning ticket.",
+      "Creation identity/time remain stable while edits/removals preserve required historical/audit evidence.",
+      "Import processing cannot overwrite or delete Working Notes."
+    ]
+  },
+  "query_rules": [
+    "Master/root RFC views may project direct SR links; subordinate views project inherited SR context with provenance rather than materializing duplicate joins.",
+    "Master/Subordinate/root/standalone roles are always derived from hierarchy relationships.",
+    "Ticket workbench Device context resolves through Device Reference and may display Infrastructure resolution as additional projection only.",
+    "Archived/terminal/history presentation is a query/projection concern over surviving ticket records, not deletion authority."
+  ]
+}
