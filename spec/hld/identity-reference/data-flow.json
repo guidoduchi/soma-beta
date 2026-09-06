@@ -1,0 +1,56 @@
+{
+  "schema": "SOMA-HLD-DATA-FLOW-V1",
+  "hld_id": "HLD-03",
+  "flows": {
+    "create_reference": [
+      "Operator submits a Customer Organization, Contact or standalone Dispatch Location command through the application boundary.",
+      "Application validates required structural/descriptive fields without treating names/emails/addresses as relational identity.",
+      "A new opaque internal identity is allocated and the record is persisted through HLD-02.",
+      "HLD-14 records required audit/history evidence.",
+      "Selectors/projections consume the new active record after commit."
+    ],
+    "contact_affiliation_change": [
+      "Command identifies the existing Contact by immutable identity rather than descriptive equality.",
+      "Current affiliation and dependent operational context are loaded and revalidated.",
+      "The previous current affiliation is closed as history and the new zero-or-one affiliation relationship is established atomically.",
+      "The Contact identity is unchanged; existing historical operational records keep their recorded organization context.",
+      "Audit/history records the reviewed relationship change."
+    ],
+    "reference_candidate_match": [
+      "Consumer supplies an explicitly scoped candidate key/input rather than an assumed identity.",
+      "HLD-03 applies the governed deterministic exact-key normalization/matching contract.",
+      "Zero candidates returns unresolved; one qualified candidate may be proposed; multiple candidates returns ambiguous.",
+      "Ambiguous or otherwise review-required results are returned to the caller without mutation.",
+      "Any eventual create/link/merge/reassignment uses a separate explicit command and audit boundary."
+    ],
+    "archive_reference": [
+      "Operator requests archival of an active reference record.",
+      "Application queries registered active dependency validators across owning domains.",
+      "If archival would strand unfinished active work, the command returns blockers and performs no mutation.",
+      "Otherwise the record transitions to archived while identity/history remain queryable.",
+      "Archived record disappears from new-active selectors but remains available to historical projections."
+    ],
+    "reactivate_reference": [
+      "Operator explicitly selects an archived record and requests reactivation.",
+      "Current uniqueness/compatibility/invariant checks are rerun rather than assuming prior eligibility still holds.",
+      "Reactivation commits as a new audited lifecycle action without erasing the archival period."
+    ],
+    "create_site_with_dispatch_location": [
+      "HLD-09 Site creation command validates Customer/Site fields and possible physical duplicates.",
+      "The application coordinator requests creation of one dedicated Dispatch Location under HLD-03 rules.",
+      "Site and Dispatch Location identities plus their one-to-one dedicated relationship commit atomically through HLD-02/HLD-14 transaction rules.",
+      "The current effective Site address drives the linked Dispatch Location's current address projection while historical logistics operations retain their own immutable snapshots under HLD-08."
+    ],
+    "write_setting": [
+      "Settings UI submits a typed setting command naming the semantic owner and setting contract.",
+      "Owning module validates meaning; HLD-03 routes through the shared settings registry.",
+      "HLD-02 validates/persists the named/versioned setting atomically.",
+      "A read of an absent setting uses code-defined default behavior without persisting that default until an explicit write."
+    ]
+  },
+  "query_rules": [
+    "Default active selectors exclude archived records unless a workflow explicitly requests historical candidates.",
+    "Historical views resolve references by immutable identity and must not substitute the current name/affiliation for frozen operation-specific evidence where the owning domain stores a snapshot.",
+    "Ambiguity and unresolved state are data returned to the caller, not exceptional guesses hidden inside repositories."
+  ]
+}
