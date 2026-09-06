@@ -1,0 +1,64 @@
+{
+  "schema": "SOMA-HLD-BOUNDARIES-V1",
+  "hld_id": "HLD-01",
+  "name": "Product Boundary and Runtime Topology",
+  "product_boundary": {
+    "deployment_model": "single-user local desktop installation exposing a same-machine browser UI",
+    "authoritative_application_boundary": "one Python host process per canonical SOMA data instance",
+    "authoritative_datastore": "SQLite through HLD-02 owned persistence interfaces",
+    "network_scope": "supported loopback origin only; no LAN, WAN, cloud, or remote-listen mode in Beta 1.0",
+    "browser_role": "untrusted presentation client of the local application boundary; never domain or persistence authority",
+    "runtime_assets": "application runtime assets are local and version-matched with the installed host; no runtime CDN or internet dependency",
+    "installed_runtime": {
+      "operating_systems": ["64-bit Windows 10", "64-bit Windows 11"],
+      "python": ["3.13", "3.14"],
+      "nodejs_required_for_operator_runtime": false
+    },
+    "lineage": "Beta repository, persistence, migrations, packaging, and releases remain independent from Zeus and SOMA Alpha",
+    "distribution": "private proprietary internal product; release and source material remain restricted to authorized internal use"
+  },
+  "runtime_topology": {
+    "authoritative_processes": [
+      {
+        "id": "soma-host",
+        "count_per_data_instance": 1,
+        "responsibilities": [
+          "local HTTP application boundary",
+          "static browser asset serving",
+          "application-service and domain command/query dispatch",
+          "background-job supervision",
+          "authoritative persistence access through HLD-02",
+          "runtime lifecycle and local control surface",
+          "tray lifecycle control"
+        ]
+      }
+    ],
+    "non_authoritative_processes": [
+      {
+        "id": "browser",
+        "count": "zero or more windows/tabs of the supported local operator browser",
+        "lifecycle": "may open, close, reload, or restart without becoming the SOMA application lifetime"
+      }
+    ],
+    "separate_authoritative_worker_service": false,
+    "helper_process_policy": "No helper process may own unique domain truth or write authoritative state independently. A later LLD may justify a bounded helper for unsafe/expensive adapter work only through the same staged/application transaction boundary.",
+    "browser_close_stops_host": false,
+    "host_without_open_browser_is_valid": true
+  },
+  "release_exclusions": [
+    "shared multi-user database/service mode",
+    "cloud-hosted SOMA runtime",
+    "direct email send/receive",
+    "SSH/device operations and connectivity/topology",
+    "language switching",
+    "Alpha database migration as an executable starting point"
+  ],
+  "delegated_design": {
+    "HLD-02": "SQLite connection, migration, runtime registry persistence mechanics, durable jobs, and persistence lifecycle",
+    "HLD-11": "browser shell, routing, interaction state, responsive workbenches, and client implementation",
+    "HLD-13": "local-run authentication/trust, encryption, backup/recovery, diagnostics security, CSRF/origin controls, and shutdown authorization",
+    "HLD-14": "transaction, audit, temporal, history, idempotency, and derived-state cross-cutting rules",
+    "LLD-01": "exact Python server library, port selection mechanics, launchers, tray toolkit, process supervision, API transport details, and shutdown implementation",
+    "LLD-12": "packaging, release assembly, platform/browser matrix details, and installation artifacts"
+  }
+}
