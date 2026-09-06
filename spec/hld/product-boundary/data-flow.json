@@ -1,0 +1,64 @@
+{
+  "schema": "SOMA-HLD-DATA-FLOW-V1",
+  "hld_id": "HLD-01",
+  "flows": {
+    "startup": [
+      "Operator starts SOMA through the supported launcher or equivalent local control.",
+      "The Python host creates a fresh run identity and acquires exclusive ownership of the canonical data instance.",
+      "Configuration and local trust prerequisites are loaded and validated.",
+      "HLD-02 persistence readiness runs: authoritative connection policy, migration/integrity validation, and required recovery gating complete before authoritative service is exposed.",
+      "Application services, domain modules, adapters, and the background-job coordinator initialize against the ready data instance.",
+      "The host selects/binds a supported exact loopback origin only.",
+      "HLD-13 runtime-registry/readiness evidence is published atomically and verified by the launcher through the authenticated exact-origin health protocol.",
+      "Only after successful verification does the launcher open or focus the browser UI."
+    ],
+    "interactive_command": [
+      "Browser sends a same-origin command request to the local application boundary.",
+      "Application boundary authenticates/validates transport context and deserializes a versioned request contract.",
+      "Application service loads required authoritative state and invokes the owning domain policy.",
+      "HLD-14 transaction/audit rules and HLD-02 persistence interfaces commit the accepted mutation atomically.",
+      "Response returns canonical result/revision/projection data to the browser.",
+      "Browser renders the result but does not become authority for the accepted mutation."
+    ],
+    "interactive_query": [
+      "Browser sends a same-origin query request.",
+      "Application/query service reads authoritative state through owned persistence/query interfaces.",
+      "Derived projections are computed reproducibly from owning-domain truth.",
+      "Response returns presentation data without creating a second mutable source of truth."
+    ],
+    "adapter_ingestion": [
+      "Manual or scheduled discovery invokes a source-family adapter inside the host runtime boundary.",
+      "Adapter reads untrusted local source material without authoritative domain mutation.",
+      "Parsed/normalized observations are staged with provenance and validation findings.",
+      "Review/auto-accept policy selects only governed accepted proposals.",
+      "Accepted changes re-enter through the same application-service/domain transaction path as manual commands."
+    ],
+    "background_job": [
+      "The host's background coordinator discovers runnable durable jobs according to the owning domain/runtime policy.",
+      "Before material work, restart-safe phase/checkpoint state is persisted through HLD-02.",
+      "Long work may call adapters or application services but never bypass domain mutation policy.",
+      "Each authoritative checkpoint/mutation commits through normal transaction and audit boundaries.",
+      "Browser presence is not required for job continuity; progress is a projection of durable/runtime job state."
+    ],
+    "browser_restart": [
+      "Browser tab/window may close, reload, crash, or reopen independently.",
+      "The authoritative host, jobs, and persistence remain running until an explicit host stop or fatal runtime failure.",
+      "A reopened browser verifies/uses the current exact local origin and reloads current projections rather than relying on stale client memory."
+    ],
+    "shutdown": [
+      "Operator requests Stop/Exit through an authenticated supported local control such as tray or direct stop launcher.",
+      "HLD-13 revalidates that the target is the exact current SOMA run before control is accepted.",
+      "The host stops accepting new material commands and signals cancellable/background work to checkpoint or finish according to job policy.",
+      "In-flight authoritative transactions complete or roll back; no partial mutation is created by shutdown.",
+      "HLD-02 closes authoritative persistence connections and releases canonical data-instance ownership.",
+      "Runtime readiness/registry state is retired so stale PID/port/registry evidence cannot represent a live instance.",
+      "Forced termination is only a separately governed fallback after fresh identity revalidation and graceful shutdown failure."
+    ]
+  },
+  "transport_shape": {
+    "browser_to_host": "same-origin loopback HTTP using versioned JSON contracts; exact server/framework selection is LLD-01",
+    "host_to_persistence": "in-process owned HLD-02 interfaces",
+    "host_to_local_sources": "narrow adapter interfaces to local files/OS facilities",
+    "host_to_internet": "none required for Beta 1.0 operation"
+  }
+}
