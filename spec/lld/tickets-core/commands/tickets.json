@@ -6,7 +6,7 @@
     {
       "name":"CreateManualServiceRequest",
       "input":["command_id","optional official_sr_no","actor/source"],
-      "steps":["validate optional official identity exactly eight digits","inside UoW reject already-owned official_sr_no","when official absent allocate next non-reusable LSR-########","allocate service_request_id","insert receipt","insert SR revision 1","audit creation and business identity","commit"],
+      "steps":["validate optional official identity exactly eight digits","inside UoW reject already-owned official_sr_no","when official absent allocate next non-reusable LSR-######## and fail before mutation when allocator is at its exhausted sentinel","allocate service_request_id","insert receipt","insert SR revision 1","audit creation and business identity","commit"],
       "rules":["official and local business IDs never become PKs","manual incomplete SR is valid; missing nonidentity facts do not block creation"]
     },
     {
@@ -41,9 +41,9 @@
     },
     {
       "name":"LinkServiceRequestToRfc",
-      "input":["service_request_id","rfc_id","base revisions","optional subordinate_origin_rfc_id","command_id"],
-      "steps":["inside UoW resolve supplied rfc_id to current root target; if action originated from subordinate require supplied governing root matches current hierarchy","revalidate SR/root revisions","require root has no active parent","if active pair exists use semantic NO_CHANGE","allocate link ID","insert receipt","insert active sr_rfc_link","increment affected presentation revisions only where contract requires; do not alter lifecycle","audit relationship and subordinate-origin provenance when applicable","commit"],
-      "rules":["direct subordinate link rejected","terminal SR/RFC may be linked when otherwise valid","no reopen/restart/SLA reset/cascade"]
+      "input":["service_request_id","rfc_id","base revisions","current lifecycle projection revisions/evidence","review context when terminal or historical","optional subordinate_origin_rfc_id","command_id"],
+      "steps":["inside UoW resolve supplied rfc_id to current root target; if action originated from subordinate require supplied governing root matches current hierarchy","revalidate SR/root revisions and current lifecycle projections/evidence","require root has no active parent","if active pair exists use semantic NO_CHANGE without fabricating a new review requirement","when creating a new relation and either current SR or RFC presentation is terminal/historical require explicit fresh reviewed context bound to the exact current lifecycle evidence and proposed root relationship","allocate link ID","insert receipt","insert active sr_rfc_link","increment affected presentation revisions according to the packet revision policy; do not alter lifecycle","audit relationship and subordinate-origin provenance when applicable","commit"],
+      "rules":["direct subordinate link rejected","terminal/historical SR or RFC may receive a new link only after explicit reviewed confirmation","linking never reopens/restarts either ticket, restarts SLA, restores Communications, or cascades lifecycle"]
     },
     {
       "name":"UnlinkServiceRequestFromRfc",
@@ -80,17 +80,17 @@
       "name":"AddWorkingNote",
       "targets":["service_request","rfc"],
       "input":["ticket_id","body_text","command_id"],
-      "steps":["validate bounds","inside UoW prove target exists","allocate note ID","insert receipt","insert owner-specific note","audit creation","commit"]
+      "steps":["validate bounds","inside UoW prove target exists","derive the authenticated singleton Local User Profile identity from trusted session context rather than client input","allocate note ID","insert receipt","insert owner-specific note with immutable created_by_local_user_profile_id","audit","commit"]
     },
     {
       "name":"EditWorkingNote",
       "input":["note identity/owner","base_revision","body_text","command_id"],
-      "steps":["load/revalidate","if same body semantic NO_CHANGE","insert receipt","update body/revision/updated_at while preserving created_at","audit prior/new content under bounded policy","commit"]
+      "steps":["load/revalidate","if same body semantic NO_CHANGE","insert receipt","update body/revision/updated_at while preserving created_at and created_by_local_user_profile_id","audit prior/new content under bounded policy","commit"]
     },
     {
       "name":"RemoveWorkingNote",
       "input":["note identity/owner","base_revision","reason_category","command_id"],
-      "steps":["load/revalidate and capture prior body/creation time","insert receipt","delete active note row through dedicated repository method","insert required audit carrying prior content/event chronology","commit"],
+      "steps":["load/revalidate and capture prior body/creation time/creating Local User Profile identity","insert receipt","delete active note row through dedicated repository method","insert required audit carrying prior content/event chronology/creator reference under bounded audit policy","commit"],
       "rules":["source import cannot call this","removal is audited and does not fabricate a source deletion"]
     }
   ]
