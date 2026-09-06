@@ -1,0 +1,26 @@
+{
+  "schema": "SOMA-HLD-OWNERSHIP-V1",
+  "hld_id": "HLD-07",
+  "authoritative_records": [
+    {"name":"ProductLine","owns":"reusable product/service classification identity independent of Customer"},
+    {"name":"Contract","owns":"customer-specific commercial/operational contract identity under exactly one Customer Organization"},
+    {"name":"ContractProductLine","owns":"association between Contract and Product Line plus current SLA-policy revision"},
+    {"name":"SLAPolicyRevision","owns":"effective tiers/thresholds/template provenance and immutable revision identity"},
+    {"name":"SRClassification","owns":"reviewed current/previous SR-to-CPL assignment with provenance"},
+    {"name":"IndividualSLAProjection","owns":"derived current duration/state for one eligible classified SR; rebuildable"},
+    {"name":"SLACohortProjection","owns":"derived monthly membership, denominator/numerator bounds and cohort state; rebuildable"},
+    {"name":"CompletedReportEvidence","owns":"immutable accepted-state/report provenance and represented results after artifact verification"}
+  ],
+  "identity_rules": [
+    "Product Line identity is never Customer-scoped.",
+    "Contract Product Line identity is Customer-scoped through its Contract.",
+    "SR classification references CPL identity, not a copied Product Line label.",
+    "Policy revisions are immutable historical identities; current policy selection may change without rewriting prior revisions.",
+    "Cohort identity never includes compliance outcome/state."
+  ],
+  "projection_rules": [
+    "Current individual SLA values are derived from accepted facts and current accepted policy/classification.",
+    "Current cohort results are derived from canonical monthly membership and current accepted inputs for the requested as-of boundary.",
+    "Completed report results are immutable evidence even when later live projections change."
+  ]
+}
