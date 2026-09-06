@@ -1,0 +1,26 @@
+{
+  "schema":"SOMA-HLD-PACKET-V1",
+  "id":"HLD-13",
+  "name":"Security, Trust, Diagnostics, and Recovery",
+  "status":"review_ready",
+  "purpose":"Define Beta 1.0 authentication, encryption-key separation, local-instance trust, backup/recovery verification, prohibited-secret boundaries, and non-authoritative sanitized diagnostics without taking ownership from persistence or domain services.",
+  "primary_requirement_ids":["BETA-REQ-0035","BETA-REQ-0036","BETA-REQ-0037","BETA-REQ-0078","BETA-REQ-0108","BETA-REQ-0140","BETA-REQ-0141","BETA-REQ-0142"],
+  "supporting_requirement_ids":["BETA-REQ-0018","BETA-REQ-0059","BETA-REQ-0109","BETA-REQ-0120","BETA-REQ-0131","BETA-REQ-0132","BETA-REQ-0133","BETA-REQ-0134","BETA-REQ-0136","BETA-REQ-0138","BETA-REQ-0143","BETA-REQ-0144"],
+  "decisions":[
+    {"id":"HLD13-D001","decision":"Local Administrator authentication credentials, live-data encryption key material, portable-backup recovery material, per-run authentication identity, and any future device credential-provider reference are separate authorities with separate lifecycles."},
+    {"id":"HLD13-D002","decision":"The Local User Profile authenticates the one local administrator but never becomes the cryptographic authority for live operational data or portable backups."},
+    {"id":"HLD13-D003","decision":"Live operational data is protected under an independently generated Windows-protected data-encryption key; password change must not require rewriting domain identity or treating the password as the data key."},
+    {"id":"HLD13-D004","decision":"Portable backup sets are independently encrypted and self-verifiable; restore verification and compatibility checks complete before live-data mutation begins."},
+    {"id":"HLD13-D005","decision":"Loopback binding is necessary but insufficient for runtime trust. Launcher/control operations require exact origin, process-birth identity, canonical data ownership and authenticated run identity."},
+    {"id":"HLD13-D006","decision":"Reusable device/authentication secrets are prohibited from ordinary domain, evidence, Notes, workbook, audit-payload and diagnostic data. Beta 1.0 exposes no device-credential or SSH controls."},
+    {"id":"HLD13-D007","decision":"Diagnostics are structured external observability records, never authoritative application audit/history. Diagnostic failure may lose diagnostics for otherwise valid work but cannot convert a domain, migration, authorization, audit or integrity failure into success."},
+    {"id":"HLD13-D008","decision":"Sensitive-data prevention occurs before diagnostic queuing/sinks through allowlisted structured context and semantic classification; redaction is defense in depth, and sanitizer failure never falls back to raw data."},
+    {"id":"HLD13-D009","decision":"SOMA performs no automatic diagnostic/support upload. Any future support export is explicit, previewed, re-sanitized and non-authoritative."},
+    {"id":"HLD13-D010","decision":"Security controls fail closed for authentication, authorization, instance identity, integrity, restore verification and prohibited-secret disclosure while retaining bounded diagnosable failure states."}
+  ],
+  "packet_files":["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
+  "downstream_hld_ids":["HLD-14"],
+  "downstream_lld_ids":["LLD-01","LLD-12"],
+  "unresolved_here_by_design":["exact password verifier/KDF parameters","exact AEAD/key-envelope primitives and Windows protection API usage","exact backup envelope/signature/integrity formats and recovery-secret UX","exact local run-auth protocol/token transport and anti-forgery implementation","exact diagnostic file format/rotation/queue limits","exact support-export schema"],
+  "completion_evidence":{"required_packet_files_present":true,"credential_key_backup_separation_fixed":true,"local_instance_trust_boundary_fixed":true,"diagnostic_non_authority_and_sanitization_fixed":true,"restore_verify_before_mutation_fixed":true,"ready_for_owner_review":true}
+}
