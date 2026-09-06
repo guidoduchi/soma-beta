@@ -1,79 +1,82 @@
 {
   "schema":"SOMA-LLD-COMMANDS-V1",
   "lld_id":"LLD-02",
+  "command_ordering":"Every ordinary accepted LLD-02 command follows LLD-01 ordering: idempotency check -> load/revalidate -> allocate immutable IDs -> insert command_receipt -> domain/lifecycle writes -> audit -> commit. Any later failure rolls the receipt back with the command.",
   "commands":[
     {
       "name":"CreateCustomerOrganization",
       "input":["command_id","name","actor/source"],
       "transaction_boundary":"one LLD-01 authoritative UnitOfWork",
-      "steps":["validate semantic bounds","compute name_match_key","allocate customer_org_id","insert active record revision 1","append created lifecycle event","insert receipt/audit","commit"],
+      "steps":["validate semantic bounds","compute name_match_key","allocate customer_org_id and lifecycle_event_id","insert command_receipt","insert active record revision 1","append created lifecycle event referencing receipt","insert audit/result references","commit"],
       "rules":["matching candidates may be shown before command but equal name never blocks creation solely as identity duplication","no implicit merge/adoption"]
     },
     {
       "name":"CreateContact",
       "input":["command_id","name","optional initial email channel","optional initial customer_org_id","actor/source"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["validate referenced active Customer if supplied","compute governed match keys","allocate contact_id and optional contact_channel_id/contact_affiliation_id","insert active Contact","insert optional active email channel","insert optional current affiliation","append created lifecycle event","insert receipt/audit","commit"],
+      "steps":["validate referenced active Customer if supplied","compute governed match keys","allocate contact_id plus optional channel/affiliation/lifecycle IDs","insert command_receipt","insert active Contact","insert optional active email channel","insert optional current affiliation referencing receipt","append created lifecycle event referencing receipt","insert audit/result references","commit"],
       "rules":["zero affiliation is valid","equal name/email candidate evidence never silently selects an existing Contact","initial affiliation preserves Contact identity independence"]
     },
     {
       "name":"UpdateContactDescriptiveData",
       "input":["contact_id","base_revision","name and/or governed channel changes","command_id"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["load immutable contact","revalidate revision","recompute every affected match key","apply explicit Contact/channel mutation","increment affected revisions","append descriptive_corrected lifecycle event when material identity-facing descriptive data changes","insert receipt/audit","commit"],
+      "steps":["load immutable contact","revalidate revision","recompute every affected match key","allocate any lifecycle IDs","insert command_receipt","apply explicit Contact/channel mutation","increment affected revisions","append descriptive_corrected lifecycle event when material identity-facing descriptive data changes","insert audit/result references","commit"],
       "rules":["does not change contact_id or affiliation","channel removal/archive cannot erase historical operational snapshots owned elsewhere"]
     },
     {
       "name":"ChangeContactAffiliation",
       "input":["contact_id","base_revision","new_customer_org_id or null","reason_category","command_id"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["load active Contact and current affiliation","validate new Customer is active when non-null","if requested affiliation equals current return idempotent no-op only when command semantics/hash agree","close current affiliation row when present using accepted occurrence time","insert new current affiliation row when non-null","increment Contact revision","insert receipt/audit referencing relationship change","commit"],
+      "steps":["load active Contact and current affiliation","validate new Customer is active when non-null","resolve idempotent replay through receipt lookup before mutation","allocate new affiliation ID when needed","insert command_receipt","close current affiliation row when present using accepted occurrence time","insert new current affiliation row when non-null referencing receipt","increment Contact revision","insert audit referencing relationship change","commit"],
       "rules":["same Contact identity is retained","historical affiliation rows are never rewritten to current","name equality cannot authorize this command","operational records preserve their own organization-at-use context"]
     },
     {
       "name":"CreateStandaloneDispatchLocation",
       "input":["name","address_text","command_id"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["validate nonblank bounded name/address","compute name_match_key","allocate dispatch_location_id","insert active address_mode standalone","append created lifecycle event","insert receipt/audit","commit"],
+      "steps":["validate nonblank bounded name/address","compute name_match_key","allocate dispatch_location_id and lifecycle_event_id","insert command_receipt","insert active address_mode standalone","append created lifecycle event referencing receipt","insert audit/result references","commit"],
       "rules":["no Customer ownership/preference relationship is created","operation role is not written to the master"]
     },
     {
       "name":"CreateDedicatedDispatchLocationForSite",
-      "visibility":"cross-domain service command used by LLD-08 coordinator, not standalone public commit",
-      "input":["existing UnitOfWork","name","command context"],
-      "steps":["compute match key","allocate dispatch_location_id","insert active address_mode site_derived with null standalone address","append created lifecycle event but do not commit","return identity to LLD-08 coordinator which inserts the one-to-one Site relation before shared commit"],
-      "rule":"failure of Site or relation creation rolls back Dispatch Location creation in the same UnitOfWork"
+      "visibility":"cross-domain service used by LLD-08 coordinator, not standalone public commit",
+      "input":["existing UnitOfWork","already-inserted parent command_receipt","name","command context"],
+      "steps":["require caller has completed idempotency/revalidation and inserted the shared command_receipt in this UnitOfWork","compute match key","allocate dispatch_location_id/lifecycle_event_id","insert active address_mode site_derived with null standalone address","append created lifecycle event referencing shared receipt","return identity/event to LLD-08 coordinator which inserts the one-to-one Site relation and final audit/result references before shared commit"],
+      "rule":"failure of Site/relation/audit creation rolls back Dispatch Location, lifecycle event and receipt in the same UnitOfWork"
     },
     {
       "name":"UpdateReferenceDescriptiveData",
       "targets":["customer_organization","dispatch_location"],
       "input":["target_id","base_revision","allowed descriptive fields","command_id"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["load target","revalidate revision/lifecycle eligibility","validate fields and recompute matching keys","apply change and increment revision","append descriptive_corrected lifecycle event","insert receipt/audit","commit"],
+      "steps":["load target","revalidate revision/lifecycle eligibility","validate fields and recompute matching keys","allocate lifecycle_event_id","insert command_receipt","apply change and increment revision","append descriptive_corrected lifecycle event","insert audit/result references","commit"],
       "rules":["cannot change immutable ID","Dispatch Location cannot change customer ownership because no such field exists","site_derived address cannot be overwritten here; Site address is owned by LLD-08"]
     },
     {
       "name":"ArchiveReference",
       "implementation":"algorithms/archive-validation.json archive",
-      "targets":["customer_organization","contact","dispatch_location"]
+      "targets":["customer_organization","contact","dispatch_location"],
+      "ordering":"archive algorithm inserts receipt after all blocker checks pass and before lifecycle/domain rows"
     },
     {
       "name":"ReactivateReference",
       "implementation":"algorithms/archive-validation.json reactivate",
-      "targets":["customer_organization","contact","dispatch_location"]
+      "targets":["customer_organization","contact","dispatch_location"],
+      "ordering":"reactivation algorithm inserts receipt after all conflict checks pass and before lifecycle/domain rows"
     },
     {
       "name":"WriteSetting",
       "input":["setting_key","base_revision or ABSENT","value","command_id","actor/source"],
       "transaction_boundary":"one UnitOfWork",
-      "steps":["resolve closed SettingDefinition","invoke semantic owner validator","serialize/strictly validate named/versioned JSON through LLD-01","revalidate persisted revision/absence","insert or replace explicit persisted value with next revision","insert receipt/audit","commit"],
+      "steps":["resolve closed SettingDefinition","invoke semantic owner validator","serialize/strictly validate named/versioned JSON through LLD-01","revalidate persisted revision/absence","insert command_receipt","INSERT new row or UPDATE existing row explicitly with next revision; SQL REPLACE is forbidden","insert audit","commit"],
       "rules":["no write occurs merely because a default exists","unknown setting key is rejected","secret-classified settings are rejected from this store and routed to LLD-12-owned storage"]
     },
     {
       "name":"CreateLocalUserProfileIdentity",
       "visibility":"first-run setup coordinator only",
       "input":["username","profile_id","existing UnitOfWork from LLD-12 setup coordinator"],
-      "steps":["require no singleton row","validate bounded username","insert singleton metadata identity","return without internal commit"],
+      "steps":["require caller's shared setup command ordering/idempotency contract","require no singleton row","validate bounded username","insert singleton metadata identity","return without internal commit"],
       "rule":"LLD-12 owns verifier/auto-login creation and the coordinator commits metadata+required authentication state atomically or rolls all back"
     }
   ]
