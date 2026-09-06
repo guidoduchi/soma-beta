@@ -1,0 +1,305 @@
+name: RC006 A2 Repair RFC WFM and Allocate
+
+on:
+  push:
+    branches:
+      - foundation/product-contract-v0.1
+    paths:
+      - '.github/workflows/rc006-a2-repair-rfc-wfm-and-allocate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-allocate:
+    runs-on: ubuntu-latest
+    env:
+      A2_WORK: /tmp/rc006-a2-rfc-wfm
+      PYTHONDONTWRITEBYTECODE: '1'
+      BRANCH: foundation/product-contract-v0.1
+      CANDIDATES: docs/reconciliation/candidates/RC006_A2_RFC_WFM_CONTRACT_CANDIDATES.jsonl
+      ALLOCATOR: tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py
+      SOURCE: docs/RFC_WFM_CONTRACT.md
+      BATCH: A2-BATCH-0003-RFC-WFM-CONTRACT
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Repair only RFC/WFM candidate fingerprints
+        run: |
+          set -euo pipefail
+          mkdir -p "$A2_WORK"
+          test "$(git rev-parse HEAD:$CANDIDATES)" = "707548a2d7e2af90ad845b8c99b73659ee5fecfb"
+          test "$(git rev-parse HEAD:$ALLOCATOR)" = "d479b0e8158b96487d696792f3077e56cf7cce0d"
+          python - <<'PY'
+          import hashlib, json, subprocess, unicodedata
+          from pathlib import Path
+
+          cand = Path('docs/reconciliation/candidates/RC006_A2_RFC_WFM_CONTRACT_CANDIDATES.jsonl')
+          alloc = Path('tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py')
+          work = Path('/tmp/rc006-a2-rfc-wfm')
+
+          def canonical(value):
+              return (json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False) + '\n').encode('utf-8')
+          def sha256(data):
+              return hashlib.sha256(data).hexdigest()
+          def git_blob(data):
+              return hashlib.sha1(f'blob {len(data)}\0'.encode('ascii') + data).hexdigest()
+          def fp(text):
+              normalized = unicodedata.normalize('NFC', text.replace('\r\n', '\n').replace('\r', '\n'))
+              return sha256(normalized.encode('utf-8'))
+
+          old_raw = cand.read_bytes()
+          assert old_raw.endswith(b'\n') and b'\r' not in old_raw
+          old_lines = old_raw.splitlines()
+          assert len(old_lines) == 171, len(old_lines)
+          records=[]
+          for i,line in enumerate(old_lines,1):
+              r=json.loads(line.decode('utf-8'))
+              assert canonical(r) == line+b'\n', i
+              assert r['schema']=='RC006-A2-ASSERTION-CANDIDATE-V1'
+              assert r['source_path']=='docs/RFC_WFM_CONTRACT.md'
+              assert r['source_blob_sha']=='433ffbea4fe291e451b0fefc2b2c8a999c1b1894'
+              assert r['classification_review']=='PASS'
+              records.append(r)
+          assert sorted({r['section_ordinal'] for r in records}) == list(range(1,9))
+          for sec in range(1,9):
+              ords=[r['assertion_ordinal'] for r in records if r['section_ordinal']==sec]
+              assert ords == list(range(1,len(ords)+1)), (sec,ords)
+
+          def nonfp_projection(rows):
+              return b''.join(canonical({k:v for k,v in r.items() if k!='fingerprint_sha256'}) for r in rows)
+          before_nonfp = sha256(nonfp_projection(records))
+          before_exact = sha256(b''.join((r['exact_text']+'\n').encode('utf-8') for r in records))
+          old_payload = sha256(old_raw)
+          old_blob = git_blob(old_raw)
+          assert old_blob == '707548a2d7e2af90ad845b8c99b73659ee5fecfb'
+
+          mismatches=[]
+          for idx,r in enumerate(records,1):
+              expected=fp(r['exact_text'])
+              if r['fingerprint_sha256'] != expected:
+                  mismatches.append({'record':idx,'section_ordinal':r['section_ordinal'],'assertion_ordinal':r['assertion_ordinal'],'old':r['fingerprint_sha256'],'new':expected})
+              r['fingerprint_sha256']=expected
+          assert mismatches, 'F3 unexpectedly absent'
+
+          new_raw=b''.join(canonical(r) for r in records)
+          after_nonfp = sha256(nonfp_projection(records))
+          after_exact = sha256(b''.join((r['exact_text']+'\n').encode('utf-8') for r in records))
+          assert before_nonfp == after_nonfp
+          assert before_exact == after_exact
+          assert len(new_raw.splitlines()) == 171
+          cand.write_bytes(new_raw)
+          new_payload=sha256(new_raw)
+          new_blob=git_blob(new_raw)
+
+          # Minimal frozen-registry extension: no allocation semantics or schema changes.
+          text=alloc.read_text(encoding='utf-8')
+          assert 'TOOL_VERSION = "1.2.0"' in text
+          assert 'RFC_WFM_SOURCE' not in text
+          text=text.replace('TOOL_VERSION = "1.2.0"','TOOL_VERSION = "1.2.1"',1)
+          marker='PRODUCT_BATCH_ID = "A2-BATCH-0001-PRODUCT-CONTRACT"\n'
+          assert marker in text
+          constants=(marker + '\n'
+              'RFC_WFM_SOURCE = "docs/RFC_WFM_CONTRACT.md"\n'
+              'RFC_WFM_CANDIDATE_PATH = "docs/reconciliation/candidates/RC006_A2_RFC_WFM_CONTRACT_CANDIDATES.jsonl"\n'
+              f'RFC_WFM_CANDIDATE_BLOB_SHA = "{new_blob}"\n'
+              f'RFC_WFM_CANDIDATE_PAYLOAD_SHA256 = "{new_payload}"\n'
+              'RFC_WFM_CANDIDATE_COUNT = 171\n'
+              'RFC_WFM_SECTION_COUNT = 8\n'
+              'RFC_WFM_BATCH_ID = "A2-BATCH-0003-RFC-WFM-CONTRACT"\n')
+          text=text.replace(marker,constants,1)
+          old_block='''FROZEN_INITIAL_BATCHES: dict[str, dict[str, Any]] = {\n    PRODUCT_SOURCE: {\n        "batch_id": PRODUCT_BATCH_ID,\n        "candidate_path": PRODUCT_CANDIDATE_PATH,\n        "candidate_git_blob_sha": PRODUCT_CANDIDATE_BLOB_SHA,\n        "candidate_payload_sha256": PRODUCT_CANDIDATE_PAYLOAD_SHA256,\n        "candidate_count": PRODUCT_CANDIDATE_COUNT,\n        "section_ordinals": list(range(1, PRODUCT_SECTION_COUNT + 1)),\n    }\n}\n'''
+          new_block='''FROZEN_INITIAL_BATCHES: dict[str, dict[str, Any]] = {\n    PRODUCT_SOURCE: {\n        "batch_id": PRODUCT_BATCH_ID,\n        "candidate_path": PRODUCT_CANDIDATE_PATH,\n        "candidate_git_blob_sha": PRODUCT_CANDIDATE_BLOB_SHA,\n        "candidate_payload_sha256": PRODUCT_CANDIDATE_PAYLOAD_SHA256,\n        "candidate_count": PRODUCT_CANDIDATE_COUNT,\n        "section_ordinals": list(range(1, PRODUCT_SECTION_COUNT + 1)),\n    },\n    RFC_WFM_SOURCE: {\n        "batch_id": RFC_WFM_BATCH_ID,\n        "candidate_path": RFC_WFM_CANDIDATE_PATH,\n        "candidate_git_blob_sha": RFC_WFM_CANDIDATE_BLOB_SHA,\n        "candidate_payload_sha256": RFC_WFM_CANDIDATE_PAYLOAD_SHA256,\n        "candidate_count": RFC_WFM_CANDIDATE_COUNT,\n        "section_ordinals": list(range(1, RFC_WFM_SECTION_COUNT + 1)),\n    },\n}\n'''
+          assert old_block in text
+          text=text.replace(old_block,new_block,1)
+          alloc.write_text(text,encoding='utf-8',newline='\n')
+
+          report={
+              'schema':'RC006-A2-F3-REPAIR-RESULT-V1',
+              'result':'PASS',
+              'record_count':171,
+              'mismatch_count':len(mismatches),
+              'old_candidate_git_blob_sha':old_blob,
+              'old_candidate_payload_sha256':old_payload,
+              'new_candidate_git_blob_sha':new_blob,
+              'new_candidate_payload_sha256':new_payload,
+              'nonfingerprint_projection_sha256':before_nonfp,
+              'exact_text_sequence_sha256':before_exact,
+              'mismatches':mismatches,
+          }
+          (work/'f3-repair.json').write_bytes(canonical(report))
+          print('F3_REPAIR\tPASS')
+          print('MISMATCH_COUNT\t'+str(len(mismatches)))
+          print('NEW_BLOB\t'+new_blob)
+          print('NEW_PAYLOAD_SHA256\t'+new_payload)
+          PY
+
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py --repo . validate-candidates --source-path "$SOURCE" --candidates "$CANDIDATES" --output "$A2_WORK/v11-validation.json"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('/tmp/rc006-a2-rfc-wfm/v11-validation.json').read_text())
+          f=json.loads(Path('/tmp/rc006-a2-rfc-wfm/f3-repair.json').read_text())
+          assert r['result']=='PASS' and r['candidate_count']==171
+          assert r['pinned_source_blob_sha']=='433ffbea4fe291e451b0fefc2b2c8a999c1b1894'
+          assert r['candidate_payload_sha256']==f['new_candidate_payload_sha256']
+          print('PINNED_SOURCE_SPAN_VALIDATION\tPASS')
+          PY
+
+      - name: Commit repaired corpus and minimal allocator registry extension
+        run: |
+          set -euo pipefail
+          test "$(git status --porcelain | wc -l)" -eq 2
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$CANDIDATES" "$ALLOCATOR"
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git commit -m 'Repair RFC/WFM A2 fingerprints and register frozen corpus'
+          git push origin HEAD:"$BRANCH"
+
+      - name: Validate frozen identity and preallocate exact range
+        run: |
+          set -euo pipefail
+          python "$ALLOCATOR" --repo . validate-frozen --source-path "$SOURCE" --candidates "$CANDIDATES" --output "$A2_WORK/frozen-validation.json"
+          python "$ALLOCATOR" --repo . preallocate --mode INITIAL --source-path "$SOURCE" --candidates "$CANDIDATES" --batch-id "$BATCH" --output "$A2_WORK/preallocation.json"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          v=json.loads(Path('/tmp/rc006-a2-rfc-wfm/frozen-validation.json').read_text())
+          p=json.loads(Path('/tmp/rc006-a2-rfc-wfm/preallocation.json').read_text())
+          f=json.loads(Path('/tmp/rc006-a2-rfc-wfm/f3-repair.json').read_text())
+          assert v['result']=='PASS' and v['candidate_count']==171 and v['section_ordinals']==list(range(1,9))
+          assert v['candidate_git_blob_sha']==f['new_candidate_git_blob_sha']
+          assert v['candidate_payload_sha256']==f['new_candidate_payload_sha256']
+          assert p['result']=='PASS' and p['mutation_performed'] is False
+          assert p['candidate_count']==171 and p['assertion_count']==171
+          assert p['first_assertion_id']=='A2-ASSERT-000654'
+          assert p['last_assertion_id']=='A2-ASSERT-000824'
+          assert p['new_allocated_count']==824
+          print('PREALLOCATION\tPASS\tA2-ASSERT-000654..000824')
+          PY
+
+      - name: Allocate RFC/WFM assertions and verify ledger/state
+        run: |
+          set -euo pipefail
+          python "$ALLOCATOR" --repo . allocate --mode INITIAL --source-path "$SOURCE" --candidates "$CANDIDATES" --batch-id "$BATCH" --output "$A2_WORK/allocation.json"
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          a=json.loads(Path('/tmp/rc006-a2-rfc-wfm/allocation.json').read_text())
+          ledger_path=Path('docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl')
+          state_path=Path('docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json')
+          ledger=[json.loads(x) for x in ledger_path.read_text().splitlines()]
+          state=json.loads(state_path.read_text())
+          assert a['result']=='PASS' and a['mutation_performed'] is True
+          assert a['assertion_count']==171 and a['first_assertion_id']=='A2-ASSERT-000654' and a['last_assertion_id']=='A2-ASSERT-000824'
+          assert len(ledger)==824
+          assert [r['assertion_id'] for r in ledger]==[f'A2-ASSERT-{i:06d}' for i in range(1,825)]
+          tail=ledger[-171:]
+          assert all(r['source_path']=='docs/RFC_WFM_CONTRACT.md' for r in tail)
+          assert all(r['allocation_batch_id']=='A2-BATCH-0003-RFC-WFM-CONTRACT' for r in tail)
+          assert all(r['semantic_review']=='PENDING_AUTHORITY' for r in tail)
+          assert state['allocated_count']==824 and state['next_assertion_number']==825
+          assert state['highest_allocated_assertion_id']=='A2-ASSERT-000824'
+          assert state['completed_initial_sources']==['docs/PRODUCT_CONTRACT.md','docs/IMPORT_CONTRACT.md','docs/RFC_WFM_CONTRACT.md']
+          assert state['batches'][-1]['assertion_count']==171
+          assert hashlib.sha256(ledger_path.read_bytes()).hexdigest()==a['new_ledger_sha256']
+          assert hashlib.sha256(state_path.read_bytes()).hexdigest()==a['new_state_sha256']
+          print('ALLOCATION\tPASS\t824_CONTIGUOUS_ASSERTIONS')
+          PY
+
+      - name: Create batch evidence and commit exact allocation boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          a=json.loads(Path('/tmp/rc006-a2-rfc-wfm/allocation.json').read_text())
+          f=json.loads(Path('/tmp/rc006-a2-rfc-wfm/f3-repair.json').read_text())
+          lines=[
+            '# RC-006-A2 RFC/WFM Contract allocation batch evidence','',
+            '**Batch:** `A2-BATCH-0003-RFC-WFM-CONTRACT`  ',
+            '**Status:** `ALLOCATED / VERIFIED`  ',
+            '**Scope:** F3 fingerprint repair plus stable-ID allocation; semantic reverse-authority review was completed separately.','',
+            '## F3 repair','',
+            f"- Original candidate Git blob: `{f['old_candidate_git_blob_sha']}`",
+            f"- Repaired candidate Git blob: `{f['new_candidate_git_blob_sha']}`",
+            f"- Original candidate SHA-256: `{f['old_candidate_payload_sha256']}`",
+            f"- Repaired candidate SHA-256: `{f['new_candidate_payload_sha256']}`",
+            f"- Fingerprints corrected: `{f['mismatch_count']}` of `171`",
+            f"- Non-fingerprint projection SHA-256 (unchanged): `{f['nonfingerprint_projection_sha256']}`",
+            f"- Exact-text sequence SHA-256 (unchanged): `{f['exact_text_sequence_sha256']}`",'',
+            '## Allocation','',
+            f"- First assertion: `{a['first_assertion_id']}`",
+            f"- Last assertion: `{a['last_assertion_id']}`",
+            f"- Assertion count: `{a['assertion_count']}`",
+            f"- New allocated count: `{a['new_allocated_count']}`",
+            f"- Authority ledger SHA-256: `{a['new_ledger_sha256']}`",
+            f"- Allocation state SHA-256: `{a['new_state_sha256']}`",
+            f"- Allocator version: `{a['tool_version']}`",
+            f"- Allocator Git blob: `{a['tool_git_blob_sha']}`",'',
+            'All 171 newly allocated records are stable identities. Their semantic review result is 171/171 authority-ready from the completed A2 semantic pass; ledger authority-field population remains part of accumulated reconciliation.',''
+          ]
+          Path('docs/reconciliation/RC006_A2_BATCH_0003_RFC_WFM_CONTRACT.md').write_text('\n'.join(lines),encoding='utf-8',newline='\n')
+          PY
+          python - <<'PY'
+          import subprocess
+          expected={'docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl','docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json','docs/reconciliation/RC006_A2_BATCH_0003_RFC_WFM_CONTRACT.md'}
+          paths={line[3:].split(' -> ',1)[-1] for line in subprocess.check_output(['git','status','--porcelain=v1'],text=True).splitlines()}
+          assert paths==expected,(paths,expected)
+          print('ALLOCATION_WORKTREE_BOUNDARY\tPASS')
+          PY
+          git add docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json docs/reconciliation/RC006_A2_BATCH_0003_RFC_WFM_CONTRACT.md
+          git commit -m 'Allocate A2 RFC/WFM assertions 000654-000824'
+          git push origin HEAD:"$BRANCH"
+
+      - name: Mark F3 corrected and remove temporary workflow
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('docs/reconciliation/RC006_A2_FINDINGS.md')
+          t=p.read_text(encoding='utf-8')
+          old='Status: **OPEN with F1–F2 and F7 corrected in HEAD; F3–F4 and F6 open; F5 corrected in HEAD with bounded supersession pending; affected B002 F1/F7 assertions remain for explicit disposition; A2 section-destination map remains incomplete**'
+          new='Status: **OPEN with F1–F3 and F7 corrected in HEAD; F4 and F6 open; F5 corrected in HEAD with bounded supersession pending; affected B002 F1/F7 assertions remain for explicit disposition; A2 section-destination map remains incomplete**'
+          assert old in t
+          t=t.replace(old,new,1)
+          old_status='| `RC006-A2-F3` | MEDIUM assurance-mechanics blocker | The unallocated RFC/WFM candidate corpus contains stored `fingerprint_sha256` values that do not consistently equal SHA-256 of the documented NFC/LF-normalized `exact_text`. Candidate text, locators, ordering, and semantic review remain intact, but the corpus cannot pass the frozen fingerprint contract as written. | `A2-EXTRACTION-SCHEMA-V1` fingerprint rule; `RC006_A2_SCHEMA_AMENDMENT_001.md`; B002 RFC/WFM blob `433ffbea4fe291e451b0fefc2b2c8a999c1b1894` | Regenerate only the pre-allocation candidate fingerprint fields from unchanged reviewed `exact_text`; verify all 171 records and source spans; refreeze before stable-ID allocation. Do not alter source text, boundaries, classification, semantic dispositions, or B002. | **OPEN — PRE-ALLOCATION BLOCKER** |'
+          new_status='| `RC006-A2-F3` | MEDIUM assurance-mechanics blocker | The pre-allocation RFC/WFM candidate corpus contained stored `fingerprint_sha256` values that did not consistently equal SHA-256 of the documented NFC/LF-normalized `exact_text`. | `A2-EXTRACTION-SCHEMA-V1` fingerprint rule; `RC006_A2_SCHEMA_AMENDMENT_001.md`; B002 RFC/WFM blob `433ffbea4fe291e451b0fefc2b2c8a999c1b1894` | Recomputed only fingerprint fields from unchanged reviewed `exact_text`, verified all 171 pinned-source spans and non-fingerprint fields, refroze the corpus, and allocated the verified range `A2-ASSERT-000654..000824`. | **CORRECTED / ALLOCATED** |'
+          assert old_status in t
+          t=t.replace(old_status,new_status,1)
+          old_para='Because no RFC/WFM assertion ID has yet been allocated, the candidate fingerprints shall be repaired before allocation rather than normalized after stable identity creation.'
+          new_para='The repair was completed before RFC/WFM stable identity creation. All 171 source spans and non-fingerprint fields were preserved, the repaired corpus was frozen under the existing allocator contract, and the verified range `A2-ASSERT-000654..000824` was then allocated contiguously.'
+          assert old_para in t
+          t=t.replace(old_para,new_para,1)
+          p.write_text(t,encoding='utf-8',newline='\n')
+          PY
+          git rm .github/workflows/rc006-a2-repair-rfc-wfm-and-allocate.yml
+          git add docs/reconciliation/RC006_A2_FINDINGS.md
+          git commit -m 'Close A2 F3 after verified RFC/WFM allocation'
+          git push origin HEAD:"$BRANCH"
+
+      - name: Final branch verification
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          test "$(git rev-parse HEAD:docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json)" != "924c336e2e7725da6b39f1d9eb1a3bf8c8e2a480"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          s=json.loads(Path('docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json').read_text())
+          assert s['allocated_count']==824 and s['next_assertion_number']==825
+          assert s['highest_allocated_assertion_id']=='A2-ASSERT-000824'
+          assert s['completed_initial_sources'][-1]=='docs/RFC_WFM_CONTRACT.md'
+          assert not Path('.github/workflows/rc006-a2-repair-rfc-wfm-and-allocate.yml').exists()
+          print('FINAL_RFC_WFM_F3_AND_ALLOCATION\tPASS')
+          PY
