@@ -31,5 +31,28 @@
     {"code":"JOB_CLAIM_CONFLICT","http":409,"recoverability":"coordinator_retry","meaning":"durable job claim/checkpoint no longer matches the current run/attempt"},
     {"code":"INTERNAL_ERROR","http":500,"recoverability":"retry_or_support","meaning":"bounded unexpected internal failure; response contains no raw exception or sensitive context"}
   ],
+  "internal_failure_mapping":{
+    "INVALID_PATH":"VALIDATION_FAILED",
+    "MIGRATION_BLOCKED":"MIGRATION_PENDING",
+    "LEDGER_MISMATCH":"MIGRATION_LEDGER_MISMATCH",
+    "MIGRATION_FILE_MISSING":"MIGRATION_DRIFT",
+    "MIGRATION_SQL_FAILURE":"PERSISTENCE_FAILURE",
+    "MIGRATION_LEDGER_FAILURE":"PERSISTENCE_FAILURE",
+    "POST_MIGRATION_INTEGRITY_FAILURE":"INTEGRITY_FAILURE",
+    "SERVER_START_FAILED":"INTERNAL_ERROR",
+    "REGISTRY_PUBLISH_FAILED":"INTERNAL_ERROR",
+    "SELF_HEALTH_FAILED":"SECURITY_NOT_READY",
+    "RUN_ID_MISMATCH":"FORBIDDEN",
+    "SHUTDOWN_TIMEOUT":"INTERNAL_ERROR",
+    "WAL_CHECKPOINT_FAILED":"PERSISTENCE_FAILURE",
+    "RESOURCE_CLOSE_FAILED":"INTERNAL_ERROR",
+    "SQLITE_BUSY_RETRYABLE":"PERSISTENCE_BUSY",
+    "COMMAND_ID_REUSE_MISMATCH":"IDEMPOTENCY_CONFLICT",
+    "DOMAIN_INVARIANT":"VALIDATION_FAILED",
+    "AUDIT_VALIDATION":"AUDIT_VALIDATION_FAILED",
+    "AUDIT_DUPLICATE_ID":"AUDIT_INTEGRITY_FAILURE",
+    "CONSTRAINT_FAILURE":"VALIDATION_FAILED"
+  },
+  "mapping_rule":"Internal failure names are implementation diagnostics only. Cross-packet/API consumers receive the mapped stable category and never depend on raw internal exception/failure names.",
   "logging_rule":"Diagnostic mapping may include sanitized exception classification internally, but the public/stable error code remains the only machine contract consumed by clients and other LLD packets."
 }
