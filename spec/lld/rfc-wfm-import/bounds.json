@@ -12,18 +12,44 @@
   ],
   "workbook":[
     {"limit":"worksheet_count","max":32},
+    {"limit":"header_search_nonempty_rows_per_sheet","max":100},
     {"limit":"logical_matrix_rows_per_sheet","max":250000},
     {"limit":"physical_columns_per_sheet","max":512},
     {"limit":"logical_cells_total","max":8000000},
     {"limit":"shared_string_count","max":1000000},
     {"limit":"defined_name_count","max":4096}
   ],
-  "values":[
-    {"limit":"normalized_cell_utf8_bytes","max":65536},
+  "generic_values":[
+    {"limit":"absolute_normalized_cell_utf8_bytes","max":65536},
     {"limit":"header_utf8_bytes","max":1024},
     {"limit":"finding_message_utf8_bytes","max":2048},
     {"limit":"physical_filename_utf8_bytes","max":1024},
     {"limit":"stored_display_path_utf8_bytes","max":4096}
+  ],
+  "field_bounds":[
+    {"family":"rfc_enhanced","field":"creator","max_utf8_bytes":2048,"max_lines":1},
+    {"family":"rfc_enhanced","field":"customer_account_number","max_utf8_bytes":1024,"max_lines":1},
+    {"family":"rfc_enhanced","field":"customer_account_name","max_utf8_bytes":4096,"max_lines":4},
+    {"family":"rfc_enhanced","field":"severity","max_utf8_bytes":256,"max_lines":1},
+    {"family":"rfc_enhanced","field":"summary","max_utf8_bytes":16384,"max_lines":64},
+    {"family":"rfc_enhanced","field":"status","max_utf8_bytes":256,"max_lines":1},
+    {"family":"rfc_enhanced","field":"owner_external_id","max_utf8_bytes":2048,"max_lines":1},
+    {"family":"rfc_enhanced","field":"owner_name","max_utf8_bytes":4096,"max_lines":4},
+    {"family":"rfc_enhanced","field":"l1_handler_name","max_utf8_bytes":4096,"max_lines":4},
+    {"family":"rfc_enhanced","field":"l2_handler_name","max_utf8_bytes":4096,"max_lines":4},
+    {"family":"rfc_enhanced","field":"deferred_text","max_utf8_bytes":8192,"max_lines":32},
+    {"family":"wfm_service_provider","field":"rfc_status","max_utf8_bytes":256,"max_lines":1},
+    {"family":"wfm_service_provider","field":"task_status","max_utf8_bytes":256,"max_lines":1},
+    {"family":"wfm_service_provider","field":"dispatch_progress","max_utf8_bytes":2048,"max_lines":4},
+    {"family":"wfm_service_provider","field":"rep_office","max_utf8_bytes":2048,"max_lines":4},
+    {"family":"wfm_service_provider","field":"risk_level","max_utf8_bytes":256,"max_lines":1},
+    {"family":"wfm_service_provider","field":"task_name","max_utf8_bytes":16384,"max_lines":64},
+    {"family":"wfm_service_provider","field":"description","max_utf8_bytes":65536,"max_lines":512},
+    {"family":"wfm_service_provider","field":"customer_organization","max_utf8_bytes":4096,"max_lines":4}
+  ],
+  "fixed_identity_fields":[
+    {"field":"RFC No./Task ID","grammar":"NC + exactly 14 ASCII digits"},
+    {"field":"WFM Task No.","grammar":"TK + exactly 14 ASCII digits"}
   ],
   "preview":[
     {"collection":"import observations","default_page":100,"max_page":500,"total_cap":null},
@@ -32,6 +58,8 @@
   ],
   "time_budget":{"automatic_parse_soft_seconds":60,"rule":"soft budget produces a bounded timeout/failure result and no domain mutation; it is not a partial-accept cutoff and does not conceal exact counts from a completed run"},
   "resource_rules":[
+    "all text bounds reject NUL; single-line fields additionally reject CR/LF rather than normalizing them away",
+    "field-specific overflow becomes a field/row finding according to owning field criticality; required identity overflow invalidates that row, optional-field overflow does not silently truncate or destroy independent valid row facts",
     "all archive paths are normalized and must stay inside the in-memory ZIP namespace; absolute, parent-traversal and alternate-stream style names are rejected",
     "no limit authorizes dropping rows/columns and calling a partial parse complete",
     "outside-matrix content is still included in security/resource scanning even when it has no domain meaning",
