@@ -1,0 +1,25 @@
+{
+  "schema":"SOMA-LLD-ERROR-CATALOGUE-V1",
+  "lld_id":"LLD-03",
+  "inherits":"LLD-01 transport/idempotency/stale/persistence errors",
+  "domain_errors":[
+    {"code":"SR_OFFICIAL_ID_CONFLICT","http":409,"recoverability":"review_existing_identity","meaning":"official eight-digit SR identity already belongs to another surviving SR"},
+    {"code":"SR_LOCAL_ID_EXHAUSTED","http":409,"recoverability":"design_or_release_change","meaning":"non-reusable LSR sequence cannot allocate another eight-digit value"},
+    {"code":"RFC_ID_INVALID","http":400,"recoverability":"correct_input","meaning":"value is not exact NC plus fourteen digits"},
+    {"code":"RFC_SOURCE_BRANCH_ARTIFACT","http":200,"recoverability":"none","meaning":"recognized source branch artifact is staged/skipped and does not resolve or mutate canonical RFC"},
+    {"code":"RFC_PARENT_CONFLICT","http":409,"recoverability":"review_hierarchy","meaning":"subordinate already has a different active parent"},
+    {"code":"RFC_HIERARCHY_DEPTH","http":409,"recoverability":"review_hierarchy","meaning":"proposed hierarchy would exceed accepted two levels or make a subordinate a parent"},
+    {"code":"RFC_HIERARCHY_CYCLE","http":409,"recoverability":"review_hierarchy","meaning":"proposed self/cyclic hierarchy is invalid"},
+    {"code":"RFC_CUSTOMER_MISMATCH","http":409,"recoverability":"resolve_customer_or_hierarchy","meaning":"known branch members resolve to different canonical Customers"},
+    {"code":"RFC_CUSTOMER_UNRESOLVED","http":200,"recoverability":"review_when_needed","meaning":"one or more branch Customer identities remain unresolved; relation may remain valid with explicit warning"},
+    {"code":"RFC_DIRECT_SR_LINK_ON_SUBORDINATE","http":409,"recoverability":"link_governing_root","meaning":"direct SR relationship cannot target a subordinate RFC"},
+    {"code":"RFC_REPARENT_REVIEW_REQUIRED","http":409,"recoverability":"complete_high_risk_review","meaning":"protected WFM/history makes reparenting a high-risk correction"},
+    {"code":"RFC_ARCHIVE_SCOPE_STALE","http":409,"recoverability":"reload_review_scope","meaning":"reviewed Master/archive member scope changed before commit"},
+    {"code":"RFC_HARD_DELETE_BLOCKED","http":409,"recoverability":"preserve_or_resolve_dependencies","meaning":"RFC is not a provably untouched manual draft"},
+    {"code":"DEVICE_REFERENCE_INVALID","http":400,"recoverability":"correct_input","meaning":"Device Reference descriptive input violates bounded registration contract"},
+    {"code":"TICKET_RELATIONSHIP_STALE","http":409,"recoverability":"reload_preview","meaning":"relationship/hierarchy context changed since preview"},
+    {"code":"WORKING_NOTE_NOT_FOUND","http":404,"recoverability":"refresh","meaning":"note identity does not resolve under the specified ticket owner"}
+  ],
+  "non_error_states":["semantic NO_CHANGE","unresolved RFC Customer warning","unregistered Device Reference","archived RFC local presentation state"],
+  "rule":"Warnings/non-error states never become guessed ownership, hierarchy or lifecycle mutation."
+}
