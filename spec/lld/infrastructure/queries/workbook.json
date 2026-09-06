@@ -1,0 +1,12 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-08",
+  "queries":[
+    {"name":"InfrastructureWorkbookRunQuery","input":["run_id","proposal filter","cursor","limit"],"output":["run metadata/version/mode/source scope/installation relation/state","file/logical fingerprints","row/warning counts","proposal disposition counts","paged proposals with bounded impact","row-decision summary when terminal","continuation"],"rules":["source workbook path/body/XML are not rendered as authority","foreign-installation state is prominent","technical staging rows are not exposed as mutable domain state"]},
+    {"name":"InfrastructureWorkbookProposalQuery","input":["proposal_id"],"output":["source sheet/row ordinal/fingerprint","action/state","target local identity when any","expected revision","material impact grouped by Site/placement/Model/Cloud/IP/containment/reference creation","validation/warning codes","candidate identities when ambiguous"],"rules":["blank-preserve fields explicitly show NO_CHANGE rather than empty proposed clear","secret/topology-invalid rows never expose prohibited payload content"]},
+    {"name":"InfrastructureWorkbookHistoryQuery","input":["filter by run state/mode/date","cursor","limit"],"output":["run/export summaries","accepted/rejected/failed counts","artifact metadata for exports","continuation"],"rules":["exported file current existence is not required for retained export evidence","accepted run evidence survives staging cleanup"]},
+    {"name":"InfrastructureWorkbookReplayQuery","input":["logical_fingerprint"],"output":["accepted prior run id/date or none"],"rules":["digest is replay identity only and no authenticity/security claim is returned"]}
+  ],
+  "review_projection":"UI review groups proposals into Create, Update, Relationship change, Unchanged, Ambiguous, Unknown reference, Invalid/Skipped and Warnings. Material relationship changes are never hidden inside a generic Updated count.",
+  "reader_contract":"Stable snapshot, paginated rows, bounded impact JSON decoded through versioned closed schemas."
+}
