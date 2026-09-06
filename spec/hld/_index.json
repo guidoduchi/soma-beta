@@ -1,22 +1,28 @@
 {
   "schema": "SOMA-HLD-INDEX-V1",
-  "status": "active",
+  "status": "accepted",
   "purpose": "Define stable high-level ownership boundaries for Beta 1.0 before implementation-level design.",
+  "review_gate": {
+    "owner_accepted": true,
+    "review_pass_1": "PASS — semantic ownership, coverage, lifecycle, identity and cross-domain authority",
+    "review_pass_2": "PASS — implementation readiness, dependency direction and LLD routing",
+    "accepted_scope": "HLD-01..HLD-14"
+  },
   "modules": [
-    {"id":"HLD-01","path":"spec/hld/product-boundary","name":"Product Boundary and Runtime Topology","status":"review_ready"},
-    {"id":"HLD-02","path":"spec/hld/foundation-runtime","name":"Foundation Runtime and Persistence","status":"review_ready"},
-    {"id":"HLD-03","path":"spec/hld/identity-reference","name":"Identity, Settings, and Reference Data","status":"review_ready"},
-    {"id":"HLD-04","path":"spec/hld/tickets","name":"Tickets and RFC Hierarchy","status":"review_ready"},
-    {"id":"HLD-05","path":"spec/hld/import-reconciliation","name":"Import and Reconciliation","status":"review_ready"},
-    {"id":"HLD-06","path":"spec/hld/objectives-tasks","name":"Objectives, Tasks, Scheduling, and Execution","status":"review_ready"},
-    {"id":"HLD-07","path":"spec/hld/product-line-sla","name":"Product Line and SLA","status":"review_ready"},
-    {"id":"HLD-08","path":"spec/hld/inventory","name":"Inventory Lifecycle","status":"review_ready"},
-    {"id":"HLD-09","path":"spec/hld/infrastructure","name":"Infrastructure Physical Model","status":"review_ready"},
-    {"id":"HLD-10","path":"spec/hld/communications","name":"Communications Evidence","status":"review_ready"},
-    {"id":"HLD-11","path":"spec/hld/ui-workbenches","name":"UI, Workbenches, and Interaction State","status":"review_ready"},
-    {"id":"HLD-12","path":"spec/hld/overview","name":"Overview and Cross-domain Projections","status":"review_ready"},
-    {"id":"HLD-13","path":"spec/hld/security-trust","name":"Security, Trust, Diagnostics, and Recovery","status":"review_ready"},
-    {"id":"HLD-14","path":"spec/hld/cross-cutting","name":"Temporal, Audit, History, Transactions, and Derived State","status":"review_ready"}
+    {"id":"HLD-01","path":"spec/hld/product-boundary","name":"Product Boundary and Runtime Topology","status":"accepted"},
+    {"id":"HLD-02","path":"spec/hld/foundation-runtime","name":"Foundation Runtime and Persistence","status":"accepted"},
+    {"id":"HLD-03","path":"spec/hld/identity-reference","name":"Identity, Settings, and Reference Data","status":"accepted"},
+    {"id":"HLD-04","path":"spec/hld/tickets","name":"Tickets and RFC Hierarchy","status":"accepted"},
+    {"id":"HLD-05","path":"spec/hld/import-reconciliation","name":"Import and Reconciliation","status":"accepted"},
+    {"id":"HLD-06","path":"spec/hld/objectives-tasks","name":"Objectives, Tasks, Scheduling, and Execution","status":"accepted"},
+    {"id":"HLD-07","path":"spec/hld/product-line-sla","name":"Product Line and SLA","status":"accepted"},
+    {"id":"HLD-08","path":"spec/hld/inventory","name":"Inventory Lifecycle","status":"accepted"},
+    {"id":"HLD-09","path":"spec/hld/infrastructure","name":"Infrastructure Physical Model","status":"accepted"},
+    {"id":"HLD-10","path":"spec/hld/communications","name":"Communications Evidence","status":"accepted"},
+    {"id":"HLD-11","path":"spec/hld/ui-workbenches","name":"UI, Workbenches, and Interaction State","status":"accepted"},
+    {"id":"HLD-12","path":"spec/hld/overview","name":"Overview and Cross-domain Projections","status":"accepted"},
+    {"id":"HLD-13","path":"spec/hld/security-trust","name":"Security, Trust, Diagnostics, and Recovery","status":"accepted"},
+    {"id":"HLD-14","path":"spec/hld/cross-cutting","name":"Temporal, Audit, History, Transactions, and Derived State","status":"accepted"}
   ],
   "required_packet_files": [
     "_index.json",
