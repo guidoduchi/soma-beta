@@ -1,0 +1,36 @@
+{
+  "schema": "SOMA-HLD-BOUNDARIES-V1",
+  "hld_id": "HLD-08",
+  "owns": [
+    "SR-level Spare Need demand and contributor relations",
+    "Spare Request local identity, allocations and submission evidence",
+    "RMA obligation identity, target assignment, inbound/return-unit relationships",
+    "Spare Part Unit physical inventory identity and Stock eligibility projection",
+    "Task-to-unit allocation history",
+    "reviewed maintenance physical consequences consumed from Task review",
+    "submission logistics intent and actual logistics/custody events",
+    "Fault Tag membership and return-attempt lifecycle",
+    "warehouse receipt/final disposition and resend/replacement/correction history"
+  ],
+  "does_not_own": [
+    "Service Request lifecycle or Customer identity",
+    "Task execution/outcome/review/correction/retry",
+    "Device Reference or Network Element identity",
+    "Communication source/message identity",
+    "Contact or Dispatch Location master identity",
+    "SLA or reporting policy"
+  ],
+  "crossing_rules": [
+    "HLD-06 supplies reviewed Task outcomes/physical-consequence trigger context; Inventory never writes Task outcome state.",
+    "HLD-10 may propose Inventory transitions from communication evidence; acceptance still invokes Inventory commands.",
+    "HLD-03 supplies Contact and Dispatch Location identities; immutable submission/pickup snapshots materialize only represented historical values.",
+    "HLD-09 supplies Device Reference/Network Element context but does not own Inventory physical-unit identity.",
+    "No Inventory relationship mutation may cascade-delete independently surviving tickets, Tasks, Contacts, locations, communications or exported artifacts."
+  ],
+  "physical_boundary": {
+    "device_part_unit": "actual component under an operational Device context; distinct from Inventory Spare Part Unit",
+    "spare_part_unit": "actual inventory/fulfillment physical unit with immutable SOMA identity",
+    "rma": "two-sided provider authorization/return obligation; not the physical unit",
+    "stock": "derived eligibility view over Spare Part Units; not a duplicate unit table"
+  }
+}
