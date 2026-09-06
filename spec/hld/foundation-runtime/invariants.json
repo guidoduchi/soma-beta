@@ -1,0 +1,81 @@
+{
+  "schema": "SOMA-HLD-INVARIANTS-V1",
+  "hld_id": "HLD-02",
+  "invariants": [
+    {
+      "id": "HLD02-INV-001",
+      "rule": "Every authoritative SQLite connection is created by the SOMA connection factory and proves foreign-key enforcement before authoritative use.",
+      "acceptance_hook": "Attempt every supported access path with FK enforcement disabled/misconfigured and require fail-closed behavior."
+    },
+    {
+      "id": "HLD02-INV-002",
+      "rule": "No ordinary application/import/job/test/maintenance path may disable referential enforcement or bypass the owned persistence boundary.",
+      "acceptance_hook": "Static/integration checks detect unmanaged connection/write paths."
+    },
+    {
+      "id": "HLD02-INV-003",
+      "rule": "Every effective child-side foreign-key access path has an effective supporting index or an explicit measured/validated exception.",
+      "acceptance_hook": "Machine-verify FK-to-index coverage after each migration and restore."
+    },
+    {
+      "id": "HLD02-INV-004",
+      "rule": "Migration schema/data changes and their ledger/version evidence publish atomically under one exclusive migrator.",
+      "acceptance_hook": "Failure injection at every migration phase cannot expose schema-without-ledger or ledger-without-schema state."
+    },
+    {
+      "id": "HLD02-INV-005",
+      "rule": "Once accepted, migration identity/order/canonical content/checksum/manifest evidence is immutable; non-disposable data is corrected forward only.",
+      "acceptance_hook": "Accepted migration byte drift or ledger mismatch blocks readiness rather than being rewritten to match."
+    },
+    {
+      "id": "HLD02-INV-006",
+      "rule": "Authoritative readiness is impossible until migration, exact schema, FK and required integrity/append-only checks pass.",
+      "acceptance_hook": "Corrupt/drifted/future/incomplete states never produce a ready host."
+    },
+    {
+      "id": "HLD02-INV-007",
+      "rule": "Migration status is observational: requesting it cannot create or mutate the database, directory, sidecars, ledger, settings, diagnostics, or runtime state merely by inspection.",
+      "acceptance_hook": "Filesystem/database before-and-after snapshots are identical for status against missing/current/error targets."
+    },
+    {
+      "id": "HLD02-INV-008",
+      "rule": "Long external/file work and operator think-time never hold an authoritative SQLite write transaction open.",
+      "acceptance_hook": "Import/mail/bulk/review tests prove parsing/review occurs outside write transactions and stale state is revalidated before commit."
+    },
+    {
+      "id": "HLD02-INV-009",
+      "rule": "Every accepted command publishes all required authoritative state atomically or none of it; partial domain/audit/event publication is forbidden.",
+      "acceptance_hook": "Injected constraint/audit/disk errors roll back the complete command boundary."
+    },
+    {
+      "id": "HLD02-INV-010",
+      "rule": "Persisted JSON belongs to named/versioned bounded contracts and cannot become generic domain storage or silently discard unknown structure.",
+      "acceptance_hook": "Malformed, duplicate-key, nonfinite, oversized, unknown-version, and unknown-field-policy vectors behave deterministically without fallback serialization."
+    },
+    {
+      "id": "HLD02-INV-011",
+      "rule": "Reading settings/documents/status does not create defaults or otherwise mutate authoritative state.",
+      "acceptance_hook": "Pure-read tests verify missing values remain missing until an explicit write command."
+    },
+    {
+      "id": "HLD02-INV-012",
+      "rule": "Technical diagnostics, runtime registry, client state, caches, and projections are non-authoritative and cannot replace relational domain/lifecycle/audit truth.",
+      "acceptance_hook": "Delete/rebuild disposable technical state and verify canonical domain state remains intact."
+    },
+    {
+      "id": "HLD02-INV-013",
+      "rule": "A rebuildable projection owns no unique fact and accepts no independent authoritative mutation.",
+      "acceptance_hook": "Projection rebuild from canonical state reproduces its authoritative-facing output."
+    },
+    {
+      "id": "HLD02-INV-014",
+      "rule": "Crash, cancellation, disk/constraint failure, or process interruption leaves SQLite at the last committed authoritative state.",
+      "acceptance_hook": "Restart/retry failure-injection tests converge from the last committed boundary without duplicate committed migrations or partial commands."
+    },
+    {
+      "id": "HLD02-INV-015",
+      "rule": "Restore candidates are not published until migration-lineage/schema/FK/integrity checks pass; failed restore validation leaves the prior valid data instance unchanged.",
+      "acceptance_hook": "Tampered/unsupported/incomplete restore candidates fail non-destructively."
+    }
+  ]
+}
