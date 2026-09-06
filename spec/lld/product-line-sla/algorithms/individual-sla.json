@@ -1,0 +1,31 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-06",
+  "name":"INDIVIDUAL_SLA_V1",
+  "steps":[
+    "load SlaInput for exact SR and current valid classification for explicit as_of_utc",
+    "if current classification absent return classification_state=unclassified and no policy tier results; do not conflate with missing Report Date",
+    "resolve classified CPL -> active/historical-readable Contract -> current accepted policy revision; current live calculation uses the current accepted policy revision even when SR predates it",
+    "if accepted lifecycle is Cancelled return calculation_state=cancelled_excluded; preserve classification/source chronology but emit no cohort-eligible tier results",
+    "if accepted Report Date missing return calculation_state=missing_report_date and no elapsed value; never substitute import/current/file time",
+    "require recognized supported severity; unresolved severity returns severity_unresolved without guessing a default",
+    "resolve endpoint: for current eligible active SR use as_of_utc; for currently eligible Resolved/Closed use the first accepted effective Resolved/Closed endpoint supplied by ticket/source authority; never use recording/import time or a later Closed to extend an earlier Resolved endpoint",
+    "obtain cumulative accepted source-reported suspension ExactDuration only; do not infer additional suspension from status, planned end or inactivity",
+    "compute raw elapsed rational seconds = endpoint - ReportDate - suspension using common denominator; clamp negative result to exact zero",
+    "for every current policy tier matching severity compare elapsed <= maximum duration by integer cross multiplication",
+    "active SR tier state is active_within when inclusive comparison passes else active_exceeded; eligible terminal Resolved/Closed tier state is terminal_met when it passes else terminal_exceeded",
+    "compute input_fingerprint from SR internal id/source input token/current classification event/CPL/current policy revision/severity/as_of_utc and exact endpoint/suspension evidence refs"
+  ],
+  "suspension_warnings":[
+    "Suspend Planned End Date is not subtracted from elapsed time",
+    "when accepted status=Customer Agreed Suspend and a valid future planned end exists, expose active suspension context and optional ending-soon condition using configured noncontractual threshold",
+    "missing/expired planned end while status reports suspended yields separate source inconsistency warning",
+    "later blank/zero cumulative suspension conflicting with accepted nonzero history must have been resolved by source-review owner before this calculator consumes the accepted value"
+  ],
+  "rules":[
+    "all authoritative duration/policy comparisons are exact rational/integer operations",
+    "passing or failing an individual tier is not itself cohort percentage success/failure",
+    "ResolveBy and Resolve By Suspend never enter the calculation",
+    "Objective/Task scheduling timezone never enters the calculation"
+  ]
+}
