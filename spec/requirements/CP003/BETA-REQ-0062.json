@@ -1,0 +1,50 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0062",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Advanced Search `Product` shall have no Beta 1.0 operational authority, while `Current Handler` shall remain a source-owned current-assignment fact that may support reviewed Contact reconciliation without creating competing local handler state or mutating Contact identity.",
+  "canonical_clause_ids": [
+    "AS-HANDLER-001",
+    "AS-HANDLER-002",
+    "AS-HANDLER-003",
+    "AS-HANDLER-004",
+    "AS-HANDLER-005",
+    "AS-HANDLER-006",
+    "AS-HANDLER-007",
+    "AS-HANDLER-008",
+    "AS-HANDLER-009",
+    "AS-HANDLER-010",
+    "AS-HANDLER-011",
+    "AS-HANDLER-012",
+    "AS-HANDLER-013",
+    "AS-HANDLER-014",
+    "AS-HANDLER-015",
+    "AS-HANDLER-016",
+    "AS-HANDLER-017",
+    "AS-HANDLER-018",
+    "AS-HANDLER-019"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0028",
+    "BETA-REQ-0030",
+    "BETA-REQ-0052"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant: Product discarded; Current Handler source-owned",
+    "hld_owner_seed": "Import/Reconciliation + Tickets + Identity & Settings",
+    "future_lld_destination": "discarded-field guard, source assignment projection, Contact reconciliation proposal",
+    "acceptance_evidence_seed": "Product-nonauthority + blank-handler + no-local-override scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

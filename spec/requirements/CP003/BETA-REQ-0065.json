@@ -1,0 +1,55 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0065",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Each Service Request shall have at most one customer-consistent Contract Product Line classification, established only through deterministic trusted mapping or explicit reviewed selection, with classification changes recalculating current SLA results without rewriting completed report evidence.",
+  "canonical_clause_ids": [
+    "SR-SLA-CLASS-001",
+    "SR-SLA-CLASS-002",
+    "SR-SLA-CLASS-003",
+    "SR-SLA-CLASS-004",
+    "SR-SLA-CLASS-005",
+    "SR-SLA-CLASS-006",
+    "SR-SLA-CLASS-007",
+    "SR-SLA-CLASS-008",
+    "SR-SLA-CLASS-009",
+    "SR-SLA-CLASS-010",
+    "SR-SLA-CLASS-011",
+    "SR-SLA-CLASS-012",
+    "SR-SLA-CLASS-013",
+    "SR-SLA-CLASS-014",
+    "SR-SLA-CLASS-015",
+    "SR-SLA-CLASS-016",
+    "SR-SLA-CLASS-017",
+    "SR-SLA-CLASS-018",
+    "SR-SLA-CLASS-019",
+    "SR-SLA-CLASS-020",
+    "SR-SLA-CLASS-021",
+    "SR-SLA-CLASS-022",
+    "SR-SLA-CLASS-023"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0062",
+    "BETA-REQ-0019",
+    "BETA-REQ-0064",
+    "BETA-REQ-0071"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Business invariant: at most one customer-compatible SR SLA classification",
+    "hld_owner_seed": "Tickets + SLA Policy + Import/Reconciliation",
+    "future_lld_destination": "classification mapping, review, org correction, recalculation",
+    "acceptance_evidence_seed": "unique-map + ambiguity + cross-customer + reclass + snapshot-immutability scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

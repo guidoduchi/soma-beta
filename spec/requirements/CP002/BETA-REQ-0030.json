@@ -1,0 +1,40 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0030",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "SOMA Beta shall reconcile reference candidates through deterministic, scope-aware exact matching and shall preserve ambiguity rather than infer identity from approximate similarity.",
+  "canonical_clause_ids": [
+    "MATCH-001",
+    "MATCH-002",
+    "MATCH-003",
+    "MATCH-004",
+    "MATCH-005",
+    "MATCH-006",
+    "MATCH-007",
+    "MATCH-008",
+    "MATCH-009",
+    "MATCH-010",
+    "MATCH-011"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0028"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Business rule: deterministic candidate reconciliation",
+    "hld_owner_seed": "Import/Reconciliation + Identity & Settings",
+    "future_lld_destination": "Normalization function, scope keys, ambiguity state",
+    "acceptance_evidence_seed": "Unicode normalization + ambiguity golden vectors"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

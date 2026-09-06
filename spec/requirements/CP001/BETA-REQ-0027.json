@@ -1,0 +1,40 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0027",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "SOMA Beta shall anchor regularized Infrastructure ownership and placement to Customer-owned physical Sites while keeping Cloud Types reusable and provisional Device References independently usable before regularization.",
+  "canonical_clause_ids": [
+    "INFRA-OWN-001",
+    "INFRA-OWN-002",
+    "INFRA-OWN-003",
+    "INFRA-OWN-004",
+    "INFRA-OWN-005",
+    "INFRA-OWN-006",
+    "INFRA-OWN-007",
+    "INFRA-OWN-008",
+    "INFRA-OWN-009",
+    "INFRA-OWN-010"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0106",
+    "BETA-REQ-0049"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Site-rooted Infrastructure ownership; use cases: register Site / regularize Device Reference / assign Cloud Deployment",
+    "hld_owner_seed": "Infrastructure + Customer reference boundary",
+    "future_lld_destination": "Site ownership/cardinality, Cloud relationships, regularization, duplicate review",
+    "acceptance_evidence_seed": "Ownership, placement, progressive-registration, duplicate-site scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

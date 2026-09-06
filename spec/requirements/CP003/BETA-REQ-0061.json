@@ -1,0 +1,45 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0061",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "SOMA Beta shall interpret timestamps and controlled source values through versioned source-family semantics while keeping source, ordinary/SLA, and Objective scheduling-time authorities distinct and preserving unrecognized evidence non-destructively.",
+  "canonical_clause_ids": [
+    "SRC-SEM-001",
+    "SRC-SEM-002",
+    "SRC-SEM-003",
+    "SRC-SEM-004",
+    "SRC-SEM-005",
+    "SRC-SEM-006",
+    "SRC-SEM-007",
+    "SRC-SEM-008",
+    "SRC-SEM-009",
+    "SRC-SEM-010",
+    "SRC-SEM-011",
+    "SRC-SEM-012",
+    "SRC-SEM-013",
+    "SRC-SEM-014",
+    "SRC-SEM-015",
+    "SRC-SEM-016"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0017"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant: versioned source semantics and distinct timezone authorities",
+    "hld_owner_seed": "Import/Reconciliation + Temporal authority",
+    "future_lld_destination": "source profile, timezone parser, vocabulary registry, unknown-value projection",
+    "acceptance_evidence_seed": "offset + no-offset + filename-TZ + unknown-vocabulary scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

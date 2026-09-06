@@ -1,0 +1,43 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0048",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "UI/UX obligation",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Eligible scheduled Tasks shall create or join Objectives through one uniform overlap algorithm, while RFC hierarchy contributes review context and warnings without fabricating or reclassifying work.",
+  "canonical_clause_ids": [
+    "OBJ-GROUP-001",
+    "OBJ-GROUP-002",
+    "OBJ-GROUP-003",
+    "OBJ-GROUP-004",
+    "OBJ-GROUP-005",
+    "OBJ-GROUP-006",
+    "OBJ-GROUP-007",
+    "OBJ-GROUP-008",
+    "OBJ-GROUP-009",
+    "OBJ-GROUP-010",
+    "OBJ-GROUP-011",
+    "OBJ-GROUP-012"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0040",
+    "BETA-REQ-0013"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: Task-driven Objective grouping / RFC collision review",
+    "hld_owner_seed": "Objectives grouping + Tickets/RFC context consumer",
+    "future_lld_destination": "Eligibility evaluator, overlap engine, RFC context resolver, warnings",
+    "acceptance_evidence_seed": "Local/WFM parity + hierarchy-context + nonblocking-warning scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

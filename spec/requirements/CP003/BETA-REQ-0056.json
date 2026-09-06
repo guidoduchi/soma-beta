@@ -1,0 +1,49 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0056",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "All governed workbook imports shall derive deterministic logical fingerprints from canonical allowlisted content and use them with source chronology to make replay idempotent without fabricating operational changes.",
+  "canonical_clause_ids": [
+    "IMPORT-FP-001",
+    "IMPORT-FP-002",
+    "IMPORT-FP-003",
+    "IMPORT-FP-004",
+    "IMPORT-FP-005",
+    "IMPORT-FP-006",
+    "IMPORT-FP-007",
+    "IMPORT-FP-008",
+    "IMPORT-FP-009",
+    "IMPORT-FP-010",
+    "IMPORT-FP-011",
+    "IMPORT-FP-012",
+    "IMPORT-FP-013",
+    "IMPORT-FP-014",
+    "IMPORT-FP-015",
+    "IMPORT-FP-016",
+    "IMPORT-FP-017",
+    "IMPORT-FP-018",
+    "IMPORT-FP-019",
+    "IMPORT-FP-020",
+    "IMPORT-FP-021"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant: deterministic replay-safe official workbook imports",
+    "hld_owner_seed": "Import/Reconciliation shared boundary",
+    "future_lld_destination": "canonical serialization, SHA-256 fingerprint, replay key, no-op detection",
+    "acceptance_evidence_seed": "package-rewrite + row-order + replay + newer-identical-content scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

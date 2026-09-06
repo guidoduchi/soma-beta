@@ -1,0 +1,46 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0058",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Advanced Search customer reference data shall drive reviewed, deterministic reconciliation without becoming relational identity or blocking otherwise valid Service Request imports when Customer Organization or Contact identity remains unresolved.",
+  "canonical_clause_ids": [
+    "AS-REF-001",
+    "AS-REF-002",
+    "AS-REF-003",
+    "AS-REF-004",
+    "AS-REF-005",
+    "AS-REF-006",
+    "AS-REF-007",
+    "AS-REF-008",
+    "AS-REF-009",
+    "AS-REF-010",
+    "AS-REF-011",
+    "AS-REF-012",
+    "AS-REF-013",
+    "AS-REF-014",
+    "AS-REF-015",
+    "AS-REF-016"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0028",
+    "BETA-REQ-0030"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use case: reconcile customer/contact references during SR import",
+    "hld_owner_seed": "Import/Reconciliation + Identity & Settings",
+    "future_lld_destination": "account-code resolver, candidate matching, minimal-record proposal",
+    "acceptance_evidence_seed": "unknown + ambiguous + conflicting-code + equal-name scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

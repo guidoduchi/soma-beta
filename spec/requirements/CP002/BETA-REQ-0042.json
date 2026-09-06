@@ -1,0 +1,41 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0042",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Distinct WFM identities shall remain independent attempts, and potentially competing attempts shall be explicitly reviewed without identity collapse or overlapping-Objective workarounds.",
+  "canonical_clause_ids": [
+    "WFM-ATTEMPT-001",
+    "WFM-ATTEMPT-002",
+    "WFM-ATTEMPT-003",
+    "WFM-ATTEMPT-004",
+    "WFM-ATTEMPT-005",
+    "WFM-ATTEMPT-006",
+    "WFM-ATTEMPT-007",
+    "WFM-ATTEMPT-008",
+    "WFM-ATTEMPT-009",
+    "WFM-ATTEMPT-010"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0013",
+    "BETA-REQ-0019",
+    "BETA-REQ-0010"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: WFM attempt independence and activity-lineage conflict",
+    "hld_owner_seed": "Tickets + Objectives + Import/Reconciliation",
+    "future_lld_destination": "Attempt identity, lineage/conflict state, grouping guardrails",
+    "acceptance_evidence_seed": "Distinct-attempt + conflict-review + no-overlap-workaround scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

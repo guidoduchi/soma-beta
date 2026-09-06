@@ -1,0 +1,52 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0069",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "UI/UX obligation",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Recognized terminal Service Request states shall suppress active-work and live SLA-risk notifications while preserving terminal evidence and governed cohort eligibility, with supplemental alerts throttled persistently and suspected reversals handled as high-risk review.",
+  "canonical_clause_ids": [
+    "SR-NOTIFY-001",
+    "SR-NOTIFY-002",
+    "SR-NOTIFY-003",
+    "SR-NOTIFY-004",
+    "SR-NOTIFY-005",
+    "SR-NOTIFY-006",
+    "SR-NOTIFY-007",
+    "SR-NOTIFY-008",
+    "SR-NOTIFY-009",
+    "SR-NOTIFY-010",
+    "SR-NOTIFY-011",
+    "SR-NOTIFY-012",
+    "SR-NOTIFY-013",
+    "SR-NOTIFY-014",
+    "SR-NOTIFY-015",
+    "SR-NOTIFY-016",
+    "SR-NOTIFY-017",
+    "SR-NOTIFY-018",
+    "SR-NOTIFY-019",
+    "SR-NOTIFY-020"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0064",
+    "BETA-REQ-0057",
+    "BETA-REQ-0063"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Business invariant: terminal lifecycle suppresses live alerting without erasing cohort evidence",
+    "hld_owner_seed": "Tickets + SLA + Overview/Needs Attention",
+    "future_lld_destination": "terminal projection, notification dedupe, reversal warning",
+    "acceptance_evidence_seed": "terminal-suppression + cohort + restart-throttle + reversal scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

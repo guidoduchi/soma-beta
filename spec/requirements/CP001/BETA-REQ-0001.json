@@ -1,0 +1,31 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0001",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta shall maintain an independent product, repository, persistence, migration, and release lineage from Zeus and SOMA Alpha.",
+  "canonical_clause_ids": [
+    "LINEAGE-001",
+    "LINEAGE-002",
+    "LINEAGE-003",
+    "LINEAGE-004"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Independent Product Lineage",
+    "hld_owner_seed": "Foundation Runtime / Product Boundary",
+    "future_lld_destination": "Repository, migration, packaging and provenance specifications",
+    "acceptance_evidence_seed": "Repository + migration-lineage verification"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

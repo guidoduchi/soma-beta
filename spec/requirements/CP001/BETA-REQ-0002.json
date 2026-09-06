@@ -1,0 +1,33 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0002",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Functional capability",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta shall provide its primary operator experience through a locally served web interface backed by a Python application boundary.",
+  "canonical_clause_ids": [
+    "RUNTIME-001",
+    "RUNTIME-002",
+    "RUNTIME-003",
+    "RUNTIME-004"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0004"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use-case family: Launch and operate SOMA locally",
+    "hld_owner_seed": "Local UI + Application Boundary",
+    "future_lld_destination": "Runtime, API, frontend/backend integration",
+    "acceptance_evidence_seed": "Local launch and functional operator-flow verification"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

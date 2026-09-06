@@ -1,0 +1,38 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0028",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Every Contact shall retain an independent SOMA identity that cannot be established, merged, or selected solely from descriptive or matching attributes.",
+  "canonical_clause_ids": [
+    "CONTACT-ID-001",
+    "CONTACT-ID-002",
+    "CONTACT-ID-003",
+    "CONTACT-ID-004",
+    "CONTACT-ID-005",
+    "CONTACT-ID-006",
+    "CONTACT-ID-007",
+    "CONTACT-ID-008",
+    "CONTACT-ID-009"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Contact identity independence; use cases: reconcile/select Contact",
+    "hld_owner_seed": "Identity & Settings + Import/Reconciliation",
+    "future_lld_destination": "Contact identity, scoped matching, ambiguity resolution",
+    "acceptance_evidence_seed": "Duplicate-name/email-scope + ambiguous-match scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

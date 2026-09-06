@@ -1,0 +1,47 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0054",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Functional capability",
+    "Security/privacy constraint",
+    "Business rule"
+  ],
+  "governing_obligation": "SOMA Beta shall provide controlled manual and automatic Advanced Search workbook discovery that deterministically selects eligible source evidence into staging without mutating operational data before authorized acceptance.",
+  "canonical_clause_ids": [
+    "AS-DISC-001",
+    "AS-DISC-002",
+    "AS-DISC-003",
+    "AS-DISC-004",
+    "AS-DISC-005",
+    "AS-DISC-006",
+    "AS-DISC-007",
+    "AS-DISC-008",
+    "AS-DISC-009",
+    "AS-DISC-010",
+    "AS-DISC-011",
+    "AS-DISC-012",
+    "AS-DISC-013",
+    "AS-DISC-014",
+    "AS-DISC-015",
+    "AS-DISC-016"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0061",
+    "BETA-REQ-0055"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: configure inbox / manual select / automatic discover; invariant: discovery is staging-only",
+    "hld_owner_seed": "Import/Reconciliation + Settings",
+    "future_lld_destination": "candidate enumeration, stability checks, chronology selection, staging handoff",
+    "acceptance_evidence_seed": "manual + newest-file + traversal/link + stale-candidate + no-mutation scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

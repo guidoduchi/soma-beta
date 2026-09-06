@@ -1,0 +1,42 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0018",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta shall enforce all structural and domain invariants transactionally across every persistent mutation path.",
+  "canonical_clause_ids": [
+    "VALID-001",
+    "VALID-002",
+    "VALID-003",
+    "VALID-004",
+    "VALID-005",
+    "VALID-006",
+    "VALID-007",
+    "VALID-008",
+    "VALID-009"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0136",
+    "BETA-REQ-0131",
+    "BETA-REQ-0132",
+    "BETA-REQ-0135",
+    "BETA-REQ-0121"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Uniform transactional integrity",
+    "hld_owner_seed": "Foundation Runtime + all domain application boundaries",
+    "future_lld_destination": "Validation order, DB constraints, unit-of-work, error taxonomy",
+    "acceptance_evidence_seed": "Invariant + rollback + cross-entry-point tests"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

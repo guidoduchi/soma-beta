@@ -1,0 +1,52 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0066",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta shall derive each current source-owned Service Request field from its newest accepted usable field observation while preserving compact, provenance-rich historical deltas instead of redundant workbook snapshots or purgeable source-history copies.",
+  "canonical_clause_ids": [
+    "SR-SRC-HIST-001",
+    "SR-SRC-HIST-002",
+    "SR-SRC-HIST-003",
+    "SR-SRC-HIST-004",
+    "SR-SRC-HIST-005",
+    "SR-SRC-HIST-006",
+    "SR-SRC-HIST-007",
+    "SR-SRC-HIST-008",
+    "SR-SRC-HIST-009",
+    "SR-SRC-HIST-010",
+    "SR-SRC-HIST-011",
+    "SR-SRC-HIST-012",
+    "SR-SRC-HIST-013",
+    "SR-SRC-HIST-014",
+    "SR-SRC-HIST-015",
+    "SR-SRC-HIST-016",
+    "SR-SRC-HIST-017",
+    "SR-SRC-HIST-018",
+    "SR-SRC-HIST-019",
+    "SR-SRC-HIST-020"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0060",
+    "BETA-REQ-0062",
+    "BETA-REQ-0072"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant: field-level current projection + compact source deltas",
+    "hld_owner_seed": "Tickets + Import/Reconciliation + Audit/History",
+    "future_lld_destination": "field observation selection, delta persistence, history projection",
+    "acceptance_evidence_seed": "mixed-current + unchanged-import + summary-revision + terminal-history scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

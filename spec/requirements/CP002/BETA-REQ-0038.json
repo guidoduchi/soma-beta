@@ -1,0 +1,43 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0038",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Service Requests shall provide pivotal operational context without becoming universal parents, while each related domain entity retains its explicitly governed ownership and relationship path.",
+  "canonical_clause_ids": [
+    "SR-HUB-001",
+    "SR-HUB-002",
+    "SR-HUB-003",
+    "SR-HUB-004",
+    "SR-HUB-005",
+    "SR-HUB-006",
+    "SR-HUB-007",
+    "SR-HUB-008",
+    "SR-HUB-009",
+    "SR-HUB-010",
+    "SR-HUB-011",
+    "SR-HUB-012",
+    "SR-HUB-013",
+    "SR-HUB-014"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0044"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: domain-owned relationships with SR-centered correlation",
+    "hld_owner_seed": "Tickets + Objectives + Inventory + Infrastructure boundaries",
+    "future_lld_destination": "Cardinality/FK model, relationship derivation, consistency validation",
+    "acceptance_evidence_seed": "Standalone-existence + mandatory-owner + derived-context scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

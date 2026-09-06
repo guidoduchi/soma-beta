@@ -1,0 +1,71 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0076",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule",
+    "Security/privacy constraint"
+  ],
+  "governing_obligation": "Each official Service Request identity shall survive terminal state, disappearance, reappearance, and reviewed terminal reversal as one continuous record, while reversal remains explicitly high-risk and workbook validation evidence is never overstated as publisher-authenticity proof.",
+  "canonical_clause_ids": [
+    "SR-CONT-001",
+    "SR-CONT-002",
+    "SR-CONT-003",
+    "SR-CONT-004",
+    "SR-CONT-005",
+    "SR-CONT-006",
+    "SR-CONT-007",
+    "SR-CONT-008",
+    "SR-CONT-009",
+    "SR-CONT-010",
+    "SR-CONT-011",
+    "SR-CONT-012",
+    "SR-CONT-013",
+    "SR-CONT-014",
+    "SR-CONT-015",
+    "SR-CONT-016",
+    "SR-CONT-017",
+    "SR-CONT-018",
+    "SR-CONT-019",
+    "SR-CONT-020",
+    "SR-CONT-021",
+    "SR-CONT-022",
+    "SR-CONT-023",
+    "SR-CONT-024",
+    "SR-CONT-025",
+    "SR-CONT-026",
+    "SR-CONT-027",
+    "SR-CONT-028",
+    "SR-CONT-029",
+    "SR-CONT-030",
+    "SR-CONT-031",
+    "SR-CONT-032",
+    "SR-CONT-033",
+    "SR-CONT-034",
+    "SR-CONT-035",
+    "SR-CONT-036",
+    "SR-CONT-037"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0011",
+    "BETA-REQ-0074",
+    "BETA-REQ-0056",
+    "BETA-REQ-0064",
+    "BETA-REQ-0071"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant/use cases: one continuous SR identity / review terminal reversal",
+    "hld_owner_seed": "Tickets + Import/Reconciliation + SLA + Reporting",
+    "future_lld_destination": "identity guard, reversal proposal, consequence preview, trust language",
+    "acceptance_evidence_seed": "terminal-update + reappearance + accept/reject + unsigned-workbook scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0079",
+  "status": "accepted",
+  "normalization_checkpoint": "CP004",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "A Spare Need shall persist as one Service-Request-level part-demand aggregate whose contributing Device Part Units, derived contributor count, and operator-governed planning quantities remain distinct from subsequent Stock or Spare Request fulfillment activity.",
+  "canonical_clause_ids": [
+    "SPNEED-001",
+    "SPNEED-002",
+    "SPNEED-003",
+    "SPNEED-004",
+    "SPNEED-005",
+    "SPNEED-006",
+    "SPNEED-007",
+    "SPNEED-008",
+    "SPNEED-009",
+    "SPNEED-010",
+    "SPNEED-011",
+    "SPNEED-012",
+    "SPNEED-013",
+    "SPNEED-014",
+    "SPNEED-015",
+    "SPNEED-016",
+    "SPNEED-017",
+    "SPNEED-018",
+    "SPNEED-019",
+    "SPNEED-020",
+    "SPNEED-021"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant/use case: one SR-level Spare Need aggregate with preserved Device Part Unit contributors",
+    "hld_owner_seed": "Inventory + Tickets",
+    "future_lld_destination": "Spare Need aggregate, contributor relation, planned-vs-derived quantity projection",
+    "acceptance_evidence_seed": "same-SR multi-device + cross-SR separation + request-does-not-consume scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP004_CATALOGUE.md",
+    "clauses": "docs/normalization/CP004_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP004_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP004_TRACEABILITY.md"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0007",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Security/privacy constraint",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta source control shall exclude operational, customer, secret, runtime, persistence, communication, diagnostic, backup, export, and generated operational material.",
+  "canonical_clause_ids": [
+    "SCM-001",
+    "SCM-002",
+    "SCM-003",
+    "SCM-004",
+    "SCM-005",
+    "SCM-006",
+    "SCM-007",
+    "SCM-008"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0130",
+    "BETA-REQ-0137",
+    "BETA-REQ-0138",
+    "BETA-REQ-0141",
+    "BETA-REQ-0142"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Repository operational-data isolation",
+    "hld_owner_seed": "Product Boundary / Security Boundary",
+    "future_lld_destination": "Repository policy, ignore rules, fixture governance, secret scanning",
+    "acceptance_evidence_seed": "Repository-content and secret-scan verification"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

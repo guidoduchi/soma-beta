@@ -1,0 +1,67 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0102",
+  "status": "accepted",
+  "normalization_checkpoint": "CP004",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "UI/UX obligation",
+    "Business rule"
+  ],
+  "governing_obligation": "SOMA Beta shall use Infrastructure as the canonical registered-device domain, represent operational devices through persistent Device References that may deliberately resolve to exactly one Network Element without duplication, and keep each Network Element's identity distinct from model, components, compound structure, placement, cloud attributes, and legacy Managed Element terminology.",
+  "canonical_clause_ids": [
+    "INFRA-TERM-001",
+    "INFRA-TERM-002",
+    "INFRA-TERM-003",
+    "INFRA-TERM-004",
+    "INFRA-TERM-005",
+    "INFRA-TERM-006",
+    "INFRA-TERM-007",
+    "INFRA-TERM-008",
+    "INFRA-TERM-009",
+    "INFRA-TERM-010",
+    "INFRA-TERM-011",
+    "INFRA-TERM-012",
+    "INFRA-TERM-013",
+    "INFRA-TERM-014",
+    "INFRA-TERM-015",
+    "INFRA-TERM-016",
+    "INFRA-TERM-017",
+    "INFRA-TERM-018",
+    "INFRA-TERM-019",
+    "INFRA-TERM-020",
+    "INFRA-TERM-021",
+    "INFRA-TERM-022",
+    "INFRA-TERM-023",
+    "INFRA-TERM-024",
+    "INFRA-TERM-025",
+    "INFRA-TERM-026",
+    "INFRA-TERM-027",
+    "INFRA-TERM-028",
+    "INFRA-TERM-029",
+    "INFRA-TERM-030",
+    "INFRA-TERM-031",
+    "INFRA-TERM-032",
+    "INFRA-TERM-033"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0027",
+    "BETA-REQ-0049",
+    "BETA-REQ-0075",
+    "BETA-REQ-0097",
+    "BETA-REQ-0010"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant/use cases: reference unregistered device / deliberately promote / reconcile legacy terminology / relocate Network Element",
+    "hld_owner_seed": "Infrastructure + Tickets/Inventory Device Reference consumers",
+    "future_lld_destination": "Device Reference↔Network Element relation, promotion/reconciliation, duplicate candidate resolution, legacy mapping",
+    "acceptance_evidence_seed": "unregistered-device + promotion-no-duplication + one-NE-resolution + relocation-preserves-ID + legacy-label scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP004_CATALOGUE.md",
+    "clauses": "docs/normalization/CP004_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP004_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP004_TRACEABILITY.md"
+  }
+}

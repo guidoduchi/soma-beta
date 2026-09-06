@@ -1,0 +1,42 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0044",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "UI/UX obligation"
+  ],
+  "governing_obligation": "An Objective shall derive all Service Request context exclusively through its constituent Tasks and shall expose that relationship provenance without maintaining independent Objective-level SR authority.",
+  "canonical_clause_ids": [
+    "OBJ-SR-001",
+    "OBJ-SR-002",
+    "OBJ-SR-003",
+    "OBJ-SR-004",
+    "OBJ-SR-005",
+    "OBJ-SR-006",
+    "OBJ-SR-007",
+    "OBJ-SR-008",
+    "OBJ-SR-009",
+    "OBJ-SR-010"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0038",
+    "BETA-REQ-0039",
+    "BETA-REQ-0041",
+    "BETA-REQ-0018"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant/use case: Task-mediated Objective SR context and provenance",
+    "hld_owner_seed": "Objectives consumer + Tickets/Task fact authority",
+    "future_lld_destination": "Derived SR query, RFC path resolution, provenance projection",
+    "acceptance_evidence_seed": "Local/WFM derivation + mutation + provenance scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

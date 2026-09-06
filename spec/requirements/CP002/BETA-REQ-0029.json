@@ -1,0 +1,45 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0029",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "A Contact shall preserve one continuous identity independently of Customer Organization affiliation, while affiliation changes and operational organization context remain explicit historical relationships.",
+  "canonical_clause_ids": [
+    "CONTACT-AFF-001",
+    "CONTACT-AFF-002",
+    "CONTACT-AFF-003",
+    "CONTACT-AFF-004",
+    "CONTACT-AFF-005",
+    "CONTACT-AFF-006",
+    "CONTACT-AFF-007",
+    "CONTACT-AFF-008",
+    "CONTACT-AFF-009",
+    "CONTACT-AFF-010",
+    "CONTACT-AFF-011",
+    "CONTACT-AFF-012",
+    "CONTACT-AFF-013",
+    "CONTACT-AFF-014"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0028",
+    "BETA-REQ-0020"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Contact affiliation history; use cases: affiliate/reassign/reconcile Contact",
+    "hld_owner_seed": "Identity & Settings + Tickets + Import/Reconciliation",
+    "future_lld_destination": "Affiliation history, mismatch warning, reviewed correction",
+    "acceptance_evidence_seed": "Affiliation-change + mismatch + historical-context scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

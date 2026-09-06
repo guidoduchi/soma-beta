@@ -1,0 +1,49 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0037",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Security/privacy constraint",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta shall export each portable backup as an independently encrypted, self-verifiable backup set with high-entropy recovery and required detached integrity/authenticity artifacts, and shall successfully validate that set before restore may modify live data.",
+  "canonical_clause_ids": [
+    "BACKUP-CRYPT-001",
+    "BACKUP-CRYPT-002",
+    "BACKUP-CRYPT-003",
+    "BACKUP-CRYPT-004",
+    "BACKUP-CRYPT-005",
+    "BACKUP-CRYPT-006",
+    "BACKUP-CRYPT-007",
+    "BACKUP-CRYPT-008",
+    "BACKUP-CRYPT-009",
+    "BACKUP-CRYPT-010",
+    "BACKUP-CRYPT-011",
+    "BACKUP-CRYPT-012",
+    "BACKUP-CRYPT-013",
+    "BACKUP-CRYPT-014",
+    "BACKUP-CRYPT-015",
+    "BACKUP-CRYPT-016",
+    "BACKUP-CRYPT-017",
+    "BACKUP-CRYPT-018"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0035",
+    "BETA-REQ-0036",
+    "BETA-REQ-0018"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Security invariant/use-case family: create/export/restore portable backup set",
+    "hld_owner_seed": "Backup & Recovery + Persistence + Security",
+    "future_lld_destination": "Backup envelope, key/recovery lifecycle, detached verification artifacts, atomic restore",
+    "acceptance_evidence_seed": "Portability + wrong-secret/tamper + missing-sidecar + non-mutating-failure scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

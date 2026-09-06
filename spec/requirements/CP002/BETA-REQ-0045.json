@@ -1,0 +1,39 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0045",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "A Service Request shall not require fabricated operational work and may participate in zero or multiple Objectives solely through its Tasks, subject to the global Task scheduling and grouping rules.",
+  "canonical_clause_ids": [
+    "SR-WORK-001",
+    "SR-WORK-002",
+    "SR-WORK-003",
+    "SR-WORK-004",
+    "SR-WORK-005",
+    "SR-WORK-006",
+    "SR-WORK-007",
+    "SR-WORK-008",
+    "SR-WORK-009",
+    "SR-WORK-010"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0044"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Business rule: optional Task-mediated SR work participation",
+    "hld_owner_seed": "Tickets + Objectives scheduling boundary",
+    "future_lld_destination": "Derived Objective context, overlap/grouping evaluator",
+    "acceptance_evidence_seed": "Zero-work + multi-Objective + overlap-grouping scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

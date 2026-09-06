@@ -1,0 +1,70 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0082",
+  "status": "accepted",
+  "normalization_checkpoint": "CP004",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule",
+    "Functional capability"
+  ],
+  "governing_obligation": "A Spare Request shall persist as one locally identified tracking container derived from one Service Request's selected Spare Needs, while receiver and logistics context remain explicit operator-confirmed choices and temporary tracking remains usable for correspondence reconciliation without becoming the record's internal identity.",
+  "canonical_clause_ids": [
+    "SPREQ-CTX-001",
+    "SPREQ-CTX-002",
+    "SPREQ-CTX-003",
+    "SPREQ-CTX-004",
+    "SPREQ-CTX-005",
+    "SPREQ-CTX-006",
+    "SPREQ-CTX-007",
+    "SPREQ-CTX-008",
+    "SPREQ-CTX-009",
+    "SPREQ-CTX-010",
+    "SPREQ-CTX-011",
+    "SPREQ-CTX-012",
+    "SPREQ-CTX-013",
+    "SPREQ-CTX-014",
+    "SPREQ-CTX-015",
+    "SPREQ-CTX-016",
+    "SPREQ-CTX-017",
+    "SPREQ-CTX-018",
+    "SPREQ-CTX-019",
+    "SPREQ-CTX-020",
+    "SPREQ-CTX-021",
+    "SPREQ-CTX-022",
+    "SPREQ-CTX-023",
+    "SPREQ-CTX-024",
+    "SPREQ-CTX-025",
+    "SPREQ-CTX-026",
+    "SPREQ-CTX-027",
+    "SPREQ-CTX-028",
+    "SPREQ-CTX-029",
+    "SPREQ-CTX-030",
+    "SPREQ-CTX-031",
+    "SPREQ-CTX-032"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0014",
+    "BETA-REQ-0027",
+    "BETA-REQ-0065",
+    "BETA-REQ-0075",
+    "BETA-REQ-0032",
+    "BETA-REQ-0067",
+    "BETA-REQ-0023",
+    "BETA-REQ-0026"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant/use cases: create Spare Request / derive SR and customer / select receiver and logistics / reconcile correspondence",
+    "hld_owner_seed": "Inventory + Identity & Settings + Offline Communications",
+    "future_lld_destination": "Spare Request aggregate, Need allocation relation, derived context, receiver/logistics selector, temporary-ID reconciliation",
+    "acceptance_evidence_seed": "same-SR + cross-SR rejection + receiver-suggestion + logistics-required + missing-temp-ID reconciliation scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP004_CATALOGUE.md",
+    "clauses": "docs/normalization/CP004_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP004_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP004_TRACEABILITY.md"
+  }
+}

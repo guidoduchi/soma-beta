@@ -1,0 +1,35 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0023",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "A Dispatch Location shall represent reusable physical logistics location identity independently from its operation-specific role, Customer Organization context, or Datacenter Site identity.",
+  "canonical_clause_ids": [
+    "DISPATCH-001",
+    "DISPATCH-002",
+    "DISPATCH-003",
+    "DISPATCH-004",
+    "DISPATCH-005",
+    "DISPATCH-006",
+    "DISPATCH-007",
+    "DISPATCH-008"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Operation-neutral Dispatch Location identity; use cases: configure/select logistics location",
+    "hld_owner_seed": "Identity & Settings + Inventory relationship boundary",
+    "future_lld_destination": "Dispatch Location relationships, role typing, logistics validation",
+    "acceptance_evidence_seed": "Role-reuse and pickup-origin semantics scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

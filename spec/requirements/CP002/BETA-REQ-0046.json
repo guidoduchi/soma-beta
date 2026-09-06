@@ -1,0 +1,47 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0046",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Retries shall create new Task attempts linked through immutable predecessor lineage, while Objective retry context and membership shall remain derived from the participating Tasks and normal scheduling rules.",
+  "canonical_clause_ids": [
+    "TASK-RETRY-001",
+    "TASK-RETRY-002",
+    "TASK-RETRY-003",
+    "TASK-RETRY-004",
+    "TASK-RETRY-005",
+    "TASK-RETRY-006",
+    "TASK-RETRY-007",
+    "TASK-RETRY-008",
+    "TASK-RETRY-009",
+    "TASK-RETRY-010",
+    "TASK-RETRY-011",
+    "TASK-RETRY-012",
+    "TASK-RETRY-013",
+    "TASK-RETRY-014",
+    "TASK-RETRY-015"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0019",
+    "BETA-REQ-0013",
+    "BETA-REQ-0042"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: immutable Task-attempt retry lineage; use cases: retry Local/WFM Task",
+    "hld_owner_seed": "Tasks lifecycle + Objectives derived-context boundary",
+    "future_lld_destination": "Predecessor/successor model, cloning review, scheduling handoff",
+    "acceptance_evidence_seed": "Identity + chain cardinality + regrouping + multi-Objective ancestry scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0087",
+  "status": "accepted",
+  "normalization_checkpoint": "CP004",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule",
+    "Functional capability"
+  ],
+  "governing_obligation": "Physical Spare Part Units shall be allocated exclusively through Tasks, with reviewed maintenance outcomes preserving the actual target and spare-unit physical consequences and deterministically establishing the applicable RMA return unit without transferring Task-outcome authority to Inventory.",
+  "canonical_clause_ids": [
+    "SPUNIT-ALLOC-001",
+    "SPUNIT-ALLOC-002",
+    "SPUNIT-ALLOC-003",
+    "SPUNIT-ALLOC-004",
+    "SPUNIT-ALLOC-005",
+    "SPUNIT-ALLOC-006",
+    "SPUNIT-ALLOC-007",
+    "SPUNIT-ALLOC-008",
+    "SPUNIT-ALLOC-009",
+    "SPUNIT-ALLOC-010",
+    "SPUNIT-ALLOC-011",
+    "SPUNIT-ALLOC-012",
+    "SPUNIT-ALLOC-013",
+    "SPUNIT-ALLOC-014",
+    "SPUNIT-ALLOC-015",
+    "SPUNIT-ALLOC-016",
+    "SPUNIT-ALLOC-017",
+    "SPUNIT-ALLOC-018",
+    "SPUNIT-ALLOC-019",
+    "SPUNIT-ALLOC-020",
+    "SPUNIT-ALLOC-021",
+    "SPUNIT-ALLOC-022",
+    "SPUNIT-ALLOC-023",
+    "SPUNIT-ALLOC-024",
+    "SPUNIT-ALLOC-025",
+    "SPUNIT-ALLOC-026",
+    "SPUNIT-ALLOC-027",
+    "SPUNIT-ALLOC-028",
+    "SPUNIT-ALLOC-029",
+    "SPUNIT-ALLOC-030",
+    "SPUNIT-ALLOC-031",
+    "SPUNIT-ALLOC-032",
+    "SPUNIT-ALLOC-033",
+    "SPUNIT-ALLOC-034",
+    "SPUNIT-ALLOC-035",
+    "SPUNIT-ALLOC-036"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0046",
+    "BETA-REQ-0048",
+    "BETA-REQ-0050",
+    "BETA-REQ-0015",
+    "BETA-REQ-0084"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant/use cases: Task-to-unit allocation / record maintenance physical outcome / derive RMA return unit",
+    "hld_owner_seed": "Objectives/Tasks + Inventory",
+    "future_lld_destination": "Task allocation, physical consequence consumer, return-unit derivation, correction relationship",
+    "acceptance_evidence_seed": "one-active-allocation + successful-replacement + unused/faulty/incompatible + parent-return + Task-authority-boundary scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP004_CATALOGUE.md",
+    "clauses": "docs/normalization/CP004_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP004_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP004_TRACEABILITY.md"
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "schema": "SOMA-REQUIREMENT-INDEX-V1",
+  "checkpoint": "CP007",
+  "count": 25,
+  "requirements": [
+    {
+      "id": "BETA-REQ-0153",
+      "path": "spec/requirements/CP007/BETA-REQ-0153.json"
+    },
+    {
+      "id": "BETA-REQ-0154",
+      "path": "spec/requirements/CP007/BETA-REQ-0154.json"
+    },
+    {
+      "id": "BETA-REQ-0155",
+      "path": "spec/requirements/CP007/BETA-REQ-0155.json"
+    },
+    {
+      "id": "BETA-REQ-0156",
+      "path": "spec/requirements/CP007/BETA-REQ-0156.json"
+    },
+    {
+      "id": "BETA-REQ-0157",
+      "path": "spec/requirements/CP007/BETA-REQ-0157.json"
+    },
+    {
+      "id": "BETA-REQ-0158",
+      "path": "spec/requirements/CP007/BETA-REQ-0158.json"
+    },
+    {
+      "id": "BETA-REQ-0159",
+      "path": "spec/requirements/CP007/BETA-REQ-0159.json"
+    },
+    {
+      "id": "BETA-REQ-0160",
+      "path": "spec/requirements/CP007/BETA-REQ-0160.json"
+    },
+    {
+      "id": "BETA-REQ-0161",
+      "path": "spec/requirements/CP007/BETA-REQ-0161.json"
+    },
+    {
+      "id": "BETA-REQ-0162",
+      "path": "spec/requirements/CP007/BETA-REQ-0162.json"
+    },
+    {
+      "id": "BETA-REQ-0163",
+      "path": "spec/requirements/CP007/BETA-REQ-0163.json"
+    },
+    {
+      "id": "BETA-REQ-0164",
+      "path": "spec/requirements/CP007/BETA-REQ-0164.json"
+    },
+    {
+      "id": "BETA-REQ-0165",
+      "path": "spec/requirements/CP007/BETA-REQ-0165.json"
+    },
+    {
+      "id": "BETA-REQ-0166",
+      "path": "spec/requirements/CP007/BETA-REQ-0166.json"
+    },
+    {
+      "id": "BETA-REQ-0167",
+      "path": "spec/requirements/CP007/BETA-REQ-0167.json"
+    },
+    {
+      "id": "BETA-REQ-0168",
+      "path": "spec/requirements/CP007/BETA-REQ-0168.json"
+    },
+    {
+      "id": "BETA-REQ-0169",
+      "path": "spec/requirements/CP007/BETA-REQ-0169.json"
+    },
+    {
+      "id": "BETA-REQ-0170",
+      "path": "spec/requirements/CP007/BETA-REQ-0170.json"
+    },
+    {
+      "id": "BETA-REQ-0171",
+      "path": "spec/requirements/CP007/BETA-REQ-0171.json"
+    },
+    {
+      "id": "BETA-REQ-0172",
+      "path": "spec/requirements/CP007/BETA-REQ-0172.json"
+    },
+    {
+      "id": "BETA-REQ-0173",
+      "path": "spec/requirements/CP007/BETA-REQ-0173.json"
+    },
+    {
+      "id": "BETA-REQ-0174",
+      "path": "spec/requirements/CP007/BETA-REQ-0174.json"
+    },
+    {
+      "id": "BETA-REQ-0175",
+      "path": "spec/requirements/CP007/BETA-REQ-0175.json"
+    },
+    {
+      "id": "BETA-REQ-0176",
+      "path": "spec/requirements/CP007/BETA-REQ-0176.json"
+    },
+    {
+      "id": "BETA-REQ-0177",
+      "path": "spec/requirements/CP007/BETA-REQ-0177.json"
+    }
+  ]
+}

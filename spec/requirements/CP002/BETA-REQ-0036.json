@@ -1,0 +1,38 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0036",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Security/privacy constraint",
+    "Structural invariant"
+  ],
+  "governing_obligation": "SOMA Beta shall protect live operational data with authenticated encryption under an independently generated Windows-protected data-encryption key whose lifecycle is separate from administrator authentication credentials.",
+  "canonical_clause_ids": [
+    "DATA-CRYPT-001",
+    "DATA-CRYPT-002",
+    "DATA-CRYPT-003",
+    "DATA-CRYPT-004",
+    "DATA-CRYPT-005",
+    "DATA-CRYPT-006",
+    "DATA-CRYPT-007",
+    "DATA-CRYPT-008",
+    "DATA-CRYPT-009"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0035"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Security invariant: authentication-independent live-data encryption",
+    "hld_owner_seed": "Persistence + Security + Windows trust boundary",
+    "future_lld_destination": "AEAD, DEK generation/protection, key lifecycle",
+    "acceptance_evidence_seed": "Encryption-at-rest + key-independence + password-change scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

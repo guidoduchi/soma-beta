@@ -1,0 +1,55 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0073",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta shall maintain an independent protected migration lineage in which candidates remain revisable only until acceptance, accepted migrations become individually immutable, and all later schema evolution proceeds through atomic forward migration or governed recovery without inheriting Alpha database history.",
+  "canonical_clause_ids": [
+    "MIG-LINEAGE-001",
+    "MIG-LINEAGE-002",
+    "MIG-LINEAGE-003",
+    "MIG-LINEAGE-004",
+    "MIG-LINEAGE-005",
+    "MIG-LINEAGE-006",
+    "MIG-LINEAGE-007",
+    "MIG-LINEAGE-008",
+    "MIG-LINEAGE-009",
+    "MIG-LINEAGE-010",
+    "MIG-LINEAGE-011",
+    "MIG-LINEAGE-012",
+    "MIG-LINEAGE-013",
+    "MIG-LINEAGE-014",
+    "MIG-LINEAGE-015",
+    "MIG-LINEAGE-016",
+    "MIG-LINEAGE-017",
+    "MIG-LINEAGE-018",
+    "MIG-LINEAGE-019",
+    "MIG-LINEAGE-020",
+    "MIG-LINEAGE-021",
+    "MIG-LINEAGE-022",
+    "MIG-LINEAGE-023",
+    "MIG-LINEAGE-024",
+    "MIG-LINEAGE-025"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0001",
+    "BETA-REQ-0018"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: protected independent Beta migration lineage",
+    "hld_owner_seed": "Foundation Runtime + Persistence",
+    "future_lld_destination": "migration manifest, checksum verification, atomic apply, recovery compatibility",
+    "acceptance_evidence_seed": "candidate-edit + accepted-tamper + atomic-failure + Alpha-db rejection scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

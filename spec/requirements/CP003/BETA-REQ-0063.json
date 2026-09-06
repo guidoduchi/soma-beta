@@ -1,0 +1,46 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0063",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Advanced Search Resolve and suspension fields shall influence Beta 1.0 only through explicitly authorized suspension semantics, while future-use deadlines remain non-operational and cumulative suspension history remains source-reported, non-inferred, and non-destructive.",
+  "canonical_clause_ids": [
+    "SR-SUSP-001",
+    "SR-SUSP-002",
+    "SR-SUSP-003",
+    "SR-SUSP-004",
+    "SR-SUSP-005",
+    "SR-SUSP-006",
+    "SR-SUSP-007",
+    "SR-SUSP-008",
+    "SR-SUSP-009",
+    "SR-SUSP-010",
+    "SR-SUSP-011",
+    "SR-SUSP-012",
+    "SR-SUSP-013",
+    "SR-SUSP-014",
+    "SR-SUSP-015",
+    "SR-SUSP-016",
+    "SR-SUSP-017",
+    "SR-SUSP-018",
+    "SR-SUSP-019"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Business invariant: future Resolve fields non-operational; suspension source-governed",
+    "hld_owner_seed": "Tickets + Import/Reconciliation + SLA",
+    "future_lld_destination": "suspension state evaluator, cumulative source duration, contradiction review",
+    "acceptance_evidence_seed": "future-field + active-suspend + blank-after-nonzero scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

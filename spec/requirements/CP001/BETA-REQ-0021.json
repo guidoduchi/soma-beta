@@ -1,0 +1,46 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0021",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Functional capability",
+    "Business rule"
+  ],
+  "governing_obligation": "SOMA Beta shall provide reusable Customer Organization and Contact records with governed creation, maintenance, and lifecycle behavior across operational workflows.",
+  "canonical_clause_ids": [
+    "REF-001",
+    "REF-002",
+    "REF-003",
+    "REF-004",
+    "REF-005",
+    "REF-006",
+    "REF-007"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0028",
+    "BETA-REQ-0025",
+    "BETA-REQ-0029",
+    "BETA-REQ-0031",
+    "BETA-REQ-0022",
+    "BETA-REQ-0032",
+    "BETA-REQ-0058",
+    "BETA-REQ-0057",
+    "BETA-REQ-0033",
+    "BETA-REQ-0034"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use-case family: Maintain operational reference data",
+    "hld_owner_seed": "Identity & Settings / shared reference boundary",
+    "future_lld_destination": "Customer Organization and Contact commands, queries, validation and lifecycle",
+    "acceptance_evidence_seed": "Reference-data creation, maintenance, reuse and history scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

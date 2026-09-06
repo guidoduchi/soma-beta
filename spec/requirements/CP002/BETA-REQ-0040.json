@@ -1,0 +1,40 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0040",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "RFCs shall form a strict two-level acyclic master/subordinate hierarchy whose corrections preserve identity, protected history, and inherited operational context.",
+  "canonical_clause_ids": [
+    "RFC-HIER-001",
+    "RFC-HIER-002",
+    "RFC-HIER-003",
+    "RFC-HIER-004",
+    "RFC-HIER-005",
+    "RFC-HIER-006",
+    "RFC-HIER-007",
+    "RFC-HIER-008",
+    "RFC-HIER-009"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0019",
+    "BETA-REQ-0039",
+    "BETA-REQ-0010"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: two-level acyclic RFC forest; use cases: create/reparent subordinate",
+    "hld_owner_seed": "Tickets hierarchy boundary",
+    "future_lld_destination": "Hierarchy constraints, cycle detection, reparenting transaction",
+    "acceptance_evidence_seed": "Cardinality + depth + cycle + history-preservation scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0050",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Due Objective attempts shall require explicit review while preserving independent Task outcomes, true execution chronology, Inventory fact authority, and the distinction between outcome correction and retry.",
+  "canonical_clause_ids": [
+    "OBJ-REVIEW-001",
+    "OBJ-REVIEW-002",
+    "OBJ-REVIEW-003",
+    "OBJ-REVIEW-004",
+    "OBJ-REVIEW-005",
+    "OBJ-REVIEW-006",
+    "OBJ-REVIEW-007",
+    "OBJ-REVIEW-008",
+    "OBJ-REVIEW-009",
+    "OBJ-REVIEW-010",
+    "OBJ-REVIEW-011",
+    "OBJ-REVIEW-012"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0017",
+    "BETA-REQ-0019",
+    "BETA-REQ-0010",
+    "BETA-REQ-0046"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: review Objective/Task outcome / correct outcome / initiate retry",
+    "hld_owner_seed": "Objectives owns execution/review facts; Inventory consumes governed effects",
+    "future_lld_destination": "Review queue, reviewed_at semantics, correction history, retry handoff",
+    "acceptance_evidence_seed": "Review-timestamp + mixed-outcome + no-spare-inference + correction-vs-retry scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0008",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta shall preserve complete bidirectional traceability from historical product authority through approved Beta requirements, design ownership, implementation scope, and acceptance evidence.",
+  "canonical_clause_ids": [
+    "TRACE-001",
+    "TRACE-002",
+    "TRACE-003",
+    "TRACE-004",
+    "TRACE-005",
+    "TRACE-006",
+    "TRACE-007",
+    "TRACE-008"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0137"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Bidirectional specification traceability",
+    "hld_owner_seed": "Cross-cutting Design Governance",
+    "future_lld_destination": "Traceability index/schema and validation tooling",
+    "acceptance_evidence_seed": "Forward + reverse coverage audit"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

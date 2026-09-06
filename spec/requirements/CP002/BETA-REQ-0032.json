@@ -1,0 +1,39 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0032",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Every Spare Request shall preserve its requester as a reusable Contact relationship governed by Contact lifecycle and historical-evidence rules.",
+  "canonical_clause_ids": [
+    "REQUESTER-001",
+    "REQUESTER-002",
+    "REQUESTER-003",
+    "REQUESTER-004",
+    "REQUESTER-005",
+    "REQUESTER-006"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0021",
+    "BETA-REQ-0022",
+    "BETA-REQ-0025",
+    "BETA-REQ-0031",
+    "BETA-REQ-0029"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: select requester / archive Contact / inspect terminal Spare Request",
+    "hld_owner_seed": "Inventory + Identity & Settings",
+    "future_lld_destination": "Requester relation, eligibility, archival dependency, historical projection",
+    "acceptance_evidence_seed": "Requester-selection + archive-block + terminal-history scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

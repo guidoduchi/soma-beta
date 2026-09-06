@@ -1,0 +1,31 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0005",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Security/privacy constraint",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta source code, documentation, owned brand assets, and release artifacts shall remain proprietary and restricted to authorized internal use.",
+  "canonical_clause_ids": [
+    "DIST-001",
+    "DIST-002",
+    "DIST-003",
+    "DIST-004"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Proprietary/internal distribution boundary",
+    "hld_owner_seed": "Product / Trust Boundary",
+    "future_lld_destination": "Repository, release, packaging, access-control policy",
+    "acceptance_evidence_seed": "Repository/release governance inspection"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

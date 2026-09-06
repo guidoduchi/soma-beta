@@ -1,0 +1,57 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0080",
+  "status": "accepted",
+  "normalization_checkpoint": "CP004",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant",
+    "Functional capability"
+  ],
+  "governing_obligation": "Each Device Part Unit shall preserve one Device-scoped physical component and its fault evidence, contribute matching demand to the applicable SR-level Spare Need, and allow the operator to choose local, external, or mixed fulfillment after non-binding compatible-Stock suggestions.",
+  "canonical_clause_ids": [
+    "DEV-PART-001",
+    "DEV-PART-002",
+    "DEV-PART-003",
+    "DEV-PART-004",
+    "DEV-PART-005",
+    "DEV-PART-006",
+    "DEV-PART-007",
+    "DEV-PART-008",
+    "DEV-PART-009",
+    "DEV-PART-010",
+    "DEV-PART-011",
+    "DEV-PART-012",
+    "DEV-PART-013",
+    "DEV-PART-014",
+    "DEV-PART-015",
+    "DEV-PART-016",
+    "DEV-PART-017",
+    "DEV-PART-018",
+    "DEV-PART-019",
+    "DEV-PART-020",
+    "DEV-PART-021",
+    "DEV-PART-022",
+    "DEV-PART-023",
+    "DEV-PART-024",
+    "DEV-PART-025",
+    "DEV-PART-026",
+    "DEV-PART-027",
+    "DEV-PART-028",
+    "DEV-PART-029"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: record faulty Device Part Unit / suggest Stock / choose local, external, or mixed fulfillment",
+    "hld_owner_seed": "Inventory + Tickets",
+    "future_lld_destination": "Device Part Unit, Need contribution, compatibility suggestion, fulfillment-choice service",
+    "acceptance_evidence_seed": "fault-record + stock-suggestion + mixed-quantity + external-despite-stock + no-auto-reserve scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP004_CATALOGUE.md",
+    "clauses": "docs/normalization/CP004_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP004_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP004_TRACEABILITY.md"
+  }
+}

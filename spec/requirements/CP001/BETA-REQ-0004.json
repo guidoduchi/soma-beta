@@ -1,0 +1,33 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0004",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta 1.0 shall support 64-bit Windows 10 and Windows 11 with Python 3.13 and Python 3.14 as its required platform matrix; other operating systems are outside the Beta 1.0 support boundary.",
+  "canonical_clause_ids": [
+    "PLATFORM-001",
+    "PLATFORM-002",
+    "PLATFORM-003",
+    "PLATFORM-004",
+    "PLATFORM-005"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0138"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural/quality invariant: Supported platform matrix",
+    "hld_owner_seed": "Deployment & Runtime Boundary",
+    "future_lld_destination": "Packaging ADR / CI matrix / browser support",
+    "acceptance_evidence_seed": "Hosted CI + representative Windows desktop verification"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

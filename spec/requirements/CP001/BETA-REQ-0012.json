@@ -1,0 +1,34 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0012",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "SOMA Beta shall enforce exact canonical RFC identity while distinguishing recognized non-mutating source branch artifacts from other malformed RFC identifiers.",
+  "canonical_clause_ids": [
+    "RFC-ID-001",
+    "RFC-ID-002",
+    "RFC-ID-003",
+    "RFC-ID-004",
+    "RFC-ID-005",
+    "RFC-ID-006",
+    "RFC-ID-007"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Exact RFC business identity; use case: import/register/reconcile RFC",
+    "hld_owner_seed": "Tickets + Import/Reconciliation",
+    "future_lld_destination": "RFC identifier parser, branch-artifact classification, staged-result taxonomy",
+    "acceptance_evidence_seed": "RFC identity/import golden vectors"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0057",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Accepted Advanced Search observations shall update only governed source-owned Service Request facts while SOMA preserves accumulated identity, relationships, review evidence, and operational history; source disappearance or ambiguous status shall never silently destroy or reverse that authority.",
+  "canonical_clause_ids": [
+    "SR-PERSIST-001",
+    "SR-PERSIST-002",
+    "SR-PERSIST-003",
+    "SR-PERSIST-004",
+    "SR-PERSIST-005",
+    "SR-PERSIST-006",
+    "SR-PERSIST-007",
+    "SR-PERSIST-008",
+    "SR-PERSIST-009",
+    "SR-PERSIST-010",
+    "SR-PERSIST-011",
+    "SR-PERSIST-012",
+    "SR-PERSIST-013",
+    "SR-PERSIST-014",
+    "SR-PERSIST-015",
+    "SR-PERSIST-016",
+    "SR-PERSIST-017",
+    "SR-PERSIST-018",
+    "SR-PERSIST-019",
+    "SR-PERSIST-020",
+    "SR-PERSIST-021",
+    "SR-PERSIST-022",
+    "SR-PERSIST-023",
+    "SR-PERSIST-024"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0019"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant: source reconciliation is nondestructive to SOMA-owned SR history",
+    "hld_owner_seed": "Tickets + Import/Reconciliation + Historical view",
+    "future_lld_destination": "source-disappearance state, terminal projection, protected-field boundary",
+    "acceptance_evidence_seed": "disappearance + reappearance + terminal + unknown-status + no-purge scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

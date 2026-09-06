@@ -1,0 +1,57 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0051",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Functional capability",
+    "UI/UX obligation",
+    "Business rule"
+  ],
+  "governing_obligation": "The Objectives workspace shall expose the governed Objective lifecycle and Task-management actions while preserving Task- and domain-owned relationship authority and protected operational history.",
+  "canonical_clause_ids": [
+    "OBJ-UI-001",
+    "OBJ-UI-002",
+    "OBJ-UI-003",
+    "OBJ-UI-004",
+    "OBJ-UI-005",
+    "OBJ-UI-006",
+    "OBJ-UI-007",
+    "OBJ-UI-008",
+    "OBJ-UI-009",
+    "OBJ-UI-010",
+    "OBJ-UI-011",
+    "OBJ-UI-012",
+    "OBJ-UI-013",
+    "OBJ-UI-014",
+    "OBJ-UI-015",
+    "OBJ-UI-016",
+    "OBJ-UI-017",
+    "OBJ-UI-018",
+    "OBJ-UI-019"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0043",
+    "BETA-REQ-0047",
+    "BETA-REQ-0041",
+    "BETA-REQ-0048",
+    "BETA-REQ-0050",
+    "BETA-REQ-0019",
+    "BETA-REQ-0046",
+    "BETA-REQ-0044",
+    "BETA-REQ-0049"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use-case family: create/schedule/regroup/execute/review/cancel/archive Objective; retry Task",
+    "hld_owner_seed": "Objectives workspace + Task lifecycle + cross-domain projections",
+    "future_lld_destination": "Objective commands, guards, Task membership editor, derived-context UI",
+    "acceptance_evidence_seed": "Complete lifecycle + relationship-authority + history-protection scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

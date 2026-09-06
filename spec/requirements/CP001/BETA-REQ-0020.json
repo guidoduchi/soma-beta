@@ -1,0 +1,36 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0020",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "SOMA Beta shall preserve immutable historical logistics truth independently of later changes to mutable Dispatch Location master data.",
+  "canonical_clause_ids": [
+    "LOG-HIST-001",
+    "LOG-HIST-002",
+    "LOG-HIST-003",
+    "LOG-HIST-004",
+    "LOG-HIST-005",
+    "LOG-HIST-006"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0024",
+    "BETA-REQ-0093"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Historical logistics evidence independence; use cases: submit/record/inspect logistics",
+    "hld_owner_seed": "Inventory + Reference Data boundary",
+    "future_lld_destination": "Snapshot capture, immutable representation, historical projection rules",
+    "acceptance_evidence_seed": "Mutable-master vs frozen-history scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

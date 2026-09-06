@@ -1,0 +1,37 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0003",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Quality/platform requirement",
+    "Structural invariant"
+  ],
+  "governing_obligation": "SOMA Beta shall maintain its authoritative operational data through application-managed local persistence without requiring a separately administered database service.",
+  "canonical_clause_ids": [
+    "PERSIST-001",
+    "PERSIST-002",
+    "PERSIST-003",
+    "PERSIST-004"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0009",
+    "BETA-REQ-0037",
+    "BETA-REQ-0109",
+    "BETA-REQ-0131",
+    "BETA-REQ-0134"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Application-managed local persistence",
+    "hld_owner_seed": "Foundation Runtime / Persistence Boundary",
+    "future_lld_destination": "Datastore connection, lifecycle, migration, backup/recovery specifications",
+    "acceptance_evidence_seed": "Clean-install + offline persistence + restart verification"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0060",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "The Advanced Search adapter shall retain only explicitly allowlisted source fields, distinguish active Beta 1.0 facts from future-use provenance, and prevent all other columns from acquiring operational authority.",
+  "canonical_clause_ids": [
+    "AS-FIELD-001",
+    "AS-FIELD-002",
+    "AS-FIELD-003",
+    "AS-FIELD-004",
+    "AS-FIELD-005",
+    "AS-FIELD-006",
+    "AS-FIELD-007",
+    "AS-FIELD-008",
+    "AS-FIELD-009",
+    "AS-FIELD-010",
+    "AS-FIELD-011",
+    "AS-FIELD-012"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant: explicit Advanced Search field authority allowlist",
+    "hld_owner_seed": "Import/Reconciliation",
+    "future_lld_destination": "staging schema, field registry, discarded-field guard",
+    "acceptance_evidence_seed": "allowlist + reordered + unknown-column nonauthority scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0015",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "An RMA shall represent one independently identified replacement-and-return obligation under exactly one officially identified Spare Request, without becoming the identity of any physical unit.",
+  "canonical_clause_ids": [
+    "RMA-001",
+    "RMA-002",
+    "RMA-003",
+    "RMA-004",
+    "RMA-005",
+    "RMA-006",
+    "RMA-007",
+    "RMA-008",
+    "RMA-009",
+    "RMA-010"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: RMA obligation bridge; use cases: authorize/receive/review/return",
+    "hld_owner_seed": "Inventory",
+    "future_lld_destination": "RMA lifecycle, cardinalities, target/inbound/return relationships, validation",
+    "acceptance_evidence_seed": "RMA lifecycle and identity/cardinality scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

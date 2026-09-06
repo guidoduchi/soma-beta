@@ -1,0 +1,36 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0009",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Functional capability",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "SOMA Beta shall provide a repeatable supported local setup and explicit operator controls for starting and stopping the application.",
+  "canonical_clause_ids": [
+    "DEPLOY-001",
+    "DEPLOY-002",
+    "DEPLOY-003",
+    "DEPLOY-004",
+    "DEPLOY-005",
+    "DEPLOY-006"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0139",
+    "BETA-REQ-0140"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use-case family: Install / Start / Stop SOMA",
+    "hld_owner_seed": "Foundation Runtime / Local Deployment",
+    "future_lld_destination": "Setup, launcher, process lifecycle, shutdown, packaging",
+    "acceptance_evidence_seed": "Clean-install + start/stop/restart verification"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

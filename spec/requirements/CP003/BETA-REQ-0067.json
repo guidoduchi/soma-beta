@@ -1,0 +1,51 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0067",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant",
+    "Functional capability"
+  ],
+  "governing_obligation": "Contact communication channels shall remain optional until a specific workflow requires a recipient, at which point SOMA shall validate or resolve the needed channel without invalidating the underlying operational record and shall preserve the recipient evidence used for any generated communication artifact.",
+  "canonical_clause_ids": [
+    "CONTACT-COMM-001",
+    "CONTACT-COMM-002",
+    "CONTACT-COMM-003",
+    "CONTACT-COMM-004",
+    "CONTACT-COMM-005",
+    "CONTACT-COMM-006",
+    "CONTACT-COMM-007",
+    "CONTACT-COMM-008",
+    "CONTACT-COMM-009",
+    "CONTACT-COMM-010",
+    "CONTACT-COMM-011",
+    "CONTACT-COMM-012",
+    "CONTACT-COMM-013",
+    "CONTACT-COMM-014",
+    "CONTACT-COMM-015",
+    "CONTACT-COMM-016",
+    "CONTACT-COMM-017",
+    "CONTACT-COMM-018",
+    "CONTACT-COMM-019",
+    "CONTACT-COMM-020",
+    "CONTACT-COMM-021"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0019"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: generate communication / resolve recipient / inspect historical recipient",
+    "hld_owner_seed": "Identity & Settings + Offline Communications + Inventory",
+    "future_lld_destination": "channel model, validator, alternate recipient, artifact snapshot",
+    "acceptance_evidence_seed": "missing-address + alternate-contact + retry + historical-address scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

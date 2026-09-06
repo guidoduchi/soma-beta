@@ -1,0 +1,53 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0068",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Functional capability",
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "SOMA Beta shall provide configurable daily Advanced Search checking in the fixed operational timezone, with bounded startup catch-up and manual invocation, while routing every check through the same staged, review-governed, replay-safe import pipeline.",
+  "canonical_clause_ids": [
+    "AS-SCHED-001",
+    "AS-SCHED-002",
+    "AS-SCHED-003",
+    "AS-SCHED-004",
+    "AS-SCHED-005",
+    "AS-SCHED-006",
+    "AS-SCHED-007",
+    "AS-SCHED-008",
+    "AS-SCHED-009",
+    "AS-SCHED-010",
+    "AS-SCHED-011",
+    "AS-SCHED-012",
+    "AS-SCHED-013",
+    "AS-SCHED-014",
+    "AS-SCHED-015",
+    "AS-SCHED-016",
+    "AS-SCHED-017",
+    "AS-SCHED-018",
+    "AS-SCHED-019",
+    "AS-SCHED-020",
+    "AS-SCHED-021",
+    "AS-SCHED-022"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0061",
+    "BETA-REQ-0056"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: configure daily check / catch-up / Check now",
+    "hld_owner_seed": "Application shell + Settings + Import/Reconciliation",
+    "future_lld_destination": "scheduler, boundary persistence, catch-up, fingerprint handoff",
+    "acceptance_evidence_seed": "default-time + timezone + multi-day-miss + replay scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

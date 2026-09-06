@@ -1,0 +1,37 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0011",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "A Service Request shall retain one canonical business identity appropriate to its lifecycle: an eight-digit official identifier when assigned, or a non-reusable SOMA local identifier while official identity is absent.",
+  "canonical_clause_ids": [
+    "SR-ID-001",
+    "SR-ID-002",
+    "SR-ID-003",
+    "SR-ID-004",
+    "SR-ID-005",
+    "SR-ID-006",
+    "SR-ID-007"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0053"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Service Request identity lifecycle; use case: manually register/reconcile SR",
+    "hld_owner_seed": "Tickets / Shared Identity",
+    "future_lld_destination": "SR identifier validation, local sequence allocation, reconciliation transaction",
+    "acceptance_evidence_seed": "Identity canonicalization + reconciliation tests"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

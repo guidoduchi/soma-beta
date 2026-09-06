@@ -1,0 +1,73 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0071",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule",
+    "Quality/platform requirement"
+  ],
+  "governing_obligation": "Daily, Weekly, and Monthly reports shall become immutable, reproducible historical evidence only after successful artifact verification, using one consistent accepted-state snapshot with sufficient scope, membership, SLA-policy, classification, and calculation provenance while remaining strictly non-destructive to operational data.",
+  "canonical_clause_ids": [
+    "REPORT-SNAP-001",
+    "REPORT-SNAP-002",
+    "REPORT-SNAP-003",
+    "REPORT-SNAP-004",
+    "REPORT-SNAP-005",
+    "REPORT-SNAP-006",
+    "REPORT-SNAP-007",
+    "REPORT-SNAP-008",
+    "REPORT-SNAP-009",
+    "REPORT-SNAP-010",
+    "REPORT-SNAP-011",
+    "REPORT-SNAP-012",
+    "REPORT-SNAP-013",
+    "REPORT-SNAP-014",
+    "REPORT-SNAP-015",
+    "REPORT-SNAP-016",
+    "REPORT-SNAP-017",
+    "REPORT-SNAP-018",
+    "REPORT-SNAP-019",
+    "REPORT-SNAP-020",
+    "REPORT-SNAP-021",
+    "REPORT-SNAP-022",
+    "REPORT-SNAP-023",
+    "REPORT-SNAP-024",
+    "REPORT-SNAP-025",
+    "REPORT-SNAP-026",
+    "REPORT-SNAP-027",
+    "REPORT-SNAP-028",
+    "REPORT-SNAP-029",
+    "REPORT-SNAP-030",
+    "REPORT-SNAP-031",
+    "REPORT-SNAP-032",
+    "REPORT-SNAP-033",
+    "REPORT-SNAP-034",
+    "REPORT-SNAP-035",
+    "REPORT-SNAP-036",
+    "REPORT-SNAP-037",
+    "REPORT-SNAP-038",
+    "REPORT-SNAP-039",
+    "REPORT-SNAP-040",
+    "REPORT-SNAP-041"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0064",
+    "BETA-REQ-0065",
+    "BETA-REQ-0072"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant/use cases: immutable reproducible report snapshot / generate Daily Weekly Monthly reports",
+    "hld_owner_seed": "Overview & Reporting + SLA Policy + Audit/History",
+    "future_lld_destination": "consistent-read snapshot, membership, artifact verification, immutable evidence",
+    "acceptance_evidence_seed": "concurrent-change + policy revision + artifact-failure + no-cleanup scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

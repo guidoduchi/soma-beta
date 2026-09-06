@@ -1,0 +1,35 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0013",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "RETAIN",
+  "classification": [
+    "Structural invariant"
+  ],
+  "governing_obligation": "A WFM business identifier shall consist of `TK` followed by exactly fourteen decimal digits.",
+  "canonical_clause_ids": [
+    "WFM-ID-001",
+    "WFM-ID-002",
+    "WFM-ID-003"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0018",
+    "BETA-REQ-0155",
+    "BETA-REQ-0159",
+    "BETA-REQ-0160",
+    "BETA-REQ-0166"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: WFM business identity; use-case family: register/import/reconcile WFM",
+    "hld_owner_seed": "Objectives / Tickets relationship + Import/Reconciliation",
+    "future_lld_destination": "WFM identifier validation and source parsing",
+    "acceptance_evidence_seed": "WFM identity golden vectors"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

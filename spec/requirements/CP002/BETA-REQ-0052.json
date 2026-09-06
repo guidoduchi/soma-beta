@@ -1,0 +1,44 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0052",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant",
+    "UI/UX obligation"
+  ],
+  "governing_obligation": "Service Requests and RFCs shall preserve independently editable Working Notes as SOMA-owned historical evidence whose creation facts, edit history, and audited deletion state remain protected from import reconciliation.",
+  "canonical_clause_ids": [
+    "NOTE-HIST-001",
+    "NOTE-HIST-002",
+    "NOTE-HIST-003",
+    "NOTE-HIST-004",
+    "NOTE-HIST-005",
+    "NOTE-HIST-006",
+    "NOTE-HIST-007",
+    "NOTE-HIST-008",
+    "NOTE-HIST-009",
+    "NOTE-HIST-010",
+    "NOTE-HIST-011",
+    "NOTE-HIST-012",
+    "NOTE-HIST-013"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0019"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: add/edit/delete/inspect Working Note; invariant: SOMA-owned note history",
+    "hld_owner_seed": "Tickets + Audit/History cross-cutting boundary",
+    "future_lld_destination": "Working Note entity, version/audit model, active-view deletion, import guards",
+    "acceptance_evidence_seed": "Multi-note + immutable-creation + edit/delete-history + import-preservation scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

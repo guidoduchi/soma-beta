@@ -1,0 +1,40 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0035",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Security/privacy constraint",
+    "Structural invariant"
+  ],
+  "governing_obligation": "The singleton Local User Profile shall provide local administrator authentication without allowing its credentials or profile data to become operational-data encryption authority.",
+  "canonical_clause_ids": [
+    "AUTH-001",
+    "AUTH-002",
+    "AUTH-003",
+    "AUTH-004",
+    "AUTH-005",
+    "AUTH-006",
+    "AUTH-007",
+    "AUTH-008",
+    "AUTH-009",
+    "AUTH-010"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0022",
+    "BETA-REQ-0036"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural/security invariant: authentication-encryption separation; use cases: setup/login/auto-login",
+    "hld_owner_seed": "Authentication + Security + Windows trust boundary",
+    "future_lld_destination": "Verifier, credential lifecycle, Windows-protected auto-login",
+    "acceptance_evidence_seed": "Login/verifier + password-change + auto-login scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

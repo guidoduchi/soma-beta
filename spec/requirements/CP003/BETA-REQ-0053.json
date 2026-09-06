@@ -1,0 +1,47 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0053",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Functional capability",
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "SOMA Beta shall support manual Service Request creation and reviewed adoption or exact-source reconciliation of official SR identity without replacing the record's immutable identity or SOMA-owned operational state.",
+  "canonical_clause_ids": [
+    "SR-MANUAL-001",
+    "SR-MANUAL-002",
+    "SR-MANUAL-003",
+    "SR-MANUAL-004",
+    "SR-MANUAL-005",
+    "SR-MANUAL-006",
+    "SR-MANUAL-007",
+    "SR-MANUAL-008",
+    "SR-MANUAL-009",
+    "SR-MANUAL-010",
+    "SR-MANUAL-011",
+    "SR-MANUAL-012",
+    "SR-MANUAL-013",
+    "SR-MANUAL-014",
+    "SR-MANUAL-015"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0011",
+    "BETA-REQ-0010",
+    "BETA-REQ-0019"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: create manual SR / attach official identity / reconcile Advanced Search; invariant: one surviving SR identity",
+    "hld_owner_seed": "Tickets + Import/Reconciliation",
+    "future_lld_destination": "manual SR creation, identity adoption, exact-source merge guard",
+    "acceptance_evidence_seed": "known-ID + LSR + later-import + duplicate-ID + no-fuzzy-link scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

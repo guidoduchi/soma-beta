@@ -1,0 +1,41 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0017",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "SOMA Beta shall preserve exact canonical temporal meaning and arbitrary-minute precision for Task and Objective scheduling.",
+  "canonical_clause_ids": [
+    "TEMP-001",
+    "TEMP-002",
+    "TEMP-003",
+    "TEMP-004",
+    "TEMP-005",
+    "TEMP-006",
+    "TEMP-007"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0047",
+    "BETA-REQ-0156",
+    "BETA-REQ-0177",
+    "BETA-REQ-0168",
+    "BETA-REQ-0172",
+    "BETA-REQ-0061"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Canonical scheduling-time integrity; use cases: schedule/reschedule Task or Objective",
+    "hld_owner_seed": "Objectives + Import/Reconciliation + cross-cutting Temporal Authority",
+    "future_lld_destination": "Temporal types, timezone conversion, validation, persistence representation",
+    "acceptance_evidence_seed": "Temporal golden vectors + timezone/rescheduling scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

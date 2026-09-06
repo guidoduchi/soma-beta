@@ -1,0 +1,38 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0047",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Scheduled Objectives and Tasks shall use valid accepted temporal intervals without rounding or invented timestamps, and Objective membership shall require an accepted Task timeframe.",
+  "canonical_clause_ids": [
+    "OBJ-TIME-001",
+    "OBJ-TIME-002",
+    "OBJ-TIME-003",
+    "OBJ-TIME-004",
+    "OBJ-TIME-005",
+    "OBJ-TIME-006",
+    "OBJ-TIME-007",
+    "OBJ-TIME-008"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0017",
+    "BETA-REQ-0048"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: valid Objective interval and timeframe-gated Task membership",
+    "hld_owner_seed": "Objectives + cross-cutting Temporal Authority",
+    "future_lld_destination": "Temporal value objects, interval validation, membership eligibility",
+    "acceptance_evidence_seed": "Positive-duration + arbitrary-minute + no-rounding + unscheduled scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

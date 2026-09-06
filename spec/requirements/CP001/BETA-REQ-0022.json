@@ -1,0 +1,36 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0022",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Security/privacy constraint"
+  ],
+  "governing_obligation": "SOMA Beta shall separate its single installation authentication identity from reusable Contact identities representing operational people and roles.",
+  "canonical_clause_ids": [
+    "ACTOR-001",
+    "ACTOR-002",
+    "ACTOR-003",
+    "ACTOR-004",
+    "ACTOR-005",
+    "ACTOR-006",
+    "ACTOR-007"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0035"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Authentication/person-domain separation; use cases: setup/login + maintain Contacts + assign roles",
+    "hld_owner_seed": "Identity & Settings / Authentication Boundary",
+    "future_lld_destination": "Local User Profile singleton, Contact role relationships, authentication model",
+    "acceptance_evidence_seed": "Singleton-authentication + reusable-role scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

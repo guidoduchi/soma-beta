@@ -1,0 +1,58 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0081",
+  "status": "accepted",
+  "normalization_checkpoint": "CP004",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "A Spare Need shall remain reusable across repeated local and external fulfillment attempts until explicitly transitioned, while every allocation and lifecycle change remains historical and deletion is restricted by active requests and protected operational evidence.",
+  "canonical_clause_ids": [
+    "SPNEED-LIFE-001",
+    "SPNEED-LIFE-002",
+    "SPNEED-LIFE-003",
+    "SPNEED-LIFE-004",
+    "SPNEED-LIFE-005",
+    "SPNEED-LIFE-006",
+    "SPNEED-LIFE-007",
+    "SPNEED-LIFE-008",
+    "SPNEED-LIFE-009",
+    "SPNEED-LIFE-010",
+    "SPNEED-LIFE-011",
+    "SPNEED-LIFE-012",
+    "SPNEED-LIFE-013",
+    "SPNEED-LIFE-014",
+    "SPNEED-LIFE-015",
+    "SPNEED-LIFE-016",
+    "SPNEED-LIFE-017",
+    "SPNEED-LIFE-018",
+    "SPNEED-LIFE-019",
+    "SPNEED-LIFE-020",
+    "SPNEED-LIFE-021",
+    "SPNEED-LIFE-022",
+    "SPNEED-LIFE-023",
+    "SPNEED-LIFE-024",
+    "SPNEED-LIFE-025",
+    "SPNEED-LIFE-026",
+    "SPNEED-LIFE-027"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0019",
+    "BETA-REQ-0072",
+    "BETA-REQ-0077"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Business invariant/use cases: reuse Spare Need / resolve / cancel / reactivate / remove safely",
+    "hld_owner_seed": "Inventory",
+    "future_lld_destination": "Need lifecycle, allocation history, deletion eligibility, destructive preview",
+    "acceptance_evidence_seed": "repeated-request + repeated-local + nonterminal-block + all-cancelled/rejected + untouched-hard-delete scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP004_CATALOGUE.md",
+    "clauses": "docs/normalization/CP004_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP004_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP004_TRACEABILITY.md"
+  }
+}

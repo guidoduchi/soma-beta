@@ -1,0 +1,37 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0039",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Direct Service Request relationships shall terminate at master RFCs, with subordinate RFCs inheriting Service Request context exclusively through their master hierarchy.",
+  "canonical_clause_ids": [
+    "SR-RFC-001",
+    "SR-RFC-002",
+    "SR-RFC-003",
+    "SR-RFC-004",
+    "SR-RFC-005",
+    "SR-RFC-006",
+    "SR-RFC-007"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0018"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: master-boundary SR↔RFC relationship",
+    "hld_owner_seed": "Tickets relationship boundary",
+    "future_lld_destination": "Master-only join model, inherited-context query, workbench projection",
+    "acceptance_evidence_seed": "Many-to-many + subordinate-inheritance + no-direct-link scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

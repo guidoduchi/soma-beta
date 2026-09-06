@@ -1,0 +1,72 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0084",
+  "status": "accepted",
+  "normalization_checkpoint": "CP004",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule",
+    "Functional capability"
+  ],
+  "governing_obligation": "Each RMA shall persist as one independently identified provider obligation linking at most one compatible target, one later direct inbound physical unit, and one separately reviewed return unit, with deterministic but redistributable assignment and history-preserving distinction between identifier correction and new authorization.",
+  "canonical_clause_ids": [
+    "RMA-BRIDGE-001",
+    "RMA-BRIDGE-002",
+    "RMA-BRIDGE-003",
+    "RMA-BRIDGE-004",
+    "RMA-BRIDGE-005",
+    "RMA-BRIDGE-006",
+    "RMA-BRIDGE-007",
+    "RMA-BRIDGE-008",
+    "RMA-BRIDGE-009",
+    "RMA-BRIDGE-010",
+    "RMA-BRIDGE-011",
+    "RMA-BRIDGE-012",
+    "RMA-BRIDGE-013",
+    "RMA-BRIDGE-014",
+    "RMA-BRIDGE-015",
+    "RMA-BRIDGE-016",
+    "RMA-BRIDGE-017",
+    "RMA-BRIDGE-018",
+    "RMA-BRIDGE-019",
+    "RMA-BRIDGE-020",
+    "RMA-BRIDGE-021",
+    "RMA-BRIDGE-022",
+    "RMA-BRIDGE-023",
+    "RMA-BRIDGE-024",
+    "RMA-BRIDGE-025",
+    "RMA-BRIDGE-026",
+    "RMA-BRIDGE-027",
+    "RMA-BRIDGE-028",
+    "RMA-BRIDGE-029",
+    "RMA-BRIDGE-030",
+    "RMA-BRIDGE-031",
+    "RMA-BRIDGE-032",
+    "RMA-BRIDGE-033",
+    "RMA-BRIDGE-034",
+    "RMA-BRIDGE-035",
+    "RMA-BRIDGE-036",
+    "RMA-BRIDGE-037",
+    "RMA-BRIDGE-038",
+    "RMA-BRIDGE-039"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0015",
+    "BETA-REQ-0087",
+    "BETA-REQ-0092"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant/use cases: create RMA / preassign target / receive inbound unit / select return / correct C10",
+    "hld_owner_seed": "Inventory",
+    "future_lld_destination": "RMA obligation bridge, deterministic target assignment, direct inbound link, return-unit selector, alias registry",
+    "acceptance_evidence_seed": "partial-batch + redistribution + no-placeholder + C10-correction + new-authorization scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP004_CATALOGUE.md",
+    "clauses": "docs/normalization/CP004_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP004_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP004_TRACEABILITY.md"
+  }
+}

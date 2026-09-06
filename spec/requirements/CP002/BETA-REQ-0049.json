@@ -1,0 +1,45 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0049",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Device References shall remain independently usable in operational relationships before Infrastructure regularization, with Objective Device context derived through Tasks and all existing relationships preserved when a Device Reference is promoted.",
+  "canonical_clause_ids": [
+    "DEVICE-REF-001",
+    "DEVICE-REF-002",
+    "DEVICE-REF-003",
+    "DEVICE-REF-004",
+    "DEVICE-REF-005",
+    "DEVICE-REF-006",
+    "DEVICE-REF-007",
+    "DEVICE-REF-008",
+    "DEVICE-REF-009",
+    "DEVICE-REF-010",
+    "DEVICE-REF-011",
+    "DEVICE-REF-012",
+    "DEVICE-REF-013",
+    "DEVICE-REF-014"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0027",
+    "BETA-REQ-0010",
+    "BETA-REQ-0019"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: provisional-to-regularized Device continuity; use cases: attach/promote Device",
+    "hld_owner_seed": "Tickets/Tasks fact authority + Objectives consumer + Infrastructure",
+    "future_lld_destination": "Device Reference resolution, promotion transaction, relationship preservation",
+    "acceptance_evidence_seed": "Provisional-use + promotion-continuity + derived-Objective scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

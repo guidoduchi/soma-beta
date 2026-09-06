@@ -1,0 +1,39 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0031",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Contact lifecycle operations shall preserve affiliation history, prevent archival from stranding active dependencies, and require explicit reactivation before renewed operational use.",
+  "canonical_clause_ids": [
+    "CONTACT-LIFE-001",
+    "CONTACT-LIFE-002",
+    "CONTACT-LIFE-003",
+    "CONTACT-LIFE-004",
+    "CONTACT-LIFE-005",
+    "CONTACT-LIFE-006",
+    "CONTACT-LIFE-007",
+    "CONTACT-LIFE-008",
+    "CONTACT-LIFE-009"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0029",
+    "BETA-REQ-0025"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use-case family: create/archive/reactivate Contact; structural invariant: affiliation-aware lifecycle",
+    "hld_owner_seed": "Identity & Settings + cross-domain dependency boundary",
+    "future_lld_destination": "Contact lifecycle, dependency checks, reactivation",
+    "acceptance_evidence_seed": "Archive-block + reactivation + historical-visibility scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

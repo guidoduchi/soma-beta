@@ -1,0 +1,56 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0059",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Security/privacy constraint",
+    "Quality/platform requirement",
+    "Structural invariant"
+  ],
+  "governing_obligation": "All SOMA Beta XLSX adapters shall treat workbooks as untrusted bounded offline input, prohibit active-content execution and external fetching, and fail safely before operational mutation whenever filesystem, archive, content, or resource constraints are violated.",
+  "canonical_clause_ids": [
+    "XLSX-SEC-001",
+    "XLSX-SEC-002",
+    "XLSX-SEC-003",
+    "XLSX-SEC-004",
+    "XLSX-SEC-005",
+    "XLSX-SEC-006",
+    "XLSX-SEC-007",
+    "XLSX-SEC-008",
+    "XLSX-SEC-009",
+    "XLSX-SEC-010",
+    "XLSX-SEC-011",
+    "XLSX-SEC-012",
+    "XLSX-SEC-013",
+    "XLSX-SEC-014",
+    "XLSX-SEC-015",
+    "XLSX-SEC-016",
+    "XLSX-SEC-017",
+    "XLSX-SEC-018",
+    "XLSX-SEC-019",
+    "XLSX-SEC-020",
+    "XLSX-SEC-021",
+    "XLSX-SEC-022",
+    "XLSX-SEC-023",
+    "XLSX-SEC-024",
+    "XLSX-SEC-025",
+    "XLSX-SEC-026",
+    "XLSX-SEC-027",
+    "XLSX-SEC-028"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Security invariant: bounded offline XLSX processing",
+    "hld_owner_seed": "Import/Reconciliation + Security boundary",
+    "future_lld_destination": "filesystem guards, archive limits, parser limits, active-content suppression",
+    "acceptance_evidence_seed": "zip-bomb + link + external-reference + macro + partial-parse scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

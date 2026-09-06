@@ -1,0 +1,38 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0010",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant"
+  ],
+  "governing_obligation": "Every persistent SOMA Beta entity shall retain an immutable opaque internal identity independent of its business identifiers.",
+  "canonical_clause_ids": [
+    "IDENT-001",
+    "IDENT-002",
+    "IDENT-003",
+    "IDENT-004",
+    "IDENT-005",
+    "IDENT-006"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0053",
+    "BETA-REQ-0092",
+    "BETA-REQ-0148",
+    "BETA-REQ-0018",
+    "BETA-REQ-0131"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Identity independence",
+    "hld_owner_seed": "Shared Domain Identity / Persistence Boundary",
+    "future_lld_destination": "ID generation, entity keys, uniqueness constraints, reconciliation mechanics",
+    "acceptance_evidence_seed": "Schema + domain identity/reconciliation tests"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

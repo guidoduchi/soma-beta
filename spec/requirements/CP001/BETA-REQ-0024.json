@@ -1,0 +1,39 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0024",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Every Datacenter Site shall retain a distinct, dedicated Dispatch Location relationship through which its current logistics address is represented.",
+  "canonical_clause_ids": [
+    "SITE-DISPATCH-001",
+    "SITE-DISPATCH-002",
+    "SITE-DISPATCH-003",
+    "SITE-DISPATCH-004",
+    "SITE-DISPATCH-005",
+    "SITE-DISPATCH-006",
+    "SITE-DISPATCH-007",
+    "SITE-DISPATCH-008",
+    "SITE-DISPATCH-009"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0020",
+    "BETA-REQ-0093"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: Site ↔ dedicated Dispatch Location relationship; use case: register/maintain Site",
+    "hld_owner_seed": "Infrastructure + Identity/Settings + Inventory reference boundary",
+    "future_lld_destination": "Creation transaction, cardinality constraints, address derivation and snapshot interaction",
+    "acceptance_evidence_seed": "Site creation/linkage/address/history scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

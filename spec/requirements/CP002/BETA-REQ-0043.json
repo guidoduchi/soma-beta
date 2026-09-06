@@ -1,0 +1,41 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0043",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "A persisted Objective shall be a first-class operational entity with one accepted timeframe and at least one Task, without requiring unrelated SR, RFC, Inventory, or Infrastructure context.",
+  "canonical_clause_ids": [
+    "OBJ-EXIST-001",
+    "OBJ-EXIST-002",
+    "OBJ-EXIST-003",
+    "OBJ-EXIST-004",
+    "OBJ-EXIST-005",
+    "OBJ-EXIST-006",
+    "OBJ-EXIST-007",
+    "OBJ-EXIST-008",
+    "OBJ-EXIST-009",
+    "OBJ-EXIST-010"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0038",
+    "BETA-REQ-0018"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: first-class nonempty Objective; use case: create Objective",
+    "hld_owner_seed": "Objectives domain",
+    "future_lld_destination": "Objective aggregate, persistence gate, draft boundary",
+    "acceptance_evidence_seed": "Standalone Objective + empty-draft + nonempty-persistence scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

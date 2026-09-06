@@ -1,0 +1,36 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0041",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule"
+  ],
+  "governing_obligation": "Every WFM shall retain exactly one RFC owner and at most one Objective membership, with unscheduled state and regrouping handled without duplicating WFM identity.",
+  "canonical_clause_ids": [
+    "WFM-REL-001",
+    "WFM-REL-002",
+    "WFM-REL-003",
+    "WFM-REL-004",
+    "WFM-REL-005",
+    "WFM-REL-006",
+    "WFM-REL-007"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: singular WFM RFC ownership and Objective membership",
+    "hld_owner_seed": "Tickets + Objectives relationship boundary",
+    "future_lld_destination": "WFM owner relation, nullable Objective membership, regroup transaction",
+    "acceptance_evidence_seed": "Mandatory-owner + unscheduled + move-without-duplication scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

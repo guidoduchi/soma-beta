@@ -1,0 +1,38 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0025",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Reference records with protected operational history shall support history-preserving archival instead of destructive removal.",
+  "canonical_clause_ids": [
+    "ARCHIVE-001",
+    "ARCHIVE-002",
+    "ARCHIVE-003",
+    "ARCHIVE-004",
+    "ARCHIVE-005",
+    "ARCHIVE-006",
+    "ARCHIVE-007"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0031",
+    "BETA-REQ-0033",
+    "BETA-REQ-0034"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use-case family: Archive / reactivate reference data",
+    "hld_owner_seed": "Identity & Settings + cross-domain dependency boundary",
+    "future_lld_destination": "Archival eligibility, selectors, dependency checks, lifecycle evidence",
+    "acceptance_evidence_seed": "Archive/reactivate/history-preservation scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

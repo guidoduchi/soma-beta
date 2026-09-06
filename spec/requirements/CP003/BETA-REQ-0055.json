@@ -1,0 +1,53 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0055",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "Security/privacy constraint",
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Advanced Search workbooks shall be fully and safely interpreted in staging through identity-based, order-independent validation before any operational mutation, with incomplete, invalid, duplicate, conflicting, and unallowlisted source evidence handled explicitly and non-destructively.",
+  "canonical_clause_ids": [
+    "AS-PARSE-001",
+    "AS-PARSE-002",
+    "AS-PARSE-003",
+    "AS-PARSE-004",
+    "AS-PARSE-005",
+    "AS-PARSE-006",
+    "AS-PARSE-007",
+    "AS-PARSE-008",
+    "AS-PARSE-009",
+    "AS-PARSE-010",
+    "AS-PARSE-011",
+    "AS-PARSE-012",
+    "AS-PARSE-013",
+    "AS-PARSE-014",
+    "AS-PARSE-015",
+    "AS-PARSE-016",
+    "AS-PARSE-017",
+    "AS-PARSE-018",
+    "AS-PARSE-019",
+    "AS-PARSE-020",
+    "AS-PARSE-021",
+    "AS-PARSE-022",
+    "AS-PARSE-023",
+    "AS-PARSE-024",
+    "AS-PARSE-025"
+  ],
+  "supporting_requirement_ids": [],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use case: parse/stage Advanced Search; invariant: complete validation before mutation",
+    "hld_owner_seed": "Import/Reconciliation",
+    "future_lld_destination": "safe parser, header resolver, row validator, duplicate/conflict detector",
+    "acceptance_evidence_seed": "bad-file + reordered-columns + missing-header + duplicate/conflict scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

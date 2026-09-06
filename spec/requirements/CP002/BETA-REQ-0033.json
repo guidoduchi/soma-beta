@@ -1,0 +1,43 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0033",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "A Site shall preserve stable Customer Organization ownership and history-safe lifecycle behavior once it participates in operational Infrastructure.",
+  "canonical_clause_ids": [
+    "SITE-LIFE-001",
+    "SITE-LIFE-002",
+    "SITE-LIFE-003",
+    "SITE-LIFE-004",
+    "SITE-LIFE-005",
+    "SITE-LIFE-006",
+    "SITE-LIFE-007",
+    "SITE-LIFE-008",
+    "SITE-LIFE-009",
+    "SITE-LIFE-010",
+    "SITE-LIFE-011"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0027",
+    "BETA-REQ-0025",
+    "BETA-REQ-0024",
+    "BETA-REQ-0019"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: correct Site ownership / archive Site; structural invariant: ownership stability",
+    "hld_owner_seed": "Infrastructure + cross-domain dependency boundary",
+    "future_lld_destination": "Ownership correction eligibility, dependency validation, archival transaction",
+    "acceptance_evidence_seed": "Pre-history correction + dependency-block + preservation scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

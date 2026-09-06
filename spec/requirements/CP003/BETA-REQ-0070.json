@@ -1,0 +1,50 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0070",
+  "status": "accepted",
+  "normalization_checkpoint": "CP003",
+  "disposition": "REPLACE",
+  "classification": [
+    "UI/UX obligation",
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "SOMA Beta shall present suspension-ending-soon as a distinct noncontractual warning state, preserve its semantic separation from SLA, cohort, source, retention, and lifecycle concepts, and ensure every governed state remains distinguishable without relying on color alone.",
+  "canonical_clause_ids": [
+    "SR-WARN-001",
+    "SR-WARN-002",
+    "SR-WARN-003",
+    "SR-WARN-004",
+    "SR-WARN-005",
+    "SR-WARN-006",
+    "SR-WARN-007",
+    "SR-WARN-008",
+    "SR-WARN-009",
+    "SR-WARN-010",
+    "SR-WARN-011",
+    "SR-WARN-012",
+    "SR-WARN-013",
+    "SR-WARN-014",
+    "SR-WARN-015",
+    "SR-WARN-016",
+    "SR-WARN-017",
+    "SR-WARN-018",
+    "SR-WARN-019"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0063",
+    "BETA-REQ-0064"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "UI/business invariant: time-related warning semantics remain distinct",
+    "hld_owner_seed": "Tickets + SLA + Overview/Needs Attention",
+    "future_lld_destination": "warning-state model, threshold evaluator, accessibility presentation",
+    "acceptance_evidence_seed": "suspension-threshold + cohort-vs-individual + grayscale scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP003_CATALOGUE.md",
+    "clauses": "docs/normalization/CP003_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP003_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP003_TRACEABILITY.md"
+  }
+}

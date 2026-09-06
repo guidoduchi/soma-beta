@@ -1,0 +1,68 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0083",
+  "status": "accepted",
+  "normalization_checkpoint": "CP004",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant",
+    "Functional capability"
+  ],
+  "governing_obligation": "A Spare Request shall remain editable until actual submission is evidenced, at which point its exact request allocations, requested part facts, recipient, logistics, and temporary tracking context shall freeze as immutable submission evidence while all later provider responses and corrections append separately.",
+  "canonical_clause_ids": [
+    "SPREQ-SUBMIT-001",
+    "SPREQ-SUBMIT-002",
+    "SPREQ-SUBMIT-003",
+    "SPREQ-SUBMIT-004",
+    "SPREQ-SUBMIT-005",
+    "SPREQ-SUBMIT-006",
+    "SPREQ-SUBMIT-007",
+    "SPREQ-SUBMIT-008",
+    "SPREQ-SUBMIT-009",
+    "SPREQ-SUBMIT-010",
+    "SPREQ-SUBMIT-011",
+    "SPREQ-SUBMIT-012",
+    "SPREQ-SUBMIT-013",
+    "SPREQ-SUBMIT-014",
+    "SPREQ-SUBMIT-015",
+    "SPREQ-SUBMIT-016",
+    "SPREQ-SUBMIT-017",
+    "SPREQ-SUBMIT-018",
+    "SPREQ-SUBMIT-019",
+    "SPREQ-SUBMIT-020",
+    "SPREQ-SUBMIT-021",
+    "SPREQ-SUBMIT-022",
+    "SPREQ-SUBMIT-023",
+    "SPREQ-SUBMIT-024",
+    "SPREQ-SUBMIT-025",
+    "SPREQ-SUBMIT-026",
+    "SPREQ-SUBMIT-027",
+    "SPREQ-SUBMIT-028",
+    "SPREQ-SUBMIT-029",
+    "SPREQ-SUBMIT-030",
+    "SPREQ-SUBMIT-031",
+    "SPREQ-SUBMIT-032",
+    "SPREQ-SUBMIT-033",
+    "SPREQ-SUBMIT-034",
+    "SPREQ-SUBMIT-035",
+    "SPREQ-SUBMIT-036"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0082",
+    "BETA-REQ-0089",
+    "BETA-REQ-0091"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Invariant/use cases: edit request / compare quantities / accept submission / preserve submitted snapshot",
+    "hld_owner_seed": "Inventory + Offline Communications",
+    "future_lld_destination": "request allocations, submission boundary, immutable submission snapshot, response-timer trigger",
+    "acceptance_evidence_seed": "positive-whole + discrepancy + draft-not-submitted + sent/manual-submit + later-substitution-no-rewrite scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP004_CATALOGUE.md",
+    "clauses": "docs/normalization/CP004_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP004_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP004_TRACEABILITY.md"
+  }
+}

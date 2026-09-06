@@ -1,0 +1,42 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0034",
+  "status": "accepted",
+  "normalization_checkpoint": "CP002",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "Dispatch Location lifecycle shall preserve customer neutrality and historical evidence while preventing archival or active reuse that conflicts with Site or unfinished logistics dependencies.",
+  "canonical_clause_ids": [
+    "DISPATCH-LIFE-001",
+    "DISPATCH-LIFE-002",
+    "DISPATCH-LIFE-003",
+    "DISPATCH-LIFE-004",
+    "DISPATCH-LIFE-005",
+    "DISPATCH-LIFE-006",
+    "DISPATCH-LIFE-007",
+    "DISPATCH-LIFE-008"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0026",
+    "BETA-REQ-0025",
+    "BETA-REQ-0020",
+    "BETA-REQ-0023",
+    "BETA-REQ-0024",
+    "BETA-REQ-0033"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: archive/reactivate Dispatch Location / resolve logistics dependency",
+    "hld_owner_seed": "Identity & Settings + Infrastructure + Inventory",
+    "future_lld_destination": "Archival eligibility, active selectors, Site coupling, reactivation",
+    "acceptance_evidence_seed": "Archived-selector + Site/logistics-block + reactivation scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP002_CATALOGUE.md",
+    "clauses": "docs/normalization/CP002_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP002_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP002_TRACEABILITY.md"
+  }
+}

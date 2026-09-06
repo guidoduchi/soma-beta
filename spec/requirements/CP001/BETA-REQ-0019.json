@@ -1,0 +1,46 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0019",
+  "status": "accepted",
+  "normalization_checkpoint": "CP001",
+  "disposition": "REPLACE",
+  "classification": [
+    "Business rule",
+    "Structural invariant"
+  ],
+  "governing_obligation": "SOMA Beta 1.0 shall preserve material operational history by default and permit hard deletion only through explicitly authorized domain rules.",
+  "canonical_clause_ids": [
+    "HIST-001",
+    "HIST-002",
+    "HIST-003",
+    "HIST-004",
+    "HIST-005",
+    "HIST-006",
+    "HIST-007",
+    "HIST-008",
+    "HIST-009"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0090",
+    "BETA-REQ-0129",
+    "BETA-REQ-0164",
+    "BETA-REQ-0152",
+    "BETA-REQ-0162",
+    "BETA-REQ-0092",
+    "BETA-REQ-0135",
+    "BETA-REQ-0143",
+    "BETA-REQ-0057"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Structural invariant: History preservation / exceptional deletion; use cases: archive/cancel/correct/supersede/delete eligible manual record",
+    "hld_owner_seed": "Cross-domain lifecycle + Audit",
+    "future_lld_destination": "Deletion eligibility, impact preview, atomic cascade, audit/correction contracts",
+    "acceptance_evidence_seed": "Lifecycle-preservation and destructive-action scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP001_CATALOGUE.md",
+    "clauses": "docs/normalization/CP001_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP001_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP001_TRACEABILITY.md"
+  }
+}

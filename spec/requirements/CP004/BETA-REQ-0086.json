@@ -1,0 +1,68 @@
+{
+  "schema": "SOMA-NORMALIZED-REQUIREMENT-SHARD-V1",
+  "id": "BETA-REQ-0086",
+  "status": "accepted",
+  "normalization_checkpoint": "CP004",
+  "disposition": "REPLACE",
+  "classification": [
+    "Structural invariant",
+    "Business rule",
+    "Functional capability"
+  ],
+  "governing_obligation": "A Spare Part Unit shall be manually registrable with stable SOMA/LSU identity independently of official provenance or manufacturer serial, while origin, custody, condition, disposition, and later provenance remain separate historical facts and Stock eligibility derives only from its accepted physical lifecycle state.",
+  "canonical_clause_ids": [
+    "SPUNIT-REG-001",
+    "SPUNIT-REG-002",
+    "SPUNIT-REG-003",
+    "SPUNIT-REG-004",
+    "SPUNIT-REG-005",
+    "SPUNIT-REG-006",
+    "SPUNIT-REG-007",
+    "SPUNIT-REG-008",
+    "SPUNIT-REG-009",
+    "SPUNIT-REG-010",
+    "SPUNIT-REG-011",
+    "SPUNIT-REG-012",
+    "SPUNIT-REG-013",
+    "SPUNIT-REG-014",
+    "SPUNIT-REG-015",
+    "SPUNIT-REG-016",
+    "SPUNIT-REG-017",
+    "SPUNIT-REG-018",
+    "SPUNIT-REG-019",
+    "SPUNIT-REG-020",
+    "SPUNIT-REG-021",
+    "SPUNIT-REG-022",
+    "SPUNIT-REG-023",
+    "SPUNIT-REG-024",
+    "SPUNIT-REG-025",
+    "SPUNIT-REG-026",
+    "SPUNIT-REG-027",
+    "SPUNIT-REG-028",
+    "SPUNIT-REG-029",
+    "SPUNIT-REG-030",
+    "SPUNIT-REG-031",
+    "SPUNIT-REG-032",
+    "SPUNIT-REG-033",
+    "SPUNIT-REG-034",
+    "SPUNIT-REG-035",
+    "SPUNIT-REG-036"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0010",
+    "BETA-REQ-0016",
+    "BETA-REQ-0084"
+  ],
+  "traceability": {
+    "use_case_or_invariant_seed": "Use cases: manually register local/legacy/installed/removed/extracted/scrapped unit; invariant: Stock is lifecycle eligibility projection",
+    "hld_owner_seed": "Inventory",
+    "future_lld_destination": "LSU allocator, manual registration, provenance adoption, state/disposition model, Stock eligibility query",
+    "acceptance_evidence_seed": "no-SR7/C10/serial + duplicate-candidate + later-RMA-provenance + unavailable-not-stock scenarios"
+  },
+  "authority_sources": {
+    "catalogue": "docs/normalization/CP004_CATALOGUE.md",
+    "clauses": "docs/normalization/CP004_CLAUSES.md",
+    "clause_authority": "docs/normalization/CP004_CLAUSE_AUTHORITY.md",
+    "traceability": "docs/normalization/CP004_TRACEABILITY.md"
+  }
+}
