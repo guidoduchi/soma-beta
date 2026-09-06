@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-TOOL_VERSION = "1.2.0"
+TOOL_VERSION = "1.2.1"
 V11_PATH = "tools/reconciliation/allocate_rc006_a2_assertions_v1_1.py"
 V11_BLOB_SHA = "88345216426ed4e3bbd9ac52c4aaf1e507ce2dac"
 
@@ -36,6 +36,14 @@ PRODUCT_CANDIDATE_COUNT = 431
 PRODUCT_SECTION_COUNT = 27
 PRODUCT_BATCH_ID = "A2-BATCH-0001-PRODUCT-CONTRACT"
 
+RFC_WFM_SOURCE = "docs/RFC_WFM_CONTRACT.md"
+RFC_WFM_CANDIDATE_PATH = "docs/reconciliation/candidates/RC006_A2_RFC_WFM_CONTRACT_CANDIDATES.jsonl"
+RFC_WFM_CANDIDATE_BLOB_SHA = "bc50d2dffbb5d1b45a9e7ee67ba1088bc4ec1a72"
+RFC_WFM_CANDIDATE_PAYLOAD_SHA256 = "e9e5aa9bbcd6a252aa527c07e532840871e89e9e7158d085cc3e3965c5d99aa3"
+RFC_WFM_CANDIDATE_COUNT = 171
+RFC_WFM_SECTION_COUNT = 8
+RFC_WFM_BATCH_ID = "A2-BATCH-0003-RFC-WFM-CONTRACT"
+
 FROZEN_INITIAL_BATCHES: dict[str, dict[str, Any]] = {
     PRODUCT_SOURCE: {
         "batch_id": PRODUCT_BATCH_ID,
@@ -44,7 +52,15 @@ FROZEN_INITIAL_BATCHES: dict[str, dict[str, Any]] = {
         "candidate_payload_sha256": PRODUCT_CANDIDATE_PAYLOAD_SHA256,
         "candidate_count": PRODUCT_CANDIDATE_COUNT,
         "section_ordinals": list(range(1, PRODUCT_SECTION_COUNT + 1)),
-    }
+    },
+    RFC_WFM_SOURCE: {
+        "batch_id": RFC_WFM_BATCH_ID,
+        "candidate_path": RFC_WFM_CANDIDATE_PATH,
+        "candidate_git_blob_sha": RFC_WFM_CANDIDATE_BLOB_SHA,
+        "candidate_payload_sha256": RFC_WFM_CANDIDATE_PAYLOAD_SHA256,
+        "candidate_count": RFC_WFM_CANDIDATE_COUNT,
+        "section_ordinals": list(range(1, RFC_WFM_SECTION_COUNT + 1)),
+    },
 }
 
 
