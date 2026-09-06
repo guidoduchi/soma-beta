@@ -32,6 +32,7 @@
     "BETA-REQ-0150",
     "BETA-REQ-0151",
     "BETA-REQ-0165",
+    "BETA-REQ-0169",
     "BETA-REQ-0170",
     "BETA-REQ-0172"
   ],
@@ -55,6 +56,7 @@
     "exact XLSX parser/library and bounded parser resource limits",
     "exact staging/proposal table schema",
     "exact source-profile/header-registry serialization",
+    "exact semantic field bounds and smallest-safe overflow quarantine rules",
     "exact pagination/virtualization limits for large staged reviews",
     "exact background scheduling implementation for automatic discovery"
   ],
