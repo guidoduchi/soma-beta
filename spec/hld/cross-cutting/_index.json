@@ -22,7 +22,7 @@
   ],
   "packet_files":["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
   "downstream_hld_ids":[],
-  "downstream_lld_ids":["LLD-01","LLD-03","LLD-04","LLD-05","LLD-06","LLD-07","LLD-08","LLD-09","LLD-10","LLD-11","LLD-12"],
+  "downstream_lld_ids":["LLD-01","LLD-02","LLD-03","LLD-04","LLD-05","LLD-06","LLD-07","LLD-08","LLD-09","LLD-10","LLD-11","LLD-12"],
   "unresolved_here_by_design":["exact temporal value-object/SQL column representations","exact transaction coordinator/unit-of-work API","exact revision-token mechanism per aggregate","exact audit action payload registry entries","exact design/implementation/acceptance traceability index and validation mechanism","exact projection rebuild/invalidation implementation","exact cross-domain deadlock/lock-order policy after schema is known"],
   "completion_evidence":{"required_packet_files_present":true,"temporal_authority_fixed":true,"evidence_audit_diagnostics_separation_fixed":true,"atomic_mutation_audit_rule_fixed":true,"append_correction_history_fixed":true,"derived_state_non_authority_fixed":true,"ready_for_owner_review":true}
 }
