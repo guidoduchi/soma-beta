@@ -1,0 +1,27 @@
+{
+  "schema": "SOMA-HLD-OWNERSHIP-V1",
+  "hld_id": "HLD-06",
+  "authoritative_records": [
+    {"name":"Task","owns":"immutable attempt identity, kind (Local/WFM), current accepted plan, execution/review lifecycle, outcome and optional Objective membership"},
+    {"name":"TaskPlanRevision","owns":"accepted operational-plan chronology and reason/provenance without overwriting prior plans"},
+    {"name":"TaskExecutionEvidence","owns":"actual start/end/cancellation/outcome occurrence evidence independently from planning"},
+    {"name":"TaskRetryRelation","owns":"immutable predecessor/successor attempt lineage without identity reuse"},
+    {"name":"Objective","owns":"Maintenance Window identity, accepted Task membership, lifecycle/review state and stable tracking identity"},
+    {"name":"ObjectiveEnvelope","owns":"derived min-start/max-end projection over accepted member Task plans, not independently editable truth"},
+    {"name":"RegroupProposal","owns":"revision-bound non-authoritative proposed membership changes and exact impact diff"},
+    {"name":"HistoricalObjectiveProposal","owns":"reviewable structure suggested from terminal provider history without claiming execution"}
+  ],
+  "identity_rules": [
+    "Local Task uses immutable internal identity and never receives a fabricated TK/provider identity.",
+    "WFM canonical Task No. remains its external/provider attempt identity while SOMA retains stable internal identity.",
+    "Retry always creates a new Task identity; correction never masquerades as retry.",
+    "Objective tracking identity is stable across reschedule/regroup operations.",
+    "Monthly ordinal is presentation-only and may recalculate without changing Objective identity."
+  ],
+  "projection_rules": [
+    "Objective SR/RFC/Device context is derived through Task relationships and does not become duplicate Objective-owned relationship truth.",
+    "Objective envelope derives from member Task plans.",
+    "Objective aggregate execution/outcome derives from member Task execution/outcome facts.",
+    "Operational-count inclusion/exclusion is a reporting projection and never deletes history."
+  ]
+}
