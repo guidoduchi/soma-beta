@@ -2,12 +2,13 @@
   "schema":"SOMA-LLD-SCHEMA-V1",
   "lld_id":"LLD-02",
   "id_convention":"All LLD-02 persistent entity/event/relationship identities use lowercase canonical UUIDv4 text from DomainIdFactory; descriptive/business values are never primary keys.",
+  "table_mode":"Every LLD-02 table is created with SQLite STRICT table mode; future accepted schema extensions use forward migrations rather than weakening types in place.",
   "tables":[
     {
       "name":"reference_metadata",
       "purpose":"self-describe the governed matching profile used by all persisted LLD-02 match keys",
       "columns":["singleton_guard INTEGER PRIMARY KEY CHECK(singleton_guard=1)","matching_profile_id TEXT NOT NULL CHECK(length(matching_profile_id)>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)"],
-      "rules":["Beta 1.0 initializes exactly one row with matching_profile_id='UNICODE_MATCH_V1'","startup/reference-service readiness verifies the stored profile is supported before matching queries or writes","future profile changes require a governed forward migration/reindex rather than changing this value opportunistically"]
+      "rules":["Beta 1.0 initializes exactly one row with matching_profile_id='UNICODE_MATCH_V1'","startup/reference-service readiness verifies the stored profile is supported before matching queries or writes","ordinary runtime never changes/deletes this row; future profile changes require a governed forward migration/reindex"]
     },
     {
       "name":"local_user_profiles",
@@ -34,8 +35,8 @@
     {
       "name":"contact_channels",
       "purpose":"reusable Contact communication/matching attributes; Beta 1.0 channel kind is email",
-      "columns":["contact_channel_id TEXT PRIMARY KEY","contact_id TEXT NOT NULL REFERENCES contacts(contact_id) ON UPDATE RESTRICT ON DELETE RESTRICT","channel_kind TEXT NOT NULL","value_text TEXT NOT NULL CHECK(length(value_text)>0)","match_key TEXT NOT NULL CHECK(length(match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
-      "rules":["channel_kind must exist in closed ContactChannelDefinition registry; Beta 1.0 includes email","value_text must pass ContactChannelPolicy storage validation; match_key uses exact governed MatchingNormalizer","equal normalized channel values are allowed and may produce ambiguity","channel identity is independent from Contact identity/authentication","BEFORE DELETE trigger raises CONTACT_CHANNEL_DELETE_FORBIDDEN","archived channel rejects further ordinary UPDATE; active->archived and active value/revision correction remain governed application transitions"]
+      "columns":["contact_channel_id TEXT PRIMARY KEY","contact_id TEXT NOT NULL REFERENCES contacts(contact_id) ON UPDATE RESTRICT ON DELETE RESTRICT","channel_kind TEXT NOT NULL CHECK(channel_kind='email')","value_text TEXT NOT NULL CHECK(length(value_text)>0)","match_key TEXT NOT NULL CHECK(length(match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
+      "rules":["Beta 1.0 persists only email channels; adding another channel kind requires an accepted forward migration plus policy/version support","value_text must pass ContactChannelPolicy storage validation; match_key uses exact governed MatchingNormalizer","equal normalized channel values are allowed and may produce ambiguity","channel identity is independent from Contact identity/authentication","BEFORE DELETE trigger raises CONTACT_CHANNEL_DELETE_FORBIDDEN","archived channel rejects further ordinary UPDATE; active->archived and active value/revision correction remain governed application transitions"]
     },
     {
       "name":"contact_affiliations",
@@ -70,5 +71,5 @@
     "CREATE INDEX idx_reference_lifecycle_target ON reference_lifecycle_events(target_type,target_id,occurred_at_utc,reference_lifecycle_event_id)"
   ],
   "cross_module_schema_rule":"LLD-08 creates/owns Site↔Dispatch Location relationship with UNIQUE constraints on both Site and dispatch_location_id; LLD-02 never adds site_id/customer_org_id shortcut to dispatch_locations.",
-  "verification":"LLD-01 exact-schema verification must include all LLD-02 tables, partial/index coverage and protection triggers once the LLD-02 migration is accepted."
+  "verification":"LLD-01 exact-schema verification must include all LLD-02 STRICT tables, partial/index coverage and protection triggers once the LLD-02 migration is accepted."
 }
