@@ -1,0 +1,12 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-06",
+  "queries":[
+    {"name":"ListReportAttempts","inputs":["state/period/customer/date filters","cursor","limit"],"order":"created_at_utc DESC,report_attempt_id DESC","returns":"attempt state, scope, as-of, counts, artifact verification summary/failure code; never staged row bodies in list"},
+    {"name":"GetReportAttempt","inputs":["report_attempt_id"],"returns":"request metadata, state machine, snapshot counts/hash, artifact hash/size/verified_at, failure/cancel info and registered section summaries"},
+    {"name":"ListReportMemberSnapshots","inputs":["completed report id or privileged in-progress diagnostic review","cursor","limit"],"order":"member_ordinal","returns":"minimized report member evidence and tier results"},
+    {"name":"ListReportCohortSnapshots","inputs":["report_attempt_id","cursor","limit"],"order":"cohort_ordinal","returns":"captured canonical cohort state/counts/policy refs"},
+    {"name":"ReadSealedReportSnapshotForArtifact","visibility":"internal worker","inputs":["report_attempt_id","snapshot_hash"],"rules":["requires attempt ready_to_generate/generating/verifying and exact sealed hash","streams deterministic member/cohort/section rows without querying live operational tables","completed reports remain readable by exact immutable snapshot identity"]}
+  ],
+  "authority_rules":["in-progress staging rows are technical attempt data and not historical authority","completed report child rows are immutable evidence and all readers identify report-time as_of/timezone/scope","external artifact absence/movement does not invalidate completed database evidence","failed/cancelled attempts expose bounded metadata only after staging cleanup"]
+}
