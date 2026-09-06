@@ -2,7 +2,7 @@
   "schema":"SOMA-HLD-PACKET-V1",
   "id":"HLD-14",
   "name":"Temporal, Audit, History, Transactions, and Derived State",
-  "status":"review_ready",
+  "status":"accepted",
   "purpose":"Define cross-domain temporal types/authority, lifecycle-versus-audit evidence, append/correction history, transaction/idempotency rules, stale-revision protection and rebuildable derived-state behavior shared by every Beta 1.0 domain.",
   "primary_requirement_ids":["BETA-REQ-0017","BETA-REQ-0019","BETA-REQ-0135","BETA-REQ-0143","BETA-REQ-0144","BETA-REQ-0177"],
   "supporting_requirement_ids":["BETA-REQ-0008","BETA-REQ-0010","BETA-REQ-0018","BETA-REQ-0047","BETA-REQ-0050","BETA-REQ-0071","BETA-REQ-0088","BETA-REQ-0109","BETA-REQ-0127","BETA-REQ-0131","BETA-REQ-0132","BETA-REQ-0136","BETA-REQ-0142","BETA-REQ-0146","BETA-REQ-0158","BETA-REQ-0162","BETA-REQ-0167","BETA-REQ-0168","BETA-REQ-0172","BETA-REQ-0174","BETA-REQ-0175"],
@@ -24,5 +24,5 @@
   "downstream_hld_ids":[],
   "downstream_lld_ids":["LLD-01","LLD-02","LLD-03","LLD-04","LLD-05","LLD-06","LLD-07","LLD-08","LLD-09","LLD-10","LLD-11","LLD-12"],
   "unresolved_here_by_design":["exact temporal value-object/SQL column representations","exact transaction coordinator/unit-of-work API","exact revision-token mechanism per aggregate","exact audit action payload registry entries","exact design/implementation/acceptance traceability index and validation mechanism","exact projection rebuild/invalidation implementation","exact cross-domain deadlock/lock-order policy after schema is known"],
-  "completion_evidence":{"required_packet_files_present":true,"temporal_authority_fixed":true,"evidence_audit_diagnostics_separation_fixed":true,"atomic_mutation_audit_rule_fixed":true,"append_correction_history_fixed":true,"derived_state_non_authority_fixed":true,"ready_for_owner_review":true}
+  "completion_evidence":{"required_packet_files_present":true,"temporal_authority_fixed":true,"evidence_audit_diagnostics_separation_fixed":true,"atomic_mutation_audit_rule_fixed":true,"append_correction_history_fixed":true,"derived_state_non_authority_fixed":true,"owner_accepted":true}
 }
