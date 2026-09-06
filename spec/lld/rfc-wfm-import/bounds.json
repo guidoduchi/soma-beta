@@ -1,0 +1,40 @@
+{
+  "schema":"SOMA-LLD-BOUNDS-V1",
+  "lld_id":"LLD-04",
+  "policy":"These are versioned technical safety ceilings selected for Beta 1.0 construction, not product business caps. Exceeding a ceiling fails/quarantines at the smallest safe scope before domain mutation; content is never silently truncated. Later measured tuning may change ceilings through a new parser-profile version without changing product semantics.",
+  "xlsx_profile_id":"XLSX_RESOURCE_V1",
+  "archive":[
+    {"limit":"compressed_file_bytes","max":104857600},
+    {"limit":"total_expanded_zip_bytes","max":536870912},
+    {"limit":"single_zip_part_expanded_bytes","max":134217728},
+    {"limit":"zip_entry_count","max":4096},
+    {"limit":"max_expansion_ratio_per_part","max":100}
+  ],
+  "workbook":[
+    {"limit":"worksheet_count","max":32},
+    {"limit":"logical_matrix_rows_per_sheet","max":250000},
+    {"limit":"physical_columns_per_sheet","max":512},
+    {"limit":"logical_cells_total","max":8000000},
+    {"limit":"shared_string_count","max":1000000},
+    {"limit":"defined_name_count","max":4096}
+  ],
+  "values":[
+    {"limit":"normalized_cell_utf8_bytes","max":65536},
+    {"limit":"header_utf8_bytes","max":1024},
+    {"limit":"finding_message_utf8_bytes","max":2048},
+    {"limit":"physical_filename_utf8_bytes","max":1024},
+    {"limit":"stored_display_path_utf8_bytes","max":4096}
+  ],
+  "preview":[
+    {"collection":"import observations","default_page":100,"max_page":500,"total_cap":null},
+    {"collection":"proposals","default_page":100,"max_page":500,"total_cap":null},
+    {"collection":"findings","default_page":100,"max_page":500,"total_cap":null}
+  ],
+  "time_budget":{"automatic_parse_soft_seconds":60,"rule":"soft budget produces a bounded timeout/failure result and no domain mutation; it is not a partial-accept cutoff and does not conceal exact counts from a completed run"},
+  "resource_rules":[
+    "all archive paths are normalized and must stay inside the in-memory ZIP namespace; absolute, parent-traversal and alternate-stream style names are rejected",
+    "no limit authorizes dropping rows/columns and calling a partial parse complete",
+    "outside-matrix content is still included in security/resource scanning even when it has no domain meaning",
+    "preview virtualization never changes exact stored totals or proposal disposition visibility"
+  ]
+}
