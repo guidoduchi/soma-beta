@@ -1,0 +1,58 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-02",
+  "queries":[
+    {
+      "name":"GetReferenceById",
+      "targets":["CustomerOrganization","Contact","DispatchLocation","LocalUserProfile"],
+      "input":["immutable id"],
+      "output":"current reference projection plus revision/lifecycle; Contact includes current affiliation and active channels; Dispatch Location includes current_address projection source",
+      "rules":["historical lookup may return archived records","no query mutates or materializes defaults","Dispatch site-derived address is obtained through SiteDispatchAddressProvider rather than copied from LLD-08 tables"]
+    },
+    {
+      "name":"ListActiveReferences",
+      "targets":["CustomerOrganization","Contact","DispatchLocation"],
+      "pagination":"deterministic cursor over normalized display sort key then immutable ID; no product-wide arbitrary total cap",
+      "rules":["archived excluded","exact total may be computed when requested by governed UI/export","Dispatch Location remains customer-neutral; optional Site/customer context is presentation metadata only"]
+    },
+    {
+      "name":"MatchCustomerOrganization",
+      "algorithm":"algorithms/matching.json customer_org_match",
+      "input":["raw name or other explicitly registered governed key"],
+      "output":"CandidateResult"
+    },
+    {
+      "name":"MatchContact",
+      "algorithm":"algorithms/matching.json contact_match",
+      "input":["scope customer_org_id or UNBOUND","optional raw name","optional raw email"],
+      "output":"CandidateResult",
+      "rules":["only active Contact/channel/current-affiliation rows participate","email equality outside the requested scope is not a candidate collision for that scope","ambiguous candidates are returned in stable immutable-ID order"]
+    },
+    {
+      "name":"GetContactAffiliationHistory",
+      "input":["contact_id"],
+      "output":["contact_affiliation_id","customer_org_id","is_current","opened_at_utc","closed_at_utc"],
+      "order":"opened_at_utc, contact_affiliation_id",
+      "rule":"history is read from preserved relationship rows; current Customer labels do not rewrite historical operational snapshots owned by other domains"
+    },
+    {
+      "name":"PreviewReferenceArchive",
+      "input":["ReferenceTarget","base_revision"],
+      "mode":"read-only preview using the same registered dependency validators as ArchiveReference",
+      "output":["current revision","blockers","would_be_eligible"],
+      "rule":"preview is advisory; ArchiveReference reruns every validator inside its authoritative UnitOfWork before commit"
+    },
+    {
+      "name":"GetSetting",
+      "input":["setting_key"],
+      "output":["effective value","source=PERSISTED|DEFAULT","persisted revision or null","contract name/version","semantic owner"],
+      "rules":["unknown key rejected","absent row returns code-defined default without insertion","secret-classified definitions are not exposed through ordinary setting storage"]
+    },
+    {
+      "name":"ListSettingsForOwner",
+      "input":["semantic owner module"],
+      "output":"registered definitions joined to optional persisted values",
+      "rules":["registry order is deterministic","missing rows remain source DEFAULT","query has zero persistence side effects"]
+    }
+  ]
+}
