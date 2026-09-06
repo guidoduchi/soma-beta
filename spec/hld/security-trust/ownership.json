@@ -1,0 +1,19 @@
+{
+  "schema":"SOMA-HLD-OWNERSHIP-V1",
+  "hld_id":"HLD-13",
+  "authorities":[
+    {"fact":"local administrator credential verifier and authentication state","owner":"HLD-13","consumers":["HLD-01","HLD-03","HLD-11"]},
+    {"fact":"live-data encryption key lifecycle/protection state","owner":"HLD-13","consumers":["HLD-02"]},
+    {"fact":"portable-backup recovery/verification authority","owner":"HLD-13","consumers":["HLD-02","HLD-14"]},
+    {"fact":"per-run authenticated runtime identity and trusted-control evidence","owner":"HLD-13","consumers":["HLD-01","HLD-02"]},
+    {"fact":"sensitive-field classification and diagnostic sanitization policy","owner":"HLD-13","consumers":["all HLD modules"]},
+    {"fact":"external diagnostic records/rotation/support-export state","owner":"HLD-13","consumers":["HLD-02","HLD-11"]},
+    {"fact":"domain lifecycle/audit truth","owner":"HLD-14 and owning domain","consumers":["HLD-13 diagnostics may correlate but never redefine"]}
+  ],
+  "identity_rules":[
+    "Authentication identity is the singleton Local Administrator identity; Contacts are never login identities.",
+    "A password/verifier is not a data-encryption key, backup recovery key, run-auth token or device credential.",
+    "PID, port, registry-file presence or loopback origin alone never establish trusted run identity.",
+    "Opaque diagnostic correlation identifiers are purpose-created and do not reuse secrets or sensitive business identifiers unnecessarily."
+  ]
+}
