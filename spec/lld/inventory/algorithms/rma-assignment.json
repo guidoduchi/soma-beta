@@ -1,0 +1,17 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-07",
+  "name":"RMA_ASSIGNMENT_V1",
+  "inputs":["one accepted authorization batch preserving response_ordinal","request SR","promised BOM per RMA","current unassigned Device Part Units under same SR"],
+  "steps":[
+    "sort newly accepted RMAs by preserved response_ordinal",
+    "for each RMA load compatible currently unassigned Device Part Units under the request SR ordered by immutable creation_sequence",
+    "compatibility requires accepted BOM mapping/equality policy; ambiguity/incompatibility returns unassigned review state rather than forced assignment",
+    "choose earliest compatible unassigned target and reserve it for this assignment within the same UnitOfWork",
+    "append auto_assign event/current relationship; continue to next RMA",
+    "later authorization batches run against remaining current unassigned targets, preserving prior assignments",
+    "manual reassignment later changes only assignment relationship/event history"
+  ],
+  "determinism":"Given the same accepted batch order and same current eligible target set, assignment is identical; Device display order or UI sorting has no authority.",
+  "safety":"Assignment never creates receipt, Spare Part Unit, installation, Task outcome or return selection."
+}
