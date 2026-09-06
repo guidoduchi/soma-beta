@@ -1,0 +1,32 @@
+{
+  "schema":"SOMA-LLD-ROUTES-V1",
+  "lld_id":"LLD-04",
+  "prefix":"/api/v1/imports",
+  "routes":[
+    {"method":"POST","path":"/api/v1/imports/rfc/check","handler":"StartRfcWfmImportCheck(source_family=rfc_enhanced,automatic)","success":202},
+    {"method":"POST","path":"/api/v1/imports/rfc/select","handler":"StartRfcWfmImportCheck(source_family=rfc_enhanced,manual)","success":202},
+    {"method":"POST","path":"/api/v1/imports/wfm/check","handler":"StartRfcWfmImportCheck(source_family=wfm_service_provider,automatic)","success":202},
+    {"method":"POST","path":"/api/v1/imports/wfm/select","handler":"StartRfcWfmImportCheck(source_family=wfm_service_provider,manual)","success":202},
+    {"method":"GET","path":"/api/v1/imports/sources/{source_family}","handler":"GetImportSourceStatus","success":200},
+    {"method":"GET","path":"/api/v1/imports/runs","handler":"ListImportRuns","success":200},
+    {"method":"GET","path":"/api/v1/imports/runs/{import_run_id}","handler":"GetImportRun","success":200},
+    {"method":"GET","path":"/api/v1/imports/runs/{import_run_id}/observations","handler":"ListPublishedSourceObservations","success":200},
+    {"method":"GET","path":"/api/v1/imports/runs/{import_run_id}/findings","handler":"ListImportFindings","success":200},
+    {"method":"GET","path":"/api/v1/imports/runs/{import_run_id}/proposals","handler":"ListReconciliationProposals","success":200},
+    {"method":"GET","path":"/api/v1/imports/proposals/{proposal_id}","handler":"GetProposalReview","success":200},
+    {"method":"POST","path":"/api/v1/imports/proposals/{proposal_id}/accept","handler":"AcceptReconciliationProposal","success":200},
+    {"method":"POST","path":"/api/v1/imports/proposals/{proposal_id}/reject","handler":"RejectReconciliationProposal","success":200},
+    {"method":"POST","path":"/api/v1/imports/proposals/{proposal_id}/defer","handler":"DeferReconciliationProposal","success":200},
+    {"method":"POST","path":"/api/v1/imports/runs/{import_run_id}/finalize","handler":"FinalizeImportRunReview","success":200},
+    {"method":"GET","path":"/api/v1/imports/runs/{import_run_id}/recovery-preview","handler":"PreviewImportRecovery","success":200},
+    {"method":"POST","path":"/api/v1/imports/runs/{import_run_id}/recovery","handler":"ResolveImportRecovery","success":200}
+  ],
+  "auth":"all routes require authenticated local application session; mutating routes require anti-forgery and command_id. File-selection path values are untrusted input and pass the same path/reparse/stability validation as automatic candidates.",
+  "route_rules":[
+    "internal worker PublishStagedImportRun/RecordNewerIdenticalSourceCheck are not public routes",
+    "source_family is a closed enum and never becomes a dynamic filesystem matcher/table name",
+    "proposal accept endpoint cannot accept multiple implicit sibling proposals; bulk UI must submit explicit proposal identities and report each result",
+    "no route exposes raw workbook bytes or discarded columns from canonical persistence",
+    "a 202 check response means a durable staging job was accepted, not that any RFC/WFM/Task mutation occurred"
+  ]
+}
