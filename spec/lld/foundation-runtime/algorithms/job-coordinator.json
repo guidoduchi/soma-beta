@@ -1,0 +1,32 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-01",
+  "name":"DurableJobCoordinator",
+  "claim": {
+    "precondition":"host owns canonical data instance and is READY or explicitly allowed background-start state",
+    "transaction":"BEGIN IMMEDIATE",
+    "selection":"select due queued/retry_wait job by deterministic ordering (next_attempt_at_utc NULL/earliest, created_at_utc, job_id)",
+    "mutation":"set state=running, claimed_run_id=current run_id, claim_started_at_utc=now, attempt_count=attempt_count+1, updated_at_utc=now",
+    "commit":"commit claim before external/file work begins"
+  },
+  "execute":"run job-specific handler outside authoritative write transaction in background executor; handler may persist bounded checkpoints using short explicit transactions and must invoke owning-domain commands for accepted domain mutations",
+  "complete": {
+    "transaction":"BEGIN IMMEDIATE",
+    "steps":["reload exact job and verify claimed_run_id=current run_id and state=running","insert one job_attempts terminal row with ordinal=attempt_count","set durable_jobs state=completed, clear claim fields, update checkpoint/result technical state as contract permits","COMMIT"]
+  },
+  "fail_or_retry": {
+    "transaction":"BEGIN IMMEDIATE",
+    "steps":["verify current claim","insert job_attempts row outcome=failed/cancelled","job-type retry policy classifies terminal failed vs retry_wait with explicit next_attempt_at_utc","clear claim fields and store bounded last_error_code","COMMIT"],
+    "rule":"retry schedule is technical workflow policy; it never fabricates domain lifecycle state"
+  },
+  "startup_recovery": {
+    "precondition":"new host already owns canonical data instance exclusively",
+    "steps":["find state=running jobs whose claimed_run_id differs from current run","for each, in bounded transaction insert job_attempts outcome=interrupted using stored claim_started_at_utc and new recovery time","apply job-type recovery policy: queued, retry_wait, failed, or waiting_review","clear stale claim fields","never resume arbitrary in-memory code position; restart from durable checkpoint/contract"]
+  },
+  "job_type_contract": {
+    "required_fields":["job_type","contract_version","payload_schema","checkpoint_schema","retry_policy","crash_recovery_policy","cancellation_policy","sensitive_field_policy"],
+    "registration":"static application registry; unknown persisted job type/version is quarantined/failed-safe and not guessed"
+  },
+  "concurrency":"one coordinator in one authoritative host; at most two background executor workers; a job may define a stronger per-source/per-type coalescing key in its owning LLD",
+  "shutdown":"QUIESCING stops new claims; running handlers receive cooperative cancellation signal and either finish a safe checkpoint/terminal result or remain recoverable as prior-run interruption after process exit"
+}
