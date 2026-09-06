@@ -65,18 +65,6 @@
       "steps":["load exact active relationship","if absent semantic NO_CHANGE","insert receipt","transition link to unlinked with provenance","audit","commit"]
     },
     {
-      "name":"ArchiveRfc",
-      "input":["rfc_id","base_revision","reviewed exact scope","command_id"],
-      "steps":["capture/revalidate exact eligible target or reviewed branch members","archive only members explicitly included and still eligible","insert receipt","set only local_archive_state/revisions","audit exact changed members","commit"],
-      "rules":["does not change provider lifecycle, hierarchy, SR links, WFM/Task state or Communications","already archived members remain untouched","Master archive is never an implicit recursive command without reviewed/revalidated member scope"]
-    },
-    {
-      "name":"RestoreRfc",
-      "input":["rfc_id","base_revision","command_id"],
-      "steps":["inside UoW load exact archived RFC/revalidate","insert receipt","set local_archive_state active/increment revision","audit","commit"],
-      "rule":"newer source evidence may require review before restore but source reconciliation continues while archived"
-    },
-    {
       "name":"AddWorkingNote",
       "targets":["service_request","rfc"],
       "input":["ticket_id","body_text","command_id"],
@@ -93,5 +81,6 @@
       "steps":["load/revalidate and capture prior body/creation time/creating Local User Profile identity","insert receipt","delete active note row through dedicated repository method","insert required audit carrying prior content/event chronology/creator reference under bounded audit policy","commit"],
       "rules":["source import cannot call this","removal is audited and does not fabricate a source deletion"]
     }
-  ]
+  ],
+  "delegated_command_files":["RFC source/lifecycle, terminal cascade, archive-operation restore and hard delete -> commands/rfc-lifecycle.json","RFC hierarchy add/reparent/detach -> algorithms/rfc-hierarchy.json service contract"]
 }
