@@ -1,18 +1,26 @@
 {
   "schema":"SOMA-HLD-DEPENDENCIES-V1",
   "hld_id":"HLD-14",
-  "depends_on":[
+  "runtime_dependencies":[
     {"hld":"HLD-02","reason":"authoritative SQLite transaction/persistence mechanics"},
+    {"hld":"HLD-13","reason":"security-sensitive audit/diagnostic/backup boundaries"}
+  ],
+  "design_inputs_only":[
+    {"hld":"HLD-03","reason":"reference lifecycle/history semantics consumed by shared audit/transaction rules"},
+    {"hld":"HLD-04","reason":"ticket lifecycle/cascade chronology consumed as domain-specific semantics"},
     {"hld":"HLD-05","reason":"source chronology and staged-proposal boundaries"},
     {"hld":"HLD-06","reason":"Task/Objective plan, execution, review and correction chronology"},
     {"hld":"HLD-07","reason":"fixed SLA calendar/cohort/report snapshot semantics"},
     {"hld":"HLD-08","reason":"append-oriented physical lifecycle/correction histories"},
-    {"hld":"HLD-10","reason":"communication message chronology, coverage, orphan timers and purge records"},
-    {"hld":"HLD-13","reason":"security/diagnostic authority and backup/restore trust"}
+    {"hld":"HLD-09","reason":"Infrastructure relationship/correction history semantics"},
+    {"hld":"HLD-10","reason":"communication chronology, coverage, orphan timers and purge records"},
+    {"hld":"HLD-11","reason":"stale-revision/working-copy and safe-inverse interaction contracts"},
+    {"hld":"HLD-12","reason":"derived-state/non-authority and as-of projection requirements"}
   ],
   "consumed_by":[
     {"hld":"all HLD modules","reason":"shared temporal, audit, transaction, history and projection rules"}
   ],
+  "runtime_dependency_rule":"HLD-14 shared services/interfaces must not import domain-module implementations. Domain modules depend on shared temporal/audit/transaction abstractions and supply domain-specific event/action data through explicit interfaces; design_inputs_only are semantic constraints, not reverse runtime dependencies.",
   "forbidden_dependencies":[
     "No domain may use UI display timezone or local rendering as persistence chronology authority.",
     "No domain may use audit recording time as substitute for independently supported occurrence/effective time.",
