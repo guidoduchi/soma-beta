@@ -1,0 +1,28 @@
+{
+  "schema":"SOMA-HLD-PACKET-V1",
+  "id":"HLD-11",
+  "name":"UI, Workbenches, and Interaction State",
+  "status":"review_ready",
+  "purpose":"Define the shared interaction grammar, responsive workbench composition, application working-copy/conflict model, command presentation, confirmation tiers and accessibility boundaries without turning UI state into domain authority.",
+  "primary_requirement_ids":["BETA-REQ-0123","BETA-REQ-0124","BETA-REQ-0125","BETA-REQ-0126","BETA-REQ-0127","BETA-REQ-0128","BETA-REQ-0129","BETA-REQ-0130","BETA-REQ-0139"],
+  "supporting_requirement_ids":["BETA-REQ-0038","BETA-REQ-0051","BETA-REQ-0074","BETA-REQ-0090","BETA-REQ-0100","BETA-REQ-0110","BETA-REQ-0122","BETA-REQ-0135","BETA-REQ-0140"],
+  "decisions":[
+    {"id":"HLD11-D001","decision":"Keyboard focus, active row/node, single selection, multi-selection membership, expansion and opened record are independent UI states and never silently substitute for one another."},
+    {"id":"HLD11-D002","decision":"Single click selects; double-click or Enter opens; nested controls perform only their own action. Touch receives an explicit labelled Open action."},
+    {"id":"HLD11-D003","decision":"Scroll input belongs to the nearest legitimate hovered/focused/gesture-origin scroll surface and does not chain into sibling/underlying panes at a boundary."},
+    {"id":"HLD11-D004","decision":"Autocomplete/search choosers are bounded, query-identity-aware and never create entities/relationships from typed text or visual similarity; creation is a separate labelled domain command."},
+    {"id":"HLD11-D005","decision":"Responsive reflow preserves capability, material facts, warnings, commands, working copies, selection and communication context; narrow layout may change composition but not semantics."},
+    {"id":"HLD11-D006","decision":"Confirmation friction is consequence-based: ordinary activation, deliberate three-second hold, impact preview, preview+hold or owning-domain authority. Hold never replaces required impact review."},
+    {"id":"HLD11-D007","decision":"Device Reference promotion is an allowlisted exact three-second monotonic deliberate hold with equivalent pointer/touch/keyboard behavior and fresh state revalidation on completion."},
+    {"id":"HLD11-D008","decision":"Unsaved UI working copy, last accepted revision and persistent domain Draft lifecycle state are distinct. Unsaved state is never authoritative and stale saves never use last-write-wins."},
+    {"id":"HLD11-D009","decision":"Undo exists only for a currently valid bounded safe inverse; accepted evidence/lifecycle changes use owning-domain correction/supersession/cancellation/replacement/resend rather than generic UI undo."},
+    {"id":"HLD11-D010","decision":"Ticket workbenches use one focused list/detail/evidence model with domain-owned tabs/actions and canonical communication presentation; workbench views never duplicate message bodies or create alternate relationship authority."},
+    {"id":"HLD11-D011","decision":"Relationship consolidation/linking uses an explicit reviewed context/impact preview and never silently merges entity identities or copies related-domain truth."},
+    {"id":"HLD11-D012","decision":"Semantic tokens/skins/appearance may alter presentation only; layout, workflow, command availability, status meaning, confirmation friction and accessibility remain invariant across skins."}
+  ],
+  "packet_files":["_index.json","boundaries.json","ownership.json","dependencies.json","data-flow.json","invariants.json"],
+  "downstream_hld_ids":["HLD-12","HLD-13","HLD-14"],
+  "downstream_lld_ids":["LLD-10"],
+  "unresolved_here_by_design":["exact frontend framework/language/build tool","exact component library and state-management library","exact responsive breakpoint/container-query thresholds","exact action-to-confirmation registry serialization","exact working-copy persistence lifetime/size limits","exact visual skin token values and rendering tolerances"],
+  "completion_evidence":{"required_packet_files_present":true,"interaction_state_grammar_fixed":true,"responsive_capability_boundary_fixed":true,"working_copy_conflict_boundary_fixed":true,"confirmation_tiers_fixed":true,"ready_for_owner_review":true}
+}
