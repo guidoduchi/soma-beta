@@ -19,8 +19,9 @@
         "source_row_chronology_utc INTEGER CHECK(source_row_chronology_utc IS NULL OR source_row_chronology_utc>=0)",
         "presence_state TEXT NOT NULL CHECK(presence_state IN ('observed_valid_identity','observed_invalid_identity'))",
         "recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)",
-        "CHECK((identity_state='valid' AND canonical_primary_id IS NOT NULL AND presence_state='observed_valid_identity') OR (identity_state='invalid' AND canonical_primary_id IS NULL AND presence_state='observed_invalid_identity'))",
-        "CHECK((entity_kind='wfm' AND identity_state='valid' AND canonical_parent_rfc_no IS NOT NULL) OR entity_kind<>'wfm' OR identity_state='invalid')"
+        "CHECK((identity_state='valid' AND entity_kind IN ('rfc','wfm') AND canonical_primary_id IS NOT NULL AND presence_state='observed_valid_identity') OR (identity_state='invalid' AND entity_kind='invalid_row' AND canonical_primary_id IS NULL AND canonical_parent_rfc_no IS NULL AND presence_state='observed_invalid_identity'))",
+        "CHECK((source_family='rfc_enhanced' AND (entity_kind='rfc' OR entity_kind='invalid_row')) OR (source_family='wfm_service_provider' AND (entity_kind='wfm' OR entity_kind='invalid_row')))",
+        "CHECK((entity_kind='wfm' AND canonical_parent_rfc_no IS NOT NULL) OR entity_kind<>'wfm')"
       ],
       "rules":[
         "once parent run is published, rows are immutable normalized source evidence independent from whether any proposal is accepted",
@@ -44,14 +45,14 @@
         "integer_value INTEGER",
         "vocabulary_id TEXT",
         "field_logical_sha256 TEXT NOT NULL CHECK(length(field_logical_sha256)=64)",
-        "CHECK((value_kind IN ('text','controlled') AND integer_value IS NULL) OR (value_kind IN ('instant','duration_seconds') AND normalized_text IS NULL))",
-        "CHECK(value_state<>'usable' OR source_text IS NOT NULL OR integer_value IS NOT NULL)"
+        "CHECK((value_state='usable' AND value_kind IN ('text','controlled') AND source_text IS NOT NULL AND normalized_text IS NOT NULL AND integer_value IS NULL) OR (value_state='usable' AND value_kind IN ('instant','duration_seconds') AND source_text IS NOT NULL AND normalized_text IS NULL AND integer_value IS NOT NULL) OR (value_state<>'usable' AND normalized_text IS NULL AND integer_value IS NULL))",
+        "CHECK((value_kind='controlled' AND vocabulary_id IS NOT NULL) OR (value_kind<>'controlled' AND vocabulary_id IS NULL))"
       ],
       "rules":[
         "only registered allowlisted active/deferred fields are persisted",
         "unallowlisted/discarded columns are never copied into observation fields",
         "source_text is bounded allowlisted review evidence only; it is never executed/interpreted as code",
-        "normalized_text/integer_value carry validated semantic representation; malformed/unknown values cannot gain authoritative normalized meaning",
+        "normalized_text/integer_value exist only for usable validated values; malformed/unknown/blank rows cannot smuggle authoritative normalized meaning",
         "deferred fields are retained with provenance but generate no Beta 1.0 domain mutation unless separately activated by authority",
         "one source observation has at most one field row per canonical field_key"
       ]
@@ -89,7 +90,7 @@
   "protection":[
     "BEFORE UPDATE on source_observations/source_observation_fields/import_findings always raises append-only protection",
     "BEFORE DELETE on these rows permits only the dedicated unpublished-staging cleanup path while the owning import_run is still validating; all rows belonging to a staged/waiting_review/recovery_required/partially_accepted/accepted/rejected run are undeletable",
-    "replay/newer-identical cleanup deletes findings then fields then observations while run is validating, then transitions the empty-evidence run to noop so no duplicate SourceObservation history survives",
+    "replay/newer-identical cleanup deletes findings then fields then observations while run is validating, then transitions the empty-evidence run to noop/noop_pending_checkpoint so no duplicate SourceObservation history survives",
     "failed/interrupted unpublished staging may be technically cleaned under the same guard; this is not operational-history purge because the run was never published as exact-source evidence",
     "field-key/value-kind/source-family registry consistency is verified at persistence boundary and migration verifier has golden invalid-write tests"
   ]
