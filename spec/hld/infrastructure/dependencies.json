@@ -1,0 +1,27 @@
+{
+  "schema":"SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id":"HLD-09",
+  "incoming":[
+    {"from":"HLD-03","uses":["Customer Organization","Site reference relationships","Dispatch Location remains separate"]},
+    {"from":"HLD-04","uses":["Device Reference operational identity and direct RFC/SR context"]},
+    {"from":"HLD-05","uses":["staged/reviewed import pipeline and workbook observation model"]},
+    {"from":"HLD-02","uses":["SQLite authority","short transactions","typed persistence"]}
+  ],
+  "outgoing":[
+    {"to":"HLD-08","provides":["optional Device Reference resolution and physical Network Element/component context"]},
+    {"to":"HLD-10","provides":["trackable-domain context only where Communications contracts explicitly allow it; Infrastructure itself is not a communication identity source"]},
+    {"to":"HLD-11","provides":["Infrastructure workspace data, placement/containment views and deliberate Device Reference regularization actions"]},
+    {"to":"HLD-12","provides":["read-only Infrastructure summary projections"]},
+    {"to":"HLD-13","provides":["device-secret prohibition and future opaque-provider boundary"]},
+    {"to":"HLD-14","provides":["relationship correction/history requirements for placement, containment, Cloud and component instances"]}
+  ],
+  "forbidden_dependencies":[
+    "No Infrastructure command may infer ticket lifecycle, RFC Customer, Task execution, Inventory return state or Communication identity.",
+    "No Network Element identity may be derived from descriptive model/serial/IP/placement/Cloud values.",
+    "No Rack or Cloud Deployment relation may cross the Network Element's authoritative Site.",
+    "No model compatibility record may substitute for an installed Component instance/history record.",
+    "No Infrastructure import may mutate domain state before reviewed acceptance through HLD-05/HLD-09 boundaries.",
+    "No Beta 1.0 feature may persist device secrets or create canonical connectivity/topology state."
+  ],
+  "transaction_boundary":"Infrastructure mutations revalidate identity, Site consistency, cycle/cardinality constraints and revision state, then commit authoritative relationships plus required audit atomically. Workbook parsing/discovery, matching, UI review and expensive reconciliation occur outside the write transaction."
+}
