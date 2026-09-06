@@ -35,13 +35,26 @@
         "last_update_utc INTEGER CHECK(last_update_utc IS NULL OR last_update_utc>=0)",
         "last_update_evidence_id TEXT",
         "revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)",
-        "CHECK((status_text IS NULL AND status_evidence_id IS NULL AND status_authority IS NULL AND status_class='unknown' AND terminal_epoch_id IS NULL) OR (status_text IS NOT NULL AND status_evidence_id IS NOT NULL AND status_authority IS NOT NULL))",
+        "CHECK((summary_text IS NULL AND summary_evidence_id IS NULL) OR (summary_text IS NOT NULL AND summary_evidence_id IS NOT NULL))",
+        "CHECK((external_created_at_utc IS NULL AND external_created_evidence_id IS NULL) OR (external_created_at_utc IS NOT NULL AND external_created_evidence_id IS NOT NULL))",
+        "CHECK((creator_text IS NULL AND creator_evidence_id IS NULL) OR (creator_text IS NOT NULL AND creator_evidence_id IS NOT NULL))",
+        "CHECK((customer_account_number_text IS NULL AND customer_account_number_evidence_id IS NULL) OR (customer_account_number_text IS NOT NULL AND customer_account_number_evidence_id IS NOT NULL))",
+        "CHECK((customer_account_name_text IS NULL AND customer_account_name_evidence_id IS NULL) OR (customer_account_name_text IS NOT NULL AND customer_account_name_evidence_id IS NOT NULL))",
+        "CHECK((severity_text IS NULL AND severity_evidence_id IS NULL) OR (severity_text IS NOT NULL AND severity_evidence_id IS NOT NULL))",
+        "CHECK((owner_external_id_text IS NULL AND owner_external_id_evidence_id IS NULL) OR (owner_external_id_text IS NOT NULL AND owner_external_id_evidence_id IS NOT NULL))",
+        "CHECK((owner_name_text IS NULL AND owner_name_evidence_id IS NULL) OR (owner_name_text IS NOT NULL AND owner_name_evidence_id IS NOT NULL))",
+        "CHECK((l1_handler_name_text IS NULL AND l1_handler_name_evidence_id IS NULL) OR (l1_handler_name_text IS NOT NULL AND l1_handler_name_evidence_id IS NOT NULL))",
+        "CHECK((l2_handler_name_text IS NULL AND l2_handler_name_evidence_id IS NULL) OR (l2_handler_name_text IS NOT NULL AND l2_handler_name_evidence_id IS NOT NULL))",
+        "CHECK((last_update_utc IS NULL AND last_update_evidence_id IS NULL) OR (last_update_utc IS NOT NULL AND last_update_evidence_id IS NOT NULL))",
+        "CHECK((status_class='unknown' AND status_text IS NULL AND status_evidence_id IS NULL AND status_authority IS NULL AND terminal_epoch_id IS NULL) OR (status_class<>'unknown' AND status_text IS NOT NULL AND status_evidence_id IS NOT NULL AND status_authority IS NOT NULL))",
         "CHECK((status_class IN ('terminal_closed','terminal_cancelled') AND terminal_epoch_id IS NOT NULL) OR (status_class NOT IN ('terminal_closed','terminal_cancelled') AND terminal_epoch_id IS NULL))"
       ],
       "rules":[
         "current source fields are accepted projection only; immutable observation/staging/provenance rows belong to LLD-04/HLD-05",
         "each non-null evidence ID is an opaque immutable source-evidence identity validated through RfcSourceEvidenceProvider in the same acceptance UnitOfWork",
+        "every projected value/evidence pair is both-null or both-present; orphan provenance/value pointers are structurally rejected",
         "field updates are independently non-destructive: missing/unknown/unusable evidence does not clear prior accepted values unless the field contract explicitly permits clearing",
+        "unknown nonblank source Status is warning evidence in LLD-04 and never becomes current accepted status_text; status_class unknown means no usable accepted current Status",
         "status_text is exact accepted normalized source vocabulary text; status_class is derived from the versioned RFC vocabulary and is never independently edited",
         "WFM provisional status may populate only under LLD-04 precedence rules and cannot override accepted Enhanced RFC status",
         "terminal_epoch_id is allocated only when accepted current status crosses from nonterminal/unknown into terminal; terminal-to-terminal correction preserves the epoch; accepted terminal reversal clears the current epoch without erasing prior proposal/history rows",
@@ -53,9 +66,9 @@
       "columns":[
         "rfc_terminal_cascade_proposal_id TEXT PRIMARY KEY",
         "trigger_rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
-        "terminal_epoch_id TEXT NOT NULL",
+        "terminal_epoch_id TEXT NOT NULL CHECK(length(terminal_epoch_id)>0)",
         "terminal_status_class TEXT NOT NULL CHECK(terminal_status_class IN ('terminal_closed','terminal_cancelled'))",
-        "terminal_status_evidence_id TEXT NOT NULL",
+        "terminal_status_evidence_id TEXT NOT NULL CHECK(length(terminal_status_evidence_id)>0)",
         "scope_kind TEXT NOT NULL CHECK(scope_kind IN ('exact_rfc','root_branch'))",
         "scope_fingerprint TEXT NOT NULL CHECK(length(scope_fingerprint)=64)",
         "proposal_state TEXT NOT NULL CHECK(proposal_state IN ('pending','executed','superseded'))",
@@ -101,7 +114,7 @@
         "task_id TEXT NOT NULL",
         "owning_rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
         "captured_task_revision INTEGER NOT NULL CHECK(captured_task_revision>0)",
-        "captured_task_no TEXT NOT NULL",
+        "captured_task_no TEXT NOT NULL CHECK(length(captured_task_no)=16 AND substr(captured_task_no,1,2)='TK' AND substr(captured_task_no,3) NOT GLOB '*[^0-9]*')",
         "ordinal INTEGER NOT NULL CHECK(ordinal>=0)",
         "PRIMARY KEY(rfc_terminal_cascade_proposal_id,task_id)",
         "UNIQUE(rfc_terminal_cascade_proposal_id,ordinal)"
@@ -151,12 +164,15 @@
         "rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
         "event_type TEXT NOT NULL CHECK(event_type IN ('archived','restored'))",
         "origin_archive_operation_id TEXT NOT NULL REFERENCES rfc_archive_operations(rfc_archive_operation_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "resulting_rfc_revision INTEGER NOT NULL CHECK(resulting_rfc_revision>1)",
         "occurred_at_utc INTEGER NOT NULL CHECK(occurred_at_utc>=0)",
-        "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
+        "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "UNIQUE(rfc_id,resulting_rfc_revision)"
       ],
       "rules":[
         "append-only event history determines whether a member is still archived by the referenced operation",
-        "restore of one archive operation affects only members whose latest archive event is archived from that same operation",
+        "resulting_rfc_revision equals the RFC revision after the governed archive/restore transition and is the authoritative per-RFC event ordering key; second-level timestamps are presentation chronology only",
+        "restore of one archive operation affects only members whose latest-by-resulting-revision archive event is archived from that same operation",
         "later independent restore/rearchive prevents an older operation restore from changing that RFC"
       ]
     }
@@ -165,19 +181,25 @@
     "CREATE INDEX idx_rfc_source_status ON rfc_current_source_projection(status_class,rfc_id)",
     "CREATE INDEX idx_rfc_terminal_pending ON rfc_terminal_cascade_proposals(trigger_rfc_id,terminal_epoch_id,proposal_state,rfc_terminal_cascade_proposal_id)",
     "CREATE UNIQUE INDEX uq_rfc_terminal_pending_epoch ON rfc_terminal_cascade_proposals(trigger_rfc_id,terminal_epoch_id) WHERE proposal_state='pending'",
+    "CREATE INDEX idx_rfc_terminal_created_command ON rfc_terminal_cascade_proposals(created_command_id,rfc_terminal_cascade_proposal_id)",
+    "CREATE INDEX idx_rfc_terminal_executed_command ON rfc_terminal_cascade_proposals(executed_command_id,rfc_terminal_cascade_proposal_id) WHERE executed_command_id IS NOT NULL",
+    "CREATE INDEX idx_rfc_terminal_superseded_command ON rfc_terminal_cascade_proposals(superseded_command_id,rfc_terminal_cascade_proposal_id) WHERE superseded_command_id IS NOT NULL",
     "CREATE INDEX idx_rfc_terminal_rfc_member_fk ON rfc_terminal_cascade_rfc_members(rfc_id,rfc_terminal_cascade_proposal_id)",
     "CREATE INDEX idx_rfc_terminal_wfm_owner ON rfc_terminal_cascade_wfm_members(owning_rfc_id,rfc_terminal_cascade_proposal_id,task_id)",
     "CREATE INDEX idx_archive_requested_rfc ON rfc_archive_operations(requested_rfc_id,created_at_utc,rfc_archive_operation_id)",
+    "CREATE INDEX idx_archive_created_command ON rfc_archive_operations(created_command_id,rfc_archive_operation_id)",
     "CREATE INDEX idx_archive_member_rfc ON rfc_archive_operation_members(rfc_id,rfc_archive_operation_id)",
-    "CREATE INDEX idx_archive_event_latest ON rfc_archive_events(rfc_id,occurred_at_utc,rfc_archive_event_id)",
-    "CREATE INDEX idx_archive_event_origin ON rfc_archive_events(origin_archive_operation_id,rfc_id,occurred_at_utc,rfc_archive_event_id)"
+    "CREATE INDEX idx_archive_event_latest ON rfc_archive_events(rfc_id,resulting_rfc_revision DESC,rfc_archive_event_id)",
+    "CREATE INDEX idx_archive_event_origin ON rfc_archive_events(origin_archive_operation_id,rfc_id,resulting_rfc_revision,rfc_archive_event_id)",
+    "CREATE INDEX idx_archive_event_command ON rfc_archive_events(command_id,rfc_archive_event_id)"
   ],
   "database_guards":[
     "BEFORE UPDATE/DELETE on cascade RFC/WFM membership raises RFC_CASCADE_MEMBERSHIP_IMMUTABLE",
     "cascade proposal UPDATE permits only governed pending->executed or pending->superseded transition fields; executed/superseded rows reject further UPDATE",
     "BEFORE DELETE on cascade proposals raises RFC_CASCADE_HISTORY_APPEND_ONLY",
     "BEFORE UPDATE/DELETE on archive operations/members/events raises RFC_ARCHIVE_HISTORY_APPEND_ONLY",
-    "projection write guard verifies status_text/status_class/status_authority/terminal_epoch consistency and accepts writes only through the governed RFC source-projection service",
+    "projection write guard verifies value/evidence pairing and status_text/status_class/status_authority/terminal_epoch consistency and accepts writes only through the governed RFC source-projection service",
+    "archive event insert guard requires resulting_rfc_revision to equal the current RFC revision produced by the same governed transition",
     "archive state mutations on rfcs are accepted only when the corresponding archive event/operation evidence is inserted in the same UnitOfWork"
   ],
   "cross_domain_fk_rule":"WFM snapshot task_id intentionally has no physical FK in LLD-03 because LLD-05 owns Task schema and may be migrated later; capture and execution both validate immutable Task identity/revision through the same-UoW participant interface, and exact-schema verification treats this as an explicit cross-domain evidence reference rather than relational ownership."
