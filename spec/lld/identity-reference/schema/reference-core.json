@@ -4,6 +4,12 @@
   "id_convention":"All LLD-02 persistent entity/event/relationship identities use lowercase canonical UUIDv4 text from DomainIdFactory; descriptive/business values are never primary keys.",
   "tables":[
     {
+      "name":"reference_metadata",
+      "purpose":"self-describe the governed matching profile used by all persisted LLD-02 match keys",
+      "columns":["singleton_guard INTEGER PRIMARY KEY CHECK(singleton_guard=1)","matching_profile_id TEXT NOT NULL CHECK(length(matching_profile_id)>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)"],
+      "rules":["Beta 1.0 initializes exactly one row with matching_profile_id='UNICODE_MATCH_V1'","startup/reference-service readiness verifies the stored profile is supported before matching queries or writes","future profile changes require a governed forward migration/reindex rather than changing this value opportunistically"]
+    },
+    {
       "name":"local_user_profiles",
       "purpose":"singleton installation authentication-profile identity metadata; no credential material",
       "columns":["local_user_profile_id TEXT PRIMARY KEY","singleton_guard INTEGER NOT NULL UNIQUE CHECK(singleton_guard=1)","username TEXT NOT NULL CHECK(length(username)>0)","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
@@ -12,7 +18,7 @@
     {
       "name":"customer_organizations",
       "columns":["customer_org_id TEXT PRIMARY KEY","name TEXT NOT NULL CHECK(length(name)>0)","name_match_key TEXT NOT NULL CHECK(length(name_match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
-      "rules":["name/name_match_key are descriptive/matching evidence and are not unique","name_match_key must equal MatchingNormalizer(name) at every accepted write","ordinary runtime exposes archive/reactivate, not destructive deletion of history-bearing rows"]
+      "rules":["name/name_match_key are descriptive/matching evidence and are not unique","name_match_key must equal MatchingNormalizer(name) at every accepted write under reference_metadata.matching_profile_id","ordinary runtime exposes archive/reactivate, not destructive deletion of history-bearing rows"]
     },
     {
       "name":"contacts",
@@ -23,7 +29,7 @@
       "name":"contact_channels",
       "purpose":"reusable Contact communication/matching attributes; initial governed matching kind is email",
       "columns":["contact_channel_id TEXT PRIMARY KEY","contact_id TEXT NOT NULL REFERENCES contacts(contact_id) ON UPDATE RESTRICT ON DELETE RESTRICT","channel_kind TEXT NOT NULL","value_text TEXT NOT NULL CHECK(length(value_text)>0)","match_key TEXT NOT NULL CHECK(length(match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
-      "rules":["channel_kind must exist in closed code-defined ContactChannelDefinition registry; Beta 1.0 registry includes email for candidate matching","match_key uses the exact governed MatchingNormalizer over the complete value_text","equal normalized channel values are allowed and may produce ambiguity","channel identity is independent from Contact identity and authentication"]
+      "rules":["channel_kind must exist in closed code-defined ContactChannelDefinition registry; Beta 1.0 registry includes email for candidate matching","match_key uses the exact governed MatchingNormalizer over the complete value_text under the stored matching profile","equal normalized channel values are allowed and may produce ambiguity","channel identity is independent from Contact identity and authentication"]
     },
     {
       "name":"contact_affiliations",
