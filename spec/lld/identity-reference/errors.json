@@ -5,14 +5,19 @@
   "domain_errors":[
     {"code":"REFERENCE_ARCHIVED","http":409,"recoverability":"explicit_reactivation","meaning":"archived master cannot receive a new active operational relationship or ordinary edit requiring active state"},
     {"code":"ARCHIVE_BLOCKED","http":409,"recoverability":"resolve_reported_dependencies","meaning":"one or more active dependencies would be stranded; no archival mutation occurred"},
+    {"code":"DEPENDENCY_VALIDATION_FAILED","http":503,"recoverability":"retry_or_fix_dependency_owner","meaning":"archive/reactivation eligibility could not be proven because an owning-domain dependency validator failed; command failed closed"},
     {"code":"REACTIVATION_BLOCKED","http":409,"recoverability":"resolve_reported_conflicts","meaning":"current constraints prevent reactivation; archived history remains unchanged"},
     {"code":"CUSTOMER_ORG_INACTIVE","http":409,"recoverability":"select_or_reactivate_customer","meaning":"requested current affiliation requires an active Customer Organization"},
+    {"code":"ACCOUNT_CODE_CONFLICT_REVIEW","http":409,"recoverability":"review_existing_claim_and_assign_or_reassign","meaning":"normalized Customer Account Code is already canonically claimed by another Customer Organization; no automatic reassignment occurs"},
+    {"code":"ACCOUNT_CODE_SOURCE_NOT_OWNER","http":409,"recoverability":"reload_review_correct_source","meaning":"reviewed account-code reassignment expected the source Customer to own the current canonical claim but authoritative state no longer agrees"},
+    {"code":"MATCH_PROFILE_UNSUPPORTED","http":503,"recoverability":"run_supported_upgrade_or_restore_compatible_build","meaning":"database matching profile is not supported by this application build; matching reads/writes are blocked rather than reinterpreted"},
     {"code":"SETTING_UNKNOWN","http":400,"recoverability":"use_registered_setting","meaning":"setting key is absent from the closed SettingDefinition registry"},
     {"code":"SETTING_CONTRACT_MISMATCH","http":409,"recoverability":"registered_upgrade_or_software_update","meaning":"persisted/requested setting contract/version cannot be interpreted under the current registered definition"},
     {"code":"SETTING_SECRET_FORBIDDEN","http":400,"recoverability":"use_LLD12_secret_owner","meaning":"secret-classified material cannot be persisted in ordinary setting_values"},
     {"code":"SINGLETON_PROFILE_EXISTS","http":409,"recoverability":"use_existing_profile","meaning":"installation already has its one Local User Profile identity"},
-    {"code":"MATCH_INPUT_INVALID","http":400,"recoverability":"correct_input","meaning":"candidate key is blank/invalid after governed normalization or scope is malformed"}
+    {"code":"MATCH_INPUT_INVALID","http":400,"recoverability":"correct_input","meaning":"candidate key is blank/invalid after governed normalization or scope is malformed"},
+    {"code":"FIELD_BOUND_EXCEEDED","http":400,"recoverability":"correct_input","meaning":"semantic field/collection exceeds its field-specific accepted bound; value was not truncated"}
   ],
   "non_error_states":["UNRESOLVED","UNIQUE_CANDIDATE","AMBIGUOUS","contact-affiliation mismatch warning"],
-  "rule":"Ambiguity and affiliation mismatch are review states, not transport/server errors; they must not be converted into guessed identity mutation."
+  "rule":"Ambiguity, source-account-code conflict evidence and affiliation mismatch are review states unless a canonical mutation command collides with an existing accepted claim; none may be converted into guessed identity mutation."
 }
