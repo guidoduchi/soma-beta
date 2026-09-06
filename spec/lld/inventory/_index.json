@@ -1,0 +1,24 @@
+{
+  "schema":"SOMA-LLD-PACKET-V1",
+  "id":"LLD-07",
+  "name":"Spare Need, Spare Request, RMA, Stock, Fault Tag",
+  "status":"drafting",
+  "requirement_ids":["BETA-REQ-0014","BETA-REQ-0015","BETA-REQ-0016","BETA-REQ-0079","BETA-REQ-0080","BETA-REQ-0081","BETA-REQ-0082","BETA-REQ-0083","BETA-REQ-0084","BETA-REQ-0085","BETA-REQ-0086","BETA-REQ-0087","BETA-REQ-0088","BETA-REQ-0089","BETA-REQ-0090","BETA-REQ-0091","BETA-REQ-0092","BETA-REQ-0093","BETA-REQ-0094","BETA-REQ-0095","BETA-REQ-0096","BETA-REQ-0097","BETA-REQ-0098","BETA-REQ-0099","BETA-REQ-0100","BETA-REQ-0101"],
+  "supporting_requirement_ids":["BETA-REQ-0010","BETA-REQ-0018","BETA-REQ-0019","BETA-REQ-0023","BETA-REQ-0024","BETA-REQ-0032","BETA-REQ-0034","BETA-REQ-0049","BETA-REQ-0050","BETA-REQ-0067","BETA-REQ-0102","BETA-REQ-0112","BETA-REQ-0129","BETA-REQ-0135","BETA-REQ-0143","BETA-REQ-0169"],
+  "hld_dependencies":["HLD-02","HLD-03","HLD-04","HLD-06","HLD-08","HLD-09","HLD-10","HLD-14"],
+  "foundation_dependencies":["LLD-01 UnitOfWork/idempotency/audit/STRICT schema/durable-job conventions","LLD-02 Contact/Dispatch Location/Customer reference identities","LLD-03 Service Request and Device Reference identity/context","LLD-05 Task identity, reviewed outcome/correction and Inventory participant contracts","future LLD-08 optional Installed Component resolution","future LLD-09 communication evidence/proposal handoff"],
+  "scope":["Device Part Unit operational component identity","SR-level aggregated Spare Need and contributors","local Stock/Spare Part Unit identity and eligibility","Task-to-unit reservation/allocation history","Spare Request draft/allocation/submission identity and immutable requested-logistics snapshot","official SR7 identity aliases/correction","RMA C10 obligation identity, assignment, direct inbound unit and return-unit selection","actual logistics/custody events and independently addressable participants","reviewed maintenance physical consequences downstream of Task review","Fault Tag identity/draft/submission/membership/warehouse lifecycle","Fault Tag correction-replacement and rejection-resend lineage","manual lifecycle paths and communication-derived proposal participant interfaces","append-oriented correction/projection reducers","bulk preflight/atomic mutation","narrow untouched-draft hard deletion"],
+  "not_owned_here":["Service Request lifecycle/Customer authority -> LLD-03","Task execution/outcome/review/correction/retry -> LLD-05","Contact/Dispatch Location master truth -> LLD-02","Network Element/Installed Component authority -> LLD-08","Communication source/message identity -> LLD-09","UI working-copy/components -> LLD-10","authentication/action proofs -> LLD-12","exported operator-managed artifacts after generation"],
+  "required_directories":["schema","commands","queries","algorithms","ui","tests"],
+  "target_packet_files":[
+    "bounds.json","errors.json","interfaces.json","routes.json","technology.json",
+    "schema/identities-demand.json","schema/requests-rma.json","schema/units-allocation.json","schema/logistics-consequences.json","schema/fault-tags.json","schema/proposals-projections.json",
+    "commands/needs-stock.json","commands/requests-rma.json","commands/consequences-logistics.json","commands/fault-tags.json","commands/corrections-bulk.json",
+    "queries/inventory.json","queries/fault-tags.json",
+    "algorithms/identifiers.json","algorithms/need-aggregation.json","algorithms/stock-eligibility.json","algorithms/rma-assignment.json","algorithms/inventory-reducer.json","algorithms/return-selection.json","algorithms/fault-tag-lifecycle.json","algorithms/correction-bulk.json",
+    "ui/workspace-state.json",
+    "tests/acceptance.json","tests/failure-injection.json"
+  ],
+  "implementation_gate":{"hld_owner_accepted":true,"all_required_files_complete":false,"acceptance_tests_explicit":false,"construction_complete":false,"formal_double_review_deferred_until_full_beta_lld_set":true,"implementation_ready":false},
+  "design_principle":"Inventory preserves demand, provider obligations, physical units, planning allocations, actual physical consequences, requested logistics, actual logistics and return attempts as separate authorities. Every accepted transition is append-oriented and identity-preserving; availability, communication evidence, Task outcome or warehouse receipt alone never silently imply another lifecycle fact."
+}
