@@ -1,0 +1,11 @@
+{
+  "schema":"SOMA-HLD-DATA-FLOW-V1",
+  "hld_id":"HLD-12",
+  "flows":[
+    {"id":"HLD12-F001","name":"Overview query","steps":["Resolve explicit Customer/period scope","Read accepted projections/revisions from owning domains","Compute Tickets/Objectives/Inventory/SLA/Communication/Infrastructure summaries","Preserve unknown/partial/stale/excluded/unresolved markers","Build Needs Attention and deterministic narrative","Return as-of/freshness/coverage metadata with navigable source identities"]},
+    {"id":"HLD12-F002","name":"Needs Attention","steps":["Collect owning-domain actionable warning/proposal/review/blocker projections","Exclude resolved/non-actionable/decorative conditions","Apply deterministic priority/tie rules selected in LLD","Preserve source domain/target/reason/age/coverage","Navigate action to owning domain rather than mutating from Overview cache"]},
+    {"id":"HLD12-F003","name":"Operational narrative","steps":["Select accepted today/near-term events and action-required facts","Order by deterministic temporal/priority rules","Render human-readable statements from typed templates","Expose target navigation and unknown chronology explicitly","Never persist narrative text as operational authority"]},
+    {"id":"HLD12-F004","name":"Projection refresh","steps":["Observe committed domain revisions/events","Recompute or invalidate affected disposable read models","Publish new projection revision/as-of","If refresh fails retain known prior projection only with explicit stale state","Never roll back or alter owning-domain transactions"]}
+  ],
+  "summary_rules":["Ticket counts use accepted lifecycle/state filters and retain terminal history where governed.","Objective counts/timeline distinguish plan, execution, review and excluded historical populations.","Inventory summarizes constituent Needs/requests/RMAs/returns/warehouse/action-required state without flattening mixed outcomes.","SLA summary keeps individual SR state distinct from monthly cohort state and immutable report snapshots.","Communication summary uses canonical links/coverage and never counts unsent MSG drafts as sent interaction."]
+}
