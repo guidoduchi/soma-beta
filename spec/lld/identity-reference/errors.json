@@ -1,0 +1,18 @@
+{
+  "schema":"SOMA-LLD-ERROR-CATALOGUE-V1",
+  "lld_id":"LLD-02",
+  "inherits":"LLD-01 stable transport/error categories",
+  "domain_errors":[
+    {"code":"REFERENCE_ARCHIVED","http":409,"recoverability":"explicit_reactivation","meaning":"archived master cannot receive a new active operational relationship or ordinary edit requiring active state"},
+    {"code":"ARCHIVE_BLOCKED","http":409,"recoverability":"resolve_reported_dependencies","meaning":"one or more active dependencies would be stranded; no archival mutation occurred"},
+    {"code":"REACTIVATION_BLOCKED","http":409,"recoverability":"resolve_reported_conflicts","meaning":"current constraints prevent reactivation; archived history remains unchanged"},
+    {"code":"CUSTOMER_ORG_INACTIVE","http":409,"recoverability":"select_or_reactivate_customer","meaning":"requested current affiliation requires an active Customer Organization"},
+    {"code":"SETTING_UNKNOWN","http":400,"recoverability":"use_registered_setting","meaning":"setting key is absent from the closed SettingDefinition registry"},
+    {"code":"SETTING_CONTRACT_MISMATCH","http":409,"recoverability":"registered_upgrade_or_software_update","meaning":"persisted/requested setting contract/version cannot be interpreted under the current registered definition"},
+    {"code":"SETTING_SECRET_FORBIDDEN","http":400,"recoverability":"use_LLD12_secret_owner","meaning":"secret-classified material cannot be persisted in ordinary setting_values"},
+    {"code":"SINGLETON_PROFILE_EXISTS","http":409,"recoverability":"use_existing_profile","meaning":"installation already has its one Local User Profile identity"},
+    {"code":"MATCH_INPUT_INVALID","http":400,"recoverability":"correct_input","meaning":"candidate key is blank/invalid after governed normalization or scope is malformed"}
+  ],
+  "non_error_states":["UNRESOLVED","UNIQUE_CANDIDATE","AMBIGUOUS","contact-affiliation mismatch warning"],
+  "rule":"Ambiguity and affiliation mismatch are review states, not transport/server errors; they must not be converted into guessed identity mutation."
+}
