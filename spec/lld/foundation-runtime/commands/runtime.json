@@ -22,9 +22,10 @@
       "name":"ExecuteAuthoritativeCommand",
       "input":["command_id","command_type","canonical request hash","target identity/revision or equivalent preconditions","validated command payload","actor/source context"],
       "transaction_boundary":"one short BEGIN IMMEDIATE transaction",
-      "steps":["open verified authoritative connection","BEGIN IMMEDIATE","look up command_receipts by command_id","if same hash exists return prior result without new writes","if different hash exists fail integrity","load current target state","revalidate revision/domain preconditions","apply owning-domain mutation through repository interface","insert required lifecycle/domain evidence through owning domain","insert command_receipt","insert required audit event and audit_event_results","COMMIT","return committed result"],
+      "steps":["open verified authoritative connection","BEGIN IMMEDIATE","look up command_receipts by command_id","if same hash exists return prior result without new writes","if different hash exists fail integrity","load current target state","revalidate revision/domain preconditions","allocate any new immutable result/event/relationship IDs in memory","insert command_receipt before dependent rows; the uncommitted receipt is visible only inside this UnitOfWork and rolls back with any later failure","apply owning-domain mutation through repository interface","insert required lifecycle/domain evidence referencing the receipt where required","insert required audit event and audit_event_results","COMMIT","return committed result"],
       "failure_modes":["SQLITE_BUSY_RETRYABLE","COMMAND_ID_REUSE_MISMATCH","STALE_REVISION","DOMAIN_INVARIANT","AUDIT_VALIDATION","AUDIT_DUPLICATE_ID","CONSTRAINT_FAILURE","PERSISTENCE_FAILURE"],
-      "rollback":"any failure before COMMIT executes ROLLBACK and leaves no receipt/audit/partial accepted mutation"
+      "rollback":"any failure before COMMIT executes ROLLBACK and leaves no receipt/audit/lifecycle evidence/partial accepted mutation",
+      "ordering_rule":"Any authoritative row with a foreign key to command_receipts is inserted only after the receipt inside the same transaction; no receipt is externally observable as committed until the full transaction commits."
     },
     {
       "name":"ApplyPendingMigrations",
