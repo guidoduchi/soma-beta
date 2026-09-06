@@ -1,0 +1,33 @@
+{
+  "schema":"SOMA-LLD-BOUNDS-V1",
+  "lld_id":"LLD-08",
+  "text_bounds":{
+    "site_name":{"max_graphemes":200,"max_utf8_bytes":800,"blank":"reject"},
+    "site_address":{"max_graphemes":800,"max_utf8_bytes":3200,"blank":"reject"},
+    "room_name":{"max_graphemes":160,"max_utf8_bytes":640,"blank":"reject"},
+    "rack_name":{"max_graphemes":160,"max_utf8_bytes":640,"blank":"reject"},
+    "row_column_label":{"max_graphemes":64,"max_utf8_bytes":256,"blank":"normalize_to_null"},
+    "network_element_name":{"max_graphemes":200,"max_utf8_bytes":800,"blank":"reject"},
+    "manufacturer_serial":{"max_graphemes":160,"max_utf8_bytes":640,"blank":"normalize_to_null"},
+    "model_name":{"max_graphemes":200,"max_utf8_bytes":800,"blank":"reject"},
+    "component_bom":{"max_graphemes":160,"max_utf8_bytes":640,"blank":"reject"},
+    "component_slot":{"max_graphemes":96,"max_utf8_bytes":384,"blank":"normalize_to_null"},
+    "cloud_name":{"max_graphemes":200,"max_utf8_bytes":800,"blank":"reject"},
+    "workbook_comment":{"max_graphemes":1000,"max_utf8_bytes":4000,"blank":"normalize_to_null"},
+    "reason_code":{"max_graphemes":96,"max_utf8_bytes":384,"blank":"reject_when_required"}
+  },
+  "rack":{"height_u_min":1,"height_u_max":120,"u_start_min":1,"u_span_min":1,"placement_rule":"u_start + u_span - 1 must be <= rack.height_u; occupied U intervals within one Rack may not strictly overlap unless one represented item is explicitly non-U occupying under a future accepted placement type"},
+  "collections":{
+    "rooms_per_site":{"page_default":100,"page_max":500},
+    "racks_per_room":{"page_default":100,"page_max":500},
+    "network_elements":{"page_default":100,"page_max":500},
+    "ips_per_network_element":{"soft_warning":64,"hard_limit":1024},
+    "installed_components_per_network_element":{"soft_warning":256,"hard_limit":4096},
+    "containment_depth":{"soft_warning":32,"hard_limit":1024,"rule":"cycle guard is iterative/indexed and does not recurse Python stack"},
+    "workbook_rows":{"network_elements_max":100000,"ip_rows_max":500000,"metadata_rows_max":128,"rule":"higher requirements require a new accepted profile rather than unbounded parsing"},
+    "import_review_page":{"default":100,"max":500,"exact_total":"separate"}
+  },
+  "ip":{"families":[4,6],"zone_identifier":"reject in Beta 1.0 because no interface identity exists","canonicalization":"stdlib ipaddress compressed canonical text","per_network_element_duplicate":"reject exact canonical duplicate","cross_network_element_duplicate":"allowed with explicit duplicate-candidate warning; never identity/topology authority"},
+  "workbook":{"max_file_bytes":268435456,"max_zip_entries":20000,"max_uncompressed_bytes":1073741824,"max_cell_text_utf8_bytes":16384,"formulas":"reject in all authoritative data cells","macros":"reject","external_links":"reject","embedded_objects":"reject","source_directory":"nonrecursive configured Infrastructure Import Directory"},
+  "performance":{"containment_guard":"O(depth) indexed parent walk","rack_occupancy":"indexed overlap query on one Rack","ip_lookup":"indexed canonical address candidate query","workbook":"streaming bounded rows; proposal calculation outside writer lock; accepted batch one bounded transactional mutation plan"}
+}
