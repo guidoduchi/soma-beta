@@ -4,14 +4,13 @@
   "name":"ReferenceLifecycleValidation",
   "archive":{
     "input":["ReferenceTarget(type,id)","base_revision","reason_category","command context"],
-    "transaction":"one LLD-01 BEGIN IMMEDIATE UnitOfWork",
+    "transaction":"one short LLD-01 BEGIN IMMEDIATE UnitOfWork",
     "steps":[
       "load exact target by immutable ID and require lifecycle_state active",
       "revalidate base_revision",
       "load deterministic validator list from ReferenceDependencyRegistry for target type",
-      "execute every validator against the same UnitOfWork; validators are read-only and query only their owning domain",
-      "collect blockers as typed immutable-identity records; do not stop after the first blocker",
-      "if any blocker exists return ARCHIVE_BLOCKED with complete bounded blocker set and perform no mutation/receipt",
+      "execute every validator's indexed archive guard against the same UnitOfWork; each guard returns only has_blocker plus an optional first reason code and must not materialize unbounded dependent rows",
+      "if any guard reports a blocker, roll back immediately without inserting a command receipt or changing lifecycle state; return ARCHIVE_BLOCKED with preview_required=true",
       "allocate lifecycle event ID and insert command_receipt",
       "set lifecycle_state archived and increment revision",
       "append reference_lifecycle_events archived occurrence referencing the receipt",
@@ -23,15 +22,44 @@
       "Dispatch Location validators include active Site-dedicated relationship and unfinished logistics dependencies from LLD-08/LLD-07",
       "Customer Organization validators are registered by every owning domain whose active work would be stranded",
       "archive never cascades deletion/unlinking merely to make validation pass",
-      "ordinary Beta 1.0 LLD-02 exposes no hard-delete command for history-bearing reference masters"
+      "ordinary Beta 1.0 LLD-02 exposes no hard-delete command for history-bearing reference masters",
+      "full blocker enumeration is a separate read-only preview and never runs under the write lock"
     ]
   },
   "reactivate":{
-    "transaction":"one LLD-01 BEGIN IMMEDIATE UnitOfWork",
-    "steps":["load exact archived target","revalidate base_revision","run registered reactivation validators/current structural constraints","if conflicts exist return REACTIVATION_BLOCKED with no mutation/receipt","allocate lifecycle event ID and insert command_receipt","set active and increment revision","append reactivated lifecycle event referencing receipt","insert audit/result references","commit"],
+    "transaction":"one short LLD-01 BEGIN IMMEDIATE UnitOfWork",
+    "steps":[
+      "load exact archived target",
+      "revalidate base_revision",
+      "run every registered reactivation guard/current structural constraint using bounded indexed existence checks",
+      "if any guard reports a blocker, roll back immediately with REACTIVATION_BLOCKED and preview_required=true; insert no receipt",
+      "allocate lifecycle event ID and insert command_receipt",
+      "set active and increment revision",
+      "append reactivated lifecycle event referencing receipt",
+      "insert audit/result references",
+      "commit"
+    ],
     "rule":"reactivation never deletes or rewrites the prior archived interval/events"
   },
+  "preview":{
+    "mode":"read-only short snapshot; no BEGIN IMMEDIATE",
+    "steps":[
+      "load target and requested base revision",
+      "iterate validators in registry order",
+      "for each validator obtain exact blocker count using indexed COUNT/EXISTS-compatible query and fetch only the requested bounded deterministic page",
+      "sum exact counts without materializing all dependency rows",
+      "return exact_count, bounded items and continuation cursor"
+    ],
+    "cursor":"compound cursor encodes validator ordinal plus that validator's deterministic inner cursor; it is opaque to the client",
+    "freshness":"preview returns target revision and is advisory; ArchiveReference/ReactivateReference always reruns guard checks inside its write transaction"
+  },
   "blocker_shape":["validator_id","dependency_type","dependency_id","reason_code","safe_next_action"],
-  "ordering":"validators and returned blockers sort deterministically by validator_id, dependency_type, dependency_id so UI/tests receive stable results",
-  "failure_atomicity":"stale revision, validator exception, blocker, constraint error, lifecycle-event failure or audit failure rolls back receipt and all attempted lifecycle mutation."
+  "ordering":"validators are ordered by validator_id; each validator orders items by dependency_type then immutable dependency_id, yielding stable global page order without full materialization",
+  "performance_contract":[
+    "write-path validators use indexed EXISTS/guard queries and do not fetch dependent bodies",
+    "preview count/list queries are read-only and paginated",
+    "a validator that cannot decide safely returns indeterminate failure; indeterminate never means eligible",
+    "LLD-02 never holds the SQLite write transaction while the operator reads blocker details"
+  ],
+  "failure_atomicity":"stale revision, validator exception/indeterminate result, blocker, constraint error, lifecycle-event failure or audit failure rolls back receipt and all attempted lifecycle mutation."
 }
