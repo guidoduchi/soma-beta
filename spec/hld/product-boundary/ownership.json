@@ -1,0 +1,63 @@
+{
+  "schema": "SOMA-HLD-OWNERSHIP-V1",
+  "hld_id": "HLD-01",
+  "owns": [
+    {
+      "capability": "product runtime topology",
+      "rule": "Beta 1.0 uses one authoritative local Python host process per canonical data instance and a browser client on the same machine."
+    },
+    {
+      "capability": "application lifetime",
+      "rule": "The host process, not the browser window, owns application lifetime and background-work continuity."
+    },
+    {
+      "capability": "network exposure boundary",
+      "rule": "Authoritative operation is exposed only through a supported exact loopback origin. Remote-listen modes are outside Beta 1.0."
+    },
+    {
+      "capability": "product lineage",
+      "rule": "Beta source, persistence, migrations, packaging, and release lineage remain independent from Alpha/Zeus."
+    },
+    {
+      "capability": "runtime support envelope",
+      "rule": "The HLD preserves the accepted Windows 10/11 x64 and Python 3.13/3.14 support matrix and forbids an installed Node.js runtime dependency."
+    },
+    {
+      "capability": "distribution boundary",
+      "rule": "The product and release artifacts remain proprietary/internal and runtime/customer material is excluded from source control."
+    }
+  ],
+  "does_not_own": [
+    {
+      "capability": "domain lifecycle rules",
+      "owner": "HLD-03 through HLD-10 and HLD-14"
+    },
+    {
+      "capability": "database schema, migrations, connection policy, and durable job persistence",
+      "owner": "HLD-02"
+    },
+    {
+      "capability": "browser interaction semantics and frontend implementation",
+      "owner": "HLD-11"
+    },
+    {
+      "capability": "cryptographic choices, local-run trust protocol details, diagnostics security, backup/recovery",
+      "owner": "HLD-13"
+    },
+    {
+      "capability": "transaction, audit, temporal, history, idempotency, and derived-state semantics",
+      "owner": "HLD-14"
+    },
+    {
+      "capability": "exact Python web framework, frontend framework/language/build tool, tray toolkit, installer technology, supported browser versions",
+      "owner": "LLD-01 and LLD-12"
+    }
+  ],
+  "authority_rules": [
+    "Browser code may request commands and queries but may not establish domain validity by itself.",
+    "Adapters and background jobs may discover or stage evidence but may not bypass application-service/domain mutation policies.",
+    "No module may mutate another module's authoritative persistence through undocumented table/file shortcuts.",
+    "Cross-domain behavior must use explicit application/service interfaces or reproducible projections.",
+    "A technical convenience process, cache, registry, or file never becomes independent product/domain authority."
+  ]
+}
