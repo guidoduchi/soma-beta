@@ -1,0 +1,86 @@
+{
+  "schema": "SOMA-HLD-PACKET-V1",
+  "id": "HLD-01",
+  "name": "Product Boundary and Runtime Topology",
+  "status": "review_ready",
+  "purpose": "Define the smallest stable Beta 1.0 runtime/process/network boundary so downstream HLD and LLD packets can design implementation details without rediscovering product topology.",
+  "primary_requirement_ids": [
+    "BETA-REQ-0001",
+    "BETA-REQ-0002",
+    "BETA-REQ-0004",
+    "BETA-REQ-0005",
+    "BETA-REQ-0006",
+    "BETA-REQ-0007",
+    "BETA-REQ-0009"
+  ],
+  "supporting_requirement_ids": [
+    "BETA-REQ-0003",
+    "BETA-REQ-0018",
+    "BETA-REQ-0138",
+    "BETA-REQ-0140"
+  ],
+  "canonical_clause_families": [
+    "LINEAGE-*",
+    "RUNTIME-*",
+    "PLATFORM-*",
+    "DIST-*",
+    "PROVENANCE-*",
+    "SCM-*",
+    "DEPLOY-*",
+    "CI-MATRIX-*",
+    "LOCAL-RUN-*"
+  ],
+  "decisions": [
+    {
+      "id": "HLD01-D001",
+      "decision": "One authoritative Python host process owns each canonical SOMA data instance."
+    },
+    {
+      "id": "HLD01-D002",
+      "decision": "The browser is a same-machine presentation client and is not the application lifetime or domain authority."
+    },
+    {
+      "id": "HLD01-D003",
+      "decision": "Beta 1.0 has no second authoritative worker/service; background work is host-supervised and restart-safe through HLD-02 durable state."
+    },
+    {
+      "id": "HLD01-D004",
+      "decision": "The host serves both the local application API and version-matched browser assets on an exact supported loopback origin."
+    },
+    {
+      "id": "HLD01-D005",
+      "decision": "Closing/restarting the browser does not stop the host; tray and explicit start/stop controls manage host lifetime."
+    },
+    {
+      "id": "HLD01-D006",
+      "decision": "Beta 1.0 runtime operation requires no internet, CDN, cloud service, remote database service, or installed Node.js runtime."
+    },
+    {
+      "id": "HLD01-D007",
+      "decision": "HLD-01 intentionally does not select the Python web framework, frontend framework/language/build tool, tray toolkit, installer, port-selection algorithm, or exact browser versions; those are LLD-01/LLD-12 decisions constrained by this topology."
+    }
+  ],
+  "packet_files": [
+    "_index.json",
+    "boundaries.json",
+    "ownership.json",
+    "dependencies.json",
+    "data-flow.json",
+    "invariants.json"
+  ],
+  "downstream_hld_ids": ["HLD-02", "HLD-11", "HLD-13", "HLD-14"],
+  "downstream_lld_ids": ["LLD-01", "LLD-12"],
+  "unresolved_here_by_design": [
+    "O-006 exact Windows editions/builds, browser versions, runner images, packaging combinations",
+    "O-010 exact tray toolkit and low-level background lifecycle implementation",
+    "exact Python server framework",
+    "exact frontend stack/build tooling",
+    "exact loopback port-selection algorithm"
+  ],
+  "completion_evidence": {
+    "required_packet_files_present": true,
+    "product_topology_fixed": true,
+    "technology_choices_beyond_HLD_scope_deferred_explicitly": true,
+    "ready_for_owner_review": true
+  }
+}
