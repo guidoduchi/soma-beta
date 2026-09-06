@@ -1,0 +1,23 @@
+{
+  "schema":"SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id":"HLD-14",
+  "depends_on":[
+    {"hld":"HLD-02","reason":"authoritative SQLite transaction/persistence mechanics"},
+    {"hld":"HLD-05","reason":"source chronology and staged-proposal boundaries"},
+    {"hld":"HLD-06","reason":"Task/Objective plan, execution, review and correction chronology"},
+    {"hld":"HLD-07","reason":"fixed SLA calendar/cohort/report snapshot semantics"},
+    {"hld":"HLD-08","reason":"append-oriented physical lifecycle/correction histories"},
+    {"hld":"HLD-10","reason":"communication message chronology, coverage, orphan timers and purge records"},
+    {"hld":"HLD-13","reason":"security/diagnostic authority and backup/restore trust"}
+  ],
+  "consumed_by":[
+    {"hld":"all HLD modules","reason":"shared temporal, audit, transaction, history and projection rules"}
+  ],
+  "forbidden_dependencies":[
+    "No domain may use UI display timezone or local rendering as persistence chronology authority.",
+    "No domain may use audit recording time as substitute for independently supported occurrence/effective time.",
+    "No projection/cache may become a write-side source of truth or authorize identity/lifecycle changes.",
+    "No correction path may update/delete prior accepted audit/lifecycle evidence when append/supersession authority applies.",
+    "No cross-domain workflow may bypass another domain's command validation by writing its tables directly."
+  ]
+}
