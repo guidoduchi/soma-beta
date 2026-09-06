@@ -1,0 +1,8 @@
+{
+  "schema":"SOMA-HLD-BOUNDARIES-V1",
+  "hld_id":"HLD-12",
+  "owns":["cross-domain read-model composition for Overview/main operational views","Customer/period query scope presentation","Needs Attention/readiness projections","operational narrative projection","cross-domain summary freshness/coverage/unknown-state presentation","navigation from summary to owning workspace/entity"],
+  "does_not_own":["ticket/RFC lifecycle","Objective/Task plans/outcomes","Inventory lifecycle","Infrastructure identity","Communication content/link lifecycle","CPL/SLA policy/calculation/report truth","audit/history semantics","domain command eligibility"],
+  "projection_boundary":"Overview may join/project accepted facts from multiple domains and may maintain disposable read caches, but no Overview row/card/narrative item is independently editable operational truth. Any user action that changes state navigates/invokes the owning domain command.",
+  "excluded_inputs":["unsaved UI working copies","rejected/deferred proposals","discarded source fields such as Resolved Status Date","unaccepted import observations","unconfirmed Communication-derived proposals","decorative/game score values"]
+}
