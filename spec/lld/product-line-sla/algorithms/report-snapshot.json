@@ -1,0 +1,40 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-06",
+  "name":"REPORT_SNAPSHOT_V1",
+  "snapshot_boundary":[
+    "open one LLD-01 stable read Snapshot after report attempt/as_of/scope is committed",
+    "resolve report period boundaries in fixed America/Guayaquil and keep as_of_utc constant for every contributor/calculation",
+    "enumerate Customer scope by immutable Customer Organization id; all/specific/unassigned semantics are supplied by the relevant section contract and never by display-name matching",
+    "build SLA member and cohort rows from accepted SR/classification/current-policy/source evidence using INDIVIDUAL_SLA_V1 and COHORT_STATE_V1 at that exact as_of_utc",
+    "invoke the closed ReportSectionContributor registry in deterministic section order for any non-SLA report sections owned by other LLDs; each contributor reads only through the same stable Snapshot and emits only its versioned bounded snapshot contract",
+    "while the read Snapshot remains open, persist emitted rows in ordered bounded staging batches through a separate LLD-01 writer connection; the read Snapshot never observes those new staging rows and therefore remains one consistent accepted-state view",
+    "after every contributor reaches complete EOF, compute exact member/section/cohort counts and canonical snapshot SHA-256 over report request metadata plus ordered normalized staged semantic rows",
+    "SealReportSnapshot re-derives count/hash from persisted staging and marks ready_to_generate; only then close/release the stable read boundary if not already released by framework finalizer"
+  ],
+  "canonical_hashing":[
+    "UTF-8 canonical JSON tokens with explicit schema/version/kind identities; no locale-dependent formatting",
+    "order SLA member snapshots by immutable service_request_id after report-defined presentation ordinal is separately captured; order tier/cohort rows by canonical IDs/key tuple",
+    "order cross-domain sections by closed registry ordinal then contributor-provided canonical row key",
+    "exclude artifact filesystem metadata, temporary paths and generated XLSX packaging from snapshot identity"
+  ],
+  "artifact_generation":[
+    "writer opens no live domain queries; it reads sealed staged rows only",
+    "render exact period/timezone/scope, included/excluded/unclassified/uncalculable populations, SLA policy revisions and represented cross-domain sections",
+    "write authoritative results as literal values rather than spreadsheet formulas whose later recalculation could change meaning",
+    "close artifact then reopen/validate required sheets/row totals/snapshot identifier and calculate file SHA-256/byte size",
+    "only a VALID verification may transition attempt to completed and thereby make staged snapshot rows immutable historical evidence"
+  ],
+  "failure_cleanup":[
+    "before completed transition all staging children are technical attempt data and may be deleted by governed failure/cancellation cleanup",
+    "failed/cancelled attempt retains bounded state/failure/audit/job metadata, not the full staged operational population",
+    "completed rows are never cleaned because live data/policy later changes, terminal status, source age, report age or external artifact movement",
+    "temporary candidate file cleanup is filesystem housekeeping and never operational-history cleanup authority"
+  ],
+  "rules":[
+    "Daily/Weekly/selected-range reports show as-of progress for canonical monthly SLA cohorts rather than redefining contractual cohort boundaries",
+    "report-time descriptive Customer/Contact/status/summary values are captured only when a registered section schema actually renders or requires them",
+    "complete source observations, communications bodies, Working Notes, discarded Product and unrelated personal data are forbidden from snapshot payloads",
+    "a report may be scoped to one Customer Organization or all Customers; completed evidence always freezes exact scope and timezone"
+  ]
+}
