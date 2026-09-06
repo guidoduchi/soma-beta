@@ -1,0 +1,23 @@
+{
+  "schema":"SOMA-HLD-DEPENDENCIES-V1",
+  "hld_id":"HLD-13",
+  "depends_on":[
+    {"hld":"HLD-01","reason":"host/browser topology, loopback exposure and launcher lifetime"},
+    {"hld":"HLD-02","reason":"canonical datastore ownership, migrations, backup/restore persistence mechanics"},
+    {"hld":"HLD-03","reason":"singleton Local Administrator/reference-data separation"},
+    {"hld":"HLD-05","reason":"untrusted workbook staging boundary"},
+    {"hld":"HLD-09","reason":"device-secret exclusion from Infrastructure"},
+    {"hld":"HLD-10","reason":"read-only PST/OST and content-minimization boundary"}
+  ],
+  "consumed_by":[
+    {"hld":"HLD-11","reason":"login, session/anti-forgery, support-diagnostics UX and secret-safe presentation"},
+    {"hld":"HLD-14","reason":"audit/transaction semantics must preserve security failure and recovery invariants"}
+  ],
+  "forbidden_dependencies":[
+    "Domain modules must not derive authorization from mutable UI state or diagnostic output.",
+    "Persistence must not derive live-data encryption keys from the administrator password.",
+    "Backup recovery must not assume the live Windows-protected key is portable.",
+    "Diagnostics must not become a fallback persistence/audit channel for failed authoritative writes.",
+    "Security must not introduce external accounts, cloud identity, SMTP/Graph, SSH or a device-secret vault into Beta 1.0."
+  ]
+}
