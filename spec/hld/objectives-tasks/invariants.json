@@ -1,0 +1,42 @@
+{
+  "schema": "SOMA-HLD-INVARIANTS-V1",
+  "hld_id": "HLD-06",
+  "invariants": [
+    {"id":"HLD06-I001","rule":"A persisted Objective contains at least one Task; an empty unaccepted UI draft is not a persisted Objective."},
+    {"id":"HLD06-I002","rule":"A Task belongs to at most one Objective and may remain unscheduled."},
+    {"id":"HLD06-I003","rule":"Objective membership requires a complete valid accepted Task interval; timestamps are never invented or rounded to create eligibility."},
+    {"id":"HLD06-I004","rule":"WFM source plan, accepted Task plan, Objective envelope and actual execution are distinct authorities."},
+    {"id":"HLD06-I005","rule":"Accepted Objectives never overlap; global strict positive-duration Task overlap is transitive."},
+    {"id":"HLD06-I006","rule":"Customer, RFC hierarchy and work-package context never partition temporal overlap authority."},
+    {"id":"HLD06-I007","rule":"Exact interval touch is non-overlap unless separately reviewed into one Objective."},
+    {"id":"HLD06-I008","rule":"Objective start does not start member Tasks."},
+    {"id":"HLD06-I009","rule":"Each Task owns independent execution chronology and reviewed outcome."},
+    {"id":"HLD06-I010","rule":"Whole-Objective Cancelled is valid only when no member Task began execution."},
+    {"id":"HLD06-I011","rule":"Review acceptance time never substitutes for execution start/end/effective cancellation time."},
+    {"id":"HLD06-I012","rule":"Objective/Task success never by itself proves spare use, Device work or Inventory physical consequence."},
+    {"id":"HLD06-I013","rule":"Correction preserves the same attempt identity; retry always creates a new Task attempt identity."},
+    {"id":"HLD06-I014","rule":"Distinct canonical WFM Task Nos remain distinct attempts even under the same RFC."},
+    {"id":"HLD06-I015","rule":"Competing WFM restriction applies only to overlapping active attempts of the same reviewed activity lineage."},
+    {"id":"HLD06-I016","rule":"Plan/membership locks arise from accepted execution/history/explicit locks, never merely from clock passage."},
+    {"id":"HLD06-I017","rule":"In-Progress loss of all executable work yields Incomplete — Awaiting Review, never automatic Completed or Cancelled."},
+    {"id":"HLD06-I018","rule":"Accepted execution/history permanently blocks hard deletion of the affected Objective/Task."},
+    {"id":"HLD06-I019","rule":"Historical provider completion may support structure only; it cannot fabricate execution/outcome/Inventory evidence."},
+    {"id":"HLD06-I020","rule":"Objective scheduling timezone affects schedule input/presentation only and never rewrites canonical UTC or source chronology."}
+  ],
+  "acceptance_hooks": [
+    "standalone-objective-nonempty-persistence",
+    "unscheduled-task-and-zero-or-one-objective",
+    "transitive-strict-overlap-and-exact-touch",
+    "bridge-consolidation-no-overlapping-objectives",
+    "source-plan-vs-task-plan-vs-envelope-vs-execution",
+    "objective-start-does-not-start-tasks",
+    "mixed-task-outcomes-and-whole-cancel-guard",
+    "reviewed-at-vs-execution-time",
+    "correction-vs-new-retry-identity",
+    "same-rfc-distinct-wfm-activities",
+    "in-progress-zero-executable-to-incomplete-review",
+    "historical-complete-no-fabricated-execution",
+    "timezone-display-vs-reschedule",
+    "accepted-history-no-hard-delete"
+  ]
+}
