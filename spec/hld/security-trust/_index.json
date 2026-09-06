@@ -2,7 +2,7 @@
   "schema":"SOMA-HLD-PACKET-V1",
   "id":"HLD-13",
   "name":"Security, Trust, Diagnostics, and Recovery",
-  "status":"review_ready",
+  "status":"accepted",
   "purpose":"Define Beta 1.0 authentication, encryption-key separation, local-instance trust, backup/recovery verification, prohibited-secret boundaries, and non-authoritative sanitized diagnostics without taking ownership from persistence or domain services.",
   "primary_requirement_ids":["BETA-REQ-0035","BETA-REQ-0036","BETA-REQ-0037","BETA-REQ-0078","BETA-REQ-0108","BETA-REQ-0140","BETA-REQ-0141","BETA-REQ-0142"],
   "supporting_requirement_ids":["BETA-REQ-0018","BETA-REQ-0059","BETA-REQ-0109","BETA-REQ-0120","BETA-REQ-0131","BETA-REQ-0132","BETA-REQ-0133","BETA-REQ-0134","BETA-REQ-0136","BETA-REQ-0138","BETA-REQ-0143","BETA-REQ-0144"],
@@ -22,5 +22,5 @@
   "downstream_hld_ids":["HLD-14"],
   "downstream_lld_ids":["LLD-01","LLD-12"],
   "unresolved_here_by_design":["exact password verifier/KDF parameters","exact AEAD/key-envelope primitives and Windows protection API usage","exact backup envelope/signature/integrity formats and recovery-secret UX","exact local run-auth protocol/token transport and anti-forgery implementation","exact diagnostic file format/rotation/queue limits","exact support-export schema"],
-  "completion_evidence":{"required_packet_files_present":true,"credential_key_backup_separation_fixed":true,"local_instance_trust_boundary_fixed":true,"diagnostic_non_authority_and_sanitization_fixed":true,"restore_verify_before_mutation_fixed":true,"ready_for_owner_review":true}
+  "completion_evidence":{"required_packet_files_present":true,"credential_key_backup_separation_fixed":true,"local_instance_trust_boundary_fixed":true,"diagnostic_non_authority_and_sanitization_fixed":true,"restore_verify_before_mutation_fixed":true,"owner_accepted":true}
 }
