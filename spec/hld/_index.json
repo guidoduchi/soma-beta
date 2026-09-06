@@ -7,7 +7,7 @@
     {"id":"HLD-02","path":"spec/hld/foundation-runtime","name":"Foundation Runtime and Persistence","status":"review_ready"},
     {"id":"HLD-03","path":"spec/hld/identity-reference","name":"Identity, Settings, and Reference Data","status":"review_ready"},
     {"id":"HLD-04","path":"spec/hld/tickets","name":"Tickets and RFC Hierarchy","status":"review_ready"},
-    {"id":"HLD-05","path":"spec/hld/import-reconciliation","name":"Import and Reconciliation","status":"planned"},
+    {"id":"HLD-05","path":"spec/hld/import-reconciliation","name":"Import and Reconciliation","status":"review_ready"},
     {"id":"HLD-06","path":"spec/hld/objectives-tasks","name":"Objectives, Tasks, Scheduling, and Execution","status":"planned"},
     {"id":"HLD-07","path":"spec/hld/product-line-sla","name":"Product Line and SLA","status":"planned"},
     {"id":"HLD-08","path":"spec/hld/inventory","name":"Inventory Lifecycle","status":"planned"},
