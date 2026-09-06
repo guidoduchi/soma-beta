@@ -1,0 +1,24 @@
+{
+  "schema": "SOMA-LLD-INDEX-V1",
+  "status": "planned-after-hld-ownership",
+  "purpose": "Define implementation-ready packets small enough for deterministic AI coding and review.",
+  "packets": [
+    {"id":"LLD-01","path":"spec/lld/foundation-runtime","name":"Foundation Runtime, Persistence, Migrations, Audit","status":"planned"},
+    {"id":"LLD-02","path":"spec/lld/identity-reference","name":"Identity, Settings, Contacts, Organizations, Locations","status":"planned"},
+    {"id":"LLD-03","path":"spec/lld/tickets-core","name":"Service Requests, RFCs, Device References, Ticket Relationships","status":"planned"},
+    {"id":"LLD-04","path":"spec/lld/rfc-wfm-import","name":"RFC/WFM Import and Reconciliation","status":"planned"},
+    {"id":"LLD-05","path":"spec/lld/objectives-tasks","name":"Objectives, Tasks, Grouping, Execution, Review","status":"planned"},
+    {"id":"LLD-06","path":"spec/lld/product-line-sla","name":"Product Line Classification, SLA, Reporting","status":"planned"},
+    {"id":"LLD-07","path":"spec/lld/inventory","name":"Spare Need, Spare Request, RMA, Stock, Fault Tag","status":"planned"},
+    {"id":"LLD-08","path":"spec/lld/infrastructure","name":"Site, Room, Rack, Network Element, Components","status":"planned"},
+    {"id":"LLD-09","path":"spec/lld/communications","name":"Communication Sources, Identity, Links, Retention","status":"planned"},
+    {"id":"LLD-10","path":"spec/lld/ui-workbenches","name":"Navigation, Workbenches, Draft State, Undo, Responsive UI","status":"planned"},
+    {"id":"LLD-11","path":"spec/lld/overview","name":"Overview Metrics, Timeline, Cross-domain Projections","status":"planned"},
+    {"id":"LLD-12","path":"spec/lld/security-packaging","name":"Authentication, Encryption, Diagnostics, Packaging, Recovery","status":"planned"}
+  ],
+  "packet_contract": {
+    "required_directories": ["schema","commands","queries","algorithms","ui","tests"],
+    "required_properties": ["requirement_ids","hld_dependencies","transaction_boundaries","failure_modes","acceptance_tests"],
+    "implementation_gate": "A packet is implementation-ready only when its referenced HLD ownership is accepted and its acceptance tests are explicit."
+  }
+}
