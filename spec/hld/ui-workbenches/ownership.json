@@ -1,0 +1,15 @@
+{
+  "schema":"SOMA-HLD-OWNERSHIP-V1",
+  "hld_id":"HLD-11",
+  "owners":[
+    {"concept":"selection/open/focus/membership state","authority":"HLD-11","notes":"Ephemeral/persistent UI navigation state only; never domain identity."},
+    {"concept":"working copy","authority":"HLD-11 application state","notes":"Targets one accepted revision and may be recoverable but is never accepted truth until a domain command succeeds."},
+    {"concept":"persistent domain Draft","authority":"owning domain","notes":"A real accepted lifecycle state; must never be conflated with unsaved/dirty UI state."},
+    {"concept":"confirmation tier","authority":"HLD-11 registry constrained by owning domain","notes":"Presentation friction only; cannot authorize an otherwise-invalid command."},
+    {"concept":"relationship preview","authority":"HLD-11 presentation + owning-domain command","notes":"Shows retained/incoming/conflicting context; identity merge/link semantics remain domain-owned."},
+    {"concept":"skin/appearance/token system","authority":"HLD-11 presentation","notes":"May alter visual treatment but never business semantics or interaction friction."},
+    {"concept":"communication pane","authority":"HLD-10 data + HLD-11 presentation","notes":"Displays canonical Communication projections without duplicating message authority."},
+    {"concept":"workbench action availability","authority":"owning domain projected through HLD-11","notes":"Enabled/blocked/remediation state derives from current accepted domain projection/dependencies."}
+  ],
+  "cross_domain_rule":"HLD-11 may coordinate multiple views and preview consequences but any accepted mutation must route to the owning HLD/domain command. UI orchestration cannot become a bypass around transaction, history, review or security boundaries."
+}
