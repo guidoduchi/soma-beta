@@ -1,0 +1,20 @@
+{
+  "schema":"SOMA-LLD-DOUBLE-REVIEW-REGRESSIONS-V1",
+  "lld_id":"LLD-02",
+  "cases":[
+    {"id":"LLD02-DR-001","finding":"Customer Account Code authority omission","regression":"valid Customer Account Code is modeled as external Customer identifier and preferred exact reconciliation evidence; it never becomes relational identity"},
+    {"id":"LLD02-DR-002","finding":"cross-Python Unicode drift","regression":"UNICODE_MATCH_V1 yields byte-identical keys on Python 3.13/3.14 using Unicode-17 pinned data/assets; unsupported matching profile fails closed"},
+    {"id":"LLD02-DR-003","finding":"invented global Account Code uniqueness","regression":"reviewed multiple canonical claimants remain representable and matching stays AMBIGUOUS until explicit resolution"},
+    {"id":"LLD02-DR-004","finding":"opaque review context not bound to current conflict","regression":"shared/reassign mutation requires exact server-derived review_snapshot_hash and returns REVIEW_CONTEXT_STALE when Customer/reference generation or target/source state changes"},
+    {"id":"LLD02-DR-005","finding":"unbounded claimant hash under SQLite writer","regression":"commit review validation uses customer_reference_generation + indexed point/count checks; claimant detail remains read-only/paginated outside BEGIN IMMEDIATE"},
+    {"id":"LLD02-DR-006","finding":"shared-code reassign into target already holding same code","regression":"source claim is superseded; target existing same-code identifier is reused; no duplicate target claim or false target revision/history is created"},
+    {"id":"LLD02-DR-007","finding":"accepted no-op retry could later mutate","regression":"NO_CHANGE receipt commits without domain/lifecycle/audit fabrication and same command_id/hash retry remains bound to original no-op result"},
+    {"id":"LLD02-DR-008","finding":"multiple usable channels had no ambiguity state","regression":"AUTO_SELECT with >1 usable email returns MULTIPLE_USABLE/CHANNEL_SELECTION_REQUIRED and never chooses by row order"},
+    {"id":"LLD02-DR-009","finding":"history query omitted preserved command provenance","regression":"Account Code and Contact-affiliation history queries expose opening/closing or creation/superseding command IDs"},
+    {"id":"LLD02-DR-010","finding":"missing FK child indexes","regression":"complete migrated schema passes LLD-01 FK-to-leading-prefix-index analyser including command provenance FKs and setting_values.command_id"},
+    {"id":"LLD02-DR-011","finding":"undefined Settings quarantine path","regression":"unknown keys/unsupported versions reject unless an exact registered upgrader exists; no generic quarantine store or fallback JSON authority exists"},
+    {"id":"LLD02-DR-012","finding":"schema relied too heavily on application validation","regression":"all LLD-02 tables are STRICT; Beta 1.0 channel_kind is CHECK-constrained to email; affiliation/history/delete/generation protections are database-enforced"},
+    {"id":"LLD02-DR-013","finding":"field-bounds traceability omission","regression":"BETA-REQ-0169 is explicitly listed as supporting LLD-02 authority and field/page limits remain semantic/page bounds rather than destructive total-record caps"}
+  ],
+  "gate":"Every case is mandatory regression coverage for LLD-02 implementation acceptance; removing a protection requires a new accepted design decision rather than test deletion."
+}
