@@ -1,0 +1,97 @@
+{
+  "schema":"SOMA-LLD-COMMANDS-V1",
+  "lld_id":"LLD-03",
+  "ordering":"Follow LLD-01 idempotency/UoW order. Pure format/bound validation occurs before BEGIN IMMEDIATE; authoritative identity/relationship/revision checks rerun inside it.",
+  "commands":[
+    {
+      "name":"CreateManualServiceRequest",
+      "input":["command_id","optional official_sr_no","actor/source"],
+      "steps":["validate optional official identity exactly eight digits","inside UoW reject already-owned official_sr_no","when official absent allocate next non-reusable LSR-########","allocate service_request_id","insert receipt","insert SR revision 1","audit creation and business identity","commit"],
+      "rules":["official and local business IDs never become PKs","manual incomplete SR is valid; missing nonidentity facts do not block creation"]
+    },
+    {
+      "name":"AttachOfficialServiceRequestIdentity",
+      "input":["service_request_id","base_revision","official_sr_no","review context","command_id"],
+      "steps":["inside UoW load same surviving SR and revalidate revision","validate exact eight-digit identity and prove it belongs to no other SR","require reviewed mapping; descriptive similarity cannot authorize","if exact official_sr_no already attached use semantic NO_CHANGE","insert receipt","set official_sr_no while preserving local_sr_no/service_request_id","increment revision","audit local-to-official identity attachment","commit"],
+      "rules":["never replaces SR row","prior LSR remains permanently available","later Advanced Search exact identity reconciles to this SR"]
+    },
+    {
+      "name":"CreateOrAdoptRfcIdentity",
+      "input":["canonical rfc_no","creation context manual|provisional|accepted-source-adoption","optional customer_org_id","command_id"],
+      "steps":["validate exact NC+14","inside UoW query exact rfc_no","if RFC exists return its immutable rfc_id to the owning reviewed adoption flow rather than create duplicate","otherwise validate optional Customer active via LLD-02","allocate rfc_id","insert receipt","insert RFC revision 1","audit creation/provisional context without ever_imported flag","commit"],
+      "rule":"source adoption/provenance append itself is owned by reconciliation packet and must share or follow its exact accepted transaction contract"
+    },
+    {
+      "name":"SetRfcCustomer",
+      "input":["rfc_id","base_revision","customer_org_id or null","reason/review context","command_id"],
+      "steps":["inside UoW load RFC/hierarchy branch and revalidate revision","validate non-null Customer is active LLD-02 identity","if exact requested Customer equals current use semantic NO_CHANGE","if known parent/child branch member has a different resolved Customer return RFC_CUSTOMER_MISMATCH","unresolved branch members remain warning not blocker","insert receipt","set customer_org_id/increment revision","audit prior/new Customer and reviewed evidence","commit"],
+      "rules":["Infrastructure evidence cannot call this as ownership authority","Customer names alone do not establish identity"]
+    },
+    {
+      "name":"CreateDeviceReference",
+      "input":["operational_name","command_id"],
+      "steps":["validate nonblank semantic bounds","inside UoW allocate device_reference_id","insert receipt","insert Device Reference revision 1","audit","commit"],
+      "rules":["equal names do not merge","Infrastructure registration is optional"]
+    },
+    {
+      "name":"CorrectDeviceReferenceName",
+      "input":["device_reference_id","base_revision","operational_name","reason_category","command_id"],
+      "steps":["load/revalidate","if accepted text already equal use semantic NO_CHANGE","insert receipt","update operational_name/revision","audit prior/new bounded value","commit"],
+      "rules":["does not create/reassign Network Element resolution","all operational links retain device_reference_id"]
+    },
+    {
+      "name":"LinkServiceRequestToRfc",
+      "input":["service_request_id","rfc_id","base revisions","optional subordinate_origin_rfc_id","command_id"],
+      "steps":["inside UoW resolve supplied rfc_id to current root target; if action originated from subordinate require supplied governing root matches current hierarchy","revalidate SR/root revisions","require root has no active parent","if active pair exists use semantic NO_CHANGE","allocate link ID","insert receipt","insert active sr_rfc_link","increment affected presentation revisions only where contract requires; do not alter lifecycle","audit relationship and subordinate-origin provenance when applicable","commit"],
+      "rules":["direct subordinate link rejected","terminal SR/RFC may be linked when otherwise valid","no reopen/restart/SLA reset/cascade"]
+    },
+    {
+      "name":"UnlinkServiceRequestFromRfc",
+      "input":["service_request_id","root_rfc_id","base revisions","reason_category","command_id"],
+      "steps":["inside UoW locate active exact pair","if absent use semantic NO_CHANGE","insert receipt","transition active link to unlinked with closing provenance","audit reason/prior link","commit"],
+      "rules":["no lifecycle mutation","history row remains protected"]
+    },
+    {
+      "name":"LinkDeviceReference",
+      "targets":["service_request","rfc"],
+      "input":["target_id","device_reference_id","target base_revision","command_id"],
+      "steps":["load target and Device Reference","if active exact pair exists semantic NO_CHANGE","allocate relationship ID","insert receipt","insert active link","audit","commit"],
+      "rules":["RFC target may be root or subordinate","RFC need not have SR","relationship always targets Device Reference not Network Element"]
+    },
+    {
+      "name":"UnlinkDeviceReference",
+      "targets":["service_request","rfc"],
+      "input":["target_id","device_reference_id","reason_category","command_id"],
+      "steps":["load exact active relationship","if absent semantic NO_CHANGE","insert receipt","transition link to unlinked with provenance","audit","commit"]
+    },
+    {
+      "name":"ArchiveRfc",
+      "input":["rfc_id","base_revision","reviewed exact scope","command_id"],
+      "steps":["capture/revalidate exact eligible target or reviewed branch members","archive only members explicitly included and still eligible","insert receipt","set only local_archive_state/revisions","audit exact changed members","commit"],
+      "rules":["does not change provider lifecycle, hierarchy, SR links, WFM/Task state or Communications","already archived members remain untouched","Master archive is never an implicit recursive command without reviewed/revalidated member scope"]
+    },
+    {
+      "name":"RestoreRfc",
+      "input":["rfc_id","base_revision","command_id"],
+      "steps":["inside UoW load exact archived RFC/revalidate","insert receipt","set local_archive_state active/increment revision","audit","commit"],
+      "rule":"newer source evidence may require review before restore but source reconciliation continues while archived"
+    },
+    {
+      "name":"AddWorkingNote",
+      "targets":["service_request","rfc"],
+      "input":["ticket_id","body_text","command_id"],
+      "steps":["validate bounds","inside UoW prove target exists","allocate note ID","insert receipt","insert owner-specific note","audit creation","commit"]
+    },
+    {
+      "name":"EditWorkingNote",
+      "input":["note identity/owner","base_revision","body_text","command_id"],
+      "steps":["load/revalidate","if same body semantic NO_CHANGE","insert receipt","update body/revision/updated_at while preserving created_at","audit prior/new content under bounded policy","commit"]
+    },
+    {
+      "name":"RemoveWorkingNote",
+      "input":["note identity/owner","base_revision","reason_category","command_id"],
+      "steps":["load/revalidate and capture prior body/creation time","insert receipt","delete active note row through dedicated repository method","insert required audit carrying prior content/event chronology","commit"],
+      "rules":["source import cannot call this","removal is audited and does not fabricate a source deletion"]
+    }
+  ]
+}
