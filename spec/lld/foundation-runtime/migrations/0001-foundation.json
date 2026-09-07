@@ -1,0 +1,32 @@
+{
+  "schema":"SOMA-LLD-MIGRATION-OBJECT-ALLOCATION-V2",
+  "lld_id":"LLD-01",
+  "sequence":1,
+  "migration_id":"beta_0001_foundation",
+  "runtime_filename":"0001_foundation.sql",
+  "schema_sources":["schema/core.json","schema/verification.json"],
+  "objects":[
+    "table:instance_metadata",
+    "table:schema_migrations",
+    "table:command_receipts",
+    "table:audit_events",
+    "table:audit_event_results",
+    "table:durable_jobs",
+    "table:job_attempts",
+    "index:idx_audit_recorded_at",
+    "index:idx_audit_target",
+    "index:idx_audit_command",
+    "index:idx_jobs_state_due",
+    "index:idx_jobs_type_state",
+    "trigger:audit_events_before_update_append_only",
+    "trigger:audit_events_before_delete_append_only",
+    "trigger:audit_event_results_before_update_append_only",
+    "trigger:audit_event_results_before_delete_append_only"
+  ],
+  "ownership_rule":"Every Foundation table, supporting index and append-only protection trigger declared by the reviewed LLD-01 schema is allocated to global migration sequence 1; runtime SQL bytes/hash remain unaccepted until implementation review freezes src/soma/migrations/0001_foundation.sql.",
+  "verification":[
+    "post-migration schema verifier requires exact table/index/trigger inventory and STRICT/FK/index policy",
+    "schema_migrations row for sequence 1 commits in the same migration transaction as its objects",
+    "clean initialization remains unpublished until the complete release schema passes verification"
+  ]
+}
