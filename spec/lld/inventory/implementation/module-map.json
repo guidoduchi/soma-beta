@@ -1,0 +1,25 @@
+{
+  "schema":"SOMA-LLD-IMPLEMENTATION-MAP-V2",
+  "lld_id":"LLD-07",
+  "root":"src/soma/inventory",
+  "modules":{
+    "domain":"domain/{needs,units,requests,rmas,logistics,consequences,fault_tags,proposals}.py",
+    "repositories":"repositories/{needs,units,requests,rmas,logistics,fault_tags,projections}.py",
+    "services":"services/{needs_stock,requests_rma,consequences_logistics,fault_tags,corrections_bulk,hard_delete,participants}.py",
+    "queries":"queries/{stock_needs,requests_rma,task_context,attention_history,fault_tags,previews}.py",
+    "transport":"api/{routes_inventory,routes_fault_tags}.py",
+    "types":"contracts/inventory.py"
+  },
+  "commands":{
+    "RegisterDevicePartUnit":"services/needs_stock.py","SetSpareNeedPlannedQuantity":"services/needs_stock.py","ChangeSpareNeedLifecycle":"services/needs_stock.py","RegisterSparePartUnit":"services/needs_stock.py","ReserveSparePartUnitForTask":"services/needs_stock.py","ReleaseSparePartUnitReservation":"services/needs_stock.py","RecordLocalNeedFulfillmentSelection":"services/needs_stock.py",
+    "CreateSpareRequestDraft":"services/requests_rma.py","UpdateSpareRequestDraft":"services/requests_rma.py","AcceptSpareRequestSubmission":"services/requests_rma.py","CorrectFalseSpareRequestSubmission":"services/requests_rma.py","AssignOrCorrectSpareRequestOfficialId":"services/requests_rma.py","AcceptRmaAuthorizationBatch":"services/requests_rma.py","CorrectRmaOfficialId":"services/requests_rma.py","SetRmaTargetAssignment":"services/requests_rma.py","CancelOrRejectSpareRequest":"services/requests_rma.py",
+    "RecordRmaInboundReceipt":"services/consequences_logistics.py","RecordActualLogisticsEvent":"services/consequences_logistics.py","AcceptInventoryPhysicalConsequence":"services/consequences_logistics.py","CorrectInventoryPhysicalConsequence":"services/consequences_logistics.py","CorrectLogisticsParticipant":"services/consequences_logistics.py",
+    "CreateFaultTagDraft":"services/fault_tags.py","UpdateFaultTagDraft":"services/fault_tags.py","AcceptFaultTagSubmission":"services/fault_tags.py","CorrectFalseFaultTagSubmission":"services/fault_tags.py","RecordWarehouseReceipt":"services/fault_tags.py","RecordWarehouseFinalDecision":"services/fault_tags.py","CreateFaultTagReplacement":"services/fault_tags.py","CreateFaultTagResend":"services/fault_tags.py","ArchiveOrRestoreFaultTag":"services/fault_tags.py",
+    "AcceptInventoryProposal":"services/corrections_bulk.py","RejectInventoryProposal":"services/corrections_bulk.py","PreviewInventoryBulkAction":"queries/previews.py","AcceptInventoryBulkAction":"services/corrections_bulk.py","CorrectInventoryEvidence":"services/corrections_bulk.py","PreviewInventoryHardDelete":"queries/previews.py","HardDeleteUntouchedInventoryDraft":"services/hard_delete.py"
+  },
+  "queries":{
+    "StockEligibilityQuery":"queries/stock_needs.py","InventoryNeedsQuery":"queries/stock_needs.py","SpareRequestListQuery":"queries/requests_rma.py","SpareRequestDetailQuery":"queries/requests_rma.py","RmaDetailQuery":"queries/requests_rma.py","TaskInventoryContextQuery":"queries/task_context.py","InventoryAttentionQuery":"queries/attention_history.py","InventoryHistoryQuery":"queries/attention_history.py","PreviewInventoryBulkAction":"queries/previews.py","PreviewInventoryHardDelete":"queries/previews.py","FaultTagListQuery":"queries/fault_tags.py","FaultTagDetailQuery":"queries/fault_tags.py","EligibleFaultTagMembershipQuery":"queries/fault_tags.py","WarehouseQueueQuery":"queries/fault_tags.py","FaultTagLineageQuery":"queries/fault_tags.py"
+  },
+  "services":{"InventoryTaskDependencyProvider":"services/participants.py","InventoryProposalTargetService":"services/participants.py","ReportSectionContributor":"services/participants.py"},
+  "rules":["Inventory never owns Task lifecycle; LLD-05 facts enter only through typed readers/participants.","Pure bulk/destructive previews live under queries and create no receipt, audit or lifecycle event.","Physical-unit creation from RMA is owned only by RecordRmaInboundReceipt after actual receipt evidence.","LLD-05 retry/dependency and LLD-09 proposal participation reuse caller UnitOfWork/command context and never nested-commit."]
+}
