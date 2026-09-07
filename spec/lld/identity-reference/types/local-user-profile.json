@@ -1,0 +1,9 @@
+{
+  "schema":"SOMA-LLD-TYPES-V2",
+  "lld_id":"LLD-02",
+  "types":{
+    "UpdateLocalUserProfileDisplayNameRequestV1":{"kind":"command_payload","command":"UpdateLocalUserProfileDisplayName","body_fields":{"base_revision":"int>=1","display_name":"nonblank bounded string"},"command_envelope":"COMMAND_ENVELOPE_V1","unknown_fields":"reject"},
+    "LocalUserProfileV1":{"kind":"object","required":["local_user_profile_id","display_name","revision"],"fields":{"local_user_profile_id":"uuid","display_name":"bounded string","revision":"int>=1"}}
+  },
+  "rules":["No username/login-name field exists in Beta 1.0 profile transport.","display_name is descriptive only and never authenticates a request.","Password/verifier/session/auto-login/encryption material is absent from these DTOs."]
+}
