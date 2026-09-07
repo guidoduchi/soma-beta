@@ -22,6 +22,7 @@
     "CreateLocalTaskRetry":"services/retries.py",
     "LinkWfmRetryAttempt":"services/retries.py",
     "StartTaskExecution":"services/task_execution.py",
+    "StartSelectedObjectiveTasks":"services/task_execution.py",
     "EndTaskExecution":"services/task_execution.py",
     "CorrectTaskExecutionEvidence":"services/task_execution.py",
     "CancelTaskWithoutExecution":"services/task_execution.py",
@@ -31,7 +32,6 @@
     "SetHistoricalTaskOperationalCountInclusion":"services/historical.py",
     "HardDeleteTask":"services/hard_delete.py",
     "CreateObjectiveFromPreview":"services/objectives.py",
-    "StartObjectiveExecution":"services/objectives.py",
     "CancelObjectiveBeforeExecution":"services/objectives.py",
     "ReviewObjective":"services/objectives.py",
     "ArchiveObjective":"services/objectives.py",
@@ -73,6 +73,7 @@
   "rules":[
     "Each operation has one owning source-module destination; private helpers may be factored but authority cannot migrate across packet boundaries.",
     "Pure previews live under queries and never create command receipts or audit events.",
+    "Starting selected Tasks from an Objective context is Task execution authority in services/task_execution.py; it creates no Objective execution event/timestamp/authority.",
     "LLD-03 and LLD-04 participant entry points receive the caller's already-open UnitOfWork/command context and never commit or create a second receipt.",
     "LLD-07 is injected only as bounded Inventory dependency/relationship participation and never owns Task lifecycle.",
     "Grouping implementation uses the accepted O(n log n) interval-sweep algorithm and may not fall back to pairwise O(n^2) overlap enumeration."
