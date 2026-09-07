@@ -39,6 +39,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Validate cross-packet interface closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/lld/validate_interfaces.py
       - name: Validate full LLD review-readiness gate
         env:
           MANUAL_ENFORCEMENT: ${{ github.event.inputs.enforcement }}
