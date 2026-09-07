@@ -281,7 +281,7 @@ def _handler_resolves(kind: str, handler: str, docs: dict[str, Any],
         return any(
             _dict_has_handler_method(doc, method)
             for path, doc in docs.items()
-            if isinstance(path, str) and path.startswith(search_prefixes)
+            if path.startswith(search_prefixes) if isinstance(path, str)
         )
     return False
 
@@ -629,8 +629,412 @@ def check_artifacts(repo: Path, packet: dict[str, Any], packet_root: Path,
                      "artifact contract missing explicit: " + ", ".join(missing), repo)
 
 
+def collect_commands(docs: dict[str, Any]) -> dict[str, tuple[str, dict[str, Any]]]:
+    """Recognize both COMMAND-V2 and COMMAND-LEAF-V2; prefer dedicated leaves."""
+    out: dict[str, tuple[str, dict[str, Any]]] = {}
+    for path, doc in docs.items():
+        if not path.startswith("commands/") or not isinstance(doc, dict):
+            continue
+        schema = str(doc.get("schema", ""))
+        if "COMMAND" in schema and "V2" in schema and isinstance(doc.get("name"), str):
+            normalized = dict(doc)
+            normalized["schema"] = "SOMA-LLD-COMMAND-V2"
+            out[doc["name"]] = (path, normalized)
+        for item in doc.get("commands", []) if isinstance(doc.get("commands"), list) else []:
+            if isinstance(item, dict) and isinstance(item.get("name"), str):
+                out[item["name"]] = (path, item)
+    return out
+
+
+def collect_queries(docs: dict[str, Any]) -> dict[str, tuple[str, dict[str, Any]]]:
+    """Recognize both QUERY-V2 and QUERY-LEAF-V2; prefer dedicated leaves."""
+    out: dict[str, tuple[str, dict[str, Any]]] = {}
+    for path, doc in docs.items():
+        if not path.startswith("queries/") or not isinstance(doc, dict):
+            continue
+        schema = str(doc.get("schema", ""))
+        if "QUERY" in schema and "V2" in schema and isinstance(doc.get("name"), str):
+            normalized = dict(doc)
+            normalized["schema"] = "SOMA-LLD-QUERY-V2"
+            out[doc["name"]] = (path, normalized)
+        for item in doc.get("queries", []) if isinstance(doc.get("queries"), list) else []:
+            if isinstance(item, dict) and isinstance(item.get("name"), str):
+                out[item["name"]] = (path, item)
+    return out
+
+
+def audit_registry(doc: Any) -> tuple[set[str], set[str]]:
+    """Normalize action-version spellings used across V2 packets."""
+    actions: set[str] = set()
+    payloads: set[str] = set()
+    if not isinstance(doc, dict):
+        return actions, payloads
+    types = doc.get("payload_types")
+    if isinstance(types, dict):
+        payloads.update(str(k) for k in types)
+    elif isinstance(types, list):
+        for item in types:
+            if isinstance(item, dict) and isinstance(item.get("name"), str):
+                payloads.add(item["name"])
+    for item in doc.get("actions", []) if isinstance(doc.get("actions"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        action_type = item.get("action_type")
+        version = item.get("action_version")
+        if isinstance(action_type, str):
+            actions.add(action_type)
+            if isinstance(version, int):
+                actions.add(f"{action_type}.v{version}")
+                actions.add(f"{action_type}@{version}")
+        payload = item.get("payload_schema")
+        if isinstance(payload, str) and payload in payloads:
+            payloads.add(payload)
+    return actions, payloads
+
+
+def check_json_and_manifest(repo: Path, packet: dict[str, Any],
+                            packet_root: Path, index: dict[str, Any],
+                            findings: list[Any]) -> None:
+    """Accept explicit V2 legacy-synthesis exclusions as nonnormative."""
+    packet_id = str(packet["id"])
+    for relative, path in core.relative_packet_json(packet_root):
+        try:
+            core.load_json(path)
+        except core.SpecError as exc:
+            core.add(findings, "SIG-001", "BLOCKER", packet_id, path, str(exc), repo)
+
+    manifest = packet_manifest_paths(index)
+    seen: set[str] = set()
+    for raw in manifest:
+        if raw in seen:
+            core.add(findings, "SIG-001", "BLOCKER", packet_id,
+                     packet_root / "_index.json",
+                     f"duplicate normative manifest entry: {raw}", repo)
+        seen.add(raw)
+        if not core.resolve_manifest_path(repo, packet_root, raw).is_file():
+            core.add(findings, "SIG-001", "BLOCKER", packet_id,
+                     packet_root / "_index.json",
+                     f"normative manifest references missing path: {raw}", repo)
+
+    nonnorm: set[str] = set()
+    for key in ("nonnormative_files", "nonnormative_legacy_synthesis"):
+        nonnorm.update(
+            str(v) for v in core.flatten_strings(index.get(key, []))
+            if str(v).endswith(".json")
+        )
+    indexed = set(manifest)
+    for relative, path in core.relative_packet_json(packet_root):
+        parts = Path(relative).parts
+        if not parts:
+            continue
+        if parts[0] in core.NORMATIVE_DIRS and relative not in indexed and relative not in nonnorm:
+            core.add(findings, "SIG-001", "BLOCKER", packet_id, path,
+                     "normative JSON leaf is not indexed or explicitly nonnormative", repo)
+
+
+def flatten_test_ids(docs: dict[str, Any]) -> Iterable[str]:
+    """Read full LLD IDs and packet-local A/F/S/P/C/T### shorthand IDs."""
+    seen: set[str] = set()
+    short = re.compile(r"^[AFSPCT]\d{3}$")
+    full = re.compile(r"^LLD\d{2}[-_]")
+    def walk(value: Any) -> Iterable[str]:
+        if isinstance(value, dict):
+            test_id = value.get("id")
+            if isinstance(test_id, str) and (full.match(test_id) or short.match(test_id)):
+                yield test_id
+            for child in value.values():
+                yield from walk(child)
+        elif isinstance(value, list):
+            if value and isinstance(value[0], str) and (full.match(value[0]) or short.match(value[0])):
+                yield value[0]
+            for child in value:
+                yield from walk(child)
+    for path, doc in docs.items():
+        if not path.startswith("tests/") or path.startswith("tests/traceability"):
+            continue
+        for test_id in walk(doc):
+            if test_id not in seen:
+                seen.add(test_id)
+                yield test_id
+
+
+def _setting_definitions(docs: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    definitions: dict[str, dict[str, Any]] = {}
+    for path, doc in docs.items():
+        if not path.startswith("settings/") or not isinstance(doc, dict):
+            continue
+        document_owner = doc.get("lld_id") or doc.get("owner")
+        candidates: list[dict[str, Any]] = []
+        if "SETTING-DEFINITION" in str(doc.get("schema", "")):
+            candidates.append(doc)
+        for list_key in ("settings", "definitions"):
+            value = doc.get(list_key)
+            if isinstance(value, list):
+                candidates.extend(item for item in value if isinstance(item, dict))
+        for raw in candidates:
+            item = dict(raw)
+            if document_owner is not None:
+                item.setdefault("__document_owner", document_owner)
+            key = item.get("key") or item.get("setting_key") or item.get("id")
+            if isinstance(key, str):
+                definitions[key] = item
+            for contract_key in ("contract_id", "contract", "contract_name"):
+                contract_id = item.get(contract_key)
+                if isinstance(contract_id, str):
+                    definitions[contract_id] = item
+    return definitions
+
+
+def check_setting_registry(repo: Path, packet: dict[str, Any],
+                           packet_root: Path, docs: dict[str, Any],
+                           findings: list[Any]) -> None:
+    packet_id = str(packet["id"])
+    definitions = _setting_definitions(docs)
+    semantic_refs: set[str] = set()
+    explicit_setting_words = re.compile(
+        r"(?i)\b(SettingStore|SettingDefinitionRegistry|setting key|semantic setting|"
+        r"setting contract|persisted setting|configuration setting)\b"
+    )
+    token_pattern = re.compile(r"\b[A-Z][A-Z0-9_]{3,}_V\d+\b")
+    for path, doc in docs.items():
+        if path.startswith("settings/"):
+            continue
+        for text in core.flatten_strings(doc):
+            if explicit_setting_words.search(text):
+                semantic_refs.update(token_pattern.findall(text))
+            for registered in definitions:
+                if registered in text:
+                    semantic_refs.add(registered)
+    if not semantic_refs:
+        return
+    if not definitions:
+        core.add(findings, "SIG-006", "BLOCKER", packet_id, packet_root / "settings",
+                 f"semantic setting references exist ({', '.join(sorted(semantic_refs))}) "
+                 "but settings registry is missing", repo)
+        return
+    for ref in sorted(semantic_refs):
+        item = definitions.get(ref)
+        if item is None:
+            core.add(findings, "SIG-006", "BLOCKER", packet_id, packet_root / "settings",
+                     f"referenced semantic setting {ref} is not registered", repo)
+            continue
+        contract = str(item.get("contract_id") or item.get("contract")
+                       or item.get("contract_name") or "")
+        contract_version = re.search(r"_V(\d+)$", contract)
+        type_name = str(item.get("type", "")).lower()
+        category_ok = {
+            "key": any(k in item for k in ("key", "setting_key", "id")),
+            "owner": any(k in item for k in ("owner", "semantic_owner", "__document_owner")),
+            "version": any(k in item for k in ("version", "contract_version", "current_version"))
+                       or bool(contract_version),
+            "default": any(k in item for k in ("default", "default_provider")),
+            "validator": any(k in item for k in ("validator", "validation"))
+                         or ("type" in item and any(k in item for k in
+                             ("unknown_fields", "unknown_field_policy", "bounds"))),
+            "equality": any(k in item for k in
+                            ("equality", "semantic_equality", "semantic_equals")),
+            "storage": any(k in item for k in ("storage", "storage_class", "storage_owner")),
+            "bounds": ("bounds" in item or "max_utf8_bytes" in item
+                       or type_name in {"boolean", "bool"}),
+            "value_contract": any(k in item for k in
+                                  ("value_contract", "value_type", "type", "type_contract")),
+        }
+        missing = [name for name, ok in category_ok.items() if not ok]
+        if missing:
+            core.add(findings, "SIG-006", "BLOCKER", packet_id, packet_root / "settings",
+                     f"setting {ref} missing semantic categories: {', '.join(missing)}", repo)
+
+
+def check_jobs(repo: Path, packet: dict[str, Any], packet_root: Path,
+               docs: dict[str, Any], findings: list[Any]) -> None:
+    """Require job registry only where the packet actually owns/enqueues job work."""
+    packet_id = str(packet["id"])
+    trace = traceability_doc(docs)
+    job_edges = trace.get("job_edges", []) if isinstance(trace, dict) else []
+    job_docs = [doc for path, doc in docs.items()
+                if path.startswith("jobs/") and isinstance(doc, dict)]
+    owned_text = " ".join(
+        text
+        for path, doc in docs.items()
+        if path.startswith(("commands/", "algorithms/"))
+        for text in core.flatten_strings(doc)
+    )
+    looks_owned = bool(re.search(
+        r"\b(enqueue|queue|resume|cancel|handle|worker)\b[^.]{0,100}\b(?:durable )?job\b|"
+        r"\bjob_type\b", owned_text, re.I
+    ))
+    if not job_edges and not job_docs and not looks_owned:
+        return
+    if not job_docs:
+        core.add(findings, "SIG-007", "BLOCKER", packet_id, packet_root / "jobs",
+                 "packet owns/enqueues durable-job behavior but jobs registry is missing", repo)
+        return
+    registry: dict[str, dict[str, Any]] = {}
+    for doc in job_docs:
+        if isinstance(doc.get("job_type"), str):
+            registry[doc["job_type"]] = doc
+        for item in doc.get("jobs", []) if isinstance(doc.get("jobs"), list) else []:
+            if isinstance(item, dict) and isinstance(item.get("job_type"), str):
+                registry[item["job_type"]] = item
+    required = {
+        "job_type", "contract_version", "payload_schema", "checkpoint_schema",
+        "retry_policy", "crash_recovery_policy", "cancellation_policy",
+        "sensitive_field_policy", "coalescing"
+    }
+    for edge in job_edges if isinstance(job_edges, list) else []:
+        if not isinstance(edge, dict):
+            continue
+        job_type = str(edge.get("job_type", ""))
+        item = registry.get(job_type)
+        if item is None:
+            core.add(findings, "SIG-007", "BLOCKER", packet_id, packet_root / "jobs",
+                     f"traceability references unregistered job_type {job_type}", repo)
+            continue
+        missing = [f for f in required if f not in item
+                   and not (f == "coalescing" and "dedup_policy" in item)]
+        if missing:
+            core.add(findings, "SIG-007", "BLOCKER", packet_id, packet_root / "jobs",
+                     f"job {job_type} missing fields: {', '.join(missing)}", repo)
+        if not item.get("unknown_version_fail_closed", True):
+            core.add(findings, "SIG-007", "BLOCKER", packet_id, packet_root / "jobs",
+                     f"job {job_type} does not fail closed on unknown versions", repo)
+
+
+def check_migrations(repo: Path, packet: dict[str, Any], packet_root: Path,
+                     docs: dict[str, Any], global_migrations: dict[str, Any],
+                     findings: list[Any]) -> None:
+    packet_id = str(packet["id"])
+    schema_docs = [(path, doc) for path, doc in docs.items()
+                   if path.startswith("schema/") and isinstance(doc, dict)]
+    owns_schema = any(isinstance(doc.get("tables"), list) and bool(doc.get("tables"))
+                      for _, doc in schema_docs)
+    if not owns_schema:
+        return
+    allocations = [
+        item for item in global_migrations.get("allocations", [])
+        if isinstance(item, dict) and str(item.get("packet_id")) == packet_id
+    ] if isinstance(global_migrations, dict) else []
+    if len(allocations) != 1:
+        core.add(findings, "SIG-009", "BLOCKER", packet_id, "spec/lld/migrations.json",
+                 f"expected exactly one global migration allocation, found {len(allocations)}", repo)
+        return
+    migration_docs = [(path, doc) for path, doc in docs.items()
+                      if path.startswith("migrations/") and isinstance(doc, dict)]
+    if not migration_docs:
+        core.add(findings, "SIG-009", "BLOCKER", packet_id, packet_root / "migrations",
+                 "schema-owning packet lacks packet migration object allocation manifest", repo)
+        return
+    closure_found = False
+    for _, migration in migration_docs:
+        creates = migration.get("creates")
+        if isinstance(creates, dict) and any(
+            isinstance(value, list) and value for value in creates.values()
+        ):
+            closure_found = True
+        for key in ("objects", "schema_objects", "allocated_objects"):
+            if isinstance(migration.get(key), list) and migration[key]:
+                closure_found = True
+        sources = migration.get("schema_sources")
+        if isinstance(sources, list) and sources:
+            missing_sources = [str(s) for s in sources if str(s) not in docs]
+            if missing_sources:
+                core.add(findings, "SIG-009", "BLOCKER", packet_id, packet_root / "migrations",
+                         "migration schema_sources reference missing leaves: "
+                         + ", ".join(missing_sources), repo)
+            else:
+                ownership_rule = str(migration.get("ownership_rule", ""))
+                if re.search(r"\bevery\b.*\b(table|index|object)", ownership_rule, re.I):
+                    closure_found = True
+    if not closure_found:
+        core.add(findings, "SIG-009", "BLOCKER", packet_id, packet_root / "migrations",
+                 "packet migration manifest does not deterministically allocate owned schema objects", repo)
+
+
+def check_transitions(repo: Path, packet: dict[str, Any], packet_root: Path,
+                      docs: dict[str, Any], findings: list[Any]) -> None:
+    packet_id = str(packet["id"])
+    schema_text = " ".join(
+        json.dumps(doc, ensure_ascii=False)
+        for path, doc in docs.items() if path.startswith("schema/")
+    )
+    state_enum_count = len(re.findall(r"(?:state|status|lifecycle)[^)]*IN\s*\(", schema_text, re.I))
+    correction = bool(re.search(r"correction|restore|reactivate|reversal", schema_text, re.I))
+    if state_enum_count == 0 and not correction:
+        return
+    transition_docs = [doc for path, doc in docs.items()
+                       if path.startswith("transitions/") and isinstance(doc, dict)]
+    if not transition_docs:
+        core.add(findings, "SIG-014", "HIGH", packet_id, packet_root / "transitions",
+                 "governed multi-state/correction semantics exist but transitions registry is missing", repo)
+        return
+    entries: list[Any] = []
+    for doc in transition_docs:
+        if isinstance(doc.get("transitions"), list):
+            entries.extend(doc["transitions"])
+        if isinstance(doc.get("state_machines"), list):
+            entries.extend(doc["state_machines"])
+        if isinstance(doc.get("machines"), list):
+            entries.extend(doc["machines"])
+        if isinstance(doc.get("machine"), str) and isinstance(doc.get("states"), list):
+            entries.append(doc)
+    if not entries:
+        core.add(findings, "SIG-014", "HIGH", packet_id, packet_root / "transitions",
+                 "transitions registry contains no machine-readable transition entries", repo)
+
+
+def check_artifacts(repo: Path, packet: dict[str, Any], packet_root: Path,
+                    docs: dict[str, Any], findings: list[Any]) -> None:
+    packet_id = str(packet["id"])
+    artifact_re = re.compile(
+        r"\b(generate|write|export|publish).*(artifact|xlsx|msg)|"
+        r"\b(artifact|xlsx|msg).*(generate|write|export|publish)", re.I
+    )
+    generates = any(
+        artifact_re.search(json.dumps(doc, ensure_ascii=False)) is not None
+        for path, doc in docs.items()
+        if path.startswith(("commands/", "jobs/", "algorithms/"))
+    )
+    artifact_docs = [doc for path, doc in docs.items()
+                     if path.startswith("artifacts/") and isinstance(doc, dict)]
+    if generates and not artifact_docs:
+        index = docs.get("_index.json")
+        not_owned = " ".join(index.get("not_owned_here", [])) if isinstance(index, dict) else ""
+        if not ("artifact" in not_owned.lower() and "->" in not_owned):
+            core.add(findings, "SIG-016", "HIGH", packet_id, packet_root / "artifacts",
+                     "packet generates/verifies artifacts but has no versioned artifacts registry", repo)
+        return
+    for doc in artifact_docs:
+        schema = str(doc.get("schema", ""))
+        versioned = ("V2" in schema or any(k in doc for k in
+                     ("format_contract", "artifact", "contract_id")))
+        writer = "writer" in doc or "writer_adapter" in doc
+        verifier = any(k in doc for k in ("verifier", "verification", "verify"))
+        publication = " ".join(core.flatten_strings([
+            doc.get("publication", ""), doc.get("temporary_policy", ""),
+            doc.get("finalization_policy", ""), doc.get("collision_policy", ""),
+            doc.get("default_filename", ""), doc.get("publication_policy", "")
+        ]))
+        temporary = bool(re.search(r"\btemp(?:orary)?\b|sibling temporary", publication, re.I))
+        finalization = bool(re.search(r"\batomic\b|\brename\b|\breplace\b|\bfinal", publication, re.I))
+        collision = bool(re.search(r"\boverwrite\b|\breplace\b|\bcollision\b|\bexisting\b", publication, re.I))
+        missing: list[str] = []
+        if not versioned: missing.append("versioned format contract")
+        if not writer: missing.append("writer")
+        if not verifier: missing.append("verifier/verification")
+        if not temporary: missing.append("temporary publication behavior")
+        if not finalization: missing.append("finalization behavior")
+        if not collision: missing.append("collision behavior")
+        if missing:
+            core.add(findings, "SIG-016", "HIGH", packet_id, packet_root / "artifacts",
+                     "artifact contract missing explicit: " + ", ".join(missing), repo)
+
+
 core.packet_manifest_paths = packet_manifest_paths
+core.collect_commands = collect_commands
+core.collect_queries = collect_queries
 core.collect_types = collect_types
+core.audit_registry = audit_registry
+core.check_json_and_manifest = check_json_and_manifest
 core.collect_error_codes = collect_error_codes
 core.flatten_test_ids = flatten_test_ids
 core.traceability_doc = traceability_doc
@@ -639,6 +1043,8 @@ core.check_audit_closure = check_audit_closure
 core.check_setting_registry = check_setting_registry
 core.check_migrations = check_migrations
 core.check_schema_policy = check_schema_policy
+core.check_jobs = check_jobs
+core.check_transitions = check_transitions
 core.check_artifacts = check_artifacts
 
 raise SystemExit(core.main())
