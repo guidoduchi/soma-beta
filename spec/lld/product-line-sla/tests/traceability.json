@@ -1,0 +1,45 @@
+{
+  "schema":"SOMA-LLD-TRACEABILITY-V2",
+  "lld_id":"LLD-06",
+  "requirement_edges":{
+    "BETA-REQ-0064":["schema/policy.json","schema/catalog-classification.json","commands/catalog-classification.json","algorithms/policy-validation.json","algorithms/cohort-state.json","queries/sla.json","tests/acceptance.json"],
+    "BETA-REQ-0065":["schema/catalog-classification.json","commands/catalog-classification.json","queries/sla.json","routes.json","transitions/sla-report-lifecycle.json","tests/acceptance.json","tests/failure-injection.json"],
+    "BETA-REQ-0071":["schema/reporting.json","commands/reporting.json","queries/reporting.json","algorithms/report-snapshot.json","artifacts/sla-report-xlsx.json","transitions/sla-report-lifecycle.json","tests/acceptance.json","tests/failure-injection.json"],
+    "BETA-REQ-0173":["schema/catalog-classification.json","schema/policy.json","commands/catalog-classification.json","queries/sla.json","routes.json","ui/review-state.json","tests/acceptance.json","tests/failure-injection.json"],
+    "BETA-REQ-0174":["schema/projections.json","algorithms/individual-sla.json","queries/sla.json","schema/reporting.json","algorithms/report-snapshot.json","tests/acceptance.json","tests/failure-injection.json"],
+    "BETA-REQ-0175":["schema/projections.json","algorithms/cohort-state.json","queries/sla.json","schema/reporting.json","commands/reporting.json","algorithms/report-snapshot.json","artifacts/sla-report-xlsx.json","tests/acceptance.json","tests/failure-injection.json"]
+  },
+  "normative_paths":[
+    "tests/traceability/commands-catalog.json",
+    "tests/traceability/commands-reporting.json",
+    "tests/traceability/queries-sla.json",
+    "tests/traceability/queries-reporting.json"
+  ],
+  "fragments":[
+    "tests/traceability/commands-catalog.json",
+    "tests/traceability/commands-reporting.json",
+    "tests/traceability/queries-sla.json",
+    "tests/traceability/queries-reporting.json"
+  ],
+  "migration":{"sequence":6,"path":"migrations/0006-product-line-sla.json","objects":"all LLD-06 Product Line/Contract/CPL, immutable policy/tier, classification mapping/current/history, report attempt/staging/completed-evidence and job-reference objects"},
+  "cross_packet":[
+    {"interface":"Snapshot/UnitOfWork/CommandReceiptStore/AuditWriter/durable report job conventions","provider":"LLD-01","consumer":"LLD-06"},
+    {"interface":"Customer Organization identity and governed Customer Account Code evidence","provider":"LLD-02","consumer":"LLD-06"},
+    {"interface":"Service Request identity/current resolved Customer/lifecycle endpoint and SR-Customer correction caller boundary","provider":"LLD-03","consumer":"LLD-06"},
+    {"interface":"accepted Report Date, severity, suspension and source-provenance projection","provider":"LLD-04","consumer":"LLD-06"},
+    {"interface":"Objective timezone isolation: scheduling-only and never SLA chronology","provider":"LLD-05","consumer":"LLD-06"},
+    {"interface":"read-only versioned ReportSectionContributor contracts","provider":"LLD-03/05/07/08/09/11","consumer":"LLD-06"},
+    {"interface":"authenticated browser transport and mutation proof","provider":"LLD-12","consumer":"LLD-06"}
+  ],
+  "reverse_orphan_checks":[
+    "Reusable Product Line identity is Customer-neutral and never owns global SLA authority; every authoritative classification resolves one active Customer-compatible Contract Product Line and its current immutable policy revision.",
+    "Every authoritative LLD-06 command has one exact traceability edge proving transaction boundary, revision effects, audit policy, stable errors, concrete tests and COMMAND_ENVELOPE_V1 or the exact shared outer-command equivalent.",
+    "Every LLD-06 query has deterministic ordering, bounded point semantics or cursor/batch streaming, explicit supporting index evidence and concrete acceptance/failure tests.",
+    "Advanced Search Product remains discarded and cannot participate in mapping, classification, SLA calculation, cohort identity or report evidence.",
+    "Effective SLA elapsed time is exact max(0, endpoint - accepted Report Date - accepted cumulative source-reported suspension); missing Report Date stays uncalculable and suspension is never inferred.",
+    "Canonical cohort month is fixed America/Guayaquil and partitioned by Customer, Contract, CPL, severity and policy tier; Objective timezone never changes cohort membership or report-period authority.",
+    "Daily/Weekly/selected-range output is an as-of progress view over canonical monthly cohorts and does not redefine contractual cohort boundaries.",
+    "Report staging is technical until artifact verification plus CompleteSlaReport atomically publishes immutable CompletedReportEvidence; failed/cancelled attempts retain bounded metadata only and never authorize operational cleanup.",
+    "The XLSX writer reads sealed snapshot rows only, performs no live-domain query, and uses temporary-file plus verified atomic finalization semantics without silently overwriting unrelated artifacts."
+  ]
+}
