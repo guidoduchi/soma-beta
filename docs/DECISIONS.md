@@ -181,25 +181,22 @@ This ledger distinguishes confirmed product decisions from deferred scope and ge
 
 ## Open for HLD/LLD review
 
-Open items are not permission to choose silently.
-
-| ID | Question | Required before |
-|---|---|---|
-| O-001 | Are Overview/report snapshots persisted internally, generated on demand, or both? | Reporting schema LLD |
-| O-003 | Which exact Objective/Task outcome transitions and correction reasons are valid within the confirmed new-identity retry model? | Objective state-machine LLD |
-| O-004 | Which library and supported subset provide safe PST/OST read and MSG generation? | Communications adapter ADR |
-| O-005 | Which database/encryption design, KDF parameters, recovery, rotation, backup, and export-protection policy satisfy the threat model? | Persistence/security LLD |
-| O-006 | Which exact supported Windows editions/builds, browser versions, runner images, and packaging combinations complete the already confirmed Windows 10/11 and Python 3.13/3.14 matrix? | Packaging ADR |
-| O-007 | Which field-level changes inside the accepted Import Contract allowlists qualify as safe auto-accept? | Import reconciliation LLD |
-| O-010 | What exact tray actions and background lifecycle are supported? | Windows shell UX/packaging LLD |
+No unresolved Beta 1.0 HLD/LLD design question remains in this ledger at the current peer-review correction baseline. Release-candidate evidence freezes remain governed verification obligations rather than open product behavior.
 
 ## Resolved former open items
 
 | ID | Resolution |
 |---|---|
+| O-001 | Resolved by LLD-11 `schema/no-authoritative-storage.json`, `algorithms/compose-overview.json`, and packet transaction boundaries: each Overview response is generated from one shared LLD-01 read snapshot with no persistent Overview cache/materialized authority. LLD-06 report generation retains its own consistent report snapshot and immutable completed artifact evidence. |
 | O-002 | Resolved by D-039: Weekly is the default; Daily and Monthly remain selectable. |
+| O-003 | Resolved by LLD-05 `transitions/task-objective-lifecycle.json`, `commands/execution-review.json`, `commands/objective-lifecycle.json`, and retry/history contracts: Task execution/outcome/correction and Objective aggregate/review transitions are explicit, retry always creates a new Task identity, and Objective state derives from member Task evidence rather than a competing Objective-start authority. |
+| O-004 | Resolved by LLD-09 `technology.json` and adapter tests: PST/OST uses bundled offline read-only libpff Python bindings behind a normalized adapter; MSG draft generation uses `msgforge` 1.0.0 with structural and independent-reader verification. Exact source/build hashes freeze in the release dependency manifest. |
+| O-005 | Resolved by LLD-12 `technology.json`, security/backup algorithms, and `artifacts/portable-backup.json`: Argon2id authenticates the Local Administrator; a random live DEK is protected by CurrentUser DPAPI; authoritative SQLite uses the pinned SQLCipher provider/profile; portable/managed backups use independent AEAD/key hierarchies; portable recovery uses the governed complete detached companion set; restore is verify-before-mutation. |
+| O-006 | Resolved at the design layer by D-112, LLD-12 `algorithms/package-lifecycle.json`, and `tests/packaging.json`: Beta 1.0 support remains Windows 10/11 x64 with Python 3.13/3.14 compatibility and the accepted Edge/Chrome host policy. Exact Windows editions/builds, browser versions, runner images, dependency/package hashes, signing identity, and packaging combinations are re-verified and frozen per release candidate; they are release evidence, not an open domain-policy choice. |
+| O-007 | Resolved by LLD-04 `profiles/auto-accept-policy.json`: Beta 1.0 begins with an empty domain-mutation auto-accept allowlist. Exact replay, newer identical logical fingerprint/checkpoint-only handling, and empty target change sets may close automatically because they mutate no domain authority. Any nonempty mutation allowlist requires a new versioned policy with exact classes, risk proof, and acceptance fixtures. |
 | O-008 | Resolved by D-040 and the Workbench Contract. |
 | O-009 | Resolved for 1.0.0 by D-045; purge policy is deferred as F-009. |
+| O-010 | Resolved by LLD-12 `algorithms/package-lifecycle.json`, `routes/runtime-control.json`, and packaging tests: tray/launcher actions are verified Open, Start, Stop/Shutdown controls against fresh run identity; closing browser windows does not stop the authoritative host; source launchers use the same trusted control protocol; no background Windows service or network scheduler is introduced. |
 
 ## Decision process
 
