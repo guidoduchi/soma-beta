@@ -1,0 +1,44 @@
+{
+  "schema":"SOMA-LLD-TRACEABILITY-V2",
+  "lld_id":"LLD-01",
+  "requirement_edges":{
+    "BETA-REQ-0002":["technology.json","algorithms/runtime-host.json","tests/acceptance.json"],
+    "BETA-REQ-0003":["technology.json","algorithms/connection-unit-of-work.json","schema/core.json","tests/acceptance.json"],
+    "BETA-REQ-0018":["commands/execute-authoritative-command.json","algorithms/connection-unit-of-work.json","tests/acceptance.json"],
+    "BETA-REQ-0131":["schema/core.json","schema/verification.json","algorithms/connection-unit-of-work.json","tests/acceptance.json"],
+    "BETA-REQ-0132":["migrations/0001-foundation.json","algorithms/migration-runner.json","commands/apply-pending-migrations.json","tests/acceptance.json"],
+    "BETA-REQ-0133":["algorithms/migration-runner.json","schema/verification.json","tests/acceptance.json"],
+    "BETA-REQ-0134":["queries/status.json","algorithms/migration-runner.json","tests/acceptance.json"],
+    "BETA-REQ-0135":["commands/execute-authoritative-command.json","schema/core.json","audit/actions.json","tests/acceptance.json"],
+    "BETA-REQ-0136":["algorithms/strict-json.json","types/runtime.json","tests/acceptance.json"],
+    "BETA-REQ-0140":["algorithms/runtime-host.json","commands/start-host.json","commands/shutdown-host.json","queries/status.json","tests/acceptance.json","tests/diagnostics-acceptance.json"],
+    "BETA-REQ-0143":["schema/core.json","algorithms/audit-writer.json","commands/execute-authoritative-command.json","tests/acceptance.json"],
+    "BETA-REQ-0144":["audit/actions.json","algorithms/audit-writer.json","algorithms/strict-json.json","tests/acceptance.json"]
+  },
+  "command_edges":[
+    {"command":"StartHost","leaf":"commands/start-host.json","internal_caller":"LLD-12 native launcher/runtime bootstrap","tests":["LLD01-T003","LLD01-T004","LLD01-T010","LLD01-T011","LLD01-T012","LLD01-T016","LLD01-T017"]},
+    {"command":"ShutdownHost","leaf":"commands/shutdown-host.json","route":"POST /api/v1/runtime/shutdown","tests":["LLD01-T012","LLD01-T015"]},
+    {"command":"ApplyPendingMigrations","leaf":"commands/apply-pending-migrations.json","internal_caller":"StartHost -> MigrationRunner startup path","tests":["LLD01-T002","LLD01-T003","LLD01-T004","LLD01-T005"]},
+    {"command":"ExecuteAuthoritativeCommand","leaf":"commands/execute-authoritative-command.json","internal_caller":"LLD-02..LLD-09 owning application commands via LLD-01 UnitOfWork boundary","tests":["LLD01-T001","LLD01-T006","LLD01-T007","LLD01-T008","LLD01-T013","LLD01-T014","LLD01-T018"]}
+  ],
+  "query_edges":[
+    {"query":"GetMigrationStatus","route":"GET /api/v1/migrations/status","ordering":"single result","pagination":"none","required_indexes":["schema_migrations PRIMARY KEY(sequence)"],"tests":["LLD01-T004","LLD01-T005"]},
+    {"query":"GetRuntimeHealth","route":"GET /api/v1/runtime/health","ordering":"single result","pagination":"none","required_indexes":["instance_metadata PRIMARY KEY(singleton)","schema_migrations PRIMARY KEY(sequence)"],"tests":["LLD01-T010","LLD01-T012","LLD01-T016"]},
+    {"query":"GetFoundationDiagnosticsState","route":"GET /api/v1/runtime/status","ordering":"single result","pagination":"none","required_indexes":["idx_jobs_state_due","idx_jobs_type_state"],"tests":["LLD01-T019"]}
+  ],
+  "migration":{"sequence":1,"path":"migrations/0001-foundation.json","objects":"all LLD-01 Foundation tables/indexes/append-only triggers declared by schema/core.json"},
+  "cross_packet":[
+    {"interface":"SqlCipherConnectionSecurityProvider","provider":"LLD-12","consumer":"LLD-01"},
+    {"interface":"RunControlProvider","provider":"LLD-12","consumer":"LLD-01"},
+    {"interface":"SessionSecurityProvider","provider":"LLD-12","consumer":"LLD-01"},
+    {"interface":"DiagnosticSink","provider":"LLD-12","consumer":"LLD-01"},
+    {"interface":"OverviewReadSnapshotFactory","provider":"LLD-01","consumer":"LLD-11"},
+    {"interface":"BackupSnapshotProvider","provider":"LLD-01","consumer":"LLD-12"}
+  ],
+  "reverse_orphan_checks":[
+    "Every Foundation command resolves to a public route or exact internal caller and explicit acceptance tests.",
+    "Every Foundation query resolves to a route, deterministic single-result semantics, supporting indexes and tests.",
+    "Every schema object is allocated to migration sequence 1 and no domain table is owned here.",
+    "Foundation coordinates durable jobs but concrete job-type contracts remain owned and registered by the workflow-owning packet."
+  ]
+}
