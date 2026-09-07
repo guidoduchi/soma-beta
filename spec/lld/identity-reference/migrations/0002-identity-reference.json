@@ -1,0 +1,15 @@
+{
+  "schema":"SOMA-LLD-MIGRATION-OBJECT-ALLOCATION-V2",
+  "lld_id":"LLD-02",
+  "sequence":2,
+  "migration_id":"beta_0002_identity_reference",
+  "runtime_filename":"0002_identity_reference.sql",
+  "schema_sources":["schema/reference-customer.json","schema/reference-contact-dispatch.json","schema/settings.json","schema/fk-index-coverage.json"],
+  "objects":[
+    "table:reference_metadata","table:local_user_profiles","table:customer_organizations","table:customer_org_identifiers","table:contacts","table:contact_channels","table:contact_affiliations","table:dispatch_locations","table:reference_lifecycle_events","table:setting_values",
+    "index:idx_customer_org_active_name_match","index:uq_customer_org_active_identifier_type","index:idx_customer_active_identifier_value","index:idx_customer_identifier_history","index:idx_contacts_active_name_match","index:idx_contact_channels_contact","index:idx_contact_channels_match","index:uq_contact_current_affiliation","index:idx_contact_affiliation_customer_current","index:idx_contact_affiliation_history","index:idx_dispatch_active_name_match","index:idx_reference_lifecycle_target","index:idx_customer_identifier_created_command","index:idx_customer_identifier_superseded_command","index:idx_contact_affiliation_opened_command","index:idx_contact_affiliation_closed_command","index:idx_reference_lifecycle_command","index:idx_setting_values_command",
+    "trigger:reference_delete_protections","trigger:contact_channel_delete_protection","trigger:contact_affiliation_history_protection","trigger:reference_lifecycle_append_only","trigger:customer_reference_generation_maintenance","trigger:customer_identifier_history_protection"
+  ],
+  "ownership_rule":"Every LLD-02 table, owned supporting index and history/generation protection trigger declared by the schema sources is allocated to migration sequence 2. LLD-08 Site↔Dispatch relationship objects are explicitly excluded and remain LLD-08 migration authority.",
+  "verification":["all tables use SQLite STRICT","all foreign-key child paths satisfy schema/fk-index-coverage.json","history/protection/generation triggers are exact-schema verified by LLD-01","migration creates no password/verifier/key/session material"]
+}
