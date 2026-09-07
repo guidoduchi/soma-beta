@@ -18,7 +18,7 @@ on:
       enforcement:
         description: Integrity enforcement level
         required: true
-        default: ai-ready
+        default: review-ready
         type: choice
         options:
           - report
@@ -39,11 +39,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Validate AI-first LLD specification
+      - name: Validate full LLD review-readiness gate
         env:
           MANUAL_ENFORCEMENT: ${{ github.event.inputs.enforcement }}
         shell: bash
         run: |
           set -euo pipefail
-          mode="${MANUAL_ENFORCEMENT:-ai-ready}"
-          python tools/lld/validate_spec.py --enforce "$mode"
+          mode="${MANUAL_ENFORCEMENT:-review-ready}"
+          python tools/lld/run_validate_spec.py --enforce "$mode"
