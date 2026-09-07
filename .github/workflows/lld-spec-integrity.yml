@@ -44,6 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           python tools/lld/validate_interfaces.py
+          python tools/lld/validate_interface_manifests.py
       - name: Validate full LLD review-readiness gate
         env:
           MANUAL_ENFORCEMENT: ${{ github.event.inputs.enforcement }}
