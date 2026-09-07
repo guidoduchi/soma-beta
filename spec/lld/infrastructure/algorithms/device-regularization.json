@@ -8,15 +8,17 @@
     "search candidates using independent descriptive evidence: normalized operational name, manufacturer serial, represented IP, Site and Model when available",
     "rank/display evidence without converting any score or exact descriptive match into identity authority",
     "operator explicitly selects existing Network Element or chooses create-new with authoritative Site/nonblank name",
-    "bind selected target/current revisions and a scope fingerprint"
+    "bind selected target/current revisions and a scope fingerprint",
+    "obtain the LLD-12 deliberate-action proof after the governed hold; obtaining proof is not validation, consumption or business authorization"
   ],
   "commit":[
-    "for UI promotion requiring the governed three-second hold, verify DeliberateActionProof against session/action/Device Reference revision/scope fingerprint; client boolean/timestamp is insufficient",
-    "inside one UnitOfWork re-read Device Reference, current resolution and selected Network Element or creation inputs",
+    "inside one UnitOfWork resolve idempotent replay and re-read Device Reference, current resolution and selected Network Element or creation inputs",
+    "recompute the exact action target, base revision and scope fingerprint from current authoritative state",
+    "for UI promotion requiring the governed three-second hold, call LLD-12 DeliberateActionProofProvider.validate_and_consume(uow, proof, expected_action, target, base_revision, preview_fingerprint); INVALID, EXPIRED, already-consumed or stale-bound proof aborts with no mutation",
     "if create-new, create one Network Element and explicit unracked placement projection; optional descriptive/model/IP facts use normal services in same transaction",
     "append resolution event/current row; never update any SR/RFC/Task/Inventory relationship target",
     "audit Device Reference + Network Element result refs and commit"
   ],
   "correction":"Changing a wrong resolution appends correct/clear/link relationship history after exact review. It preserves both immutable identities and does not reopen terminal Tickets.",
-  "rules":["regularization may occur after terminal related Tickets","same Network Element may deliberately resolve multiple Device References only after explicit review","name/serial/IP/Model/Site equality never silently merges/links","unregistered Device Reference remains fully valid"]
+  "rules":["deliberate proof validation and single-use consumption occur inside the same authoritative UnitOfWork as the regularization mutation; verify-only proof checking before mutation is forbidden","a consumed proof cannot authorize a second regularization attempt even with the same payload","regularization may occur after terminal related Tickets","same Network Element may deliberately resolve multiple Device References only after explicit review","name/serial/IP/Model/Site equality never silently merges/links","unregistered Device Reference remains fully valid"]
 }
