@@ -1,0 +1,27 @@
+{
+  "schema": "SOMA-LLD-AUDIT-ACTIONS-V2",
+  "lld_id": "LLD-02",
+  "actions": [
+    {"action_type":"reference.customer_organization.created","action_version":1,"payload_schema":"CustomerOrganizationAuditV1","payload_version":1,"target_types":["customer_organization"],"result_ref_types":["customer_organization","customer_org_identifier","reference_lifecycle_event"],"sensitive_fields":[]},
+    {"action_type":"reference.customer_organization.descriptive_updated","action_version":1,"payload_schema":"ReferenceDescriptiveAuditV1","payload_version":1,"target_types":["customer_organization"],"result_ref_types":["customer_organization","reference_lifecycle_event"],"sensitive_fields":[]},
+    {"action_type":"reference.customer_account_code.set","action_version":1,"payload_schema":"CustomerAccountCodeAuditV1","payload_version":1,"target_types":["customer_organization"],"result_ref_types":["customer_org_identifier"],"sensitive_fields":[]},
+    {"action_type":"reference.customer_account_code.shared_claim_confirmed","action_version":1,"payload_schema":"CustomerAccountCodeReviewAuditV1","payload_version":1,"target_types":["customer_organization"],"result_ref_types":["customer_org_identifier"],"sensitive_fields":[]},
+    {"action_type":"reference.customer_account_code.reassigned","action_version":1,"payload_schema":"CustomerAccountCodeReviewAuditV1","payload_version":1,"target_types":["customer_organization"],"result_ref_types":["customer_org_identifier","customer_organization"],"sensitive_fields":[]},
+    {"action_type":"reference.contact.created","action_version":1,"payload_schema":"ContactAuditV1","payload_version":1,"target_types":["contact"],"result_ref_types":["contact","contact_channel","contact_affiliation","reference_lifecycle_event"],"sensitive_fields":[]},
+    {"action_type":"reference.contact.descriptive_updated","action_version":1,"payload_schema":"ReferenceDescriptiveAuditV1","payload_version":1,"target_types":["contact"],"result_ref_types":["contact","reference_lifecycle_event"],"sensitive_fields":[]},
+    {"action_type":"reference.contact_channel.added","action_version":1,"payload_schema":"ContactChannelAuditV1","payload_version":1,"target_types":["contact"],"result_ref_types":["contact_channel"],"sensitive_fields":[]},
+    {"action_type":"reference.contact_channel.updated","action_version":1,"payload_schema":"ContactChannelAuditV1","payload_version":1,"target_types":["contact_channel"],"result_ref_types":["contact_channel"],"sensitive_fields":[]},
+    {"action_type":"reference.contact_channel.archived","action_version":1,"payload_schema":"ContactChannelArchiveAuditV1","payload_version":1,"target_types":["contact_channel"],"result_ref_types":["contact_channel"],"sensitive_fields":[]},
+    {"action_type":"reference.contact_affiliation.changed","action_version":1,"payload_schema":"ContactAffiliationAuditV1","payload_version":1,"target_types":["contact"],"result_ref_types":["contact_affiliation"],"sensitive_fields":[]},
+    {"action_type":"reference.dispatch_location.created","action_version":1,"payload_schema":"DispatchLocationAuditV1","payload_version":1,"target_types":["dispatch_location"],"result_ref_types":["dispatch_location","reference_lifecycle_event"],"sensitive_fields":[]},
+    {"action_type":"reference.dispatch_location.descriptive_updated","action_version":1,"payload_schema":"ReferenceDescriptiveAuditV1","payload_version":1,"target_types":["dispatch_location"],"result_ref_types":["dispatch_location","reference_lifecycle_event"],"sensitive_fields":[]},
+    {"action_type":"reference.archived","action_version":1,"payload_schema":"ReferenceLifecycleAuditV1","payload_version":1,"target_types":["customer_organization","contact","dispatch_location"],"result_ref_types":["reference_lifecycle_event"],"sensitive_fields":[]},
+    {"action_type":"reference.reactivated","action_version":1,"payload_schema":"ReferenceLifecycleAuditV1","payload_version":1,"target_types":["customer_organization","contact","dispatch_location"],"result_ref_types":["reference_lifecycle_event"],"sensitive_fields":[]},
+    {"action_type":"setting.written","action_version":1,"payload_schema":"SettingWriteAuditV1","payload_version":1,"target_types":["setting"],"result_ref_types":["setting"],"sensitive_fields":["secret_classified_values_forbidden"]},
+    {"action_type":"local_user_profile.created","action_version":1,"payload_schema":"LocalUserProfileAuditV1","payload_version":1,"target_types":["local_user_profile"],"result_ref_types":["local_user_profile"],"sensitive_fields":["credential_material_forbidden"]}
+  ],
+  "payload_policy": {
+    "rule": "Audit payloads store bounded accepted identifiers, reason categories, review fingerprints and changed-field classifications; they do not store password/verifier/key material or unrestricted source payloads.",
+    "no_change": "Semantic NO_CHANGE returns the prior committed result through LLD-01 idempotency semantics and does not fabricate a new domain audit event."
+  }
+}
