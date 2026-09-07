@@ -1,0 +1,16 @@
+{
+  "schema":"SOMA-LLD-ROUTE-FRAGMENT-V1",
+  "lld_id":"LLD-06",
+  "canonical_api_prefix":"/api/v1",
+  "routes":[
+    {"method":"GET","path":"/api/v1/service-requests/{sr_id}/sla","handler_kind":"query","handler":"GetIndividualSla","request_type":"IndividualSlaQueryV1","response_type":"IndividualSlaProjectionV1","success_status":200,"max_request_bytes":4096,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["SLA_INPUT_INDETERMINATE"]},
+    {"method":"GET","path":"/api/v1/sla/cohorts","handler_kind":"query","handler":"ListCanonicalCohorts","request_type":"CohortListQueryV1","response_type":"CohortPageV1","success_status":200,"max_request_bytes":4096,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["SLA_INPUT_INDETERMINATE","VALIDATION_FAILED"]},
+    {"method":"GET","path":"/api/v1/sla/cohorts/{cohort_key}","handler_kind":"query","handler":"GetCohortMembers","request_type":"CohortDetailQueryV1","response_type":"CohortDetailV1","success_status":200,"max_request_bytes":4096,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["SLA_INPUT_INDETERMINATE","VALIDATION_FAILED"]},
+    {"method":"GET","path":"/api/v1/sla/warnings","handler_kind":"query","handler":"ListSlaWarnings","request_type":"SlaWarningListQueryV1","response_type":"SlaWarningPageV1","success_status":200,"max_request_bytes":4096,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["SLA_INPUT_INDETERMINATE","VALIDATION_FAILED"]},
+    {"method":"POST","path":"/api/v1/reports","handler_kind":"command","handler":"StartSlaReportGeneration","request_type":"StartSlaReportGenerationRequestV1","response_type":"ReportAttemptV1","success_status":202,"max_request_bytes":16384,"auth_policy":"LLD12_BROWSER_MUTATION_V1","error_codes":["SLA_REPORT_SCOPE_INVALID","SLA_REPORT_CONTRIBUTOR_FAILED","SLA_INPUT_INDETERMINATE","IDEMPOTENCY_CONFLICT"]},
+    {"method":"GET","path":"/api/v1/reports","handler_kind":"query","handler":"ListReportAttempts","request_type":"ReportListQueryV1","response_type":"ReportPageV1","success_status":200,"max_request_bytes":4096,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["VALIDATION_FAILED"]},
+    {"method":"GET","path":"/api/v1/reports/{report_attempt_id}","handler_kind":"query","handler":"GetReportAttempt","request_type":"ReportDetailQueryV1","response_type":"ReportAttemptV1","success_status":200,"max_request_bytes":2048,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["SLA_CATALOG_NOT_FOUND"]},
+    {"method":"POST","path":"/api/v1/reports/{report_attempt_id}/cancel","handler_kind":"command","handler":"CancelSlaReportAttempt","request_type":"CancelSlaReportAttemptRequestV1","response_type":"ReportAttemptV1","success_status":200,"max_request_bytes":4096,"auth_policy":"LLD12_BROWSER_MUTATION_V1","error_codes":["SLA_REPORT_ATTEMPT_STATE","SLA_REPORT_COMPLETED_IMMUTABLE","SLA_REPORT_CANCEL_UNSAFE","IDEMPOTENCY_CONFLICT"]}
+  ],
+  "rules":["SLA and cohort reads use fixed America/Guayaquil contractual chronology and never Objective scheduling timezone.","Report creation schedules one durable job; internal staging/seal/generate/verify/complete transitions are not public browser routes.","Artifact generation reads sealed snapshot rows only and completed report evidence never authorizes operational cleanup."]
+}
