@@ -6,42 +6,54 @@
       "name":"GetRfcLifecycleProjection",
       "input":["rfc_id"],
       "output":"current accepted RFC source fields with exact evidence references, derived status_class/authority, current terminal epoch if any, local archive state, unresolved warnings",
+      "ordering":"single result; source fields render in closed field-registry order",
       "rule":"source evidence bodies/history are read through LLD-04; this query exposes accepted current ticket projection only"
     },
     {
       "name":"GetPendingRfcTerminalCascade",
-      "input":["rfc_id or proposal_id"],
-      "output":"pending proposal identity/revision/terminal evidence/epoch, immutable captured RFC/WFM membership, scope fingerprint and restart-persistent state",
-      "rule":"executed/superseded history remains queryable through historical filter but is never returned as executable pending authority"
+      "input":["rfc_id or proposal_id","cursor","page_size"],
+      "output":"pending proposal identity/revision/terminal evidence/epoch, scope fingerprint, exact RFC/WFM member counts and one bounded immutable captured-member page",
+      "ordering":"member_kind_ordinal ASC where RFC=0 and WFM=1, captured ordinal ASC, member immutable ID ASC",
+      "cursor_tuple":["member_kind_ordinal","ordinal","member_id"],
+      "rule":"executed/superseded history is not returned as executable pending authority; this query exposes persisted proposal evidence only and never recomputes or mutates scope"
     },
     {
       "name":"PreviewRfcTerminalCascade",
-      "input":["pending proposal_id"],
-      "output":"persisted captured scope versus freshly recomputed RFC/WFM scope, stale reasons, LLD-05 Task/Objective impact preview, LLD-09 Communication impact preview, deliberate-confirmation requirement",
-      "rules":["read-only","no scope refresh or downstream mutation","INDETERMINATE participant preview fails closed for execution readiness"]
+      "input":["pending proposal_id","cursor","page_size"],
+      "output":"persisted scope fingerprint and exact counts versus freshly recomputed scope fingerprint/counts, stale reasons, one bounded cross-domain impact page, and deliberate-confirmation requirement",
+      "ordering":"impact_domain_ordinal ASC where Tickets=0,TasksObjectives=1,Communications=2; impact_kind ASC; entity_id ASC",
+      "cursor_tuple":["impact_domain_ordinal","impact_kind","entity_id"],
+      "rules":["full-scope comparison/fingerprint is computed server-side before paging and does not require materializing the entire result in transport memory","read-only","no scope refresh or downstream mutation","INDETERMINATE participant preview fails closed for execution readiness"]
     },
     {
       "name":"PreviewRfcArchive",
-      "input":["rfc_id","scope_kind exact_rfc|reviewed_branch"],
-      "output":"exact member IDs/revisions/archive states, members that would change, already-archived excluded members, scope_fingerprint and lifecycle-neutral consequence summary",
-      "rule":"branch preview is explicit and bounded to current root plus direct subordinates"
+      "input":["rfc_id","scope_kind exact_rfc|reviewed_branch","cursor","page_size"],
+      "output":"server-computed exact full-scope fingerprint/member count plus one bounded page of member IDs/revisions/archive states and change/exclusion classification",
+      "ordering":"scope ordinal ASC, rfc_id ASC; exact_rfc has ordinal 0, reviewed_branch is root ordinal 0 then direct children ordered rfc_id ASC",
+      "cursor_tuple":["scope_ordinal","rfc_id"],
+      "rules":["fingerprint binds the complete current scope and member revisions even though transport is paged","branch preview contains only current root plus direct subordinates and introduces no child-count business cap","command recomputes the complete fingerprint inside the writer UnitOfWork rather than trusting a client-supplied member list"]
     },
     {
       "name":"GetRfcArchiveOperation",
-      "input":["rfc_archive_operation_id"],
-      "output":"immutable requested scope/fingerprint, members actually archived by the operation, latest per-member archive event and current restore eligibility",
+      "input":["rfc_archive_operation_id","cursor","page_size"],
+      "output":"immutable requested scope/fingerprint, exact archived-member count, one bounded operation-member page with latest per-member archive event and current restore eligibility",
+      "ordering":"operation member ordinal ASC, rfc_id ASC",
+      "cursor_tuple":["ordinal","rfc_id"],
       "rule":"operation membership never implies that a member is still archived by that operation after later independent actions"
     },
     {
       "name":"PreviewRfcHardDelete",
       "input":["rfc_id"],
-      "output":"eligible boolean, exact RFC revision, typed blockers, per-domain determinate/indeterminate guard results, bounded provider freshness tokens and eligibility_fingerprint",
+      "output":"eligible boolean, exact RFC revision, bounded typed blocker summaries, per-domain determinate/indeterminate guard results, bounded provider freshness tokens and eligibility_fingerprint",
+      "ordering":"closed guard registry ordinal ASC, blocker code ASC",
       "rules":[
+        "blocker summaries are bounded by the closed local/provider guard registry; detailed provider-owned history remains behind provider reads rather than being copied into this preview",
         "read-only and advisory",
         "manual creation audit is classified separately from post-creation protected history",
         "any source adoption/provenance, relationship/history/lifecycle/archive/correction dependency or INDETERMINATE provider makes eligible=false",
         "command recomputes every guard and fingerprint inside the deletion UoW"
       ]
     }
-  ]
+  ],
+  "pagination":"Every unbounded RFC lifecycle evidence/impact/member surface uses CURSOR_V1 keyset paging with packet-bounded page_size. Full-scope safety decisions use server-computed counts/fingerprints over indexed reads and never depend on an unbounded client payload."
 }
