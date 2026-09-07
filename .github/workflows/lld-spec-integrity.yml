@@ -52,6 +52,11 @@ jobs:
         run: |
           set -euo pipefail
           python tools/lld/validate_global_routes.py
+      - name: Validate internal command determinism
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/lld/validate_internal_command_contracts.py
       - name: Validate durable job contracts
         shell: bash
         run: |
