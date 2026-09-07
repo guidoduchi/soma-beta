@@ -1,1 +1,0 @@
-{"schema":"SOMA-LLD-COMMANDS-V2","lld_id":"LLD-11","commands":[],"rule":"LLD-11 owns no authoritative mutation command. Navigation to owner actions or report generation invokes the owning packet and never routes through an Overview write command."}
