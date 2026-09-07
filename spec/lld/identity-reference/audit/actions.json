@@ -1,6 +1,20 @@
 {
-  "schema": "SOMA-LLD-AUDIT-ACTIONS-V2",
-  "lld_id": "LLD-02",
+  "schema":"SOMA-LLD-AUDIT-ACTIONS-V2",
+  "lld_id":"LLD-02",
+  "payload_types":{
+    "CustomerOrganizationAuditV1":{"fields":["customer_org_id:uuid","new_revision:int","account_code_claim_created:boolean","reason_category:string|null"],"forbidden":["customer name","raw Customer Account Code unless separately required by accepted authority","unrestricted source payload"]},
+    "ReferenceDescriptiveAuditV1":{"fields":["target_type:customer_organization|contact|dispatch_location","target_id:uuid","prior_revision:int","new_revision:int","changed_fields:bounded closed-enum list","lifecycle_event_id:uuid"],"forbidden":["raw prior/new descriptive values","unrestricted source payload"]},
+    "CustomerAccountCodeAuditV1":{"fields":["customer_org_id:uuid","customer_org_identifier_id:uuid","superseded_identifier_id:uuid|null","prior_revision:int","new_revision:int","change_kind:SET|REPLACE","reason_category:string|null"],"forbidden":["raw source workbook payload","unbounded claimant detail"]},
+    "CustomerAccountCodeReviewAuditV1":{"fields":["proposed_action:CONFIRM_SHARED_CLAIM|REASSIGN_CLAIM","review_snapshot_hash:sha256","review_context_id:string|null","from_customer_org_id:uuid|null","to_customer_org_id:uuid","changed_identifier_ids:bounded uuid list","changed_customer_org_ids:bounded uuid list","reason_category:string"],"forbidden":["unbounded claimant list","raw review UI state","unrestricted source payload"]},
+    "ContactAuditV1":{"fields":["contact_id:uuid","new_revision:int","initial_channel_id:uuid|null","initial_affiliation_id:uuid|null"],"forbidden":["contact name","channel value/email address"]},
+    "ContactChannelAuditV1":{"fields":["contact_id:uuid","contact_channel_id:uuid","channel_kind:email","prior_channel_revision:int|null","new_channel_revision:int","prior_contact_revision:int","new_contact_revision:int","change_kind:ADD|UPDATE"],"forbidden":["channel value/email address"]},
+    "ContactChannelArchiveAuditV1":{"fields":["contact_id:uuid","contact_channel_id:uuid","prior_channel_revision:int","new_channel_revision:int","prior_contact_revision:int","new_contact_revision:int","reason_category:string"],"forbidden":["channel value/email address"]},
+    "ContactAffiliationAuditV1":{"fields":["contact_id:uuid","prior_affiliation_id:uuid|null","new_affiliation_id:uuid|null","prior_customer_org_id:uuid|null","new_customer_org_id:uuid|null","prior_contact_revision:int","new_contact_revision:int","reason_category:string"],"forbidden":["customer/contact descriptive values"]},
+    "DispatchLocationAuditV1":{"fields":["dispatch_location_id:uuid","address_mode:standalone|site_derived","new_revision:int","lifecycle_event_id:uuid"],"forbidden":["physical address text","dispatch descriptive name"]},
+    "ReferenceLifecycleAuditV1":{"fields":["target_type:customer_organization|contact|dispatch_location","target_id:uuid","prior_state:active|archived","new_state:active|archived","prior_revision:int","new_revision:int","lifecycle_event_id:uuid","reason_category:string"],"forbidden":["descriptive values","dependency detail bodies"]},
+    "SettingWriteAuditV1":{"fields":["setting_key:string","contract_id:string","contract_version:int","prior_revision:int|null","new_revision:int","change_kind:CREATE|UPDATE"],"forbidden":["setting value","secret-classified value","arbitrary JSON"]},
+    "LocalUserProfileAuditV1":{"fields":["local_user_profile_id:uuid","metadata_revision:int"],"forbidden":["username unless separately required by accepted authority","password","verifier","auto-login token","data key"]}
+  },
   "actions": [
     {"action_type":"reference.customer_organization.created","action_version":1,"payload_schema":"CustomerOrganizationAuditV1","payload_version":1,"target_types":["customer_organization"],"result_ref_types":["customer_organization","customer_org_identifier","reference_lifecycle_event"],"sensitive_fields":[]},
     {"action_type":"reference.customer_organization.descriptive_updated","action_version":1,"payload_schema":"ReferenceDescriptiveAuditV1","payload_version":1,"target_types":["customer_organization"],"result_ref_types":["customer_organization","reference_lifecycle_event"],"sensitive_fields":[]},
@@ -21,7 +35,8 @@
     {"action_type":"local_user_profile.created","action_version":1,"payload_schema":"LocalUserProfileAuditV1","payload_version":1,"target_types":["local_user_profile"],"result_ref_types":["local_user_profile"],"sensitive_fields":["credential_material_forbidden"]}
   ],
   "payload_policy": {
-    "rule": "Audit payloads store bounded accepted identifiers, reason categories, review fingerprints and changed-field classifications; they do not store password/verifier/key material or unrestricted source payloads.",
-    "no_change": "Semantic NO_CHANGE returns the prior committed result through LLD-01 idempotency semantics and does not fabricate a new domain audit event."
+    "rule": "Audit payloads store bounded accepted identifiers, revisions, reason categories, review fingerprints and changed-field classifications. Result rows/lifecycle events remain the source for accepted descriptive/external-identifier values, avoiding unnecessary duplication in audit JSON.",
+    "no_change": "Semantic NO_CHANGE returns the prior committed result through LLD-01 idempotency semantics and does not fabricate a new domain audit event.",
+    "privacy_minimization":"Names, email/channel values, physical addresses, ordinary setting values, credentials and unrestricted source payloads are not duplicated into LLD-02 audit payload JSON."
   }
 }
