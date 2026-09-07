@@ -1,0 +1,15 @@
+{
+  "schema":"SOMA-LLD-SETTING-DEFINITIONS-V2",
+  "lld_id":"LLD-05",
+  "registry_owner":"LLD-02 SettingDefinitionRegistry",
+  "settings":[
+    {"key":"OBJECTIVE_TIMEZONE_V1","owner":"LLD-05","contract_version":1,"value_contract":"IANA timezone identifier","default_provider":"America/Guayaquil","validator":"offline exact IANA TZ database identifier resolution; aliases are normalized only by the accepted timezone library contract and unknown identifiers reject","semantic_equality":"canonical resolved IANA identifier equality","unknown_field_policy":"reject","storage_class":"typed installation scheduling preference","bounds":"UTF-8 1..255 bytes; no free-form offset-only value"}
+  ],
+  "rules":[
+    "Reading the setting creates no row; absent storage yields the accepted default America/Guayaquil.",
+    "This setting affects only LLD-05 Task/Objective scheduling input interpretation, Objective calendar bucketing/monthly ordinal and scheduling presentation.",
+    "Changing the setting never rewrites accepted Task-plan UTC instants, Task execution instants, source evidence, completed report labels or historical Objective evidence.",
+    "Ordinary application chronology and LLD-06 SLA chronology remain America/Guayaquil under their owning contracts; OBJECTIVE_TIMEZONE_V1 is not a global application timezone.",
+    "A user who wants existing schedule wall-clock labels preserved under the new timezone must perform separately governed explicit Task-plan reschedule/correction commands."
+  ]
+}
