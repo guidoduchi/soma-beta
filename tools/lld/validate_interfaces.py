@@ -4,7 +4,10 @@
 This checker proves provider existence from normative interface declarations,
 not from traceability prose. It reconciles provider identity, consumer-called
 method signatures, versioned type contracts, and shared-UoW/read-only
-transaction semantics.
+transaction semantics. When a packet contains one or more
+SOMA-LLD-INTERFACE-REGISTRY-V2 documents, those registries are the canonical
+cross-packet callable authority and legacy interface documents are ignored for
+SIG-008 signature resolution.
 """
 from __future__ import annotations
 
@@ -87,11 +90,12 @@ def tx_kind(item: dict[str, Any]) -> str | None:
     return None
 
 
-def interface_docs(root: Path) -> Iterable[tuple[Path, dict[str, Any]]]:
+def all_interface_docs(root: Path) -> list[tuple[Path, dict[str, Any]]]:
     candidates = [root / "interfaces.json"]
     subdir = root / "interfaces"
     if subdir.is_dir():
         candidates.extend(sorted(subdir.rglob("*.json")))
+    out: list[tuple[Path, dict[str, Any]]] = []
     for path in candidates:
         if not path.is_file():
             continue
@@ -100,7 +104,14 @@ def interface_docs(root: Path) -> Iterable[tuple[Path, dict[str, Any]]]:
         except (OSError, json.JSONDecodeError):
             continue
         if isinstance(doc, dict):
-            yield path, doc
+            out.append((path, doc))
+    return out
+
+
+def interface_docs(root: Path) -> Iterable[tuple[Path, dict[str, Any]]]:
+    docs = all_interface_docs(root)
+    canonical = [item for item in docs if item[1].get("schema") == "SOMA-LLD-INTERFACE-REGISTRY-V2"]
+    yield from (canonical if canonical else docs)
 
 
 def add_decl(out: list[Decl], packet_id: str, role: str,
@@ -125,7 +136,8 @@ def declarations(repo: Path, packet_id: str, root: Path) -> list[Decl]:
             if isinstance(item, dict):
                 add_decl(out, packet_id, "consumer", first_owner_id(item.get("provider")), item, path, repo)
 
-        # Historical packet formats. The declared owner determines the role.
+        # Historical packet formats are used only when the packet has no
+        # canonical V2 registry. The declared owner determines the role.
         for key in ("providers", "foundation", "composition_interfaces",
                     "consumed_interfaces", "python_interfaces"):
             value = doc.get(key)
@@ -189,8 +201,6 @@ def main() -> int:
                 f"declaration is {provider_id}",
             ))
 
-        # Same-packet duplicate declarations may exist during retrofit, but they
-        # may not disagree on an overlapping method/type/transaction contract.
         provider_methods = {m for d in actual for m in d.methods}
         provider_types = {t for d in actual for t in d.types}
         provider_tx = {d.tx_kind for d in actual if d.tx_kind}
