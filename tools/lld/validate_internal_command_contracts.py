@@ -4,8 +4,12 @@
 Internal worker/cross-packet commands are not public routes, so route validation
 cannot prove their request/response contracts. This checker requires every
 traceability edge with an internal caller to resolve named request/response
-DTOs and requires concrete command_id authority whenever the edge claims
-COMMAND_ENVELOPE_V1 idempotency.
+DTOs and requires concrete command_id authority whenever the command itself
+owns COMMAND_ENVELOPE_V1 replay/receipt semantics.
+
+A child participant may instead declare receipt_authority=parent_shared_uow.
+That means the parent command owns the already-inserted receipt and outer
+UnitOfWork; the child must not declare a second local command_id.
 """
 from __future__ import annotations
 
@@ -17,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 LLD_ROOT = ROOT / "spec/lld"
 NULL_TYPES = {"", "none", "null", "unit", "void", "no_body"}
+PARENT_SHARED_UOW = "parent_shared_uow"
 
 
 def load(path: Path):
@@ -100,6 +105,10 @@ def command_has_command_id(command: dict) -> bool:
     return "command_id" in json.dumps(inputs, sort_keys=True)
 
 
+def receipt_authority(command: dict) -> str:
+    return str(command.get("receipt_authority", "")).strip()
+
+
 def main() -> int:
     findings: list[str] = []
     global_index = load(LLD_ROOT / "_index.json")
@@ -130,7 +139,23 @@ def main() -> int:
                 command = commands.get(name)
                 if not command:
                     findings.append(f"{packet_id}:{name} trace claims COMMAND_ENVELOPE_V1 but command definition is unresolved")
-                elif not command_has_command_id(command):
+                    continue
+
+                authority = receipt_authority(command)
+                if authority == PARENT_SHARED_UOW:
+                    if command_has_command_id(command):
+                        findings.append(
+                            f"{packet_id}:{name} declares {PARENT_SHARED_UOW} but authoritative command input also declares local command_id"
+                        )
+                    continue
+
+                if authority and authority != PARENT_SHARED_UOW:
+                    findings.append(
+                        f"{packet_id}:{name} uses unsupported receipt_authority={authority}; expected {PARENT_SHARED_UOW} or command-owned default"
+                    )
+                    continue
+
+                if not command_has_command_id(command):
                     findings.append(f"{packet_id}:{name} claims COMMAND_ENVELOPE_V1 but authoritative command input has no command_id")
 
     if findings:
