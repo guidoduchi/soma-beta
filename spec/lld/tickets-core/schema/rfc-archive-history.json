@@ -1,0 +1,24 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-LEAF-V2",
+  "lld_id":"LLD-03",
+  "family":"rfc_archive_history",
+  "tables":[
+    {
+      "name":"rfc_archive_operations",
+      "columns":["rfc_archive_operation_id TEXT PRIMARY KEY","requested_rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT","scope_kind TEXT NOT NULL CHECK(scope_kind IN ('exact_rfc','reviewed_branch'))","scope_fingerprint TEXT NOT NULL CHECK(length(scope_fingerprint)=64)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","created_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"],
+      "rules":["one committed operation records one exact reviewed archive action","pre-existing archived members are excluded from operation membership because the operation did not archive them","operation identity is immutable and is the authority for later operation-scoped restore"]
+    },
+    {
+      "name":"rfc_archive_operation_members",
+      "columns":["rfc_archive_operation_id TEXT NOT NULL REFERENCES rfc_archive_operations(rfc_archive_operation_id) ON UPDATE RESTRICT ON DELETE RESTRICT","rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT","pre_archive_revision INTEGER NOT NULL CHECK(pre_archive_revision>0)","archived_revision INTEGER NOT NULL CHECK(archived_revision=pre_archive_revision+1)","ordinal INTEGER NOT NULL CHECK(ordinal>=0)","PRIMARY KEY(rfc_archive_operation_id,rfc_id)","UNIQUE(rfc_archive_operation_id,ordinal)"],
+      "rules":["membership contains only RFCs transitioned active->archived by this operation","membership is immutable and never expands after commit"]
+    },
+    {
+      "name":"rfc_archive_events",
+      "columns":["rfc_archive_event_id TEXT PRIMARY KEY","rfc_id TEXT NOT NULL REFERENCES rfcs(rfc_id) ON UPDATE RESTRICT ON DELETE RESTRICT","event_type TEXT NOT NULL CHECK(event_type IN ('archived','restored'))","origin_archive_operation_id TEXT NOT NULL REFERENCES rfc_archive_operations(rfc_archive_operation_id) ON UPDATE RESTRICT ON DELETE RESTRICT","resulting_rfc_revision INTEGER NOT NULL CHECK(resulting_rfc_revision>1)","occurred_at_utc INTEGER NOT NULL CHECK(occurred_at_utc>=0)","command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT","UNIQUE(rfc_id,resulting_rfc_revision)"],
+      "rules":["append-only event history determines whether a member is still archived by the referenced operation","resulting_rfc_revision equals the RFC revision after the governed archive/restore transition and is the authoritative per-RFC event ordering key; second-level timestamps are presentation chronology only","restore of one archive operation affects only members whose latest-by-resulting-revision archive event is archived from that same operation","later independent restore/rearchive prevents an older operation restore from changing that RFC"]
+    }
+  ],
+  "indexes":["CREATE INDEX idx_archive_requested_rfc ON rfc_archive_operations(requested_rfc_id,created_at_utc,rfc_archive_operation_id)","CREATE INDEX idx_archive_created_command ON rfc_archive_operations(created_command_id,rfc_archive_operation_id)","CREATE INDEX idx_archive_member_rfc ON rfc_archive_operation_members(rfc_id,rfc_archive_operation_id)","CREATE INDEX idx_archive_event_latest ON rfc_archive_events(rfc_id,resulting_rfc_revision DESC,rfc_archive_event_id)","CREATE INDEX idx_archive_event_origin ON rfc_archive_events(origin_archive_operation_id,rfc_id,resulting_rfc_revision,rfc_archive_event_id)","CREATE INDEX idx_archive_event_command ON rfc_archive_events(command_id,rfc_archive_event_id)"],
+  "database_guards":["BEFORE UPDATE/DELETE on archive operations/members/events raises RFC_ARCHIVE_HISTORY_APPEND_ONLY","archive event insert guard requires resulting_rfc_revision to equal the current RFC revision produced by the same governed transition","archive state mutations on rfcs are accepted only when the corresponding archive event/operation evidence is inserted in the same UnitOfWork"]
+}
