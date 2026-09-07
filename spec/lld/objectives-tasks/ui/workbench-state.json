@@ -19,7 +19,7 @@
     "summary":["tracking identity","derived monthly ordinal","membership-pinned envelope","aggregate state/outcome","Objective timezone label","archive/supersession status"],
     "tasks_table":["Task identity/name","kind Local/WFM","owning RFC context","source plan when WFM","current operational plan","membership-pinned plan","actual execution","reviewed Task outcome","operational-count inclusion","warnings"],
     "derived_context":["SRs with source Task provenance","RFC/root/subordinate context","Customer partitions/unresolved warnings","Device References","Inventory summary only through current LLD-07 Task relationships"],
-    "forbidden_controls":["direct Objective-to-SR link","direct Objective-to-RFC link","direct Objective-to-Device link","direct Objective spare-use/outcome authoring","editable Objective aggregate outcome"]
+    "forbidden_controls":["direct Objective-to-SR link","direct Objective-to-RFC link","direct Objective-to-Device link","direct Objective spare-use/outcome authoring","editable Objective aggregate outcome","Objective start control that implies Objective-owned execution"]
   },
   "temporal_layers":{
     "display_order":["provider source plan","current accepted operational Task plan","Objective membership-pinned Task plan/envelope","actual execution"],
@@ -27,8 +27,8 @@
     "unknown":"unknown source/execution times display as unknown, never substituted from reviewed_at or plan"
   },
   "execution_flow":{
-    "objective_start":"requires explicit nonempty selection of member Tasks to start; UI must state that unselected Tasks will remain unstarted",
-    "task_actions":["Start","End actual execution","Cancel without execution","Review outcome","Correct execution evidence","Correct outcome","Retry"],
+    "selected_task_start":"an Objective-context convenience may submit an explicit nonempty selection of member Tasks to StartSelectedObjectiveTasks; UI must state that this starts the selected Tasks only and creates no Objective start event/timestamp/authority",
+    "task_actions":["Start","Start selected Tasks from Objective context","End actual execution","Cancel without execution","Review outcome","Correct execution evidence","Correct outcome","Retry"],
     "review_outcomes":["Completed","Incomplete","Cancelled without execution"],
     "awaiting_review":"display/projection state, not a selectable accepted Task outcome",
     "whole_objective_cancel":"enabled only when preview proves no member Task ever began accepted execution",
@@ -48,7 +48,7 @@
   },
   "historical_objective_review":{
     "must_show":["WFM Task No.","provider Complete provenance","accepted source plan","existing operational plan if any","proposed historical MW envelope","overlap conflicts","explicit statement: no execution/outcome/Device/Inventory consequence will be created"],
-    "acceptance":"if no operational plan exists, explain that the exact accepted source interval will become a dedicated historical structure plan revision; if a different operational plan exists, block acceptance and route to plan reconciliation",
+    "acceptance":"if no operational plan exists, explain that the exact accepted source interval will become a dedicated historical structure plan revision; if an exactly matching operational plan exists, it may be reused; if a different operational plan exists, block acceptance and route to plan reconciliation",
     "operational_counts":"individual historical Task inclusion toggle is separate from structure acceptance"
   },
   "retry_review":{
