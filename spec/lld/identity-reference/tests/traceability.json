@@ -17,7 +17,7 @@
     "BETA-REQ-0136":["bounds.json","types/transport.json","schema/settings.json","tests/acceptance.json"]
   },
   "supporting_requirement_edges":{
-    "BETA-REQ-0035":["schema/reference-customer.json","commands/reference-dispatch-settings.json","types/local-user-profile.json","interfaces/cross-packet-v2.json","audit/local-user-profile.json","routes/auxiliary-queries.json","tests/local-user-profile-acceptance.json","tests/traceability/commands-b.json"]
+    "BETA-REQ-0035":["schema/reference-customer.json","commands/reference-dispatch-settings.json","types/local-user-profile.json","interfaces/cross-packet-v2.json","audit/actions.json","routes/auxiliary-queries.json","tests/local-user-profile-acceptance.json","tests/traceability/commands-b.json"]
   },
   "fragments":[
     "tests/traceability/commands-a.json",
