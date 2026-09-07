@@ -1,0 +1,26 @@
+{
+  "schema":"SOMA-LLD-AUDIT-ACTIONS-V2",
+  "lld_id":"LLD-03",
+  "actions":[
+    {"action_type":"ticket.service_request.created","action_version":1,"payload_schema":"ServiceRequestAuditV1","payload_version":1,"target_types":["service_request"],"result_ref_types":["service_request"],"sensitive_fields":[]},
+    {"action_type":"ticket.service_request.official_identity_attached","action_version":1,"payload_schema":"ServiceRequestIdentityAuditV1","payload_version":1,"target_types":["service_request"],"result_ref_types":["service_request"],"sensitive_fields":[]},
+    {"action_type":"ticket.service_request.customer_changed","action_version":1,"payload_schema":"ServiceRequestReferenceAuditV1","payload_version":1,"target_types":["service_request"],"result_ref_types":["service_request_customer_history"],"sensitive_fields":[]},
+    {"action_type":"ticket.service_request.contact_reference_changed","action_version":1,"payload_schema":"ServiceRequestReferenceAuditV1","payload_version":1,"target_types":["service_request"],"result_ref_types":["service_request_contact_history"],"sensitive_fields":[]},
+    {"action_type":"ticket.rfc.identity_created_or_adopted","action_version":1,"payload_schema":"RfcIdentityAuditV1","payload_version":1,"target_types":["rfc"],"result_ref_types":["rfc"],"sensitive_fields":[]},
+    {"action_type":"ticket.rfc.customer_changed","action_version":1,"payload_schema":"RfcCustomerAuditV1","payload_version":1,"target_types":["rfc"],"result_ref_types":["rfc"],"sensitive_fields":[]},
+    {"action_type":"ticket.rfc.hierarchy_changed","action_version":1,"payload_schema":"RfcHierarchyAuditV1","payload_version":1,"target_types":["rfc"],"result_ref_types":["rfc_relationship"],"sensitive_fields":[]},
+    {"action_type":"ticket.sr_rfc_relationship.changed","action_version":1,"payload_schema":"TicketRelationshipAuditV1","payload_version":1,"target_types":["service_request","rfc"],"result_ref_types":["sr_rfc_relationship"],"sensitive_fields":[]},
+    {"action_type":"ticket.device_reference.created","action_version":1,"payload_schema":"DeviceReferenceAuditV1","payload_version":1,"target_types":["device_reference"],"result_ref_types":["device_reference"],"sensitive_fields":[]},
+    {"action_type":"ticket.device_reference.corrected","action_version":1,"payload_schema":"DeviceReferenceAuditV1","payload_version":1,"target_types":["device_reference"],"result_ref_types":["device_reference"],"sensitive_fields":[]},
+    {"action_type":"ticket.device_reference.relationship_changed","action_version":1,"payload_schema":"TicketRelationshipAuditV1","payload_version":1,"target_types":["device_reference"],"result_ref_types":["ticket_device_reference_relationship"],"sensitive_fields":[]},
+    {"action_type":"ticket.rfc.archived","action_version":1,"payload_schema":"RfcArchiveAuditV1","payload_version":1,"target_types":["rfc_archive_operation"],"result_ref_types":["rfc_archive_operation","rfc"],"sensitive_fields":[]},
+    {"action_type":"ticket.rfc.archive_restored","action_version":1,"payload_schema":"RfcArchiveAuditV1","payload_version":1,"target_types":["rfc_archive_operation"],"result_ref_types":["rfc"],"sensitive_fields":[]},
+    {"action_type":"ticket.rfc.terminal_cascade_refreshed","action_version":1,"payload_schema":"RfcTerminalCascadeAuditV1","payload_version":1,"target_types":["rfc_terminal_cascade_proposal"],"result_ref_types":["rfc_terminal_cascade_proposal"],"sensitive_fields":[]},
+    {"action_type":"ticket.rfc.terminal_cascade_executed","action_version":1,"payload_schema":"RfcTerminalCascadeAuditV1","payload_version":1,"target_types":["rfc_terminal_cascade_proposal"],"result_ref_types":["rfc_terminal_cascade_proposal","task","objective","communication_link"],"sensitive_fields":[]},
+    {"action_type":"ticket.rfc.hard_deleted","action_version":1,"payload_schema":"RfcHardDeleteAuditV1","payload_version":1,"target_types":["rfc"],"result_ref_types":["hard_delete_evidence"],"sensitive_fields":[]},
+    {"action_type":"ticket.working_note.added","action_version":1,"payload_schema":"WorkingNoteAuditV1","payload_version":1,"target_types":["working_note"],"result_ref_types":["working_note"],"sensitive_fields":[]},
+    {"action_type":"ticket.working_note.edited","action_version":1,"payload_schema":"WorkingNoteAuditV1","payload_version":1,"target_types":["working_note"],"result_ref_types":["working_note"],"sensitive_fields":[]},
+    {"action_type":"ticket.working_note.removed","action_version":1,"payload_schema":"WorkingNoteAuditV1","payload_version":1,"target_types":["working_note"],"result_ref_types":["working_note_history"],"sensitive_fields":[]}
+  ],
+  "payload_policy":{"rule":"Payloads contain bounded identifiers, revisions, reason categories, source/review fingerprints and result references only; imported source evidence remains referenced by immutable LLD-04 identifiers instead of copied raw source rows.","no_change":"Semantic NO_CHANGE creates no fabricated lifecycle or audit event."}
+}
