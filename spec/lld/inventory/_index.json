@@ -11,7 +11,7 @@
   "not_owned_here":["Service Request lifecycle/Customer authority -> LLD-03","Task execution/outcome/review/correction/retry -> LLD-05","Contact/Dispatch Location master truth -> LLD-02","Network Element/Installed Component authority -> LLD-08","Communication source/message identity -> LLD-09","UI working-copy/components -> LLD-10","authentication/action proofs -> LLD-12","exported operator-managed artifacts after generation"],
   "required_directories":["schema","commands","queries","algorithms","ui","tests","types","audit"],
   "packet_files":[
-    "bounds.json","errors.json","interfaces.json","routes.json","technology.json",
+    "bounds.json","errors.json","interfaces.json","interfaces/cross-packet-v2.json","routes.json","technology.json",
     "routes/requests-rma.json","routes/fault-corrections.json",
     "schema/identities-demand.json","schema/requests-rma.json","schema/spare-request-submission.json","schema/rma-authorization-assignment.json","schema/units-allocation.json","schema/logistics-consequences.json","schema/fault-tags.json","schema/fault-tag-submission.json","schema/fault-tag-warehouse-lineage.json","schema/rma-lifecycle.json","schema/proposals-projections.json",
     "commands/needs-stock.json","commands/requests-rma.json","commands/consequences-logistics.json","commands/fault-tags.json","commands/corrections-bulk.json",
