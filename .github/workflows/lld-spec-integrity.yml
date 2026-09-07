@@ -46,4 +46,4 @@ jobs:
         run: |
           set -euo pipefail
           mode="${MANUAL_ENFORCEMENT:-review-ready}"
-          python tools/lld/run_validate_spec.py --enforce "$mode"
+          python tools/lld/enforce_validate_spec.py --enforce "$mode"
