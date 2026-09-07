@@ -5,18 +5,19 @@
     {
       "name":"ApplyAcceptedRfcSourceProjection",
       "visibility":"internal cross-packet command invoked by LLD-04 accepted reconciliation; not a raw workbook route",
-      "input":["rfc_id","base RFC/projection revisions","accepted field delta set with immutable source_evidence_ids","status vocabulary classification/authority when Status changes","review context when terminal reversal/high-risk correction applies","command_id"],
+      "input":["existing LLD-04 UnitOfWork","accepted LLD-04 RFC reconciliation proposal with exact RFC/base/evidence/review bindings","parent command_context carrying outer command_id/hash and already-inserted parent command_receipt"],
+      "receipt_authority":"parent_shared_uow",
       "steps":[
-        "inside shared UoW load exact RFC/current projection/hierarchy and resolve idempotent replay before mutation",
+        "inside the shared UoW require the LLD-04 parent command receipt already exists, then load exact RFC/current projection/hierarchy and revalidate current owner state",
         "validate accepted evidence identities and LLD-04 precedence through RfcSourceEvidenceProvider",
         "determine the exact current-field changes and any terminal-epoch/cascade effect",
-        "insert command receipt before any projection/cascade row that references command_id; rollback removes the receipt on any later failure",
-        "apply only accepted usable current field changes",
+        "apply only accepted usable current field changes using the parent command context for provenance; LLD-03 inserts no command receipt",
         "for transition into terminal allocate terminal_epoch_id and atomically capture/insert exact pending cascade proposal and immutable RFC/WFM membership",
         "for terminal reversal require exact fresh high-risk review, clear current terminal epoch and supersede any still-pending proposal for that epoch without undoing executed history",
-        "append minimal audit/result references and commit with the owning reconciliation transaction"
+        "append minimal LLD-03 audit/result references and return RfcLifecycleProjectionV1 to the LLD-04 coordinator without nested commit"
       ],
       "rules":[
+        "LLD-04 AcceptReconciliationProposal exclusively owns replay resolution, command_id/hash authority, the single command receipt and the outer commit for this shared UnitOfWork",
         "source acceptance never overwrites RFC hierarchy, SR links, Device Reference links, Working Notes, archive state or canonical Customer without their governed commands",
         "terminal evidence acceptance never executes Task/Objective/Communication cascade consequences",
         "unchanged current accepted fields produce semantic NO_CHANGE at field level and no duplicate current-history authority"
@@ -57,7 +58,7 @@
         "identify active members that will change and already-archived members that remain untouched",
         "if no member changes return semantic NO_CHANGE",
         "allocate archive operation ID and insert receipt/operation row",
-        "transition only active reviewed members to archived and increment revisions",
+        "transition only active reviewed members to archived and increment revision",
         "insert immutable operation membership plus archived event for each changed member using resulting RFC revision as event order",
         "audit exact changes and commit"
       ],
