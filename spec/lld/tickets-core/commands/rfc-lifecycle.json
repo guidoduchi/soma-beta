@@ -37,15 +37,17 @@
       "name":"ExecuteRfcTerminalCascade",
       "input":["pending proposal_id","base proposal revision","scope_fingerprint","deliberate_action_proof","command_id"],
       "steps":[
-        "verify deliberate action proof against authenticated session/proposal revision/fingerprint",
+        "obtain the LLD-12 deliberate-action proof after the governed interaction; obtaining proof does not validate, consume or authorize the cascade",
         "inside one UoW resolve idempotent replay, revalidate same current terminal epoch/evidence and exact RFC/WFM membership",
         "if any scope/member/revision differs return RFC_TERMINAL_CASCADE_STALE with no mutation",
+        "recompute the exact action target, base proposal revision and scope fingerprint from current authoritative state",
+        "inside this same UoW call LLD-12 DeliberateActionProofProvider.validate_and_consume(uow, proof, expected_action, target, base_revision, preview_fingerprint); invalid, expired, already-consumed or stale-bound proof aborts with no cascade mutation",
         "insert command receipt before participant/domain rows can reference command_id; rollback removes it on participant failure",
         "invoke LLD-05 Task/Objective participant and LLD-09 Communication participant using this same UoW",
         "if any participant fails or is indeterminate roll back everything and keep proposal pending",
         "transition proposal to executed, append minimal audit/result references, commit atomically"
       ],
-      "rules":["safe auto-accept cannot call this command","SRs and unrelated Local Tasks are never cascade targets","provider WFM evidence is never rewritten"]
+      "rules":["deliberate proof validation and single-use consumption are atomic with cascade execution and never occur as a verify-only preflight","a consumed proof cannot authorize a second cascade attempt even with the same proposal payload","safe auto-accept cannot call this command","SRs and unrelated Local Tasks are never cascade targets","provider WFM evidence is never rewritten"]
     },
     {
       "name":"ArchiveRfc",
