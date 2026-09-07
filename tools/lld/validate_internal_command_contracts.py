@@ -9,7 +9,9 @@ owns COMMAND_ENVELOPE_V1 replay/receipt semantics.
 
 A child participant may instead declare receipt_authority=parent_shared_uow.
 That means the parent command owns the already-inserted receipt and outer
-UnitOfWork; the child must not declare a second local command_id.
+UnitOfWork; the child must not declare a second local command_id. Descriptive
+references to the parent's command_id inside a parent command_context are not
+local child fields and therefore do not violate this rule.
 """
 from __future__ import annotations
 
@@ -99,10 +101,29 @@ def collect_internal_edges(root: Path) -> list[dict]:
 
 
 def command_has_command_id(command: dict) -> bool:
+    """Broad legacy detection for command-owned replay declarations."""
     inputs = command.get("input", [])
     if isinstance(inputs, list):
         return any("command_id" == str(x).strip() or "command_id" in str(x) for x in inputs)
     return "command_id" in json.dumps(inputs, sort_keys=True)
+
+
+def command_declares_local_command_id(command: dict) -> bool:
+    """Detect an actual child input field, not prose about a parent context."""
+    inputs = command.get("input", [])
+    if isinstance(inputs, dict):
+        return "command_id" in inputs
+    if not isinstance(inputs, list):
+        return False
+    for item in inputs:
+        if isinstance(item, dict):
+            if "command_id" in item:
+                return True
+            continue
+        text = str(item).strip()
+        if re.match(r"^command_id(?:\b|\s*[:=(])", text):
+            return True
+    return False
 
 
 def receipt_authority(command: dict) -> str:
@@ -143,7 +164,7 @@ def main() -> int:
 
                 authority = receipt_authority(command)
                 if authority == PARENT_SHARED_UOW:
-                    if command_has_command_id(command):
+                    if command_declares_local_command_id(command):
                         findings.append(
                             f"{packet_id}:{name} declares {PARENT_SHARED_UOW} but authoritative command input also declares local command_id"
                         )
