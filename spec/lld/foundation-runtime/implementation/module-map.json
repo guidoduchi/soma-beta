@@ -1,0 +1,50 @@
+{
+  "schema":"SOMA-LLD-IMPLEMENTATION-MAP-V2",
+  "lld_id":"LLD-01",
+  "root":"src/soma/foundation",
+  "modules":{
+    "runtime":"runtime/{host,instance_lock,loopback,registry}.py",
+    "persistence":"persistence/{connections,uow,repositories}.py",
+    "migrations":"migrations/{manifest,runner,verification}.py",
+    "audit":"audit/{registry,writer}.py",
+    "commands":"application/command_boundary.py",
+    "jobs":"jobs/coordinator.py",
+    "queries":"queries/status.py",
+    "transport":"api/routes_foundation.py",
+    "types":"contracts/foundation.py"
+  },
+  "commands":{
+    "StartHost":"runtime/host.py",
+    "ShutdownHost":"runtime/host.py",
+    "ApplyPendingMigrations":"migrations/runner.py",
+    "ExecuteAuthoritativeCommand":"application/command_boundary.py"
+  },
+  "queries":{
+    "GetMigrationStatus":"queries/status.py",
+    "GetRuntimeHealth":"queries/status.py",
+    "GetFoundationDiagnosticsState":"queries/status.py"
+  },
+  "services":{
+    "ConnectionFactory":"persistence/connections.py",
+    "UnitOfWork":"persistence/uow.py",
+    "MigrationRunner":"migrations/runner.py",
+    "AuditWriter":"audit/writer.py",
+    "DurableJobCoordinator":"jobs/coordinator.py",
+    "HostRuntime":"runtime/host.py",
+    "BackupSnapshotProvider":"persistence/backup_snapshot.py"
+  },
+  "dependency_direction":[
+    "transport/runtime -> application services + typed contracts",
+    "application services -> UnitOfWork/repositories/audit/job/migration providers",
+    "repositories -> verified ConnectionFactory only",
+    "ConnectionFactory -> LLD-12 SqlCipherConnectionSecurityProvider before schema access",
+    "Foundation never imports owning-domain tables/services as hidden mutation authority"
+  ],
+  "forbidden":[
+    "raw unkeyed sqlite3 authoritative connections",
+    "nested UnitOfWork commits",
+    "domain business guards inside Foundation generic command orchestration",
+    "secret material in audit/diagnostics/runtime registry",
+    "filesystem/network work inside long-lived authoritative write transactions"
+  ]
+}
