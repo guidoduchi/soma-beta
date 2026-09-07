@@ -1,0 +1,30 @@
+{
+  "schema":"SOMA-LLD-AUDIT-ACTIONS-V2",
+  "lld_id":"LLD-05",
+  "actions":[
+    {"action_type":"task.created","action_version":1,"payload_schema":"TaskAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["task","task_plan","task_relationship"],"sensitive_fields":[]},
+    {"action_type":"task.wfm_registered","action_version":1,"payload_schema":"TaskAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["task","wfm_assignment"],"sensitive_fields":[]},
+    {"action_type":"task.wfm_parent_reassigned","action_version":1,"payload_schema":"TaskRelationshipAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["wfm_assignment"],"sensitive_fields":[]},
+    {"action_type":"task.plan_changed","action_version":1,"payload_schema":"TaskPlanAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["task_plan"],"sensitive_fields":[]},
+    {"action_type":"task.lock_changed","action_version":1,"payload_schema":"TaskLockAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["task_lock_event"],"sensitive_fields":[]},
+    {"action_type":"task.relationship_changed","action_version":1,"payload_schema":"TaskRelationshipAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["task_relationship"],"sensitive_fields":[]},
+    {"action_type":"task.activity_relationship_reviewed","action_version":1,"payload_schema":"TaskActivityAuditV1","payload_version":1,"target_types":["task_activity_lineage"],"result_ref_types":["task","task_retry_relation"],"sensitive_fields":[]},
+    {"action_type":"task.execution_changed","action_version":1,"payload_schema":"TaskExecutionAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["task_execution_event"],"sensitive_fields":[]},
+    {"action_type":"task.outcome_reviewed","action_version":1,"payload_schema":"TaskOutcomeAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["task_outcome_event"],"sensitive_fields":[]},
+    {"action_type":"task.source_terminal_consequence_resolved","action_version":1,"payload_schema":"TaskSourceTerminalAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["wfm_source_terminal_review","task_execution_event"],"sensitive_fields":[]},
+    {"action_type":"task.retry_created_or_linked","action_version":1,"payload_schema":"TaskRetryAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["task","task_retry_relation"],"sensitive_fields":[]},
+    {"action_type":"task.operational_count_inclusion_changed","action_version":1,"payload_schema":"TaskCountAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["task"],"sensitive_fields":[]},
+    {"action_type":"task.hard_deleted","action_version":1,"payload_schema":"HardDeleteAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["hard_delete_evidence"],"sensitive_fields":[]},
+    {"action_type":"objective.created","action_version":1,"payload_schema":"ObjectiveAuditV1","payload_version":1,"target_types":["objective"],"result_ref_types":["objective","objective_membership"],"sensitive_fields":[]},
+    {"action_type":"objective.member_execution_started","action_version":1,"payload_schema":"ObjectiveExecutionAuditV1","payload_version":1,"target_types":["objective"],"result_ref_types":["task_execution_event"],"sensitive_fields":[]},
+    {"action_type":"objective.cancelled","action_version":1,"payload_schema":"ObjectiveAuditV1","payload_version":1,"target_types":["objective"],"result_ref_types":["objective","task_outcome_event"],"sensitive_fields":[]},
+    {"action_type":"objective.reviewed","action_version":1,"payload_schema":"ObjectiveReviewAuditV1","payload_version":1,"target_types":["objective"],"result_ref_types":["objective_review_event"],"sensitive_fields":[]},
+    {"action_type":"objective.archive_state_changed","action_version":1,"payload_schema":"ObjectiveAuditV1","payload_version":1,"target_types":["objective"],"result_ref_types":["objective"],"sensitive_fields":[]},
+    {"action_type":"objective.hard_deleted","action_version":1,"payload_schema":"HardDeleteAuditV1","payload_version":1,"target_types":["objective"],"result_ref_types":["hard_delete_evidence"],"sensitive_fields":[]},
+    {"action_type":"grouping.proposal_recomputed","action_version":1,"payload_schema":"GroupingAuditV1","payload_version":1,"target_types":["grouping_proposal"],"result_ref_types":["grouping_proposal"],"sensitive_fields":[]},
+    {"action_type":"grouping.proposal_decided","action_version":1,"payload_schema":"GroupingAuditV1","payload_version":1,"target_types":["grouping_proposal"],"result_ref_types":["grouping_proposal","objective","objective_membership"],"sensitive_fields":[]},
+    {"action_type":"objective.historical_proposal_decided","action_version":1,"payload_schema":"HistoricalObjectiveAuditV1","payload_version":1,"target_types":["historical_objective_proposal"],"result_ref_types":["objective","objective_membership","task_plan"],"sensitive_fields":[]},
+    {"action_type":"objective.timezone_changed","action_version":1,"payload_schema":"ObjectiveTimezoneAuditV1","payload_version":1,"target_types":["setting"],"result_ref_types":["setting"],"sensitive_fields":[]}
+  ],
+  "payload_policy":{"rule":"Audit payloads contain bounded identifiers, exact plan/membership/review fingerprints, reason categories and result references. They never copy immutable WFM source payloads from LLD-04 or physical Inventory facts from LLD-07.","no_change":"Semantic NO_CHANGE never fabricates a new Task/Objective lifecycle or audit event."}
+}
