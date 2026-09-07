@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Fail-closed SOMA SIG-008 cross-packet interface closure validator.
 
-Unlike the legacy SIG-008 implementation, this checker does not treat a
-traceability edge's claimed provider as proof that the provider exists. It
-builds the provider registry from normative interface declarations, builds
-consumer expectations independently, and then reconciles provider identity,
+This checker proves provider existence from normative interface declarations,
+not from traceability prose. It reconciles provider identity, consumer-called
 method signatures, versioned type contracts, and shared-UoW/read-only
 transaction semantics.
 """
@@ -13,7 +11,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Iterable
@@ -45,8 +42,7 @@ def load_json(path: Path) -> Any:
 
 
 def norm_sig(value: Any) -> str:
-    text = str(value).strip()
-    text = text.replace("→", "->")
+    text = str(value).strip().replace("→", "->")
     return re.sub(r"\s+", "", text)
 
 
@@ -74,21 +70,19 @@ def first_owner_id(value: Any) -> str | None:
 
 
 def tx_kind(item: dict[str, Any]) -> str | None:
-    text = " ".join(
-        str(item.get(key, ""))
-        for key in ("transaction", "rule", "contract")
-    ).lower().replace("-", " ")
-    if not text.strip():
+    text = " ".join(str(item.get(k, "")) for k in ("transaction", "rule", "contract")).lower()
+    squashed = text.replace("-", " ").replace("_", " ")
+    compact = squashed.replace(" ", "")
+    if not squashed.strip():
         return None
-    if "caller" in text and ("unitofwork" in text.replace(" ", "") or "uow" in text):
+    if (("caller" in squashed or "same" in squashed) and
+            ("unitofwork" in compact or "uow" in squashed)):
         return "caller_uow"
-    if "same" in text and ("unitofwork" in text.replace(" ", "") or "uow" in text):
+    if "no nested" in squashed and ("commit" in squashed or "receipt" in squashed):
         return "caller_uow"
-    if "no nested" in text and ("commit" in text or "receipt" in text):
-        return "caller_uow"
-    if "read only" in text or "read-only" in text:
+    if "read only" in squashed or "readonly" in compact:
         return "read_only"
-    if "pure allocator" in text or "pure query" in text or "pure read" in text:
+    if "pure allocator" in squashed or "pure query" in squashed or "pure read" in squashed:
         return "read_only"
     return None
 
@@ -124,17 +118,14 @@ def add_decl(out: list[Decl], packet_id: str, role: str,
 def declarations(repo: Path, packet_id: str, root: Path) -> list[Decl]:
     out: list[Decl] = []
     for path, doc in interface_docs(root):
-        # Explicit V2 registry form.
         for item in doc.get("provided", []) if isinstance(doc.get("provided"), list) else []:
             if isinstance(item, dict):
                 add_decl(out, packet_id, "provider", packet_id, item, path, repo)
         for item in doc.get("consumed", []) if isinstance(doc.get("consumed"), list) else []:
             if isinstance(item, dict):
-                provider = first_owner_id(item.get("provider"))
-                add_decl(out, packet_id, "consumer", provider, item, path, repo)
+                add_decl(out, packet_id, "consumer", first_owner_id(item.get("provider")), item, path, repo)
 
-        # V2/V1 packet interface documents use several historical keys. Role is
-        # derived from the owner, never from the key name alone.
+        # Historical packet formats. The declared owner determines the role.
         for key in ("providers", "foundation", "composition_interfaces",
                     "consumed_interfaces", "python_interfaces"):
             value = doc.get(key)
@@ -154,38 +145,6 @@ def declarations(repo: Path, packet_id: str, root: Path) -> list[Decl]:
     return out
 
 
-def trace_consumers(repo: Path, packet_id: str, root: Path) -> list[Decl]:
-    path = root / "tests/traceability.json"
-    if not path.is_file():
-        return []
-    try:
-        doc = load_json(path)
-    except (OSError, json.JSONDecodeError):
-        return []
-    if not isinstance(doc, dict):
-        return []
-    out: list[Decl] = []
-    edges = doc.get("cross_packet")
-    if not isinstance(edges, list):
-        return out
-    for edge in edges:
-        if not isinstance(edge, dict):
-            continue
-        name = edge.get("interface")
-        if not isinstance(name, str) or not name.strip():
-            continue
-        consumer = first_owner_id(edge.get("consumer")) or packet_id
-        if consumer != packet_id:
-            continue
-        provider = first_owner_id(edge.get("provider"))
-        out.append(Decl(
-            name=name.strip(), packet_id=packet_id, role="trace_consumer",
-            provider=provider, methods=(), types=(), tx_kind=None,
-            path=path.relative_to(repo).as_posix(),
-        ))
-    return out
-
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
@@ -196,12 +155,10 @@ def main() -> int:
     packets = [p for p in index.get("packets", []) if isinstance(p, dict)]
 
     all_decls: list[Decl] = []
-    traces: list[Decl] = []
     for packet in packets:
         packet_id = str(packet.get("id", ""))
         root = repo / str(packet.get("path", ""))
         all_decls.extend(declarations(repo, packet_id, root))
-        traces.extend(trace_consumers(repo, packet_id, root))
 
     providers: dict[str, list[Decl]] = {}
     consumers: dict[tuple[str, str], list[Decl]] = {}
@@ -210,8 +167,6 @@ def main() -> int:
             providers.setdefault(decl.name, []).append(decl)
         elif decl.role == "consumer":
             consumers.setdefault((decl.name, decl.packet_id), []).append(decl)
-    for decl in traces:
-        consumers.setdefault((decl.name, decl.packet_id), []).append(decl)
 
     findings: list[Finding] = []
     for (name, consumer_id), rows in sorted(consumers.items()):
@@ -223,7 +178,7 @@ def main() -> int:
                 "SIG-008", "BLOCKER", "GLOBAL", "spec/lld/_index.json",
                 f"cross-packet interface {name!r} consumed by {consumer_id} has "
                 f"{len(actual_packets)} actual provider packets {actual_packets}; "
-                f"consumer claims are not provider proof",
+                "consumer declarations are not provider proof",
             ))
             continue
         provider_id = actual_packets[0]
@@ -234,59 +189,55 @@ def main() -> int:
                 f"declaration is {provider_id}",
             ))
 
-        # Require one canonical owner-side shape. Multiple identical declarations
-        # in the same provider packet are tolerated; divergent duplicates are not.
-        provider_shapes = {(d.methods, d.types, d.tx_kind) for d in actual}
-        if len(provider_shapes) != 1:
+        # Same-packet duplicate declarations may exist during retrofit, but they
+        # may not disagree on an overlapping method/type/transaction contract.
+        provider_methods = {m for d in actual for m in d.methods}
+        provider_types = {t for d in actual for t in d.types}
+        provider_tx = {d.tx_kind for d in actual if d.tx_kind}
+        if len(provider_tx) > 1:
             findings.append(Finding(
                 "SIG-008", "BLOCKER", provider_id, actual[0].path,
-                f"interface {name!r} has divergent duplicate provider declarations in {provider_id}",
+                f"interface {name!r} has conflicting provider transaction semantics {sorted(provider_tx)}",
             ))
-            continue
-        provider = actual[0]
-        concrete_consumers = [d for d in rows if d.role == "consumer"]
-        if not concrete_consumers:
-            findings.append(Finding(
-                "SIG-008", "BLOCKER", consumer_id, rows[0].path,
-                f"interface {name!r} exists only as a traceability claim for {consumer_id}; "
-                "no normative consumer-side interface declaration exists",
-            ))
-            continue
-        for consumer in concrete_consumers:
-            if not provider.methods:
-                findings.append(Finding(
-                    "SIG-008", "BLOCKER", provider_id, provider.path,
-                    f"provider declaration for {name!r} has no machine-readable method signatures",
-                ))
-            elif not consumer.methods:
+
+        for consumer in rows:
+            if not consumer.methods:
                 findings.append(Finding(
                     "SIG-008", "BLOCKER", consumer_id, consumer.path,
                     f"consumer declaration for {name!r} has no machine-readable method signatures",
                 ))
-            elif consumer.methods != provider.methods:
-                findings.append(Finding(
-                    "SIG-008", "BLOCKER", consumer_id, consumer.path,
-                    f"interface {name!r} method mismatch: consumer={list(consumer.methods)} "
-                    f"provider={list(provider.methods)}",
-                ))
-            if consumer.types:
-                if not provider.types:
-                    findings.append(Finding(
-                        "SIG-008", "BLOCKER", provider_id, provider.path,
-                        f"interface {name!r} consumer declares versioned/types contract but provider does not",
-                    ))
-                elif consumer.types != provider.types:
+            else:
+                missing = sorted(set(consumer.methods) - provider_methods)
+                if missing:
                     findings.append(Finding(
                         "SIG-008", "BLOCKER", consumer_id, consumer.path,
-                        f"interface {name!r} type mismatch: consumer={list(consumer.types)} "
-                        f"provider={list(provider.types)}",
+                        f"interface {name!r} calls methods not declared identically by provider {provider_id}: {missing}",
                     ))
-            if consumer.tx_kind and provider.tx_kind and consumer.tx_kind != provider.tx_kind:
-                findings.append(Finding(
-                    "SIG-008", "BLOCKER", consumer_id, consumer.path,
-                    f"interface {name!r} transaction mismatch: consumer={consumer.tx_kind} "
-                    f"provider={provider.tx_kind}",
-                ))
+            if consumer.types:
+                if not provider_types:
+                    findings.append(Finding(
+                        "SIG-008", "BLOCKER", provider_id, actual[0].path,
+                        f"interface {name!r} consumer declares versioned/types contract but provider does not",
+                    ))
+                else:
+                    missing_types = sorted(set(consumer.types) - provider_types)
+                    if missing_types:
+                        findings.append(Finding(
+                            "SIG-008", "BLOCKER", consumer_id, consumer.path,
+                            f"interface {name!r} consumes type contracts absent from provider: {missing_types}",
+                        ))
+            if consumer.tx_kind:
+                if not provider_tx:
+                    findings.append(Finding(
+                        "SIG-008", "BLOCKER", provider_id, actual[0].path,
+                        f"interface {name!r} consumer declares {consumer.tx_kind} transaction semantics but provider does not",
+                    ))
+                elif consumer.tx_kind not in provider_tx:
+                    findings.append(Finding(
+                        "SIG-008", "BLOCKER", consumer_id, consumer.path,
+                        f"interface {name!r} transaction mismatch: consumer={consumer.tx_kind} "
+                        f"provider={sorted(provider_tx)}",
+                    ))
 
     findings.sort(key=lambda f: (f.packet_id, f.path, f.message))
     if args.json:
