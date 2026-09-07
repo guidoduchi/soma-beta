@@ -1,6 +1,20 @@
 {
   "schema":"SOMA-LLD-AUDIT-ACTIONS-V2",
   "lld_id":"LLD-03",
+  "payload_types":{
+    "ServiceRequestAuditV1":{"fields":["service_request_id","resulting_revision","identity_kind","source_or_creation_class"],"forbidden":["raw imported row","unbounded source text","Working Note body"]},
+    "ServiceRequestIdentityAuditV1":{"fields":["service_request_id","prior_identity_kind","official_sr_no_fingerprint","resulting_revision","review_context_id|null"],"forbidden":["raw source workbook row"]},
+    "ServiceRequestReferenceAuditV1":{"fields":["service_request_id","reference_role","prior_reference_id|null","new_reference_id|null","customer_org_context_id|null","source_observation_id|null","resulting_revision","reason_category","review_fingerprint|null"],"forbidden":["Customer/Contact descriptive master copy","raw source row"]},
+    "RfcIdentityAuditV1":{"fields":["rfc_id","rfc_no","creation_context","customer_org_id|null","resulting_revision"],"forbidden":["raw workbook row"]},
+    "RfcCustomerAuditV1":{"fields":["rfc_id","prior_customer_org_id|null","new_customer_org_id|null","resulting_revision","reason_category","review_fingerprint|null"],"forbidden":["Customer descriptive master copy"]},
+    "RfcHierarchyAuditV1":{"fields":["rfc_id","relationship_id|null","prior_parent_rfc_id|null","new_parent_rfc_id|null","resulting_revision","reason_category","review_fingerprint|null"],"forbidden":["copied branch payload"]},
+    "TicketRelationshipAuditV1":{"fields":["relationship_type","relationship_id","left_id","right_id","prior_state|null","new_state","reason_category|null","subordinate_origin_rfc_id|null"],"forbidden":["copied ticket bodies"]},
+    "DeviceReferenceAuditV1":{"fields":["device_reference_id","resulting_revision","change_kind","relationship_target_type|null","relationship_target_id|null","reason_category|null"],"forbidden":["Network Element master copy","unbounded device payload"]},
+    "RfcArchiveAuditV1":{"fields":["rfc_archive_operation_id","scope_kind","scope_fingerprint","changed_rfc_ids","excluded_prearchived_count","resulting_operation_state","reason_category|null"],"bounds":"changed_rfc_ids is bounded by reviewed two-level branch scope; detailed history remains in archive membership/events","forbidden":["source lifecycle rewrite"]},
+    "RfcTerminalCascadeAuditV1":{"fields":["proposal_id","proposal_revision","terminal_epoch_id","scope_fingerprint","state_transition","task_participant_result_refs","communication_participant_result_refs","reason_category|null"],"bounds":"participant result refs are bounded identifiers only; proposal membership remains authoritative in dedicated tables","forbidden":["provider WFM payload rewrite","Communication body","Task/Objective object copy"]},
+    "RfcHardDeleteAuditV1":{"fields":["rfc_id","rfc_no","reviewed_revision","eligibility_fingerprint","confirmation_context_id","result=deleted"],"forbidden":["deleted dependent history because eligibility requires none"]},
+    "WorkingNoteAuditV1":{"fields":["working_note_id","owner_type","owner_id","resulting_revision|null","created_by_local_user_profile_id","change_kind","reason_category|null","bounded_prior_or_new_body_when_required_by_removal_or_edit_policy"],"bounds":"body evidence obeys Working Note audit byte bound and never expands beyond accepted note limit","forbidden":["credential/session secret"]}
+  },
   "actions":[
     {"action_type":"ticket.service_request.created","action_version":1,"payload_schema":"ServiceRequestAuditV1","payload_version":1,"target_types":["service_request"],"result_ref_types":["service_request"],"sensitive_fields":[]},
     {"action_type":"ticket.service_request.official_identity_attached","action_version":1,"payload_schema":"ServiceRequestIdentityAuditV1","payload_version":1,"target_types":["service_request"],"result_ref_types":["service_request"],"sensitive_fields":[]},
