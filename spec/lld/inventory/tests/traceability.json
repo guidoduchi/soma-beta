@@ -5,6 +5,7 @@
     "BETA-REQ-0014":["schema/spare-request-submission.json","commands/requests-rma.json","routes/requests-rma.json","tests/acceptance.json"],
     "BETA-REQ-0015":["schema/rma-authorization-assignment.json","schema/rma-lifecycle.json","commands/requests-rma.json","commands/consequences-logistics.json","tests/acceptance.json"],
     "BETA-REQ-0016":["schema/units-allocation.json","commands/needs-stock.json","commands/consequences-logistics.json","queries/inventory.json","tests/acceptance.json"],
+    "BETA-REQ-0032":["schema/spare-request-submission.json","commands/requests-rma.json","queries/inventory.json","types/transport.json","interfaces/cross-packet-v2.json","audit/actions.json","tests/acceptance.json","tests/traceability/commands-requests-rma.json"],
     "BETA-REQ-0079":["schema/identities-demand.json","commands/needs-stock.json","queries/inventory.json","algorithms/need-aggregation.json","tests/acceptance.json"],
     "BETA-REQ-0080":["schema/identities-demand.json","schema/units-allocation.json","commands/needs-stock.json","algorithms/stock-eligibility.json","tests/acceptance.json"],
     "BETA-REQ-0081":["schema/identities-demand.json","schema/units-allocation.json","commands/needs-stock.json","commands/corrections-bulk.json","tests/acceptance.json"],
@@ -47,10 +48,11 @@
     "tests/traceability/queries-inventory.json",
     "tests/traceability/queries-fault-tags.json"
   ],
-  "migration":{"sequence":7,"path":"migrations/0007-inventory.json","objects":"all LLD-07 Need/Device Part/Spare Request/RMA/Spare Part Unit/allocation/logistics/physical-consequence/Fault Tag/proposal/projection/history objects"},
+  "migration":{"sequence":7,"path":"migrations/0007-inventory.json","objects":"all LLD-07 Need/Device Part/Spare Request/RMA/Spare Part Unit/allocation/logistics/physical-consequence/Fault Tag/proposal/projection/history objects including Spare Request requester Contact/context fields and indexes"},
   "cross_packet":[
     {"interface":"Snapshot/UnitOfWork/CommandReceiptStore/AuditWriter/STRICT schema conventions","provider":"LLD-01","consumer":"LLD-07"},
     {"interface":"Contact and Dispatch Location master identity","provider":"LLD-02","consumer":"LLD-07"},
+    {"interface":"InventoryReferenceDependencyValidator","provider":"LLD-07","consumer":"LLD-02"},
     {"interface":"Service Request and Device Reference identity/context","provider":"LLD-03","consumer":"LLD-07"},
     {"interface":"TaskOperationalEvidenceReader plus retry/hard-delete caller UnitOfWork participant boundary","provider":"LLD-05","consumer":"LLD-07"},
     {"interface":"InventoryTaskDependencyProvider","provider":"LLD-07","consumer":"LLD-05"},
@@ -61,6 +63,7 @@
   ],
   "reverse_orphan_checks":[
     "Spare Need remains one SR+BOM demand aggregate; contributor count, planned quantity, local fulfillment and Spare Request allocations are distinct authorities.",
+    "Spare Request requester is an explicit reusable Contact relationship fixed at request creation with bounded effective Contact/affiliation context; receiver is a separate logistics role. Active/nonterminal requester dependency blocks Contact archival, while terminal history retains requester evidence.",
     "Spare Request, RMA, Device Part Unit and Spare Part Unit retain distinct immutable identities; SR7/C10/manufacturer serial are never physical or internal identity substitutes.",
     "RMA authorization creates a provider obligation only. A physical Spare Part Unit from that RMA first exists only after RecordRmaInboundReceipt accepts actual receipt evidence.",
     "Stock eligibility is a read projection over actual unit lifecycle/allocation/return state; query evaluation never reserves or consumes stock.",
