@@ -2,6 +2,7 @@
   "schema":"SOMA-LLD-TECHNOLOGY-V1",
   "lld_id":"LLD-04",
   "runtime":"Python 3.13/3.14 on supported Windows 10/11 Beta targets",
+  "artifact_output_authority":"none; LLD-04 consumes operator/source XLSX files as untrusted input evidence and does not generate, export, publish or own an operator-facing file artifact. Any later artifact-producing workflow must be owned by its declaring packet and versioned there.",
   "xlsx_stack":{
     "preflight":"Python stdlib os/pathlib/stat + zipfile performs path/reparse/stability/container/resource/part-name/content-type/relationship preflight before workbook library opens the file",
     "semantic_reader":"openpyxl in read-only streaming mode with formulas not evaluated and external links disabled; exact compatible package version is pinned by LLD-12/release lock after Python 3.13/3.14 compatibility matrix passes",
