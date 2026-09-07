@@ -18,7 +18,7 @@
     "sections":["Summary","Tasks","Scheduling and Grouping","Execution and Review","Derived Context","History"],
     "summary":["tracking identity","derived monthly ordinal","membership-pinned envelope","aggregate state/outcome","Objective timezone label","archive/supersession status"],
     "tasks_table":["Task identity/name","kind Local/WFM","owning RFC context","source plan when WFM","current operational plan","membership-pinned plan","actual execution","reviewed Task outcome","operational-count inclusion","warnings"],
-    "derived_context":["SRs with source Task provenance","RFC/root/subordinate context","Customer partitions/unresolved warnings","Device References","Inventory summary only through future LLD-07 Task relationships"],
+    "derived_context":["SRs with source Task provenance","RFC/root/subordinate context","Customer partitions/unresolved warnings","Device References","Inventory summary only through current LLD-07 Task relationships"],
     "forbidden_controls":["direct Objective-to-SR link","direct Objective-to-RFC link","direct Objective-to-Device link","direct Objective spare-use/outcome authoring","editable Objective aggregate outcome"]
   },
   "temporal_layers":{
@@ -52,7 +52,7 @@
     "operational_counts":"individual historical Task inclusion toggle is separate from structure acceptance"
   },
   "retry_review":{
-    "local":"show predecessor immutable attempt, proposed new Task identity placeholder, new independent interval, selectable current SR/RFC/Device links, and future LLD-07 eligible Inventory relationship selections when available",
+    "local":"show predecessor immutable attempt, proposed new Task identity allocated only on successful commit, new independent interval, selectable current SR/RFC/Device links, and current LLD-07 eligible Inventory relationship selections when available",
     "wfm":"requires separately existing distinct TK attempt; UI only links reviewed retry lineage",
     "rule":"never present retry as reopening/resetting the old Task or cloning an Objective identity"
   },
