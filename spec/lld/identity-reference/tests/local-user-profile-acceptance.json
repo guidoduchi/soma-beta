@@ -3,10 +3,9 @@
   "lld_id":"LLD-02",
   "suite":"local_user_profile_acceptance",
   "case_count":2,
-  "case_format":["id","scenario"],
-  "cases":[
-    ["LLD02-T038","First-run Local User Profile persists server-default display_name='Local Administrator', exposes no username/login-name field, and still authenticates only through LLD-12 password authority."],
-    ["LLD02-T039","UpdateLocalUserProfileDisplayName with fresh base revision changes only display_name plus metadata revision; actor/profile ID, password verifier, sessions, auto-login, security revision and encryption material remain unchanged, while stale revision or replay conflict fails closed."]
+  "scenarios":[
+    {"id":"LLD02-T038","name":"first_run_profile_has_no_login_name_authority","prove":["first-run Local User Profile persists server-default display_name='Local Administrator'","no username/login-name field exists in profile persistence or setup/login DTOs","authentication remains exclusively LLD-12 password authority"]},
+    {"id":"LLD02-T039","name":"display_name_edit_is_descriptive_only","prove":["fresh base revision changes only display_name plus Local User Profile metadata revision","local_user_profile_id/actor identity, password verifier, sessions, auto-login, security revision and encryption material remain unchanged","stale revision or idempotency conflict fails closed"]}
   ],
   "expected":"Profile metadata remains descriptive and password-only login authority cannot be reintroduced through a username-like field."
 }
