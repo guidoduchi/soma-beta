@@ -1,0 +1,9 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-LEAF-V2",
+  "lld_id":"LLD-05",
+  "family":"historical_objective_proposals",
+  "tables":[
+    {"name":"historical_objective_proposals","columns":["historical_proposal_id TEXT PRIMARY KEY","task_id TEXT NOT NULL REFERENCES wfm_task_identities(task_id) ON DELETE RESTRICT","expected_wfm_source_projection_revision INTEGER NOT NULL CHECK(expected_wfm_source_projection_revision>0)","expected_source_plan_start_utc INTEGER NOT NULL CHECK(expected_source_plan_start_utc>=0)","expected_source_plan_end_utc INTEGER NOT NULL CHECK(expected_source_plan_end_utc>expected_source_plan_start_utc)","expected_source_observation_id TEXT NOT NULL","expected_matching_operational_plan_revision_id TEXT NULL REFERENCES task_plan_revisions(plan_revision_id) ON DELETE RESTRICT","input_fingerprint TEXT NOT NULL CHECK(length(input_fingerprint)=64)","state TEXT NOT NULL CHECK(state IN ('pending','accepted','rejected','superseded'))","revision INTEGER NOT NULL CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","last_command_id TEXT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT"],"rules":["eligible for provider Complete with exact valid accepted source plan and current unassigned WFM even when no operational plan yet exists","if a current operational plan exists it must exactly match the source interval to remain directly acceptable; a differing plan requires separate plan reconciliation and supersedes/stales this proposal","acceptance may create origin=historical_source_structure plan revision only when no current operational plan exists","acceptance creates structure only and never inserts execution/outcome/Inventory evidence"]}
+  ],
+  "required_indexes":["historical_objective_proposals(task_id,state,historical_proposal_id)","all command/FK columns receive LLD-01 leading-prefix FK coverage"]
+}

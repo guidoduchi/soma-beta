@@ -1,0 +1,32 @@
+{
+  "schema":"SOMA-LLD-TYPE-LEAF-V2",
+  "lld_id":"LLD-05",
+  "family":"query_and_response_types",
+  "type_rules":["All query cursors use CURSOR_V1 with deterministic owner-defined ordering.","Client-supplied aggregate/envelope/outcome values are never authoritative."],
+  "types":{
+    "TaskListQueryV1":{"kind":"transport_query","query_fields":{"kind":"local|wfm|null","state":"closed filter|null","cursor":"CursorV1|null","limit":"int 1..500 default 100"},"unknown_fields":"reject"},
+    "TaskIdQueryV1":{"kind":"transport_query","path_fields":["task_id:uuid"],"query_fields":{},"unknown_fields":"reject"},
+    "ObjectiveListQueryV1":{"kind":"transport_query","query_fields":{"state":"closed filter|null","cursor":"CursorV1|null","limit":"int 1..500 default 100"},"unknown_fields":"reject"},
+    "ObjectiveIdQueryV1":{"kind":"transport_query","path_fields":["objective_id:uuid"],"query_fields":{},"unknown_fields":"reject"},
+    "GroupingProposalListQueryV1":{"kind":"transport_query","query_fields":{"state":"pending|rejected|accepted|null","cursor":"CursorV1|null","limit":"int 1..500 default 100"},"unknown_fields":"reject"},
+    "HistoricalObjectiveProposalListQueryV1":{"kind":"transport_query","query_fields":{"state":"pending|rejected|accepted|null","cursor":"CursorV1|null","limit":"int 1..500 default 100"},"unknown_fields":"reject"},
+    "ObjectiveTimezoneQueryV1":{"kind":"transport_query","query_fields":{},"unknown_fields":"reject"},
+    "TaskHardDeletePreviewQueryV1":{"kind":"transport_query","path_fields":["task_id:uuid"],"body_fields":{"base_revision":"int>=1"},"unknown_fields":"reject"},
+    "ObjectiveCreationPreviewQueryV1":{"kind":"transport_query","body_contract":"commands/objective-lifecycle.json#PreviewObjectiveCreation.input","unknown_fields":"reject"},
+    "ObjectiveHardDeletePreviewQueryV1":{"kind":"transport_query","path_fields":["objective_id:uuid"],"body_fields":{"base_revision":"int>=1"},"unknown_fields":"reject"},
+
+    "TaskPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<TaskSummaryV1>","continuation":"CursorV1|null"}},
+    "TaskDetailV1":{"kind":"object","required":["task_id","kind","revision","current_plan","execution","outcome","objective_membership"],"fields":{"task_id":"uuid","kind":"local|wfm","revision":"int>=1","current_plan":"TaskPlanProjectionV1|null","execution":"TaskExecutionProjectionV1","outcome":"TaskOutcomeProjectionV1|null","objective_membership":"ObjectiveMembershipProjectionV1|null"}},
+    "TaskMutationResultV1":{"kind":"object","required":["outcome","task_id","revision"],"fields":{"outcome":"APPLIED|NO_CHANGE","task_id":"uuid","revision":"int>=1","result_refs":"bounded array<typed ref>"}},
+    "HardDeletePreviewV1":{"kind":"object","required":["eligible","fingerprint","blockers"],"fields":{"eligible":"bool","fingerprint":"sha256 hex","blockers":"bounded array<string>"}},
+    "ObjectivePageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<ObjectiveSummaryV1>","continuation":"CursorV1|null"}},
+    "ObjectiveDetailV1":{"kind":"object","required":["objective_id","tracking_handle","revision","membership","derived_envelope","aggregate_state"],"fields":{"objective_id":"uuid","tracking_handle":"MW-########","revision":"int>=1","membership":"bounded array<ObjectiveMembershipProjectionV1>","derived_envelope":"interval|null","aggregate_state":"closed derived state"}},
+    "ObjectiveCreationPreviewV1":{"kind":"object","required":["mode","fingerprint","prospective_members","derived_envelope"],"fields":{"mode":"CREATE|REGROUP_REQUIRED","fingerprint":"sha256 hex","prospective_members":"bounded array<task+plan revision>","derived_envelope":"interval"}},
+    "ObjectiveMutationResultV1":{"kind":"object","required":["outcome","objective_id","revision"],"fields":{"outcome":"APPLIED|NO_CHANGE","objective_id":"uuid","revision":"int>=1","result_refs":"bounded array<typed ref>"}},
+    "GroupingProposalPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<GroupingProposalV1>","continuation":"CursorV1|null"}},
+    "GroupingProposalV1":{"kind":"object","required":["proposal_id","revision","input_fingerprint","state","diff"],"fields":{"proposal_id":"uuid","revision":"int>=1","input_fingerprint":"sha256 hex","state":"pending|accepted|rejected|superseded","diff":"bounded deterministic grouping diff"}},
+    "HistoricalObjectiveProposalPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<HistoricalObjectiveProposalV1>","continuation":"CursorV1|null"}},
+    "ObjectiveTimezoneV1":{"kind":"object","required":["iana_timezone","source"],"fields":{"iana_timezone":"IANA TZ database identifier","source":"PERSISTED|DEFAULT"}},
+    "CursorV1":{"kind":"reference","contract":"spec/lld/_packet-contract-v2.json#cursor_contract"}
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "schema":"SOMA-LLD-TYPE-LEAF-V2",
+  "lld_id":"LLD-05",
+  "family":"command_request_types",
+  "type_rules":["Every command request includes COMMAND_ENVELOPE_V1; path identities are immutable UUIDs unless explicitly WFM/provider identities.","payload_contract points to the exact normative command leaf that owns the command body."],
+  "types":{
+    "CreateLocalTaskRequestV1":{"kind":"command_payload","command":"CreateLocalTask","payload_contract":"commands/task-planning.json#CreateLocalTask.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "RegisterManualWfmTaskRequestV1":{"kind":"command_payload","command":"RegisterManualWfmTask","payload_contract":"commands/task-planning.json#RegisterManualWfmTask.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ReassignWfmParentRequestV1":{"kind":"command_payload","command":"ReassignWfmParent","path_fields":["task_id:uuid"],"payload_contract":"commands/task-planning.json#ReassignWfmParent.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "SetTaskPlanRequestV1":{"kind":"command_payload","command":"SetTaskPlan","path_fields":["task_id:uuid"],"payload_contract":"commands/task-planning.json#SetTaskPlan.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CorrectTaskPlanRequestV1":{"kind":"command_payload","command":"CorrectTaskPlan","path_fields":["task_id:uuid"],"payload_contract":"commands/task-planning.json#CorrectTaskPlan.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "SetExplicitTaskLockRequestV1":{"kind":"command_payload","command":"SetExplicitTaskLock","path_fields":["task_id:uuid"],"payload_contract":"commands/task-planning.json#SetExplicitTaskLock.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ChangeTaskRelationshipRequestV1":{"kind":"command_payload","command":"ChangeTaskRelationship","path_fields":["task_id:uuid"],"payload_contract":"commands/task-planning.json#ChangeTaskRelationship.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ReviewWfmActivityRelationshipRequestV1":{"kind":"command_payload","command":"ReviewWfmActivityRelationship","payload_contract":"commands/task-planning.json#ReviewWfmActivityRelationship.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CreateLocalTaskRetryRequestV1":{"kind":"command_payload","command":"CreateLocalTaskRetry","path_fields":["task_id:uuid"],"payload_contract":"commands/task-planning.json#CreateLocalTaskRetry.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "LinkWfmRetryAttemptRequestV1":{"kind":"command_payload","command":"LinkWfmRetryAttempt","path_fields":["task_id:uuid"],"payload_contract":"commands/task-planning.json#LinkWfmRetryAttempt.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+
+    "StartTaskExecutionRequestV1":{"kind":"command_payload","command":"StartTaskExecution","path_fields":["task_id:uuid"],"payload_contract":"commands/execution-review.json#StartTaskExecution.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "StartObjectiveExecutionRequestV1":{"kind":"command_payload","command":"StartObjectiveExecution","path_fields":["objective_id:uuid"],"payload_contract":"commands/execution-review.json#StartObjectiveExecution.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "EndTaskExecutionRequestV1":{"kind":"command_payload","command":"EndTaskExecution","path_fields":["task_id:uuid"],"payload_contract":"commands/execution-review.json#EndTaskExecution.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CorrectTaskExecutionEvidenceRequestV1":{"kind":"command_payload","command":"CorrectTaskExecutionEvidence","path_fields":["task_id:uuid"],"payload_contract":"commands/execution-review.json#CorrectTaskExecutionEvidence.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CancelTaskWithoutExecutionRequestV1":{"kind":"command_payload","command":"CancelTaskWithoutExecution","path_fields":["task_id:uuid"],"payload_contract":"commands/execution-review.json#CancelTaskWithoutExecution.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ReviewTaskOutcomeRequestV1":{"kind":"command_payload","command":"ReviewTaskOutcome","path_fields":["task_id:uuid"],"payload_contract":"commands/execution-review.json#ReviewTaskOutcome.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CorrectTaskOutcomeRequestV1":{"kind":"command_payload","command":"CorrectTaskOutcome","path_fields":["task_id:uuid"],"payload_contract":"commands/execution-review.json#CorrectTaskOutcome.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ResolveWfmSourceTerminalConsequenceRequestV1":{"kind":"command_payload","command":"ResolveWfmSourceTerminalConsequence","path_fields":["task_id:uuid"],"payload_contract":"commands/execution-review.json#ResolveWfmSourceTerminalConsequence.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+
+    "CreateObjectiveFromPreviewRequestV1":{"kind":"command_payload","command":"CreateObjectiveFromPreview","payload_contract":"commands/objective-lifecycle.json#CreateObjectiveFromPreview.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CancelObjectiveBeforeExecutionRequestV1":{"kind":"command_payload","command":"CancelObjectiveBeforeExecution","path_fields":["objective_id:uuid"],"payload_contract":"commands/objective-lifecycle.json#CancelObjectiveBeforeExecution.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ReviewObjectiveRequestV1":{"kind":"command_payload","command":"ReviewObjective","path_fields":["objective_id:uuid"],"payload_contract":"commands/objective-lifecycle.json#ReviewObjective.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ArchiveObjectiveRequestV1":{"kind":"command_payload","command":"ArchiveObjective","path_fields":["objective_id:uuid"],"payload_contract":"commands/objective-lifecycle.json#ArchiveObjective.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "RestoreObjectiveRequestV1":{"kind":"command_payload","command":"RestoreObjective","path_fields":["objective_id:uuid"],"payload_contract":"commands/objective-lifecycle.json#RestoreObjective.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "SetObjectiveTimezoneRequestV1":{"kind":"command_payload","command":"SetObjectiveTimezone","payload_contract":"commands/objective-lifecycle.json#SetObjectiveTimezone.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "HardDeleteObjectiveRequestV1":{"kind":"command_payload","command":"HardDeleteObjective","path_fields":["objective_id:uuid"],"payload_contract":"commands/objective-lifecycle.json#HardDeleteObjective.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+
+    "RecomputeGroupingProposalsRequestV1":{"kind":"command_payload","command":"RecomputeGroupingProposals","payload_contract":"commands/grouping-historical.json#RecomputeGroupingProposals.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "AcceptRegroupProposalRequestV1":{"kind":"command_payload","command":"AcceptRegroupProposal","path_fields":["proposal_id:uuid"],"payload_contract":"commands/grouping-historical.json#AcceptRegroupProposal.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "RejectRegroupProposalRequestV1":{"kind":"command_payload","command":"RejectRegroupProposal","path_fields":["proposal_id:uuid"],"payload_contract":"commands/grouping-historical.json#RejectRegroupProposal.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ReconsiderRegroupInputsRequestV1":{"kind":"command_payload","command":"ReconsiderRegroupInputs","path_fields":["proposal_id:uuid"],"payload_contract":"commands/grouping-historical.json#ReconsiderRegroupInputs.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "AcceptHistoricalObjectiveProposalRequestV1":{"kind":"command_payload","command":"AcceptHistoricalObjectiveProposal","path_fields":["proposal_id:uuid"],"payload_contract":"commands/grouping-historical.json#AcceptHistoricalObjectiveProposal.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "RejectHistoricalObjectiveProposalRequestV1":{"kind":"command_payload","command":"RejectHistoricalObjectiveProposal","path_fields":["proposal_id:uuid"],"payload_contract":"commands/grouping-historical.json#RejectHistoricalObjectiveProposal.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "SetHistoricalTaskOperationalCountInclusionRequestV1":{"kind":"command_payload","command":"SetHistoricalTaskOperationalCountInclusion","path_fields":["task_id:uuid"],"payload_contract":"commands/grouping-historical.json#SetHistoricalTaskOperationalCountInclusion.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+
+    "HardDeleteTaskRequestV1":{"kind":"command_payload","command":"HardDeleteTask","path_fields":["task_id:uuid"],"payload_contract":"commands/task-hard-delete.json#HardDeleteTask.input","command_envelope":"COMMAND_ENVELOPE_V1"}
+  }
+}

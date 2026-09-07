@@ -1,0 +1,9 @@
+{
+  "schema":"SOMA-LLD-COMMAND-LEAF-V2",
+  "lld_id":"LLD-05",
+  "family":"task_hard_delete",
+  "commands":[
+    {"name":"PreviewTaskHardDelete","kind":"pure preview","input":["task_id"],"steps":["classify creation/source adoption/current and historical Objective membership/execution/outcome/retry/activity-lineage/closed relationship/archive-like protected evidence","query LLD-07 InventoryTaskDependencyProvider","return exact eligible dependent draft links/current plan rows that would be removed plus BLOCKED/INDETERMINATE reasons"],"rule":"source-adopted WFM or any protected execution/review/retry history is never eligible"},
+    {"name":"HardDeleteTask","input":["exact hard-delete preview fingerprint","task/base revisions","deliberate confirmation context","command_id"],"steps":["inside UoW rerun complete local/cross-domain guards and exact dependency set","all providers must be CLEAR","insert receipt","delete only previewed eligible current draft relationships/plan/source-free manual-WFM identity and Task rows in FK-safe order","append minimal deletion audit/result refs and commit"],"rule":"audit remains append-only; deletion is correction, not lifecycle/history purge"}
+  ]
+}
