@@ -1,12 +1,13 @@
 {
   "schema":"SOMA-LLD-ROUTE-FRAGMENT-V1",
   "lld_id":"LLD-02",
-  "family":"auxiliary_read_only_queries",
+  "family":"auxiliary_reference_and_profile_routes",
   "routes":[
     {"method":"POST","path":"/api/v1/reference/customer-account-code/review-preview","handler_kind":"query","handler":"PreviewCustomerAccountCodeConflict","request_type":"AccountCodeReviewPreviewQueryV1","response_type":"AccountCodeReviewPreviewV1","success_status":200,"max_request_bytes":8192,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["MATCH_INPUT_INVALID","MATCH_PROFILE_UNSUPPORTED","NOT_FOUND"]},
     {"method":"POST","path":"/api/v1/reference/contacts/{contact_id}/channels/validate-for-use","handler_kind":"query","handler":"ValidateContactChannelForUse","request_type":"ValidateContactChannelQueryV1","response_type":"ChannelUseValidationV1","success_status":200,"max_request_bytes":4096,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["NOT_FOUND","CHANNEL_NOT_OWNED","MATCH_INPUT_INVALID"]},
     {"method":"POST","path":"/api/v1/reference/match/customer-organization","handler_kind":"query","handler":"MatchCustomerOrganization","request_type":"MatchCustomerOrganizationQueryV1","response_type":"CandidateResultV1","success_status":200,"max_request_bytes":8192,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["MATCH_INPUT_INVALID","MATCH_PROFILE_UNSUPPORTED","VALIDATION_FAILED"]},
-    {"method":"POST","path":"/api/v1/reference/match/contact","handler_kind":"query","handler":"MatchContact","request_type":"MatchContactQueryV1","response_type":"CandidateResultV1","success_status":200,"max_request_bytes":8192,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["MATCH_INPUT_INVALID","MATCH_PROFILE_UNSUPPORTED","VALIDATION_FAILED"]}
+    {"method":"POST","path":"/api/v1/reference/match/contact","handler_kind":"query","handler":"MatchContact","request_type":"MatchContactQueryV1","response_type":"CandidateResultV1","success_status":200,"max_request_bytes":8192,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["MATCH_INPUT_INVALID","MATCH_PROFILE_UNSUPPORTED","VALIDATION_FAILED"]},
+    {"method":"PATCH","path":"/api/v1/local-user-profile/display-name","handler_kind":"command","handler":"UpdateLocalUserProfileDisplayName","request_type":"UpdateLocalUserProfileDisplayNameRequestV1","response_type":"LocalUserProfileV1","success_status":200,"max_request_bytes":4096,"auth_policy":"LLD12_BROWSER_MUTATION_V1","error_codes":["NOT_FOUND","STALE_REVISION","FIELD_BOUND_EXCEEDED","VALIDATION_FAILED","IDEMPOTENCY_CONFLICT"]}
   ],
-  "rule":"All routes in this fragment are pure bounded queries. POST is used only for structured request bodies; none creates a command receipt, domain revision, audit mutation or external side effect."
+  "rule":"POST routes in this fragment are pure bounded queries used only for structured request bodies. The Local User Profile PATCH is the sole mutation here and changes descriptive display_name metadata only through the ordinary command/UoW/audit contract; no route introduces login-name or credential authority."
 }
