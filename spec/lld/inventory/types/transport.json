@@ -1,14 +1,13 @@
 {
   "schema":"SOMA-LLD-TYPES-V2",
   "lld_id":"LLD-07",
-  "type_rules":["Every authoritative mutation uses COMMAND_ENVELOPE_V1 and exact owner command input; Task lifecycle/outcome values are never accepted as client-owned Inventory facts and must be reread from LLD-05 when required.","No physical Spare Part Unit identity appears in an RMA response before RecordRmaInboundReceipt creates the actual received unit."],
+  "type_rules":["Every authoritative mutation uses COMMAND_ENVELOPE_V1 and exact owner command input; Task lifecycle/outcome values are never accepted as client-owned Inventory facts and must be reread from LLD-05 when required.","No physical Spare Part Unit identity appears in an RMA response before RecordRmaInboundReceipt creates the actual received unit.","Spare Request requester is creation-time Contact authority and remains distinct from editable receiver/logistics context."],
   "types":{
     "StockEligibilityQueryV1":{"kind":"transport_query","query_contract":"queries/inventory.json#StockEligibilityQuery","unknown_fields":"reject"},
     "InventoryNeedsQueryV1":{"kind":"transport_query","query_contract":"queries/inventory.json#InventoryNeedsQuery","unknown_fields":"reject"},
     "FaultTagListQueryV1":{"kind":"transport_query","query_contract":"queries/fault-tags.json#FaultTagListQuery","unknown_fields":"reject"},
     "FaultTagDetailQueryV1":{"kind":"transport_query","path_fields":["fault_tag_id:uuid"],"query_contract":"queries/fault-tags.json#FaultTagDetailQuery","unknown_fields":"reject"},
     "InventoryAttentionQueryV1":{"kind":"transport_query","query_contract":"queries/inventory.json#InventoryAttentionQuery","unknown_fields":"reject"},
-
     "RegisterDevicePartUnitRequestV1":{"kind":"command_payload","command":"RegisterDevicePartUnit","payload_contract":"commands/needs-stock.json#RegisterDevicePartUnit.input","command_envelope":"COMMAND_ENVELOPE_V1"},
     "SetSpareNeedPlannedQuantityRequestV1":{"kind":"command_payload","command":"SetSpareNeedPlannedQuantity","path_fields":["need_id:uuid"],"payload_contract":"commands/needs-stock.json#SetSpareNeedPlannedQuantity.input","command_envelope":"COMMAND_ENVELOPE_V1"},
     "ChangeSpareNeedLifecycleRequestV1":{"kind":"command_payload","command":"ChangeSpareNeedLifecycle","path_fields":["need_id:uuid"],"payload_contract":"commands/needs-stock.json#ChangeSpareNeedLifecycle.input","command_envelope":"COMMAND_ENVELOPE_V1"},
@@ -37,11 +36,11 @@
     "CorrectInventoryEvidenceRequestV1":{"kind":"command_payload","command":"CorrectInventoryEvidence","payload_contract":"commands/corrections-bulk.json#CorrectInventoryEvidence.input","command_envelope":"COMMAND_ENVELOPE_V1"},
     "InventoryHardDeletePreviewQueryV1":{"kind":"transport_query","body_contract":"commands/corrections-bulk.json#PreviewInventoryHardDelete.input","unknown_fields":"reject"},
     "HardDeleteUntouchedInventoryDraftRequestV1":{"kind":"command_payload","command":"HardDeleteUntouchedInventoryDraft","payload_contract":"commands/corrections-bulk.json#HardDeleteUntouchedInventoryDraft.input","command_envelope":"COMMAND_ENVELOPE_V1"},
-
     "StockEligibilityPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<eligible unit projection>","continuation":"CursorV1|null"}},
     "InventoryNeedPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<SpareNeedProjectionV1>","continuation":"CursorV1|null"}},
     "InventoryMutationResultV1":{"kind":"object","required":["outcome","target_refs"],"fields":{"outcome":"APPLIED|NO_CHANGE","target_refs":"bounded array<typed immutable ref>","revisions":"bounded map<typed ref,int>=1>"}},
-    "SpareRequestV1":{"kind":"object","required":["spare_request_id","local_handle","state","revision"],"fields":{"spare_request_id":"uuid","local_handle":"owner local handle","official_sr7":"SR + 7 digits|null","state":"draft|submitted|corrected_false_submission|authorizing|authorized|terminal","revision":"int>=1"}},
+    "SpareRequestRequesterV1":{"kind":"object","required":["contact_id","display_name_snapshot"],"fields":{"contact_id":"uuid","contact_revision_at_creation":"int>=1","affiliation_id_at_creation":"uuid|null","customer_org_id_at_creation":"uuid|null","display_name_snapshot":"bounded string"},"rule":"creation-time evidence only; no email/channel snapshot and no authentication meaning"},
+    "SpareRequestV1":{"kind":"object","required":["spare_request_id","local_handle","requester","state","revision"],"fields":{"spare_request_id":"uuid","local_handle":"owner local handle","official_sr7":"SR + 7 digits|null","requester":"SpareRequestRequesterV1","state":"draft|submitted|corrected_false_submission|authorizing|authorized|terminal","revision":"int>=1"}},
     "RmaBatchResultV1":{"kind":"object","required":["spare_request_id","created_rmas","remaining_unassigned_quantity"],"fields":{"spare_request_id":"uuid","created_rmas":"bounded ordered array<RmaV1>","remaining_unassigned_quantity":"int>=0"}},
     "RmaV1":{"kind":"object","required":["rma_id","current_c10","state","promised_bom","direct_inbound_unit_id"],"fields":{"rma_id":"uuid","current_c10":"C10 identifier","state":"closed RMA lifecycle state","promised_bom":"string","direct_inbound_unit_id":"uuid|null"}},
     "FaultTagV1":{"kind":"object","required":["fault_tag_id","tracking_handle","state","revision","members"],"fields":{"fault_tag_id":"uuid","tracking_handle":"FT-########","state":"draft|submitted|corrected_false_submission|superseded|terminal","revision":"int>=1","members":"bounded array<FaultTagMembershipV1>"}},
