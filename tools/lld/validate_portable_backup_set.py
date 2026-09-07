@@ -25,17 +25,31 @@ def main() -> int:
     artifact = load("artifacts/portable-backup.json")
     if artifact.get("artifact") != "SOMA_PORTABLE_BACKUP_SET_V1":
         findings.append("artifact authority is not SOMA_PORTABLE_BACKUP_SET_V1")
-    if artifact.get("extension") != ".somabackupset":
-        findings.append("portable set extension is not .somabackupset")
-    members = artifact.get("set_members")
-    expected_members = ["payload.somabackup", "manifest.json", "auth.json"]
-    if members != expected_members:
-        findings.append(f"set_members must be exactly {expected_members!r}, got {members!r}")
-    authenticity = artifact.get("detached_authenticity", {})
-    if authenticity.get("algorithm") != "HMAC-SHA-256":
-        findings.append("detached authenticity algorithm must be HMAC-SHA-256")
+    if not str(artifact.get("extension", "")).startswith(".somabackupset"):
+        findings.append("portable set extension does not identify .somabackupset")
+    members = artifact.get("set_members", {})
+    expected_members = {
+        "payload": "payload.somabackup",
+        "manifest": "manifest.json",
+        "auth": "auth.json",
+    }
+    if not isinstance(members, dict) or set(members) != set(expected_members):
+        findings.append(f"set_members keys must be exactly {sorted(expected_members)!r}")
+    else:
+        for key, filename in expected_members.items():
+            if not isinstance(members.get(key), dict) or members[key].get("filename") != filename:
+                findings.append(f"set member {key} must resolve to {filename}")
+
+    authenticity = artifact.get("detached_auth", {})
+    if authenticity.get("mechanism") != "HMAC-SHA-256 over the exact canonical manifest bytes":
+        findings.append("detached authenticity mechanism must be exact canonical-manifest HMAC-SHA-256")
     if "SOMA-BACKUP-PORTABLE-AUTH-V1" not in str(authenticity.get("key_derivation", "")):
         findings.append("detached-auth key must use SOMA-BACKUP-PORTABLE-AUTH-V1 HKDF domain")
+    recovery = artifact.get("recovery", {})
+    if "SOMA-BACKUP-PORTABLE-KEK-V1" not in str(recovery.get("kek", "")):
+        findings.append("portable KEK must retain SOMA-BACKUP-PORTABLE-KEK-V1 HKDF domain")
+    if "SOMA-BACKUP-PORTABLE-AUTH-V1" not in str(recovery.get("auth_key", "")):
+        findings.append("portable auth key must retain SOMA-BACKUP-PORTABLE-AUTH-V1 HKDF domain")
     if "atomic" not in str(artifact.get("finalization_policy", "")).lower():
         findings.append("portable set finalization must be atomic")
 
