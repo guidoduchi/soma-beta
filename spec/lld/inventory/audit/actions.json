@@ -1,0 +1,25 @@
+{
+  "schema":"SOMA-LLD-AUDIT-ACTIONS-V2",
+  "lld_id":"LLD-07",
+  "actions":[
+    {"action_type":"inventory.device_part.registered","action_version":1,"payload_schema":"InventoryIdentityAuditV1","payload_version":1,"target_types":["device_part_unit"],"result_ref_types":["device_part_unit","spare_need"],"sensitive_fields":[]},
+    {"action_type":"inventory.spare_need.changed","action_version":1,"payload_schema":"SpareNeedAuditV1","payload_version":1,"target_types":["spare_need"],"result_ref_types":["spare_need","spare_need_contributor"],"sensitive_fields":[]},
+    {"action_type":"inventory.spare_unit.registered_or_reserved","action_version":1,"payload_schema":"SpareUnitAuditV1","payload_version":1,"target_types":["spare_part_unit"],"result_ref_types":["spare_part_unit","task_unit_allocation"],"sensitive_fields":[]},
+    {"action_type":"inventory.spare_request.draft_changed","action_version":1,"payload_schema":"SpareRequestAuditV1","payload_version":1,"target_types":["spare_request"],"result_ref_types":["spare_request","spare_request_allocation"],"sensitive_fields":[]},
+    {"action_type":"inventory.spare_request.submitted","action_version":1,"payload_schema":"SpareRequestSubmissionAuditV1","payload_version":1,"target_types":["spare_request"],"result_ref_types":["spare_request_submission_snapshot"],"sensitive_fields":[]},
+    {"action_type":"inventory.spare_request.official_id_changed","action_version":1,"payload_schema":"SpareRequestIdentityAuditV1","payload_version":1,"target_types":["spare_request"],"result_ref_types":["spare_request_identifier"],"sensitive_fields":[]},
+    {"action_type":"inventory.rma.authorized_or_assigned","action_version":1,"payload_schema":"RmaAuditV1","payload_version":1,"target_types":["rma"],"result_ref_types":["rma","rma_assignment"],"sensitive_fields":[]},
+    {"action_type":"inventory.rma.inbound_received","action_version":1,"payload_schema":"RmaReceiptAuditV1","payload_version":1,"target_types":["rma"],"result_ref_types":["spare_part_unit","logistics_event"],"sensitive_fields":[]},
+    {"action_type":"inventory.task_physical_consequence.accepted_or_corrected","action_version":1,"payload_schema":"PhysicalConsequenceAuditV1","payload_version":1,"target_types":["task"],"result_ref_types":["inventory_physical_consequence","rma_return_obligation"],"sensitive_fields":[]},
+    {"action_type":"inventory.logistics.recorded_or_corrected","action_version":1,"payload_schema":"LogisticsAuditV1","payload_version":1,"target_types":["logistics_event"],"result_ref_types":["logistics_event","logistics_participant"],"sensitive_fields":[]},
+    {"action_type":"inventory.fault_tag.draft_changed","action_version":1,"payload_schema":"FaultTagAuditV1","payload_version":1,"target_types":["fault_tag"],"result_ref_types":["fault_tag","fault_tag_membership"],"sensitive_fields":[]},
+    {"action_type":"inventory.fault_tag.submitted","action_version":1,"payload_schema":"FaultTagSubmissionAuditV1","payload_version":1,"target_types":["fault_tag"],"result_ref_types":["fault_tag_submission_snapshot","fault_tag_membership_snapshot"],"sensitive_fields":[]},
+    {"action_type":"inventory.fault_tag.warehouse_state_changed","action_version":1,"payload_schema":"WarehouseDecisionAuditV1","payload_version":1,"target_types":["fault_tag_membership"],"result_ref_types":["fault_tag_membership_event","rma_return_obligation"],"sensitive_fields":[]},
+    {"action_type":"inventory.fault_tag.replacement_or_resend_created","action_version":1,"payload_schema":"FaultTagLineageAuditV1","payload_version":1,"target_types":["fault_tag"],"result_ref_types":["fault_tag","fault_tag_lineage"],"sensitive_fields":[]},
+    {"action_type":"inventory.proposal.decided","action_version":1,"payload_schema":"InventoryProposalAuditV1","payload_version":1,"target_types":["inventory_proposal"],"result_ref_types":["inventory_event"],"sensitive_fields":[]},
+    {"action_type":"inventory.bulk.accepted","action_version":1,"payload_schema":"InventoryBulkAuditV1","payload_version":1,"target_types":["inventory_batch"],"result_ref_types":["inventory_event"],"sensitive_fields":[]},
+    {"action_type":"inventory.evidence.corrected","action_version":1,"payload_schema":"InventoryCorrectionAuditV1","payload_version":1,"target_types":["inventory_event","inventory_relationship"],"result_ref_types":["inventory_event","inventory_relationship"],"sensitive_fields":[]},
+    {"action_type":"inventory.untouched_draft.hard_deleted","action_version":1,"payload_schema":"InventoryHardDeleteAuditV1","payload_version":1,"target_types":["inventory_draft"],"result_ref_types":["hard_delete_evidence"],"sensitive_fields":[]}
+  ],
+  "payload_policy":{"rule":"Audit contains bounded immutable identifiers, revisions, fingerprints, reason categories and result references. Physical serial/BOM values appear only where required as accepted Inventory evidence and never as credential/security material.","source_rule":"Communication evidence is referenced by immutable LLD-09 proposal/evidence identity; it is never copied into audit as authority and never auto-accepts Inventory transitions."}
+}
