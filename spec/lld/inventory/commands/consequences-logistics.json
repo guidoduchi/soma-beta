@@ -1,11 +1,36 @@
 {
-  "schema":"SOMA-LLD-COMMANDS-V1",
-  "lld_id":"LLD-07",
-  "commands":[
-    {"name":"RecordRmaInboundReceipt","input":["rma_id","actual BOM","optional serial/condition","actual receipt/logistics facts","effective time or unknown","optional evidence","command_id"],"steps":["outside lock normalize physical keys and preview promised-vs-actual mismatch","inside UoW require RMA has no direct inbound unit and current request/RMA identity valid","insert receipt command_receipt; create immutable Spare Part Unit origin=direct_rma_receipt with actual facts; create rma_direct_inbound_units relationship; append actual receipt logistics event plus RMA/unit participants; append unit received event","rebuild unit/Stock/RMA attention projections and audit/commit"],"rules":["actual BOM/serial may differ from promised and are never overwritten into RMA","receipt creates actual physical unit; before receipt no placeholder exists"]},
-    {"name":"RecordActualLogisticsEvent","input":["event kind","effective time or unknown","optional Dispatch Location/receiver/custody/condition snapshots","nonempty exact RMA/Spare Part/Device Part participants","optional evidence","command_id"],"steps":["validate bounded historical snapshots outside lock","inside UoW revalidate every participant identity and event-specific prerequisite","insert receipt/logistics event and one participant row per target","append unit lifecycle/custody facts only where the event semantically owns them","rebuild affected unit/RMA attention projections and audit/commit"],"rules":["one event may cover many participants but each participant is independently addressable","requested submission intent remains unchanged","local unit does not receive fabricated external logistics"]},
-    {"name":"AcceptInventoryPhysicalConsequence","input":["task_id","exact Task review fingerprint","optional target Device Part Unit/RMA","disposition","typed involved physical units","effective time or unknown","command_id"],"steps":["outside lock read exact reviewed Task outcome through TaskOperationalEvidenceReader and preview supported physical consequence","inside UoW re-read Task review fingerprint and relevant Task allocations/RMA assignment/inbound/target relationships","reject stale/contradictory physical facts","insert receipt; create consequence identity and accept event","rebuild physical consequence projection; append appropriate unit/device-part lifecycle relationships/events without editing Task state","run RETURN_SELECTION_V1 when RMA applies and establish exact open return obligation from accepted disposition","rebuild Stock/RMA/Fault Tag eligibility/attention and audit/commit"],"rules":["Task review is prerequisite but does not itself create Inventory consequence","successful replacement normally returns removed Device Part Unit; unused/faulty/incompatible returns inbound unit; dismantled returns parent assembly","local replacement without RMA is valid"]},
-    {"name":"CorrectInventoryPhysicalConsequence","input":["physical_consequence_id","exact current event/revision","replacement physical disposition/relationships","reason","command_id"],"steps":["outside lock read current upstream Task review; if Task review changed require reviewed re-evaluation rather than copying old result","inside UoW target exact current-effective consequence event and validate replacement relationships","insert receipt/correct or supersede event","append targeted corrections to dependent installed/removed/return-selection relationships; never delete original events","rebuild all affected projections and invalidate incompatible Fault Tag draft eligibility; submitted history requires separate replacement workflow","audit/commit"],"rule":"Inventory correction never rewrites Task outcome history"},
-    {"name":"CorrectLogisticsParticipant","input":["participant identity","exact current relation","replacement/close reason","command_id"],"steps":["inside UoW prove exact participant relation is disputed without invalidating unrelated participants","insert receipt and close/correct only that relationship; append replacement participant when required","rebuild affected target projections/audit/commit"],"rule":"correcting one participant never rewrites shared logistics event or other participants"]}
+  "schema": "SOMA-LLD-COMMANDS-V1",
+  "lld_id": "LLD-07",
+  "commands": [
+    {
+      "name": "RecordRmaInboundReceipt",
+      "input": ["rma_id", "actual BOM", "optional serial/condition", "actual receipt/logistics facts", "effective time or unknown", "optional evidence", "command_id"],
+      "steps": ["outside lock normalize physical keys and preview promised-vs-actual mismatch", "inside UoW require RMA has no direct inbound unit and current request/RMA identity valid", "insert receipt command_receipt; create immutable Spare Part Unit origin=direct_rma_receipt with actual facts; create rma_direct_inbound_units relationship; append actual receipt logistics event plus RMA/unit participants; append unit received event", "rebuild unit/Stock/RMA attention projections and audit/commit"],
+      "rules": ["actual BOM/serial may differ from promised and are never overwritten into RMA", "receipt creates actual physical unit; before receipt no provisional physical unit exists"]
+    },
+    {
+      "name": "RecordActualLogisticsEvent",
+      "input": ["event kind", "effective time or unknown", "optional Dispatch Location/receiver/custody/condition snapshots", "nonempty exact RMA/Spare Part/Device Part participants", "optional evidence", "command_id"],
+      "steps": ["validate bounded historical snapshots outside lock", "inside UoW revalidate every participant identity and event-specific prerequisite", "insert receipt/logistics event and one participant row per target", "append unit lifecycle/custody facts only where the event semantically owns them", "rebuild affected unit/RMA attention projections and audit/commit"],
+      "rules": ["one event may cover many participants but each participant is independently addressable", "requested submission intent remains unchanged", "local unit does not receive fabricated external logistics"]
+    },
+    {
+      "name": "AcceptInventoryPhysicalConsequence",
+      "input": ["task_id", "exact Task review fingerprint", "optional target Device Part Unit/RMA", "disposition", "typed involved physical units", "effective time or unknown", "command_id"],
+      "steps": ["outside lock read exact reviewed Task outcome through TaskOperationalEvidenceReader and preview supported physical consequence", "inside UoW re-read Task review fingerprint and relevant Task allocations/RMA assignment/inbound/target relationships", "reject stale/contradictory physical facts", "insert receipt; create consequence identity and accept event", "rebuild physical consequence projection; append appropriate unit/device-part lifecycle relationships/events without editing Task state", "run RETURN_SELECTION_V1 when RMA applies and establish exact open return obligation from accepted disposition", "rebuild Stock/RMA/Fault Tag eligibility/attention and audit/commit"],
+      "rules": ["Task review is prerequisite but does not itself create Inventory consequence", "successful replacement normally returns removed Device Part Unit; unused/faulty/incompatible returns inbound unit; dismantled returns parent assembly", "local replacement without RMA is valid"]
+    },
+    {
+      "name": "CorrectInventoryPhysicalConsequence",
+      "input": ["physical_consequence_id", "exact current event/revision", "replacement physical disposition/relationships", "reason", "command_id"],
+      "steps": ["outside lock read current upstream Task review; if Task review changed require reviewed re-evaluation rather than copying old result", "inside UoW target exact current-effective consequence event and validate replacement relationships", "insert receipt/correct or supersede event", "append targeted corrections to dependent installed/removed/return-selection relationships; never delete original events", "rebuild all affected projections and invalidate incompatible Fault Tag draft eligibility; submitted history requires separate replacement workflow", "audit/commit"],
+      "rule": "Inventory correction never rewrites Task outcome history"
+    },
+    {
+      "name": "CorrectLogisticsParticipant",
+      "input": ["participant identity", "exact current relation", "replacement/close reason", "command_id"],
+      "steps": ["inside UoW prove exact participant relation is disputed without invalidating unrelated participants", "insert receipt and close/correct only that relationship; append replacement participant when required", "rebuild affected target projections/audit/commit"],
+      "rule": "correcting one participant never rewrites shared logistics event or other participants"
+    }
   ]
 }
