@@ -6,14 +6,14 @@ normalization. This final stage recognizes only narrowly proven representation
 equivalents that preserve or strengthen the same closure requirements:
 
 * specialized technical migration-ledger idempotency outside application
-  COMMAND_ENVELOPE_V1 semantics; and
-* bounded traceability fragments that are validated as one logical graph.
+  COMMAND_ENVELOPE_V1 semantics;
+* bounded traceability fragments validated as one logical graph; and
+* bounded route fragments that are actively revalidated here and may add new
+  BLOCKER/HIGH findings when malformed.
 
-A split trace edge is accepted only when this stage independently proves the
-fields that stage 1 would have required from the monolithic root graph. The
-split therefore cannot hide missing tests, audit ownership, idempotency,
-route/internal-caller closure, deterministic query ordering, cursor semantics,
-or supporting indexes.
+A split representation is never trusted because it exists. The final stage
+independently proves the engineering facts that would otherwise live in a
+monolithic normative leaf.
 """
 from __future__ import annotations
 
@@ -26,6 +26,18 @@ from pathlib import Path
 from typing import Any, Iterable
 
 SEVERITIES = ("BLOCKER", "HIGH", "MEDIUM", "LOW")
+NULL_TYPES = {"", "none", "null", "no_body", "empty", "unit", "void"}
+GENERIC_ERRORS = {
+    "VALIDATION_FAILED", "UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND",
+    "STALE_REVISION", "IDEMPOTENCY_CONFLICT", "PERSISTENCE_BUSY",
+    "PERSISTENCE_FAILURE", "INTERNAL_ERROR", "AUDIT_VALIDATION_FAILED",
+    "AUDIT_INTEGRITY_FAILURE", "SECURITY_NOT_READY",
+}
+ROUTE_REQUIRED = {
+    "method", "path", "handler_kind", "handler", "request_type",
+    "response_type", "success_status", "max_request_bytes", "auth_policy",
+    "error_codes",
+}
 
 
 def load_json(path: Path) -> Any:
@@ -39,6 +51,25 @@ def packet_roots(repo: Path) -> dict[str, Path]:
         for item in index.get("packets", [])
         if isinstance(item, dict) and item.get("id") and item.get("path")
     }
+
+
+def packet_index(root: Path) -> dict[str, Any]:
+    path = root / "_index.json"
+    try:
+        doc = load_json(path)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
+def manifest_paths(root: Path) -> set[str]:
+    index = packet_index(root)
+    out: set[str] = set()
+    for key in ("packet_files", "normative_paths"):
+        value = index.get(key, [])
+        if isinstance(value, list):
+            out.update(str(x) for x in value if isinstance(x, str))
+    return out
 
 
 def iter_json(root: Path) -> Iterable[tuple[Path, Any]]:
@@ -96,7 +127,7 @@ def base_handler(value: Any) -> str:
     return re.sub(r"\[[^\]]*\]$", "", str(value)).split("(", 1)[0].strip()
 
 
-def route_rows(root: Path) -> list[dict[str, Any]]:
+def route_fragment_names(root: Path) -> list[str]:
     path = root / "routes.json"
     if not path.is_file():
         return []
@@ -104,14 +135,33 @@ def route_rows(root: Path) -> list[dict[str, Any]]:
         doc = load_json(path)
     except (OSError, json.JSONDecodeError):
         return []
-    if not isinstance(doc, dict) or not isinstance(doc.get("routes"), list):
+    if not isinstance(doc, dict):
         return []
-    return [row for row in doc["routes"] if isinstance(row, dict)]
+    value = doc.get("route_fragments", [])
+    return [str(x) for x in value if isinstance(x, str)] if isinstance(value, list) else []
+
+
+def route_rows(root: Path) -> list[dict[str, Any]]:
+    paths = [root / "routes.json"] + [root / rel for rel in route_fragment_names(root)]
+    rows: list[dict[str, Any]] = []
+    for path in paths:
+        if not path.is_file():
+            continue
+        try:
+            doc = load_json(path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(doc, dict) and isinstance(doc.get("routes"), list):
+            rows.extend(row for row in doc["routes"] if isinstance(row, dict))
+    return rows
 
 
 def test_ids(root: Path) -> set[str]:
     out: set[str] = set()
-    for path, doc in iter_json(root / "tests") if (root / "tests").exists() else []:
+    tests_root = root / "tests"
+    if not tests_root.exists():
+        return out
+    for path, doc in iter_json(tests_root):
         if "traceability" in path.parts or not isinstance(doc, dict):
             continue
         for value in doc.values():
@@ -277,6 +327,262 @@ def specialized_migration_ledger_proves(repo: Path, finding: dict[str, Any]) -> 
     ))
 
 
+def collect_operation_names(root: Path, family: str) -> set[str]:
+    out: set[str] = set()
+    prefix = f"{family}/"
+    plural = "commands" if family == "commands" else "queries"
+    for path, doc in iter_json(root):
+        rel = path.relative_to(root).as_posix()
+        if not rel.startswith(prefix) or not isinstance(doc, dict):
+            continue
+        if isinstance(doc.get("name"), str):
+            out.add(doc["name"])
+        value = doc.get(plural)
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict) and isinstance(item.get("name"), str):
+                    out.add(item["name"])
+    return out
+
+
+def collect_types(root: Path) -> set[str]:
+    out: set[str] = set()
+    for path, doc in iter_json(root):
+        rel = path.relative_to(root).as_posix()
+        if not (rel.startswith("types/") or rel == "interfaces.json") or not isinstance(doc, dict):
+            continue
+        value = doc.get("types")
+        if isinstance(value, dict):
+            out.update(str(k) for k in value)
+        for key in ("value_types", "payload_types", "result_types"):
+            value = doc.get(key)
+            if isinstance(value, dict):
+                out.update(str(k) for k in value)
+        if isinstance(doc.get("name"), str) and "TYPE" in str(doc.get("schema", "")):
+            out.add(doc["name"])
+    return out
+
+
+def collect_errors(root: Path) -> set[str]:
+    out = set(GENERIC_ERRORS)
+    path = root / "errors.json"
+    if not path.is_file():
+        return out
+    try:
+        doc = load_json(path)
+    except (OSError, json.JSONDecodeError):
+        return out
+    if not isinstance(doc, dict):
+        return out
+    for key in ("categories", "domain_errors", "errors"):
+        value = doc.get(key)
+        if not isinstance(value, list):
+            continue
+        for item in value:
+            if isinstance(item, dict) and isinstance(item.get("code"), str):
+                out.add(item["code"])
+            elif isinstance(item, list) and item and isinstance(item[0], str):
+                out.add(item[0])
+    mapping = doc.get("internal_failure_mapping")
+    if isinstance(mapping, dict):
+        out.update(str(v) for v in mapping.values())
+    return out
+
+
+def synthetic(check_id: str, severity: str, packet_id: str, path: str, message: str) -> dict[str, Any]:
+    return {
+        "check_id": check_id,
+        "severity": severity,
+        "packet_id": packet_id,
+        "path": path,
+        "message": message,
+    }
+
+
+def validate_route_fragments(repo: Path, roots: dict[str, Path], selected: set[str]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    for packet_id, root in roots.items():
+        if selected and packet_id not in selected:
+            continue
+        root_path = root / "routes.json"
+        if not root_path.is_file():
+            continue
+        try:
+            root_doc = load_json(root_path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(root_doc, dict):
+            continue
+        declared = route_fragment_names(root)
+        if not declared:
+            continue
+
+        manifest = manifest_paths(root)
+        discovered = {
+            path.relative_to(root).as_posix()
+            for path in sorted((root / "routes").rglob("*.json"))
+        } if (root / "routes").is_dir() else set()
+        declared_set = set(declared)
+        for rel in sorted(discovered - declared_set):
+            findings.append(synthetic(
+                "SIG-001", "BLOCKER", packet_id,
+                (root / rel).relative_to(repo).as_posix(),
+                "route fragment exists but is not declared by routes.json",
+            ))
+        for rel in declared:
+            rendered = (root / rel).relative_to(repo).as_posix()
+            if not rel.startswith("routes/") or not rel.endswith(".json"):
+                findings.append(synthetic(
+                    "SIG-003", "BLOCKER", packet_id, rendered,
+                    "route_fragments entry must be a packet-relative routes/*.json path",
+                ))
+                continue
+            if rel not in manifest:
+                findings.append(synthetic(
+                    "SIG-001", "BLOCKER", packet_id, rendered,
+                    "declared route fragment is not indexed in packet_files/normative_paths",
+                ))
+            path = root / rel
+            if not path.is_file():
+                findings.append(synthetic(
+                    "SIG-001", "BLOCKER", packet_id, rendered,
+                    "declared route fragment file is missing",
+                ))
+                continue
+            if path.stat().st_size > 12000:
+                findings.append(synthetic(
+                    "SIG-018", "HIGH", packet_id, rendered,
+                    f"normative route fragment is {path.stat().st_size} bytes > 12000 byte AI granularity budget",
+                ))
+            try:
+                doc = load_json(path)
+            except (OSError, json.JSONDecodeError) as exc:
+                findings.append(synthetic(
+                    "SIG-001", "BLOCKER", packet_id, rendered,
+                    f"invalid route fragment JSON: {exc}",
+                ))
+                continue
+            if not isinstance(doc, dict) or doc.get("lld_id") != packet_id:
+                findings.append(synthetic(
+                    "SIG-003", "BLOCKER", packet_id, rendered,
+                    "route fragment must be an object with matching lld_id",
+                ))
+            if not isinstance(doc, dict) or not isinstance(doc.get("routes"), list):
+                findings.append(synthetic(
+                    "SIG-003", "BLOCKER", packet_id, rendered,
+                    "route fragment routes must be an array",
+                ))
+
+        prefix = str(root_doc.get("canonical_api_prefix", "/api/v1"))
+        commands = collect_operation_names(root, "commands")
+        queries = collect_operation_names(root, "queries")
+        types = collect_types(root)
+        errors = collect_errors(root)
+        seen: dict[str, str] = {}
+        sources: list[tuple[str, dict[str, Any]]] = [("routes.json", root_doc)]
+        for rel in declared:
+            path = root / rel
+            if not path.is_file():
+                continue
+            try:
+                doc = load_json(path)
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(doc, dict):
+                sources.append((rel, doc))
+
+        for rel, doc in sources:
+            value = doc.get("routes")
+            if not isinstance(value, list):
+                continue
+            for ordinal, row in enumerate(value, 1):
+                rendered = (root / rel).relative_to(repo).as_posix()
+                if not isinstance(row, dict):
+                    findings.append(synthetic(
+                        "SIG-003", "BLOCKER", packet_id, rendered,
+                        f"route #{ordinal} is not an object",
+                    ))
+                    continue
+                key = f"{str(row.get('method','')).upper()} {row.get('path','')}".strip()
+                if key in seen:
+                    findings.append(synthetic(
+                        "SIG-003", "BLOCKER", packet_id, rendered,
+                        f"duplicate route across root/fragments: {key}; first declared in {seen[key]}",
+                    ))
+                else:
+                    seen[key] = rel
+                if rel == "routes.json":
+                    continue  # stage 1 already validates every root route field.
+                missing = sorted(ROUTE_REQUIRED - set(row))
+                if missing:
+                    findings.append(synthetic(
+                        "SIG-003", "BLOCKER", packet_id, rendered,
+                        f"route {key!r} missing fields: {', '.join(missing)}",
+                    ))
+                    continue
+                path_value = str(row.get("path", ""))
+                if not path_value.startswith(prefix):
+                    findings.append(synthetic(
+                        "SIG-003", "BLOCKER", packet_id, rendered,
+                        f"route {key!r} does not use canonical {prefix} prefix",
+                    ))
+                kind = str(row.get("handler_kind", "")).lower()
+                handler = base_handler(row.get("handler"))
+                if kind == "command" and handler not in commands:
+                    findings.append(synthetic(
+                        "SIG-003", "BLOCKER", packet_id, rendered,
+                        f"route {key} references unknown command handler {row.get('handler')}",
+                    ))
+                elif kind == "query" and handler not in queries:
+                    findings.append(synthetic(
+                        "SIG-003", "BLOCKER", packet_id, rendered,
+                        f"route {key} references unknown query handler {row.get('handler')}",
+                    ))
+                elif kind not in {"command", "query", "internal", "technical", "stream"}:
+                    findings.append(synthetic(
+                        "SIG-003", "BLOCKER", packet_id, rendered,
+                        f"route {key} has unsupported handler_kind {kind!r}",
+                    ))
+                for field in ("request_type", "response_type"):
+                    type_name = row.get(field)
+                    if isinstance(type_name, str) and type_name.lower() not in NULL_TYPES and type_name not in types:
+                        findings.append(synthetic(
+                            "SIG-003", "BLOCKER", packet_id, rendered,
+                            f"route {key} references unknown {field} {type_name}",
+                        ))
+                max_bytes = row.get("max_request_bytes")
+                if not isinstance(max_bytes, int) or max_bytes <= 0:
+                    findings.append(synthetic(
+                        "SIG-022", "MEDIUM", packet_id, rendered,
+                        f"route {key} max_request_bytes must be positive integer",
+                    ))
+                if not isinstance(row.get("success_status"), int) or not 100 <= row["success_status"] <= 599:
+                    findings.append(synthetic(
+                        "SIG-003", "BLOCKER", packet_id, rendered,
+                        f"route {key} success_status must be an HTTP status integer",
+                    ))
+                auth = row.get("auth_policy")
+                if not isinstance(auth, str) or not auth.strip():
+                    findings.append(synthetic(
+                        "SIG-003", "BLOCKER", packet_id, rendered,
+                        f"route {key} auth_policy is empty",
+                    ))
+                route_errors = row.get("error_codes")
+                if not isinstance(route_errors, list):
+                    findings.append(synthetic(
+                        "SIG-020", "MEDIUM", packet_id, rendered,
+                        f"route {key} error_codes must be an array",
+                    ))
+                else:
+                    for code in route_errors:
+                        if str(code) not in errors:
+                            findings.append(synthetic(
+                                "SIG-020", "MEDIUM", packet_id, rendered,
+                                f"route {key} references unknown stable error code {code}",
+                            ))
+    return findings
+
+
 def summarize(findings: list[dict[str, Any]]) -> dict[str, int]:
     out = {severity: 0 for severity in SEVERITIES}
     for finding in findings:
@@ -295,6 +601,7 @@ def main() -> int:
 
     repo = args.repo_root.resolve()
     roots = packet_roots(repo)
+    selected = set(args.packet)
     cmd = [sys.executable, str(repo / "tools/lld/enforce_validate_spec.py"),
            "--repo-root", str(repo), "--enforce", "report", "--json"]
     for packet in args.packet:
@@ -336,6 +643,13 @@ def main() -> int:
         else:
             active.append(finding)
 
+    route_fragment_findings = validate_route_fragments(repo, roots, selected)
+    active.extend(route_fragment_findings)
+    active.sort(key=lambda f: (
+        SEVERITIES.index(str(f.get("severity"))) if str(f.get("severity")) in SEVERITIES else 99,
+        str(f.get("packet_id", "")), str(f.get("path", "")),
+        str(f.get("check_id", "")), str(f.get("message", "")),
+    ))
     summary = summarize(active)
     prior_suppressed = int(stage2.get("suppressed_equivalent_findings", 0))
     total_suppressed = prior_suppressed + len(specialized) + len(split_trace)
@@ -349,6 +663,7 @@ def main() -> int:
             "suppressed_equivalent_findings":total_suppressed,
             "specialized_technical_ledger_equivalents":specialized,
             "bounded_traceability_equivalents":split_trace,
+            "route_fragment_findings":route_fragment_findings,
             "findings":active,
         }, indent=2, ensure_ascii=False))
     else:
@@ -362,7 +677,6 @@ def main() -> int:
 
     index = load_json(repo / "spec/lld/_index.json")
     packets = [item for item in index.get("packets", []) if isinstance(item, dict)]
-    selected = set(args.packet)
     if selected:
         packets = [item for item in packets if item.get("id") in selected]
     if args.enforce == "review-ready":
