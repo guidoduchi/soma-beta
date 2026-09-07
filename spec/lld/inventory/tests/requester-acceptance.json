@@ -1,0 +1,12 @@
+{
+  "schema":"SOMA-LLD-TEST-LEAF-V2",
+  "lld_id":"LLD-07",
+  "suite":"supporting_requester_acceptance",
+  "range":"LLD07-T067..LLD07-T068",
+  "supporting_requirement_ids":["BETA-REQ-0032"],
+  "scenarios":[
+    {"id":"LLD07-T067","name":"spare_request_requester_is_distinct_historical_role","prove":["requester and receiver may be different active Contacts","Spare Request preserves immutable requester Contact identity plus bounded REQUESTER_CONTEXT_V1 effective at creation","receiver remains a separate logistics role","later Contact affiliation/descriptive change does not rewrite requester history","terminal request continues to display original requester relationship/context alongside current Contact context"]},
+    {"id":"LLD07-T068","name":"active_requester_blocks_contact_archive","prove":["active nonterminal Spare Request requester relationship returns BLOCKED through InventoryReferenceDependencyValidator","LLD-02 Contact archive fails closed on BLOCKED or INDETERMINATE","once the Spare Request is terminal this requester dependency may become CLEAR","terminal requester Contact relationship and creation-time context remain immutable history"]}
+  ],
+  "rule":"These cases provide explicit supporting coverage for BETA-REQ-0032 without promoting Contact-role authority into LLD-07's governing requirement set."
+}
