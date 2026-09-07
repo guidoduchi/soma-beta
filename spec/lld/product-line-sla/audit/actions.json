@@ -1,0 +1,18 @@
+{
+  "schema":"SOMA-LLD-AUDIT-ACTIONS-V2",
+  "lld_id":"LLD-06",
+  "actions":[
+    {"action_type":"sla.product_line.created_or_updated","action_version":1,"payload_schema":"ProductLineAuditV1","payload_version":1,"target_types":["product_line"],"result_ref_types":["product_line"],"sensitive_fields":[]},
+    {"action_type":"sla.catalog_lifecycle.changed","action_version":1,"payload_schema":"CatalogLifecycleAuditV1","payload_version":1,"target_types":["product_line","contract","contract_product_line"],"result_ref_types":["catalog_entity"],"sensitive_fields":[]},
+    {"action_type":"sla.contract.created","action_version":1,"payload_schema":"ContractAuditV1","payload_version":1,"target_types":["contract"],"result_ref_types":["contract"],"sensitive_fields":[]},
+    {"action_type":"sla.contract_product_line.created","action_version":1,"payload_schema":"ContractProductLineAuditV1","payload_version":1,"target_types":["contract_product_line"],"result_ref_types":["contract_product_line"],"sensitive_fields":[]},
+    {"action_type":"sla.policy.revised","action_version":1,"payload_schema":"SlaPolicyAuditV1","payload_version":1,"target_types":["contract_product_line"],"result_ref_types":["sla_policy_revision","sla_policy_tier"],"sensitive_fields":[]},
+    {"action_type":"sla.classification_mapping.created_or_superseded","action_version":1,"payload_schema":"ClassificationMappingAuditV1","payload_version":1,"target_types":["classification_mapping"],"result_ref_types":["classification_mapping"],"sensitive_fields":[]},
+    {"action_type":"sla.service_request.classification_changed","action_version":1,"payload_schema":"ServiceRequestClassificationAuditV1","payload_version":1,"target_types":["service_request"],"result_ref_types":["sr_classification_event"],"sensitive_fields":[]},
+    {"action_type":"sla.service_request.batch_classification_applied","action_version":1,"payload_schema":"BatchClassificationAuditV1","payload_version":1,"target_types":["service_request_batch"],"result_ref_types":["sr_classification_event"],"sensitive_fields":[]},
+    {"action_type":"sla.report.started","action_version":1,"payload_schema":"ReportAttemptAuditV1","payload_version":1,"target_types":["report_attempt"],"result_ref_types":["report_attempt"],"sensitive_fields":[]},
+    {"action_type":"sla.report.completed","action_version":1,"payload_schema":"CompletedReportAuditV1","payload_version":1,"target_types":["report_attempt"],"result_ref_types":["completed_report_evidence","artifact"],"sensitive_fields":[]},
+    {"action_type":"sla.report.cancelled_or_failed","action_version":1,"payload_schema":"ReportAttemptAuditV1","payload_version":1,"target_types":["report_attempt"],"result_ref_types":["report_attempt"],"sensitive_fields":[]}
+  ],
+  "payload_policy":{"rule":"Audit stores bounded catalog/classification identifiers, exact policy/classification/snapshot fingerprints and artifact metadata; it never copies unrelated report-section domain payloads or mutable live projections.","projection_rule":"Pure individual-SLA/cohort/warning reads produce no audit event and no persisted lifecycle fact."}
+}
