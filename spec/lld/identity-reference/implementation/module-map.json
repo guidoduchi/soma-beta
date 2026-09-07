@@ -1,0 +1,57 @@
+{
+  "schema":"SOMA-LLD-IMPLEMENTATION-MAP-V2",
+  "lld_id":"LLD-02",
+  "root":"src/soma/reference",
+  "modules":{
+    "domain":"domain/{customers,contacts,dispatch,lifecycle,settings}.py",
+    "repositories":"repositories/{customers,contacts,dispatch,lifecycle,settings}.py",
+    "services":"services/{customers,contacts,dispatch,lifecycle,settings,matching,setup}.py",
+    "queries":"queries/{references,matching,history,previews,settings}.py",
+    "transport":"api/routes_reference.py",
+    "types":"contracts/reference.py"
+  },
+  "commands":{
+    "CreateCustomerOrganization":"services/customers.py",
+    "SetCustomerAccountCode":"services/customers.py",
+    "ConfirmCustomerAccountCodeSharedClaim":"services/customers.py",
+    "ReassignCustomerAccountCode":"services/customers.py",
+    "UpdateReferenceDescriptiveData":"services/lifecycle.py",
+    "CreateContact":"services/contacts.py",
+    "UpdateContactDescriptiveData":"services/contacts.py",
+    "AddContactChannel":"services/contacts.py",
+    "UpdateContactChannel":"services/contacts.py",
+    "ArchiveContactChannel":"services/contacts.py",
+    "ChangeContactAffiliation":"services/contacts.py",
+    "CreateStandaloneDispatchLocation":"services/dispatch.py",
+    "CreateDedicatedDispatchLocationForSite":"services/dispatch.py",
+    "ArchiveReference":"services/lifecycle.py",
+    "ReactivateReference":"services/lifecycle.py",
+    "WriteSetting":"services/settings.py",
+    "CreateLocalUserProfileIdentity":"services/setup.py"
+  },
+  "queries":{
+    "GetReferenceById":"queries/references.py",
+    "ListActiveReferences":"queries/references.py",
+    "MatchCustomerOrganization":"queries/matching.py",
+    "PreviewCustomerAccountCodeConflict":"queries/previews.py",
+    "GetCustomerAccountCodeHistory":"queries/history.py",
+    "GetContactChannels":"queries/history.py",
+    "ValidateContactChannelForUse":"queries/previews.py",
+    "MatchContact":"queries/matching.py",
+    "GetContactAffiliationHistory":"queries/history.py",
+    "PreviewReferenceArchive":"queries/previews.py",
+    "GetSetting":"queries/settings.py",
+    "ListSettingsForOwner":"queries/settings.py"
+  },
+  "services":{
+    "CustomerAccountCodeReviewService":"services/customers.py",
+    "ReferenceMatcher":"services/matching.py",
+    "ReferenceDependencyRegistry":"services/lifecycle.py",
+    "DispatchLocationService":"services/dispatch.py",
+    "SettingDefinitionRegistry":"services/settings.py",
+    "SettingStore":"repositories/settings.py",
+    "LocalUserProfileIdentityStore":"repositories/settings.py"
+  },
+  "dependency_direction":["transport -> typed services/queries only","services -> repositories + LLD-01 UoW/audit + declared cross-packet interfaces","repositories -> LLD-01 verified connection/UoW only","matching/normalization is pure and never mutates","LLD-02 never imports LLD-08 private Site tables; current site-derived address uses SiteDispatchAddressProvider"],
+  "forbidden":["name/email/address as primary identity","direct writes to LLD-08 Site relations","credential/password/session material in LLD-02","generic setting keys becoming untyped storage","business SQL identifiers derived from route/cursor input"]
+}
