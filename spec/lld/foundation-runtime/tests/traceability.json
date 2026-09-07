@@ -16,10 +16,10 @@
     "BETA-REQ-0144":["audit/actions.json","algorithms/audit-writer.json","algorithms/strict-json.json","tests/acceptance.json"]
   },
   "command_edges":[
-    {"command":"StartHost","leaf":"commands/start-host.json","internal_caller":"LLD-12 native launcher/runtime bootstrap","tests":["LLD01-T003","LLD01-T004","LLD01-T010","LLD01-T011","LLD01-T012","LLD01-T016","LLD01-T017"]},
-    {"command":"ShutdownHost","leaf":"commands/shutdown-host.json","route":"POST /api/v1/runtime/shutdown","tests":["LLD01-T012","LLD01-T015"]},
-    {"command":"ApplyPendingMigrations","leaf":"commands/apply-pending-migrations.json","internal_caller":"StartHost -> MigrationRunner startup path","tests":["LLD01-T002","LLD01-T003","LLD01-T004","LLD01-T005"]},
-    {"command":"ExecuteAuthoritativeCommand","leaf":"commands/execute-authoritative-command.json","internal_caller":"LLD-02..LLD-09 owning application commands via LLD-01 UnitOfWork boundary","tests":["LLD01-T001","LLD01-T006","LLD01-T007","LLD01-T008","LLD01-T013","LLD01-T014","LLD01-T018"]}
+    {"command":"StartHost","leaf":"commands/start-host.json","internal_caller":"LLD-12 native launcher/runtime bootstrap","audit":"none","technical_evidence":"exclusive instance lock + migration ledger + run identity/runtime registry","tests":["LLD01-T003","LLD01-T004","LLD01-T010","LLD01-T011","LLD01-T012","LLD01-T016","LLD01-T017"]},
+    {"command":"ShutdownHost","leaf":"commands/shutdown-host.json","route":"POST /api/v1/runtime/shutdown","audit":"foundation.runtime_shutdown_requested.v1","tests":["LLD01-T012","LLD01-T015"]},
+    {"command":"ApplyPendingMigrations","leaf":"commands/apply-pending-migrations.json","internal_caller":"StartHost -> MigrationRunner startup path","audit":"none","technical_evidence":"accepted migration manifest + immutable schema_migrations sequence/id/hash ledger","tests":["LLD01-T002","LLD01-T003","LLD01-T004","LLD01-T005"]},
+    {"command":"ExecuteAuthoritativeCommand","leaf":"commands/execute-authoritative-command.json","internal_caller":"LLD-02..LLD-09 owning application commands via LLD-01 UnitOfWork boundary","audit":"none","audit_delegation":"material mutation must use the exact owning packet registered audit action; accepted semantic NO_CHANGE fabricates no domain audit","tests":["LLD01-T001","LLD01-T006","LLD01-T007","LLD01-T008","LLD01-T013","LLD01-T014","LLD01-T018"]}
   ],
   "query_edges":[
     {"query":"GetMigrationStatus","route":"GET /api/v1/migrations/status","ordering":"single result","pagination":"none","required_indexes":["schema_migrations PRIMARY KEY(sequence)"],"tests":["LLD01-T004","LLD01-T005"]},
