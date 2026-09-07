@@ -1,0 +1,44 @@
+{
+  "schema":"SOMA-LLD-TRANSITIONS-V2",
+  "lld_id":"LLD-01",
+  "state_machines":[
+    {
+      "machine":"FoundationHostLifecycleV1",
+      "states":["STARTING","MIGRATING","VERIFYING","LISTENING_NOT_READY","READY","QUIESCING","STOPPED","FAILED"],
+      "transitions":[
+        {"from":"STARTING","to":"MIGRATING","guard":"accepted pending migrations exist and exclusive instance/security preconditions hold"},
+        {"from":"STARTING","to":"VERIFYING","guard":"schema is already at exact accepted sequence"},
+        {"from":"MIGRATING","to":"VERIFYING","guard":"all pending migrations committed and ledger/schema agree"},
+        {"from":"VERIFYING","to":"LISTENING_NOT_READY","guard":"schema/FK/index/audit/cipher verification succeeds and loopback socket is exclusively bound"},
+        {"from":"LISTENING_NOT_READY","to":"READY","guard":"LLD-12 run security is ready, runtime registry is exact-owned, authenticated self-health succeeds"},
+        {"from":"READY","to":"QUIESCING","guard":"authenticated shutdown or host termination begins"},
+        {"from":"LISTENING_NOT_READY","to":"QUIESCING","guard":"authenticated/owned shutdown begins before readiness"},
+        {"from":"QUIESCING","to":"STOPPED","guard":"active UoWs are drained/rolled back, workers stop, WAL/connection/socket/registry/lock cleanup completes as far as safely possible"},
+        {"from":"STARTING","to":"FAILED","guard":"startup ownership/security/path precondition fails"},
+        {"from":"MIGRATING","to":"FAILED","guard":"migration/integrity verification fails closed"},
+        {"from":"VERIFYING","to":"FAILED","guard":"release-schema/cipher/FK/index/audit verification fails"},
+        {"from":"LISTENING_NOT_READY","to":"FAILED","guard":"runtime publication or authenticated self-health fails before READY"}
+      ],
+      "rules":["Only READY admits ordinary application work.","FAILED never becomes READY without a new StartHost lifecycle.","No transition changes domain lifecycle authority."]
+    },
+    {
+      "machine":"DurableJobTechnicalLifecycleV1",
+      "states":["queued","running","waiting_review","retry_wait","completed","failed","cancelled"],
+      "transitions":[
+        {"from":"queued","to":"running","guard":"coordinator claims exact due job for current run"},
+        {"from":"retry_wait","to":"running","guard":"retry is due and coordinator claims exact job"},
+        {"from":"running","to":"completed","guard":"job-specific handler completes its technical workflow contract"},
+        {"from":"running","to":"retry_wait","guard":"registered retry policy classifies failure as retryable"},
+        {"from":"running","to":"failed","guard":"registered policy classifies failure as terminal"},
+        {"from":"running","to":"cancelled","guard":"registered cancellation policy accepts cancellation at a safe boundary"},
+        {"from":"running","to":"waiting_review","guard":"registered job contract requires durable operator review before further work"},
+        {"from":"waiting_review","to":"queued","guard":"owning packet records accepted review and explicitly requeues"},
+        {"from":"waiting_review","to":"cancelled","guard":"owning packet records cancellation/rejection"},
+        {"from":"queued","to":"cancelled","guard":"registered cancellation/coalescing policy permits cancellation before claim"},
+        {"from":"retry_wait","to":"cancelled","guard":"registered cancellation policy permits cancellation before retry claim"}
+      ],
+      "startup_recovery":"A stale prior-run running claim first receives interrupted attempt history, then the registered job-type crash policy chooses queued, retry_wait, failed or waiting_review; no arbitrary in-memory continuation is resumed.",
+      "rules":["Terminal technical job state never fabricates owning-domain lifecycle evidence.","Unknown job type/version fails closed."]
+    }
+  ]
+}
