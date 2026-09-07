@@ -13,7 +13,8 @@
     "DispatchLocationAuditV1":{"fields":["dispatch_location_id:uuid","address_mode:standalone|site_derived","new_revision:int","lifecycle_event_id:uuid"],"forbidden":["physical address text","dispatch descriptive name"]},
     "ReferenceLifecycleAuditV1":{"fields":["target_type:customer_organization|contact|dispatch_location","target_id:uuid","prior_state:active|archived","new_state:active|archived","prior_revision:int","new_revision:int","lifecycle_event_id:uuid","reason_category:string"],"forbidden":["descriptive values","dependency detail bodies"]},
     "SettingWriteAuditV1":{"fields":["setting_key:string","contract_id:string","contract_version:int","prior_revision:int|null","new_revision:int","change_kind:CREATE|UPDATE"],"forbidden":["setting value","secret-classified value","arbitrary JSON"]},
-    "LocalUserProfileAuditV1":{"fields":["local_user_profile_id:uuid","metadata_revision:int"],"forbidden":["display_name","username/login-name metadata","password","verifier","auto-login token","data key"]}
+    "LocalUserProfileAuditV1":{"fields":["local_user_profile_id:uuid","metadata_revision:int"],"forbidden":["display_name","username/login-name metadata","password","verifier","auto-login token","data key"]},
+    "LocalUserProfileDisplayNameAuditV1":{"fields":["local_user_profile_id:uuid","prior_revision:int","new_revision:int","changed_field:literal display_name"],"forbidden":["prior display_name","new display_name","username/login-name","password","verifier","session/token","auto-login material","data/encryption key"]}
   },
   "actions": [
     {"action_type":"reference.customer_organization.created","action_version":1,"payload_schema":"CustomerOrganizationAuditV1","payload_version":1,"target_types":["customer_organization"],"result_ref_types":["customer_organization","customer_org_identifier","reference_lifecycle_event"],"sensitive_fields":[]},
@@ -32,7 +33,8 @@
     {"action_type":"reference.archived","action_version":1,"payload_schema":"ReferenceLifecycleAuditV1","payload_version":1,"target_types":["customer_organization","contact","dispatch_location"],"result_ref_types":["reference_lifecycle_event"],"sensitive_fields":[]},
     {"action_type":"reference.reactivated","action_version":1,"payload_schema":"ReferenceLifecycleAuditV1","payload_version":1,"target_types":["customer_organization","contact","dispatch_location"],"result_ref_types":["reference_lifecycle_event"],"sensitive_fields":[]},
     {"action_type":"setting.written","action_version":1,"payload_schema":"SettingWriteAuditV1","payload_version":1,"target_types":["setting"],"result_ref_types":["setting"],"sensitive_fields":["secret_classified_values_forbidden"]},
-    {"action_type":"local_user_profile.created","action_version":1,"payload_schema":"LocalUserProfileAuditV1","payload_version":1,"target_types":["local_user_profile"],"result_ref_types":["local_user_profile"],"sensitive_fields":["credential_material_forbidden","descriptive_display_name_not_duplicated"]}
+    {"action_type":"local_user_profile.created","action_version":1,"payload_schema":"LocalUserProfileAuditV1","payload_version":1,"target_types":["local_user_profile"],"result_ref_types":["local_user_profile"],"sensitive_fields":["credential_material_forbidden","descriptive_display_name_not_duplicated"]},
+    {"action_type":"local_user_profile.display_name_updated","action_version":1,"payload_schema":"LocalUserProfileDisplayNameAuditV1","payload_version":1,"target_types":["local_user_profile"],"result_ref_types":["local_user_profile"],"sensitive_fields":["credential_material_forbidden","raw_display_name_not_duplicated"]}
   ],
   "payload_policy": {
     "rule": "Audit payloads store bounded accepted identifiers, revisions, reason categories, review fingerprints and changed-field classifications. Result rows/lifecycle events remain the source for accepted descriptive/external-identifier values, avoiding unnecessary duplication in audit JSON.",
