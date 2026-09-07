@@ -1,0 +1,11 @@
+{
+  "schema":"SOMA-LLD-MIGRATION-OBJECTS-V2",
+  "lld_id":"LLD-07",
+  "sequence":7,
+  "migration_id":"beta_0007_inventory",
+  "runtime_filename":"0007_inventory.sql",
+  "schema_sources":["schema/identities-demand.json","schema/requests-rma.json","schema/spare-request-submission.json","schema/rma-authorization-assignment.json","schema/units-allocation.json","schema/logistics-consequences.json","schema/fault-tags.json","schema/fault-tag-submission.json","schema/fault-tag-warehouse-lineage.json","schema/rma-lifecycle.json","schema/proposals-projections.json"],
+  "objects":["all LLD-07 tables declared by schema_sources","all LLD-07 required indexes and unique partial/current-identity guards declared by schema_sources","all LLD-07 projection/current/attention tables declared by schema_sources"],
+  "ownership_rule":"Every LLD-07 table, index, trigger-like invariant encoded as schema constraint, current projection and append-oriented event object declared by schema_sources is allocated only to migration sequence 7; implementation must enumerate exact DDL objects before accepted runtime migration hash freeze.",
+  "policies":["All authoritative Inventory tables use SQLite STRICT where applicable and explicit FK constraints/index coverage.","Migration creates no provisional physical units, no Task lifecycle facts and no synthetic SR7/C10/FT identities.","Forward-only accepted migration bytes/hash are frozen by LLD-01; rollback is restore-from-backup rather than reverse destructive DDL."]
+}
