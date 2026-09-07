@@ -7,7 +7,7 @@
   "command_leaves":[
     {"path":"commands/reference-customer.json","commands":["CreateCustomerOrganization","SetCustomerAccountCode","ConfirmCustomerAccountCodeSharedClaim","ReassignCustomerAccountCode","UpdateReferenceDescriptiveData(customer_organization)"]},
     {"path":"commands/reference-contact.json","commands":["CreateContact","UpdateContactDescriptiveData","AddContactChannel","UpdateContactChannel","ArchiveContactChannel","ChangeContactAffiliation"]},
-    {"path":"commands/reference-dispatch-settings.json","commands":["CreateStandaloneDispatchLocation","CreateDedicatedDispatchLocationForSite","UpdateReferenceDescriptiveData(dispatch_location)","ArchiveReference","ReactivateReference","WriteSetting","CreateLocalUserProfileIdentity"]}
+    {"path":"commands/reference-dispatch-settings.json","commands":["CreateStandaloneDispatchLocation","CreateDedicatedDispatchLocationForSite","UpdateReferenceDescriptiveData(dispatch_location)","ArchiveReference","ReactivateReference","WriteSetting","CreateLocalUserProfileIdentity","UpdateLocalUserProfileDisplayName"]}
   ],
   "resolution_rule":"An implementation or review tool resolves a command by exact name plus optional target specialization into exactly one command leaf. The aggregate index owns common ordering/preflight semantics only and does not duplicate leaf command bodies."
 }
