@@ -1,0 +1,47 @@
+{
+  "schema":"SOMA-LLD-TRACEABILITY-V2",
+  "lld_id":"LLD-05",
+  "requirement_edges":{
+    "BETA-REQ-0043":["schema/objective-core-review.json","commands/objective-lifecycle.json","queries/objectives-tasks.json","routes/objectives-grouping.json","tests/acceptance-task-grouping.json","tests/acceptance-cross-domain.json"],
+    "BETA-REQ-0046":["schema/task-relationships-lineage.json","commands/task-planning.json","algorithms/retry-historical.json","queries/objectives-tasks.json","tests/acceptance-execution-history.json"],
+    "BETA-REQ-0047":["schema/task-identity-plan.json","commands/task-planning.json","algorithms/overlap-grouping.json","settings/objective-timezone.json","tests/acceptance-task-grouping.json","tests/acceptance-execution-history.json"],
+    "BETA-REQ-0048":["algorithms/overlap-grouping.json","schema/regroup-proposals.json","commands/grouping-historical.json","queries/objectives-tasks.json","tests/acceptance-task-grouping.json"],
+    "BETA-REQ-0050":["schema/task-execution-outcome.json","schema/objective-core-review.json","commands/execution-review.json","commands/objective-lifecycle.json","queries/objectives-tasks.json","tests/acceptance-execution-history.json","tests/acceptance-cross-domain.json"],
+    "BETA-REQ-0051":["routes.json","routes/objectives-grouping.json","ui/workbench-state.json","commands/task-planning.json","commands/execution-review.json","commands/objective-lifecycle.json","commands/grouping-historical.json","queries/objectives-tasks.json","tests/acceptance-cross-domain.json"],
+    "BETA-REQ-0157":["algorithms/overlap-grouping.json","schema/regroup-proposals.json","commands/grouping-historical.json","queries/objectives-tasks.json","technology.json","tests/acceptance-task-grouping.json","tests/acceptance-cross-domain.json"],
+    "BETA-REQ-0158":["schema/regroup-proposals.json","commands/grouping-historical.json","queries/objectives-tasks.json","transitions/task-objective-lifecycle.json","tests/acceptance-task-grouping.json","tests/acceptance-cross-domain.json"],
+    "BETA-REQ-0162":["schema/task-execution-outcome.json","schema/objective-core-review.json","commands/execution-review.json","commands/task-hard-delete.json","commands/objective-lifecycle.json","transitions/task-objective-lifecycle.json","tests/acceptance-execution-history.json","tests/acceptance-cross-domain.json"],
+    "BETA-REQ-0166":["schema/task-identity-plan.json","schema/task-relationships-lineage.json","commands/task-planning.json","queries/objectives-tasks.json","routes.json","tests/acceptance-task-grouping.json","tests/acceptance-cross-domain.json"],
+    "BETA-REQ-0167":["schema/task-execution-outcome.json","schema/objective-core-review.json","commands/execution-review.json","commands/objective-lifecycle.json","transitions/task-objective-lifecycle.json","tests/acceptance-task-grouping.json","tests/acceptance-execution-history.json"],
+    "BETA-REQ-0168":["schema/objective-core-review.json","settings/objective-timezone.json","commands/objective-lifecycle.json","queries/objectives-tasks.json","technology.json","tests/acceptance-task-grouping.json","tests/acceptance-execution-history.json","tests/acceptance-cross-domain.json"],
+    "BETA-REQ-0170":["schema/task-relationships-lineage.json","commands/task-planning.json","algorithms/retry-historical.json","queries/objectives-tasks.json","tests/acceptance-task-grouping.json","tests/acceptance-execution-history.json"],
+    "BETA-REQ-0171":["schema/historical-objective-proposals.json","schema/task-execution-outcome.json","schema/objective-core-review.json","commands/grouping-historical.json","queries/objectives-tasks.json","tests/acceptance-execution-history.json","tests/acceptance-cross-domain.json"],
+    "BETA-REQ-0172":["schema/task-identity-plan.json","commands/task-planning.json","commands/grouping-historical.json","queries/objectives-tasks.json","settings/objective-timezone.json","transitions/task-objective-lifecycle.json","tests/acceptance-cross-domain.json"]
+  },
+  "fragments":[
+    "tests/traceability/commands-planning.json",
+    "tests/traceability/commands-execution.json",
+    "tests/traceability/commands-objectives.json",
+    "tests/traceability/queries-task.json",
+    "tests/traceability/queries-objectives.json"
+  ],
+  "migration":{"sequence":5,"path":"migrations/0005-objectives-tasks.json","objects":"all LLD-05 Task identity/plan/execution/outcome/lock/relationship/retry/lineage, Objective identity/membership/envelope/aggregate/review/archive, regroup/source-terminal/historical-proposal and operational-count objects"},
+  "cross_packet":[
+    {"interface":"UnitOfWork/CommandReceiptStore/AuditWriter/durable-job conventions","provider":"LLD-01","consumer":"LLD-05"},
+    {"interface":"DomainIdFactory/SettingStore and OBJECTIVE_TIMEZONE_V1 storage registry","provider":"LLD-02","consumer":"LLD-05"},
+    {"interface":"RFC identity/hierarchy/current context and RfcTerminalTaskParticipant caller boundary","provider":"LLD-03","consumer":"LLD-05"},
+    {"interface":"WFM immutable source evidence/current accepted source projection/source-plan proposal handoff","provider":"LLD-04","consumer":"LLD-05"},
+    {"interface":"InventoryTaskDependencyProvider plus retry relationship preview/apply participation","provider":"LLD-07","consumer":"LLD-05"},
+    {"interface":"authenticated browser mutation/query policy and deliberate confirmation proof where required","provider":"LLD-12","consumer":"LLD-05"}
+  ],
+  "reverse_orphan_checks":[
+    "Every authoritative LLD-05 command has exactly one bounded traceability edge proving request/response, transaction boundary, revision effects, audit, stable errors, tests and COMMAND_ENVELOPE_V1 or the exact shared outer-command equivalent.",
+    "Every LLD-05 query has deterministic total ordering, bounded point semantics or CURSOR_V1 keyset pagination, supporting index evidence and concrete acceptance tests.",
+    "Source WFM plan, current accepted operational Task plan, Objective membership-pinned plan/envelope and actual execution are four distinct authorities; no import, timezone presentation, regroup preview or Objective review silently rewrites another layer.",
+    "Automatic grouping computes transitive global strict-overlap components with exact-touch separation in O(n log n); Customer/RFC context explains work but never partitions temporal overlap authority.",
+    "Regroup proposals are non-authoritative exact diffs until separately accepted; acceptance reruns current plan/membership/lock/Objectives/nonoverlap guards in one UnitOfWork and preserves superseded Objective identity/history.",
+    "Provider Complete/Plan Cancel and RFC terminal evidence never fabricate local Task execution/outcome; historical Objective acceptance creates structure only from exact reviewed source-plan evidence.",
+    "Objective scheduling timezone affects schedule interpretation/calendar/MW presentation only and never changes canonical UTC instants or LLD-06 SLA chronology.",
+    "Hard deletion remains a narrow correction path for provably untouched local history; source-adopted, execution-bearing, reviewed, retry-linked, archived, superseded or cross-domain-dependent Task/Objectives fail closed and identities are never reused."
+  ]
+}
