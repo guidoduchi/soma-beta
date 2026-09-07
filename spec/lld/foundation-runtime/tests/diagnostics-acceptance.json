@@ -1,0 +1,17 @@
+{
+  "schema":"SOMA-LLD-TESTS-V2",
+  "lld_id":"LLD-01",
+  "tests":[
+    {
+      "id":"LLD01-T019",
+      "covers":["BETA-REQ-0140"],
+      "scenario":"Foundation diagnostics state is bounded, observational and non-sensitive",
+      "prove":[
+        "GetFoundationDiagnosticsState returns only bounded technical counts/categories and sanitized Foundation error codes",
+        "query performs no domain or technical mutation and creates no audit/diagnostic side effect merely because it was read",
+        "no domain body, customer data, SQLCipher key, session/run credential, raw exception, filesystem path or communication content is returned",
+        "durable-job counts are derived with bounded indexed reads and do not materialize job payload/checkpoint JSON"
+      ]
+    }
+  ]
+}
