@@ -52,6 +52,11 @@ jobs:
         run: |
           set -euo pipefail
           python tools/lld/validate_global_routes.py
+      - name: Validate durable job contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/lld/validate_job_contracts.py
       - name: Validate whole-second chronology precision
         shell: bash
         run: |
