@@ -1,50 +1,71 @@
 # SOMA Beta 1.0 — LLD Peer Review Pass 1
 
-Status: **FAIL — CORRECTION REQUIRED (1 BLOCKER / 7 HIGH / 1 MEDIUM)**
+Status: **PASS**
 
-## Review source
+## Review source and corrected successor
 
-- Frozen source commit: `7a1371d4301f4f8234d65dd9990d0423ebffb677`
-- Frozen source tree: `a916ed9fedab18a1ac3e5511780ac959362b76f0`
-- Reported structural gate at frozen source: `BLOCKER=0 HIGH=0 MEDIUM=0 LOW=0`
-- Structural workflow run: `34092357361`
-- Authority order: normalized requirements/accepted decisions > focused contracts > architecture/glossary/reconciliation > HLD > LLD > implementation guidance.
+Initial frozen source:
+- Commit: `7a1371d4301f4f8234d65dd9990d0423ebffb677`
+- Tree: `a916ed9fedab18a1ac3e5511780ac959362b76f0`
+- Initial structural workflow: `34092357361`
 
-The reported all-zero structural gate established most machine closure but did **not** prove accepted `SIG-008` cross-packet provider/signature closure. Pass 1 therefore reviewed ownership, lifecycle meaning, identity/history, cross-packet interface binding, temporal authority, release/security deliverables, and decision-ledger consistency against the frozen corpus. `LLD-P1-005` records the resulting latent gate BLOCKER and validator false negative; the frozen source remains the immutable semantic review corpus.
+Corrected semantic source independently re-reviewed:
+- Commit: `27fa4cdc068e21629973cdca0d0af3af6c91f589`
+- Tree: `53d8ffbbd0867fc6fd5236eaf4bea63cd2e33360`
+- Hardened workflow run: `34156857798`
+- Final integrity result: `BLOCKER=0 HIGH=0 MEDIUM=0 LOW=0`
 
-## Initial findings
+Authority order: normalized requirements/accepted decisions > focused contracts > architecture/glossary/reconciliation > HLD > LLD > implementation guidance.
 
-| ID | Severity | Packet(s) | Authority violated | Exact finding | Impact | Required correction | Cross-packet ripple |
-|---|---|---|---|---|---|---|---|
-| `LLD-P1-001` | HIGH | LLD-05 | `HLD06-I008`; `spec/hld/objectives-tasks/data-flow.json` | HLD states that Objective start does not start member Tasks, but `StartObjectiveExecution` is a command that appends actual start events to selected member Tasks and test `LLD05-T014` explicitly calls this Objective start. The underlying selected-Task bulk action is valid, but the LLD gives it an Objective-execution semantic that higher authority denies. | An implementer can create a competing Objective execution concept and UI language even though Objective state must derive from Task evidence. | Rename/reframe the operation as an explicit selected-member Task-start command scoped by Objective; preserve independent Task start events and derived Objective `in_progress`; define no Objective execution timestamp/authority. Propagate command, route, types, audit, transitions, UI and tests. | LLD-05 routes/types/audit/tests/traceability; LLD-10 Objectives surface; LLD-11 derived Objective state wording where applicable. |
-| `LLD-P1-002` | HIGH | LLD-07, LLD-02 | `BETA-REQ-0032`; `REQUESTER-001..006`; Inventory Lifecycle Contract | Spare Request requester is a required reusable Contact relationship with archive protection and terminal historical preservation, but LLD-07 persists only `receiver_contact_id`; create/update contracts expose receiver only. No requester relationship exists and no rule equates requester with receiver. | Requester identity/effective context can be lost; Contact archival cannot enforce active requester dependency; implementation must guess whether requester and receiver are the same role. | Add an explicit requester Contact relationship/effective context to Spare Request, separate from receiver. Enforce active Contact eligibility, preserve terminal relationship/effective organization context, and add LLD-02 archive dependency participation. | LLD-07 schema/migration/commands/types/routes/queries/UI/audit/tests/traceability; LLD-02 ReferenceDependencyValidator binding and tests. |
-| `LLD-P1-003` | HIGH | LLD-09 | `D-021`; HLD-14 temporal invariants | Communications persists canonical application chronology as `*_utc_ms` across message/source-scope/retention/terminal/protection rows and performs orphan timing in elapsed milliseconds. Higher authority requires known application instants to persist as canonical UTC whole seconds. | Packet-specific time precision diverges from the application temporal contract; ordering/fingerprints/migrations can disagree cross-domain and subsecond facts can acquire unauthorized application authority. | Convert persisted application instants to canonical UTC whole seconds and perform seven-day retention arithmetic in whole seconds. Keep subsecond/monotonic precision only for non-authoritative technical timers where explicitly allowed. | LLD-09 schemas, migration, types, algorithms, queries/order keys, tests, traceability and any report/Overview DTO names. |
-| `LLD-P1-004` | HIGH | LLD-05 | HLD-06 historical-structure authority; LLD-05 command/transition/test authority | `HistoricalObjectiveProposalRepository` says provider Complete may suggest historical structure only when a valid accepted operational plan exists. `AcceptHistoricalObjectiveProposal`, the transition model, and HLD flow instead permit exact accepted source-plan evidence to create a dedicated `historical_source_structure` plan when no operational plan exists. | Two valid implementations can reject vs accept the same historical WFM, making historical Objective behavior nondeterministic. | Correct the repository/interface rule to match the accepted command semantics: provider Complete + valid accepted source plan may support reviewed historical structure; an exactly matching operational plan may be reused; otherwise a dedicated historical plan may be accepted only through the historical-proposal command and never by import alone. | LLD-05 interfaces/traceability/tests; no product behavior change. |
-| `LLD-P1-005` | **BLOCKER** | LLD-01,02,03,05,06,07,08,09,11,12; integrity validator | `SIG-008` cross-packet interface single-provider contract; LLD-11 canonical provider rule; LLD-08 interface-registry rule | Multiple interfaces exist only on consumer side or have incompatible exact signatures. Examples: LLD-11 consumes `OverviewReadSnapshotFactory.open()/close()` while LLD-01 provides `open_overview_snapshot()`; LLD-11 provider adapters for LLD-02/03/05/06/07/08 are absent from those owners; LLD-08 consumes several owner readers/validators absent from LLD-03/05/07. The accepted gate classifies this as `SIG-008 BLOCKER`, but `tools/lld/validate_spec.py` currently derives provider closure only from `tests/traceability.json` `cross_packet` claims and does not inspect actual consumed/provided interface registries or compare method/type/UoW signatures. The frozen `0/0/0/0` result is therefore a false negative for SIG-008. | Composition-root implementation is not deterministic, security/transaction semantics can drift across packets, and the integrity gate can certify an interface claim that has no provider implementation contract. | Bind every consumed interface into exactly one owner packet with one exact signature/versioned-type/transaction contract; choose one canonical Overview snapshot API; add the missing provider declarations; and harden `SIG-008` to reconcile actual provider/consumer registries bidirectionally, reject duplicate/missing providers, compare exact normalized methods/types/UoW semantics, and treat traceability as evidence rather than provider truth. | LLD-01/02/03/05/06/07/08/09/11/12 interfaces, implementation maps, tests/traceability; `tools/lld/validate_spec.py`; root structural-closure evidence must be regenerated. |
-| `LLD-P1-006` | HIGH | LLD-12 | `BETA-REQ-0037`; `BACKUP-CRYPT-012..018` | Portable backup is specified as one `.somabackup` AEAD container with an internal manifest and self-verification. Accepted authority requires a complete backup set with detached integrity/authenticity companion artifacts, including a detached digest/manifest companion and detached PKCS#7/CMS signature or an equivalently governed authenticity mechanism, with missing/invalid companions blocking restore. | A release could satisfy container confidentiality/integrity yet fail the accepted portable-backup deliverable contract; restore/export semantics would not prove the required detached set is complete and bound to the payload. | Define `SOMA_PORTABLE_BACKUP_SET_V1`: encrypted payload plus a bound detached canonical digest/manifest and a bound detached governed authenticity companion. Select an established portable authenticity mechanism at LLD (PKCS#7/CMS or an equivalent satisfying `BACKUP-CRYPT-015`), define its key/trust lifecycle, and require all companions to verify before restore mutation and before export success. | LLD-12 technology/artifact/algorithms/commands/types/tests/packaging/traceability and restore verification. |
-| `LLD-P1-007` | HIGH | Governance, LLD-04/05/09/11/12 | `docs/DECISIONS.md` Open-for-HLD/LLD authority | The Decision Ledger still marks O-001, O-003, O-004, O-005, O-006, O-007 and O-010 open and says open items may not be chosen silently. The LLD corpus has already resolved most of them, while O-006 is represented as a release-candidate exact-matrix verification/freeze obligation rather than an unresolved domain-policy choice. | Higher-level authority tells reviewers/implementers that decisions remain open while lower-level LLDs act as though they are closed; `review_ready` is therefore governance-ambiguous. | Move resolved items to the resolved table with exact LLD references. Resolve O-006 explicitly at the correct layer: preserve the accepted Windows 10/11 x64 + Python 3.13/3.14 product families and the accepted browser-host policy; freeze exact supported build/browser/runner/package/dependency/signing evidence per release candidate rather than leaving product behavior open. Remove stale packet-level pending-reconciliation statements already closed while preserving genuine release-freeze evidence obligations. | `docs/DECISIONS.md`; LLD-12 index/package lifecycle; packet readiness metadata and review evidence. |
-| `LLD-P1-008` | MEDIUM | LLD-02, LLD-12 | `D-059`; `BETA-REQ-0035`; LLD-12 password-only setup contract | LLD-12 correctly requires password-only setup/login and treats username-like data as optional display metadata, but LLD-02 persists mandatory `username` and its identity-store/create command require a username argument. | Public UX currently remains password-only, but implementation may accidentally promote a mandatory username-like field into credential/identity authority. | Rename/bind the field and interface as descriptive `display_name`, default server-side to `Local Administrator`, keep it editable/descriptive only, and prohibit authentication lookup/uniqueness semantics. | LLD-02 schema/migration/commands/interfaces/types/tests; LLD-12 LocalUserProfile provider wording and stale pending-reconciliation note. |
-| `LLD-P1-009` | HIGH | LLD-03, LLD-08, LLD-12 | LLD-12 `DeliberateActionProofProvider`; single-use/session-run-bound deliberate-action contract | LLD-12 defines `validate_and_consume(uow, proof, expected_action, target, base_revision, preview_fingerprint)` so a proof is consumed exactly once inside the authoritative UnitOfWork. LLD-03 and LLD-08 instead consume `DeliberateActionProofVerifier.verify(...)`; `ExecuteRfcTerminalCascade` and `RegularizeDeviceReference` verify before entering the writer boundary. This is not merely a signature mismatch: the stale verify-only contract cannot prove atomic single-use consumption against the committed command. | The same deliberate proof can race/replay across attempts or be validated against state that changes before mutation, weakening confirmation friction and the security boundary for terminal cascade/device promotion. | Replace the stale verifier with the canonical LLD-12 provider. Revalidate exact target/base revision/fingerprint in the caller UoW and invoke `validate_and_consume` before the owning mutation; second use must fail. Keep business authorization/eligibility checks separate from friction proof. | LLD-03/08 interfaces and affected commands/routes/tests/traceability; LLD-12 provider remains the sole proof authority; LLD-10/09 already use the canonical provider. |
+## Initial findings and closure evidence
 
-## Confirmed non-findings
+| ID | Initial severity | Closure | Corrected authority/evidence |
+|---|---:|---|---|
+| `LLD-P1-001` | HIGH | **CLOSED** | Replaced Objective-execution semantics with `StartSelectedObjectiveTasks`. The command starts only explicitly selected Task attempts; Objective `in_progress` remains derived and there is no Objective start event/timestamp/execution authority. Route, DTO, audit, transition, UI, implementation map, traceability and acceptance evidence were propagated. |
+| `LLD-P1-002` | HIGH | **CLOSED** | Spare Request now persists immutable `requester_contact_id` plus bounded creation-time requester context, distinct from receiver logistics. Active/nonterminal requester relationships participate in LLD-02 Contact archive guards; terminal history preserves requester identity/context. Dedicated requester acceptance and supporting-requirement traceability were added. |
+| `LLD-P1-003` | HIGH | **CLOSED** | LLD-09 authoritative application chronology was converted from `*_utc_ms` to canonical UTC whole-second `*_utc` fields. Provider checkpoint millisecond precision is retained only as explicitly source-owned provenance. `validate_chronology_precision.py` now fails closed on regression. |
+| `LLD-P1-004` | HIGH | **CLOSED** | `HistoricalObjectiveProposalRepository` now matches accepted command/HLD semantics: valid accepted source-plan evidence may support reviewed historical structure when no conflicting operational plan exists; matching operational plan may be reused; dedicated historical plan is created only by explicit acceptance and never fabricates execution/outcome/Inventory facts. |
+| `LLD-P1-005` | BLOCKER | **CLOSED** | Added canonical owner-side `interfaces/cross-packet-v2.json` registries across all packets and hardened SIG-008 with `validate_interfaces.py` plus manifest enforcement. Provider existence, exact methods/types and UoW/read-only semantics are now proved from actual registries rather than consumer traceability claims. Current result: `SIG-008 BLOCKER=0`. |
+| `LLD-P1-006` | HIGH | **CLOSED** | Portable backup is now `SOMA_PORTABLE_BACKUP_SET_V1`: atomic `.somabackupset` directory containing encrypted `payload.somabackup`, canonical detached `manifest.json`, and detached HMAC-SHA-256 `auth.json`, with independent HKDF domains for KEK and authenticity. Missing/invalid companion evidence blocks restore before live mutation. `validate_portable_backup_set.py` enforces the contract. |
+| `LLD-P1-007` | HIGH | **CLOSED** | Decision Ledger O-001/O-003/O-004/O-005/O-006/O-007/O-010 were moved to resolved state with exact LLD authority. No unresolved Beta 1.0 HLD/LLD design question remains; exact release builds/dependency hashes/signing identity remain release-candidate verification evidence rather than open product behavior. |
+| `LLD-P1-008` | MEDIUM | **CLOSED** | Removed mandatory persisted `username`. LLD-02 now owns immutable profile/actor identity plus editable descriptive `display_name`, defaulted server-side to `Local Administrator`; setup/login remain password-only and display-name edits cannot affect credentials, sessions, actor identity, security revision or encryption. Dedicated Local User Profile validator passes. |
+| `LLD-P1-009` | HIGH | **CLOSED** | RFC terminal cascade and Device Reference regularization now call LLD-12 `validate_and_consume(uow,...)` inside the same authoritative UnitOfWork after exact state re-read. Proof consumption rolls back with participant failure and second use fails. |
 
-The following previously risky areas were rechecked and remain semantically consistent at the frozen source:
+## Hardened machine proof on corrected source
+
+Workflow `34156857798` executed all of the following successfully on the same commit:
+
+- cross-packet interface closure: `BLOCKER=0`
+- canonical interface manifest closure: `BLOCKER=0`
+- HLD-14 chronology precision: `HIGH=0`
+- portable backup companion-set closure: `HIGH=0`
+- Local User Profile password-only identity closure: `MEDIUM=0`
+- final evidence-normalized review-ready gate: `BLOCKER=0 HIGH=0 MEDIUM=0 LOW=0`
+
+The reverse traceability reconciliation is recorded in `docs/reconciliation/LLD_PASS1_REVERSE_TRACEABILITY.md` and found no forward requirement orphan, reverse implementation-authority orphan, unresolved provider seam, or new semantic contradiction.
+
+## Independent corrected-successor semantic re-review
+
+The corrected source was reviewed again from the consequences inward rather than merely checking that the original findings disappeared. The following high-risk invariants were reconfirmed:
 
 - WFM remains a Task and Inventory owns no Task lifecycle.
-- WFM source plan, operational Task plan, Objective membership-pinned plan/envelope and actual execution remain separate authorities.
-- RFC terminal source evidence only creates a pending cascade proposal; explicit deliberate local execution is required and LLD-05/09 participate in the same LLD-03 UoW.
-- Direct SR↔RFC relation targets root RFC; two-level RFC hierarchy remains intact.
-- Contract Product Line remains Customer-specific SLA authority; Product Line remains reusable/customer-neutral; policy revisions recalculate live existing/terminal SR results while completed reports remain immutable.
-- Device Reference identity survives Infrastructure regularization; Network Element identity is not substituted into operational relationships.
-- Objective timezone remains scheduling-only and does not rewrite ordinary/SLA/source chronology.
-- Communications remain evidence/proposal authority only and cannot mutate owner domains by proposal state alone.
-- UI working copy/Undo remains non-authoritative; owner commands and owner-defined safe inverse govern accepted changes.
-- Overview remains read-only/derived; per-linked-entity Communication counting matches `BETA-REQ-0122`.
-- React/TypeScript/Vite selection is correctly made at LLD/Phase-2 authority rather than prematurely in Phase 0.
-- Security maintains password, live DEK, backup recovery and run/session identities as separate authorities; restore is verify-before-mutation apart from the detached-set omission recorded in `LLD-P1-006`.
+- WFM source plan, accepted operational Task plan, Objective membership-pinned plan/envelope and actual execution remain separate authorities.
+- RFC terminal source evidence creates/revises pending cascade evidence only; local consequences require explicit deliberate execution in one shared UoW.
+- Direct SR↔RFC relation targets the root RFC and RFC hierarchy remains exactly two levels.
+- Product Line remains reusable/customer-neutral; customer-specific Contract Product Line remains SLA authority; live policy revisions recalculate current truth while completed reports remain immutable.
+- Device Reference remains operational identity before and after Infrastructure regularization.
+- Objective timezone remains scheduling-only; ordinary/SLA/source chronology is not rewritten.
+- Communications remain evidence/proposal authority only and persist known application instants as UTC whole seconds.
+- UI working copy/Undo remains non-authoritative and invokes owner-defined commands/safe inverses.
+- Overview remains derived/read-only from one shared read snapshot.
+- Password, live DEK, portable recovery, browser session and launcher/run-control identities remain separate security authorities.
+- Portable restore remains verify-before-mutation and payload-only recovery is forbidden.
+- No new semantic contradiction was introduced by the correction set.
 
-## Pass 1 closure rule
+## Pass 1 verdict
 
-Pass 1 remains **FAIL** until every BLOCKER/HIGH finding above is corrected and propagated, the corrected successor passes the hardened `review-ready` integrity gate, the semantic corrections are independently re-reviewed, and an exact corrected successor commit/tree is frozen. The MEDIUM finding must also be corrected or receive an explicit accepted exception before owner acceptance; the current correction plan is to correct it.
+**PASS.**
 
-`ai_implementation_ready` and `owner_accepted` remain false for all packets. No implementation is authorized.
+All initial Pass-1 BLOCKER/HIGH/MEDIUM findings are corrected and propagated. The corrected semantic source passes the hardened machine gate and an independent semantic re-review. Traceability and reverse-orphan reconciliation are complete for Pass 1.
+
+This PASS does **not** authorize implementation. All packet `ai_implementation_ready` and `owner_accepted` flags remain false. Pass 2 implementation-determinism/engineering-safety review is still required, followed by project-owner acceptance of the complete corrected LLD set.
