@@ -70,6 +70,14 @@ def route_rows(root: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def route_key(row: dict[str, Any]) -> str:
+    return f"{str(row.get('method', '')).upper()} {row.get('path', '')}".strip()
+
+
+def base_handler(handler: Any) -> str:
+    return re.sub(r"\[[^\]]*\]$", "", str(handler)).strip()
+
+
 def trace_docs(root: Path) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     tests = root / "tests"
@@ -105,6 +113,60 @@ def command_edge(root: Path, name: str) -> dict[str, Any] | None:
             edge = edges.get(name)
             if isinstance(edge, dict):
                 return edge
+    return None
+
+
+def query_edge(root: Path, name: str) -> dict[str, Any] | None:
+    for doc in trace_docs(root):
+        edges = doc.get("query_edges")
+        if isinstance(edges, list):
+            for edge in edges:
+                if isinstance(edge, dict) and edge.get("query") == name:
+                    return edge
+        elif isinstance(edges, dict):
+            edge = edges.get(name)
+            if isinstance(edge, dict):
+                return edge
+    return None
+
+
+def query_contract(root: Path, name: str) -> dict[str, Any] | None:
+    for path, doc in iter_json(root):
+        rel = path.relative_to(root).as_posix()
+        if not rel.startswith("queries/") or not isinstance(doc, dict):
+            continue
+        if doc.get("name") == name:
+            return doc
+        queries = doc.get("queries")
+        if isinstance(queries, list):
+            for item in queries:
+                if isinstance(item, dict) and item.get("name") == name:
+                    return item
+    return None
+
+
+def operation_destination(root: Path, kind: str, name: str) -> str | None:
+    path = root / "implementation/module-map.json"
+    if not path.is_file():
+        return None
+    try:
+        doc = load_json(path)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    table = doc.get("commands" if kind == "command" else "queries")
+    if isinstance(table, dict):
+        value = table.get(name)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    for item in doc.get("operation_destinations", []) if isinstance(doc.get("operation_destinations"), list) else []:
+        if not isinstance(item, dict):
+            continue
+        op = item.get("command") if kind == "command" else item.get("query")
+        destination = item.get("module") or item.get("destination")
+        if op == name and isinstance(destination, str) and destination.strip():
+            return destination.strip()
     return None
 
 
@@ -180,6 +242,40 @@ def no_authoritative_storage(root: Path) -> bool:
     return "no authoritative" in text or "owns no" in text or "no schema objects" in text
 
 
+def command_binds_envelope(repo: Path, finding: dict[str, Any], command: str) -> bool:
+    path = repo / str(finding.get("path", ""))
+    if not path.is_file():
+        return False
+    try:
+        doc = load_json(path)
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(doc, dict) or doc.get("name") != command:
+        return False
+    evidence = " ".join(str(doc.get(key, "")) for key in ("request_type", "idempotency", "receipt_order"))
+    return "COMMAND_ENVELOPE_V1" in evidence and "command_receipt" in evidence
+
+
+def query_has_total_order(root: Path, name: str) -> bool:
+    contract = query_contract(root, name)
+    if not isinstance(contract, dict):
+        return False
+    ordering = str(contract.get("ordering", "")).strip()
+    if not ordering:
+        return False
+    lower = ordering.lower()
+    if lower in {"single result", "not applicable", "none"}:
+        return True
+    terms = [term.strip() for term in ordering.split(",") if term.strip()]
+    if not terms:
+        return False
+    last = terms[-1].lower()
+    return bool(
+        re.search(r"(?:^|_)(?:id|ordinal)\b", last)
+        or re.search(r"\b(?:id|ordinal)\s+(?:asc|desc)\b", last)
+    )
+
+
 def suppression_reason(repo: Path, roots: dict[str, Path], finding: dict[str, Any]) -> str | None:
     packet_id = str(finding.get("packet_id", ""))
     root = roots.get(packet_id)
@@ -188,19 +284,32 @@ def suppression_reason(repo: Path, roots: dict[str, Path], finding: dict[str, An
     check = str(finding.get("check_id", ""))
     message = str(finding.get("message", ""))
 
-    # SIG-004: prove an exact public route or declared internal caller exists.
     match = re.fullmatch(r"command (.+) resolves neither public route nor internal caller", message)
     if check == "SIG-004" and match:
         command = match.group(1)
+        rows = route_rows(root)
         if any(str(row.get("handler_kind", "")).lower() == "command"
-               and row.get("handler") == command for row in route_rows(root)):
-            return f"exact command handler {command} exists in packet route family"
+               and base_handler(row.get("handler")) == command for row in rows):
+            return f"parameterized/exact command handler {command} exists in packet route family"
         edge = command_edge(root, command)
         if isinstance(edge, dict) and (edge.get("internal_caller") or edge.get("internal_callers")):
             return f"traceability declares internal caller for {command}"
+        if isinstance(edge, dict) and isinstance(edge.get("routes"), list):
+            declared = {str(x) for x in edge["routes"]}
+            actual = {route_key(row) for row in rows
+                      if str(row.get("handler_kind", "")).lower() == "command"
+                      and base_handler(row.get("handler")) == command}
+            if declared and declared.issubset(actual):
+                return f"all declared route specializations for {command} resolve exactly"
         return None
 
-    # SIG-005: normalize exact audit action version spelling/compact tuple registry.
+    match = re.fullmatch(r"mutating command (.+) does not bind COMMAND_ENVELOPE_V1", message)
+    if check == "SIG-019" and match:
+        command = match.group(1)
+        if command_binds_envelope(repo, finding, command):
+            return f"{command} binds COMMAND_ENVELOPE_V1 and command_receipt in its command leaf"
+        return None
+
     match = re.fullmatch(r"command (.+) references unknown audit action (.+)", message)
     if check == "SIG-005" and match:
         _, variants, _ = action_registry(root)
@@ -237,14 +346,12 @@ def suppression_reason(repo: Path, roots: dict[str, Path], finding: dict[str, An
         for item in actions.values():
             if item.get("payload_schema") != payload:
                 continue
-            # An action-local closed field list + forbidden list is itself the named schema.
             if isinstance(item.get("payload_fields"), list) and "forbidden" in item:
                 return f"payload schema {payload} is defined inline by closed payload_fields/forbidden"
         if registry.get("payload_schema") == payload and isinstance(registry.get("payload_contract"), dict):
             return f"payload schema {payload} is defined by registry-level payload_contract"
         return None
 
-    # SIG-010: native LLD-12-style requirements map keeps paths/tests as separate fields.
     match = re.fullmatch(r"governing requirement (BETA-REQ-\d{4}) has no normative coverage edge", message)
     if check == "SIG-010" and match:
         req = requirement_record(root, match.group(1))
@@ -258,17 +365,36 @@ def suppression_reason(repo: Path, roots: dict[str, Path], finding: dict[str, An
                 return f"native requirements map provides both normative paths and tests for {match.group(1)}"
         return None
 
-    # SIG-013: an explicitly in-memory/non-database query requires no DB index.
+    match = re.fullmatch(r"query (.+) lacks deterministic total ordering", message)
+    if check == "SIG-013" and match:
+        name = match.group(1)
+        if query_has_total_order(root, name):
+            return f"query contract for {name} declares deterministic total ordering"
+        return None
+
     match = re.fullmatch(r"query (.+) declares no supporting index", message)
     if check == "SIG-013" and match:
+        name = match.group(1)
+        contract = query_contract(root, name)
+        if isinstance(contract, dict) and contract.get("required_indexes") == []:
+            consistency = str(contract.get("read_consistency", "")).lower()
+            if "in-memory" in consistency or "no database" in consistency or "no db" in consistency:
+                return f"query {name} is explicitly non-database/in-memory"
         doc = query_doc_from_finding(repo, finding)
         if isinstance(doc, dict) and doc.get("required_indexes") == []:
             consistency = str(doc.get("read_consistency", "")).lower()
             if "in-memory" in consistency or "no database" in consistency or "no db" in consistency:
-                return f"query {match.group(1)} is explicitly non-database/in-memory"
+                return f"query {name} is explicitly non-database/in-memory"
         return None
 
-    # SIG-012: a projection-only packet with an explicit no-storage schema has no STRICT table duty.
+    match = re.fullmatch(r"(command|query) (.+) has no source-module destination", message)
+    if check == "SIG-015" and match:
+        kind, name = match.groups()
+        destination = operation_destination(root, kind, name)
+        if destination is not None:
+            return f"implementation map binds {kind} {name} to exact module {destination}"
+        return None
+
     if check == "SIG-012" and "STRICT policy" in message and no_authoritative_storage(root):
         return "packet explicitly owns no authoritative storage/tables"
 
