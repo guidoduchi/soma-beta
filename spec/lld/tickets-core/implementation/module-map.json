@@ -1,0 +1,73 @@
+{
+  "schema":"SOMA-LLD-IMPLEMENTATION-MAP-V2",
+  "lld_id":"LLD-03",
+  "commands":{
+    "CreateManualServiceRequest":"src/soma/tickets/service_requests.py",
+    "AttachOfficialServiceRequestIdentity":"src/soma/tickets/service_requests.py",
+    "CreateOrAdoptRfcIdentity":"src/soma/tickets/rfcs.py",
+    "SetRfcCustomer":"src/soma/tickets/rfcs.py",
+    "CreateDeviceReference":"src/soma/tickets/device_references.py",
+    "CorrectDeviceReferenceName":"src/soma/tickets/device_references.py",
+    "LinkServiceRequestToRfc":"src/soma/tickets/relationships.py",
+    "UnlinkServiceRequestFromRfc":"src/soma/tickets/relationships.py",
+    "LinkDeviceReference":"src/soma/tickets/relationships.py",
+    "UnlinkDeviceReference":"src/soma/tickets/relationships.py",
+    "AddWorkingNote":"src/soma/tickets/working_notes.py",
+    "EditWorkingNote":"src/soma/tickets/working_notes.py",
+    "RemoveWorkingNote":"src/soma/tickets/working_notes.py",
+    "SetServiceRequestCustomer":"src/soma/tickets/sr_references.py",
+    "SetServiceRequestContactReference":"src/soma/tickets/sr_references.py",
+    "ApplyAcceptedRfcSourceProjection":"src/soma/tickets/rfc_source_projection.py",
+    "RefreshRfcTerminalCascadeProposal":"src/soma/tickets/rfc_terminal_cascade.py",
+    "ExecuteRfcTerminalCascade":"src/soma/tickets/rfc_terminal_cascade.py",
+    "ArchiveRfc":"src/soma/tickets/rfc_archive.py",
+    "RestoreRfcArchiveOperation":"src/soma/tickets/rfc_archive.py",
+    "HardDeleteRfc":"src/soma/tickets/rfc_hard_delete.py"
+  },
+  "queries":{
+    "GetServiceRequest":"src/soma/tickets/queries/service_requests.py",
+    "GetRfc":"src/soma/tickets/queries/rfcs.py",
+    "GetRfcBranch":"src/soma/tickets/queries/rfc_branches.py",
+    "GetServiceRequestRfcBranches":"src/soma/tickets/queries/relationships.py",
+    "GetEffectiveServiceRequestContextForRfc":"src/soma/tickets/queries/relationships.py",
+    "ListTicketDeviceReferences":"src/soma/tickets/queries/device_references.py",
+    "GetRfcDeviceContextForBranch":"src/soma/tickets/queries/device_references.py",
+    "ListWorkingNotes":"src/soma/tickets/queries/working_notes.py",
+    "PreviewRfcHierarchyMutation":"src/soma/tickets/queries/relationship_previews.py",
+    "PreviewSrRfcLink":"src/soma/tickets/queries/relationship_previews.py",
+    "GetServiceRequestReferenceContext":"src/soma/tickets/queries/sr_references.py",
+    "PreviewServiceRequestCustomerChange":"src/soma/tickets/queries/sr_references.py",
+    "PreviewServiceRequestContactReference":"src/soma/tickets/queries/sr_references.py",
+    "ListServiceRequestReferenceHistory":"src/soma/tickets/queries/sr_references.py",
+    "GetRfcLifecycleProjection":"src/soma/tickets/queries/rfc_lifecycle.py",
+    "GetPendingRfcTerminalCascade":"src/soma/tickets/queries/rfc_terminal_cascade.py",
+    "PreviewRfcTerminalCascade":"src/soma/tickets/queries/rfc_terminal_cascade.py",
+    "PreviewRfcArchive":"src/soma/tickets/queries/rfc_archive.py",
+    "GetRfcArchiveOperation":"src/soma/tickets/queries/rfc_archive.py",
+    "PreviewRfcHardDelete":"src/soma/tickets/queries/rfc_hard_delete.py"
+  },
+  "services":{
+    "RfcHierarchyService":"src/soma/tickets/rfc_hierarchy.py",
+    "ServiceRequestReferenceService":"src/soma/tickets/sr_references.py",
+    "ServiceRequestImportMutationService":"src/soma/tickets/import_mutations.py",
+    "RfcImportMutationService":"src/soma/tickets/import_mutations.py",
+    "SrSourceProjectionService":"src/soma/tickets/sr_source_projection.py"
+  },
+  "repositories":{
+    "ServiceRequestRepository":"src/soma/tickets/repositories/service_requests.py",
+    "ServiceRequestReferenceRepository":"src/soma/tickets/repositories/sr_references.py",
+    "RfcRepository":"src/soma/tickets/repositories/rfcs.py",
+    "RfcHierarchyRepository":"src/soma/tickets/repositories/rfc_hierarchy.py",
+    "SrRfcRelationshipRepository":"src/soma/tickets/repositories/relationships.py",
+    "DeviceReferenceRepository":"src/soma/tickets/repositories/device_references.py",
+    "TicketDeviceRelationshipRepository":"src/soma/tickets/repositories/relationships.py",
+    "WorkingNoteRepository":"src/soma/tickets/repositories/working_notes.py",
+    "RfcLifecycleRepository":"src/soma/tickets/repositories/rfc_lifecycle.py"
+  },
+  "rules":[
+    "Each listed operation has one owning source-module destination; implementation may factor private helpers but cannot move authority across packet/domain boundaries.",
+    "Cross-packet participants are injected through interfaces and receive the existing UnitOfWork; their implementation modules remain owned by their provider packets.",
+    "RfcHierarchyService is the sole application service allowed to create/supersede hierarchy edges; repository modules never expose an alternate commit path.",
+    "Import mutation services accept already-reviewed LLD-04 evidence/proposals and never parse workbook content."
+  ]
+}
