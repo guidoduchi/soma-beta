@@ -110,7 +110,7 @@ def main() -> int:
     elif route.get("path") != "/api/v1/local-user-profile/display-name" or route.get("auth_policy") != "LLD12_BROWSER_MUTATION_V1":
         findings.append("display-name mutation route is misbound")
 
-    audit = load(L2, "audit/local-user-profile.json")
+    audit = load(L2, "audit/actions.json")
     actions = {a.get("action_type"): a for a in audit.get("actions", []) if isinstance(a, dict)}
     if "local_user_profile.display_name_updated" not in actions:
         findings.append("display-name update audit action missing")
