@@ -1,75 +1,13 @@
 {
-  "schema":"SOMA-LLD-SCHEMA-V1",
+  "schema":"SOMA-LLD-SCHEMA-INDEX-V2",
   "lld_id":"LLD-02",
   "id_convention":"All LLD-02 persistent entity/event/relationship identities use lowercase canonical UUIDv4 text from DomainIdFactory; descriptive/business values are never primary keys.",
   "table_mode":"Every LLD-02 table is created with SQLite STRICT table mode; future accepted schema extensions use forward migrations rather than weakening types in place.",
-  "tables":[
-    {
-      "name":"reference_metadata",
-      "purpose":"self-describe governed matching profile and provide O(1) freshness generation for reviewed Customer-reference conflicts",
-      "columns":["singleton_guard INTEGER PRIMARY KEY CHECK(singleton_guard=1)","matching_profile_id TEXT NOT NULL CHECK(length(matching_profile_id)>0)","customer_reference_generation INTEGER NOT NULL DEFAULT 0 CHECK(customer_reference_generation>=0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)"],
-      "rules":["Beta 1.0 initializes exactly one row with matching_profile_id='UNICODE_MATCH_V1'","startup/reference-service readiness verifies stored profile before matching queries/writes","matching_profile_id is ordinary-runtime immutable; future profile change requires forward migration/reindex","customer_reference_generation is changed only by protected database triggers that increment it whenever Customer Organization lifecycle/descriptive state or Customer Account Code claim state changes","review snapshots may use this generation as conservative freshness evidence; unrelated Customer edits may intentionally stale a review rather than risk accepting against changed reference state","ordinary DELETE is forbidden"]
-    },
-    {
-      "name":"local_user_profiles",
-      "purpose":"singleton installation authentication-profile identity metadata; no credential material",
-      "columns":["local_user_profile_id TEXT PRIMARY KEY","singleton_guard INTEGER NOT NULL UNIQUE CHECK(singleton_guard=1)","username TEXT NOT NULL CHECK(length(username)>0)","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
-      "rules":["exactly one row after first-run setup; second insert rejected","password verifier/auto-login/data-key material are absent and belong to LLD-12","username change, if LLD-12 permits it, preserves local_user_profile_id"]
-    },
-    {
-      "name":"customer_organizations",
-      "columns":["customer_org_id TEXT PRIMARY KEY","name TEXT NOT NULL CHECK(length(name)>0)","name_match_key TEXT NOT NULL CHECK(length(name_match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
-      "rules":["name/name_match_key are descriptive/matching evidence and are not unique","name_match_key must equal MatchingNormalizer(name) at every accepted write under reference_metadata.matching_profile_id","ordinary runtime exposes archive/reactivate, not destructive deletion","BEFORE DELETE raises REFERENCE_DELETE_FORBIDDEN","AFTER INSERT/UPDATE increments reference_metadata.customer_reference_generation"]
-    },
-    {
-      "name":"customer_org_identifiers",
-      "purpose":"history-preserving external Customer Organization identifier claims; Beta 1.0 supports Advanced Search Customer Account Code",
-      "columns":["customer_org_identifier_id TEXT PRIMARY KEY","customer_org_id TEXT NOT NULL REFERENCES customer_organizations(customer_org_id) ON UPDATE RESTRICT ON DELETE RESTRICT","identifier_type TEXT NOT NULL CHECK(identifier_type IN ('customer_account_code'))","value_text TEXT NOT NULL CHECK(length(value_text)>0)","match_key TEXT NOT NULL CHECK(length(match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','superseded'))","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","superseded_at_utc INTEGER","created_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT","superseded_command_id TEXT REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT","CHECK((lifecycle_state='active' AND superseded_at_utc IS NULL AND superseded_command_id IS NULL) OR (lifecycle_state='superseded' AND superseded_at_utc IS NOT NULL AND superseded_command_id IS NOT NULL))"],
-      "rules":["Customer Account Code is external matching evidence and never customer_org_id","value/match_key use exact UNICODE_MATCH_V1 normalized complete source value after field validation","a Customer has at most one active customer_account_code claim","same normalized code may have multiple active Customer claimants only after explicit reviewed conflict acceptance; matching remains ambiguous","ordinary assignment detects different claimants and requires review instead of stealing/merging","supersession preserves creation/superseding command identities","BEFORE UPDATE permits only one active->superseded transition setting superseded fields while immutable identity/value/owner/created fields remain unchanged; superseded rows reject further UPDATE","BEFORE DELETE raises CUSTOMER_IDENTIFIER_HISTORY_APPEND_ONLY","AFTER INSERT and accepted active->superseded UPDATE increment reference_metadata.customer_reference_generation"]
-    },
-    {
-      "name":"contacts",
-      "columns":["contact_id TEXT PRIMARY KEY","name TEXT NOT NULL CHECK(length(name)>0)","name_match_key TEXT NOT NULL CHECK(length(name_match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
-      "rules":["equal names are allowed","name/name_match_key never authorize merge/global uniqueness","archived Contact remains historically queryable but excluded from new-active selectors","BEFORE DELETE raises REFERENCE_DELETE_FORBIDDEN"]
-    },
-    {
-      "name":"contact_channels",
-      "purpose":"reusable Contact communication/matching attributes; Beta 1.0 channel kind is email",
-      "columns":["contact_channel_id TEXT PRIMARY KEY","contact_id TEXT NOT NULL REFERENCES contacts(contact_id) ON UPDATE RESTRICT ON DELETE RESTRICT","channel_kind TEXT NOT NULL CHECK(channel_kind='email')","value_text TEXT NOT NULL CHECK(length(value_text)>0)","match_key TEXT NOT NULL CHECK(length(match_key)>0)","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)"],
-      "rules":["Beta 1.0 persists only email channels; another kind requires forward migration + policy/version support","value_text passes ContactChannelPolicy storage validation; match_key uses governed MatchingNormalizer","equal normalized channel values are allowed and may produce ambiguity","channel identity independent from Contact/authentication","BEFORE DELETE raises CONTACT_CHANNEL_DELETE_FORBIDDEN","archived channel rejects further ordinary UPDATE; active->archived and active value/revision correction remain governed transitions"]
-    },
-    {
-      "name":"contact_affiliations",
-      "purpose":"explicit affiliation history under one continuous Contact identity",
-      "columns":["contact_affiliation_id TEXT PRIMARY KEY","contact_id TEXT NOT NULL REFERENCES contacts(contact_id) ON UPDATE RESTRICT ON DELETE RESTRICT","customer_org_id TEXT NOT NULL REFERENCES customer_organizations(customer_org_id) ON UPDATE RESTRICT ON DELETE RESTRICT","is_current INTEGER NOT NULL CHECK(is_current IN (0,1))","opened_at_utc INTEGER NOT NULL CHECK(opened_at_utc>=0)","closed_at_utc INTEGER CHECK(closed_at_utc IS NULL OR closed_at_utc>=opened_at_utc)","opened_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT","closed_command_id TEXT REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT","CHECK((is_current=1 AND closed_at_utc IS NULL AND closed_command_id IS NULL) OR (is_current=0 AND closed_at_utc IS NOT NULL AND closed_command_id IS NOT NULL))"],
-      "rules":["at most one current row per Contact via partial unique index","changing affiliation closes previous current row and inserts new row in one UnitOfWork","BEFORE UPDATE permits only current->historical closure setting closed fields while immutable relationship/opening fields remain unchanged; historical rows reject further UPDATE","BEFORE DELETE raises CONTACT_AFFILIATION_HISTORY_APPEND_ONLY","operational records preserve organization-at-use context in owning domain"]
-    },
-    {
-      "name":"dispatch_locations",
-      "columns":["dispatch_location_id TEXT PRIMARY KEY","name TEXT NOT NULL CHECK(length(name)>0)","name_match_key TEXT NOT NULL CHECK(length(name_match_key)>0)","address_mode TEXT NOT NULL CHECK(address_mode IN ('standalone','site_derived'))","standalone_address_text TEXT","lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','archived'))","revision INTEGER NOT NULL DEFAULT 1 CHECK(revision>0)","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)","CHECK((address_mode='standalone' AND standalone_address_text IS NOT NULL AND length(standalone_address_text)>0) OR (address_mode='site_derived' AND standalone_address_text IS NULL))"],
-      "rules":["no Customer ownership/preference column","Site relationship owned by LLD-08 and not duplicated here","site_derived current address resolves through SiteDispatchAddressProvider; historical snapshots belong LLD-07","operation role never stored on location master","BEFORE DELETE raises REFERENCE_DELETE_FORBIDDEN"]
-    },
-    {
-      "name":"reference_lifecycle_events",
-      "purpose":"append-only reference lifecycle occurrence evidence distinct from application audit",
-      "columns":["reference_lifecycle_event_id TEXT PRIMARY KEY","target_type TEXT NOT NULL CHECK(target_type IN ('customer_organization','contact','dispatch_location'))","target_id TEXT NOT NULL","event_type TEXT NOT NULL CHECK(event_type IN ('created','archived','reactivated','descriptive_corrected'))","occurred_at_utc INTEGER NOT NULL CHECK(occurred_at_utc>=0)","command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT","reason_category TEXT"],
-      "rules":["target uses immutable evidence identity rather than destructive FK so required history may survive future exceptional deletion authority","BEFORE UPDATE/DELETE raise REFERENCE_LIFECYCLE_APPEND_ONLY","accepted lifecycle events referenced from corresponding LLD-01 audit event via audit_event_results"]
-    }
-  ],
-  "indexes":[
-    "CREATE INDEX idx_customer_org_active_name_match ON customer_organizations(lifecycle_state,name_match_key,customer_org_id)",
-    "CREATE UNIQUE INDEX uq_customer_org_active_identifier_type ON customer_org_identifiers(customer_org_id,identifier_type) WHERE lifecycle_state='active'",
-    "CREATE INDEX idx_customer_active_identifier_value ON customer_org_identifiers(identifier_type,match_key,customer_org_id) WHERE lifecycle_state='active'",
-    "CREATE INDEX idx_customer_identifier_history ON customer_org_identifiers(customer_org_id,identifier_type,created_at_utc,customer_org_identifier_id)",
-    "CREATE INDEX idx_contacts_active_name_match ON contacts(lifecycle_state,name_match_key,contact_id)",
-    "CREATE INDEX idx_contact_channels_contact ON contact_channels(contact_id,lifecycle_state,channel_kind,created_at_utc,contact_channel_id)",
-    "CREATE INDEX idx_contact_channels_match ON contact_channels(channel_kind,lifecycle_state,match_key,contact_id)",
-    "CREATE UNIQUE INDEX uq_contact_current_affiliation ON contact_affiliations(contact_id) WHERE is_current=1",
-    "CREATE INDEX idx_contact_affiliation_customer_current ON contact_affiliations(customer_org_id,is_current,contact_id)",
-    "CREATE INDEX idx_contact_affiliation_history ON contact_affiliations(contact_id,opened_at_utc,contact_affiliation_id)",
-    "CREATE INDEX idx_dispatch_active_name_match ON dispatch_locations(lifecycle_state,name_match_key,dispatch_location_id)",
-    "CREATE INDEX idx_reference_lifecycle_target ON reference_lifecycle_events(target_type,target_id,occurred_at_utc,reference_lifecycle_event_id)"
+  "schema_leaves":[
+    {"path":"schema/reference-customer.json","tables":["reference_metadata","local_user_profiles","customer_organizations","customer_org_identifiers"]},
+    {"path":"schema/reference-contact-dispatch.json","tables":["contacts","contact_channels","contact_affiliations","dispatch_locations","reference_lifecycle_events"]}
   ],
   "cross_module_schema_rule":"LLD-08 creates/owns Site↔Dispatch Location relationship with UNIQUE constraints on both Site and dispatch_location_id; LLD-02 never adds site_id/customer_org_id shortcut to dispatch_locations.",
-  "verification":"LLD-01 exact-schema verification must include all LLD-02 STRICT tables, partial/index coverage, generation triggers and protection triggers once LLD-02 migration is accepted."
+  "verification":"LLD-01 exact-schema verification must include all LLD-02 STRICT tables, partial/index coverage, generation triggers and protection triggers once the LLD-02 migration is accepted.",
+  "resolution_rule":"Each table and its indexes/guards are defined normatively in exactly one schema leaf. This index owns only the common identity/table-mode and cross-module rules."
 }
