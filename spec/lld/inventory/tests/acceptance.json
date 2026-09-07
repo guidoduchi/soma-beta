@@ -16,7 +16,7 @@
     {"id":"LLD07-T011","given":"manual local unit no SR7/C10/serial","when":"registered","then":"immutable unit + LSU identity created"},
     {"id":"LLD07-T012","given":"same BOM+serial as another unit","when":"registered","then":"duplicate candidate shown; no silent merge"},
     {"id":"LLD07-T013","given":"local unit later reconciled to RMA provenance","when":"accepted","then":"same physical unit/LSU/history preserved"},
-    {"id":"LLD07-T014","given":"Spare Request draft selects multiple Needs from same SR","when":"saved","then":"one request + SPR tracking id and positive quantity allocations"},
+    {"id":"LLD07-T014","given":"Spare Request draft selects multiple Needs from same SR with explicit active requester Contact and separate receiver","when":"saved","then":"one request + SPR tracking id and positive quantity allocations; requester Contact + creation-time REQUESTER_CONTEXT_V1 are preserved independently from receiver logistics"},
     {"id":"LLD07-T015","given":"selected Needs from different SRs","when":"request creation attempted","then":"NEED_CROSS_SR"},
     {"id":"LLD07-T016","given":"Spare Request draft","when":"MSG generated/exported/opened","then":"request stays draft and response timer absent"},
     {"id":"LLD07-T017","given":"manual accepted submission","when":"confirmed","then":"membership/quantities/BOM/logistics/recipient snapshot freeze and response chronology begins"},
@@ -68,7 +68,9 @@
     {"id":"LLD07-T063","given":"Task hard delete preview with accepted physical consequence","when":"LLD-05 calls dependency provider","then":"BLOCKED"},
     {"id":"LLD07-T064","given":"Task retry requests explicitly selected eligible planning relation","when":"participant applies in caller UoW","then":"new planning relation may be created but no physical consequence/Fault Tag/warehouse history is cloned"},
     {"id":"LLD07-T065","given":"Objective displays Inventory context","when":"queried","then":"units derive through member Tasks; no direct Objective-unit ownership exists"},
-    {"id":"LLD07-T066","given":"archived Fault Tag with rejected obligation","when":"Needs Attention queried","then":"unresolved return remains visible/actionable"}
+    {"id":"LLD07-T066","given":"archived Fault Tag with rejected obligation","when":"Needs Attention queried","then":"unresolved return remains visible/actionable"},
+    {"id":"LLD07-T067","given":"requester and receiver are different active Contacts and requester affiliation later changes","when":"Spare Request is queried after creation and after terminal transition","then":"requester remains the original reusable Contact reference with creation-time requester context; receiver remains separate logistics evidence and current Contact affiliation does not rewrite requester history"},
+    {"id":"LLD07-T068","given":"Contact is requester for an active nonterminal Spare Request","when":"LLD-02 archive guard invokes InventoryReferenceDependencyValidator","then":"BLOCKED; after request becomes terminal the guard may return CLEAR for this requester dependency while the immutable requester relationship/context remains historical evidence"}
   ],
-  "traceability":"Cases collectively cover LLD-07 primary requirements BETA-REQ-0014..0016 and 0079..0101 plus cross-domain Task, Communication, report and UI invariants. Final system review will verify two-way requirement/clause coverage."
+  "traceability":"Cases collectively cover LLD-07 primary requirements BETA-REQ-0014..0016 and 0079..0101 plus BETA-REQ-0032 requester semantics and cross-domain Task, Communication, report and UI invariants. Final system review will verify two-way requirement/clause coverage."
 }
