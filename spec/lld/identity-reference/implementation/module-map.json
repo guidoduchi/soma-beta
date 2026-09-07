@@ -3,9 +3,9 @@
   "lld_id":"LLD-02",
   "root":"src/soma/reference",
   "modules":{
-    "domain":"domain/{customers,contacts,dispatch,lifecycle,settings}.py",
-    "repositories":"repositories/{customers,contacts,dispatch,lifecycle,settings}.py",
-    "services":"services/{customers,contacts,dispatch,lifecycle,settings,matching,setup}.py",
+    "domain":"domain/{customers,contacts,dispatch,lifecycle,settings,profile}.py",
+    "repositories":"repositories/{customers,contacts,dispatch,lifecycle,settings,profile}.py",
+    "services":"services/{customers,contacts,dispatch,lifecycle,settings,matching,setup,profile}.py",
     "queries":"queries/{references,matching,history,previews,settings}.py",
     "transport":"api/routes_reference.py",
     "types":"contracts/reference.py"
@@ -27,7 +27,8 @@
     "ArchiveReference":"services/lifecycle.py",
     "ReactivateReference":"services/lifecycle.py",
     "WriteSetting":"services/settings.py",
-    "CreateLocalUserProfileIdentity":"services/setup.py"
+    "CreateLocalUserProfileIdentity":"services/setup.py",
+    "UpdateLocalUserProfileDisplayName":"services/profile.py"
   },
   "queries":{
     "GetReferenceById":"queries/references.py",
@@ -50,8 +51,8 @@
     "DispatchLocationService":"services/dispatch.py",
     "SettingDefinitionRegistry":"services/settings.py",
     "SettingStore":"repositories/settings.py",
-    "LocalUserProfileIdentityStore":"repositories/settings.py"
+    "LocalUserProfileRepository":"repositories/profile.py"
   },
   "dependency_direction":["transport -> typed services/queries only","services -> repositories + LLD-01 UoW/audit + declared cross-packet interfaces","repositories -> LLD-01 verified connection/UoW only","matching/normalization is pure and never mutates","LLD-02 never imports LLD-08 private Site tables; current site-derived address uses SiteDispatchAddressProvider"],
-  "forbidden":["name/email/address as primary identity","direct writes to LLD-08 Site relations","credential/password/session material in LLD-02","generic setting keys becoming untyped storage","business SQL identifiers derived from route/cursor input"]
+  "forbidden":["name/email/address as primary identity","direct writes to LLD-08 Site relations","credential/password/session material in LLD-02","username/login-name field or login authority in Local User Profile","generic setting keys becoming untyped storage","business SQL identifiers derived from route/cursor input"]
 }
