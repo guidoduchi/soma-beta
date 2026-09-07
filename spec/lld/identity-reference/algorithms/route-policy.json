@@ -1,0 +1,17 @@
+{
+  "schema":"SOMA-LLD-ROUTE-POLICY-V1",
+  "lld_id":"LLD-02",
+  "rules":[
+    "There is no DELETE route for Customer Organization, Contact, Dispatch Location, Contact channel, external-identifier history, affiliation history, or lifecycle evidence in LLD-02.",
+    "All mutating requests carry COMMAND_ENVELOPE_V1 command_id and the exact base revision or review fingerprint required by their command contract.",
+    "Customer Account Code reassignment/shared-claim acceptance is reasoned reviewed correction and cannot be encoded as an ordinary Customer PATCH.",
+    "Shared-claim/reassignment requests carry the exact server-derived review_snapshot_hash; review_context_id is optional provenance and never substitutes for freshness binding.",
+    "Match, channel-use validation, account-code review-preview and archive-preview routes are pure queries even where POST is used for bounded structured input.",
+    "All cursor/limit inputs use bounds.json defaults/maxima and opaque CURSOR_V1; omitted continuation data cannot change AMBIGUOUS or archive eligibility state.",
+    "Generic reference_type resolves through the closed enum customer_organization|contact|dispatch_location before application dispatch and is never used to construct SQL/table identifiers.",
+    "Archived records remain retrievable by immutable identity/history while ordinary active-list selectors exclude them.",
+    "CreateDedicatedDispatchLocationForSite is an internal shared-UoW LLD-08 interface and has no public HTTP route.",
+    "Local User Profile identity creation is first-run LLD-12 coordination and is not exposed as ordinary reference CRUD.",
+    "LLD-01 stable errors plus errors.json domain codes are the only machine-readable failure surface; LLD-10 owns presentation."
+  ]
+}
