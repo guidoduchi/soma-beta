@@ -1,0 +1,31 @@
+{
+  "schema":"SOMA-LLD-TYPES-V2",
+  "lld_id":"LLD-07",
+  "types":{
+    "SpareRequestListQueryV1":{"kind":"transport_query","query_contract":"queries/inventory.json#SpareRequestListQuery","unknown_fields":"reject"},
+    "SpareRequestDetailQueryV1":{"kind":"transport_query","path_fields":["request_id:uuid"],"query_contract":"queries/inventory.json#SpareRequestDetailQuery","unknown_fields":"reject"},
+    "RmaDetailQueryV1":{"kind":"transport_query","path_fields":["rma_id:uuid"],"query_contract":"queries/inventory.json#RmaDetailQuery","unknown_fields":"reject"},
+    "TaskInventoryContextQueryV1":{"kind":"transport_query","path_fields":["task_id:uuid"],"query_contract":"queries/inventory.json#TaskInventoryContextQuery","unknown_fields":"reject"},
+    "InventoryHistoryQueryV1":{"kind":"transport_query","path_fields":["target_kind:closed enum","target_id:uuid"],"query_contract":"queries/inventory.json#InventoryHistoryQuery","unknown_fields":"reject"},
+    "EligibleFaultTagMembershipQueryV1":{"kind":"transport_query","query_contract":"queries/fault-tags.json#EligibleFaultTagMembershipQuery","unknown_fields":"reject"},
+    "WarehouseQueueQueryV1":{"kind":"transport_query","query_contract":"queries/fault-tags.json#WarehouseQueueQuery","unknown_fields":"reject"},
+    "FaultTagLineageQueryV1":{"kind":"transport_query","path_fields":["fault_tag_id:uuid"],"query_contract":"queries/fault-tags.json#FaultTagLineageQuery","unknown_fields":"reject"},
+    "ReleaseSparePartUnitReservationRequestV1":{"kind":"command_payload","command":"ReleaseSparePartUnitReservation","path_fields":["allocation_id:uuid"],"payload_contract":"commands/needs-stock.json#ReleaseSparePartUnitReservation.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "RecordLocalNeedFulfillmentSelectionRequestV1":{"kind":"command_payload","command":"RecordLocalNeedFulfillmentSelection","path_fields":["need_id:uuid"],"payload_contract":"commands/needs-stock.json#RecordLocalNeedFulfillmentSelection.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CorrectFalseSpareRequestSubmissionRequestV1":{"kind":"command_payload","command":"CorrectFalseSpareRequestSubmission","path_fields":["request_id:uuid"],"payload_contract":"commands/requests-rma.json#CorrectFalseSpareRequestSubmission.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CorrectRmaOfficialIdRequestV1":{"kind":"command_payload","command":"CorrectRmaOfficialId","path_fields":["rma_id:uuid"],"payload_contract":"commands/requests-rma.json#CorrectRmaOfficialId.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CancelOrRejectSpareRequestRequestV1":{"kind":"command_payload","command":"CancelOrRejectSpareRequest","path_fields":["request_id:uuid"],"payload_contract":"commands/requests-rma.json#CancelOrRejectSpareRequest.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CorrectInventoryPhysicalConsequenceRequestV1":{"kind":"command_payload","command":"CorrectInventoryPhysicalConsequence","path_fields":["physical_consequence_id:uuid"],"payload_contract":"commands/consequences-logistics.json#CorrectInventoryPhysicalConsequence.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CorrectLogisticsParticipantRequestV1":{"kind":"command_payload","command":"CorrectLogisticsParticipant","path_fields":["participant_id:uuid"],"payload_contract":"commands/consequences-logistics.json#CorrectLogisticsParticipant.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "CorrectFalseFaultTagSubmissionRequestV1":{"kind":"command_payload","command":"CorrectFalseFaultTagSubmission","path_fields":["fault_tag_id:uuid"],"payload_contract":"commands/fault-tags.json#CorrectFalseFaultTagSubmission.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ArchiveOrRestoreFaultTagRequestV1":{"kind":"command_payload","command":"ArchiveOrRestoreFaultTag","path_fields":["fault_tag_id:uuid"],"payload_contract":"commands/fault-tags.json#ArchiveOrRestoreFaultTag.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "SpareRequestPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<SpareRequestV1>","continuation":"CursorV1|null"}},
+    "RmaDetailV1":{"kind":"object","required":["rma","history","return_obligation"],"fields":{"rma":"RmaV1","history":"bounded typed history","return_obligation":"typed current obligation|null"}},
+    "TaskInventoryContextV1":{"kind":"object","required":["task_id","allocations","physical_consequences","open_return_obligations"],"fields":{"task_id":"uuid","allocations":"bounded history","physical_consequences":"bounded reviewed Inventory facts","open_return_obligations":"bounded refs"}},
+    "InventoryHistoryPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded typed authority-labelled events","continuation":"CursorV1|null"}},
+    "FaultTagEligibilityPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded eligible/conflicting return-obligation projections","continuation":"CursorV1|null"}},
+    "WarehouseQueuePageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded warehouse membership projections","continuation":"CursorV1|null"}},
+    "FaultTagLineageV1":{"kind":"object","required":["fault_tag_id","correction_chain","resend_edges"],"fields":{"fault_tag_id":"uuid","correction_chain":"bounded acyclic linear chain","resend_edges":"bounded disjoint-scope edges"}}
+  },
+  "rules":["These contracts expose existing LLD-07 owner operations; they create no new domain authority.","All mutation payloads bind COMMAND_ENVELOPE_V1 and server-side owner revalidation; Task lifecycle remains unreadable from client-supplied Inventory fields."]
+}
