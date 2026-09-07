@@ -50,6 +50,11 @@ jobs:
         run: |
           set -euo pipefail
           python tools/lld/validate_chronology_precision.py
+      - name: Validate portable backup companion set
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/lld/validate_portable_backup_set.py
       - name: Validate full LLD review-readiness gate
         env:
           MANUAL_ENFORCEMENT: ${{ github.event.inputs.enforcement }}
