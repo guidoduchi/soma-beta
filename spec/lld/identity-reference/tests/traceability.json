@@ -16,24 +16,27 @@
     "BETA-REQ-0034":["schema/reference-customer.json","schema/reference-contact-dispatch.json","audit/actions.json","tests/acceptance.json"],
     "BETA-REQ-0136":["bounds.json","types/transport.json","schema/settings.json","tests/acceptance.json"]
   },
+  "supporting_requirement_edges":{
+    "BETA-REQ-0035":["schema/reference-customer.json","commands/reference-dispatch-settings.json","types/local-user-profile.json","interfaces/cross-packet-v2.json","audit/local-user-profile.json","routes/auxiliary-queries.json","tests/local-user-profile-acceptance.json","tests/traceability/commands-b.json"]
+  },
   "fragments":[
     "tests/traceability/commands-a.json",
     "tests/traceability/commands-b.json",
     "tests/traceability/queries.json"
   ],
-  "migration":{"sequence":2,"path":"migrations/0002-identity-reference.json","objects":"all LLD-02 tables/indexes/history/generation protection objects"},
+  "migration":{"sequence":2,"path":"migrations/0002-identity-reference.json","objects":"all LLD-02 tables/indexes/history/generation protection objects including singleton Local User Profile display_name metadata"},
   "cross_packet":[
     {"interface":"UnitOfWork/CommandReceiptStore/AuditWriter","provider":"LLD-01","consumer":"LLD-02"},
     {"interface":"SessionSecurityProvider","provider":"LLD-12","consumer":"LLD-02"},
     {"interface":"SiteDispatchAddressProvider","provider":"LLD-08","consumer":"LLD-02"},
     {"interface":"DispatchLocationService","provider":"LLD-02","consumer":"LLD-08"},
     {"interface":"SettingDefinitionRegistry/SettingStore","provider":"LLD-02","consumer":"LLD-04/05/09/10/12 as declared"},
-    {"interface":"LocalUserProfileIdentityStore","provider":"LLD-02","consumer":"LLD-12"}
+    {"interface":"LocalUserProfileSecurityProvider","provider":"LLD-02","consumer":"LLD-12"}
   ],
   "reverse_orphan_checks":[
     "Every authoritative command has one route or exact internal shared-UoW caller, one idempotency boundary, audit policy and concrete tests.",
     "Every query has deterministic total ordering, bounded pagination semantics where applicable, supporting index evidence and concrete tests.",
-    "Every governing requirement reaches at least one non-test normative leaf and one test leaf.",
-    "No reference history table has an ordinary delete authority and no credential authority originates in LLD-02."
+    "Every governing requirement reaches at least one non-test normative leaf and one test leaf; supporting BETA-REQ-0035 reaches the Local User Profile metadata/security boundary and dedicated regression evidence.",
+    "No reference history table has an ordinary delete authority and no credential/login-name authority originates in LLD-02."
   ]
 }
