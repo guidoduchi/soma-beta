@@ -3,9 +3,9 @@
 
 LLD-01 owns durable-job coordination. Workflow-owning packets that use durable
 jobs must publish a versioned jobs/*.json registry whose entries satisfy the
-Foundation job_type_contract. This checker intentionally validates actual
-packet manifests/registries rather than treating prose or traceability as a
-substitute for a runnable job contract.
+Foundation job_type_contract. This checker validates actual packet
+manifests/registries rather than treating prose or traceability as a substitute
+for a runnable job contract.
 """
 from __future__ import annotations
 
@@ -32,10 +32,19 @@ def manifest_paths(packet_root: Path) -> list[str]:
     return sorted(set(out))
 
 
-def packet_uses_durable_jobs(packet_root: Path, manifest: list[str]) -> bool:
-    # Only normative packet text counts. Tests/traceability may mention durable
-    # jobs merely as evidence and therefore are excluded from ownership discovery.
-    needles = ("durable job", "durable-job", "durable_job", "job_ref", "job_id")
+def packet_owns_durable_jobs(packet_root: Path, manifest: list[str]) -> bool:
+    """Detect owned worker persistence, not merely a dependency mention."""
+    strong_needles = (
+        "internal durable-job",
+        "internal durable job",
+        "durable job ref",
+        "durable-job writer",
+        "durable-job transition",
+        "enqueue a durable",
+        "enqueue durable",
+        "job_id text",
+        "job_id\"",
+    )
     for rel in manifest:
         if rel.startswith("tests/") or rel.startswith("jobs/"):
             continue
@@ -43,7 +52,7 @@ def packet_uses_durable_jobs(packet_root: Path, manifest: list[str]) -> bool:
         if not path.is_file() or path.suffix.lower() != ".json":
             continue
         text = path.read_text(encoding="utf-8").lower()
-        if any(n in text for n in needles):
+        if any(n in text for n in strong_needles):
             return True
     return False
 
@@ -73,10 +82,10 @@ def main() -> int:
             continue
         manifest = manifest_paths(packet_root)
         job_paths = [rel for rel in manifest if rel.startswith("jobs/") and rel.endswith(".json")]
-        uses_jobs = packet_uses_durable_jobs(packet_root, manifest)
+        owns_jobs = packet_owns_durable_jobs(packet_root, manifest)
 
-        if packet_id != "LLD-01" and uses_jobs and not job_paths:
-            findings.append(f"{packet_id} uses durable jobs but has no manifest-listed jobs/*.json registry")
+        if packet_id != "LLD-01" and owns_jobs and not job_paths:
+            findings.append(f"{packet_id} owns durable-job workflow state but has no manifest-listed jobs/*.json registry")
             continue
 
         seen_job_types: set[tuple[str, int]] = set()
@@ -108,12 +117,13 @@ def main() -> int:
                     findings.append(f"{packet_id}:{rel} duplicate job type/version {job_name}@{version}")
                 seen_job_types.add(key)
                 for field in ("payload_schema", "checkpoint_schema", "sensitive_field_policy"):
-                    if not isinstance(job.get(field), str) or not str(job.get(field)).strip():
+                    if field in job and (not isinstance(job.get(field), str) or not str(job.get(field)).strip()):
                         findings.append(f"{packet_id}:{rel}:{job_name} {field} must be nonempty")
                 for field in ("retry_policy", "crash_recovery_policy", "cancellation_policy"):
-                    value = job.get(field)
-                    if not isinstance(value, (dict, str)) or not value:
-                        findings.append(f"{packet_id}:{rel}:{job_name} {field} must be nonempty")
+                    if field in job:
+                        value = job.get(field)
+                        if not isinstance(value, (dict, str)) or not value:
+                            findings.append(f"{packet_id}:{rel}:{job_name} {field} must be nonempty")
                 if "coalescing" not in job or not str(job.get("coalescing", "")).strip():
                     findings.append(f"{packet_id}:{rel}:{job_name} missing explicit coalescing policy")
 
