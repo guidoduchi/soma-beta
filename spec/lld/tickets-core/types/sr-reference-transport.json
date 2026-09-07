@@ -1,0 +1,17 @@
+{
+  "schema":"SOMA-LLD-TYPES-V2",
+  "lld_id":"LLD-03",
+  "family":"sr_reference_transport",
+  "types":{
+    "ServiceRequestReferenceContextQueryV1":{"kind":"transport_query","path_fields":["service_request_id:uuid"],"query_fields":{},"unknown_fields":"reject"},
+    "ServiceRequestCustomerPreviewQueryV1":{"kind":"transport_query","path_fields":["service_request_id:uuid"],"body_fields":{"customer_org_id":"uuid|null"},"unknown_fields":"reject"},
+    "SetServiceRequestCustomerRequestV1":{"kind":"command_payload","path_fields":["service_request_id:uuid"],"body_fields":{"base_revision":"int>=1","customer_org_id":"uuid|null","review_fingerprint":"sha256 hex|null","reason_category":"bounded string"},"command_envelope":"COMMAND_ENVELOPE_V1","unknown_fields":"reject"},
+    "ServiceRequestContactPreviewQueryV1":{"kind":"transport_query","path_fields":["service_request_id:uuid","reference_role:customer_contact|current_handler_reference"],"body_fields":{"contact_id":"uuid|null","supporting_sr_source_field_observation_id":"opaque immutable LLD-04 evidence id|null"},"unknown_fields":"reject"},
+    "SetServiceRequestContactReferenceRequestV1":{"kind":"command_payload","path_fields":["service_request_id:uuid","reference_role:customer_contact|current_handler_reference"],"body_fields":{"base_revision":"int>=1","contact_id":"uuid|null","supporting_sr_source_field_observation_id":"opaque immutable LLD-04 evidence id|null","review_fingerprint":"sha256 hex|null","reason_category":"bounded string"},"command_envelope":"COMMAND_ENVELOPE_V1","unknown_fields":"reject"},
+    "ServiceRequestReferenceHistoryQueryV1":{"kind":"transport_query","path_fields":["service_request_id:uuid"],"query_fields":{"kind":"customer|contact","role":"customer_contact|current_handler_reference|null","cursor":"CursorV1|null","limit":"int 1..500 default 100"},"unknown_fields":"reject"},
+    "ServiceRequestReferenceContextV1":{"kind":"object","required":["service_request_id","customer","contacts","review_fingerprint"],"fields":{"service_request_id":"uuid","customer":"current relationship|null","contacts":"role-keyed relationship projections","review_fingerprint":"sha256 hex"}},
+    "ReferenceChangePreviewV1":{"kind":"object","required":["eligible","base_revision","review_fingerprint","warnings"],"fields":{"eligible":"bool","base_revision":"int>=1","review_fingerprint":"sha256 hex","warnings":"bounded array<string>"}},
+    "ReferenceHistoryPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<history item>","continuation":"CursorV1|null"}},
+    "CursorV1":{"kind":"reference","contract":"spec/lld/_packet-contract-v2.json#cursor_contract"}
+  }
+}
