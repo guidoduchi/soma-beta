@@ -1,0 +1,16 @@
+{
+  "schema":"SOMA-LLD-JOB-REGISTRY-V2",
+  "lld_id":"LLD-01",
+  "jobs":[],
+  "coordination_contract":{
+    "owner":"LLD-01 DurableJobCoordinator",
+    "authority":"Foundation owns durable job coordination/storage/claim/recovery mechanics only; each concrete job_type is registered by the packet that owns that workflow.",
+    "unknown_job_type_or_version":"fail closed; quarantine/fail-safe according to DurableJobCoordinator and never guess a handler",
+    "domain_authority":"job state never substitutes for owning-domain acceptance/lifecycle evidence"
+  },
+  "rules":[
+    "LLD-01 deliberately registers no concrete Beta business job type in this packet.",
+    "Concrete job registries in LLD-04/06/08/09/12 supply payload/checkpoint/retry/crash/cancellation/sensitivity/coalescing contracts consumed by the Foundation coordinator.",
+    "A future Foundation-owned concrete job requires an explicit versioned entry here before implementation."
+  ]
+}
