@@ -33,7 +33,7 @@
     {"id":"LLD07-T028","given":"incompatible promised BOM","when":"authorization accepted","then":"RMA retained unassigned with review attention; no forced target"},
     {"id":"LLD07-T029","given":"RMA target reassignment","when":"operator reviews alternate compatible target","then":"prior/new assignment history preserved; RMA/source unchanged"},
     {"id":"LLD07-T030","given":"C10 correction","when":"accepted","then":"same RMA identity; prior C10 former non-reusable alias"},
-    {"id":"LLD07-T031","given":"RMA before receipt","when":"viewed","then":"no placeholder Spare Part Unit exists"},
+    {"id":"LLD07-T031","given":"RMA before receipt","when":"viewed","then":"no provisional Spare Part Unit exists before actual receipt"},
     {"id":"LLD07-T032","given":"RMA receipt actual BOM/serial differ from promise","when":"recorded","then":"one direct inbound physical unit records actual facts and promised facts remain unchanged"},
     {"id":"LLD07-T033","given":"received assembly dismantled","when":"extracted units registered","then":"parent remains direct inbound/logistics unit; children get independent identities sharing provenance without fake delivery"},
     {"id":"LLD07-T034","given":"one logistics event covers three RMAs/units","when":"recorded","then":"one event + independently addressable participant rows"},
