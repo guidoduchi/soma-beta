@@ -1,0 +1,12 @@
+{
+  "schema":"SOMA-LLD-MIGRATION-OBJECT-MANIFEST-V1",
+  "lld_id":"LLD-06",
+  "sequence":6,
+  "migration_id":"beta_0006_product_line_sla",
+  "allocated_filename":"0006_product_line_sla.sql",
+  "schema_sources":["schema/catalog-classification.json","schema/policy.json","schema/projections.json","schema/reporting.json"],
+  "ownership_rule":"Every table, index, trigger/check-support object and projection-storage object declared by the four LLD-06 schema_sources is allocated to migration sequence 6 unless the schema leaf explicitly identifies it as an earlier-packet foreign identity reference. Implementation must generate the exact STRICT/FK/index closure from those normative leaves; it may not omit or rename an owned object ad hoc.",
+  "foreign_identity_rules":["Customer Organization identities reference LLD-02 earlier sequence authority.","Service Request identity/current Customer and accepted source evidence reference LLD-03/04 earlier authority through their declared FK/provider boundaries.","LLD-06 creates no physical dependency on later Objective/Inventory/Infrastructure/Communications tables; report contributor rows store versioned normalized evidence owned by the report snapshot rather than cross-packet live FKs that would create migration cycles."],
+  "strict_policy":"All LLD-06 owned relational tables are SQLite STRICT with explicit CHECK constraints; every non-PK FK and every leading predicate used by classification, policy, cohort, report-sealing or cleanup guards receives supporting index coverage.",
+  "runtime_contract":"LLD-01 AcceptedMigrationRunner freezes exact implementation SQL bytes/hash under the global sequence-6 allocation only after implementation review. This design manifest is object allocation authority, not accepted runtime SQL."
+}
