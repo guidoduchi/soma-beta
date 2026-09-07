@@ -1,0 +1,52 @@
+{
+  "schema":"SOMA-LLD-TRACEABILITY-V2",
+  "lld_id":"LLD-03",
+  "requirement_edges":{
+    "BETA-REQ-0011":["schema/allocators.json","schema/tickets.json","commands/tickets.json","tests/core-acceptance.json"],
+    "BETA-REQ-0012":["algorithms/identifiers.json","commands/tickets.json","schema/tickets.json","tests/core-acceptance.json"],
+    "BETA-REQ-0038":["schema/relationships.json","queries/tickets.json","interfaces.json","tests/core-acceptance.json"],
+    "BETA-REQ-0039":["schema/relationships.json","queries/tickets.json","commands/tickets.json","tests/core-acceptance.json"],
+    "BETA-REQ-0040":["schema/relationships.json","algorithms/rfc-hierarchy.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json"],
+    "BETA-REQ-0052":["schema/tickets.json","commands/tickets.json","queries/tickets.json","audit/actions.json","tests/core-acceptance.json"],
+    "BETA-REQ-0053":["schema/allocators.json","schema/tickets.json","commands/tickets.json","tests/core-acceptance.json"],
+    "BETA-REQ-0057":["schema/sr-source-projection.json","algorithms/sr-source-current.json","queries/sr-reference.json","tests/core-acceptance.json","tests/sr-reference-acceptance.json"],
+    "BETA-REQ-0075":["schema/tickets.json","schema/sr-source-projection.json","queries/tickets.json","tests/core-acceptance.json","tests/sr-reference-acceptance.json"],
+    "BETA-REQ-0076":["schema/tickets.json","schema/sr-source-projection.json","commands/tickets.json","tests/core-acceptance.json"],
+    "BETA-REQ-0147":["schema/rfc-source-projection.json","transitions/ticket-lifecycle.json","queries/rfc-lifecycle.json","tests/rfc-lifecycle-acceptance.json"],
+    "BETA-REQ-0148":["schema/tickets.json","schema/rfc-source-projection.json","interfaces.json","tests/core-acceptance.json","tests/rfc-lifecycle-acceptance.json"],
+    "BETA-REQ-0149":["schema/rfc-source-projection.json","schema/rfc-terminal-cascade.json","commands/rfc-lifecycle.json","transitions/ticket-lifecycle.json","tests/rfc-lifecycle-acceptance.json","tests/rfc-lifecycle-failure-injection.json"],
+    "BETA-REQ-0150":["schema/rfc-source-projection.json","interfaces.json","commands/rfc-lifecycle.json","tests/rfc-lifecycle-acceptance.json"],
+    "BETA-REQ-0152":["schema/relationships.json","algorithms/rfc-hierarchy.json","algorithms/rfc-hard-delete.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json","tests/rfc-lifecycle-acceptance.json"],
+    "BETA-REQ-0153":["schema/rfc-archive-history.json","algorithms/rfc-archive.json","commands/rfc-lifecycle.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json","tests/rfc-lifecycle-acceptance.json"],
+    "BETA-REQ-0154":["schema/relationships.json","commands/tickets.json","queries/tickets.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json"],
+    "BETA-REQ-0165":["schema/tickets.json","schema/relationships.json","commands/tickets.json","queries/tickets.json","tests/core-acceptance.json"]
+  },
+  "fragments":[
+    "tests/traceability/commands-core-a.json",
+    "tests/traceability/commands-core-b.json",
+    "tests/traceability/commands-lifecycle.json",
+    "tests/traceability/queries-core.json",
+    "tests/traceability/queries-lifecycle.json"
+  ],
+  "migration":{"sequence":3,"path":"migrations/0003-tickets-core.json","objects":"all LLD-03 identity, relationship, source-projection, terminal-cascade, archive-history and protection objects"},
+  "cross_packet":[
+    {"interface":"UnitOfWork/CommandReceiptStore/AuditWriter","provider":"LLD-01","consumer":"LLD-03"},
+    {"interface":"Customer/Contact/LocalUserProfile identity and lifecycle readers","provider":"LLD-02","consumer":"LLD-03"},
+    {"interface":"SrSourceEvidenceProvider/RfcSourceEvidenceProvider plus reviewed import caller","provider":"LLD-04","consumer":"LLD-03"},
+    {"interface":"RfcTerminalTaskParticipant","provider":"LLD-05","consumer":"LLD-03"},
+    {"interface":"ServiceRequestCustomerClassificationParticipant","provider":"LLD-06","consumer":"LLD-03"},
+    {"interface":"RfcInventoryDependencyProvider","provider":"LLD-07","consumer":"LLD-03"},
+    {"interface":"DeviceReferenceResolutionReader","provider":"LLD-08","consumer":"LLD-03"},
+    {"interface":"RfcTerminalCommunicationParticipant","provider":"LLD-09","consumer":"LLD-03"},
+    {"interface":"DeliberateActionProofVerifier","provider":"LLD-12","consumer":"LLD-03"}
+  ],
+  "reverse_orphan_checks":[
+    "Every authoritative LLD-03 command has exactly one bounded traceability edge proving request/response, transaction boundary, revision effects, audit, errors, tests and COMMAND_ENVELOPE_V1 or the exact shared outer-command equivalent.",
+    "Every LLD-03 query has deterministic total ordering, bounded point semantics or CURSOR_V1 keyset pagination, supporting index evidence and concrete tests.",
+    "Direct SR-to-RFC persistence targets only the governing root; subordinate SR context is query-derived and RFC hierarchy remains exactly two levels.",
+    "Accepted terminal RFC source evidence may create or supersede a pending cascade proposal but never executes Task/Objective/Communication consequences; execution is a separate deliberate same-UoW command.",
+    "Device Reference identity and ticket links survive later Infrastructure regularization; Working Notes remain SOMA-owned and import-inaccessible.",
+    "LLD-04 source/proposal identities stored by LLD-03 are exact immutable opaque evidence references validated through provider interfaces; no sequence-3 physical FK or trigger reaches sequence-4 private tables.",
+    "RFC archive/restore is operation-scoped SOMA-local presentation state; protected history is append-preserved and hard deletion is limited to a determinate untouched manual draft."
+  ]
+}
