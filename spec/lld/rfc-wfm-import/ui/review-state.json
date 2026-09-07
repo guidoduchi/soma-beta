@@ -1,29 +1,29 @@
 {
-  "schema":"SOMA-LLD-UI-HANDOFF-V1",
+  "schema":"SOMA-LLD-UI-HANDOFF-V2",
   "lld_id":"LLD-04",
-  "owner":"LLD-04 supplies review state/contracts; LLD-10 owns frontend components/interactions",
+  "owner":"LLD-04 supplies typed import/review state; LLD-10 owns frontend components, interaction mechanics and presentation composition.",
   "source_surfaces":[
-    "shared RFC/WFM import directory status with Configure action owned through Settings",
-    "RFC Check now and Select file actions",
-    "WFM Check now and Select file actions",
-    "latest source checkpoint and last run status with chronology explicitly labelled as import/source ordering rather than business lifecycle"
+    "Advanced Search SR inbox status uses advanced_search_import_directory with Configure, Check now and Select file actions.",
+    "RFC and WFM use the shared rfc_wfm_import_directory but remain distinct source families with separate Check now and Select file actions.",
+    "Advanced Search never silently reuses the RFC/WFM directory and RFC/WFM never silently reuse the Advanced Search inbox.",
+    "latest source checkpoint and last run status show source-family chronology explicitly as import/source ordering rather than business lifecycle time"
   ],
   "run_summary":[
     "candidate filename/source family/profile",
     "logical fingerprint/replay classification",
     "exact observed rows and valid identities",
-    "proposed creations",
-    "proposed updates",
+    "proposed creations/updates/links/reference resolutions/disappearance reviews",
     "no-change observations",
     "skipped branch artifacts/equivalent duplicates",
-    "invalid rows",
-    "warnings",
-    "high-risk/conflicting scopes",
+    "invalid rows and warnings",
+    "high-risk/conflicting/blocked scopes",
     "accepted/rejected/deferred/pending proposal totals"
   ],
   "review_groups":[
-    "Identity/adoption",
-    "RFC source fields/status",
+    "SR identity/adoption and source-field acceptance",
+    "SR Customer/Customer Contact/Current Handler reference candidates",
+    "Advanced Search population disappearance/reappearance",
+    "RFC identity/adoption/source fields/status",
     "Customer reconciliation",
     "SR link candidates",
     "WFM source facts",
@@ -32,8 +32,14 @@
     "Competing attempts",
     "Invalid/skipped/warnings"
   ],
+  "advanced_search_state":[
+    "Current Handler text remains source-owned display evidence; a reviewed current_handler_reference is shown separately and never rewrites source text.",
+    "Customer and Contact ambiguity is explicit and does not block independently valid SR source-field proposals.",
+    "population_absence review shows the current complete run plus prior accepted source observation; no fabricated current row is displayed.",
+    "disappearance review is never presented as delete/archive/finalize/purge authority."
+  ],
   "proposal_view":[
-    "show exact source family/run/candidate chronology/profile and row locator",
+    "show exact source family/run/candidate chronology/profile and row locator or population-absence evidence mode",
     "show immutable target/business identities before descriptive text",
     "show typed before/proposed values and why risk is low/medium/high/blocked",
     "show current target state separately from proposal snapshot; stale state disables acceptance and offers refresh/reconsider flow",
@@ -48,7 +54,7 @@
   "wfm_plan_state":[
     "provider source plan, accepted operational Task plan, Objective envelope and actual execution are displayed as distinct labelled facts",
     "source acceptance and operational-plan decision are separate actions",
-    "Complete/Plan Cancel are visibly historical/cancelled provider evidence and never shown as proof of SOMA execution/outcome",
+    "Complete/Plan Cancel are historical/cancelled provider evidence and never shown as proof of SOMA execution/outcome",
     "an unresolved competing-attempt review does not fabricate retry lineage"
   ],
   "recovery_state":[
@@ -57,6 +63,11 @@
     "older-source recovery states explicitly that checkpoint chronology will not move backward",
     "reject/defer/authorize-correction are distinct and stale recovery previews cannot submit"
   ],
-  "accessibility":["state/risk never relies only on color","exact counts remain readable without loading every row","keyboard navigation/action equivalence follows shared UI contract","large lists virtualize/keyset-page without hiding unresolved conflicts"],
-  "auto_accept_presentation":"RFC_WFM_AUTO_ACCEPT_V1 has no domain-mutation classes. UI may explain replay/no-op automatic handling but shall not offer a misleading RFC/WFM mutation auto-accept toggle in Beta 1.0."
+  "accessibility":[
+    "state/risk never relies only on color",
+    "exact counts remain readable without loading every row",
+    "keyboard navigation/action equivalence follows LLD-10",
+    "large lists use deterministic keyset paging/virtualized presentation without hiding unresolved conflicts"
+  ],
+  "auto_accept_presentation":"The mutation auto-accept registry is empty for Beta 1.0. Replay/no-change may be handled automatically because they perform no operational-domain mutation; the UI shall not expose a misleading ticket-import mutation auto-accept toggle."
 }
