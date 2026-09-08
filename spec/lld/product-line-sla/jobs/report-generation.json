@@ -33,13 +33,11 @@
         "terminal": "completed, failed and cancelled report attempts are never restarted into mutable report work"
       },
       "cancellation_policy": {
-        "cooperative_boundaries": [
-          "between committed staging batches after releasing/abandoning the stable read Snapshot",
-          "before XLSX writing begins",
-          "after candidate verification only while atomic final publication has not begun"
-        ],
-        "unsafe_boundary": "once atomic final publication begins, defer cancellation through publication/completion reconciliation; if CompleteSlaReport wins the domain race, completed evidence remains immutable",
-        "effect": "invoke CancelSlaReportAttempt only for a still-nonterminal attempt at a safe boundary; cancellation deletes only non-authoritative attempt-owned staging and may best-effort remove only an owned temporary candidate"
+        "authoritative_request": "The public CancelSlaReportAttempt command does not wait on or trust an in-memory worker signal. In one LLD-06 UnitOfWork it resolves replay, revalidates the nonterminal report attempt and exact sla_report_job_refs identity, inserts the LLD-06 receipt, calls LLD-01 DurableJobCoordinator.cancel as a receipt-free same-UoW participant, removes only non-authoritative report staging, and commits cancelled report/job state together.",
+        "completion_race": "CancelSlaReportAttempt and CompleteSlaReport serialize through authoritative SQLite writes. Completion-first makes the report immutable and cancellation rolls back without changing the durable job. Cancellation-first revokes the job claim and makes the report cancelled, so later worker checkpoints/transitions/CompleteSlaReport fail their exact claim/domain-state revalidation.",
+        "inflight_external_work": "A revoked worker may physically finish external CPU/XLSX/atomic-rename work that had already started before the cancellation commit. Such completion grants no coordinator/domain authority. A final file that appears after cancellation is external non-authoritative housekeeping and is never automatically deleted as if it were a temporary candidate.",
+        "temporary_cleanup": "After a successful cancellation commit, best-effort cleanup may target only the persisted bounded sibling temporary candidate captured from verifying state through the validated destination context; cleanup failure cannot change cancelled authority.",
+        "shutdown_signal": "Foundation host shutdown cooperative signalling remains a separate technical stop mechanism; correctness of operator report cancellation depends only on persisted claim/domain-state validation."
       },
       "sensitive_field_policy": "payload/checkpoint contain only report/job ids, opaque destination token, hashes, safe filename identities, bounded counters/revisions and command ids; no filesystem path, credentials, report row bodies, Communication bodies, Working Notes, unrestricted contributor payloads or mutable live-domain records",
       "coalescing": "none across distinct explicit report requests; COMMAND_ENVELOPE_V1 replay of StartSlaReportGeneration reuses the same report_attempt/job identity, but separate accepted starts remain separate jobs",
@@ -104,7 +102,8 @@
         "seal/mark_generating/mark_verifying/complete bind snapshot_hash when their command contract requires it; mark_verifying also binds candidate_filename",
         "complete requires completion_proof_fingerprint matching the exact published_artifact checkpoint and reuses published_artifact.completion_command_id as command_id",
         "for a crash with an uncommitted stage_batch pending command, the old stable-read generation is abandoned rather than reconstructed from current live state",
-        "for sealed/artifact transitions every retried command payload is reconstructed only from immutable/sealed attempt state plus exact safe checkpoint metadata"
+        "for sealed/artifact transitions every retried command payload is reconstructed only from immutable/sealed attempt state plus exact safe checkpoint metadata",
+        "operator cancellation is driven by the public CancelSlaReportAttempt COMMAND_ENVELOPE_V1 identity; a worker-local pending kind=cancel may exist only to reconcile a response-loss retry of that same committed cancellation, never as a second cancellation authority"
       ],
       "unknown_fields": "reject"
     },
@@ -136,6 +135,7 @@
     "All filesystem enumeration/write/hash/verify/publish work and stable-read report construction occur outside SQLite writer transactions; domain mutations use the named LLD-06 commands only.",
     "Checkpoint writes are bounded and contain no report snapshot row bodies; authoritative snapshot content remains only in LLD-06 staging tables and becomes immutable evidence only at CompleteSlaReport.",
     "A worker assigns and checkpoints each internal command_id before first invocation. Exact committed replay is reconciled before minting any replacement command identity.",
+    "Before every coordinator checkpoint/complete/fail call and before every owning-domain report transition after external work, the handler must use current claim/domain state; a claim revoked by operator cancellation cannot be treated as still running.",
     "Foundation restore reconciliation cancels restored nonterminal jobs; no Beta 1.0 restore path silently resumes historical report generation."
   ]
 }
