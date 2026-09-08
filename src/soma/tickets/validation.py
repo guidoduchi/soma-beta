@@ -33,6 +33,18 @@ def validate_device_reference_name(value: str) -> str:
     return value
 
 
+def validate_working_note_body(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValidationError("Working Note body must be a string")
+    encoded = value.encode("utf-8", errors="strict")
+    line_count = value.count("\n") + 1
+    if not encoded or len(encoded) > 65_536 or line_count > 512 or "\x00" in value:
+        raise ValidationError(
+            "Working Note body violates the 1..65536 UTF-8 byte, 512-line, no-NUL contract"
+        )
+    return value
+
+
 def validate_reason_category(value: str) -> str:
     if not isinstance(value, str):
         raise ValidationError("reason_category must be a string")
