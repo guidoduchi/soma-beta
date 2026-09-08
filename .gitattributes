@@ -1,3 +1,4 @@
 * text=auto
 src/soma/migrations/*.sql text eol=lf
 src/soma/migrations/manifest.json text eol=lf
+src/soma/reference/assets/unicode_match_v1.json text eol=lf
