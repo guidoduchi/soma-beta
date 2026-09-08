@@ -29,7 +29,7 @@ class ReferenceMatchingQueries:
     @staticmethod
     def _require_profile(connection: Any) -> None:
         row = connection.execute(
-            "SELECT matching_profile_id FROM reference_metadata WHERE singleton=1"
+            "SELECT matching_profile_id FROM reference_metadata WHERE singleton_guard=1"
         ).fetchone()
         if row is None or str(row[0]) != PROFILE_ID:
             raise SomaError(
