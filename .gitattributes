@@ -1,0 +1,3 @@
+* text=auto
+src/soma/migrations/*.sql text eol=lf
+src/soma/migrations/manifest.json text eol=lf

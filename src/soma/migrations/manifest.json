@@ -1,0 +1,17 @@
+{
+  "schema": "SOMA-MIGRATION-MANIFEST-V1",
+  "migrations": [
+    {
+      "sequence": 1,
+      "migration_id": "beta_0001_foundation",
+      "filename": "0001_foundation.sql",
+      "sha256": "55fb2128a91fdb9e6851b43f88dd807a6f8050b78fe4f37d50069889b0c512b2"
+    },
+    {
+      "sequence": 2,
+      "migration_id": "beta_0002_identity_reference",
+      "filename": "0002_identity_reference.sql",
+      "sha256": "8fc0216adf7602b208e456f8c8996dcba1a65d1db8cac89c9a19afe308797e41"
+    }
+  ]
+}
