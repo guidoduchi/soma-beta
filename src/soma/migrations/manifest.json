@@ -12,6 +12,12 @@
       "migration_id": "beta_0002_identity_reference",
       "filename": "0002_identity_reference.sql",
       "sha256": "8fc0216adf7602b208e456f8c8996dcba1a65d1db8cac89c9a19afe308797e41"
+    },
+    {
+      "sequence": 3,
+      "migration_id": "beta_0003_tickets_core",
+      "filename": "0003_tickets_core.sql",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   ]
 }
