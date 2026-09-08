@@ -18,6 +18,12 @@
       "migration_id": "beta_0003_tickets_core",
       "filename": "0003_tickets_core.sql",
       "sha256": "2ea24d491daa3ce564e8ee9f92d9e5a4d522c1941758d9646c505aeaaa875e56"
+    },
+    {
+      "sequence": 4,
+      "migration_id": "beta_0004_ticket_import",
+      "filename": "0004_ticket_import.sql",
+      "sha256": "50c73b844cf2cfeb6e7273ca1d4886cfd6992653dec3d1c7ca03d98cced607dd"
     }
   ]
 }
