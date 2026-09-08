@@ -8,6 +8,7 @@ from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.reference.application.profile_service import LocalUserProfileService
+from soma.tickets.audit_registry import build_tickets_audit_registry
 from soma.tickets.rfcs import RfcService
 from soma.tickets.service_requests import ServiceRequestService
 from soma.tickets.working_notes import WorkingNoteService
@@ -262,3 +263,88 @@ def test_working_note_bounds_reject_without_mutation_and_accept_maximum_bytes(in
         ).fetchone()[0] == 1
     finally:
         connection.close()
+
+
+def test_working_note_edit_and_remove_allow_bounded_json_escape_expansion(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    _ensure_profile(factory)
+    sr = ServiceRequestService(factory).create_manual_service_request(command_id=new_uuid4())
+    notes = WorkingNoteService(factory)
+    escaping_body = "\x01" * 65_536
+
+    edited_note = notes.add(
+        command_id=new_uuid4(),
+        owner_type="service_request",
+        owner_id=sr.service_request_id,
+        body_text=escaping_body,
+    )
+    edited = notes.edit(
+        command_id=new_uuid4(),
+        owner_type="service_request",
+        owner_id=sr.service_request_id,
+        working_note_id=edited_note.working_note_id,
+        base_revision=1,
+        body_text="replacement",
+    )
+    assert edited.revision == 2
+
+    removed_note = notes.add(
+        command_id=new_uuid4(),
+        owner_type="service_request",
+        owner_id=sr.service_request_id,
+        body_text=escaping_body,
+    )
+    removed = notes.remove(
+        command_id=new_uuid4(),
+        owner_type="service_request",
+        owner_id=sr.service_request_id,
+        working_note_id=removed_note.working_note_id,
+        base_revision=1,
+        reason_category="operator_remove",
+    )
+    assert removed.removed is True
+
+    connection = _read(initialized_database)
+    try:
+        payload_rows = connection.execute(
+            "SELECT action_type,payload_json FROM audit_events "
+            "WHERE target_id IN (?,?) AND action_type IN ('ticket.working_note.edited','ticket.working_note.removed') "
+            "ORDER BY action_type",
+            (edited_note.working_note_id, removed_note.working_note_id),
+        ).fetchall()
+        assert len(payload_rows) == 2
+        assert all(len(str(row[1]).encode("utf-8")) > 16_384 for row in payload_rows)
+        assert all(len(str(row[1]).encode("utf-8")) <= 524_288 for row in payload_rows)
+        assert all(
+            json.loads(str(row[1]))["bounded_prior_or_new_body_when_required_by_removal_or_edit_policy"]
+            == escaping_body
+            for row in payload_rows
+        )
+    finally:
+        connection.close()
+
+
+def test_working_note_large_audit_allowance_is_body_scoped() -> None:
+    registry = build_tickets_audit_registry()
+    added = registry.resolve("ticket.working_note.added", 1)
+    edited = registry.resolve("ticket.working_note.edited", 1)
+    removed = registry.resolve("ticket.working_note.removed", 1)
+    assert added.payload_contract.max_utf8_bytes == 16_384
+    assert edited.payload_contract.max_utf8_bytes == 524_288
+    assert removed.payload_contract.max_utf8_bytes == 524_288
+    assert edited.sensitivity_validator is not None
+
+    payload = {
+        "working_note_id": "w" * 17_000,
+        "owner_type": "service_request",
+        "owner_id": "owner",
+        "resulting_revision": 2,
+        "created_by_local_user_profile_id": "profile",
+        "change_kind": "edited",
+        "reason_category": None,
+        "bounded_prior_or_new_body_when_required_by_removal_or_edit_policy": "body",
+    }
+    validated = edited.payload_contract.validate(payload)
+    with pytest.raises(SomaError) as oversized_metadata:
+        edited.sensitivity_validator(validated)
+    assert oversized_metadata.value.code == "AUDIT_PAYLOAD_INVALID"
