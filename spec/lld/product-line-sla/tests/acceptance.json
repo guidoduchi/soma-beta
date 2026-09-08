@@ -39,6 +39,7 @@
     {"id":"LLD06-T035","name":"report_section_registry_closed","prove":["registered versioned contributor payload accepted","unknown section/schema/version rejected","contributor cannot mutate domain","canonical ordering stable"]},
     {"id":"LLD06-T036","name":"batch_classification_independent_results","prove":["preview partitions every target","eligible targets commit independently","stale/incompatible target reported","no silent skip or coercion"]},
     {"id":"LLD06-T037","name":"suspension_warning_separate_from_sla_state","prove":["future planned end under suspended status can raise ending-soon condition","cohort/individual tier result remains independently derived","expired/missing end raises inconsistency rather than inferred pause"]},
-    {"id":"LLD06-T038","name":"no_report_cleanup_action","prove":["completed report exposes no finalize/minimize/archive/delete operational action","report age/status never grants deletion authority"]}
+    {"id":"LLD06-T038","name":"no_report_cleanup_action","prove":["completed report exposes no finalize/minimize/archive/delete operational action","report age/status never grants deletion authority"]},
+    {"id":"LLD06-T039","name":"report_cancel_revokes_job_and_staging_atomically","prove":["nonterminal report cancellation uses the exact linked SLA_REPORT_GENERATION_V1 job","Foundation job cancellation/claim revocation, report staging cleanup, cancelled state/revision and cancellation audit commit in one UnitOfWork","completed reports reject cancellation without changing durable job state","cancellation never deletes a final published artifact or operational evidence"]}
   ]
 }
