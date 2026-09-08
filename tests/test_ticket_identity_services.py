@@ -6,7 +6,7 @@ import pytest
 
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
-from soma.reference.customer_service import CustomerReferenceService
+from soma.reference.application.customer_service import CustomerReferenceService
 from soma.tickets.device_references import DeviceReferenceService
 from soma.tickets.rfcs import RfcService
 from soma.tickets.service_requests import ServiceRequestService
