@@ -259,7 +259,9 @@ def preflight_xlsx(path: str | os.PathLike[str]) -> XlsxPreflightResult:
             normalized: dict[str, zipfile.ZipInfo] = {}
             total_expanded = 0
             for info in infos:
-                raw = info.filename
+                # ZipInfo.filename is normalized to forward slashes on Windows. Security
+                # validation must inspect the original decoded central-directory name first.
+                raw = info.orig_filename
                 if info.is_dir():
                     raw = raw.rstrip("/")
                     if not raw:
