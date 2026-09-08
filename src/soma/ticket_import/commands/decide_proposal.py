@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hmac
 import re
 from dataclasses import dataclass
+from typing import Any, Protocol
 
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
@@ -9,12 +11,30 @@ from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.ticket_import.providers.sr_source_evidence import TicketImportSrSourceEvidenceProvider
+from soma.tickets.import_mutations import (
+    ServiceRequestImportMutationResult,
+    ServiceRequestImportMutationService,
+    ServiceRequestSourceProjectionMutation,
+)
+from soma.tickets.sr_source_projection import AcceptedSrFieldDeltaSet
 
 from ..audit_registry import build_ticket_import_audit_registry
 from ..repositories.proposals import ProposalRepository
 
 
 _HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
+_METADATA_RESULT_TYPES = frozenset({"proposal_disposition", "proposal_equivalence_decision"})
+
+
+class ServiceRequestImportMutationParticipant(Protocol):
+    def source_acceptance_base_token(self, reader: Any, service_request_id: str) -> str: ...
+
+    def apply_accepted_source_projection(
+        self,
+        uow: UnitOfWork,
+        mutation: ServiceRequestSourceProjectionMutation,
+    ) -> ServiceRequestImportMutationResult: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,9 +46,9 @@ class ProposalDecisionResult:
     replayed: bool
 
 
-def _validate_fingerprint(value: str) -> str:
+def _validate_fingerprint(value: str, *, field_name: str = "proposal_fingerprint") -> str:
     if not isinstance(value, str) or _HEX64_RE.fullmatch(value) is None:
-        raise ValidationError("proposal_fingerprint must be lowercase SHA-256 hex")
+        raise ValidationError(f"{field_name} must be lowercase SHA-256 hex")
     return value
 
 
@@ -41,29 +61,206 @@ def _validate_reason(value: str) -> str:
     return value
 
 
-class ProposalDecisionService:
-    """LLD-04 Reject/Defer proposal authority. Accept is added separately with owner participants."""
+def _validate_optional_reason(value: str | None) -> str | None:
+    return None if value is None else _validate_reason(value)
 
-    def __init__(self, connection_factory: ConnectionFactory) -> None:
+
+class ProposalDecisionService:
+    """LLD-04 proposal decision authority; owner mutations remain injected cross-packet participants."""
+
+    def __init__(
+        self,
+        connection_factory: ConnectionFactory,
+        *,
+        sr_import_mutation_service: ServiceRequestImportMutationParticipant | None = None,
+    ) -> None:
         self._factory = connection_factory
         self._repository = ProposalRepository()
+        self._sr_source_provider = TicketImportSrSourceEvidenceProvider()
+        self._sr_import_mutations = (
+            ServiceRequestImportMutationService(self._sr_source_provider)
+            if sr_import_mutation_service is None
+            else sr_import_mutation_service
+        )
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_ticket_import_audit_registry()),
         )
 
-    def _result(self, proposal_id: str, *, replayed: bool) -> ProposalDecisionResult:
+    def _result(self, proposal_id: str, *, command_id: str, replayed: bool) -> ProposalDecisionResult:
         with ReadSnapshot(self._factory) as snapshot:
             proposal = self._repository.get(snapshot.connection, proposal_id)
             if proposal is None:
                 raise SomaError("IMPORT_PROPOSAL_NOT_FOUND", "reconciliation proposal does not exist")
+            refs = snapshot.connection.execute(
+                "SELECT r.result_type,r.result_id FROM audit_event_results r "
+                "JOIN audit_events e ON e.audit_event_id=r.audit_event_id "
+                "WHERE e.command_id=? AND e.action_type='ticket_import.proposal_decided' "
+                "ORDER BY r.result_type ASC,r.result_id ASC",
+                (command_id,),
+            ).fetchall()
+        owner_refs = tuple(
+            (str(row[0]), str(row[1]))
+            for row in refs
+            if str(row[0]) not in _METADATA_RESULT_TYPES
+        )
         return ProposalDecisionResult(
             proposal_id=proposal_id,
             decision=proposal.proposal_state,
             revision=proposal.revision,
-            owner_result_refs=(),
+            owner_result_refs=owner_refs,
             replayed=replayed,
         )
+
+    def accept(
+        self,
+        *,
+        command_id: str,
+        proposal_id: str,
+        proposal_revision: int,
+        proposal_fingerprint: str,
+        base_state_token: str,
+        reason_category: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ProposalDecisionResult:
+        if type(proposal_revision) is not int or proposal_revision <= 0:
+            raise ValidationError("proposal_revision must be a positive integer")
+        fingerprint = _validate_fingerprint(proposal_fingerprint)
+        base_token = _validate_fingerprint(base_state_token, field_name="base_state_token")
+        reason = _validate_optional_reason(reason_category)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="AcceptReconciliationProposal",
+            target_type="reconciliation_proposal",
+            target_id=proposal_id,
+            semantic_payload={
+                "decision": "accepted",
+                "proposal_revision": proposal_revision,
+                "proposal_fingerprint": fingerprint,
+                "base_state_token": base_token,
+                "reason_category": reason,
+            },
+            base_revisions={"proposal": proposal_revision},
+            authorizing_fingerprints={"proposal": fingerprint, "base_state": base_token},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            proposal = self._repository.require_pending(uow.connection, proposal_id)
+            if (
+                proposal.revision != proposal_revision
+                or not hmac.compare_digest(proposal.proposal_fingerprint, fingerprint)
+                or not hmac.compare_digest(proposal.base_state_token, base_token)
+            ):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "proposal revision/fingerprint/base state changed")
+            if proposal.risk_class == "blocked":
+                raise SomaError("IMPORT_PROPOSAL_BLOCKED", "blocked reconciliation proposal cannot be accepted")
+            run = self._repository.get_run(uow.connection, proposal.import_run_id)
+            if run.run_state not in {"staged", "waiting_review", "recovery_required"}:
+                raise SomaError("IMPORT_PROPOSAL_STALE", "parent import run no longer permits proposal acceptance")
+            self._repository.require_current_recovery_authorization(uow.connection, run)
+            if proposal.proposal_kind != "sr_source_projection":
+                raise SomaError(
+                    "IMPORT_PROPOSAL_BLOCKED",
+                    "this implementation slice accepts only sr_source_projection proposals",
+                )
+            if (
+                proposal.evidence_mode != "observed_row"
+                or proposal.source_observation_id is None
+                or proposal.target_kind != "service_request"
+                or proposal.target_internal_id is None
+            ):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection proposal binding is incomplete")
+            current_base = self._sr_import_mutations.source_acceptance_base_token(
+                uow.connection,
+                proposal.target_internal_id,
+            )
+            if not hmac.compare_digest(current_base, base_token):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request owner base state changed")
+            changes = self._repository.list_changes(uow.connection, proposal_id)
+            if not changes or len(changes) > 11:
+                raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection change set is empty or exceeds field registry")
+            if len({change.field_key for change in changes}) != len(changes):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection proposal repeats a field")
+            deltas = []
+            for change in changes:
+                if change.source_observation_field_id is None:
+                    raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection change lacks source field evidence")
+                deltas.append(
+                    self._sr_source_provider.build_source_projection_delta(
+                        uow.connection,
+                        service_request_id=proposal.target_internal_id,
+                        expected_source_observation_id=proposal.source_observation_id,
+                        source_observation_field_id=change.source_observation_field_id,
+                        field_key=change.field_key,
+                        change_kind=change.change_kind,
+                        change_value_kind=change.value_kind,
+                        after_text=change.after_text,
+                        after_integer=change.after_integer,
+                        precedence_basis="source_chronology",
+                    )
+                )
+
+            disposition_id = new_uuid4()
+            audit_event_id = new_uuid4()
+            decided_at = utc_epoch_seconds()
+            mutation = ServiceRequestSourceProjectionMutation(
+                service_request_id=proposal.target_internal_id,
+                base_state_token=base_token,
+                accepted_delta_set=AcceptedSrFieldDeltaSet(
+                    accepted_command_id=command_id,
+                    deltas=tuple(deltas),
+                ),
+            )
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                owner_result = self._sr_import_mutations.apply_accepted_source_projection(inner, mutation)
+                self._repository.transition_accept(
+                    inner,
+                    proposal=proposal,
+                    run=run,
+                    decided_at_utc=decided_at,
+                    disposition_id=disposition_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                )
+                owner_payload_refs = [
+                    {"type": result_type, "id": result_id}
+                    for result_type, result_id in owner_result.result_refs
+                ]
+                resulting_refs = (
+                    AuditResultRef("proposal_disposition", disposition_id),
+                    *(AuditResultRef(result_type, result_id) for result_type, result_id in owner_result.result_refs),
+                )
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="ticket_import.proposal_decided",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="reconciliation_proposal",
+                    target_id=proposal_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                    import_run_id=proposal.import_run_id,
+                    proposal_id=proposal_id,
+                    payload_schema="ImportProposalDecisionAuditV1",
+                    payload_version=1,
+                    payload={
+                        "proposal_id": proposal_id,
+                        "proposal_kind": proposal.proposal_kind,
+                        "decision": "accepted",
+                        "proposal_revision": proposal_revision,
+                        "reason_category": reason,
+                        "owner_result_refs": owner_payload_refs,
+                    },
+                    resulting_event_refs=resulting_refs,
+                )
+
+            return PreparedMutation(False, "reconciliation_proposal", proposal_id, apply)
+
+        execution = self._boundary.execute(envelope, prepare)
+        return self._result(proposal_id, command_id=command_id, replayed=execution.replayed)
 
     def reject(
         self,
@@ -179,6 +376,8 @@ class ProposalDecisionService:
                     target_id=proposal_id,
                     reason_category=reason,
                     command_id=command_id,
+                    import_run_id=proposal.import_run_id,
+                    proposal_id=proposal_id,
                     payload_schema="ImportProposalDecisionAuditV1",
                     payload_version=1,
                     payload={
@@ -198,4 +397,4 @@ class ProposalDecisionService:
             return PreparedMutation(False, "reconciliation_proposal", proposal_id, apply)
 
         execution = self._boundary.execute(envelope, prepare)
-        return self._result(proposal_id, replayed=execution.replayed)
+        return self._result(proposal_id, command_id=command_id, replayed=execution.replayed)
