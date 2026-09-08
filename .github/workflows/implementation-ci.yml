@@ -39,3 +39,9 @@ jobs:
       - name: Run complete implementation test suite
         shell: pwsh
         run: python -m pytest
+      - name: Build wheel
+        shell: pwsh
+        run: python -m pip wheel --no-deps . --wheel-dir dist
+      - name: Verify packaged authority resources
+        shell: pwsh
+        run: python tools/verify_wheel_resources.py dist

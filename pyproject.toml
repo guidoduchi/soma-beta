@@ -25,6 +25,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "soma.reference.assets" = ["*.json"]
+"soma.migrations" = ["*.sql", "manifest.json"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
