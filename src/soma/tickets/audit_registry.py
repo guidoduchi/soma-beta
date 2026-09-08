@@ -50,6 +50,12 @@ def build_tickets_audit_registry() -> AuditRegistry:
             16_384,
         ),
         (
+            "ticket.sr_rfc_relationship.changed",
+            "TicketRelationshipAuditV1",
+            {"relationship_type", "relationship_id", "left_id", "right_id", "prior_state", "new_state", "reason_category", "subordinate_origin_rfc_id"},
+            16_384,
+        ),
+        (
             "ticket.device_reference.created",
             "DeviceReferenceAuditV1",
             {"device_reference_id", "resulting_revision", "change_kind", "relationship_target_type", "relationship_target_id", "reason_category"},
