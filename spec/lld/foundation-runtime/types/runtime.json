@@ -88,6 +88,25 @@
         "migration_id": "string"
       }
     },
+    "DurableJobCancellationResultV1": {
+      "kind": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "job_id", "prior_state", "resulting_state", "claim_revoked"],
+      "fields": {
+        "outcome": "CANCELLED|ALREADY_CANCELLED|TERMINAL_UNCHANGED",
+        "job_id": "uuid",
+        "prior_state": "queued|running|waiting_review|retry_wait|completed|failed|cancelled",
+        "resulting_state": "cancelled|completed|failed",
+        "claim_revoked": "boolean",
+        "cancelled_attempt_ordinal": "int>=1|null"
+      },
+      "rules": [
+        "CANCELLED is returned only when this call atomically changes a nonterminal durable job to cancelled.",
+        "ALREADY_CANCELLED performs no second mutation.",
+        "TERMINAL_UNCHANGED reports completed or failed without rewriting that terminal technical history; the owning-domain caller decides whether its own domain transition remains valid.",
+        "claim_revoked=true only when a running claim was atomically invalidated; correctness never depends on an in-memory cancellation signal."
+      ]
+    },
     "OverviewReadSnapshotV1": {
       "kind": "opaque_context",
       "rule": "Foundation-owned read snapshot/connection handle valid only inside context manager; never serialized or persisted."
