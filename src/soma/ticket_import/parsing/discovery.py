@@ -78,7 +78,7 @@ def _reject_unsupported_windows_namespace(path: Path) -> None:
         or normalized.startswith("\\") and not re.match(r"\A[A-Za-z]:\\", normalized)
         or lowered.startswith("\\?\\")
         or lowered.startswith("\\.\\")
-        or lowered.startswith("\??\\")
+        or lowered.startswith("\\" + "??\\")
     ):
         raise _source_unavailable("configured import path uses an unsupported Windows namespace")
 
