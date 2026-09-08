@@ -15,6 +15,14 @@ class ImportFieldSpec:
     max_lines: int = 512
 
 
+@dataclass(frozen=True, slots=True)
+class ImportProfileVersions:
+    source_profile_id: str
+    header_registry_id: str
+    vocabulary_registry_id: str
+    parser_profile_id: str
+
+
 _ADVANCED_SEARCH_FIELDS = {
     "problem_summary": ImportFieldSpec("problem_summary", "active", "text"),
     "report_date": ImportFieldSpec("report_date", "active", "instant"),
@@ -101,10 +109,25 @@ _FIELDS_BY_FAMILY = {
     "wfm_service_provider": _WFM_FIELDS,
 }
 
-_PROFILE_IDS = {
-    "advanced_search_sr": ("ADVANCED_SEARCH_SR_V1", "ADVANCED_SEARCH_HEADERS_V1"),
-    "rfc_enhanced": ("RFC_ENHANCED_V1", "RFC_HEADERS_V1"),
-    "wfm_service_provider": ("WFM_SERVICE_PROVIDER_V1", "WFM_HEADERS_V1"),
+_PROFILE_VERSIONS = {
+    "advanced_search_sr": ImportProfileVersions(
+        "ADVANCED_SEARCH_SR_V1",
+        "ADVANCED_SEARCH_HEADERS_V1",
+        "ADVANCED_SEARCH_VOCAB_V1",
+        "ADVANCED_SEARCH_PARSER_V1",
+    ),
+    "rfc_enhanced": ImportProfileVersions(
+        "RFC_ENHANCED_V1",
+        "RFC_HEADERS_V1",
+        "RFC_VOCAB_V1",
+        "RFC_PARSER_V1",
+    ),
+    "wfm_service_provider": ImportProfileVersions(
+        "WFM_SERVICE_PROVIDER_V1",
+        "WFM_HEADERS_V1",
+        "WFM_VOCAB_V1",
+        "WFM_PARSER_V1",
+    ),
 }
 
 
@@ -118,8 +141,15 @@ def require_field_spec(source_family: str, field_key: str) -> ImportFieldSpec:
     return spec
 
 
-def require_profile_ids(source_family: str) -> tuple[str, str]:
-    ids = _PROFILE_IDS.get(source_family)
-    if ids is None:
+def require_profile_versions(source_family: str) -> ImportProfileVersions:
+    versions = _PROFILE_VERSIONS.get(source_family)
+    if versions is None:
         raise SomaError("IMPORT_SOURCE_FAMILY_INVALID", "source family is outside the closed LLD-04 registry")
-    return ids
+    return versions
+
+
+def require_profile_ids(source_family: str) -> tuple[str, str]:
+    """Compatibility helper for callers that only need source/header identity."""
+
+    versions = require_profile_versions(source_family)
+    return versions.source_profile_id, versions.header_registry_id
