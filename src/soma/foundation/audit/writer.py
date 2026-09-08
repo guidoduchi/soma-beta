@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
 
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import utc_epoch_seconds
@@ -63,8 +62,12 @@ class AuditWriter:
             )
         except (TypeError, ValueError) as exc:
             raise SomaError("AUDIT_PAYLOAD_INVALID", "audit payload cannot be serialized") from exc
-        if len(payload_json.encode("utf-8")) > 16_384:
-            raise SomaError("AUDIT_PAYLOAD_INVALID", "audit payload exceeds 16 KiB")
+        max_payload_bytes = contract.payload_contract.max_utf8_bytes
+        if len(payload_json.encode("utf-8")) > max_payload_bytes:
+            raise SomaError(
+                "AUDIT_PAYLOAD_INVALID",
+                f"audit payload exceeds its {max_payload_bytes}-byte action contract",
+            )
 
         try:
             uow.connection.execute(
