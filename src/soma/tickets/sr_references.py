@@ -20,7 +20,6 @@ from .repositories.sr_references import (
 )
 from .validation import validate_optional_sha256, validate_reason_category
 
-
 _REFERENCE_ROLES = ("customer_contact", "current_handler_reference")
 
 
@@ -56,29 +55,20 @@ class ServiceRequestReferenceMutationResult:
 
 
 @dataclass(frozen=True, slots=True)
+class _CustomerPreviewState:
+    preview: ReferenceChangePreview
+    current_relationship: SrCustomerRelationshipRecord | None
+    target_invalid: bool
+
+
+@dataclass(frozen=True, slots=True)
 class _ContactPreviewState:
     preview: ReferenceChangePreview
     current_relationship: SrContactRelationshipRecord | None
     current_customer_org_id: str | None
-    target_contact_id: str | None
-    target_contact_revision: int | None
-    target_contact_lifecycle: str | None
-    target_affiliation_id: str | None
-    target_affiliation_customer_org_id: str | None
-    supporting_source_observation_id: str | None
     target_invalid: bool
     handler_stale: bool
     affiliation_mismatch: bool
-
-
-@dataclass(frozen=True, slots=True)
-class _CustomerPreviewState:
-    preview: ReferenceChangePreview
-    current_relationship: SrCustomerRelationshipRecord | None
-    target_customer_org_id: str | None
-    target_customer_revision: int | None
-    target_customer_lifecycle: str | None
-    target_invalid: bool
 
 
 def _validate_reference_role(reference_role: str) -> str:
@@ -106,9 +96,8 @@ def _customer_master_state(connection: Any, customer_org_id: str | None) -> tupl
     ).fetchone()
     if row is None:
         return None, None, True
-    revision = int(row[0])
     lifecycle = str(row[1])
-    return revision, lifecycle, lifecycle != "active"
+    return int(row[0]), lifecycle, lifecycle != "active"
 
 
 def _contact_master_state(connection: Any, contact_id: str | None) -> tuple[int | None, str | None, bool]:
@@ -120,9 +109,8 @@ def _contact_master_state(connection: Any, contact_id: str | None) -> tuple[int 
     ).fetchone()
     if row is None:
         return None, None, True
-    revision = int(row[0])
     lifecycle = str(row[1])
-    return revision, lifecycle, lifecycle != "active"
+    return int(row[0]), lifecycle, lifecycle != "active"
 
 
 def _current_affiliation(connection: Any, contact_id: str | None) -> tuple[str | None, str | None]:
@@ -146,12 +134,12 @@ def _current_handler_pointer(connection: Any, service_request_id: str) -> str | 
     return None if row is None or row[0] is None else str(row[0])
 
 
-def _supporting_observation_valid(
+def _valid_supporting_observation(
     connection: Any,
     *,
     service_request_id: str,
     observation_id: str,
-    expected_field_key: str,
+    field_key: str,
     require_usable: bool,
 ) -> bool:
     row = connection.execute(
@@ -159,7 +147,7 @@ def _supporting_observation_valid(
         "WHERE sr_source_field_observation_id=? AND service_request_id=?",
         (observation_id, service_request_id),
     ).fetchone()
-    if row is None or str(row[0]) != expected_field_key:
+    if row is None or str(row[0]) != field_key:
         return False
     return not require_usable or str(row[1]) == "usable"
 
@@ -170,12 +158,12 @@ def current_reference_token(connection: Any, service_request_id: str, *, sr_revi
     customer = repository.current_customer(connection, service_request_id)
     customer_token: dict[str, object] | None = None
     if customer is not None:
-        customer_revision, customer_lifecycle, _ = _customer_master_state(connection, customer.customer_org_id)
+        target_revision, target_lifecycle, _invalid = _customer_master_state(connection, customer.customer_org_id)
         customer_token = {
             "relationship_id": customer.relationship_id,
             "customer_org_id": customer.customer_org_id,
-            "target_revision": customer_revision,
-            "target_lifecycle": customer_lifecycle,
+            "target_revision": target_revision,
+            "target_lifecycle": target_lifecycle,
         }
 
     contacts: dict[str, object | None] = {}
@@ -184,7 +172,7 @@ def current_reference_token(connection: Any, service_request_id: str, *, sr_revi
         if relationship is None:
             contacts[role] = None
             continue
-        contact_revision, contact_lifecycle, _ = _contact_master_state(connection, relationship.contact_id)
+        contact_revision, contact_lifecycle, _invalid = _contact_master_state(connection, relationship.contact_id)
         affiliation_id, affiliation_customer = _current_affiliation(connection, relationship.contact_id)
         contacts[role] = {
             "relationship_id": relationship.relationship_id,
@@ -222,22 +210,21 @@ def build_customer_preview_state(
     warnings: list[str] = []
     if target_invalid:
         warnings.append("SR_REFERENCE_TARGET_INVALID")
+    if customer_org_id is not None:
+        for role in _REFERENCE_ROLES:
+            relationship = repository.current_contact(connection, service_request_id, role)
+            if relationship is None:
+                continue
+            _affiliation_id, affiliation_customer = _current_affiliation(connection, relationship.contact_id)
+            if affiliation_customer is not None and affiliation_customer != customer_org_id:
+                warnings.append("SR_CONTACT_AFFILIATION_REVIEW_REQUIRED")
 
-    for role in _REFERENCE_ROLES:
-        relationship = repository.current_contact(connection, service_request_id, role)
-        if relationship is None or customer_org_id is None:
-            continue
-        _affiliation_id, affiliation_customer = _current_affiliation(connection, relationship.contact_id)
-        if affiliation_customer is not None and affiliation_customer != customer_org_id:
-            warnings.append("SR_CONTACT_AFFILIATION_REVIEW_REQUIRED")
-
-    token = current_reference_token(connection, service_request_id, sr_revision=revision)
     fingerprint = sha256_canonical_json(
         {
             "schema": "SR_CUSTOMER_CHANGE_REVIEW_V1",
             "service_request_id": service_request_id,
             "base_revision": revision,
-            "reference_token": token,
+            "reference_token": current_reference_token(connection, service_request_id, sr_revision=revision),
             "current_relationship_id": None if current is None else current.relationship_id,
             "current_customer_org_id": None if current is None else current.customer_org_id,
             "target_customer_org_id": customer_org_id,
@@ -253,9 +240,6 @@ def build_customer_preview_state(
             warnings=tuple(sorted(set(warnings))),
         ),
         current_relationship=current,
-        target_customer_org_id=customer_org_id,
-        target_customer_revision=target_revision,
-        target_customer_lifecycle=target_lifecycle,
         target_invalid=target_invalid,
     )
 
@@ -281,24 +265,23 @@ def build_contact_preview_state(
     if contact_id is None and supporting_source_observation_id is not None:
         target_invalid = True
     elif contact_id is not None and role == "current_handler_reference":
-        current_pointer = _current_handler_pointer(connection, service_request_id)
         handler_stale = (
             supporting_source_observation_id is None
-            or supporting_source_observation_id != current_pointer
-            or not _supporting_observation_valid(
+            or supporting_source_observation_id != _current_handler_pointer(connection, service_request_id)
+            or not _valid_supporting_observation(
                 connection,
                 service_request_id=service_request_id,
                 observation_id=supporting_source_observation_id,
-                expected_field_key="current_handler_label",
+                field_key="current_handler_label",
                 require_usable=True,
             )
         )
     elif contact_id is not None and supporting_source_observation_id is not None:
-        target_invalid = target_invalid or not _supporting_observation_valid(
+        target_invalid = target_invalid or not _valid_supporting_observation(
             connection,
             service_request_id=service_request_id,
             observation_id=supporting_source_observation_id,
-            expected_field_key="customer_contact_label",
+            field_key="customer_contact_label",
             require_usable=False,
         )
 
@@ -316,14 +299,13 @@ def build_contact_preview_state(
     if affiliation_mismatch:
         warnings.append("SR_CONTACT_AFFILIATION_REVIEW_REQUIRED")
 
-    token = current_reference_token(connection, service_request_id, sr_revision=revision)
     fingerprint = sha256_canonical_json(
         {
             "schema": "SR_CONTACT_REFERENCE_REVIEW_V1",
             "service_request_id": service_request_id,
             "reference_role": role,
             "base_revision": revision,
-            "reference_token": token,
+            "reference_token": current_reference_token(connection, service_request_id, sr_revision=revision),
             "current_relationship_id": None if current is None else current.relationship_id,
             "current_contact_id": None if current is None else current.contact_id,
             "current_customer_org_context_id": None if current is None else current.customer_org_context_id,
@@ -347,12 +329,6 @@ def build_contact_preview_state(
         ),
         current_relationship=current,
         current_customer_org_id=current_customer,
-        target_contact_id=contact_id,
-        target_contact_revision=contact_revision,
-        target_contact_lifecycle=contact_lifecycle,
-        target_affiliation_id=affiliation_id,
-        target_affiliation_customer_org_id=affiliation_customer,
-        supporting_source_observation_id=supporting_source_observation_id,
         target_invalid=target_invalid,
         handler_stale=handler_stale,
         affiliation_mismatch=affiliation_mismatch,
@@ -370,15 +346,15 @@ class ServiceRequestReferenceService:
         self._factory = connection_factory
         self._classification_participant = classification_participant
         self._repository = ServiceRequestReferenceRepository()
-        self._boundary = CommandBoundary(
-            connection_factory,
-            AuditWriter(build_tickets_audit_registry()),
-        )
+        self._boundary = CommandBoundary(connection_factory, AuditWriter(build_tickets_audit_registry()))
+
+    @staticmethod
+    def current_reference_token(reader: Any, service_request_id: str) -> str:
+        return current_reference_token(reader, service_request_id)
 
     def _result(
         self,
         *,
-        command_id: str,
         service_request_id: str,
         reference_role: str,
         fallback_relationship_id: str | None,
@@ -388,9 +364,9 @@ class ServiceRequestReferenceService:
         with ReadSnapshot(self._factory) as snapshot:
             revision = _require_sr_revision(snapshot.connection, service_request_id)
             if reference_role == "customer":
-                current = self._repository.current_customer(snapshot.connection, service_request_id)
-                relationship_id = None if current is None else current.relationship_id
-                target_id = None if current is None else current.customer_org_id
+                current_customer = self._repository.current_customer(snapshot.connection, service_request_id)
+                relationship_id = None if current_customer is None else current_customer.relationship_id
+                target_id = None if current_customer is None else current_customer.customer_org_id
             else:
                 current_contact = self._repository.current_contact(snapshot.connection, service_request_id, reference_role)
                 relationship_id = None if current_contact is None else current_contact.relationship_id
@@ -408,14 +384,11 @@ class ServiceRequestReferenceService:
         )
 
     @staticmethod
-    def _participant_failure(exc: BaseException | None = None) -> SomaError:
-        error = SomaError(
+    def _participant_failure() -> SomaError:
+        return SomaError(
             "SR_CUSTOMER_CLASSIFICATION_PARTICIPANT_FAILED",
             "LLD-06 could not determinately apply Service Request Customer classification consequences",
         )
-        if exc is not None:
-            error.__cause__ = exc
-        return error
 
     def set_customer(
         self,
@@ -453,13 +426,14 @@ class ServiceRequestReferenceService:
             )
             if state.preview.base_revision != base_revision:
                 raise SomaError("SR_REFERENCE_STALE", "Service Request revision changed")
-            current_customer = None if state.current_relationship is None else state.current_relationship.customer_org_id
-            if current_customer == customer_org_id:
-                return PreparedMutation(True, None, None)
             if state.target_invalid:
                 raise SomaError("SR_REFERENCE_TARGET_INVALID", "Customer Organization is missing or archived")
             if fingerprint is not None and not hmac.compare_digest(fingerprint, state.preview.review_fingerprint):
                 raise SomaError("SR_REFERENCE_STALE", "Service Request Customer review context changed")
+
+            current_customer = None if state.current_relationship is None else state.current_relationship.customer_org_id
+            if current_customer == customer_org_id:
+                return PreparedMutation(True, None, None)
 
             prior_relationship_id = None if state.current_relationship is None else state.current_relationship.relationship_id
             new_relationship_id = new_uuid4() if customer_org_id is not None else None
@@ -472,10 +446,7 @@ class ServiceRequestReferenceService:
             def apply(inner: UnitOfWork) -> AuditEventInput:
                 if prior_relationship_id is not None:
                     self._repository.supersede_customer(
-                        inner,
-                        prior_relationship_id,
-                        closed_at_utc=now,
-                        command_id=command_id,
+                        inner, prior_relationship_id, closed_at_utc=now, command_id=command_id
                     )
                 if new_relationship_id is not None and customer_org_id is not None:
                     self._repository.insert_customer(
@@ -501,7 +472,6 @@ class ServiceRequestReferenceService:
                 )
                 if updated.rowcount != 1:
                     raise SomaError("SR_REFERENCE_STALE", "Service Request revision changed")
-
                 command_context: dict[str, object] = {
                     "command_id": command_id,
                     "actor_kind": actor_kind,
@@ -513,17 +483,14 @@ class ServiceRequestReferenceService:
                 }
                 try:
                     participant_result = self._classification_participant.apply_customer_change(
-                        inner,
-                        service_request_id,
-                        customer_org_id,
-                        command_context,
+                        inner, service_request_id, customer_org_id, command_context
                     )
                 except SomaError as exc:
                     if exc.code == "SR_CUSTOMER_CLASSIFICATION_PARTICIPANT_FAILED":
                         raise
-                    raise self._participant_failure(exc) from exc
+                    raise self._participant_failure() from exc
                 except Exception as exc:
-                    raise self._participant_failure(exc) from exc
+                    raise self._participant_failure() from exc
                 if participant_result == "INDETERMINATE":
                     raise self._participant_failure()
 
@@ -555,16 +522,10 @@ class ServiceRequestReferenceService:
                     ),
                 )
 
-            return PreparedMutation(
-                False,
-                "service_request_customer_history",
-                result_relationship_id,
-                apply,
-            )
+            return PreparedMutation(False, "service_request_customer_history", result_relationship_id, apply)
 
         result = self._boundary.execute(envelope, prepare)
         return self._result(
-            command_id=command_id,
             service_request_id=service_request_id,
             reference_role="customer",
             fallback_relationship_id=result.result_id,
@@ -615,17 +576,6 @@ class ServiceRequestReferenceService:
             )
             if state.preview.base_revision != base_revision:
                 raise SomaError("SR_REFERENCE_STALE", "Service Request revision changed")
-            current = state.current_relationship
-            if (
-                (current is None and contact_id is None)
-                or (
-                    current is not None
-                    and current.contact_id == contact_id
-                    and current.customer_org_context_id == state.current_customer_org_id
-                    and current.supporting_source_observation_id == supporting_sr_source_field_observation_id
-                )
-            ):
-                return PreparedMutation(True, None, None)
             if state.handler_stale:
                 raise SomaError(
                     "SR_HANDLER_REFERENCE_STALE",
@@ -641,6 +591,18 @@ class ServiceRequestReferenceService:
                     "Contact current affiliation differs from the Service Request Customer context",
                 )
 
+            current = state.current_relationship
+            if (
+                (current is None and contact_id is None)
+                or (
+                    current is not None
+                    and current.contact_id == contact_id
+                    and current.customer_org_context_id == state.current_customer_org_id
+                    and current.supporting_source_observation_id == supporting_sr_source_field_observation_id
+                )
+            ):
+                return PreparedMutation(True, None, None)
+
             prior_relationship_id = None if current is None else current.relationship_id
             prior_contact_id = None if current is None else current.contact_id
             new_relationship_id = new_uuid4() if contact_id is not None else None
@@ -653,10 +615,7 @@ class ServiceRequestReferenceService:
             def apply(inner: UnitOfWork) -> AuditEventInput:
                 if prior_relationship_id is not None:
                     self._repository.supersede_contact(
-                        inner,
-                        prior_relationship_id,
-                        closed_at_utc=now,
-                        command_id=command_id,
+                        inner, prior_relationship_id, closed_at_utc=now, command_id=command_id
                     )
                 if new_relationship_id is not None and contact_id is not None:
                     self._repository.insert_contact(
@@ -713,16 +672,10 @@ class ServiceRequestReferenceService:
                     ),
                 )
 
-            return PreparedMutation(
-                False,
-                "service_request_contact_history",
-                result_relationship_id,
-                apply,
-            )
+            return PreparedMutation(False, "service_request_contact_history", result_relationship_id, apply)
 
         result = self._boundary.execute(envelope, prepare)
         return self._result(
-            command_id=command_id,
             service_request_id=service_request_id,
             reference_role=role,
             fallback_relationship_id=result.result_id,
