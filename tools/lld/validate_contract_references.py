@@ -6,15 +6,22 @@ new leaves. Existing route/type validators proved that names existed, but did
 not prove that an explicit `*.json#fragment` pointer actually resolved.
 
 This checker walks every registered LLD packet and validates string-valued
-fields whose key names describe a contract and whose value names a JSON file.
-Relative paths resolve from the owning packet root; `spec/...` paths resolve
-from repository root. Dotted fragments such as `CommandName.input` resolve
-against either direct document keys or a named object in a common registry
-collection. JSON Pointer fragments are also supported.
+fields whose key names describe a contract and whose value begins with a real
+JSON path reference. Relative paths resolve from the owning packet root;
+`spec/...`, `tools/...` and `docs/...` paths resolve from repository root.
+Dotted fragments such as `CommandName.input` resolve against either direct
+document keys or a named object in a common registry collection. JSON Pointer
+fragments are also supported.
+
+Some older synthesis leaves append explanatory prose after a semicolon; only
+the leading path token is authoritative for this check. Human-readable prose
+such as `LLD-09 interfaces.json -> TypeName` is deliberately ignored because
+SIG-008 owns those cross-packet signature assertions.
 """
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -32,6 +39,9 @@ REGISTRY_COLLECTIONS = (
     "state_machines",
 )
 NAME_KEYS = ("name", "command", "query", "job_type", "contract_id", "id")
+PATH_LIKE_REF = re.compile(
+    r"^(?:spec/|tools/|docs/|[A-Za-z0-9_.-]+/)[^\s;]+\.json(?:#[^\s;]+)?$"
+)
 
 
 def load(path: Path) -> Any:
@@ -39,12 +49,21 @@ def load(path: Path) -> Any:
         return json.load(fh)
 
 
+def normalize_path_ref(raw: str) -> str | None:
+    candidate = raw.split(";", 1)[0].strip()
+    if not PATH_LIKE_REF.fullmatch(candidate):
+        return None
+    return candidate
+
+
 def iter_contract_refs(value: Any, key_path: tuple[str, ...] = ()) -> Iterable[tuple[tuple[str, ...], str]]:
     if isinstance(value, dict):
         for key, child in value.items():
             child_path = key_path + (str(key),)
-            if isinstance(child, str) and "contract" in str(key).lower() and ".json" in child:
-                yield child_path, child
+            if isinstance(child, str) and "contract" in str(key).lower():
+                normalized = normalize_path_ref(child)
+                if normalized is not None:
+                    yield child_path, normalized
             yield from iter_contract_refs(child, child_path)
     elif isinstance(value, list):
         for index, child in enumerate(value):
