@@ -2,7 +2,7 @@
   "schema":"SOMA-LLD-TESTS-V1",
   "lld_id":"LLD-08",
   "suite":"failure_injection",
-  "case_count":48,
+  "case_count":52,
   "case_format":["id","injected failure / expected safety property"],
   "cases":[
     ["F001","Crash after Site row insert but before dedicated Dispatch Location/link: whole CreateSite UoW rolls back."],
@@ -52,8 +52,12 @@
     ["F045","Command receipt duplicate with conflicting payload is rejected per LLD-01 idempotency rules."],
     ["F046","Database FK/STRICT constraint failure at any child row: whole UoW rolls back."],
     ["F047","Site-derived Dispatch address provider unavailable on read: display reports bounded unavailable state and does not copy stale address into master."],
-    ["F048","Archive blocker enumeration query fails outside writer lock: UI shows bounded error; archive command still independently fails closed if guard cannot prove CLEAR."]
+    ["F048","Archive blocker enumeration query fails outside writer lock: UI shows bounded error; archive command still independently fails closed if guard cannot prove CLEAR."],
+    ["F049","Crash while INFRA_WORKBOOK_EXPORT_V1 is writing/verifying an unpublished temp workbook: recovery trusts only the committed export_id/temp_filename checkpoint, removes only the proven job-owned sibling temp artifact, and restarts from a fresh stable read snapshot; no export evidence or operator-file mutation is fabricated."],
+    ["F050","Crash after temp workbook verification but before atomic publication: recovery reopens only the exact owned temp candidate and requires profile/hash/size equality before reuse; mismatch causes owned-temp discard/regeneration and never publishes unverified bytes."],
+    ["F051","Crash after atomic workbook publication but before infrastructure_workbook_exports evidence commit: recovery never rewrites/deletes the final file; exact final filename/hash/size must match the committed checkpoint before the single export evidence row is recorded idempotently, otherwise recovery fails closed."],
+    ["F052","Export cancellation races publication: cancellation before publication closes/removes only a proven owned temp artifact; once atomic publication begins it cannot interleave with rename and post-publication cancellation must finish evidence reconciliation without deleting/retracting the operator-managed final workbook."]
   ],
   "expected":"No injected failure may leave a partial authoritative mutation, fabricated relationship, weakened identity inference or unindexed accepted workbook mutation.",
-  "transaction_focus":"Receipt-FK ordering, same-UoW cross-domain participants, projection/event atomicity, concurrency revalidation and post-commit technical cleanup are all covered."
+  "transaction_focus":"Receipt-FK ordering, same-UoW cross-domain participants, projection/event atomicity, concurrency revalidation, durable workbook export publication/recovery and post-commit technical cleanup are all covered."
 }
