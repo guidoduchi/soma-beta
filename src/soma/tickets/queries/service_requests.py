@@ -207,13 +207,15 @@ class ServiceRequestQueryService:
                 "current_handler_observation_id": current_handler_observation_id,
             }
         )
+        warning_tuple = tuple(sorted(set(warnings)))
         context = {
             "service_request_id": service_request_id,
             "customer": customer,
             "contacts": contacts,
             "review_fingerprint": fingerprint,
+            "warnings": warning_tuple,
         }
-        return context, tuple(sorted(set(warnings)))
+        return context, warning_tuple
 
     def get(
         self,
