@@ -206,8 +206,8 @@ def test_accept_customer_reconciliation_preserves_history_audits_and_replay(init
             (sr.service_request_id,),
         ).fetchall()
         assert len(rows) == 2
-        assert str(rows[0][0]) == old_customer.customer_org_id
-        assert str(rows[0][1]) == "superseded"
+        superseded = next(row for row in rows if str(row[1]) == "superseded")
+        assert str(superseded[0]) == old_customer.customer_org_id
         active = next(row for row in rows if str(row[1]) == "active")
         assert tuple(str(active[index]) for index in (0, 2, 3, 4)) == (
             target.customer_org_id,
