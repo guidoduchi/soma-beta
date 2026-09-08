@@ -585,11 +585,6 @@ class ServiceRequestReferenceService:
                 raise SomaError("SR_REFERENCE_TARGET_INVALID", "Contact or supporting source observation is not eligible")
             if fingerprint is not None and not hmac.compare_digest(fingerprint, state.preview.review_fingerprint):
                 raise SomaError("SR_REFERENCE_STALE", "Service Request Contact review context changed")
-            if state.affiliation_mismatch and fingerprint is None:
-                raise SomaError(
-                    "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED",
-                    "Contact current affiliation differs from the Service Request Customer context",
-                )
 
             current = state.current_relationship
             if (
@@ -602,6 +597,12 @@ class ServiceRequestReferenceService:
                 )
             ):
                 return PreparedMutation(True, None, None)
+
+            if state.affiliation_mismatch and fingerprint is None:
+                raise SomaError(
+                    "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED",
+                    "Contact current affiliation differs from the Service Request Customer context",
+                )
 
             prior_relationship_id = None if current is None else current.relationship_id
             prior_contact_id = None if current is None else current.contact_id
