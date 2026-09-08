@@ -295,6 +295,26 @@ class ServiceRequestImportMutationService:
             "LLD-06 could not determinately apply Service Request Customer classification consequences",
         )
 
+    @classmethod
+    def _classification_result_refs(cls, participant_result: object) -> tuple[tuple[str, str], ...]:
+        if participant_result == "INDETERMINATE":
+            raise cls._classification_failure()
+        if participant_result is None or participant_result == "NO_CHANGE" or participant_result == ():
+            return ()
+        if not isinstance(participant_result, tuple):
+            raise cls._classification_failure()
+        refs: list[tuple[str, str]] = []
+        for item in participant_result:
+            if not isinstance(item, tuple) or len(item) != 2:
+                raise cls._classification_failure()
+            result_type, result_id = item
+            if result_type != "sr_classification_event" or not isinstance(result_id, str) or not result_id:
+                raise cls._classification_failure()
+            refs.append((result_type, result_id))
+        if len(set(refs)) != len(refs):
+            raise cls._classification_failure()
+        return tuple(refs)
+
     def set_customer_from_review(
         self,
         uow: UnitOfWork,
@@ -391,14 +411,13 @@ class ServiceRequestImportMutationService:
                 mutation.target_customer_org_id,
                 command_context,
             )
+            classification_refs = self._classification_result_refs(participant_result)
         except SomaError as exc:
             if exc.code == "SR_CUSTOMER_CLASSIFICATION_PARTICIPANT_FAILED":
                 raise
             raise self._classification_failure() from exc
         except Exception as exc:
             raise self._classification_failure() from exc
-        if participant_result == "INDETERMINATE":
-            raise self._classification_failure()
 
         owner_audit = AuditEventInput(
             audit_event_id=audit_event_id,
@@ -427,7 +446,7 @@ class ServiceRequestImportMutationService:
             resulting_event_refs=(AuditResultRef("service_request_customer_history", new_relationship_id),),
         )
         return ServiceRequestCustomerReviewResult(
-            result_refs=(("service_request_customer_history", new_relationship_id),),
+            result_refs=(("service_request_customer_history", new_relationship_id), *classification_refs),
             audit_events=(owner_audit,),
             resulting_revision=base_revision + 1,
         )
