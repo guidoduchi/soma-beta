@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
-from soma.foundation.strict_json import ObjectContract
+from soma.foundation.errors import SomaError
+from soma.foundation.strict_json import ObjectContract, canonical_json_bytes
 
 
-def _payload(name: str, fields: set[str], *, max_utf8_bytes: int = 16_384) -> ObjectContract:
+_WORKING_NOTE_AUDIT_BODY_FIELD = "bounded_prior_or_new_body_when_required_by_removal_or_edit_policy"
+_WORKING_NOTE_BODY_MAX_UTF8_BYTES = 65_536
+_WORKING_NOTE_BODY_MAX_LINES = 512
+_DEFAULT_AUDIT_MAX_UTF8_BYTES = 16_384
+_WORKING_NOTE_EDIT_REMOVE_AUDIT_MAX_UTF8_BYTES = 524_288
+
+
+def _payload(name: str, fields: set[str], *, max_utf8_bytes: int = _DEFAULT_AUDIT_MAX_UTF8_BYTES) -> ObjectContract:
     return ObjectContract(
         name=name,
         version=1,
@@ -16,6 +24,25 @@ def _payload(name: str, fields: set[str], *, max_utf8_bytes: int = 16_384) -> Ob
     )
 
 
+def _validate_working_note_edit_remove_audit(payload: dict[str, object]) -> None:
+    body = payload.get(_WORKING_NOTE_AUDIT_BODY_FIELD)
+    if not isinstance(body, str) or "\x00" in body:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Working Note audit body must be NUL-free text")
+    try:
+        body_bytes = body.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Working Note audit body must be valid Unicode") from exc
+    if len(body_bytes) > _WORKING_NOTE_BODY_MAX_UTF8_BYTES:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Working Note audit body exceeds its source body bound")
+    if body.count("\n") + 1 > _WORKING_NOTE_BODY_MAX_LINES:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Working Note audit body exceeds its line bound")
+
+    metadata_only = dict(payload)
+    metadata_only[_WORKING_NOTE_AUDIT_BODY_FIELD] = None
+    if len(canonical_json_bytes(metadata_only)) > _DEFAULT_AUDIT_MAX_UTF8_BYTES:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Working Note audit metadata exceeds the default audit bound")
+
+
 def build_tickets_audit_registry() -> AuditRegistry:
     registry = AuditRegistry()
     definitions = [
@@ -23,88 +50,102 @@ def build_tickets_audit_registry() -> AuditRegistry:
             "ticket.service_request.created",
             "ServiceRequestAuditV1",
             {"service_request_id", "resulting_revision", "identity_kind", "source_or_creation_class"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.service_request.official_identity_attached",
             "ServiceRequestIdentityAuditV1",
             {"service_request_id", "prior_identity_kind", "official_sr_no_fingerprint", "resulting_revision", "review_context_id"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.service_request.customer_changed",
             "ServiceRequestReferenceAuditV1",
             {"service_request_id", "reference_role", "prior_reference_id", "new_reference_id", "customer_org_context_id", "source_observation_id", "resulting_revision", "reason_category", "review_fingerprint"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.service_request.contact_reference_changed",
             "ServiceRequestReferenceAuditV1",
             {"service_request_id", "reference_role", "prior_reference_id", "new_reference_id", "customer_org_context_id", "source_observation_id", "resulting_revision", "reason_category", "review_fingerprint"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.rfc.identity_created_or_adopted",
             "RfcIdentityAuditV1",
             {"rfc_id", "rfc_no", "creation_context", "customer_org_id", "resulting_revision"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.rfc.customer_changed",
             "RfcCustomerAuditV1",
             {"rfc_id", "prior_customer_org_id", "new_customer_org_id", "resulting_revision", "reason_category", "review_fingerprint"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.rfc.hierarchy_changed",
             "RfcHierarchyAuditV1",
             {"rfc_id", "relationship_id", "prior_parent_rfc_id", "new_parent_rfc_id", "resulting_revision", "reason_category", "review_fingerprint"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.sr_rfc_relationship.changed",
             "TicketRelationshipAuditV1",
             {"relationship_type", "relationship_id", "left_id", "right_id", "prior_state", "new_state", "reason_category", "subordinate_origin_rfc_id"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.device_reference.created",
             "DeviceReferenceAuditV1",
             {"device_reference_id", "resulting_revision", "change_kind", "relationship_target_type", "relationship_target_id", "reason_category"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.device_reference.corrected",
             "DeviceReferenceAuditV1",
             {"device_reference_id", "resulting_revision", "change_kind", "relationship_target_type", "relationship_target_id", "reason_category"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.device_reference.relationship_changed",
             "TicketRelationshipAuditV1",
             {"relationship_type", "relationship_id", "left_id", "right_id", "prior_state", "new_state", "reason_category", "subordinate_origin_rfc_id"},
-            16_384,
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.working_note.added",
             "WorkingNoteAuditV1",
-            {"working_note_id", "owner_type", "owner_id", "resulting_revision", "created_by_local_user_profile_id", "change_kind", "reason_category", "bounded_prior_or_new_body_when_required_by_removal_or_edit_policy"},
-            524_288,
+            {"working_note_id", "owner_type", "owner_id", "resulting_revision", "created_by_local_user_profile_id", "change_kind", "reason_category", _WORKING_NOTE_AUDIT_BODY_FIELD},
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
         ),
         (
             "ticket.working_note.edited",
             "WorkingNoteAuditV1",
-            {"working_note_id", "owner_type", "owner_id", "resulting_revision", "created_by_local_user_profile_id", "change_kind", "reason_category", "bounded_prior_or_new_body_when_required_by_removal_or_edit_policy"},
-            524_288,
+            {"working_note_id", "owner_type", "owner_id", "resulting_revision", "created_by_local_user_profile_id", "change_kind", "reason_category", _WORKING_NOTE_AUDIT_BODY_FIELD},
+            _WORKING_NOTE_EDIT_REMOVE_AUDIT_MAX_UTF8_BYTES,
+            _validate_working_note_edit_remove_audit,
         ),
         (
             "ticket.working_note.removed",
             "WorkingNoteAuditV1",
-            {"working_note_id", "owner_type", "owner_id", "resulting_revision", "created_by_local_user_profile_id", "change_kind", "reason_category", "bounded_prior_or_new_body_when_required_by_removal_or_edit_policy"},
-            524_288,
+            {"working_note_id", "owner_type", "owner_id", "resulting_revision", "created_by_local_user_profile_id", "change_kind", "reason_category", _WORKING_NOTE_AUDIT_BODY_FIELD},
+            _WORKING_NOTE_EDIT_REMOVE_AUDIT_MAX_UTF8_BYTES,
+            _validate_working_note_edit_remove_audit,
         ),
     ]
-    for action_type, payload_name, fields, max_utf8_bytes in definitions:
+    for action_type, payload_name, fields, max_utf8_bytes, sensitivity_validator in definitions:
         registry.register(
             AuditActionContract(
                 action_type=action_type,
@@ -112,6 +153,7 @@ def build_tickets_audit_registry() -> AuditRegistry:
                 payload_schema=payload_name,
                 payload_version=1,
                 payload_contract=_payload(payload_name, fields, max_utf8_bytes=max_utf8_bytes),
+                sensitivity_validator=sensitivity_validator,
             )
         )
     return registry
