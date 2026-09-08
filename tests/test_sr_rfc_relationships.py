@@ -115,8 +115,9 @@ def test_sr_rfc_link_and_unlink_increment_both_ticket_revisions_once(initialized
     assert duplicate.sr_revision == 2
     assert duplicate.rfc_revision == 2
 
+    unlink_command = new_uuid4()
     unlinked = relationships.unlink(
-        command_id=new_uuid4(),
+        command_id=unlink_command,
         service_request_id=sr.service_request_id,
         root_rfc_id=rfc.rfc_id,
         sr_base_revision=2,
@@ -148,8 +149,14 @@ def test_sr_rfc_link_and_unlink_increment_both_ticket_revisions_once(initialized
         ).fetchone()
         assert tuple(history)[:1] == ("unlinked",)
         assert history[1] is not None
-        assert history[2] is not None
-        assert history[3] == "reviewed_unlink"
+        assert history[2] == unlink_command
+        assert history[3] is None
+        unlink_audit = connection.execute(
+            "SELECT reason_category,payload_json FROM audit_events WHERE command_id=? AND action_type='ticket.sr_rfc_relationship.changed'",
+            (unlink_command,),
+        ).fetchone()
+        assert unlink_audit[0] == "reviewed_unlink"
+        assert json.loads(str(unlink_audit[1]))["reason_category"] == "reviewed_unlink"
     finally:
         connection.close()
 
@@ -203,7 +210,9 @@ def test_sr_rfc_link_rejects_subordinate_target_and_preserves_origin_provenance(
             (sr.service_request_id, child.rfc_id),
         ).fetchone()[0] == 0
         audit = connection.execute(
-            "SELECT payload_json FROM audit_events WHERE action_type='ticket.sr_rfc_relationship.changed' ORDER BY occurred_at_utc DESC,audit_event_id DESC LIMIT 1"
+            "SELECT payload_json FROM audit_events WHERE action_type='ticket.sr_rfc_relationship.changed' "
+            "AND target_id=? ORDER BY recorded_at_utc DESC,audit_event_id DESC LIMIT 1",
+            (sr.service_request_id,),
         ).fetchone()
         payload = json.loads(str(audit[0]))
         assert payload["right_id"] == root.rfc_id
