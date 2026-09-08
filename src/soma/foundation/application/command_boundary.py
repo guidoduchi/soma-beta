@@ -12,7 +12,8 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 
-ApplyMutation = Callable[[UnitOfWork], AuditEventInput | None]
+AuditEmission = AuditEventInput | tuple[AuditEventInput, ...]
+ApplyMutation = Callable[[UnitOfWork], AuditEmission | None]
 PrepareMutation = Callable[[UnitOfWork], "PreparedMutation"]
 
 
@@ -81,6 +82,24 @@ class CommandBoundary:
         self._connection_factory = connection_factory
         self._audit_writer = audit_writer
 
+    @staticmethod
+    def _normalize_audit_emission(emission: AuditEmission | None, command_id: str) -> tuple[AuditEventInput, ...]:
+        if emission is None:
+            raise PersistenceFailure("material authoritative command did not produce required owner audit")
+        events = (emission,) if isinstance(emission, AuditEventInput) else emission
+        if not isinstance(events, tuple) or not events:
+            raise PersistenceFailure("material authoritative command produced an invalid audit emission")
+        seen_event_ids: set[str] = set()
+        for event in events:
+            if not isinstance(event, AuditEventInput):
+                raise PersistenceFailure("material authoritative command produced an invalid audit event")
+            if event.command_id != command_id:
+                raise PersistenceFailure("audit event command_id does not match authoritative command")
+            if event.audit_event_id in seen_event_ids:
+                raise PersistenceFailure("authoritative command emitted duplicate audit event identities")
+            seen_event_ids.add(event.audit_event_id)
+        return events
+
     def execute(self, envelope: CommandEnvelope, prepare: PrepareMutation) -> CommandExecutionResult:
         request_hash = envelope.request_hash()
         with UnitOfWork(self._connection_factory) as uow:
@@ -134,12 +153,9 @@ class CommandBoundary:
                 )
 
             assert prepared.apply is not None
-            audit_event = prepared.apply(uow)
-            if audit_event is None:
-                raise PersistenceFailure("material authoritative command did not produce required owner audit")
-            if audit_event.command_id != envelope.command_id:
-                raise PersistenceFailure("audit event command_id does not match authoritative command")
-            self._audit_writer.write(uow, audit_event)
+            events = self._normalize_audit_emission(prepared.apply(uow), envelope.command_id)
+            for event in events:
+                self._audit_writer.write(uow, event)
             return CommandExecutionResult(
                 result_type=prepared.result_type,
                 result_id=prepared.result_id,

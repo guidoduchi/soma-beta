@@ -35,6 +35,15 @@ class AuditRegistry:
             raise SomaError("AUDIT_ACTION_INVALID", "audit payload contract name/version mismatch")
         self._actions[key] = contract
 
+    def contracts(self) -> tuple[AuditActionContract, ...]:
+        """Return the closed registered contracts in deterministic identity order."""
+        return tuple(self._actions[key] for key in sorted(self._actions))
+
+    def extend(self, other: "AuditRegistry") -> None:
+        """Compose packet-owned registrations without moving their ownership."""
+        for contract in other.contracts():
+            self.register(contract)
+
     def resolve(self, action_type: str, action_version: int) -> AuditActionContract:
         try:
             return self._actions[(action_type, action_version)]
