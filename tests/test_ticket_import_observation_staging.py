@@ -17,7 +17,12 @@ def _factory(initialized_database):
     return factory_for_path(database_path)
 
 
-def _seed_validating_run(factory, source_family: str = "advanced_search_sr") -> str:
+def _seed_validating_run(
+    factory,
+    source_family: str = "advanced_search_sr",
+    *,
+    source_profile_override: str | None = None,
+) -> str:
     run_id = new_uuid4()
     profiles = {
         "advanced_search_sr": (
@@ -43,6 +48,8 @@ def _seed_validating_run(factory, source_family: str = "advanced_search_sr") -> 
         ),
     }
     profile, headers, vocabulary, parser, chronology_kind = profiles[source_family]
+    if source_profile_override is not None:
+        profile = source_profile_override
     with UnitOfWork(factory) as uow:
         uow.connection.execute(
             "INSERT INTO import_runs("
@@ -295,16 +302,12 @@ def test_staging_requires_exact_validating_run_revision_and_profile(initialized_
             )
     assert stale.value.code == "IMPORT_RUN_STALE"
 
-    with UnitOfWork(factory) as uow:
-        uow.connection.execute(
-            "UPDATE import_runs SET source_profile_id='WRONG_PROFILE' WHERE import_run_id=?",
-            (run_id,),
-        )
+    bad_profile_run = _seed_validating_run(factory, source_profile_override="WRONG_PROFILE")
     with pytest.raises(SomaError) as mismatch:
         with UnitOfWork(factory) as uow:
             SourceObservationRepository.stage_observations(
                 uow,
-                import_run_id=run_id,
+                import_run_id=bad_profile_run,
                 expected_run_revision=1,
                 observations=(_sr_observation(),),
             )
