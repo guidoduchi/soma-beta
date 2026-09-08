@@ -276,6 +276,55 @@ def query_has_total_order(root: Path, name: str) -> bool:
     )
 
 
+def multiple_forward_migrations_prove(repo: Path, root: Path, packet_id: str) -> bool:
+    """Prove a packet's multiple forward allocations are exact, not an ambiguity."""
+    try:
+        contract = load_json(repo / "spec/lld/_packet-contract-v2.json")
+        global_doc = load_json(repo / "spec/lld/migrations.json")
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(contract, dict) or not isinstance(global_doc, dict):
+        return False
+    migration_rules = contract.get("migration_contract", {}).get("rules", [])
+    rules_text = " ".join(str(x) for x in migration_rules) if isinstance(migration_rules, list) else ""
+    if "may own more than one forward migration" not in rules_text:
+        return False
+    if "prior accepted/applied migrations remain immutable" not in rules_text:
+        return False
+
+    all_allocations = [
+        item for item in global_doc.get("allocations", [])
+        if isinstance(item, dict)
+    ] if isinstance(global_doc.get("allocations"), list) else []
+    sequences = [item.get("sequence") for item in all_allocations]
+    migration_ids = [item.get("migration_id") for item in all_allocations]
+    if not all(isinstance(value, int) and value > 0 for value in sequences):
+        return False
+    if not all(isinstance(value, str) and value for value in migration_ids):
+        return False
+    if len(sequences) != len(set(sequences)) or len(migration_ids) != len(set(migration_ids)):
+        return False
+
+    allocations = [item for item in all_allocations if str(item.get("packet_id")) == packet_id]
+    if len(allocations) <= 1:
+        return False
+    expected = {(int(item["sequence"]), str(item["migration_id"])) for item in allocations}
+
+    manifests: list[tuple[int, str]] = []
+    for path, doc in iter_json(root):
+        rel = path.relative_to(root).as_posix()
+        if not rel.startswith("migrations/") or not isinstance(doc, dict):
+            continue
+        sequence = doc.get("sequence")
+        migration_id = doc.get("migration_id")
+        if not isinstance(sequence, int) or sequence <= 0 or not isinstance(migration_id, str) or not migration_id:
+            return False
+        manifests.append((sequence, migration_id))
+    if len(manifests) != len(set(manifests)):
+        return False
+    return len(manifests) == len(allocations) and set(manifests) == expected
+
+
 def suppression_reason(repo: Path, roots: dict[str, Path], finding: dict[str, Any]) -> str | None:
     packet_id = str(finding.get("packet_id", ""))
     root = roots.get(packet_id)
@@ -283,6 +332,15 @@ def suppression_reason(repo: Path, roots: dict[str, Path], finding: dict[str, An
         return None
     check = str(finding.get("check_id", ""))
     message = str(finding.get("message", ""))
+
+    match = re.fullmatch(r"expected exactly one global migration allocation, found (\d+)", message)
+    if check == "SIG-009" and match and int(match.group(1)) > 1:
+        if multiple_forward_migrations_prove(repo, root, packet_id):
+            return (
+                "packet contract explicitly permits multiple reviewed forward migrations and "
+                "every packet migration manifest matches one globally unique allocation sequence/id"
+            )
+        return None
 
     match = re.fullmatch(r"command (.+) resolves neither public route nor internal caller", message)
     if check == "SIG-004" and match:
