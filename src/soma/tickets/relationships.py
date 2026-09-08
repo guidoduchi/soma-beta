@@ -717,9 +717,9 @@ class ServiceRequestRfcRelationshipService:
 
             def apply(inner: UnitOfWork) -> AuditEventInput:
                 link_update = inner.connection.execute(
-                    "UPDATE sr_rfc_links SET link_state='unlinked',closed_at_utc=?,closed_command_id=?,reason_category=? "
+                    "UPDATE sr_rfc_links SET link_state='unlinked',closed_at_utc=?,closed_command_id=? "
                     "WHERE sr_rfc_link_id=? AND link_state='active'",
-                    (now, command_id, reason, relationship_id),
+                    (now, command_id, relationship_id),
                 )
                 sr_update = inner.connection.execute(
                     "UPDATE service_requests SET revision=revision+1,updated_at_utc=? WHERE service_request_id=? AND revision=?",
