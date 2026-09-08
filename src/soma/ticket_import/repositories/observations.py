@@ -8,7 +8,7 @@ from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import UnitOfWork
 
-from ..profiles.registry import require_field_spec, require_profile_ids
+from ..profiles.registry import require_field_spec, require_profile_versions
 
 
 _HEX64 = re.compile(r"[0-9a-f]{64}\Z")
@@ -155,18 +155,23 @@ class SourceObservationRepository:
         expected_revision: int,
     ) -> tuple[str, str]:
         row = reader.execute(
-            "SELECT source_family,source_profile_id,header_registry_id,run_state,revision "
-            "FROM import_runs WHERE import_run_id=?",
+            "SELECT source_family,source_profile_id,header_registry_id,vocabulary_registry_id,parser_profile_id,"
+            "run_state,revision FROM import_runs WHERE import_run_id=?",
             (import_run_id,),
         ).fetchone()
         if row is None:
             raise SomaError("IMPORT_RUN_NOT_FOUND", "import run does not exist")
-        if str(row[3]) != "validating" or int(row[4]) != expected_revision:
+        if str(row[5]) != "validating" or int(row[6]) != expected_revision:
             raise SomaError("IMPORT_RUN_STALE", "import run is no longer the expected validating run")
         source_family = str(row[0])
-        expected_profile, expected_headers = require_profile_ids(source_family)
-        if str(row[1]) != expected_profile or str(row[2]) != expected_headers:
-            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "import run profile/header registry is not the accepted version")
+        expected = require_profile_versions(source_family)
+        if (
+            str(row[1]) != expected.source_profile_id
+            or str(row[2]) != expected.header_registry_id
+            or str(row[3]) != expected.vocabulary_registry_id
+            or str(row[4]) != expected.parser_profile_id
+        ):
+            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "import run profile registry versions are not accepted")
         return source_family, str(row[1])
 
     @classmethod
