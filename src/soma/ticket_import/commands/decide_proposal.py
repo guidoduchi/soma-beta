@@ -1,0 +1,201 @@
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
+from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
+from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
+from soma.foundation.persistence.connections import ConnectionFactory
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+
+from ..audit_registry import build_ticket_import_audit_registry
+from ..repositories.proposals import ProposalRepository
+
+
+_HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
+
+
+@dataclass(frozen=True, slots=True)
+class ProposalDecisionResult:
+    proposal_id: str
+    decision: str
+    revision: int
+    owner_result_refs: tuple[tuple[str, str], ...]
+    replayed: bool
+
+
+def _validate_fingerprint(value: str) -> str:
+    if not isinstance(value, str) or _HEX64_RE.fullmatch(value) is None:
+        raise ValidationError("proposal_fingerprint must be lowercase SHA-256 hex")
+    return value
+
+
+def _validate_reason(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValidationError("reason_category must be a string")
+    encoded = value.encode("utf-8", errors="strict")
+    if not encoded or len(encoded) > 120 or "\x00" in value or "\r" in value or "\n" in value:
+        raise ValidationError("reason_category violates the LLD-04 1..120 UTF-8 byte one-line contract")
+    return value
+
+
+class ProposalDecisionService:
+    """LLD-04 Reject/Defer proposal authority. Accept is added separately with owner participants."""
+
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
+        self._repository = ProposalRepository()
+        self._boundary = CommandBoundary(
+            connection_factory,
+            AuditWriter(build_ticket_import_audit_registry()),
+        )
+
+    def _result(self, proposal_id: str, *, replayed: bool) -> ProposalDecisionResult:
+        with ReadSnapshot(self._factory) as snapshot:
+            proposal = self._repository.get(snapshot.connection, proposal_id)
+            if proposal is None:
+                raise SomaError("IMPORT_PROPOSAL_NOT_FOUND", "reconciliation proposal does not exist")
+        return ProposalDecisionResult(
+            proposal_id=proposal_id,
+            decision=proposal.proposal_state,
+            revision=proposal.revision,
+            owner_result_refs=(),
+            replayed=replayed,
+        )
+
+    def reject(
+        self,
+        *,
+        command_id: str,
+        proposal_id: str,
+        proposal_revision: int,
+        proposal_fingerprint: str,
+        reason_category: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ProposalDecisionResult:
+        return self._decide(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=proposal_revision,
+            proposal_fingerprint=proposal_fingerprint,
+            reason_category=reason_category,
+            decision="rejected",
+            command_type="RejectReconciliationProposal",
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+        )
+
+    def defer(
+        self,
+        *,
+        command_id: str,
+        proposal_id: str,
+        proposal_revision: int,
+        proposal_fingerprint: str,
+        reason_category: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ProposalDecisionResult:
+        return self._decide(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=proposal_revision,
+            proposal_fingerprint=proposal_fingerprint,
+            reason_category=reason_category,
+            decision="deferred",
+            command_type="DeferReconciliationProposal",
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+        )
+
+    def _decide(
+        self,
+        *,
+        command_id: str,
+        proposal_id: str,
+        proposal_revision: int,
+        proposal_fingerprint: str,
+        reason_category: str,
+        decision: str,
+        command_type: str,
+        actor_kind: str,
+        actor_id: str | None,
+    ) -> ProposalDecisionResult:
+        if type(proposal_revision) is not int or proposal_revision <= 0:
+            raise ValidationError("proposal_revision must be a positive integer")
+        fingerprint = _validate_fingerprint(proposal_fingerprint)
+        reason = _validate_reason(reason_category)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type=command_type,
+            target_type="reconciliation_proposal",
+            target_id=proposal_id,
+            semantic_payload={
+                "decision": decision,
+                "proposal_revision": proposal_revision,
+                "proposal_fingerprint": fingerprint,
+                "reason_category": reason,
+            },
+            base_revisions={"proposal": proposal_revision},
+            authorizing_fingerprints={"proposal": fingerprint},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            proposal = self._repository.require_pending(uow.connection, proposal_id)
+            if proposal.revision != proposal_revision or proposal.proposal_fingerprint != fingerprint:
+                raise SomaError("IMPORT_PROPOSAL_STALE", "proposal revision or fingerprint changed")
+            run = self._repository.get_run(uow.connection, proposal.import_run_id)
+            if run.run_state not in {"staged", "waiting_review", "recovery_required"}:
+                raise SomaError("IMPORT_PROPOSAL_STALE", "parent import run no longer permits proposal decisions")
+            self._repository.require_current_recovery_authorization(uow.connection, run)
+
+            disposition_id = new_uuid4()
+            equivalence_id = new_uuid4()
+            audit_event_id = new_uuid4()
+            decided_at = utc_epoch_seconds()
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                self._repository.transition_decision(
+                    inner,
+                    proposal=proposal,
+                    run=run,
+                    decision=decision,
+                    decided_at_utc=decided_at,
+                    disposition_id=disposition_id,
+                    equivalence_id=equivalence_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                )
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="ticket_import.proposal_decided",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="reconciliation_proposal",
+                    target_id=proposal_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                    payload_schema="ImportProposalDecisionAuditV1",
+                    payload_version=1,
+                    payload={
+                        "proposal_id": proposal_id,
+                        "proposal_kind": proposal.proposal_kind,
+                        "decision": decision,
+                        "proposal_revision": proposal_revision,
+                        "reason_category": reason,
+                        "owner_result_refs": [],
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("proposal_disposition", disposition_id),
+                        AuditResultRef("proposal_equivalence_decision", equivalence_id),
+                    ),
+                )
+
+            return PreparedMutation(False, "reconciliation_proposal", proposal_id, apply)
+
+        execution = self._boundary.execute(envelope, prepare)
+        return self._result(proposal_id, replayed=execution.replayed)
