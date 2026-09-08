@@ -40,6 +40,11 @@ def build_tickets_audit_registry() -> AuditRegistry:
             {"rfc_id", "prior_customer_org_id", "new_customer_org_id", "resulting_revision", "reason_category", "review_fingerprint"},
         ),
         (
+            "ticket.rfc.hierarchy_changed",
+            "RfcHierarchyAuditV1",
+            {"rfc_id", "relationship_id", "prior_parent_rfc_id", "new_parent_rfc_id", "resulting_revision", "reason_category", "review_fingerprint"},
+        ),
+        (
             "ticket.device_reference.created",
             "DeviceReferenceAuditV1",
             {"device_reference_id", "resulting_revision", "change_kind", "relationship_target_type", "relationship_target_id", "reason_category"},
@@ -48,6 +53,11 @@ def build_tickets_audit_registry() -> AuditRegistry:
             "ticket.device_reference.corrected",
             "DeviceReferenceAuditV1",
             {"device_reference_id", "resulting_revision", "change_kind", "relationship_target_type", "relationship_target_id", "reason_category"},
+        ),
+        (
+            "ticket.device_reference.relationship_changed",
+            "TicketRelationshipAuditV1",
+            {"relationship_type", "relationship_id", "left_id", "right_id", "prior_state", "new_state", "reason_category", "subordinate_origin_rfc_id"},
         ),
     ]
     for action_type, payload_name, fields in definitions:
