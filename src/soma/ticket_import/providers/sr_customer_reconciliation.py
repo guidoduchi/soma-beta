@@ -133,17 +133,25 @@ class TicketImportSrCustomerReconciliationProvider:
             "WHERE c2.reconciliation_proposal_id=p.reconciliation_proposal_id AND c2.ordinal<>0)",
             (proposal_id,),
         ).fetchone()
+        receipt_count = reader.execute(
+            "SELECT COUNT(*) FROM command_receipts "
+            "WHERE command_type='AcceptReconciliationProposal' "
+            "AND target_type='reconciliation_proposal' AND target_id=?",
+            (proposal_id,),
+        ).fetchone()
         if (
             row is None
             or str(row[0]) != "sr_customer_reconciliation"
             or str(row[1]) != "service_request"
             or str(row[2]) != service_request_id
-            or str(row[3]) != "accepted"
+            or str(row[3]) != "pending"
             or row[4] is None
             or str(row[5]) != "customer_org_id"
             or str(row[6]) != "set"
             or str(row[7]) != "identity"
             or str(row[8]) != customer_org_id
+            or receipt_count is None
+            or int(receipt_count[0]) != 1
         ):
-            raise SomaError("IMPORT_PROPOSAL_STALE", "accepted Customer reconciliation proposal evidence is not exact")
+            raise SomaError("IMPORT_PROPOSAL_STALE", "pending Customer reconciliation proposal evidence is not exact")
         return str(row[4])
