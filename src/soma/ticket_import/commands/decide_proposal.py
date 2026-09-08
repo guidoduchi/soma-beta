@@ -453,6 +453,7 @@ class ProposalDecisionService:
         )
 
         def apply(inner: UnitOfWork):
+            owner_result = self._sr_import_mutations.set_customer_from_review(inner, mutation)
             self._repository.transition_accept(
                 inner,
                 proposal=proposal,
@@ -462,7 +463,6 @@ class ProposalDecisionService:
                 reason_category=reason,
                 command_id=command_id,
             )
-            owner_result = self._sr_import_mutations.set_customer_from_review(inner, mutation)
             orchestration = self._orchestration_audit(
                 audit_event_id=orchestration_audit_id,
                 command_id=command_id,
