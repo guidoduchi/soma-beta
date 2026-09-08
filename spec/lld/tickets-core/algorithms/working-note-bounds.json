@@ -1,0 +1,62 @@
+{
+  "schema": "SOMA-LLD-ALGORITHM-V1",
+  "lld_id": "LLD-03",
+  "name": "WorkingNoteBoundedHistoryAndTransport",
+  "purpose": "Reconcile the accepted note-body limit with JSON transport and required history audits without reducing note capacity, truncating evidence or changing note ownership.",
+  "note_body": {
+    "max_utf8_bytes": 65536,
+    "max_lines": 512,
+    "reject": [
+      "NUL",
+      "invalid Unicode"
+    ],
+    "authority": "../bounds.json"
+  },
+  "audit": {
+    "authority": "../../foundation-runtime/bounds.json",
+    "default_payload_utf8_bytes_max": 16384,
+    "exception_payload_utf8_bytes_max": 524288,
+    "exact_exceptions": [
+      {
+        "action_type": "ticket.working_note.edited",
+        "action_version": 1,
+        "payload_schema": "WorkingNoteAuditV1",
+        "payload_version": 1
+      },
+      {
+        "action_type": "ticket.working_note.removed",
+        "action_version": 1,
+        "payload_schema": "WorkingNoteAuditV1",
+        "payload_version": 1
+      }
+    ],
+    "body_field": "bounded_prior_or_new_body_when_required_by_removal_or_edit_policy",
+    "body_policy": "The exception authorizes at most one exact bounded note-body string in the existing body field for the required edit/removal history policy. It grants no arbitrary source/Communication body allowance and does not change existing payload fields or historical payload versions. Add audit remains under the default ceiling and does not copy body content.",
+    "non_body_payload_utf8_bytes_max": 16384,
+    "non_body_measurement": "Canonical serialize the same closed payload with body_field replaced by null, using the AuditWriter JSON serialization rules; enforce 16384 UTF-8 bytes.",
+    "proof": "A valid note of 65536 UTF-8 bytes expands by at most a factor of six under JSON escaping, including control characters. Its quoted JSON string is at most 393218 bytes. Adding the entire 16384-byte null-body metadata envelope gives a conservative upper bound of 409602 bytes, below 524288. Independently enforce the decoded note limit and final serialized payload ceiling.",
+    "unchanged": [
+      "append-only history",
+      "one receipt and shared UnitOfWork",
+      "required audit failure rolls back all mutations",
+      "depth/member/array/result-ref bounds",
+      "secret exclusion",
+      "no raw note body in diagnostics, errors or committed-result copies"
+    ]
+  },
+  "transport": {
+    "handlers": [
+      "AddWorkingNote",
+      "EditWorkingNote"
+    ],
+    "max_request_bytes": 524288,
+    "rule": "Only the exact LLD-03 POST/PATCH routes and Foundation handler exceptions use this ceiling. Validate body length after strict JSON decoding as well as total received bytes before unbounded buffering. This overhead allowance never increases decoded note capacity; oversized envelopes fail, never truncate."
+  },
+  "verification": [
+    "20000-byte prior note can be edited or removed with its complete required body evidence",
+    "maximum decoded body using six-byte JSON escapes passes when metadata is within bounds",
+    "oversized decoded note and oversized serialized envelope reject separately",
+    "unlisted action/version/schema does not inherit the exception",
+    "historical audit rows remain unchanged"
+  ]
+}
