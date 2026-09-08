@@ -12,6 +12,8 @@ from soma.foundation.strict_json import sha256_canonical_json
 class ProposalRecord:
     proposal_id: str
     import_run_id: str
+    evidence_mode: str
+    source_observation_id: str | None
     proposal_kind: str
     target_kind: str
     target_internal_id: str | None
@@ -24,6 +26,19 @@ class ProposalRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class ProposalChangeRecord:
+    ordinal: int
+    field_key: str
+    change_kind: str
+    value_kind: str
+    before_text: str | None
+    after_text: str | None
+    before_integer: int | None
+    after_integer: int | None
+    source_observation_field_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class ImportRunDecisionState:
     import_run_id: str
     source_family: str
@@ -32,6 +47,7 @@ class ImportRunDecisionState:
     candidate_chronology_value: int
     logical_fingerprint: str
     pending_count: int
+    accepted_count: int
     rejected_count: int
     deferred_count: int
     revision: int
@@ -41,9 +57,9 @@ class ProposalRepository:
     @staticmethod
     def get(reader: Any, proposal_id: str) -> ProposalRecord | None:
         row = reader.execute(
-            "SELECT reconciliation_proposal_id,import_run_id,proposal_kind,target_kind,target_internal_id,"
-            "target_business_id,risk_class,base_state_token_sha256,proposal_fingerprint_sha256,proposal_state,revision "
-            "FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
+            "SELECT reconciliation_proposal_id,import_run_id,evidence_mode,source_observation_id,proposal_kind,target_kind,"
+            "target_internal_id,target_business_id,risk_class,base_state_token_sha256,proposal_fingerprint_sha256,"
+            "proposal_state,revision FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
             (proposal_id,),
         ).fetchone()
         if row is None:
@@ -51,16 +67,44 @@ class ProposalRepository:
         return ProposalRecord(
             proposal_id=str(row[0]),
             import_run_id=str(row[1]),
-            proposal_kind=str(row[2]),
-            target_kind=str(row[3]),
-            target_internal_id=None if row[4] is None else str(row[4]),
-            target_business_id=None if row[5] is None else str(row[5]),
-            risk_class=str(row[6]),
-            base_state_token=str(row[7]),
-            proposal_fingerprint=str(row[8]),
-            proposal_state=str(row[9]),
-            revision=int(row[10]),
+            evidence_mode=str(row[2]),
+            source_observation_id=None if row[3] is None else str(row[3]),
+            proposal_kind=str(row[4]),
+            target_kind=str(row[5]),
+            target_internal_id=None if row[6] is None else str(row[6]),
+            target_business_id=None if row[7] is None else str(row[7]),
+            risk_class=str(row[8]),
+            base_state_token=str(row[9]),
+            proposal_fingerprint=str(row[10]),
+            proposal_state=str(row[11]),
+            revision=int(row[12]),
         )
+
+    @staticmethod
+    def list_changes(reader: Any, proposal_id: str) -> tuple[ProposalChangeRecord, ...]:
+        rows = reader.execute(
+            "SELECT ordinal,field_key,change_kind,value_kind,before_text,after_text,before_integer,after_integer,"
+            "source_observation_field_id FROM reconciliation_proposal_changes "
+            "WHERE reconciliation_proposal_id=? ORDER BY ordinal ASC",
+            (proposal_id,),
+        ).fetchall()
+        changes = tuple(
+            ProposalChangeRecord(
+                ordinal=int(row[0]),
+                field_key=str(row[1]),
+                change_kind=str(row[2]),
+                value_kind=str(row[3]),
+                before_text=None if row[4] is None else str(row[4]),
+                after_text=None if row[5] is None else str(row[5]),
+                before_integer=None if row[6] is None else int(row[6]),
+                after_integer=None if row[7] is None else int(row[7]),
+                source_observation_field_id=None if row[8] is None else str(row[8]),
+            )
+            for row in rows
+        )
+        if any(change.ordinal != ordinal for ordinal, change in enumerate(changes)):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "proposal change ordinals are no longer contiguous")
+        return changes
 
     @staticmethod
     def require_pending(reader: Any, proposal_id: str) -> ProposalRecord:
@@ -75,8 +119,8 @@ class ProposalRepository:
     def get_run(reader: Any, import_run_id: str) -> ImportRunDecisionState:
         row = reader.execute(
             "SELECT import_run_id,source_family,run_state,candidate_chronology_kind,candidate_chronology_value,"
-            "logical_fingerprint_sha256,pending_proposal_count,rejected_proposal_count,deferred_proposal_count,revision "
-            "FROM import_runs WHERE import_run_id=?",
+            "logical_fingerprint_sha256,pending_proposal_count,accepted_proposal_count,rejected_proposal_count,"
+            "deferred_proposal_count,revision FROM import_runs WHERE import_run_id=?",
             (import_run_id,),
         ).fetchone()
         if row is None:
@@ -91,9 +135,10 @@ class ProposalRepository:
             candidate_chronology_value=int(row[4]),
             logical_fingerprint=str(row[5]),
             pending_count=int(row[6]),
-            rejected_count=int(row[7]),
-            deferred_count=int(row[8]),
-            revision=int(row[9]),
+            accepted_count=int(row[7]),
+            rejected_count=int(row[8]),
+            deferred_count=int(row[9]),
+            revision=int(row[10]),
         )
 
     @staticmethod
@@ -236,3 +281,47 @@ class ProposalRepository:
         )
         if run_update.rowcount != 1:
             raise SomaError("IMPORT_PROPOSAL_STALE", "parent import run changed before proposal decision commit")
+
+    @staticmethod
+    def transition_accept(
+        uow: UnitOfWork,
+        *,
+        proposal: ProposalRecord,
+        run: ImportRunDecisionState,
+        decided_at_utc: int,
+        disposition_id: str,
+        reason_category: str | None,
+        command_id: str,
+    ) -> None:
+        proposal_update = uow.connection.execute(
+            "UPDATE reconciliation_proposals SET proposal_state='accepted',revision=revision+1,decided_at_utc=? "
+            "WHERE reconciliation_proposal_id=? AND proposal_state='pending' AND revision=?",
+            (decided_at_utc, proposal.proposal_id, proposal.revision),
+        )
+        if proposal_update.rowcount != 1:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "reconciliation proposal changed before acceptance commit")
+        uow.connection.execute(
+            "INSERT INTO proposal_dispositions(proposal_disposition_id,reconciliation_proposal_id,decision,proposal_revision,"
+            "proposal_fingerprint_sha256,base_state_token_sha256,reason_category,decision_origin,occurred_at_utc,command_id) "
+            "VALUES (?, ?, 'accepted', ?, ?, ?, ?, 'operator', ?, ?)",
+            (
+                disposition_id,
+                proposal.proposal_id,
+                proposal.revision,
+                proposal.proposal_fingerprint,
+                proposal.base_state_token,
+                reason_category,
+                decided_at_utc,
+                command_id,
+            ),
+        )
+        target_state = "recovery_required" if run.run_state == "recovery_required" else "waiting_review"
+        run_update = uow.connection.execute(
+            "UPDATE import_runs SET run_state=?,pending_proposal_count=pending_proposal_count-1,"
+            "accepted_proposal_count=accepted_proposal_count+1,revision=revision+1 "
+            "WHERE import_run_id=? AND revision=? AND pending_proposal_count>0 "
+            "AND run_state IN ('staged','waiting_review','recovery_required')",
+            (target_state, run.import_run_id, run.revision),
+        )
+        if run_update.rowcount != 1:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "parent import run changed before proposal acceptance commit")
