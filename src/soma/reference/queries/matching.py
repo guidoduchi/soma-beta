@@ -20,11 +20,8 @@ class CandidateResult:
     continuation_after_id: str | None
 
 
-class ReferenceMatchingQueries:
-    """Pure candidate queries. Selection/adoption remains an owning command concern."""
-
-    def __init__(self, connection_factory: ConnectionFactory) -> None:
-        self._factory = connection_factory
+class ReferenceMatcher:
+    """LLD-02 pure reader-bound matcher usable by Snapshots or the caller's current UnitOfWork."""
 
     @staticmethod
     def _require_profile(connection: Any) -> None:
@@ -50,8 +47,10 @@ class ReferenceMatchingQueries:
         continuation = visible[-1] if len(ordered) > limit and visible else None
         return visible, continuation
 
-    def match_customer_organization(
-        self,
+    @classmethod
+    def match_customer_org(
+        cls,
+        reader: Any,
         *,
         raw_account_code: str | None = None,
         raw_name: str | None = None,
@@ -70,32 +69,29 @@ class ReferenceMatchingQueries:
             if raw_name is None
             else normalize_match_key(raw_name, raw_max_utf8_bytes=1024)
         )
-
-        with ReadSnapshot(self._factory) as snapshot:
-            connection = snapshot.connection
-            self._require_profile(connection)
-            code_ids: set[str] = set()
-            name_ids: set[str] = set()
-            if code_key is not None:
-                code_ids = {
-                    str(row[0])
-                    for row in connection.execute(
-                        "SELECT i.customer_org_id FROM customer_org_identifiers i "
-                        "JOIN customer_organizations c ON c.customer_org_id=i.customer_org_id "
-                        "WHERE i.identifier_type='customer_account_code' AND i.match_key=? "
-                        "AND i.lifecycle_state='active' AND c.lifecycle_state='active'",
-                        (code_key,),
-                    ).fetchall()
-                }
-            if name_key is not None:
-                name_ids = {
-                    str(row[0])
-                    for row in connection.execute(
-                        "SELECT customer_org_id FROM customer_organizations "
-                        "WHERE lifecycle_state='active' AND name_match_key=?",
-                        (name_key,),
-                    ).fetchall()
-                }
+        cls._require_profile(reader)
+        code_ids: set[str] = set()
+        name_ids: set[str] = set()
+        if code_key is not None:
+            code_ids = {
+                str(row[0])
+                for row in reader.execute(
+                    "SELECT i.customer_org_id FROM customer_org_identifiers i "
+                    "JOIN customer_organizations c ON c.customer_org_id=i.customer_org_id "
+                    "WHERE i.identifier_type='customer_account_code' AND i.match_key=? "
+                    "AND i.lifecycle_state='active' AND c.lifecycle_state='active'",
+                    (code_key,),
+                ).fetchall()
+            }
+        if name_key is not None:
+            name_ids = {
+                str(row[0])
+                for row in reader.execute(
+                    "SELECT customer_org_id FROM customer_organizations "
+                    "WHERE lifecycle_state='active' AND name_match_key=?",
+                    (name_key,),
+                ).fetchall()
+            }
 
         if code_key is not None and len(code_ids) == 1:
             sole_code = next(iter(code_ids))
@@ -121,7 +117,7 @@ class ReferenceMatchingQueries:
             candidates = name_ids
             explanation = "NAME_MATCH" if candidates else "NO_CANONICAL_CANDIDATE"
 
-        visible, continuation = self._page(
+        visible, continuation = cls._page(
             candidates, after_candidate_id=after_candidate_id, limit=limit
         )
         count = len(candidates)
@@ -130,8 +126,10 @@ class ReferenceMatchingQueries:
         )
         return CandidateResult(state, explanation, count, visible, continuation)
 
+    @classmethod
     def match_contact(
-        self,
+        cls,
+        reader: Any,
         *,
         scope: str,
         raw_name: str | None = None,
@@ -153,47 +151,44 @@ class ReferenceMatchingQueries:
             if raw_email is None
             else normalize_match_key(raw_email, raw_max_utf8_bytes=2048)
         )
+        cls._require_profile(reader)
+        if scope != "UNBOUND":
+            customer = reader.execute(
+                "SELECT lifecycle_state FROM customer_organizations WHERE customer_org_id=?",
+                (scope,),
+            ).fetchone()
+            if customer is None:
+                raise SomaError("NOT_FOUND", "Customer Organization scope does not exist")
+            if str(customer[0]) != "active":
+                raise SomaError("CUSTOMER_ORG_INACTIVE", "Customer Organization scope is archived")
 
-        with ReadSnapshot(self._factory) as snapshot:
-            connection = snapshot.connection
-            self._require_profile(connection)
-            if scope != "UNBOUND":
-                customer = connection.execute(
-                    "SELECT lifecycle_state FROM customer_organizations WHERE customer_org_id=?",
-                    (scope,),
-                ).fetchone()
-                if customer is None:
-                    raise SomaError("NOT_FOUND", "Customer Organization scope does not exist")
-                if str(customer[0]) != "active":
-                    raise SomaError("CUSTOMER_ORG_INACTIVE", "Customer Organization scope is archived")
+        where_scope = (
+            "NOT EXISTS (SELECT 1 FROM contact_affiliations a WHERE a.contact_id=c.contact_id AND a.is_current=1)"
+            if scope == "UNBOUND"
+            else "EXISTS (SELECT 1 FROM contact_affiliations a WHERE a.contact_id=c.contact_id "
+            "AND a.is_current=1 AND a.customer_org_id=?)"
+        )
+        scope_params: tuple[object, ...] = () if scope == "UNBOUND" else (scope,)
+        candidates: set[str] = set()
+        if name_key is not None:
+            rows = reader.execute(
+                "SELECT c.contact_id FROM contacts c WHERE c.lifecycle_state='active' "
+                f"AND c.name_match_key=? AND {where_scope}",
+                (name_key, *scope_params),
+            ).fetchall()
+            candidates.update(str(row[0]) for row in rows)
+        if email_key is not None:
+            rows = reader.execute(
+                "SELECT DISTINCT c.contact_id FROM contacts c "
+                "JOIN contact_channels ch ON ch.contact_id=c.contact_id "
+                "WHERE c.lifecycle_state='active' AND ch.lifecycle_state='active' "
+                "AND ch.channel_kind='email' AND ch.match_key=? AND "
+                f"{where_scope}",
+                (email_key, *scope_params),
+            ).fetchall()
+            candidates.update(str(row[0]) for row in rows)
 
-            where_scope = (
-                "NOT EXISTS (SELECT 1 FROM contact_affiliations a WHERE a.contact_id=c.contact_id AND a.is_current=1)"
-                if scope == "UNBOUND"
-                else "EXISTS (SELECT 1 FROM contact_affiliations a WHERE a.contact_id=c.contact_id "
-                "AND a.is_current=1 AND a.customer_org_id=?)"
-            )
-            scope_params: tuple[object, ...] = () if scope == "UNBOUND" else (scope,)
-            candidates: set[str] = set()
-            if name_key is not None:
-                rows = connection.execute(
-                    "SELECT c.contact_id FROM contacts c WHERE c.lifecycle_state='active' "
-                    f"AND c.name_match_key=? AND {where_scope}",
-                    (name_key, *scope_params),
-                ).fetchall()
-                candidates.update(str(row[0]) for row in rows)
-            if email_key is not None:
-                rows = connection.execute(
-                    "SELECT DISTINCT c.contact_id FROM contacts c "
-                    "JOIN contact_channels ch ON ch.contact_id=c.contact_id "
-                    "WHERE c.lifecycle_state='active' AND ch.lifecycle_state='active' "
-                    "AND ch.channel_kind='email' AND ch.match_key=? AND "
-                    f"{where_scope}",
-                    (email_key, *scope_params),
-                ).fetchall()
-                candidates.update(str(row[0]) for row in rows)
-
-        visible, continuation = self._page(
+        visible, continuation = cls._page(
             candidates, after_candidate_id=after_candidate_id, limit=limit
         )
         count = len(candidates)
@@ -207,3 +202,46 @@ class ReferenceMatchingQueries:
             visible,
             continuation,
         )
+
+
+class ReferenceMatchingQueries:
+    """Snapshot convenience facade over the LLD-02 pure ReferenceMatcher."""
+
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
+
+    def match_customer_organization(
+        self,
+        *,
+        raw_account_code: str | None = None,
+        raw_name: str | None = None,
+        after_candidate_id: str | None = None,
+        limit: int = 50,
+    ) -> CandidateResult:
+        with ReadSnapshot(self._factory) as snapshot:
+            return ReferenceMatcher.match_customer_org(
+                snapshot.connection,
+                raw_account_code=raw_account_code,
+                raw_name=raw_name,
+                after_candidate_id=after_candidate_id,
+                limit=limit,
+            )
+
+    def match_contact(
+        self,
+        *,
+        scope: str,
+        raw_name: str | None = None,
+        raw_email: str | None = None,
+        after_candidate_id: str | None = None,
+        limit: int = 50,
+    ) -> CandidateResult:
+        with ReadSnapshot(self._factory) as snapshot:
+            return ReferenceMatcher.match_contact(
+                snapshot.connection,
+                scope=scope,
+                raw_name=raw_name,
+                raw_email=raw_email,
+                after_candidate_id=after_candidate_id,
+                limit=limit,
+            )
