@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -15,13 +16,33 @@ def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            raise ValidationError(f"duplicate JSON object key: {key!r}")
+            raise ValidationError("duplicate JSON object key")
         result[key] = value
     return result
 
 
 def _reject_nonfinite(value: str) -> None:
     raise ValidationError(f"non-finite JSON number is forbidden: {value}")
+
+
+def _finite_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValidationError("JSON number exceeds the finite numeric range")
+    return parsed
+
+
+def _validate_unicode(value: Any) -> None:
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, str):
+            item.encode("utf-8", errors="strict")
+        elif isinstance(item, dict):
+            pending.extend(item.keys())
+            pending.extend(item.values())
+        elif isinstance(item, list):
+            pending.extend(item)
 
 
 def loads_strict_bytes(raw: bytes, *, max_bytes: int | None = None) -> Any:
@@ -35,18 +56,21 @@ def loads_strict_bytes(raw: bytes, *, max_bytes: int | None = None) -> Any:
 
 
 def loads_strict(text: str, *, max_bytes: int | None = None) -> Any:
-    encoded = text.encode("utf-8", errors="strict")
-    if max_bytes is not None and len(encoded) > max_bytes:
-        raise ValidationError("JSON input exceeds UTF-8 byte bound")
     try:
-        return json.loads(
+        encoded = text.encode("utf-8", errors="strict")
+        if max_bytes is not None and len(encoded) > max_bytes:
+            raise ValidationError("JSON input exceeds UTF-8 byte bound")
+        value = json.loads(
             text,
             object_pairs_hook=_reject_duplicate_pairs,
             parse_constant=_reject_nonfinite,
+            parse_float=_finite_float,
         )
+        _validate_unicode(value)
+        return value
     except ValidationError:
         raise
-    except (json.JSONDecodeError, UnicodeError) as exc:
+    except (ValueError, UnicodeError, RecursionError) as exc:
         raise ValidationError("malformed JSON") from exc
 
 
@@ -59,9 +83,9 @@ def canonical_json_bytes(value: Any) -> bytes:
             sort_keys=True,
             separators=(",", ":"),
         )
-    except (TypeError, ValueError) as exc:
+        return text.encode("utf-8")
+    except (TypeError, ValueError, UnicodeError, RecursionError) as exc:
         raise ValidationError("value cannot be canonicalized as JSON") from exc
-    return text.encode("utf-8")
 
 
 def sha256_canonical_json(value: Any) -> str:
@@ -72,23 +96,22 @@ def _measure(value: Any, *, depth: int = 0) -> tuple[int, int, int]:
     max_depth = depth
     collection_items = 0
     string_bytes = 0
-    if isinstance(value, str):
-        string_bytes += len(value.encode("utf-8"))
-    elif isinstance(value, dict):
-        collection_items += len(value)
-        for key, child in value.items():
-            string_bytes += len(key.encode("utf-8"))
-            child_depth, child_items, child_strings = _measure(child, depth=depth + 1)
-            max_depth = max(max_depth, child_depth)
-            collection_items += child_items
-            string_bytes += child_strings
-    elif isinstance(value, list):
-        collection_items += len(value)
-        for child in value:
-            child_depth, child_items, child_strings = _measure(child, depth=depth + 1)
-            max_depth = max(max_depth, child_depth)
-            collection_items += child_items
-            string_bytes += child_strings
+    pending = [(value, depth)]
+    while pending:
+        item, item_depth = pending.pop()
+        max_depth = max(max_depth, item_depth)
+        if isinstance(item, str):
+            string_bytes += len(item.encode("utf-8"))
+        elif isinstance(item, dict):
+            collection_items += len(item)
+            for key, child in item.items():
+                if not isinstance(key, str):
+                    raise ValidationError("JSON object keys must be strings")
+                string_bytes += len(key.encode("utf-8"))
+                pending.append((child, item_depth + 1))
+        elif isinstance(item, list):
+            collection_items += len(item)
+            pending.extend((child, item_depth + 1) for child in item)
     return max_depth, collection_items, string_bytes
 
 
@@ -108,10 +131,10 @@ class ObjectContract:
             raise ValidationError(f"{self.name} v{self.version} requires an object")
         missing = self.required_fields - value.keys()
         if missing:
-            raise ValidationError(f"missing required fields: {sorted(missing)!r}")
+            raise ValidationError("missing required JSON fields")
         unknown = value.keys() - self.allowed_fields
         if unknown and self.unknown_field_policy == "reject":
-            raise ValidationError(f"unknown fields: {sorted(unknown)!r}")
+            raise ValidationError("unknown JSON fields")
         encoded = canonical_json_bytes(value)
         if len(encoded) > self.max_utf8_bytes:
             raise ValidationError("JSON contract byte bound exceeded")

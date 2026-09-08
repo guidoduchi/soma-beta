@@ -71,13 +71,7 @@ class MigrationManifest:
                 raise MigrationError("MIGRATION_MANIFEST_INVALID", "migration IDs and filenames must be unique")
             seen_ids.add(entry.migration_id)
             seen_files.add(entry.filename)
-            raw = self._validated_raw_bytes(entry)
-            digest = hashlib.sha256(raw).hexdigest()
-            if digest != entry.sha256:
-                raise MigrationError(
-                    "MIGRATION_HASH_MISMATCH",
-                    f"migration hash mismatch for {entry.filename}: expected {entry.sha256}, got {digest}",
-                )
+            self.raw_bytes(entry)
 
         on_disk = {
             path.name
@@ -91,7 +85,10 @@ class MigrationManifest:
             )
 
     def raw_bytes(self, entry: MigrationEntry) -> bytes:
-        return self._validated_raw_bytes(entry)
+        raw = self._validated_raw_bytes(entry)
+        if hashlib.sha256(raw).hexdigest() != entry.sha256:
+            raise MigrationError("MIGRATION_HASH_MISMATCH", "migration bytes disagree with the accepted manifest")
+        return raw
 
     def text(self, entry: MigrationEntry) -> str:
         return self.raw_bytes(entry).decode("utf-8", errors="strict")

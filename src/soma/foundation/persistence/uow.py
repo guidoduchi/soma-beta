@@ -67,6 +67,7 @@ class UnitOfWork:
             self._connection.execute("COMMIT")
             self._committed = True
         except BaseException as exc:
+            self.rollback()
             if _is_busy_error(exc):
                 raise PersistenceBusy("authoritative commit was busy") from exc
             raise PersistenceFailure("authoritative commit failed") from exc

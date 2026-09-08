@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -34,7 +35,7 @@ class CommandEnvelope:
             if not key or type(revision) is not int or revision <= 0:
                 raise ValidationError("base revisions must be positive integers")
         for key, value in self.authorizing_fingerprints.items():
-            if not key or len(value) != 64:
+            if not key or not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
                 raise ValidationError("authorizing fingerprints must be SHA-256 hex strings")
 
     def request_hash(self) -> str:

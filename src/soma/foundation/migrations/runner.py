@@ -114,6 +114,7 @@ class MigrationRunner:
     def initialize_or_migrate(self) -> int:
         if not self._ownership_assertion():
             raise MigrationError("INSTANCE_OWNERSHIP_REQUIRED", "canonical data-instance ownership is not proven")
+        self._manifest.validate()
         if self._canonical_path.exists():
             return self._migrate_existing()
         return self._initialize_clean()
@@ -181,10 +182,13 @@ class MigrationRunner:
             raise
 
     def _apply_entry(self, path: Path, entry: MigrationEntry, *, require_wal: bool) -> None:
+        # Execute the same immutable bytes that passed the hash check, without
+        # reading the filesystem while holding the writer lock.
+        text = self._manifest.text(entry)
         connection = self._factory_for_path(path).open_authoritative(read_only=False, require_wal=require_wal)
         try:
             connection.execute("BEGIN IMMEDIATE")
-            for statement in iter_migration_statements(self._manifest.text(entry)):
+            for statement in iter_migration_statements(text):
                 connection.execute(statement)
             connection.execute(
                 "INSERT INTO schema_migrations(sequence, migration_id, sha256, applied_at_utc, app_version) "
