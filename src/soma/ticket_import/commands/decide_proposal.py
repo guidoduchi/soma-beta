@@ -169,12 +169,28 @@ class ProposalDecisionService:
                 or proposal.source_observation_id is None
                 or proposal.target_kind != "service_request"
                 or proposal.target_internal_id is None
+                or proposal.target_business_id is None
             ):
                 raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection proposal binding is incomplete")
-            current_base = self._sr_import_mutations.source_acceptance_base_token(
-                uow.connection,
-                proposal.target_internal_id,
-            )
+            target_identity = uow.connection.execute(
+                "SELECT official_sr_no FROM service_requests WHERE service_request_id=?",
+                (proposal.target_internal_id,),
+            ).fetchone()
+            if (
+                target_identity is None
+                or target_identity[0] is None
+                or str(target_identity[0]) != proposal.target_business_id
+            ):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "proposal target identity no longer matches the Service Request")
+            try:
+                current_base = self._sr_import_mutations.source_acceptance_base_token(
+                    uow.connection,
+                    proposal.target_internal_id,
+                )
+            except SomaError as exc:
+                if exc.code == "NOT_FOUND":
+                    raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request target no longer exists") from exc
+                raise
             if not hmac.compare_digest(current_base, base_token):
                 raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request owner base state changed")
             changes = self._repository.list_changes(uow.connection, proposal_id)
@@ -190,6 +206,7 @@ class ProposalDecisionService:
                     self._sr_source_provider.build_source_projection_delta(
                         uow.connection,
                         service_request_id=proposal.target_internal_id,
+                        expected_import_run_id=proposal.import_run_id,
                         expected_source_observation_id=proposal.source_observation_id,
                         source_observation_field_id=change.source_observation_field_id,
                         field_key=change.field_key,
