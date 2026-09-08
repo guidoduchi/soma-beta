@@ -19,6 +19,24 @@
     "steps":["verify current claim","insert job_attempts row outcome=failed/cancelled","job-type retry policy classifies terminal failed vs retry_wait with explicit next_attempt_at_utc","clear claim fields and store bounded last_error_code","COMMIT"],
     "rule":"retry schedule is technical workflow policy; it never fabricates domain lifecycle state"
   },
+  "cancel": {
+    "transaction":"caller-owned UnitOfWork; no nested BEGIN/COMMIT and no Foundation command receipt",
+    "input":"job_id + exact expected job_type/contract_version + owning-domain command_context",
+    "steps":[
+      "load the exact durable_jobs row inside the caller UnitOfWork and require job_type/contract_version equal the caller expectation; mismatch or missing identity fails closed",
+      "if state=cancelled return ALREADY_CANCELLED without mutation",
+      "if state=completed or failed return TERMINAL_UNCHANGED without rewriting technical history",
+      "if state=running capture claimed_run_id, claim_started_at_utc and attempt_count, insert exactly one job_attempts row outcome=cancelled for that current ordinal, then set durable_jobs state=cancelled and clear claimed_run_id/claim_started_at_utc/next_attempt_at_utc",
+      "if state=queued, retry_wait or waiting_review set durable_jobs state=cancelled and clear next_attempt_at_utc/claim fields without inventing a job_attempts row for work that never held a running claim",
+      "set updated_at_utc=server-now and return DurableJobCancellationResultV1 to the owning-domain caller; caller decides whether to commit or roll the entire shared UnitOfWork back"
+    ],
+    "rules":[
+      "a revoked running handler loses coordinator authority immediately at commit; checkpoint/complete/fail must revalidate state+claim and reject the stale worker",
+      "an already-running handler may physically finish in-flight external CPU/file work, but that work cannot regain coordinator or owning-domain authority merely because it finishes",
+      "an optional in-process cancellation signal may be delivered only after commit as a latency optimization; correctness depends on persisted state/claim validation, never on that signal",
+      "the same owning-domain rollback that rejects cancellation also restores the prior durable job state/job-attempt history atomically"
+    ]
+  },
   "startup_recovery": {
     "precondition":"new host already owns canonical data instance exclusively",
     "steps":["find state=running jobs whose claimed_run_id differs from current run","for each, in bounded transaction insert job_attempts outcome=interrupted using stored claim_started_at_utc and new recovery time","apply job-type recovery policy: queued, retry_wait, failed, or waiting_review","clear stale claim fields","never resume arbitrary in-memory code position; restart from durable checkpoint/contract"]
