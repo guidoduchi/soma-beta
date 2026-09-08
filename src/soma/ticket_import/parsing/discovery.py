@@ -52,6 +52,8 @@ class _RankedPath:
 class _StableFile:
     size_bytes: int
     mtime_ns: int
+    device: int
+    inode: int
 
 
 def _source_unavailable(message: str) -> SomaError:
@@ -81,19 +83,30 @@ def _reject_unsupported_windows_namespace(path: Path) -> None:
         raise _source_unavailable("configured import path uses an unsupported Windows namespace")
 
 
+def _assert_no_reparse_chain(path: Path) -> None:
+    absolute = Path(os.path.abspath(os.fspath(path)))
+    chain = tuple(reversed(absolute.parents)) + (absolute,)
+    for component in chain:
+        try:
+            stat_result = os.lstat(component)
+        except OSError as exc:
+            raise _source_unavailable("configured import path is unavailable") from exc
+        if stat_module.S_ISLNK(stat_result.st_mode) or _is_reparse_stat(stat_result):
+            raise _source_unavailable("configured import path traverses a symbolic link or reparse point")
+
+
 def _assert_absolute_local_directory(directory: Path) -> Path:
     _reject_unsupported_windows_namespace(directory)
     if not directory.is_absolute():
         raise _source_unavailable("configured import directory is not an absolute local path")
+    _assert_no_reparse_chain(directory)
+    absolute = Path(os.path.abspath(os.fspath(directory)))
     try:
-        resolved = directory.resolve(strict=True)
+        stat_result = os.lstat(absolute)
+        resolved = absolute.resolve(strict=True)
     except OSError as exc:
         raise _source_unavailable("configured import directory is unavailable") from exc
-    try:
-        stat_result = os.lstat(resolved)
-    except OSError as exc:
-        raise _source_unavailable("configured import directory is unavailable") from exc
-    if not stat_module.S_ISDIR(stat_result.st_mode) or resolved.is_symlink() or _is_reparse_stat(stat_result):
+    if not stat_module.S_ISDIR(stat_result.st_mode) or _is_reparse_stat(stat_result):
         raise _source_unavailable("configured import directory is not a safe direct directory")
     return resolved
 
@@ -145,19 +158,29 @@ def _parse_advanced_search_filename(filename: str) -> int | None:
         utc_instant = aware.astimezone(UTC)
         if utc_instant.astimezone(zone).replace(tzinfo=None) != local:
             return None
-        return int(utc_instant.timestamp())
+        epoch = int(utc_instant.timestamp())
+        return epoch if epoch >= 0 else None
     except (OverflowError, ValueError):
         return None
 
 
 def _probe_stat(path: Path) -> _StableFile:
     try:
-        stat_result = path.stat()
+        stat_result = os.lstat(path)
     except OSError as exc:
         raise _unstable() from exc
-    if not stat_module.S_ISREG(stat_result.st_mode) or _is_reparse_stat(stat_result):
+    if (
+        not stat_module.S_ISREG(stat_result.st_mode)
+        or stat_module.S_ISLNK(stat_result.st_mode)
+        or _is_reparse_stat(stat_result)
+    ):
         raise _unstable()
-    return _StableFile(int(stat_result.st_size), int(stat_result.st_mtime_ns))
+    return _StableFile(
+        int(stat_result.st_size),
+        int(stat_result.st_mtime_ns),
+        int(stat_result.st_dev),
+        int(stat_result.st_ino),
+    )
 
 
 def _openable_without_writer(path: Path) -> bool:
@@ -277,7 +300,15 @@ def discover_advanced_search_automatic(
     if selected_stability is None:
         raise _unstable()
 
-    preflight = preflight_xlsx(selected.path)
+    try:
+        preflight = preflight_xlsx(selected.path)
+    except SomaError:
+        if _probe_stat(selected.path) != selected_stability:
+            raise _unstable()
+        raise
+    if _probe_stat(selected.path) != selected_stability:
+        raise _unstable()
+
     return CandidateDescriptor(
         source_family=_ADVANCED_SEARCH_FAMILY,
         profile_id=_ADVANCED_SEARCH_PROFILE_ID,
