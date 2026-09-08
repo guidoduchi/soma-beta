@@ -9,6 +9,7 @@ FOUNDATION_TABLES = {
     "instance_metadata",
     "schema_migrations",
     "command_receipts",
+    "command_receipt_results",
     "audit_events",
     "audit_event_results",
     "durable_jobs",
@@ -28,6 +29,8 @@ FOUNDATION_TRIGGERS = {
     "audit_events_before_delete_append_only",
     "audit_event_results_before_update_append_only",
     "audit_event_results_before_delete_append_only",
+    "command_receipt_results_before_update_append_only",
+    "command_receipt_results_before_delete_append_only",
 }
 
 

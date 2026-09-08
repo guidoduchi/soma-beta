@@ -24,6 +24,12 @@
       "migration_id": "beta_0004_ticket_import",
       "filename": "0004_ticket_import.sql",
       "sha256": "50c73b844cf2cfeb6e7273ca1d4886cfd6992653dec3d1c7ca03d98cced607dd"
+    },
+    {
+      "sequence": 5,
+      "migration_id": "beta_0005_command_replay_results",
+      "filename": "0005_command_replay_results.sql",
+      "sha256": "2aa0b287431d72c47af0e89d5ad28b00e4f21667c40e407fea87390caf826ba7"
     }
   ]
 }

@@ -25,6 +25,19 @@ class IdempotencyConflict(SomaError):
         super().__init__("IDEMPOTENCY_CONFLICT", message)
 
 
+class IdempotencyResultUnavailable(SomaError):
+    def __init__(
+        self,
+        message: str = "exact result for the committed legacy command is unavailable",
+    ) -> None:
+        super().__init__("IDEMPOTENCY_RESULT_UNAVAILABLE", message)
+
+
+class IntegrityFailure(SomaError):
+    def __init__(self, message: str = "authoritative integrity verification failed") -> None:
+        super().__init__("INTEGRITY_FAILURE", message)
+
+
 class PersistenceBusy(SomaError):
     def __init__(self, message: str = "authoritative writer is busy") -> None:
         super().__init__("PERSISTENCE_BUSY", message, retryable=True)

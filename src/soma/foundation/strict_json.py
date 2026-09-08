@@ -115,6 +115,47 @@ def _measure(value: Any, *, depth: int = 0) -> tuple[int, int, int]:
     return max_depth, collection_items, string_bytes
 
 
+def canonical_json_bytes_bounded(
+    value: Any,
+    *,
+    max_bytes: int,
+    max_depth: int,
+    max_collection_items: int,
+) -> bytes:
+    encoded = canonical_json_bytes(value)
+    if len(encoded) > max_bytes:
+        raise ValidationError("JSON contract byte bound exceeded")
+    depth, items, _ = _measure(value)
+    if depth > max_depth:
+        raise ValidationError("JSON contract depth bound exceeded")
+    if items > max_collection_items:
+        raise ValidationError("JSON contract collection bound exceeded")
+    return encoded
+
+
+def loads_canonical_json(
+    text: str,
+    *,
+    max_bytes: int,
+    max_depth: int,
+    max_collection_items: int,
+) -> Any:
+    value = loads_strict(text, max_bytes=max_bytes)
+    canonical = canonical_json_bytes_bounded(
+        value,
+        max_bytes=max_bytes,
+        max_depth=max_depth,
+        max_collection_items=max_collection_items,
+    )
+    try:
+        original = text.encode("utf-8", errors="strict")
+    except UnicodeError as exc:
+        raise ValidationError("JSON input is not valid UTF-8") from exc
+    if canonical != original:
+        raise ValidationError("JSON text is not canonical")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class ObjectContract:
     name: str
@@ -135,14 +176,12 @@ class ObjectContract:
         unknown = value.keys() - self.allowed_fields
         if unknown and self.unknown_field_policy == "reject":
             raise ValidationError("unknown JSON fields")
-        encoded = canonical_json_bytes(value)
-        if len(encoded) > self.max_utf8_bytes:
-            raise ValidationError("JSON contract byte bound exceeded")
-        depth, items, _ = _measure(value)
-        if depth > self.max_depth:
-            raise ValidationError("JSON contract depth bound exceeded")
-        if items > self.max_collection_items:
-            raise ValidationError("JSON contract collection bound exceeded")
+        canonical_json_bytes_bounded(
+            value,
+            max_bytes=self.max_utf8_bytes,
+            max_depth=self.max_depth,
+            max_collection_items=self.max_collection_items,
+        )
         return value
 
 

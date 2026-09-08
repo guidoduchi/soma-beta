@@ -1,20 +1,42 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from soma.foundation.audit.writer import AuditEventInput, AuditWriter
-from soma.foundation.errors import IdempotencyConflict, PersistenceFailure, ValidationError
+from soma.foundation.errors import (
+    IdempotencyConflict,
+    IdempotencyResultUnavailable,
+    IntegrityFailure,
+    PersistenceFailure,
+    ValidationError,
+)
 from soma.foundation.identifiers import require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
-from soma.foundation.strict_json import sha256_canonical_json
+from soma.foundation.strict_json import (
+    canonical_json_bytes_bounded,
+    loads_canonical_json,
+    sha256_canonical_json,
+)
+
+from .command_receipts import (
+    CommandReceipt,
+    CommandReceiptStore,
+    CommittedCommandResult,
+)
 
 AuditEmission = AuditEventInput | tuple[AuditEventInput, ...]
 ApplyMutation = Callable[[UnitOfWork], AuditEmission | None]
 PrepareMutation = Callable[[UnitOfWork], "PreparedMutation"]
+
+_MAX_RESPONSE_JSON_BYTES = 524_288
+_MAX_RESPONSE_DEPTH = 8
+_MAX_RESPONSE_COLLECTION_ITEMS = 512
+_DEFAULT_RESPONSE = object()
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +80,9 @@ class PreparedMutation:
     result_type: str | None
     result_id: str | None
     apply: ApplyMutation | None = None
+    response_schema: str = "CommandExecutionResultV1"
+    response_version: int = 1
+    response: Any = field(default=_DEFAULT_RESPONSE, repr=False)
 
     def validate(self) -> None:
         if self.no_change:
@@ -67,6 +92,10 @@ class PreparedMutation:
                 raise ValidationError("NO_CHANGE result identity is invalid")
         elif self.apply is None:
             raise ValidationError("material command requires a mutation callback")
+        if not isinstance(self.response_schema, str) or not self.response_schema:
+            raise ValidationError("command response schema is required")
+        if type(self.response_version) is not int or self.response_version <= 0:
+            raise ValidationError("command response version must be a positive integer")
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,15 +104,27 @@ class CommandExecutionResult:
     result_id: str | None
     replayed: bool
     no_change: bool
+    response_schema: str
+    response_version: int
+    response: Any
 
 
 class CommandBoundary:
-    def __init__(self, connection_factory: ConnectionFactory, audit_writer: AuditWriter) -> None:
+    def __init__(
+        self,
+        connection_factory: ConnectionFactory,
+        audit_writer: AuditWriter,
+        receipt_store: CommandReceiptStore | None = None,
+    ) -> None:
         self._connection_factory = connection_factory
         self._audit_writer = audit_writer
+        self._receipt_store = receipt_store or CommandReceiptStore()
 
     @staticmethod
-    def _normalize_audit_emission(emission: AuditEmission | None, command_id: str) -> tuple[AuditEventInput, ...]:
+    def _normalize_audit_emission(
+        emission: AuditEmission | None,
+        command_id: str,
+    ) -> tuple[AuditEventInput, ...]:
         if emission is None:
             raise PersistenceFailure("material authoritative command did not produce required owner audit")
         events = (emission,) if isinstance(emission, AuditEventInput) else emission
@@ -100,65 +141,146 @@ class CommandBoundary:
             seen_event_ids.add(event.audit_event_id)
         return events
 
-    def execute(self, envelope: CommandEnvelope, prepare: PrepareMutation) -> CommandExecutionResult:
+    @staticmethod
+    def _default_response(
+        *,
+        result_type: str | None,
+        result_id: str | None,
+        no_change: bool,
+    ) -> dict[str, object | None]:
+        return {
+            "no_change": no_change,
+            "result_id": result_id,
+            "result_type": result_type,
+        }
+
+    @staticmethod
+    def _encode_response(response: Any) -> tuple[str, str, Any]:
+        encoded = canonical_json_bytes_bounded(
+            response,
+            max_bytes=_MAX_RESPONSE_JSON_BYTES,
+            max_depth=_MAX_RESPONSE_DEPTH,
+            max_collection_items=_MAX_RESPONSE_COLLECTION_ITEMS,
+        )
+        text = encoded.decode("utf-8", errors="strict")
+        normalized = loads_canonical_json(
+            text,
+            max_bytes=_MAX_RESPONSE_JSON_BYTES,
+            max_depth=_MAX_RESPONSE_DEPTH,
+            max_collection_items=_MAX_RESPONSE_COLLECTION_ITEMS,
+        )
+        return text, hashlib.sha256(encoded).hexdigest(), normalized
+
+    @staticmethod
+    def _decode_stored_response(result: CommittedCommandResult) -> Any:
+        if (
+            not result.response_schema
+            or type(result.response_version) is not int
+            or result.response_version <= 0
+            or re.fullmatch(r"[0-9a-f]{64}", result.response_sha256) is None
+        ):
+            raise IntegrityFailure("committed command result metadata failed integrity validation")
+        try:
+            value = loads_canonical_json(
+                result.response_json,
+                max_bytes=_MAX_RESPONSE_JSON_BYTES,
+                max_depth=_MAX_RESPONSE_DEPTH,
+                max_collection_items=_MAX_RESPONSE_COLLECTION_ITEMS,
+            )
+            encoded = result.response_json.encode("utf-8", errors="strict")
+        except (ValidationError, UnicodeError) as exc:
+            raise IntegrityFailure("committed command result JSON failed integrity validation") from exc
+        if hashlib.sha256(encoded).hexdigest() != result.response_sha256:
+            raise IntegrityFailure("committed command result hash failed integrity validation")
+        return value
+
+    @staticmethod
+    def _assert_replay_match(
+        receipt: CommandReceipt,
+        envelope: CommandEnvelope,
+        request_hash: str,
+    ) -> None:
+        if (
+            receipt.command_type != envelope.command_type
+            or receipt.request_hash != request_hash
+            or receipt.target_type != envelope.target_type
+            or receipt.target_id != envelope.target_id
+        ):
+            raise IdempotencyConflict()
+
+    def execute(
+        self,
+        envelope: CommandEnvelope,
+        prepare: PrepareMutation,
+    ) -> CommandExecutionResult:
         request_hash = envelope.request_hash()
         with UnitOfWork(self._connection_factory) as uow:
-            existing = uow.connection.execute(
-                "SELECT command_type, request_hash, target_type, target_id, result_type, result_id "
-                "FROM command_receipts WHERE command_id = ?",
-                (envelope.command_id,),
-            ).fetchone()
+            existing = self._receipt_store.get(uow, envelope.command_id)
             if existing is not None:
-                if (
-                    str(existing[0]) != envelope.command_type
-                    or str(existing[1]) != request_hash
-                    or str(existing[2]) != envelope.target_type
-                    or (existing[3] if existing[3] is None else str(existing[3])) != envelope.target_id
-                ):
-                    raise IdempotencyConflict()
-                result_type = None if existing[4] is None else str(existing[4])
-                result_id = None if existing[5] is None else str(existing[5])
+                self._assert_replay_match(existing, envelope, request_hash)
+                exact_result = self._receipt_store.get_exact_result(uow, envelope.command_id)
+                if exact_result is None:
+                    raise IdempotencyResultUnavailable()
+                response = self._decode_stored_response(exact_result)
                 return CommandExecutionResult(
-                    result_type=result_type,
-                    result_id=result_id,
+                    result_type=existing.result_type,
+                    result_id=existing.result_id,
                     replayed=True,
-                    no_change=result_type == "NO_CHANGE",
+                    no_change=existing.result_type == "NO_CHANGE",
+                    response_schema=exact_result.response_schema,
+                    response_version=exact_result.response_version,
+                    response=response,
                 )
 
             prepared = prepare(uow)
             prepared.validate()
             stored_result_type = "NO_CHANGE" if prepared.no_change else prepared.result_type
-            uow.connection.execute(
-                "INSERT INTO command_receipts("
-                "command_id, command_type, request_hash, target_type, target_id, committed_at_utc, result_type, result_id"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    envelope.command_id,
-                    envelope.command_type,
-                    request_hash,
-                    envelope.target_type,
-                    envelope.target_id,
-                    utc_epoch_seconds(),
-                    stored_result_type,
-                    prepared.result_id,
+            self._receipt_store.insert(
+                uow,
+                CommandReceipt(
+                    command_id=envelope.command_id,
+                    command_type=envelope.command_type,
+                    request_hash=request_hash,
+                    target_type=envelope.target_type,
+                    target_id=envelope.target_id,
+                    committed_at_utc=utc_epoch_seconds(),
+                    result_type=stored_result_type,
+                    result_id=prepared.result_id,
                 ),
             )
 
-            if prepared.no_change:
-                return CommandExecutionResult(
-                    result_type="NO_CHANGE",
-                    result_id=None,
-                    replayed=False,
-                    no_change=True,
-                )
+            if not prepared.no_change:
+                assert prepared.apply is not None
+                events = self._normalize_audit_emission(prepared.apply(uow), envelope.command_id)
+                for event in events:
+                    self._audit_writer.write(uow, event)
 
-            assert prepared.apply is not None
-            events = self._normalize_audit_emission(prepared.apply(uow), envelope.command_id)
-            for event in events:
-                self._audit_writer.write(uow, event)
+            semantic_response = (
+                self._default_response(
+                    result_type=stored_result_type,
+                    result_id=prepared.result_id,
+                    no_change=prepared.no_change,
+                )
+                if prepared.response is _DEFAULT_RESPONSE
+                else prepared.response
+            )
+            response_json, response_sha256, normalized_response = self._encode_response(semantic_response)
+            self._receipt_store.insert_exact_result(
+                uow,
+                CommittedCommandResult(
+                    command_id=envelope.command_id,
+                    response_schema=prepared.response_schema,
+                    response_version=prepared.response_version,
+                    response_json=response_json,
+                    response_sha256=response_sha256,
+                ),
+            )
             return CommandExecutionResult(
-                result_type=prepared.result_type,
+                result_type=stored_result_type,
                 result_id=prepared.result_id,
                 replayed=False,
-                no_change=False,
+                no_change=prepared.no_change,
+                response_schema=prepared.response_schema,
+                response_version=prepared.response_version,
+                response=normalized_response,
             )
