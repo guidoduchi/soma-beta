@@ -4,9 +4,9 @@
   "requirement_edges":{
     "BETA-REQ-0002":["technology.json","algorithms/runtime-host.json","tests/acceptance.json"],
     "BETA-REQ-0003":["technology.json","algorithms/connection-unit-of-work.json","schema/core.json","tests/acceptance.json"],
-    "BETA-REQ-0018":["commands/execute-authoritative-command.json","algorithms/connection-unit-of-work.json","tests/acceptance.json"],
+    "BETA-REQ-0018":["commands/execute-authoritative-command.json","schema/core.json","migrations/0005-command-replay-results.json","algorithms/connection-unit-of-work.json","tests/acceptance.json"],
     "BETA-REQ-0131":["schema/core.json","schema/verification.json","algorithms/connection-unit-of-work.json","tests/acceptance.json"],
-    "BETA-REQ-0132":["migrations/0001-foundation.json","algorithms/migration-runner.json","commands/apply-pending-migrations.json","tests/acceptance.json"],
+    "BETA-REQ-0132":["migrations/0001-foundation.json","migrations/0005-command-replay-results.json","algorithms/migration-runner.json","commands/apply-pending-migrations.json","tests/acceptance.json"],
     "BETA-REQ-0133":["algorithms/migration-runner.json","schema/verification.json","tests/acceptance.json"],
     "BETA-REQ-0134":["queries/status.json","algorithms/migration-runner.json","tests/acceptance.json"],
     "BETA-REQ-0135":["commands/execute-authoritative-command.json","schema/core.json","audit/actions.json","tests/acceptance.json"],
@@ -18,15 +18,15 @@
   "command_edges":[
     {"command":"StartHost","leaf":"commands/start-host.json","internal_caller":"LLD-12 native launcher/runtime bootstrap","audit":"none","technical_evidence":"exclusive instance lock + migration ledger + run identity/runtime registry","tests":["LLD01-T003","LLD01-T004","LLD01-T010","LLD01-T011","LLD01-T012","LLD01-T016","LLD01-T017"]},
     {"command":"ShutdownHost","leaf":"commands/shutdown-host.json","route":"POST /api/v1/runtime/shutdown","audit":"foundation.runtime_shutdown_requested.v1","tests":["LLD01-T012","LLD01-T015"]},
-    {"command":"ApplyPendingMigrations","leaf":"commands/apply-pending-migrations.json","internal_caller":"StartHost -> MigrationRunner startup path","audit":"none","technical_evidence":"accepted migration manifest + immutable schema_migrations sequence/id/hash ledger","tests":["LLD01-T002","LLD01-T003","LLD01-T004","LLD01-T005"]},
-    {"command":"ExecuteAuthoritativeCommand","leaf":"commands/execute-authoritative-command.json","internal_caller":"LLD-02..LLD-09 owning application commands via LLD-01 UnitOfWork boundary","audit":"none","audit_delegation":"material mutation must use the exact owning packet registered audit action; accepted semantic NO_CHANGE fabricates no domain audit","tests":["LLD01-T001","LLD01-T006","LLD01-T007","LLD01-T008","LLD01-T013","LLD01-T014","LLD01-T018"]}
+    {"command":"ApplyPendingMigrations","leaf":"commands/apply-pending-migrations.json","internal_caller":"StartHost -> MigrationRunner startup path","audit":"none","technical_evidence":"accepted migration manifest + immutable schema_migrations sequence/id/hash ledger","tests":["LLD01-T002","LLD01-T003","LLD01-T004","LLD01-T005","LLD01-T020"]},
+    {"command":"ExecuteAuthoritativeCommand","leaf":"commands/execute-authoritative-command.json","internal_caller":"LLD-02..LLD-09 owning application commands via LLD-01 UnitOfWork boundary","audit":"none","audit_delegation":"material mutation must use the exact owning packet registered audit action; accepted semantic NO_CHANGE fabricates no domain audit","tests":["LLD01-T001","LLD01-T006","LLD01-T007","LLD01-T008","LLD01-T013","LLD01-T014","LLD01-T018","LLD01-T020","LLD01-T021"]}
   ],
   "query_edges":[
     {"query":"GetMigrationStatus","route":"GET /api/v1/migrations/status","ordering":"single result","pagination":"none","required_indexes":["schema_migrations PRIMARY KEY(sequence)"],"tests":["LLD01-T004","LLD01-T005"]},
     {"query":"GetRuntimeHealth","route":"GET /api/v1/runtime/health","ordering":"single result","pagination":"none","required_indexes":["instance_metadata PRIMARY KEY(singleton)","schema_migrations PRIMARY KEY(sequence)"],"tests":["LLD01-T010","LLD01-T012","LLD01-T016"]},
     {"query":"GetFoundationDiagnosticsState","route":"GET /api/v1/runtime/status","ordering":"single result","pagination":"none","required_indexes":["idx_jobs_state_due","idx_jobs_type_state"],"tests":["LLD01-T019"]}
   ],
-  "migration":{"sequence":1,"path":"migrations/0001-foundation.json","objects":"all LLD-01 Foundation tables/indexes/append-only triggers declared by schema/core.json"},
+  "migration":{"sequence":1,"path":"migrations/0001-foundation.json","objects":"Foundation baseline objects allocated at sequence 1","forward_additions":[{"sequence":5,"path":"migrations/0005-command-replay-results.json","objects":"command_receipt_results plus exact append-only guards"}]},
   "cross_packet":[
     {"interface":"SqlCipherConnectionSecurityProvider","provider":"LLD-12","consumer":"LLD-01"},
     {"interface":"RunControlProvider","provider":"LLD-12","consumer":"LLD-01"},
@@ -38,7 +38,7 @@
   "reverse_orphan_checks":[
     "Every Foundation command resolves to a public route or exact internal caller and explicit acceptance tests.",
     "Every Foundation query resolves to a route, deterministic single-result semantics, supporting indexes and tests.",
-    "Every schema object is allocated to migration sequence 1 and no domain table is owned here.",
+    "Every Foundation schema object is allocated exactly once across the frozen sequence-1 baseline and explicit later Foundation forward migrations; no domain table is owned here.",
     "Foundation coordinates durable jobs but concrete job-type contracts remain owned and registered by the workflow-owning packet."
   ]
 }

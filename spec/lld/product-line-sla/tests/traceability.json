@@ -21,7 +21,7 @@
     "tests/traceability/queries-sla.json",
     "tests/traceability/queries-reporting.json"
   ],
-  "migration":{"sequence":6,"path":"migrations/0006-product-line-sla.json","objects":"all LLD-06 Product Line/Contract/CPL, immutable policy/tier, classification mapping/current/history, report attempt/staging/completed-evidence and job-reference objects"},
+  "migration":{"sequence":7,"path":"migrations/0007-product-line-sla.json","objects":"all LLD-06 Product Line/Contract/CPL, immutable policy/tier, classification mapping/current/history, report attempt/staging/completed-evidence and job-reference objects"},
   "cross_packet":[
     {"interface":"Snapshot/UnitOfWork/CommandReceiptStore/AuditWriter/durable report job conventions","provider":"LLD-01","consumer":"LLD-06"},
     {"interface":"Customer Organization identity and governed Customer Account Code evidence","provider":"LLD-02","consumer":"LLD-06"},

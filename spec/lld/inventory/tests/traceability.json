@@ -50,7 +50,7 @@
     "tests/traceability/queries-inventory.json",
     "tests/traceability/queries-fault-tags.json"
   ],
-  "migration":{"sequence":7,"path":"migrations/0007-inventory.json","objects":"all LLD-07 Need/Device Part/Spare Request/RMA/Spare Part Unit/allocation/logistics/physical-consequence/Fault Tag/proposal/projection/history objects including Spare Request requester Contact/context fields and indexes"},
+  "migration":{"sequence":8,"path":"migrations/0008-inventory.json","objects":"all LLD-07 Need/Device Part/Spare Request/RMA/Spare Part Unit/allocation/logistics/physical-consequence/Fault Tag/proposal/projection/history objects including Spare Request requester Contact/context fields and indexes"},
   "cross_packet":[
     {"interface":"Snapshot/UnitOfWork/CommandReceiptStore/AuditWriter/STRICT schema conventions","provider":"LLD-01","consumer":"LLD-07"},
     {"interface":"Contact and Dispatch Location master identity","provider":"LLD-02","consumer":"LLD-07"},

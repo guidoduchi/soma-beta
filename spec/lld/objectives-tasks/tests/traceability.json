@@ -25,7 +25,7 @@
     "tests/traceability/queries-task.json",
     "tests/traceability/queries-objectives.json"
   ],
-  "migration":{"sequence":5,"path":"migrations/0005-objectives-tasks.json","objects":"all LLD-05 Task identity/plan/execution/outcome/lock/relationship/retry/lineage, Objective identity/membership/envelope/aggregate/review/archive, regroup/source-terminal/historical-proposal and operational-count objects"},
+  "migration":{"sequence":6,"path":"migrations/0006-objectives-tasks.json","objects":"all LLD-05 Task identity/plan/execution/outcome/lock/relationship/retry/lineage, Objective identity/membership/envelope/aggregate/review/archive, regroup/source-terminal/historical-proposal and operational-count objects"},
   "cross_packet":[
     {"interface":"UnitOfWork/CommandReceiptStore/AuditWriter/durable-job conventions","provider":"LLD-01","consumer":"LLD-05"},
     {"interface":"DomainIdFactory/SettingStore and OBJECTIVE_TIMEZONE_V1 storage registry","provider":"LLD-02","consumer":"LLD-05"},

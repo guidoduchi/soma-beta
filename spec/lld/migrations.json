@@ -7,14 +7,15 @@
     {"sequence":2,"packet_id":"LLD-02","migration_id":"beta_0002_identity_reference","filename":"0002_identity_reference.sql"},
     {"sequence":3,"packet_id":"LLD-03","migration_id":"beta_0003_tickets_core","filename":"0003_tickets_core.sql"},
     {"sequence":4,"packet_id":"LLD-04","migration_id":"beta_0004_ticket_import","filename":"0004_ticket_import.sql"},
-    {"sequence":5,"packet_id":"LLD-05","migration_id":"beta_0005_objectives_tasks","filename":"0005_objectives_tasks.sql"},
-    {"sequence":6,"packet_id":"LLD-06","migration_id":"beta_0006_product_line_sla","filename":"0006_product_line_sla.sql"},
-    {"sequence":7,"packet_id":"LLD-07","migration_id":"beta_0007_inventory","filename":"0007_inventory.sql"},
-    {"sequence":8,"packet_id":"LLD-08","migration_id":"beta_0008_infrastructure","filename":"0008_infrastructure.sql"},
-    {"sequence":9,"packet_id":"LLD-09","migration_id":"beta_0009_communications","filename":"0009_communications.sql"},
-    {"sequence":10,"packet_id":"LLD-10","migration_id":"beta_0010_ui_workbenches","filename":"0010_ui_workbenches.sql"},
-    {"sequence":11,"packet_id":"LLD-11","migration_id":"beta_0011_overview","filename":"0011_overview.sql"},
-    {"sequence":12,"packet_id":"LLD-12","migration_id":"beta_0012_security_packaging","filename":"0012_security_packaging.sql"}
+    {"sequence":5,"packet_id":"LLD-01","migration_id":"beta_0005_command_replay_results","filename":"0005_command_replay_results.sql"},
+    {"sequence":6,"packet_id":"LLD-05","migration_id":"beta_0006_objectives_tasks","filename":"0006_objectives_tasks.sql"},
+    {"sequence":7,"packet_id":"LLD-06","migration_id":"beta_0007_product_line_sla","filename":"0007_product_line_sla.sql"},
+    {"sequence":8,"packet_id":"LLD-07","migration_id":"beta_0008_inventory","filename":"0008_inventory.sql"},
+    {"sequence":9,"packet_id":"LLD-08","migration_id":"beta_0009_infrastructure","filename":"0009_infrastructure.sql"},
+    {"sequence":10,"packet_id":"LLD-09","migration_id":"beta_0010_communications","filename":"0010_communications.sql"},
+    {"sequence":11,"packet_id":"LLD-10","migration_id":"beta_0011_ui_workbenches","filename":"0011_ui_workbenches.sql"},
+    {"sequence":12,"packet_id":"LLD-11","migration_id":"beta_0012_overview","filename":"0012_overview.sql"},
+    {"sequence":13,"packet_id":"LLD-12","migration_id":"beta_0013_security_packaging","filename":"0013_security_packaging.sql"}
   ],
-  "rules":["sequence is globally reserved and contiguous; implementation agents never choose a number","allocation does not mean runtime SQL/hash is accepted","future forward migration allocation begins at sequence 13 and requires explicit design update","accepted runtime migration bytes/hash freeze under LLD-01 rules"]
+  "rules":["sequence is globally reserved and contiguous; implementation agents never choose a number","allocation does not mean runtime SQL/hash is accepted","accepted/applied sequences 1 through 4 are historical facts and are never renumbered by this forward repair","sequence 5 is the Foundation replay-result forward migration; it preserves all existing command_receipts and does not infer prior responses from mutable current state","only previously unimplemented allocations formerly numbered 5 through 12 shift to 6 through 13","future forward migration allocation begins at sequence 14 and requires explicit design update","accepted runtime migration bytes/hash freeze under LLD-01 rules"]
 }

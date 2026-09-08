@@ -1,0 +1,33 @@
+{
+  "schema":"SOMA-LLD-MIGRATION-OBJECT-ALLOCATION-V2",
+  "lld_id":"LLD-01",
+  "sequence":5,
+  "migration_id":"beta_0005_command_replay_results",
+  "runtime_filename":"0005_command_replay_results.sql",
+  "schema_sources":["schema/core.json","schema/verification.json"],
+  "objects":[
+    "table:command_receipt_results",
+    "trigger:command_receipt_results_before_update_append_only",
+    "trigger:command_receipt_results_before_delete_append_only"
+  ],
+  "upgrade_origin":"accepted/applied migration prefix 1..4; sequences 1..4 are never renumbered or rewritten",
+  "legacy_receipt_policy":[
+    "existing command_receipts are preserved exactly; migration 5 performs no UPDATE, DELETE, replacement or reinterpretation of them",
+    "migration 5 does not backfill response_json by reading mutable current domain state",
+    "absence of command_receipt_results for a legacy receipt is valid migration state and causes replay to return IDEMPOTENCY_RESULT_UNAVAILABLE unless a future explicitly reviewed immutable-evidence proof path can recover the complete original response exactly",
+    "replay never reruns the original command and never fabricates a response from current projections"
+  ],
+  "new_command_policy":[
+    "after migration 5, every newly committed command receipt has exactly one command_receipt_results row committed in the same authoritative UnitOfWork",
+    "semantic NO_CHANGE also persists its exact response snapshot while creating no domain revision/lifecycle/audit evidence",
+    "response JSON is strict canonical UTF-8, versioned, bounded by foundation-runtime/bounds.json and SHA-256 bound",
+    "result-row validation/insertion failure rolls the receipt, domain mutation, lifecycle evidence and audit back together"
+  ],
+  "verification":[
+    "command_receipt_results is SQLite STRICT",
+    "PRIMARY KEY(command_id) supplies exact leading-prefix coverage for its command_receipts foreign key without redundant index",
+    "UPDATE and DELETE probes are rejected by exact append-only triggers inside rolled-back verification transactions",
+    "upgrade from accepted sequence 4 preserves command_receipts row count and content",
+    "clean initialization and 1..4 upgrade both reach the same exact release schema after sequence 5"
+  ]
+}
