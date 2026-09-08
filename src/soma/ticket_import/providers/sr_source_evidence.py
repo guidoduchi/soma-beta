@@ -127,6 +127,7 @@ class TicketImportSrSourceEvidenceProvider:
         reader: Any,
         *,
         service_request_id: str,
+        expected_import_run_id: str,
         expected_source_observation_id: str,
         source_observation_field_id: str,
         field_key: str,
@@ -143,6 +144,7 @@ class TicketImportSrSourceEvidenceProvider:
         if (
             official_sr_no is None
             or field.canonical_sr_no != official_sr_no
+            or field.import_run_id != expected_import_run_id
             or field.source_observation_id != expected_source_observation_id
             or field.field_class != "active"
             or field.field_key != field_key
@@ -195,7 +197,7 @@ class TicketImportSrSourceEvidenceProvider:
         if official_sr_no is None:
             return sha256_canonical_json({"schema": "SR_SOURCE_FRESHNESS_V1", "service_request_id": sr_id, "fields": []})
         rows = uow.connection.execute(
-            "SELECT f.source_observation_field_id,f.field_logical_sha256,o.source_row_chronology_utc,r.run_state "
+            "SELECT f.source_observation_field_id,f.field_logical_sha256,o.source_row_chronology_utc "
             "FROM source_observation_fields f "
             "JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
             "JOIN import_runs r ON r.import_run_id=o.import_run_id "
@@ -214,7 +216,6 @@ class TicketImportSrSourceEvidenceProvider:
                         "field_id": str(row[0]),
                         "logical_sha256": str(row[1]),
                         "row_chronology_utc": None if row[2] is None else int(row[2]),
-                        "run_state": str(row[3]),
                     }
                     for row in rows
                 ],
