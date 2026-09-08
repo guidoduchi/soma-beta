@@ -86,6 +86,13 @@ def _set_zip_encrypted_flag(path: Path) -> None:
     path.write_bytes(data)
 
 
+def _replace_raw_zip_filename(path: Path, original: bytes, replacement: bytes) -> None:
+    assert len(original) == len(replacement)
+    data = path.read_bytes()
+    assert data.count(original) == 2  # local header + central-directory header
+    path.write_bytes(data.replace(original, replacement))
+
+
 def test_valid_minimal_inert_xlsx_passes_preflight(tmp_path: Path) -> None:
     path = _write_xlsx(tmp_path / "safe.xlsx")
     result = preflight_xlsx(path)
@@ -101,7 +108,6 @@ def test_valid_minimal_inert_xlsx_passes_preflight(tmp_path: Path) -> None:
         "../escape.xml",
         "/absolute.xml",
         "C:/drive.xml",
-        "xl\\backslash.xml",
         "xl/CON/device.xml",
         "xl/stream:name.xml",
     ),
@@ -111,6 +117,17 @@ def test_unsafe_zip_part_names_are_rejected(tmp_path: Path, malicious_name: str)
         tmp_path / "unsafe-name.xlsx",
         extras=((malicious_name, b"<x/>", zipfile.ZIP_STORED),),
     )
+    _assert_code(path, "XLSX_UNSAFE_CONTAINER")
+
+
+def test_backslash_zip_part_is_rejected_on_windows_too(tmp_path: Path) -> None:
+    path = _write_xlsx(
+        tmp_path / "backslash.xlsx",
+        extras=(("xl/backslash.xml", b"<x/>", zipfile.ZIP_STORED),),
+    )
+    # zipfile normalizes os.sep on Windows when constructing ZipInfo. Patch the raw
+    # local/central filename bytes so the fixture actually contains a backslash.
+    _replace_raw_zip_filename(path, b"xl/backslash.xml", b"xl\\backslash.xml")
     _assert_code(path, "XLSX_UNSAFE_CONTAINER")
 
 
