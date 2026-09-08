@@ -1,0 +1,141 @@
+{
+  "schema": "SOMA-LLD-JOBS-V2",
+  "lld_id": "LLD-06",
+  "jobs": [
+    {
+      "job_type": "SLA_REPORT_GENERATION_V1",
+      "contract_version": 1,
+      "payload_schema": "SlaReportGenerationJobPayloadV1",
+      "checkpoint_schema": "SlaReportGenerationCheckpointV1",
+      "retry_policy": {
+        "automatic_retries": 3,
+        "retryable": [
+          "transient filesystem access before final publication",
+          "process interruption after a sealed snapshot exists",
+          "transient verifier/open failure when candidate identity and sealed snapshot remain exact"
+        ],
+        "nonretryable": [
+          "unknown job contract version",
+          "process interruption while report_attempt is still staging because the stable read Snapshot cannot be resumed safely",
+          "unsafe or unresolved destination context",
+          "report contributor/schema contract failure",
+          "persisted snapshot count/hash mismatch",
+          "completed/failed/cancelled owning attempt"
+        ],
+        "rule": "retry never reuses mutable live-domain reads after sealing and never fabricates a new report_attempt_id"
+      },
+      "crash_recovery_policy": {
+        "reconcile_first": "reload the owning sla_report_attempt plus this checkpoint and any pending command receipt before choosing work; job/checkpoint state never overrides the domain attempt state",
+        "staging": "an interrupted stable-read generation is not resumable from an arbitrary in-memory position; if a pending StageReportSnapshotBatch receipt committed, reconcile that exact committed batch first, then fail the still-unsealed attempt through FailSlaReportAttempt and require a new explicit report attempt rather than mixing a new read Snapshot into old staging",
+        "ready_to_generate_or_generating": "regenerate deterministically from the exact sealed report_attempt_id + snapshot_hash; no live SR/CPL/policy/contributor query is permitted",
+        "verifying": "reverify only the exact persisted safe candidate identity when it still resolves inside the validated destination context; otherwise discard only that attempt-owned temporary candidate and regenerate from the sealed snapshot",
+        "published_before_completion": "when checkpoint contains an exact verified-and-published completion proof but CompleteSlaReport has not committed, retry only CompleteSlaReport with the same durable command_id and proof; do not rewrite or republish the artifact",
+        "terminal": "completed, failed and cancelled report attempts are never restarted into mutable report work"
+      },
+      "cancellation_policy": {
+        "cooperative_boundaries": [
+          "between committed staging batches after releasing/abandoning the stable read Snapshot",
+          "before XLSX writing begins",
+          "after candidate verification only while atomic final publication has not begun"
+        ],
+        "unsafe_boundary": "once atomic final publication begins, defer cancellation through publication/completion reconciliation; if CompleteSlaReport wins the domain race, completed evidence remains immutable",
+        "effect": "invoke CancelSlaReportAttempt only for a still-nonterminal attempt at a safe boundary; cancellation deletes only non-authoritative attempt-owned staging and may best-effort remove only an owned temporary candidate"
+      },
+      "sensitive_field_policy": "payload/checkpoint contain only report/job ids, opaque destination token, hashes, safe filename identities, bounded counters/revisions and command ids; no filesystem path, credentials, report row bodies, Communication bodies, Working Notes, unrestricted contributor payloads or mutable live-domain records",
+      "coalescing": "none across distinct explicit report requests; COMMAND_ENVELOPE_V1 replay of StartSlaReportGeneration reuses the same report_attempt/job identity, but separate accepted starts remain separate jobs",
+      "handler": "product_line_sla.jobs.report_generation.run"
+    }
+  ],
+  "payload_types": {
+    "SlaReportGenerationJobPayloadV1": {
+      "required": [
+        "report_attempt_id",
+        "destination_request_token",
+        "requested_by_command_id"
+      ],
+      "fields": {
+        "report_attempt_id": "uuid of the single LLD-06 report attempt owned by this job",
+        "destination_request_token": "sha256 token bound to the previously validated destination request; never a raw path",
+        "requested_by_command_id": "uuid of the accepted StartSlaReportGeneration command receipt"
+      },
+      "unknown_fields": "reject"
+    },
+    "SlaReportGenerationCheckpointV1": {
+      "required": [
+        "phase",
+        "attempt_revision",
+        "snapshot_generation_token",
+        "next_batch_ordinal",
+        "pending_command",
+        "candidate_filename",
+        "published_artifact"
+      ],
+      "fields": {
+        "phase": "snapshotting|sealed|writing|verifying|publishing|completing|terminal",
+        "attempt_revision": "int>=1 copied only as technical retry/concurrency context and always revalidated against sla_report_attempts",
+        "snapshot_generation_token": "opaque <=256-byte token|null; non-null only for the exact current stable-read staging generation",
+        "next_batch_ordinal": "int>=1|null; next bounded staging batch ordinal for the current generation",
+        "pending_command": "SlaReportPendingWorkerCommandV1|null",
+        "candidate_filename": "bounded safe sibling temporary filename|null; no directory/absolute/traversal component",
+        "published_artifact": "SlaReportPublishedArtifactCheckpointV1|null"
+      },
+      "unknown_fields": "reject"
+    },
+    "SlaReportPendingWorkerCommandV1": {
+      "required": [
+        "kind",
+        "command_id",
+        "expected_attempt_revision",
+        "request_fingerprint"
+      ],
+      "fields": {
+        "kind": "stage_batch|seal|mark_generating|mark_verifying|complete|fail|cancel",
+        "command_id": "uuid durably assigned before the owning LLD-06 command is first invoked and reused on every retry",
+        "expected_attempt_revision": "int>=1",
+        "request_fingerprint": "sha256 over the exact bounded command intent needed to reconcile a crash",
+        "batch_ordinal": "int>=1|null; present only for stage_batch",
+        "batch_payload_sha256": "sha256|null; present only for stage_batch",
+        "snapshot_hash": "sha256|null; exact sealed/recomputed snapshot identity when required by the operation",
+        "candidate_filename": "bounded safe sibling temporary filename|null; present only when the operation binds a candidate",
+        "completion_proof_fingerprint": "sha256|null; present only for complete and bound to SlaReportPublishedArtifactCheckpointV1"
+      },
+      "rules": [
+        "stage_batch requires batch_ordinal and batch_payload_sha256; normalized report row bodies are never copied into the durable job checkpoint",
+        "seal/mark_generating/mark_verifying/complete bind snapshot_hash when their command contract requires it; mark_verifying also binds candidate_filename",
+        "complete requires completion_proof_fingerprint matching the exact published_artifact checkpoint and reuses published_artifact.completion_command_id as command_id",
+        "for a crash with an uncommitted stage_batch pending command, the old stable-read generation is abandoned rather than reconstructed from current live state",
+        "for sealed/artifact transitions every retried command payload is reconstructed only from immutable/sealed attempt state plus exact safe checkpoint metadata"
+      ],
+      "unknown_fields": "reject"
+    },
+    "SlaReportPublishedArtifactCheckpointV1": {
+      "required": [
+        "candidate_filename",
+        "final_filename",
+        "artifact_sha256",
+        "artifact_size_bytes",
+        "verified_at_utc",
+        "snapshot_hash",
+        "completion_command_id"
+      ],
+      "fields": {
+        "candidate_filename": "bounded safe sibling temporary filename that was verified",
+        "final_filename": "bounded safe final published filename",
+        "artifact_sha256": "sha256 hex of the exact published bytes",
+        "artifact_size_bytes": "int>0",
+        "verified_at_utc": "utc_epoch_seconds",
+        "snapshot_hash": "sha256 hex of the exact sealed REPORT_SNAPSHOT_V1",
+        "completion_command_id": "uuid assigned before first CompleteSlaReport invocation and reused until exact completion/replay"
+      },
+      "rule": "this checkpoint is technical recovery proof only; CompletedReportEvidence exists only after CompleteSlaReport commits",
+      "unknown_fields": "reject"
+    }
+  },
+  "rules": [
+    "Exactly one SLA_REPORT_GENERATION_V1 job is linked to one sla_report_attempts row through sla_report_job_refs; the job never becomes report lifecycle authority.",
+    "All filesystem enumeration/write/hash/verify/publish work and stable-read report construction occur outside SQLite writer transactions; domain mutations use the named LLD-06 commands only.",
+    "Checkpoint writes are bounded and contain no report snapshot row bodies; authoritative snapshot content remains only in LLD-06 staging tables and becomes immutable evidence only at CompleteSlaReport.",
+    "A worker assigns and checkpoints each internal command_id before first invocation. Exact committed replay is reconciled before minting any replacement command identity.",
+    "Foundation restore reconciliation cancels restored nonterminal jobs; no Beta 1.0 restore path silently resumes historical report generation."
+  ]
+}
