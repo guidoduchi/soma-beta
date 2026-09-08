@@ -2,7 +2,7 @@
   "schema":"SOMA-LLD-TESTS-V1",
   "lld_id":"LLD-08",
   "suite":"failure_injection",
-  "case_count":52,
+  "case_count":55,
   "case_format":["id","injected failure / expected safety property"],
   "cases":[
     ["F001","Crash after Site row insert but before dedicated Dispatch Location/link: whole CreateSite UoW rolls back."],
@@ -36,8 +36,8 @@
     ["F029","Crash after new replacement component identity before install event: replacement identity rolls back."],
     ["F030","Device Part Unit resolution target changes after preview: writer validate_target rejects stale/invalid link."],
     ["F031","Workbook source locked during stabilization: bounded failed run/file result, no domain mutation/source modification."],
-    ["F032","Workbook parsing crashes mid-file: unpublished/failed technical staging may be cleaned; no domain mutation."],
-    ["F033","Crash during staging batch persistence: run remains resumable/non-authoritative and cannot appear accepted."],
+    ["F032","Workbook parsing crashes mid-file: recovery never resumes the in-memory parser; only exact checkpointed source identity and committed row fingerprints may be reused, otherwise unpublished technical staging is failed/cleaned and reparsed with no domain mutation."],
+    ["F033","Crash during staging batch persistence: the validating run remains non-authoritative; recovery reopens from row 2, verifies every committed row fingerprint through the durable per-sheet cursor, then continues only if the exact source SHA-256/stable metadata still match, so no duplicate/mixed-generation rows become reviewable."],
     ["F034","Workbook proposal calculation fails: no domain state changes; run records bounded failure."],
     ["F035","Accepted workbook batch fails after first domain service mutation: entire outer UoW rolls back all row mutations."],
     ["F036","Workbook target revision changes after review: acceptance aborts whole selected mutation set."],
@@ -56,8 +56,11 @@
     ["F049","Crash while INFRA_WORKBOOK_EXPORT_V1 is writing/verifying an unpublished temp workbook: recovery trusts only the committed export_id/temp_filename checkpoint, removes only the proven job-owned sibling temp artifact, and restarts from a fresh stable read snapshot; no export evidence or operator-file mutation is fabricated."],
     ["F050","Crash after temp workbook verification but before atomic publication: recovery reopens only the exact owned temp candidate and requires profile/hash/size equality before reuse; mismatch causes owned-temp discard/regeneration and never publishes unverified bytes."],
     ["F051","Crash after atomic workbook publication but before infrastructure_workbook_exports evidence commit: recovery never rewrites/deletes the final file; exact final filename/hash/size must match the committed checkpoint before the single export evidence row is recorded idempotently, otherwise recovery fails closed."],
-    ["F052","Export cancellation races publication: cancellation before publication closes/removes only a proven owned temp artifact; once atomic publication begins it cannot interleave with rename and post-publication cancellation must finish evidence reconciliation without deleting/retracting the operator-managed final workbook."]
+    ["F052","Export cancellation races publication: cancellation before publication closes/removes only a proven owned temp artifact; once atomic publication begins it cannot interleave with rename and post-publication cancellation must finish evidence reconciliation without deleting/retracting the operator-managed final workbook."],
+    ["F053","Crash during INFRA_WORKBOOK_STAGE_V1 validating-to-staged publication: before commit the run remains validating and cannot appear reviewable; after commit exact persisted run identity makes recovery skip publication idempotently without duplicate proposals or a second reviewable run."],
+    ["F054","Stage-job cancellation during parsing/staging/publishing: an unpublished validating candidate is failed/cleaned only at a safe checkpoint, publication transaction cannot be interrupted, and any already-published staged/reviewed run remains reviewable and is never retracted or accepted automatically."],
+    ["F055","Import directory/candidate manifest or current-file stable identity changes after an interrupted staging checkpoint: recovery resets discovery or fails the unpublished validating generation and reparses from a fresh exact identity while persisted already-published runs are idempotently skipped; rows from different workbook generations are never mixed."]
   ],
-  "expected":"No injected failure may leave a partial authoritative mutation, fabricated relationship, weakened identity inference or unindexed accepted workbook mutation.",
-  "transaction_focus":"Receipt-FK ordering, same-UoW cross-domain participants, projection/event atomicity, concurrency revalidation, durable workbook export publication/recovery and post-commit technical cleanup are all covered."
+  "expected":"No injected failure may leave a partial authoritative mutation, fabricated relationship, weakened identity inference, mixed-generation review staging or unindexed accepted workbook mutation.",
+  "transaction_focus":"Receipt-FK ordering, same-UoW cross-domain participants, projection/event atomicity, concurrency revalidation, durable workbook export publication/recovery, durable workbook staging/checkpoint/publication recovery and post-commit technical cleanup are all covered."
 }
