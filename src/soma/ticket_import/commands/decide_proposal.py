@@ -12,16 +12,20 @@ from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.ticket_import.providers.sr_customer_reconciliation import TicketImportSrCustomerReconciliationProvider
 from soma.ticket_import.providers.sr_identity_evidence import TicketImportSrIdentityEvidenceProvider
 from soma.ticket_import.providers.sr_source_evidence import TicketImportSrSourceEvidenceProvider
 from soma.tickets.audit_registry import build_tickets_audit_registry
 from soma.tickets.import_mutations import (
     ServiceRequestCreateFromSourceMutation,
     ServiceRequestCreateFromSourceResult,
+    ServiceRequestCustomerReviewMutation,
+    ServiceRequestCustomerReviewResult,
     ServiceRequestImportMutationResult,
     ServiceRequestImportMutationService,
     ServiceRequestSourceProjectionMutation,
 )
+from soma.tickets.sr_references import ServiceRequestCustomerClassificationParticipant
 from soma.tickets.sr_source_projection import AcceptedSrFieldDeltaSet
 
 from ..audit_registry import build_ticket_import_audit_registry
@@ -48,6 +52,19 @@ class ServiceRequestImportMutationParticipant(Protocol):
         uow: UnitOfWork,
         mutation: ServiceRequestSourceProjectionMutation,
     ) -> ServiceRequestImportMutationResult: ...
+
+    def customer_reconciliation_base_token(
+        self,
+        reader: Any,
+        service_request_id: str,
+        target_customer_org_id: str,
+    ) -> str: ...
+
+    def set_customer_from_review(
+        self,
+        uow: UnitOfWork,
+        mutation: ServiceRequestCustomerReviewMutation,
+    ) -> ServiceRequestCustomerReviewResult: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,13 +109,19 @@ class ProposalDecisionService:
         connection_factory: ConnectionFactory,
         *,
         sr_import_mutation_service: ServiceRequestImportMutationParticipant | None = None,
+        sr_customer_classification_participant: ServiceRequestCustomerClassificationParticipant | None = None,
     ) -> None:
         self._factory = connection_factory
         self._repository = ProposalRepository()
         self._sr_source_provider = TicketImportSrSourceEvidenceProvider()
         self._sr_identity_provider = TicketImportSrIdentityEvidenceProvider()
+        self._sr_customer_provider = TicketImportSrCustomerReconciliationProvider()
         self._sr_import_mutations = (
-            ServiceRequestImportMutationService(self._sr_source_provider)
+            ServiceRequestImportMutationService(
+                self._sr_source_provider,
+                customer_proposal_provider=self._sr_customer_provider,
+                classification_participant=sr_customer_classification_participant,
+            )
             if sr_import_mutation_service is None
             else sr_import_mutation_service
         )
@@ -351,6 +374,110 @@ class ProposalDecisionService:
 
         return PreparedMutation(False, "reconciliation_proposal", proposal.proposal_id, apply)
 
+    def _prepare_sr_customer_accept(
+        self,
+        uow: UnitOfWork,
+        *,
+        proposal: ProposalRecord,
+        run: Any,
+        base_token: str,
+        proposal_revision: int,
+        command_id: str,
+        reason: str | None,
+        actor_kind: str,
+        actor_id: str | None,
+    ) -> PreparedMutation:
+        if (
+            proposal.evidence_mode != "observed_row"
+            or proposal.source_observation_id is None
+            or proposal.target_kind != "service_request"
+            or proposal.target_internal_id is None
+            or proposal.target_business_id is None
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Customer reconciliation proposal binding is incomplete")
+        target_identity = uow.connection.execute(
+            "SELECT official_sr_no FROM service_requests WHERE service_request_id=?",
+            (proposal.target_internal_id,),
+        ).fetchone()
+        if (
+            target_identity is None
+            or target_identity[0] is None
+            or str(target_identity[0]) != proposal.target_business_id
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "proposal target identity no longer matches the Service Request")
+        changes = self._repository.list_changes(uow.connection, proposal.proposal_id)
+        if len(changes) != 1:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Customer reconciliation requires exactly one identity change")
+        change = changes[0]
+        if change.after_text is None:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Customer reconciliation target identity is missing")
+        current_base = self._sr_import_mutations.customer_reconciliation_base_token(
+            uow.connection,
+            proposal.target_internal_id,
+            change.after_text,
+        )
+        if not hmac.compare_digest(current_base, base_token):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request Customer reconciliation base state changed")
+        candidate = self._sr_customer_provider.revalidate_reviewed_candidate(
+            uow.connection,
+            proposal_id=proposal.proposal_id,
+            expected_import_run_id=proposal.import_run_id,
+            source_observation_id=proposal.source_observation_id,
+            service_request_id=proposal.target_internal_id,
+            canonical_sr_no=proposal.target_business_id,
+            field_key=change.field_key,
+            change_kind=change.change_kind,
+            value_kind=change.value_kind,
+            before_text=change.before_text,
+            after_text=change.after_text,
+            before_integer=change.before_integer,
+            after_integer=change.after_integer,
+            source_observation_field_id=change.source_observation_field_id,
+        )
+
+        disposition_id = new_uuid4()
+        orchestration_audit_id = new_uuid4()
+        decided_at = utc_epoch_seconds()
+        mutation = ServiceRequestCustomerReviewMutation(
+            service_request_id=proposal.target_internal_id,
+            target_customer_org_id=candidate.customer_org_id,
+            expected_prior_customer_org_id=candidate.prior_customer_org_id,
+            base_state_token=base_token,
+            reconciliation_proposal_id=proposal.proposal_id,
+            source_observation_id=candidate.source_observation_id,
+            accepted_command_id=command_id,
+            reason_category=reason,
+            review_fingerprint=proposal.proposal_fingerprint,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+        )
+
+        def apply(inner: UnitOfWork):
+            self._repository.transition_accept(
+                inner,
+                proposal=proposal,
+                run=run,
+                decided_at_utc=decided_at,
+                disposition_id=disposition_id,
+                reason_category=reason,
+                command_id=command_id,
+            )
+            owner_result = self._sr_import_mutations.set_customer_from_review(inner, mutation)
+            orchestration = self._orchestration_audit(
+                audit_event_id=orchestration_audit_id,
+                command_id=command_id,
+                proposal=proposal,
+                proposal_revision=proposal_revision,
+                reason=reason,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                disposition_id=disposition_id,
+                owner_result_refs=owner_result.result_refs,
+            )
+            return (*owner_result.audit_events, orchestration)
+
+        return PreparedMutation(False, "reconciliation_proposal", proposal.proposal_id, apply)
+
     def accept(
         self,
         *,
@@ -412,6 +539,18 @@ class ProposalDecisionService:
                 )
             if proposal.proposal_kind == "sr_source_projection":
                 return self._prepare_sr_source_projection_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "sr_customer_reconciliation":
+                return self._prepare_sr_customer_accept(
                     uow,
                     proposal=proposal,
                     run=run,
