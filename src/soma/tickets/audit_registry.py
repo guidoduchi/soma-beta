@@ -32,6 +32,18 @@ def build_tickets_audit_registry() -> AuditRegistry:
             16_384,
         ),
         (
+            "ticket.service_request.customer_changed",
+            "ServiceRequestReferenceAuditV1",
+            {"service_request_id", "reference_role", "prior_reference_id", "new_reference_id", "customer_org_context_id", "source_observation_id", "resulting_revision", "reason_category", "review_fingerprint"},
+            16_384,
+        ),
+        (
+            "ticket.service_request.contact_reference_changed",
+            "ServiceRequestReferenceAuditV1",
+            {"service_request_id", "reference_role", "prior_reference_id", "new_reference_id", "customer_org_context_id", "source_observation_id", "resulting_revision", "reason_category", "review_fingerprint"},
+            16_384,
+        ),
+        (
             "ticket.rfc.identity_created_or_adopted",
             "RfcIdentityAuditV1",
             {"rfc_id", "rfc_no", "creation_context", "customer_org_id", "resulting_revision"},
