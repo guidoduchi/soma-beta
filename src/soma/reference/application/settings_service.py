@@ -10,7 +10,7 @@ from soma.foundation.application.command_boundary import (
     PreparedMutation,
 )
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
@@ -29,6 +29,7 @@ class SettingValue:
     value: Any
     revision: int | None
     source: SettingSource
+    semantic_owner: str
 
 
 class SettingService:
@@ -64,6 +65,63 @@ class SettingService:
             value,
             int(row[3]),
             "PERSISTED",
+            definition.semantic_owner,
+        )
+
+    @staticmethod
+    def _response_payload(definition: SettingDefinition, value: Any, revision: int) -> dict[str, Any]:
+        return {
+            "setting_key": definition.setting_key,
+            "value": value,
+            "source": "PERSISTED",
+            "revision": revision,
+            "contract_name": definition.contract_name,
+            "contract_version": definition.current_version,
+            "semantic_owner": definition.semantic_owner,
+        }
+
+    @staticmethod
+    def _from_execution(execution: CommandExecutionResult) -> SettingValue:
+        if execution.response_schema != "SettingValueV1" or execution.response_version != 1:
+            raise IntegrityFailure("setting replay result schema/version is invalid")
+        payload = execution.response
+        required = {
+            "setting_key",
+            "value",
+            "source",
+            "revision",
+            "contract_name",
+            "contract_version",
+            "semantic_owner",
+        }
+        if not isinstance(payload, dict) or set(payload) != required:
+            raise IntegrityFailure("setting replay result payload is invalid")
+        setting_key = payload["setting_key"]
+        source = payload["source"]
+        revision = payload["revision"]
+        contract_name = payload["contract_name"]
+        contract_version = payload["contract_version"]
+        semantic_owner = payload["semantic_owner"]
+        if not isinstance(setting_key, str) or not setting_key:
+            raise IntegrityFailure("setting replay result key is invalid")
+        if source != "PERSISTED":
+            raise IntegrityFailure("setting mutation replay result source is invalid")
+        if type(revision) is not int or revision <= 0:
+            raise IntegrityFailure("setting replay result revision is invalid")
+        if not isinstance(contract_name, str) or not contract_name:
+            raise IntegrityFailure("setting replay result contract name is invalid")
+        if type(contract_version) is not int or contract_version <= 0:
+            raise IntegrityFailure("setting replay result contract version is invalid")
+        if not isinstance(semantic_owner, str) or not semantic_owner:
+            raise IntegrityFailure("setting replay result semantic owner is invalid")
+        return SettingValue(
+            setting_key=setting_key,
+            contract_name=contract_name,
+            contract_version=contract_version,
+            value=payload["value"],
+            revision=revision,
+            source="PERSISTED",
+            semantic_owner=semantic_owner,
         )
 
     def get(self, setting_key: str) -> SettingValue:
@@ -82,6 +140,7 @@ class SettingService:
                 default,
                 None,
                 "DEFAULT",
+                definition.semantic_owner,
             )
         return self._parse_persisted(definition, row)
 
@@ -97,7 +156,7 @@ class SettingService:
         value: Any,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> SettingValue:
         definition = self._registry.require(setting_key)
         validated = definition.validate_value(value)
         value_json = canonical_json_bytes(validated).decode("utf-8")
@@ -132,7 +191,14 @@ class SettingService:
                 if base_revision is None or current.revision != base_revision:
                     raise SomaError("STALE_REVISION", "setting revision changed")
                 if definition.semantic_equals(current.value, validated):
-                    return PreparedMutation(True, None, None)
+                    return PreparedMutation(
+                        True,
+                        None,
+                        None,
+                        response_schema="SettingValueV1",
+                        response_version=1,
+                        response=self._response_payload(definition, current.value, current.revision),
+                    )
                 prior_revision = current.revision
                 change_kind = "UPDATE"
             if definition.state_validator is not None:
@@ -190,6 +256,14 @@ class SettingService:
                     resulting_event_refs=(AuditResultRef("setting", setting_key),),
                 )
 
-            return PreparedMutation(False, "setting", setting_key, apply)
+            return PreparedMutation(
+                False,
+                "setting",
+                setting_key,
+                apply,
+                response_schema="SettingValueV1",
+                response_version=1,
+                response=self._response_payload(definition, validated, new_revision),
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return self._from_execution(self._boundary.execute(envelope, prepare))
