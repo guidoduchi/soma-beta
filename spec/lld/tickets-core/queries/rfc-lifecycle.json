@@ -10,76 +10,6 @@
       "rule":"source evidence bodies/history are read through LLD-04; this query exposes accepted current ticket projection only"
     },
     {
-      "name":"GetPendingRfcTerminalCascade",
-      "input":["public transport path rfc_id","cursor","page_size"],
-      "response_type":"RfcTerminalCascadeDetailV1",
-      "lookup_rule":"public transport resolves the one current pending proposal for exactly rfc_id. Internal repository helpers may load a known proposal_id, but proposal_id is not a second public lookup mode for this query.",
-      "output":"pending proposal identity, trigger RFC, revision, terminal status class/evidence/epoch, scope kind/fingerprint, exact RFC/WFM member counts and one bounded immutable captured-member page",
-      "ordering":"member_kind_ordinal ASC where RFC=0 and WFM=1, captured ordinal ASC, member immutable ID ASC",
-      "member_shapes":{
-        "rfc":"exact object {member_kind:'rfc',rfc_id,captured_rfc_revision,captured_role,ordinal}",
-        "wfm":"exact object {member_kind:'wfm',task_id,owning_rfc_id,captured_task_revision,captured_task_no,ordinal}"
-      },
-      "cursor":{
-        "query_id":"GetPendingRfcTerminalCascade",
-        "sort_registry_id":"RFC_TERMINAL_CASCADE_MEMBER_ORDER_V1",
-        "last_key_tuple":"exact array [member_kind_ordinal:int 0|1, ordinal:int>=0, member_id:uuid] where member_id is rfc_id for RFC rows and task_id for WFM rows",
-        "comparison":"lexicographic keyset greater-than over (member_kind_ordinal,ordinal,member_id) after the exact persisted proposal is resolved",
-        "filter_fingerprint_payload":"exact closed object {schema:'SOMA_RFC_TERMINAL_CASCADE_MEMBER_FILTER_V1',rfc_id,proposal_id,proposal_revision,scope_fingerprint}",
-        "filter_fingerprint_canonicalization":"LLD-01 StrictVersionedJson canonical_json exact UTF-8 followed by lowercase SHA-256 hex",
-        "null_order":"not_applicable",
-        "continuation_rule":"null when no additional persisted captured member exists after the page; otherwise exact CursorV1 semantic body for the last returned member. Cursor reuse after pending-proposal replacement/revision/fingerprint change fails stale/invalid rather than paging a different proposal.",
-        "golden_filter_vector":{
-          "canonical_utf8_bytes":265,
-          "canonical_json":"{\"proposal_id\":\"00000000-0000-4000-8000-000000000050\",\"proposal_revision\":1,\"rfc_id\":\"00000000-0000-4000-8000-000000000001\",\"schema\":\"SOMA_RFC_TERMINAL_CASCADE_MEMBER_FILTER_V1\",\"scope_fingerprint\":\"92c926573a48d3036d92f56bac40801e73d79e102980a8d2156502c5e94f866c\"}",
-          "expected_sha256":"7fb03f5e0b3a5293a4c8a59a1668cea45cb6bd7f649228fc42a78fc41c30326d"
-        }
-      },
-      "rules":[
-        "executed/superseded history is not returned as executable pending authority",
-        "this query exposes persisted proposal evidence only and never recomputes or mutates scope",
-        "state.scope_fingerprint is read verbatim from the persisted proposal and is not reconstructed from the bounded member page",
-        "exact member counts are computed from persisted immutable membership, not inferred from the returned page length"
-      ]
-    },
-    {
-      "name":"PreviewRfcTerminalCascade",
-      "input":["pending proposal_id","cursor","page_size"],
-      "response_type":"RfcTerminalCascadePreviewV1",
-      "read_consistency":"one LLD-01 stable ReadSnapshot; no writer UnitOfWork and no mutation",
-      "output":"persisted scope fingerprint/member count versus freshly recomputed current scope fingerprint/member count, exact stale reasons, provider-bound preview fingerprint, one bounded cross-domain impact page, warnings, execution readiness and—only when READY—the bounded RfcTerminalCascadeExecutionReviewV1 required by Execute",
-      "current_scope_rule":"Load current trigger RFC terminal projection inside the snapshot. If current terminal_epoch_id differs from persisted proposal epoch, current_scope_fingerprint=null, current_member_count=0 and stale_reasons includes TERMINAL_EPOCH_CHANGED. If epoch matches and current terminal class/evidence differ, recompute complete current RFC/WFM scope using the current accepted terminal binding and include TERMINAL_EVIDENCE_CHANGED. Any resulting SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 fingerprint mismatch includes RFC_OR_WFM_SCOPE_CHANGED.",
-      "participant_rule":"LLD-05 exposes the same applicable-WFM eligibility selector over ReadSnapshot for recomputation and separately previews Task/Objective impacts. LLD-09 previews Communication impacts. Both return RfcTerminalCascadeImpactProviderPageV1 semantics; provider INDETERMINATE makes impacts empty, continuation null, execution_ready=false and execution_review=null.",
-      "local_ticket_impacts":"one RFC_TERMINAL_SCOPE_MEMBER item per freshly recomputed RFC member when a current executable scope exists; ordering follows impact_kind then rfc_id and is independent from transport page size",
-      "ordering":"impact_domain_ordinal ASC where TICKETS=0,TASKS_OBJECTIVES=1,COMMUNICATIONS=2; impact_kind UTF-8 ASC; entity_id UTF-8 ASC",
-      "cursor":{
-        "query_id":"PreviewRfcTerminalCascade",
-        "sort_registry_id":"RFC_TERMINAL_CASCADE_IMPACT_ORDER_V1",
-        "last_key_tuple":"exact array [impact_domain_ordinal:int 0|1|2,impact_kind:string,entity_id:uuid]",
-        "comparison":"lexicographic keyset greater-than over (impact_domain_ordinal,impact_kind,entity_id)",
-        "filter_fingerprint_payload":"exact closed object {schema:'SOMA_RFC_TERMINAL_CASCADE_PREVIEW_FILTER_V1',proposal_id,proposal_revision,preview_fingerprint}",
-        "filter_fingerprint_canonicalization":"LLD-01 StrictVersionedJson canonical_json exact UTF-8 followed by lowercase SHA-256 hex",
-        "null_order":"not_applicable",
-        "continuation_rule":"continuation is emitted only when all providers are READY and another exact impact item exists. Cursor reuse after proposal revision, scope, Task/Objective impact or Communication impact changes fails stale/invalid rather than splicing previews.",
-        "golden_filter_vector":{"canonical_utf8_bytes":220,"canonical_json":"{\"preview_fingerprint\":\"4f67cf4d794157362580f0eb5af5d2d6fd12d11241466c1da0107ee858a2debe\",\"proposal_id\":\"00000000-0000-4000-8000-000000000050\",\"proposal_revision\":1,\"schema\":\"SOMA_RFC_TERMINAL_CASCADE_PREVIEW_FILTER_V1\"}","expected_sha256":"44027d68c497b6916a8cae53e759fa1731716c03edd527ab97dd84a9b5f670c1"}
-      },
-      "preview_fingerprint":{
-        "profile":"SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1",
-        "payload":"exact closed object {schema,proposal_id,proposal_revision,persisted_scope_fingerprint,current_scope_fingerprint,persisted_member_count,current_member_count,stale_reasons,task_objective_preview:{status,exact_count,provider_fingerprint},communication_preview:{status,exact_count,provider_fingerprint}}",
-        "ordering":"stale_reasons in closed ordinal TERMINAL_EPOCH_CHANGED,TERMINAL_EVIDENCE_CHANGED,RFC_OR_WFM_SCOPE_CHANGED; provider summaries use fixed key names and no warning prose",
-        "canonicalization":"LLD-01 StrictVersionedJson canonical_json exact UTF-8 then lowercase SHA-256 hex",
-        "golden_vector":{"canonical_utf8_bytes":686,"canonical_json":"{\"communication_preview\":{\"exact_count\":1,\"provider_fingerprint\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"status\":\"READY\"},\"current_member_count\":2,\"current_scope_fingerprint\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"persisted_member_count\":2,\"persisted_scope_fingerprint\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"proposal_id\":\"00000000-0000-4000-8000-000000000050\",\"proposal_revision\":1,\"schema\":\"SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1\",\"stale_reasons\":[],\"task_objective_preview\":{\"exact_count\":2,\"provider_fingerprint\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"status\":\"READY\"}}","expected_sha256":"4f67cf4d794157362580f0eb5af5d2d6fd12d11241466c1da0107ee858a2debe"}
-      },
-      "execution_review_rule":"execution_review is non-null only when execution_ready=true and is the exact closed RfcTerminalCascadeExecutionReviewV1 {preview_fingerprint,task_objective_exact_count,task_objective_provider_fingerprint,communication_exact_count,communication_provider_fingerprint} copied from the complete READY provider summaries; it contains no impact items/text and is not separately persisted as provider-owned state.",
-      "rules":[
-        "full-scope comparison and provider fingerprints are computed server-side before transport paging and never trust client-provided members or impact rows",
-        "read-only preview performs no scope refresh, receipt, audit, deliberate-proof consumption or downstream mutation",
-        "execution_ready is true only when proposal remains pending, stale_reasons is empty and both cross-domain providers are READY; exactly then execution_review is emitted",
-        "current terminal Closed<->Cancelled correction in the same epoch is represented as TERMINAL_EVIDENCE_CHANGED and normally changes current_scope_fingerprint because terminal class/evidence are fingerprint inputs",
-        "INDETERMINATE participant preview fails closed and never returns a misleading partial cross-domain impact page"
-      ]
-    },
-    {
       "name":"PreviewRfcArchive",
       "input":["rfc_id","scope_kind exact_rfc|reviewed_branch","cursor","page_size"],
       "output":"server-computed exact full-scope fingerprint/member count plus one bounded page of member IDs/revisions/archive states and change/exclusion classification",
@@ -109,5 +39,5 @@
       ]
     }
   ],
-  "pagination":"Every unbounded RFC lifecycle evidence/impact/member surface uses CURSOR_V1 keyset paging with packet-bounded page_size. Full-scope safety decisions use server-computed counts/fingerprints over indexed reads and never depend on an unbounded client payload."
+  "pagination":"Every unbounded RFC lifecycle evidence/member surface uses CURSOR_V1 keyset paging with packet-bounded page_size. Full-scope safety decisions use server-computed counts/fingerprints over indexed reads and never depend on an unbounded client payload. Terminal-cascade member/impact paging is owned by queries/rfc-terminal-cascade.json."
 }
