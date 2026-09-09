@@ -26,18 +26,20 @@
     {
       "name":"RefreshRfcTerminalCascadeProposal",
       "input":["pending proposal_id","base proposal revision","command_id"],
+      "response":"RfcTerminalCascadeStateV1 exact persisted state produced inside the owning writer UnitOfWork; NO_CHANGE returns the unchanged pending state, material refresh returns the replacement pending state",
       "steps":[
         "inside UoW prove proposal is pending at the exact base revision and trigger RFC still has the same terminal_epoch_id as the proposal",
         "load the current accepted terminal status class/evidence for that epoch; Closed<->Cancelled correction is allowed and becomes the replacement terminal binding, while nonterminal/reversed or different-epoch state is stale and cannot be refreshed",
         "capture current exact RFC/WFM scope using the current accepted terminal class/evidence and compute SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 replacement fingerprint",
-        "if terminal class/evidence and complete scope fingerprint are all unchanged from the pending proposal return semantic NO_CHANGE",
-        "insert receipt, supersede old proposal with immutable provenance, insert replacement pending proposal/member rows using the same terminal epoch and current terminal class/evidence, audit refresh, commit"
+        "if terminal class/evidence and complete scope fingerprint are all unchanged from the pending proposal return semantic NO_CHANGE with the exact unchanged RfcTerminalCascadeStateV1",
+        "insert receipt, supersede old proposal with immutable provenance, insert replacement pending proposal/member rows using the same terminal epoch and current terminal class/evidence, audit refresh, persist the exact replacement RfcTerminalCascadeStateV1 command result, commit"
       ],
       "rules":[
         "refresh never executes downstream consequences",
         "executed or already superseded proposal cannot be refreshed",
         "refresh never edits proposal identity/evidence/fingerprint/member rows in place",
-        "terminal evidence correction within the same epoch is a material refresh even when RFC/WFM membership is unchanged"
+        "terminal evidence correction within the same epoch is a material refresh even when RFC/WFM membership is unchanged",
+        "refresh never invokes PreviewRfcTerminalCascade inside its writer UnitOfWork; cross-domain impact preview remains the separate read-only route and is requested after refresh when needed"
       ]
     },
     {
