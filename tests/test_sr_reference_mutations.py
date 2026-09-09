@@ -82,7 +82,7 @@ def _seed_handler_observation(factory, service_request_id: str, accepted_command
     return observation_id
 
 
-def test_customer_relationship_history_revision_no_change_and_clear(initialized_database) -> None:
+def test_customer_relationship_history_revision_no_change_clear_and_exact_replay(initialized_database) -> None:
     factory = _factory(initialized_database)
     customers = CustomerReferenceService(factory)
     customer_a = customers.create_customer_organization(command_id=new_uuid4(), name="Reference Customer A")
@@ -106,8 +106,9 @@ def test_customer_relationship_history_revision_no_change_and_clear(initialized_
         reason_category="manual_customer_review",
         review_fingerprint=preview.review_fingerprint,
     )
+    assert first.outcome == "APPLIED"
+    assert first.target_id == sr.service_request_id
     assert first.revision == 2
-    assert first.target_reference_id == customer_a.customer_org_id
     assert participant.apply_calls[-1][1] == customer_a.customer_org_id
     assert participant.apply_calls[-1][2]["resulting_revision"] == 2
 
@@ -119,6 +120,7 @@ def test_customer_relationship_history_revision_no_change_and_clear(initialized_
         reason_category="manual_customer_review",
     )
     assert no_change.no_change is True
+    assert no_change.target_id == sr.service_request_id
     assert no_change.revision == 2
     assert len(participant.apply_calls) == 1
 
@@ -129,8 +131,9 @@ def test_customer_relationship_history_revision_no_change_and_clear(initialized_
         customer_org_id=customer_b.customer_org_id,
         reason_category="customer_correction",
     )
+    assert second.outcome == "APPLIED"
+    assert second.target_id == sr.service_request_id
     assert second.revision == 3
-    assert second.target_reference_id == customer_b.customer_org_id
     assert len(participant.apply_calls) == 2
 
     clear = service.set_customer(
@@ -140,10 +143,25 @@ def test_customer_relationship_history_revision_no_change_and_clear(initialized_
         customer_org_id=None,
         reason_category="customer_cleared",
     )
+    assert clear.outcome == "APPLIED"
+    assert clear.target_id == sr.service_request_id
     assert clear.revision == 4
-    assert clear.target_reference_id is None
     assert len(participant.apply_calls) == 3
     assert participant.apply_calls[-1][1] is None
+
+    replay = service.set_customer(
+        command_id=first_command,
+        service_request_id=sr.service_request_id,
+        base_revision=1,
+        customer_org_id=customer_a.customer_org_id,
+        reason_category="manual_customer_review",
+        review_fingerprint=preview.review_fingerprint,
+    )
+    assert replay.replayed is True
+    assert replay.outcome == "APPLIED"
+    assert replay.target_id == sr.service_request_id
+    assert replay.revision == 2
+    assert len(participant.apply_calls) == 3
 
     connection = _read(initialized_database)
     try:
@@ -161,6 +179,10 @@ def test_customer_relationship_history_revision_no_change_and_clear(initialized_
             "SELECT COUNT(*) FROM sr_customer_relationships WHERE service_request_id=? AND relationship_state='active'",
             (sr.service_request_id,),
         ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT revision FROM service_requests WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 4
         customer_revisions = connection.execute(
             "SELECT customer_org_id,revision FROM customer_organizations WHERE customer_org_id IN (?,?) ORDER BY customer_org_id",
             (customer_a.customer_org_id, customer_b.customer_org_id),
@@ -173,6 +195,16 @@ def test_customer_relationship_history_revision_no_change_and_clear(initialized_
         assert len(audits) == 3
         assert all("Reference Customer" not in str(row[0]) for row in audits)
         assert all(json.loads(str(row[0]))["resulting_revision"] in {2, 3, 4} for row in audits)
+        stored = connection.execute(
+            "SELECT response_schema,response_json FROM command_receipt_results WHERE command_id=?",
+            (first_command,),
+        ).fetchone()
+        assert stored[0] == "TicketMutationResultV1"
+        assert json.loads(str(stored[1])) == {
+            "outcome": "APPLIED",
+            "revision": 2,
+            "target_id": sr.service_request_id,
+        }
     finally:
         connection.close()
 
@@ -216,7 +248,7 @@ def test_customer_participant_failure_rolls_back_receipt_relationship_and_revisi
         connection.close()
 
 
-def test_contact_affiliation_mismatch_requires_fresh_review_and_preserves_affiliation(initialized_database) -> None:
+def test_contact_affiliation_mismatch_requires_fresh_review_preserves_affiliation_and_replays_exactly(initialized_database) -> None:
     factory = _factory(initialized_database)
     customers = CustomerReferenceService(factory)
     customer_a = customers.create_customer_organization(command_id=new_uuid4(), name="Customer Context A")
@@ -259,8 +291,9 @@ def test_contact_affiliation_mismatch_requires_fresh_review_and_preserves_affili
         )
     assert excinfo.value.code == "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED"
 
+    accepted_command = new_uuid4()
     accepted = service.set_contact_reference(
-        command_id=new_uuid4(),
+        command_id=accepted_command,
         service_request_id=sr.service_request_id,
         base_revision=2,
         reference_role="customer_contact",
@@ -269,8 +302,9 @@ def test_contact_affiliation_mismatch_requires_fresh_review_and_preserves_affili
         reason_category="contact_review",
         review_fingerprint=preview.review_fingerprint,
     )
+    assert accepted.outcome == "APPLIED"
+    assert accepted.target_id == sr.service_request_id
     assert accepted.revision == 3
-    assert accepted.target_reference_id == contact.contact_id
 
     no_change = service.set_contact_reference(
         command_id=new_uuid4(),
@@ -282,6 +316,7 @@ def test_contact_affiliation_mismatch_requires_fresh_review_and_preserves_affili
         reason_category="contact_review",
     )
     assert no_change.no_change is True
+    assert no_change.target_id == sr.service_request_id
     assert no_change.revision == 3
 
     service.set_customer(
@@ -308,7 +343,23 @@ def test_contact_affiliation_mismatch_requires_fresh_review_and_preserves_affili
         review_fingerprint=refreshed_preview.review_fingerprint,
     )
     assert refreshed.no_change is False
+    assert refreshed.target_id == sr.service_request_id
     assert refreshed.revision == 5
+
+    replay = service.set_contact_reference(
+        command_id=accepted_command,
+        service_request_id=sr.service_request_id,
+        base_revision=2,
+        reference_role="customer_contact",
+        contact_id=contact.contact_id,
+        supporting_sr_source_field_observation_id=None,
+        reason_category="contact_review",
+        review_fingerprint=preview.review_fingerprint,
+    )
+    assert replay.replayed is True
+    assert replay.outcome == "APPLIED"
+    assert replay.target_id == sr.service_request_id
+    assert replay.revision == 3
 
     connection = _read(initialized_database)
     try:
@@ -365,6 +416,8 @@ def test_current_handler_reference_binds_exact_current_source_observation(initia
         reason_category="handler_identity_review",
         review_fingerprint=preview_h1.review_fingerprint,
     )
+    assert applied.outcome == "APPLIED"
+    assert applied.target_id == sr.service_request_id
     assert applied.revision == 2
 
     handler_h2 = _seed_handler_observation(factory, sr.service_request_id, create_sr_command, "handler-two")
@@ -403,6 +456,8 @@ def test_current_handler_reference_binds_exact_current_source_observation(initia
         reason_category="handler_identity_refresh",
         review_fingerprint=preview_h2.review_fingerprint,
     )
+    assert refreshed.outcome == "APPLIED"
+    assert refreshed.target_id == sr.service_request_id
     assert refreshed.revision == 3
 
     connection = _read(initialized_database)
