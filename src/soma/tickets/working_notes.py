@@ -4,13 +4,14 @@ from dataclasses import dataclass
 
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 
 from .audit_registry import build_tickets_audit_registry
 from .repositories.working_notes import WorkingNoteRecord, WorkingNoteRepository
+from .results import ticket_mutation_result_from_execution
 from .validation import validate_reason_category, validate_working_note_body
 
 
@@ -52,32 +53,26 @@ class WorkingNoteService:
             return None
         return validate_reason_category(value)
 
-    def _current_result(
-        self,
+    @staticmethod
+    def _result_from_execution(
+        execution,
         *,
         owner_type: str,
         owner_id: str,
         working_note_id: str,
-        replayed: bool,
-        no_change: bool,
+        removed: bool,
     ) -> WorkingNoteMutationResult:
-        with ReadSnapshot(self._factory) as snapshot:
-            note = self._repository.get(
-                snapshot.connection,
-                owner_type,
-                owner_id,
-                working_note_id,
-            )
-        if note is None:
-            raise SomaError("WORKING_NOTE_NOT_FOUND", "Working Note no longer exists")
+        result = ticket_mutation_result_from_execution(execution)
+        if result.target_id != working_note_id:
+            raise IntegrityFailure("Working Note replay result targets another note")
         return WorkingNoteMutationResult(
             working_note_id=working_note_id,
             owner_type=owner_type,
             owner_id=owner_id,
-            revision=note.revision,
-            replayed=replayed,
-            no_change=no_change,
-            removed=False,
+            revision=result.revision,
+            replayed=result.replayed,
+            no_change=result.no_change,
+            removed=removed,
         )
 
     def add(
@@ -146,17 +141,24 @@ class WorkingNoteService:
                     resulting_event_refs=(AuditResultRef("working_note", note_id),),
                 )
 
-            return PreparedMutation(False, "working_note", note_id, apply)
+            return PreparedMutation(
+                False,
+                "working_note",
+                note_id,
+                apply,
+                response_schema="TicketMutationResultV1",
+                response={"outcome": "APPLIED", "target_id": note_id, "revision": 1},
+            )
 
         result = self._boundary.execute(envelope, prepare)
         if result.result_id is None:
             raise SomaError("PERSISTENCE_FAILURE", "Working Note creation did not return its identity")
-        return self._current_result(
+        return self._result_from_execution(
+            result,
             owner_type=owner_type,
             owner_id=owner_id,
             working_note_id=result.result_id,
-            replayed=result.replayed,
-            no_change=result.no_change,
+            removed=False,
         )
 
     def edit(
@@ -196,7 +198,17 @@ class WorkingNoteService:
             if note.revision != base_revision:
                 raise SomaError("STALE_REVISION", "Working Note revision changed")
             if note.body_text == body:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TicketMutationResultV1",
+                    response={
+                        "outcome": "NO_CHANGE",
+                        "target_id": working_note_id,
+                        "revision": base_revision,
+                    },
+                )
             actor_id = self._authenticated_profile_id(uow.connection)
             audit_event_id = new_uuid4()
             now = utc_epoch_seconds()
@@ -235,15 +247,26 @@ class WorkingNoteService:
                     resulting_event_refs=(AuditResultRef("working_note", working_note_id),),
                 )
 
-            return PreparedMutation(False, "working_note", working_note_id, apply)
+            return PreparedMutation(
+                False,
+                "working_note",
+                working_note_id,
+                apply,
+                response_schema="TicketMutationResultV1",
+                response={
+                    "outcome": "APPLIED",
+                    "target_id": working_note_id,
+                    "revision": base_revision + 1,
+                },
+            )
 
         result = self._boundary.execute(envelope, prepare)
-        return self._current_result(
+        return self._result_from_execution(
+            result,
             owner_type=owner_type,
             owner_id=owner_id,
             working_note_id=working_note_id,
-            replayed=result.replayed,
-            no_change=result.no_change,
+            removed=False,
         )
 
     def remove(
@@ -318,15 +341,24 @@ class WorkingNoteService:
                     resulting_event_refs=(AuditResultRef("working_note_history", working_note_id),),
                 )
 
-            return PreparedMutation(False, "working_note_history", working_note_id, apply)
+            return PreparedMutation(
+                False,
+                "working_note_history",
+                working_note_id,
+                apply,
+                response_schema="TicketMutationResultV1",
+                response={
+                    "outcome": "APPLIED",
+                    "target_id": working_note_id,
+                    "revision": base_revision,
+                },
+            )
 
         result = self._boundary.execute(envelope, prepare)
-        return WorkingNoteMutationResult(
-            working_note_id=working_note_id,
+        return self._result_from_execution(
+            result,
             owner_type=owner_type,
             owner_id=owner_id,
-            revision=base_revision,
-            replayed=result.replayed,
-            no_change=result.no_change,
+            working_note_id=working_note_id,
             removed=True,
         )

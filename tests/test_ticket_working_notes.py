@@ -56,8 +56,9 @@ def test_working_notes_preserve_creator_edit_history_and_removal_evidence(initia
         creation_context="manual",
     )
 
+    add_command = new_uuid4()
     sr_note = notes.add(
-        command_id=new_uuid4(),
+        command_id=add_command,
         owner_type="service_request",
         owner_id=sr.service_request_id,
         body_text="first SR note",
@@ -90,8 +91,9 @@ def test_working_notes_preserve_creator_edit_history_and_removal_evidence(initia
         actor_id=profile_id,
     )
 
+    edit_command = new_uuid4()
     edited = notes.edit(
-        command_id=new_uuid4(),
+        command_id=edit_command,
         owner_type="service_request",
         owner_id=sr.service_request_id,
         working_note_id=sr_note.working_note_id,
@@ -134,6 +136,27 @@ def test_working_notes_preserve_creator_edit_history_and_removal_evidence(initia
     )
     assert replay.replayed is True
     assert replay.removed is True
+
+    add_replay = notes.add(
+        command_id=add_command,
+        owner_type="service_request",
+        owner_id=sr.service_request_id,
+        body_text="first SR note",
+    )
+    assert add_replay.replayed is True
+    assert add_replay.working_note_id == sr_note.working_note_id
+    assert add_replay.revision == 1
+
+    edit_replay = notes.edit(
+        command_id=edit_command,
+        owner_type="service_request",
+        owner_id=sr.service_request_id,
+        working_note_id=sr_note.working_note_id,
+        base_revision=1,
+        body_text="second SR note",
+    )
+    assert edit_replay.replayed is True
+    assert edit_replay.revision == 2
 
     connection = _read(initialized_database)
     try:

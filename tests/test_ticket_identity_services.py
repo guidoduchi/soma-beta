@@ -351,12 +351,14 @@ def test_rfc_replay_is_independent_of_later_owner_state(initialized_database) ->
 
 def test_device_reference_equal_names_stale_correction_and_audit_privacy(initialized_database) -> None:
     service = DeviceReferenceService(_factory(initialized_database))
-    first = service.create(command_id=new_uuid4(), operational_name="host-a")
+    create_command = new_uuid4()
+    first = service.create(command_id=create_command, operational_name="host-a")
     second = service.create(command_id=new_uuid4(), operational_name="host-a")
     assert first.device_reference_id != second.device_reference_id
 
+    correct_command = new_uuid4()
     corrected = service.correct_name(
-        command_id=new_uuid4(),
+        command_id=correct_command,
         device_reference_id=first.device_reference_id,
         base_revision=1,
         operational_name="host-a-corrected",
@@ -375,6 +377,31 @@ def test_device_reference_equal_names_stale_correction_and_audit_privacy(initial
     )
     assert no_change.no_change is True
     assert no_change.revision == 2
+
+    changed_again = service.correct_name(
+        command_id=new_uuid4(),
+        device_reference_id=first.device_reference_id,
+        base_revision=2,
+        operational_name="host-a-later",
+        reason_category="operator_correction",
+    )
+    assert changed_again.revision == 3
+
+    create_replay = service.create(command_id=create_command, operational_name="host-a")
+    assert create_replay.replayed is True
+    assert create_replay.operational_name == "host-a"
+    assert create_replay.revision == 1
+
+    correction_replay = service.correct_name(
+        command_id=correct_command,
+        device_reference_id=first.device_reference_id,
+        base_revision=1,
+        operational_name="host-a-corrected",
+        reason_category="operator_correction",
+    )
+    assert correction_replay.replayed is True
+    assert correction_replay.operational_name == "host-a-corrected"
+    assert correction_replay.revision == 2
 
     with pytest.raises(SomaError) as stale:
         service.correct_name(
@@ -396,7 +423,7 @@ def test_device_reference_equal_names_stale_correction_and_audit_privacy(initial
             "SELECT payload_json FROM audit_events WHERE action_type IN "
             "('ticket.device_reference.created','ticket.device_reference.corrected')"
         ).fetchall()
-        assert len(rows) == 3
+        assert len(rows) == 4
         assert all("host-a" not in str(row[0]) for row in rows)
         assert connection.execute(
             "SELECT count(*) FROM device_references WHERE device_reference_id IN (?, ?) ",

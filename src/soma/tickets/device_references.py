@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
+from soma.foundation.application.command_boundary import (
+    CommandBoundary,
+    CommandEnvelope,
+    CommandExecutionResult,
+    PreparedMutation,
+)
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 
 from .audit_registry import build_tickets_audit_registry
 from .validation import validate_device_reference_name, validate_reason_category
@@ -30,20 +35,36 @@ class DeviceReferenceService:
             AuditWriter(build_tickets_audit_registry()),
         )
 
-    def _result(self, device_reference_id: str, *, replayed: bool, no_change: bool) -> DeviceReferenceResult:
-        with ReadSnapshot(self._factory) as snapshot:
-            row = snapshot.connection.execute(
-                "SELECT operational_name,revision FROM device_references WHERE device_reference_id=?",
-                (device_reference_id,),
-            ).fetchone()
-        if row is None:
-            raise SomaError("NOT_FOUND", "Device Reference does not exist")
+    @staticmethod
+    def _result(execution: CommandExecutionResult, expected_id: str | None = None) -> DeviceReferenceResult:
+        if (
+            execution.response_schema != "DeviceReferenceV1"
+            or execution.response_version != 1
+            or not isinstance(execution.response, dict)
+            or set(execution.response) != {
+                "device_reference_id",
+                "operational_name",
+                "revision",
+            }
+        ):
+            raise IntegrityFailure("Device Reference replay result has the wrong response contract")
+        device_reference_id = execution.response.get("device_reference_id")
+        operational_name = execution.response.get("operational_name")
+        revision = execution.response.get("revision")
+        if (
+            not isinstance(device_reference_id, str)
+            or not isinstance(operational_name, str)
+            or type(revision) is not int
+            or revision <= 0
+            or (expected_id is not None and device_reference_id != expected_id)
+        ):
+            raise IntegrityFailure("Device Reference replay result has invalid target metadata")
         return DeviceReferenceResult(
             device_reference_id=device_reference_id,
-            operational_name=str(row[0]),
-            revision=int(row[1]),
-            replayed=replayed,
-            no_change=no_change,
+            operational_name=operational_name,
+            revision=revision,
+            replayed=execution.replayed,
+            no_change=execution.no_change,
         )
 
     def create(
@@ -96,11 +117,21 @@ class DeviceReferenceService:
                     resulting_event_refs=(AuditResultRef("device_reference", device_reference_id),),
                 )
 
-            return PreparedMutation(False, "device_reference", device_reference_id, apply)
+            return PreparedMutation(
+                False,
+                "device_reference",
+                device_reference_id,
+                apply,
+                response_schema="DeviceReferenceV1",
+                response={
+                    "device_reference_id": device_reference_id,
+                    "operational_name": stored_name,
+                    "revision": 1,
+                },
+            )
 
         result = self._boundary.execute(envelope, prepare)
-        assert result.result_id is not None
-        return self._result(result.result_id, replayed=result.replayed, no_change=result.no_change)
+        return self._result(result)
 
     def correct_name(
         self,
@@ -134,7 +165,17 @@ class DeviceReferenceService:
             if int(row[1]) != base_revision:
                 raise SomaError("STALE_REVISION", "Device Reference revision changed")
             if str(row[0]) == stored_name:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="DeviceReferenceV1",
+                    response={
+                        "device_reference_id": device_reference_id,
+                        "operational_name": stored_name,
+                        "revision": base_revision,
+                    },
+                )
             audit_event_id = new_uuid4()
             now = utc_epoch_seconds()
 
@@ -167,7 +208,18 @@ class DeviceReferenceService:
                     resulting_event_refs=(AuditResultRef("device_reference", device_reference_id),),
                 )
 
-            return PreparedMutation(False, "device_reference", device_reference_id, apply)
+            return PreparedMutation(
+                False,
+                "device_reference",
+                device_reference_id,
+                apply,
+                response_schema="DeviceReferenceV1",
+                response={
+                    "device_reference_id": device_reference_id,
+                    "operational_name": stored_name,
+                    "revision": base_revision + 1,
+                },
+            )
 
         result = self._boundary.execute(envelope, prepare)
-        return self._result(device_reference_id, replayed=result.replayed, no_change=result.no_change)
+        return self._result(result, device_reference_id)
