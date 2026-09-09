@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from soma.tickets.audit_registry import build_tickets_audit_registry
+from soma.tickets.queries.rfc_archive import _OPERATION_PROJECTION_PROFILE
 from soma.tickets.rfc_archive import _COMMAND_OPERATION_PAGE_LIMIT
 
 
@@ -19,6 +20,10 @@ _ARCHIVE_FIELDS = frozenset(
 
 def test_restore_command_replay_page_bound_matches_certified_design() -> None:
     assert _COMMAND_OPERATION_PAGE_LIMIT == 32
+
+
+def test_archive_operation_projection_profile_matches_certified_design() -> None:
+    assert _OPERATION_PROJECTION_PROFILE == "SOMA_RFC_ARCHIVE_OPERATION_PROJECTION_V1"
 
 
 def test_archive_audit_runtime_contract_is_scalar_for_both_actions() -> None:
