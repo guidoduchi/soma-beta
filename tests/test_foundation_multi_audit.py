@@ -57,6 +57,10 @@ def _prepare_probe_table(factory) -> None:
         )
 
 
+def _response(command_id: str) -> dict[str, object]:
+    return {"command_id": command_id, "outcome": "APPLIED"}
+
+
 def test_command_boundary_commits_multiple_packet_owned_audits_and_replays_without_reemission(initialized_database) -> None:
     factory = _factory(initialized_database)
     _prepare_probe_table(factory)
@@ -90,17 +94,26 @@ def test_command_boundary_commits_multiple_packet_owned_audits_and_replays_witho
                 _event(command_id, "ticket_import.test_orchestration", "ImportTestAuditV1", "orchestration"),
             )
 
-        return PreparedMutation(False, "test_probe", command_id, apply)
+        return PreparedMutation(
+            False,
+            "test_probe",
+            command_id,
+            apply,
+            response_schema="TestMultiAuditResultV1",
+            response=_response(command_id),
+        )
 
     result = boundary.execute(envelope, prepare)
     assert result.replayed is False
     assert result.no_change is False
+    assert result.response == _response(command_id)
 
     replay = boundary.execute(
         envelope,
         lambda uow: pytest.fail("committed replay reached current-state preparation"),
     )
     assert replay.replayed is True
+    assert replay.response == _response(command_id)
 
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute(
@@ -148,7 +161,14 @@ def test_second_required_audit_failure_rolls_back_receipt_first_audit_and_domain
                 _event(command_id, "ticket_import.unregistered", "MissingAuditV1", "orchestration"),
             )
 
-        return PreparedMutation(False, "test_probe", command_id, apply)
+        return PreparedMutation(
+            False,
+            "test_probe",
+            command_id,
+            apply,
+            response_schema="TestMultiAuditResultV1",
+            response=_response(command_id),
+        )
 
     with pytest.raises(SomaError) as excinfo:
         boundary.execute(envelope, prepare)
