@@ -12,7 +12,7 @@
   ],
   "preview":{
     "mode":"read-only",
-    "output":"persisted proposal plus comparison against current RFC hierarchy/revisions, current terminal epoch/evidence, current applicable WFM membership, Task/Objective impact preview and Communication consequence preview",
+    "output":"persisted proposal plus comparison against current RFC hierarchy/revisions, current terminal epoch/evidence, current applicable WFM membership, Task/Objective impact preview and Communication consequence preview; READY output includes RfcTerminalCascadeExecutionReviewV1 containing only the complete provider count/fingerprint summaries plus preview_fingerprint",
     "rule":"preview never mutates or refreshes scope and never counts as deliberate confirmation"
   },
   "refresh_stale_pending":[
@@ -22,16 +22,24 @@
     "do not execute downstream consequences during refresh"
   ],
   "execute":[
-    "require authenticated current session and DeliberateActionProofVerifier proof bound to proposal ID, proposal revision and scope_fingerprint; a client boolean is insufficient",
-    "inside one UnitOfWork load pending proposal and verify triggering RFC is still in the same terminal epoch with the exact same current terminal status class/evidence captured by the proposal",
-    "recompute SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 from exact current RFC hierarchy/revisions and current applicable WFM membership; any material mismatch returns RFC_TERMINAL_CASCADE_STALE with no mutation",
+    "resolve exact command replay before owner preparation, current-state reads or deliberate-proof validation; replay returns the original persisted execution result without revalidating or consuming a proof again",
+    "require an RfcTerminalCascadeExecutionReviewV1 emitted by a READY preview; scope_fingerprint alone is not an execute input or sufficient reviewed authority",
+    "inside one writer UnitOfWork load the exact pending proposal/revision and verify triggering RFC is still in the same terminal epoch with the exact same current terminal status class/evidence captured by the proposal",
+    "recompute SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 from exact current RFC hierarchy/revisions and current applicable WFM membership; any material mismatch returns RFC_TERMINAL_CASCADE_STALE with no proof consumption or mutation",
+    "ask RfcTerminalTaskParticipant.revalidate_terminal_cascade in the same UnitOfWork to recompute its complete current Task/Objective impact authority and exact-compare both reviewed exact_count and provider_fingerprint; STALE aborts as RFC_TERMINAL_CASCADE_STALE and INDETERMINATE fails closed as RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED",
+    "ask RfcTerminalCommunicationParticipant.revalidate_terminal_cascade under the identical contract for the complete current Communication impact authority",
+    "after both providers return READY reconstruct exact SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1 using current proposal/scope facts, empty stale reasons and the reviewed provider summaries now certified equal to current authority; require the digest equals execution_review.preview_fingerprint",
+    "only after all freshness checks pass validate_and_consume the LLD-12 deliberate proof for action tickets.rfc.terminal_cascade.execute, exact DeliberateActionTargetV1 proposal target, base proposal revision and execution_review.preview_fingerprint; proof is friction evidence, not business authorization",
+    "insert the single command receipt before participant-owned mutation rows can reference command_id",
     "invoke RfcTerminalTaskParticipant.apply_terminal_cascade using the same UnitOfWork; it owns WFM/Task/Objective consequences and returns immutable result references",
     "invoke RfcTerminalCommunicationParticipant.apply_terminal_cascade using the same UnitOfWork; it owns RFC Communication unlink/frozen-summary/orphan-grace consequences and returns immutable result references",
-    "if any required participant is unavailable, indeterminate or fails, roll back the whole transaction and leave proposal pending",
-    "insert command receipt and minimal audit/result references, transition proposal pending->executed, and commit all participant mutations atomically"
+    "if any required apply participant fails, roll back the whole database transaction and leave proposal pending; the already-consumed LLD-12 proof remains single-use and a retry requires a fresh deliberate action",
+    "transition proposal to executed, append minimal audit/result references including reviewed preview_fingerprint, persist exact response and commit all participant mutations atomically"
   ],
   "rules":[
     "safe auto-accept/import acceptance can create a pending proposal only when terminal evidence itself is explicitly accepted under its allowed review policy; it can never execute the cascade",
+    "the committed Task/Objective and Communication consequences must equal the complete provider consequences reviewed in the bound preview; unchanged RFC/WFM scope alone is insufficient",
+    "participant revalidation returns no impact rows and copies no provider-owned state into LLD-03; each provider remains the sole authority for its complete impact calculation",
     "SR lifecycle and unrelated Local Tasks are outside cascade scope",
     "provider WFM status evidence is preserved; LLD-05 appends local termination provenance rather than rewriting provider facts",
     "surviving executable Objective work and loss-of-last-executable-Task behavior are exclusively enforced by LLD-05 participant contract",
@@ -41,7 +49,7 @@
   "scope_fingerprint":{
     "profile":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1",
     "proposal_contract_version":1,
-    "purpose":"Exact deterministic freshness token for terminal-cascade proposal capture, preview, deliberate-action binding, refresh and execution revalidation. It binds only authoritative cascade scope/evidence, not presentation or downstream preview text.",
+    "purpose":"Exact deterministic freshness token for terminal-cascade proposal capture, persisted-scope preview comparison, refresh and writer-time current RFC/WFM scope revalidation. It binds only authoritative cascade scope/evidence, not downstream provider impact authority; therefore it is never sufficient by itself to bind deliberate execution.",
     "canonical_object":"Build the exact closed object {schema:'SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1',proposal_contract_version:1,trigger_rfc_id,terminal_epoch_id,terminal_status_class,terminal_status_evidence_id,scope_kind,rfc_members:[{rfc_id,captured_rfc_revision,captured_role},...],wfm_members:[{task_id,owning_rfc_id,captured_task_revision,captured_task_no},...]}; no extra keys are permitted.",
     "field_validation":[
       "trigger_rfc_id and every RFC/task identity are exact validated immutable owner identities",
@@ -70,7 +78,7 @@
       "proposal_id, proposal_state, proposal revision and proposal creation/execution/supersession timestamps or command IDs",
       "membership ordinal because canonical array position already binds order",
       "RFC business number, source/display fields, warnings, Customer, archive state, SR/device/note counts and unrelated revisions not named in the canonical object",
-      "Task/Objective/Communication preview impact text or derived consequence counts",
+      "Task/Objective/Communication preview impact text or derived consequence counts/fingerprints; these are separately bound by SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1 and RfcTerminalCascadeExecutionReviewV1",
       "transport cursor/page boundaries, physical row order and participant iteration order"
     ],
     "golden_vectors":[
@@ -119,5 +127,5 @@
       }
     ]
   },
-  "performance":"capture and revalidation use indexed two-level RFC queries plus bounded participant membership reads; no recursive graph traversal or unbounded in-transaction workbook processing is permitted. Complete hash input is bounded by current RFC/WFM membership authority and should be streamed or otherwise constructed without unrelated domain expansion."
+  "performance":"capture and revalidation use indexed two-level RFC queries plus bounded participant membership/impact reads; no recursive graph traversal or unbounded in-transaction workbook processing is permitted. Complete hash input is bounded by current RFC/WFM and provider-owned terminal-impact authority and should be streamed or otherwise constructed without unrelated domain expansion."
 }

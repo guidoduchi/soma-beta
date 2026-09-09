@@ -44,19 +44,31 @@
     },
     {
       "name":"ExecuteRfcTerminalCascade",
-      "input":["pending proposal_id","base proposal revision","scope_fingerprint","deliberate_action_proof","command_id"],
+      "input":["pending proposal_id","base proposal revision","RfcTerminalCascadeExecutionReviewV1 execution_review","deliberate_action_proof","command_id"],
+      "response":"RfcTerminalCascadeStateV1 exact persisted executed state from the owning writer UnitOfWork; same command_id exact replay returns this original result before proof validation, owner preparation or current-state reads",
       "steps":[
-        "obtain the LLD-12 deliberate-action proof after the governed interaction; obtaining proof does not validate, consume or authorize the cascade",
-        "inside one UoW resolve idempotent replay, revalidate same current terminal epoch/evidence and exact RFC/WFM membership",
-        "if any scope/member/revision differs return RFC_TERMINAL_CASCADE_STALE with no mutation",
-        "recompute the exact action target, base proposal revision and scope fingerprint from current authoritative state",
-        "inside this same UoW call LLD-12 DeliberateActionProofProvider.validate_and_consume(uow, proof, expected_action, target, base_revision, preview_fingerprint); invalid, expired, already-consumed or stale-bound proof aborts with no cascade mutation",
-        "insert command receipt before participant/domain rows can reference command_id; rollback removes it on participant failure",
-        "invoke LLD-05 Task/Objective participant and LLD-09 Communication participant using this same UoW",
-        "if any participant fails or is indeterminate roll back everything and keep proposal pending",
-        "transition proposal to executed, append minimal audit/result references, commit atomically"
+        "resolve exact LLD-01 command replay before owner preparation, proof validation or current-state reads; a successful replay returns the original committed RfcTerminalCascadeStateV1 and never consumes another deliberate-action proof",
+        "inside one writer UnitOfWork reload the proposal and require it remains pending at the exact base proposal revision",
+        "revalidate that the triggering RFC remains in the exact proposal terminal_epoch_id with the exact current terminal status class/evidence captured by the proposal",
+        "recompute the complete current RFC/WFM scope using the accepted terminal binding and require exact equality with the proposal SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 fingerprint and persisted member authority",
+        "call LLD-05 RfcTerminalTaskParticipant.revalidate_terminal_cascade(uow,proposal_snapshot,execution_review.task_objective_exact_count,execution_review.task_objective_provider_fingerprint); STALE returns RFC_TERMINAL_CASCADE_STALE and INDETERMINATE returns RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED, with no proof consumption or cascade mutation",
+        "call LLD-09 RfcTerminalCommunicationParticipant.revalidate_terminal_cascade(uow,proposal_snapshot,execution_review.communication_exact_count,execution_review.communication_provider_fingerprint) under the same rules",
+        "after both providers return READY reconstruct the exact current SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1 from the pending proposal revision, identical persisted/current scope facts, empty stale reasons and the provider summaries certified equal by revalidation; require its digest exactly equals execution_review.preview_fingerprint or return RFC_TERMINAL_CASCADE_STALE",
+        "only after all domain freshness checks pass call LLD-12 DeliberateActionProofProvider.validate_and_consume(uow,proof,'tickets.rfc.terminal_cascade.execute',DeliberateActionTargetV1{target_type:'rfc_terminal_cascade_proposal',target_id:proposal_id},base_revision,execution_review.preview_fingerprint); any action/target/revision/preview/session/expiry/single-use mismatch returns RFC_TERMINAL_CASCADE_CONFIRMATION_REQUIRED with no cascade mutation",
+        "insert the single command receipt before participant/domain rows can reference command_id; rollback removes it on participant failure",
+        "invoke LLD-05 Task/Objective apply_terminal_cascade and LLD-09 Communication apply_terminal_cascade using the same UnitOfWork and the already-revalidated proposal snapshot; neither participant opens a receipt, commits or rolls back",
+        "if either participant apply fails, roll back all database effects and keep the proposal pending; the consumed deliberate proof remains single-use per LLD-12 and the operator repeats the deliberate action before retry",
+        "transition the proposal pending->executed exactly once, append bounded audit/result references including the reviewed preview fingerprint, persist the exact RfcTerminalCascadeStateV1 command response and commit atomically"
       ],
-      "rules":["deliberate proof validation and single-use consumption are atomic with cascade execution and never occur as a verify-only preflight","a consumed proof cannot authorize a second cascade attempt even with the same proposal payload","safe auto-accept cannot call this command","SRs and unrelated Local Tasks are never cascade targets","provider WFM evidence is never rewritten"]
+      "rules":[
+        "the committed Task/Objective and Communication consequences must be exactly the consequences whose complete provider fingerprints/counts were reviewed; unchanged RFC/WFM scope alone is insufficient execution authority",
+        "provider revalidation is read-only, complete-set and same-UoW; no impact rows or provider-owned domain objects are copied into LLD-03",
+        "deliberate proof is friction evidence only and never authorizes an otherwise stale, ineligible or indeterminate business operation",
+        "proof validation/consumption occurs only after proposal, terminal, scope and both provider-impact freshness checks have succeeded",
+        "safe auto-accept cannot call this command",
+        "SRs and unrelated Local Tasks are never cascade targets",
+        "provider WFM source evidence is never rewritten"
+      ]
     },
     {
       "name":"ArchiveRfc",
