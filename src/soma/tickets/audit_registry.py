@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import re
+
 from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.identifiers import require_uuid4
 from soma.foundation.strict_json import ObjectContract, canonical_json_bytes
 
 
@@ -10,6 +13,7 @@ _WORKING_NOTE_BODY_MAX_UTF8_BYTES = 65_536
 _WORKING_NOTE_BODY_MAX_LINES = 512
 _DEFAULT_AUDIT_MAX_UTF8_BYTES = 16_384
 _WORKING_NOTE_EDIT_REMOVE_AUDIT_MAX_UTF8_BYTES = 524_288
+_SHA256_HEX_RE = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _payload(name: str, fields: set[str], *, max_utf8_bytes: int = _DEFAULT_AUDIT_MAX_UTF8_BYTES) -> ObjectContract:
@@ -41,6 +45,46 @@ def _validate_working_note_edit_remove_audit(payload: dict[str, object]) -> None
     metadata_only[_WORKING_NOTE_AUDIT_BODY_FIELD] = None
     if len(canonical_json_bytes(metadata_only)) > _DEFAULT_AUDIT_MAX_UTF8_BYTES:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Working Note audit metadata exceeds the default audit bound")
+
+
+def _validate_rfc_terminal_refresh_audit(payload: dict[str, object]) -> None:
+    try:
+        prior_id = require_uuid4(payload.get("prior_proposal_id"))
+        replacement_id = require_uuid4(payload.get("replacement_proposal_id"))
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh audit proposal identity is invalid") from exc
+    if prior_id == replacement_id:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh audit replacement must use a new proposal identity")
+
+    prior_revision = payload.get("prior_proposal_revision")
+    resulting_prior_revision = payload.get("resulting_prior_proposal_revision")
+    replacement_revision = payload.get("replacement_proposal_revision")
+    if (
+        type(prior_revision) is not int
+        or prior_revision <= 0
+        or type(resulting_prior_revision) is not int
+        or resulting_prior_revision != prior_revision + 1
+        or replacement_revision != 1
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh audit revisions are invalid")
+
+    if payload.get("state_transition") != "pending_to_superseded_with_replacement_pending":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh audit transition is invalid")
+    epoch = payload.get("terminal_epoch_id")
+    if not isinstance(epoch, str) or not epoch:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh audit epoch is invalid")
+    if payload.get("prior_terminal_status_class") not in {"terminal_closed", "terminal_cancelled"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh prior status class is invalid")
+    if payload.get("replacement_terminal_status_class") not in {"terminal_closed", "terminal_cancelled"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh replacement status class is invalid")
+    for key in ("prior_terminal_status_evidence_id", "replacement_terminal_status_evidence_id"):
+        value = payload.get(key)
+        if not isinstance(value, str) or not value:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh audit evidence identity is invalid")
+    for key in ("prior_scope_fingerprint", "replacement_scope_fingerprint"):
+        value = payload.get(key)
+        if not isinstance(value, str) or _SHA256_HEX_RE.fullmatch(value) is None:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh audit scope fingerprint is invalid")
 
 
 def build_tickets_audit_registry() -> AuditRegistry:
@@ -146,10 +190,10 @@ def build_tickets_audit_registry() -> AuditRegistry:
         ),
         (
             "ticket.rfc.terminal_cascade_refreshed",
-            "RfcTerminalCascadeAuditV1",
-            {"proposal_id", "proposal_revision", "terminal_epoch_id", "scope_fingerprint", "state_transition", "task_participant_result_refs", "communication_participant_result_refs", "reason_category"},
+            "RfcTerminalCascadeRefreshAuditV1",
+            {"prior_proposal_id", "prior_proposal_revision", "resulting_prior_proposal_revision", "replacement_proposal_id", "replacement_proposal_revision", "terminal_epoch_id", "prior_terminal_status_class", "replacement_terminal_status_class", "prior_terminal_status_evidence_id", "replacement_terminal_status_evidence_id", "prior_scope_fingerprint", "replacement_scope_fingerprint", "state_transition", "reason_category"},
             _DEFAULT_AUDIT_MAX_UTF8_BYTES,
-            None,
+            _validate_rfc_terminal_refresh_audit,
         ),
         (
             "ticket.rfc.terminal_cascade_executed",
