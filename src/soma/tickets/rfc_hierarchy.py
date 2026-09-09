@@ -140,7 +140,13 @@ class RfcHierarchyService:
             ).fetchone()
             if active_parent is not None:
                 if str(active_parent[1]) == parent_rfc_id:
-                    return PreparedMutation(True, None, None)
+                    return PreparedMutation(
+                        True,
+                        None,
+                        None,
+                        response_schema="CommandExecutionResultV1",
+                        response={"no_change": True, "result_id": None, "result_type": "NO_CHANGE"},
+                    )
                 raise SomaError("RFC_PARENT_CONFLICT", "RFC already has a different active parent")
 
             if uow.connection.execute(
@@ -214,7 +220,14 @@ class RfcHierarchyService:
                     ),
                 )
 
-            return PreparedMutation(False, "rfc_hierarchy_edge", edge_id, apply)
+            return PreparedMutation(
+                False,
+                "rfc_hierarchy_edge",
+                edge_id,
+                apply,
+                response_schema="CommandExecutionResultV1",
+                response={"no_change": False, "result_id": edge_id, "result_type": "rfc_hierarchy_edge"},
+            )
 
         result = self._boundary.execute(envelope, prepare)
         return self._result(
