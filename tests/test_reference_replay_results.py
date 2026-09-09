@@ -6,6 +6,7 @@ from soma.foundation.errors import ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.reference.application.dispatch_service import DispatchLocationService
+from soma.reference.application.profile_service import LocalUserProfileService
 from soma.reference.application.settings_service import SettingService
 from soma.reference.domain.settings import SettingDefinition, SettingDefinitionRegistry
 
@@ -239,3 +240,65 @@ def test_setting_no_change_replay_keeps_original_value_and_revision(initialized_
     assert replay.no_change is True
     assert replay.revision == 1
     assert replay.value == {"enabled": True}
+
+
+def test_local_profile_replay_returns_original_profile_without_owner_reads(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = LocalUserProfileService(factory)
+    parent_command_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO command_receipts(command_id,command_type,request_hash,target_type,target_id,committed_at_utc,result_type,result_id) "
+            "VALUES (?, 'FirstRunSetup', ?, 'local_user_profile', NULL, 0, NULL, NULL)",
+            (parent_command_id, "0" * 64),
+        )
+        profile_id = service.ensure_singleton_local_administrator(uow, parent_command_id=parent_command_id)
+
+    command_id = new_uuid4()
+    first = service.update_display_name(
+        command_id=command_id,
+        base_revision=1,
+        display_name="Operations Administrator",
+        actor_id=profile_id,
+    )
+    assert first.display_name == "Operations Administrator"
+    assert first.revision == 2
+    assert first.replayed is False
+    assert first.no_change is False
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE local_user_profiles SET display_name='Later owner state',revision=8 WHERE local_user_profile_id=?",
+            (profile_id,),
+        )
+
+    replay = service.update_display_name(
+        command_id=command_id,
+        base_revision=1,
+        display_name="Operations Administrator",
+        actor_id=profile_id,
+    )
+    assert replay.replayed is True
+    assert replay.no_change is False
+    assert replay.local_user_profile_id == profile_id
+    assert replay.display_name == "Operations Administrator"
+    assert replay.revision == 2
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        row = connection.execute(
+            "SELECT response_schema,response_version,response_json FROM command_receipt_results WHERE command_id=?",
+            (command_id,),
+        ).fetchone()
+        assert tuple(row[:2]) == ("LocalUserProfileV1", 1)
+        assert json.loads(str(row[2])) == {
+            "display_name": "Operations Administrator",
+            "local_user_profile_id": profile_id,
+            "revision": 2,
+        }
+        assert connection.execute(
+            "SELECT display_name,revision FROM local_user_profiles WHERE local_user_profile_id=?",
+            (profile_id,),
+        ).fetchone() == ("Later owner state", 8)
+    finally:
+        connection.close()
