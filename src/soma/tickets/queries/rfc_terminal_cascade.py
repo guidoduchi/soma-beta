@@ -262,7 +262,9 @@ class RfcTerminalCascadeQueryService:
         if row[2] != "pending":
             raise SomaError("PERSISTENCE_FAILURE", "pending terminal cascade query resolved non-pending state")
         proposal_revision = _positive_int(row[3], field="terminal cascade proposal revision")
-        terminal_epoch_id = _validate_uuid(row[4], field="terminal epoch identity")
+        if not isinstance(row[4], str) or not row[4]:
+            raise SomaError("PERSISTENCE_FAILURE", "stored terminal epoch identity is invalid")
+        terminal_epoch_id = str(row[4])
         terminal_status_class = str(row[5])
         if terminal_status_class not in {"terminal_closed", "terminal_cancelled"}:
             raise SomaError("PERSISTENCE_FAILURE", "stored terminal cascade status class is invalid")
