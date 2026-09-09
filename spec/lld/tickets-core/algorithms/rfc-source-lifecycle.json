@@ -11,18 +11,19 @@
     "for Status require the LLD-04 versioned vocabulary classification and source authority; WFM provisional evidence cannot replace accepted Enhanced RFC authority",
     "if current status is nonterminal/unknown and accepted current status becomes terminal_closed or terminal_cancelled allocate a new terminal_epoch_id",
     "in the same transaction capture the exact terminal-cascade RFC/WFM membership and insert one pending proposal bound to the new epoch and exact status evidence",
-    "if accepted terminal-to-terminal correction changes status, preserve the same terminal epoch and current pending/executed cascade history; create no duplicate proposal solely for repeated terminal evidence",
+    "if accepted terminal-to-terminal correction changes status, preserve the same terminal epoch and current pending/executed cascade history; create no duplicate proposal during source acceptance. A still-pending proposal bound to different terminal status class/evidence is thereafter stale for execution and requires explicit RefreshRfcTerminalCascadeProposal before execution",
     "if accepted high-risk terminal reversal changes current status to pre_implement or implement_eligible, require fresh reviewed reversal context bound to exact previous terminal evidence, clear the current terminal_epoch_id and supersede any still-pending proposal for that epoch; executed cascade history is never undone",
     "increment current projection revision only for materially changed current accepted fields",
     "insert command receipt/audit and commit atomically with the projection change and any new/superseded cascade proposal"
   ],
   "terminal_scope":"When the triggering RFC is subordinate, proposal RFC scope is that exact RFC. When it is parentless root/standalone, scope is the exact current root plus every direct subordinate. Provider inference never manufactures hierarchy.",
-  "wfm_scope":"RfcTerminalTaskParticipant supplies only applicable active nonterminal WFM identities/revisions owned by the captured RFC scope. Local Tasks are excluded from membership merely because they reference an RFC.",
+  "wfm_scope":"RfcTerminalTaskParticipant supplies only applicable active nonterminal WFM identities/revisions owned by the captured RFC scope. Local Tasks are excluded from membership merely because they reference an RFC. LLD-03 validates uniqueness/ownership and canonicalizes returned members according to SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 before persistence/hash.",
   "rules":[
     "accepted terminal evidence and local cascade execution are separate authoritative operations",
     "terminal acceptance never mutates Task/Objective/Communication state",
     "status omission/unknown values and workbook omission never clear lifecycle projection or create cascade authority",
     "source correction preserves immutable evidence/history and never creates a replacement RFC identity",
-    "only a later accepted nonterminal reversal can make current RFC source presentation nonterminal again; it does not resurrect terminated WFM attempts"
+    "only a later accepted nonterminal reversal can make current RFC source presentation nonterminal again; it does not resurrect terminated WFM attempts",
+    "terminal-to-terminal correction never edits an existing proposal's captured terminal evidence or scope fingerprint in place"
   ]
 }
