@@ -210,12 +210,6 @@ class RfcTerminalCascadeExecutionService:
         canonical_proposal_id = _request_uuid(proposal_id, field="proposal_id")
         if not isinstance(execution_review, RfcTerminalCascadeExecutionReview):
             raise ValidationError("execution_review must be RfcTerminalCascadeExecutionReview")
-        command_context = RfcTerminalCascadeExecutionCommandContext(
-            command_id=command_id,
-            actor_kind=actor_kind,
-            actor_id=actor_id,
-            reviewed_preview_fingerprint=execution_review.preview_fingerprint,
-        )
 
         envelope = CommandEnvelope(
             command_id=command_id,
@@ -231,6 +225,12 @@ class RfcTerminalCascadeExecutionService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            command_context = RfcTerminalCascadeExecutionCommandContext(
+                command_id=command_id,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                reviewed_preview_fingerprint=execution_review.preview_fingerprint,
+            )
             state = self._preview_reader._load_pending_state_by_id(
                 uow.connection,
                 proposal_id=canonical_proposal_id,
