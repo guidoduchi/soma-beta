@@ -50,10 +50,15 @@ def test_add_subordinate_preserves_two_level_authority_and_idempotency(initializ
         base_revisions={root.rfc_id: 1, child.rfc_id: 1},
         reason_category="reviewed_hierarchy",
     )
-    assert applied.no_change is False
-    assert applied.parent_revision == 2
-    assert applied.child_revision == 2
-    assert applied.warnings == ()
+    assert applied.root.rfc_id == root.rfc_id
+    assert applied.root.revision == 2
+    assert applied.root.hierarchy_role == "root"
+    assert applied.root.warnings == ()
+    assert len(applied.subordinates) == 1
+    assert applied.subordinates[0].rfc_id == child.rfc_id
+    assert applied.subordinates[0].revision == 2
+    assert applied.subordinates[0].hierarchy_role == "subordinate"
+    assert applied.subordinates[0].warnings == ()
 
     no_change_command = new_uuid4()
     no_change = hierarchy.add_subordinate(
@@ -63,8 +68,7 @@ def test_add_subordinate_preserves_two_level_authority_and_idempotency(initializ
         base_revisions={root.rfc_id: 2, child.rfc_id: 2},
         reason_category="reviewed_hierarchy",
     )
-    assert no_change.no_change is True
-    assert no_change.rfc_hierarchy_edge_id == applied.rfc_hierarchy_edge_id
+    assert no_change.to_response() == applied.to_response()
 
     replay = hierarchy.add_subordinate(
         command_id=no_change_command,
@@ -73,8 +77,7 @@ def test_add_subordinate_preserves_two_level_authority_and_idempotency(initializ
         base_revisions={root.rfc_id: 2, child.rfc_id: 2},
         reason_category="reviewed_hierarchy",
     )
-    assert replay.replayed is True
-    assert replay.no_change is True
+    assert replay.to_response() == no_change.to_response()
 
     connection = _read(initialized_database)
     try:
@@ -89,6 +92,14 @@ def test_add_subordinate_preserves_two_level_authority_and_idempotency(initializ
             "SELECT payload_json FROM audit_events WHERE action_type='ticket.rfc.hierarchy_changed'"
         ).fetchone()[0]
         assert json.loads(payload)["new_parent_rfc_id"] == root.rfc_id
+        assert connection.execute(
+            "SELECT result_type FROM command_receipts WHERE command_id=?",
+            (no_change_command,),
+        ).fetchone()[0] == "NO_CHANGE"
+        assert connection.execute(
+            "SELECT response_schema FROM command_receipt_results WHERE command_id=?",
+            (no_change_command,),
+        ).fetchone()[0] == "RfcBranchV1"
     finally:
         connection.close()
 
@@ -117,8 +128,11 @@ def test_hierarchy_allows_more_than_twenty_children_and_warns_on_unknown_custome
             reason_category="reviewed_hierarchy",
         )
         root_revision += 1
-        assert result.parent_revision == root_revision
-        assert result.warnings == ("RFC_CUSTOMER_UNRESOLVED",)
+        assert result.root.revision == root_revision
+        assert result.root.warnings == ("RFC_CUSTOMER_UNRESOLVED",)
+        assert len(result.subordinates) == offset
+        assert all(member.hierarchy_role == "subordinate" for member in result.subordinates)
+        assert all("RFC_CUSTOMER_UNRESOLVED" in member.warnings for member in result.subordinates)
 
     connection = _read(initialized_database)
     try:
