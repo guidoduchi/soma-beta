@@ -11,11 +11,36 @@
     },
     {
       "name":"GetPendingRfcTerminalCascade",
-      "input":["rfc_id or proposal_id","cursor","page_size"],
-      "output":"pending proposal identity/revision/terminal evidence/epoch, scope fingerprint, exact RFC/WFM member counts and one bounded immutable captured-member page",
+      "input":["public transport path rfc_id","cursor","page_size"],
+      "response_type":"RfcTerminalCascadeDetailV1",
+      "lookup_rule":"public transport resolves the one current pending proposal for exactly rfc_id. Internal repository helpers may load a known proposal_id, but proposal_id is not a second public lookup mode for this query.",
+      "output":"pending proposal identity, trigger RFC, revision, terminal status class/evidence/epoch, scope kind/fingerprint, exact RFC/WFM member counts and one bounded immutable captured-member page",
       "ordering":"member_kind_ordinal ASC where RFC=0 and WFM=1, captured ordinal ASC, member immutable ID ASC",
-      "cursor_tuple":["member_kind_ordinal","ordinal","member_id"],
-      "rule":"executed/superseded history is not returned as executable pending authority; this query exposes persisted proposal evidence only and never recomputes or mutates scope"
+      "member_shapes":{
+        "rfc":"exact object {member_kind:'rfc',rfc_id,captured_rfc_revision,captured_role,ordinal}",
+        "wfm":"exact object {member_kind:'wfm',task_id,owning_rfc_id,captured_task_revision,captured_task_no,ordinal}"
+      },
+      "cursor":{
+        "query_id":"GetPendingRfcTerminalCascade",
+        "sort_registry_id":"RFC_TERMINAL_CASCADE_MEMBER_ORDER_V1",
+        "last_key_tuple":"exact array [member_kind_ordinal:int 0|1, ordinal:int>=0, member_id:uuid] where member_id is rfc_id for RFC rows and task_id for WFM rows",
+        "comparison":"lexicographic keyset greater-than over (member_kind_ordinal,ordinal,member_id) after the exact persisted proposal is resolved",
+        "filter_fingerprint_payload":"exact closed object {schema:'SOMA_RFC_TERMINAL_CASCADE_MEMBER_FILTER_V1',rfc_id,proposal_id,proposal_revision,scope_fingerprint}",
+        "filter_fingerprint_canonicalization":"LLD-01 StrictVersionedJson canonical_json exact UTF-8 followed by lowercase SHA-256 hex",
+        "null_order":"not_applicable",
+        "continuation_rule":"null when no additional persisted captured member exists after the page; otherwise exact CursorV1 semantic body for the last returned member. Cursor reuse after pending-proposal replacement/revision/fingerprint change fails stale/invalid rather than paging a different proposal.",
+        "golden_filter_vector":{
+          "canonical_utf8_bytes":265,
+          "canonical_json":"{\"proposal_id\":\"00000000-0000-4000-8000-000000000050\",\"proposal_revision\":1,\"rfc_id\":\"00000000-0000-4000-8000-000000000001\",\"schema\":\"SOMA_RFC_TERMINAL_CASCADE_MEMBER_FILTER_V1\",\"scope_fingerprint\":\"92c926573a48d3036d92f56bac40801e73d79e102980a8d2156502c5e94f866c\"}",
+          "expected_sha256":"7fb03f5e0b3a5293a4c8a59a1668cea45cb6bd7f649228fc42a78fc41c30326d"
+        }
+      },
+      "rules":[
+        "executed/superseded history is not returned as executable pending authority",
+        "this query exposes persisted proposal evidence only and never recomputes or mutates scope",
+        "state.scope_fingerprint is read verbatim from the persisted proposal and is not reconstructed from the bounded member page",
+        "exact member counts are computed from persisted immutable membership, not inferred from the returned page length"
+      ]
     },
     {
       "name":"PreviewRfcTerminalCascade",
