@@ -2,14 +2,42 @@ from __future__ import annotations
 
 import json
 
+from soma.foundation.errors import ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.reference.application.dispatch_service import DispatchLocationService
+from soma.reference.application.settings_service import SettingService
+from soma.reference.domain.settings import SettingDefinition, SettingDefinitionRegistry
 
 
 def _factory(initialized_database):
     database_path, factory_for_path = initialized_database
     return factory_for_path(database_path)
+
+
+def _setting_registry() -> SettingDefinitionRegistry:
+    registry = SettingDefinitionRegistry()
+
+    def validate(value):
+        if not isinstance(value, dict) or set(value) != {"enabled"} or type(value["enabled"]) is not bool:
+            raise ValidationError("test setting must be {enabled: boolean}")
+        return value
+
+    registry.register(
+        SettingDefinition(
+            setting_key="test.replay.enabled",
+            semantic_owner="tests",
+            contract_name="ReplaySettingV1",
+            current_version=1,
+            default_provider=lambda: {"enabled": False},
+            validator=validate,
+            semantic_equals=lambda left, right: left == right,
+            max_utf8_bytes=256,
+            max_depth=2,
+            max_collection_items=4,
+        )
+    )
+    return registry
 
 
 def test_dispatch_update_replay_returns_original_reference_mutation_result(initialized_database, monkeypatch) -> None:
@@ -116,3 +144,98 @@ def test_dispatch_no_change_replay_keeps_original_revision(initialized_database,
     assert replay.replayed is True
     assert replay.no_change is True
     assert replay.revision == 1
+
+
+def test_setting_write_replay_returns_original_setting_value_without_owner_reads(initialized_database, monkeypatch) -> None:
+    factory = _factory(initialized_database)
+    service = SettingService(factory, _setting_registry())
+    command_id = new_uuid4()
+    first = service.write(
+        command_id=command_id,
+        setting_key="test.replay.enabled",
+        base_revision=None,
+        value={"enabled": True},
+    )
+    assert first.value == {"enabled": True}
+    assert first.revision == 1
+    assert first.source == "PERSISTED"
+    assert first.semantic_owner == "tests"
+    assert first.replayed is False
+    assert first.no_change is False
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE setting_values SET value_json='{""enabled"":false}',revision=9 WHERE setting_key='test.replay.enabled'"
+        )
+
+    monkeypatch.setattr(
+        SettingService,
+        "_parse_persisted",
+        staticmethod(lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("setting owner read during replay"))),
+    )
+    replay = service.write(
+        command_id=command_id,
+        setting_key="test.replay.enabled",
+        base_revision=None,
+        value={"enabled": True},
+    )
+    assert replay.replayed is True
+    assert replay.no_change is False
+    assert replay.value == {"enabled": True}
+    assert replay.revision == 1
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        row = connection.execute(
+            "SELECT response_schema,response_version,response_json FROM command_receipt_results WHERE command_id=?",
+            (command_id,),
+        ).fetchone()
+        assert tuple(row[:2]) == ("SettingValueV1", 1)
+        assert json.loads(str(row[2])) == {
+            "contract_name": "ReplaySettingV1",
+            "contract_version": 1,
+            "revision": 1,
+            "semantic_owner": "tests",
+            "setting_key": "test.replay.enabled",
+            "source": "PERSISTED",
+            "value": {"enabled": True},
+        }
+    finally:
+        connection.close()
+
+
+def test_setting_no_change_replay_keeps_original_value_and_revision(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = SettingService(factory, _setting_registry())
+    service.write(
+        command_id=new_uuid4(),
+        setting_key="test.replay.enabled",
+        base_revision=None,
+        value={"enabled": True},
+    )
+    command_id = new_uuid4()
+    first = service.write(
+        command_id=command_id,
+        setting_key="test.replay.enabled",
+        base_revision=1,
+        value={"enabled": True},
+    )
+    assert first.no_change is True
+    assert first.revision == 1
+    assert first.value == {"enabled": True}
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE setting_values SET value_json='{""enabled"":false}',revision=5 WHERE setting_key='test.replay.enabled'"
+        )
+
+    replay = service.write(
+        command_id=command_id,
+        setting_key="test.replay.enabled",
+        base_revision=1,
+        value={"enabled": True},
+    )
+    assert replay.replayed is True
+    assert replay.no_change is True
+    assert replay.revision == 1
+    assert replay.value == {"enabled": True}
