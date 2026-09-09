@@ -1,17 +1,21 @@
 {
-  "schema":"SOMA-LLD-ALGORITHM-V1",
-  "lld_id":"LLD-03",
-  "name":"RfcHierarchyMutation",
-  "derive_role":{
-    "standalone":"RFC has no active parent and no active children",
-    "master":"RFC has no active parent and one or more active children",
-    "subordinate":"RFC has exactly one active parent",
-    "rule":"role is query-derived only; no mutable role field exists"
+  "schema": "SOMA-LLD-ALGORITHM-V1",
+  "lld_id": "LLD-03",
+  "name": "RfcHierarchyMutation",
+  "derive_role": {
+    "standalone": "RFC has no active parent and no active children",
+    "master": "RFC has no active parent and one or more active children",
+    "subordinate": "RFC has exactly one active parent",
+    "rule": "role is query-derived only; no mutable role field exists"
   },
-  "validate_parent_child":{
-    "input":["parent_rfc_id","child_rfc_id","current command/review context"],
-    "transaction":"one short LLD-01 UnitOfWork after pure ID validation",
-    "checks":[
+  "validate_parent_child": {
+    "input": [
+      "parent_rfc_id",
+      "child_rfc_id",
+      "current command/review context"
+    ],
+    "transaction": "one short LLD-01 UnitOfWork after pure ID validation",
+    "checks": [
       "parent and child are distinct existing RFC identities",
       "child has no different active parent",
       "parent has no active parent",
@@ -21,27 +25,125 @@
       "unknown Customer on either side remains permitted but returns RFC_CUSTOMER_UNRESOLVED warning",
       "provider/import evidence alone does not call this mutation path without an accepted reviewed hierarchy proposal"
     ],
-    "result":"VALID, VALID_WITH_WARNING, or typed blocker; never guesses a hierarchy from identifier suffixes or source row proximity"
+    "result": "VALID, VALID_WITH_WARNING, or typed blocker; never guesses a hierarchy from identifier suffixes or source row proximity"
   },
-  "add_subordinate":{
-    "steps":["revalidate hierarchy constraints inside UnitOfWork","if exact active edge already exists return semantic NO_CHANGE receipt","allocate edge ID","insert receipt","insert active rfc_hierarchy_edges row","increment parent and child revisions","insert audit/result references","commit"]
+  "add_subordinate": {
+    "steps": [
+      "revalidate hierarchy constraints inside UnitOfWork",
+      "if exact active edge already exists return semantic NO_CHANGE receipt",
+      "allocate edge ID",
+      "insert receipt",
+      "insert active rfc_hierarchy_edges row",
+      "increment parent and child revisions",
+      "insert audit/result references",
+      "commit"
+    ],
+    "response": "RfcBranchV1 exact bounded first page (default 100 children) with complete-branch SOMA_RFC_BRANCH_FINGERPRINT_V1, projected after the final hierarchy state inside the same LLD-01 UnitOfWork; semantic NO_CHANGE projects the current branch inside that same UoW; committed replay returns the persisted original snapshot without current-state reads."
   },
-  "reparent_subordinate":{
-    "input":["child_rfc_id","old_parent_rfc_id","new_parent_rfc_id","base revisions","reason_category","review_snapshot when high-risk"],
-    "risk":"high-risk when the child/branch has WFM or other protected operational history; owning WFM/history providers determine this through bounded dependency interface",
-    "steps":["load old active edge and involved RFCs","revalidate revisions and exact old/new branch state","run history/risk provider","where high-risk require exact fresh reviewed correction context","validate new parent-child pair","insert receipt","supersede old edge with closing provenance","insert new active edge","increment changed RFC revisions","audit old/new hierarchy identities and reason","commit"],
-    "rules":["reparent preserves RFC identities and old edge history","reparent never changes WFM identity/ownership itself","reparent never copies inherited SR context into subordinate direct links"]
+  "reparent_subordinate": {
+    "input": [
+      "child_rfc_id",
+      "old_parent_rfc_id",
+      "new_parent_rfc_id",
+      "base revisions",
+      "reason_category",
+      "review_snapshot when high-risk"
+    ],
+    "risk": "high-risk when the child/branch has WFM or other protected operational history; owning WFM/history providers determine this through bounded dependency interface",
+    "steps": [
+      "load old active edge and involved RFCs",
+      "revalidate revisions and exact old/new branch state",
+      "run history/risk provider",
+      "where high-risk require exact fresh reviewed correction context",
+      "validate new parent-child pair",
+      "insert receipt",
+      "supersede old edge with closing provenance",
+      "insert new active edge",
+      "increment changed RFC revisions",
+      "audit old/new hierarchy identities and reason",
+      "commit"
+    ],
+    "rules": [
+      "reparent preserves RFC identities and old edge history",
+      "reparent never changes WFM identity/ownership itself",
+      "reparent never copies inherited SR context into subordinate direct links"
+    ]
   },
-  "detach_subordinate":{
-    "effect":"child becomes a root/standalone unless it independently has children (which is impossible while it was subordinate)",
-    "steps":["revalidate exact active edge/revisions/history risk","require reviewed correction where applicable","insert receipt","supersede edge","increment parent/child revisions","audit","commit"]
+  "detach_subordinate": {
+    "effect": "child becomes a root/standalone unless it independently has children (which is impossible while it was subordinate)",
+    "steps": [
+      "revalidate exact active edge/revisions/history risk",
+      "require reviewed correction where applicable",
+      "insert receipt",
+      "supersede edge",
+      "increment parent/child revisions",
+      "audit",
+      "commit"
+    ]
   },
-  "database_defence":[
+  "database_defence": [
     "partial UNIQUE(child_rfc_id) for active edges",
     "active-edge INSERT trigger rejects parent that is active child",
     "active-edge INSERT trigger rejects child that is active parent",
     "active-edge INSERT trigger rejects child with active direct SR links",
     "known Customer mismatch trigger/command guard rejects active hierarchy creation; Customer correction command separately revalidates branch consistency"
   ],
-  "performance":["all hierarchy validity checks are indexed point/EXISTS queries","no recursive traversal is required because accepted depth is exactly two","child lists use keyset pagination with no business child-count cap"]
+  "performance": [
+    "all hierarchy validity checks are indexed point/EXISTS queries",
+    "no recursive traversal is required because accepted depth is exactly two",
+    "child lists use keyset pagination with no business child-count cap"
+  ],
+  "branch_fingerprint": {
+    "profile": "SOMA_RFC_BRANCH_FINGERPRINT_V1",
+    "purpose": "Exact deterministic hierarchy-authority freshness token for RfcBranchV1 and reviewed hierarchy mutation. It is not a digest of unrelated display/source fields.",
+    "input": {
+      "root": [
+        "rfc_id",
+        "revision",
+        "customer_org_id|null",
+        "local_archive_state"
+      ],
+      "subordinates": [
+        "for every active direct child: rfc_hierarchy_edge_id",
+        "rfc_id",
+        "revision",
+        "customer_org_id|null",
+        "local_archive_state"
+      ]
+    },
+    "ordering": "subordinate entries sort by child rfc_id UTF-8 bytes ascending; root is fixed and appears once",
+    "canonicalization": "Build the exact object {schema:'SOMA_RFC_BRANCH_FINGERPRINT_V1',root:{rfc_id,revision,customer_org_id,local_archive_state},subordinates:[{rfc_hierarchy_edge_id,rfc_id,revision,customer_org_id,local_archive_state},...]}; serialize with LLD-01 StrictVersionedJson canonical_json exactly (ensure_ascii=false, allow_nan=false, sort_keys=true, separators=(',',':'), UTF-8) after ordinary owning-field validation; no extra keys are permitted.",
+    "digest": "lowercase SHA-256 hex over the exact canonical UTF-8 bytes",
+    "exclusions": [
+      "RfcDetailV1 source_projection and warnings because they are presentation/source state rather than hierarchy authority",
+      "direct SR/device-reference counts because they do not own hierarchy state; command blockers are revalidated authoritatively inside the writer UoW",
+      "cursor/page boundaries and client page size",
+      "timestamps, audit ids, command ids, physical row order and generated presentation text"
+    ],
+    "mutation_rule": "The command recomputes the complete branch fingerprint under the same writer UnitOfWork after the material hierarchy write, or over the current branch for semantic NO_CHANGE. Client-supplied fingerprints are never trusted as the resulting fingerprint.",
+    "response_rule": "AddRfcSubordinate returns RfcBranchV1 projected inside the same UnitOfWork after the final hierarchy state is known. Because the command has no page-size input, its response uses RfcBranchQueryV1 default limit 100; continuation binds the last returned child rfc_id. Exact command replay returns the persisted original RfcBranchV1 snapshot and never rebuilds it from later state.",
+    "golden_vector": {
+      "id": "SOMA_RFC_BRANCH_FINGERPRINT_V1-G001",
+      "input": {
+        "schema": "SOMA_RFC_BRANCH_FINGERPRINT_V1",
+        "root": {
+          "rfc_id": "00000000-0000-4000-8000-000000000001",
+          "revision": 2,
+          "customer_org_id": null,
+          "local_archive_state": "active"
+        },
+        "subordinates": [
+          {
+            "rfc_hierarchy_edge_id": "00000000-0000-4000-8000-000000000010",
+            "rfc_id": "00000000-0000-4000-8000-000000000002",
+            "revision": 3,
+            "customer_org_id": "00000000-0000-4000-8000-000000000100",
+            "local_archive_state": "active"
+          }
+        ]
+      },
+      "expected_canonical_utf8_bytes": 398,
+      "expected_sha256": "12de7e3643a0d3a49cfce579db40c54cc704e5d06b44e6455c277dd2d4da0ea5"
+    }
+  }
 }
