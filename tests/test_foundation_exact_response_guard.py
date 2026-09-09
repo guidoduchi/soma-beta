@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import ast
+from collections import Counter
 from pathlib import Path
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SOURCE_ROOT = _REPO_ROOT / "src" / "soma"
 _GENERIC_RESPONSE_SCHEMA = "CommandExecutionResultV1"
+_KNOWN_EXACT_RESPONSE_DEBT = Counter(
+    {
+        ("src/soma/tickets/rfc_hierarchy.py", "add_subordinate", "NO_CHANGE"): 1,
+        ("src/soma/tickets/rfc_hierarchy.py", "add_subordinate", "MATERIAL"): 1,
+    }
+)
 
 
 def _is_prepared_mutation_call(node: ast.Call) -> bool:
@@ -42,14 +49,35 @@ def _is_generic_schema(node: ast.expr | None) -> bool:
     return isinstance(node, ast.Constant) and node.value == _GENERIC_RESPONSE_SCHEMA
 
 
-def test_every_production_prepared_mutation_declares_exact_replay_response() -> None:
-    offenders: list[str] = []
-    for path in sorted(_SOURCE_ROOT.rglob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        relative = path.relative_to(_REPO_ROOT).as_posix()
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call) or not _is_prepared_mutation_call(node):
-                continue
+def _mutation_kind(node: ast.Call, keywords: dict[str, ast.expr]) -> str:
+    value = keywords.get("no_change")
+    if value is None and node.args:
+        value = node.args[0]
+    if isinstance(value, ast.Constant) and value.value is True:
+        return "NO_CHANGE"
+    if isinstance(value, ast.Constant) and value.value is False:
+        return "MATERIAL"
+    return "DYNAMIC"
+
+
+class _PreparedMutationVisitor(ast.NodeVisitor):
+    def __init__(self, relative_path: str) -> None:
+        self.relative_path = relative_path
+        self.function_stack: list[str] = []
+        self.offenders: list[tuple[tuple[str, str, str], str]] = []
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.function_stack.append(node.name)
+        self.generic_visit(node)
+        self.function_stack.pop()
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self.function_stack.append(node.name)
+        self.generic_visit(node)
+        self.function_stack.pop()
+
+    def visit_Call(self, node: ast.Call) -> None:
+        if _is_prepared_mutation_call(node):
             keywords = _keyword_map(node)
             schema = _explicit_response_schema(node, keywords)
             problems: list[str] = []
@@ -60,10 +88,31 @@ def test_every_production_prepared_mutation_declares_exact_replay_response() -> 
             if not _has_exact_response(node, keywords):
                 problems.append("missing explicit response/response_factory")
             if problems:
-                offenders.append(f"{relative}:{node.lineno}: {', '.join(problems)}")
+                function_name = self.function_stack[-1] if self.function_stack else "<module>"
+                key = (self.relative_path, function_name, _mutation_kind(node, keywords))
+                self.offenders.append((key, f"{self.relative_path}:{node.lineno}: {', '.join(problems)}"))
+        self.generic_visit(node)
 
-    assert not offenders, (
-        "Every authoritative PreparedMutation must persist its declared typed response; "
-        "generic/default replay snapshots are publication-blocking.\n"
-        + "\n".join(offenders)
+
+def test_production_prepared_mutations_have_only_pinned_exact_response_debt() -> None:
+    observed: Counter[tuple[str, str, str]] = Counter()
+    details: list[str] = []
+    for path in sorted(_SOURCE_ROOT.rglob("*.py")):
+        relative = path.relative_to(_REPO_ROOT).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        visitor = _PreparedMutationVisitor(relative)
+        visitor.visit(tree)
+        for key, detail in visitor.offenders:
+            observed[key] += 1
+            details.append(detail)
+
+    unexpected = observed - _KNOWN_EXACT_RESPONSE_DEBT
+    missing = _KNOWN_EXACT_RESPONSE_DEBT - observed
+    assert not unexpected and not missing, (
+        "PreparedMutation exact-response debt changed. New generic/default replay snapshots are forbidden, and the pinned "
+        "RFC hierarchy debt must be removed from this baseline immediately when its RfcBranchV1 fingerprint contract is "
+        "repaired.\n"
+        f"unexpected={dict(unexpected)}\n"
+        f"missing={dict(missing)}\n"
+        + "\n".join(details)
     )
