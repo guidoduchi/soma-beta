@@ -6,8 +6,8 @@
     "load triggering RFC/current terminal epoch/status evidence and exact current hierarchy inside one UnitOfWork",
     "derive exact_rfc or root_branch scope without recursion beyond the accepted two levels",
     "capture RFC identities, revisions and derived roles in deterministic order",
-    "ask RfcTerminalTaskParticipant for applicable active nonterminal WFM identities/revisions for exactly those RFC identities",
-    "compute canonical SHA-256 scope_fingerprint over proposal contract version, terminal epoch/evidence, ordered RFC members and ordered WFM members",
+    "ask RfcTerminalTaskParticipant for applicable active nonterminal WFM identities/revisions/task_nos for exactly those RFC identities, then validate/normalize them into the deterministic WFM order defined by SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1",
+    "compute SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 over proposal contract version, trigger/scope identity, terminal epoch/status evidence, ordered RFC members and ordered WFM members",
     "insert pending proposal and immutable member rows in the same transaction as terminal-status acceptance"
   ],
   "preview":{
@@ -16,15 +16,15 @@
     "rule":"preview never mutates or refreshes scope and never counts as deliberate confirmation"
   },
   "refresh_stale_pending":[
-    "only a still-current terminal epoch with a pending stale proposal is refreshable",
-    "capture a new exact scope using the same algorithm",
+    "only a still-current terminal epoch with a pending stale proposal is refreshable; staleness includes a terminal Closed<->Cancelled correction that preserved the epoch but changed current terminal status class/evidence",
+    "capture a new exact scope using SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1",
     "inside one UnitOfWork supersede the old pending proposal with command/time provenance and insert the replacement pending proposal/member rows",
     "do not execute downstream consequences during refresh"
   ],
   "execute":[
     "require authenticated current session and DeliberateActionProofVerifier proof bound to proposal ID, proposal revision and scope_fingerprint; a client boolean is insufficient",
-    "inside one UnitOfWork load pending proposal and verify triggering RFC is still in the same terminal epoch with the same accepted terminal evidence authority",
-    "recompute exact RFC hierarchy/revisions and current applicable WFM membership; any material mismatch returns RFC_TERMINAL_CASCADE_STALE with no mutation",
+    "inside one UnitOfWork load pending proposal and verify triggering RFC is still in the same terminal epoch with the exact same current terminal status class/evidence captured by the proposal",
+    "recompute SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 from exact current RFC hierarchy/revisions and current applicable WFM membership; any material mismatch returns RFC_TERMINAL_CASCADE_STALE with no mutation",
     "invoke RfcTerminalTaskParticipant.apply_terminal_cascade using the same UnitOfWork; it owns WFM/Task/Objective consequences and returns immutable result references",
     "invoke RfcTerminalCommunicationParticipant.apply_terminal_cascade using the same UnitOfWork; it owns RFC Communication unlink/frozen-summary/orphan-grace consequences and returns immutable result references",
     "if any required participant is unavailable, indeterminate or fails, roll back the whole transaction and leave proposal pending",
@@ -35,7 +35,89 @@
     "SR lifecycle and unrelated Local Tasks are outside cascade scope",
     "provider WFM status evidence is preserved; LLD-05 appends local termination provenance rather than rewriting provider facts",
     "surviving executable Objective work and loss-of-last-executable-Task behavior are exclusively enforced by LLD-05 participant contract",
-    "executed proposal is immutable history; erroneous cascade is corrected by later governed append/correction flows rather than editing execution evidence"
+    "executed proposal is immutable history; erroneous cascade is corrected by later governed append/correction flows rather than editing execution evidence",
+    "terminal-to-terminal source correction preserves the terminal epoch and existing proposal history but does not silently retarget a pending proposal to different status evidence; the old proposal becomes stale for execution until explicit refresh"
   ],
-  "performance":"capture and revalidation use indexed two-level RFC queries plus bounded participant membership reads; no recursive graph traversal or unbounded in-transaction workbook processing is permitted."
+  "scope_fingerprint":{
+    "profile":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1",
+    "proposal_contract_version":1,
+    "purpose":"Exact deterministic freshness token for terminal-cascade proposal capture, preview, deliberate-action binding, refresh and execution revalidation. It binds only authoritative cascade scope/evidence, not presentation or downstream preview text.",
+    "canonical_object":"Build the exact closed object {schema:'SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1',proposal_contract_version:1,trigger_rfc_id,terminal_epoch_id,terminal_status_class,terminal_status_evidence_id,scope_kind,rfc_members:[{rfc_id,captured_rfc_revision,captured_role},...],wfm_members:[{task_id,owning_rfc_id,captured_task_revision,captured_task_no},...]}; no extra keys are permitted.",
+    "field_validation":[
+      "trigger_rfc_id and every RFC/task identity are exact validated immutable owner identities",
+      "terminal_epoch_id and terminal_status_evidence_id are non-empty exact current accepted evidence identities",
+      "terminal_status_class is terminal_closed or terminal_cancelled",
+      "scope_kind is exact_rfc or root_branch",
+      "captured RFC/Task revisions are positive integers; booleans are not integers for this contract",
+      "captured_role is standalone, root or subordinate and must agree with the exact captured hierarchy",
+      "captured_task_no is the exact immutable LLD-05 WFM Task No. matching TK plus fourteen ASCII digits",
+      "RFC and WFM member identities are unique and each WFM owning_rfc_id is present in rfc_members"
+    ],
+    "scope_derivation":[
+      "if trigger is subordinate: scope_kind=exact_rfc and rfc_members contains exactly the trigger with captured_role=subordinate",
+      "if trigger is parentless standalone: scope_kind=root_branch and rfc_members contains exactly the trigger with captured_role=standalone",
+      "if trigger is parentless root/master: scope_kind=root_branch; ordinal/member order is trigger root first with captured_role=root followed by every active direct child with captured_role=subordinate"
+    ],
+    "ordering":{
+      "rfc_members":"trigger/root entry first; for root_branch with children, remaining subordinate entries sort by rfc_id UTF-8 bytes ascending. exact_rfc has one member.",
+      "wfm_members":"sort by owning_rfc_id UTF-8 bytes ascending, then task_id UTF-8 bytes ascending. The LLD-03 owner validates participant output and applies this order before hashing/persistence; participant iteration order is never authority.",
+      "ordinal_rule":"persisted membership ordinal is exactly the zero-based array position after canonical ordering. Ordinal is therefore excluded from each member object to avoid duplicating the same authority twice."
+    },
+    "canonicalization":"Serialize the exact closed object with LLD-01 StrictVersionedJson canonical_json exactly: ensure_ascii=false, allow_nan=false, sort_keys=true, separators=(',',':'), then UTF-8 encode. Hash lowercase SHA-256 over those exact bytes.",
+    "digest":"lowercase SHA-256 hex",
+    "versioning_rule":"Any change to included keys, member semantics, ordering or canonicalization requires a new profile name and proposal_contract_version; existing persisted proposal fingerprints are never reinterpreted under a later profile.",
+    "exclusions":[
+      "proposal_id, proposal_state, proposal revision and proposal creation/execution/supersession timestamps or command IDs",
+      "membership ordinal because canonical array position already binds order",
+      "RFC business number, source/display fields, warnings, Customer, archive state, SR/device/note counts and unrelated revisions not named in the canonical object",
+      "Task/Objective/Communication preview impact text or derived consequence counts",
+      "transport cursor/page boundaries, physical row order and participant iteration order"
+    ],
+    "golden_vectors":[
+      {
+        "id":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1-G001",
+        "rule":"Exact-subordinate scope with no applicable WFM proves exact_rfc role/scope binding and empty membership canonicalization.",
+        "input":{
+          "schema":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1",
+          "proposal_contract_version":1,
+          "trigger_rfc_id":"00000000-0000-4000-8000-000000000002",
+          "terminal_epoch_id":"00000000-0000-4000-8000-000000000020",
+          "terminal_status_class":"terminal_closed",
+          "terminal_status_evidence_id":"evidence-terminal-001",
+          "scope_kind":"exact_rfc",
+          "rfc_members":[
+            {"rfc_id":"00000000-0000-4000-8000-000000000002","captured_rfc_revision":2,"captured_role":"subordinate"}
+          ],
+          "wfm_members":[]
+        },
+        "expected_canonical_utf8_bytes":452,
+        "expected_sha256":"b2e7005ebe389fa18cfa0f978f21dab4507d9b44ece6b33fb8a19d9a563c849d"
+      },
+      {
+        "id":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1-G002",
+        "rule":"Root branch with two children/two WFMs proves root-first child ordering, WFM owner/task ordering, role/revision participation and terminal evidence participation.",
+        "input":{
+          "schema":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1",
+          "proposal_contract_version":1,
+          "trigger_rfc_id":"00000000-0000-4000-8000-000000000001",
+          "terminal_epoch_id":"00000000-0000-4000-8000-000000000021",
+          "terminal_status_class":"terminal_cancelled",
+          "terminal_status_evidence_id":"evidence-terminal-002",
+          "scope_kind":"root_branch",
+          "rfc_members":[
+            {"rfc_id":"00000000-0000-4000-8000-000000000001","captured_rfc_revision":5,"captured_role":"root"},
+            {"rfc_id":"00000000-0000-4000-8000-000000000002","captured_rfc_revision":3,"captured_role":"subordinate"},
+            {"rfc_id":"00000000-0000-4000-8000-000000000003","captured_rfc_revision":4,"captured_role":"subordinate"}
+          ],
+          "wfm_members":[
+            {"task_id":"00000000-0000-4000-8000-000000000101","owning_rfc_id":"00000000-0000-4000-8000-000000000001","captured_task_revision":7,"captured_task_no":"TK20260909000001"},
+            {"task_id":"00000000-0000-4000-8000-000000000102","owning_rfc_id":"00000000-0000-4000-8000-000000000003","captured_task_revision":2,"captured_task_no":"TK20260909000002"}
+          ]
+        },
+        "expected_canonical_utf8_bytes":1003,
+        "expected_sha256":"92c926573a48d3036d92f56bac40801e73d79e102980a8d2156502c5e94f866c"
+      }
+    ]
+  },
+  "performance":"capture and revalidation use indexed two-level RFC queries plus bounded participant membership reads; no recursive graph traversal or unbounded in-transaction workbook processing is permitted. Complete hash input is bounded by current RFC/WFM membership authority and should be streamed or otherwise constructed without unrelated domain expansion."
 }
