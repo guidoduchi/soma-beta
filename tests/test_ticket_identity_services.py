@@ -8,6 +8,7 @@ from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.reference.application.customer_service import CustomerReferenceService
 from soma.tickets.device_references import DeviceReferenceService
+from soma.tickets.queries.service_requests import ServiceRequestQueryService
 from soma.tickets.rfcs import RfcService
 from soma.tickets.service_requests import ServiceRequestService
 
@@ -96,7 +97,9 @@ def test_manual_sr_allocation_replay_conflict_and_exhaustion(initialized_databas
 
 
 def test_reviewed_official_sr_adoption_preserves_local_identity_and_history(initialized_database) -> None:
-    service = ServiceRequestService(_factory(initialized_database))
+    factory = _factory(initialized_database)
+    service = ServiceRequestService(factory)
+    queries = ServiceRequestQueryService(factory)
     local = service.create_manual_service_request(command_id=new_uuid4())
     adopted = service.attach_official_identity(
         command_id=new_uuid4(),
@@ -105,10 +108,12 @@ def test_reviewed_official_sr_adoption_preserves_local_identity_and_history(init
         official_sr_no="87654321",
         review_context_id="review-sr-identity-1",
     )
-    assert adopted.service_request_id == local.service_request_id
-    assert adopted.local_sr_no == local.local_sr_no
-    assert adopted.official_sr_no == "87654321"
+    assert adopted.target_id == local.service_request_id
+    assert adopted.outcome == "APPLIED"
     assert adopted.revision == 2
+    detail = queries.get(service_request_id=local.service_request_id)
+    assert detail.identity["local_sr_no"] == local.local_sr_no
+    assert detail.identity["official_sr_no"] == "87654321"
 
     no_change = service.attach_official_identity(
         command_id=new_uuid4(),
@@ -146,6 +151,53 @@ def test_reviewed_official_sr_adoption_preserves_local_identity_and_history(init
         ).fetchone()[0] == 1
     finally:
         connection.close()
+
+
+def test_service_request_replay_is_independent_of_later_owner_state(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = ServiceRequestService(factory)
+    queries = ServiceRequestQueryService(factory)
+
+    create_command_id = new_uuid4()
+    created = service.create_manual_service_request(command_id=create_command_id)
+    attach_command_id = new_uuid4()
+    applied = service.attach_official_identity(
+        command_id=attach_command_id,
+        service_request_id=created.service_request_id,
+        base_revision=1,
+        official_sr_no="11223344",
+        review_context_id="review-replay-independence",
+    )
+    assert applied.revision == 2
+
+    create_replay = service.create_manual_service_request(command_id=create_command_id)
+    assert create_replay.replayed is True
+    assert create_replay.revision == 1
+    assert create_replay.official_sr_no is None
+    assert create_replay.local_sr_no == created.local_sr_no
+
+    connection = _write(initialized_database)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(
+            "UPDATE service_requests SET revision=9 WHERE service_request_id=?",
+            (created.service_request_id,),
+        )
+        connection.execute("COMMIT")
+    finally:
+        connection.close()
+
+    attach_replay = service.attach_official_identity(
+        command_id=attach_command_id,
+        service_request_id=created.service_request_id,
+        base_revision=1,
+        official_sr_no="11223344",
+        review_context_id="review-replay-independence",
+    )
+    assert attach_replay.replayed is True
+    assert attach_replay.outcome == "APPLIED"
+    assert attach_replay.revision == 2
+    assert queries.get(service_request_id=created.service_request_id).revision == 9
 
 
 def test_rfc_exact_identity_adoption_and_customer_branch_consistency(initialized_database) -> None:

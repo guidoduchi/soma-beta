@@ -217,33 +217,36 @@ class ServiceRequestQueryService:
         }
         return context, warning_tuple
 
-    def get(
+    def get_from_connection(
         self,
+        connection,
         *,
         service_request_id: str | None = None,
         business_identity: str | None = None,
     ) -> ServiceRequestDetail:
-        with ReadSnapshot(self._factory) as snapshot:
-            connection = snapshot.connection
-            row = self._lookup(connection, service_request_id=service_request_id, business_identity=business_identity)
-            if row is None:
-                raise SomaError("NOT_FOUND", "Service Request does not exist")
-            sr_id = str(row[0])
-            revision = int(row[3])
-            source_projection = self._source_projection(connection, sr_id)
-            reference_context, reference_warnings = self._reference_context(connection, sr_id, revision)
-            linked_root_rfc_count = int(
-                connection.execute(
-                    "SELECT COUNT(*) FROM sr_rfc_links WHERE service_request_id=? AND link_state='active'",
-                    (sr_id,),
-                ).fetchone()[0]
-            )
-            device_reference_count = int(
-                connection.execute(
-                    "SELECT COUNT(*) FROM sr_device_reference_links WHERE service_request_id=? AND link_state='active'",
-                    (sr_id,),
-                ).fetchone()[0]
-            )
+        row = self._lookup(
+            connection,
+            service_request_id=service_request_id,
+            business_identity=business_identity,
+        )
+        if row is None:
+            raise SomaError("NOT_FOUND", "Service Request does not exist")
+        sr_id = str(row[0])
+        revision = int(row[3])
+        source_projection = self._source_projection(connection, sr_id)
+        reference_context, reference_warnings = self._reference_context(connection, sr_id, revision)
+        linked_root_rfc_count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM sr_rfc_links WHERE service_request_id=? AND link_state='active'",
+                (sr_id,),
+            ).fetchone()[0]
+        )
+        device_reference_count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM sr_device_reference_links WHERE service_request_id=? AND link_state='active'",
+                (sr_id,),
+            ).fetchone()[0]
+        )
         return ServiceRequestDetail(
             service_request_id=sr_id,
             identity={
@@ -257,3 +260,16 @@ class ServiceRequestQueryService:
             device_reference_count=device_reference_count,
             warnings=reference_warnings,
         )
+
+    def get(
+        self,
+        *,
+        service_request_id: str | None = None,
+        business_identity: str | None = None,
+    ) -> ServiceRequestDetail:
+        with ReadSnapshot(self._factory) as snapshot:
+            return self.get_from_connection(
+                snapshot.connection,
+                service_request_id=service_request_id,
+                business_identity=business_identity,
+            )

@@ -1,21 +1,23 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from soma.foundation.application.command_boundary import (
     CommandBoundary,
     CommandEnvelope,
+    CommandExecutionResult,
     PreparedMutation,
 )
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 
 from .audit_registry import build_tickets_audit_registry
+from .queries.service_requests import ServiceRequestQueryService
 from .validation import validate_official_sr_no, validate_review_context_id
 
 
@@ -29,29 +31,69 @@ class ServiceRequestIdentityResult:
     no_change: bool
 
 
+@dataclass(frozen=True, slots=True)
+class TicketMutationResult:
+    outcome: str
+    target_id: str
+    revision: int
+    replayed: bool
+
+    @property
+    def no_change(self) -> bool:
+        return self.outcome == "NO_CHANGE"
+
+
 class ServiceRequestService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
+        self._queries = ServiceRequestQueryService(connection_factory)
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_tickets_audit_registry()),
         )
 
-    def _result(self, service_request_id: str, *, replayed: bool, no_change: bool) -> ServiceRequestIdentityResult:
-        with ReadSnapshot(self._factory) as snapshot:
-            row = snapshot.connection.execute(
-                "SELECT official_sr_no,local_sr_no,revision FROM service_requests WHERE service_request_id=?",
-                (service_request_id,),
-            ).fetchone()
-        if row is None:
-            raise SomaError("NOT_FOUND", "Service Request does not exist")
+    @staticmethod
+    def _identity_result(result: CommandExecutionResult) -> ServiceRequestIdentityResult:
+        if result.response_schema != "ServiceRequestDetailV1" or not isinstance(result.response, dict):
+            raise IntegrityFailure("Service Request creation replay result has the wrong response contract")
+        identity = result.response.get("identity")
+        if not isinstance(identity, dict):
+            raise IntegrityFailure("Service Request creation replay result has invalid identity")
+        service_request_id = result.response.get("service_request_id")
+        revision = result.response.get("revision")
+        if not isinstance(service_request_id, str) or type(revision) is not int or revision <= 0:
+            raise IntegrityFailure("Service Request creation replay result has invalid identity metadata")
+        official = identity.get("official_sr_no")
+        local = identity.get("local_sr_no")
+        if official is not None and not isinstance(official, str):
+            raise IntegrityFailure("Service Request creation replay result has invalid official identity")
+        if local is not None and not isinstance(local, str):
+            raise IntegrityFailure("Service Request creation replay result has invalid local identity")
         return ServiceRequestIdentityResult(
             service_request_id=service_request_id,
-            official_sr_no=None if row[0] is None else str(row[0]),
-            local_sr_no=None if row[1] is None else str(row[1]),
-            revision=int(row[2]),
-            replayed=replayed,
-            no_change=no_change,
+            official_sr_no=official,
+            local_sr_no=local,
+            revision=revision,
+            replayed=result.replayed,
+            no_change=result.no_change,
+        )
+
+    @staticmethod
+    def _mutation_result(result: CommandExecutionResult) -> TicketMutationResult:
+        if result.response_schema != "TicketMutationResultV1" or not isinstance(result.response, dict):
+            raise IntegrityFailure("Service Request mutation replay result has the wrong response contract")
+        outcome = result.response.get("outcome")
+        target_id = result.response.get("target_id")
+        revision = result.response.get("revision")
+        if outcome not in {"APPLIED", "NO_CHANGE"}:
+            raise IntegrityFailure("Service Request mutation replay result has invalid outcome")
+        if not isinstance(target_id, str) or type(revision) is not int or revision <= 0:
+            raise IntegrityFailure("Service Request mutation replay result has invalid target metadata")
+        return TicketMutationResult(
+            outcome=str(outcome),
+            target_id=target_id,
+            revision=revision,
+            replayed=result.replayed,
         )
 
     def create_manual_service_request(
@@ -132,11 +174,22 @@ class ServiceRequestService:
                     resulting_event_refs=(AuditResultRef("service_request", service_request_id),),
                 )
 
-            return PreparedMutation(False, "service_request", service_request_id, apply)
+            return PreparedMutation(
+                False,
+                "service_request",
+                service_request_id,
+                apply,
+                response_schema="ServiceRequestDetailV1",
+                response_version=1,
+                response_factory=lambda inner: asdict(
+                    self._queries.get_from_connection(
+                        inner.connection,
+                        service_request_id=service_request_id,
+                    )
+                ),
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        assert result.result_id is not None
-        return self._result(result.result_id, replayed=result.replayed, no_change=result.no_change)
+        return self._identity_result(self._boundary.execute(envelope, prepare))
 
     def attach_official_identity(
         self,
@@ -148,7 +201,7 @@ class ServiceRequestService:
         review_context_id: str,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> ServiceRequestIdentityResult:
+    ) -> TicketMutationResult:
         official = validate_official_sr_no(official_sr_no)
         review_context = validate_review_context_id(review_context_id)
         envelope = CommandEnvelope(
@@ -170,11 +223,23 @@ class ServiceRequestService:
             ).fetchone()
             if row is None:
                 raise SomaError("NOT_FOUND", "Service Request does not exist")
-            if int(row[2]) != base_revision:
+            current_revision = int(row[2])
+            if current_revision != base_revision:
                 raise SomaError("STALE_REVISION", "Service Request revision changed")
             current_official = None if row[0] is None else str(row[0])
             if current_official == official:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TicketMutationResultV1",
+                    response_version=1,
+                    response={
+                        "outcome": "NO_CHANGE",
+                        "target_id": service_request_id,
+                        "revision": current_revision,
+                    },
+                )
             if current_official is not None:
                 raise ValidationError("official Service Request identity is immutable once attached")
             conflict = uow.connection.execute(
@@ -217,7 +282,18 @@ class ServiceRequestService:
                     resulting_event_refs=(AuditResultRef("service_request", service_request_id),),
                 )
 
-            return PreparedMutation(False, "service_request", service_request_id, apply)
+            return PreparedMutation(
+                False,
+                "service_request",
+                service_request_id,
+                apply,
+                response_schema="TicketMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "target_id": service_request_id,
+                    "revision": base_revision + 1,
+                },
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        return self._result(service_request_id, replayed=result.replayed, no_change=result.no_change)
+        return self._mutation_result(self._boundary.execute(envelope, prepare))

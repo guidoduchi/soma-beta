@@ -31,6 +31,7 @@ from .command_receipts import (
 
 AuditEmission = AuditEventInput | tuple[AuditEventInput, ...]
 ApplyMutation = Callable[[UnitOfWork], AuditEmission | None]
+ResponseFactory = Callable[[UnitOfWork], Any]
 PrepareMutation = Callable[[UnitOfWork], "PreparedMutation"]
 
 _MAX_RESPONSE_JSON_BYTES = 524_288
@@ -83,6 +84,7 @@ class PreparedMutation:
     response_schema: str = "CommandExecutionResultV1"
     response_version: int = 1
     response: Any = field(default=_DEFAULT_RESPONSE, repr=False)
+    response_factory: ResponseFactory | None = field(default=None, repr=False)
 
     def validate(self) -> None:
         if self.no_change:
@@ -96,6 +98,8 @@ class PreparedMutation:
             raise ValidationError("command response schema is required")
         if type(self.response_version) is not int or self.response_version <= 0:
             raise ValidationError("command response version must be a positive integer")
+        if self.response_factory is not None and self.response is not _DEFAULT_RESPONSE:
+            raise ValidationError("command response must use either a value or a response factory, not both")
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,15 +259,17 @@ class CommandBoundary:
                 for event in events:
                     self._audit_writer.write(uow, event)
 
-            semantic_response = (
-                self._default_response(
+            if prepared.response_factory is not None:
+                semantic_response = prepared.response_factory(uow)
+            elif prepared.response is _DEFAULT_RESPONSE:
+                semantic_response = self._default_response(
                     result_type=stored_result_type,
                     result_id=prepared.result_id,
                     no_change=prepared.no_change,
                 )
-                if prepared.response is _DEFAULT_RESPONSE
-                else prepared.response
-            )
+            else:
+                semantic_response = prepared.response
+
             response_json, response_sha256, normalized_response = self._encode_response(semantic_response)
             self._receipt_store.insert_exact_result(
                 uow,
