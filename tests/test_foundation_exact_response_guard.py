@@ -88,7 +88,9 @@ class _PreparedMutationVisitor(ast.NodeVisitor):
             if not _has_exact_response(node, keywords):
                 problems.append("missing explicit response/response_factory")
             if problems:
-                function_name = self.function_stack[-1] if self.function_stack else "<module>"
+                # PreparedMutation is commonly returned from a nested prepare() callback.
+                # Attribute debt to the owning command/service method, not the callback name.
+                function_name = self.function_stack[0] if self.function_stack else "<module>"
                 key = (self.relative_path, function_name, _mutation_kind(node, keywords))
                 self.offenders.append((key, f"{self.relative_path}:{node.lineno}: {', '.join(problems)}"))
         self.generic_visit(node)
