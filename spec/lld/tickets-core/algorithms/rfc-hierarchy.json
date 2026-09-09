@@ -36,9 +36,10 @@
       "insert active rfc_hierarchy_edges row",
       "increment parent and child revisions",
       "insert audit/result references",
+      "project exact RfcBranchV1 response inside the same UnitOfWork",
       "commit"
     ],
-    "response": "RfcBranchV1 exact bounded first page (default 100 children) with complete-branch SOMA_RFC_BRANCH_FINGERPRINT_V1, projected after the final hierarchy state inside the same LLD-01 UnitOfWork; semantic NO_CHANGE projects the current branch inside that same UoW; committed replay returns the persisted original snapshot without current-state reads."
+    "response_root": "post-command parent_rfc_id"
   },
   "reparent_subordinate": {
     "input": [
@@ -61,13 +62,15 @@
       "insert new active edge",
       "increment changed RFC revisions",
       "audit old/new hierarchy identities and reason",
+      "project exact RfcBranchV1 response inside the same UnitOfWork",
       "commit"
     ],
     "rules": [
       "reparent preserves RFC identities and old edge history",
       "reparent never changes WFM identity/ownership itself",
       "reparent never copies inherited SR context into subordinate direct links"
-    ]
+    ],
+    "response_root": "post-command new_parent_rfc_id"
   },
   "detach_subordinate": {
     "effect": "child becomes a root/standalone unless it independently has children (which is impossible while it was subordinate)",
@@ -78,8 +81,10 @@
       "supersede edge",
       "increment parent/child revisions",
       "audit",
+      "project exact RfcBranchV1 response inside the same UnitOfWork",
       "commit"
-    ]
+    ],
+    "response_root": "post-command child_rfc_id after it becomes parentless"
   },
   "database_defence": [
     "partial UNIQUE(child_rfc_id) for active edges",
@@ -91,7 +96,8 @@
   "performance": [
     "all hierarchy validity checks are indexed point/EXISTS queries",
     "no recursive traversal is required because accepted depth is exactly two",
-    "child lists use keyset pagination with no business child-count cap"
+    "child lists use keyset pagination with no business child-count cap",
+    "complete-branch fingerprint computation may stream indexed active child authority rows in child rfc_id order but may not materialize an unbounded RfcDetail collection merely to hash it"
   ],
   "branch_fingerprint": {
     "profile": "SOMA_RFC_BRANCH_FINGERPRINT_V1",
@@ -112,7 +118,7 @@
       ]
     },
     "ordering": "subordinate entries sort by child rfc_id UTF-8 bytes ascending; root is fixed and appears once",
-    "canonicalization": "Build the exact object {schema:'SOMA_RFC_BRANCH_FINGERPRINT_V1',root:{rfc_id,revision,customer_org_id,local_archive_state},subordinates:[{rfc_hierarchy_edge_id,rfc_id,revision,customer_org_id,local_archive_state},...]}; serialize with LLD-01 StrictVersionedJson canonical_json exactly (ensure_ascii=false, allow_nan=false, sort_keys=true, separators=(',',':'), UTF-8) after ordinary owning-field validation; no extra keys are permitted.",
+    "canonicalization": "Build the exact closed object {schema:'SOMA_RFC_BRANCH_FINGERPRINT_V1',root:{rfc_id,revision,customer_org_id,local_archive_state},subordinates:[{rfc_hierarchy_edge_id,rfc_id,revision,customer_org_id,local_archive_state},...]}; serialize with LLD-01 StrictVersionedJson canonical_json exactly (ensure_ascii=false, allow_nan=false, sort_keys=true, separators=(',',':'), UTF-8) after ordinary owning-field validation; no extra keys are permitted.",
     "digest": "lowercase SHA-256 hex over the exact canonical UTF-8 bytes",
     "exclusions": [
       "RfcDetailV1 source_projection and warnings because they are presentation/source state rather than hierarchy authority",
@@ -121,29 +127,54 @@
       "timestamps, audit ids, command ids, physical row order and generated presentation text"
     ],
     "mutation_rule": "The command recomputes the complete branch fingerprint under the same writer UnitOfWork after the material hierarchy write, or over the current branch for semantic NO_CHANGE. Client-supplied fingerprints are never trusted as the resulting fingerprint.",
-    "response_rule": "AddRfcSubordinate returns RfcBranchV1 projected inside the same UnitOfWork after the final hierarchy state is known. Because the command has no page-size input, its response uses RfcBranchQueryV1 default limit 100; continuation binds the last returned child rfc_id. Exact command replay returns the persisted original RfcBranchV1 snapshot and never rebuilds it from later state.",
-    "golden_vector": {
-      "id": "SOMA_RFC_BRANCH_FINGERPRINT_V1-G001",
-      "input": {
-        "schema": "SOMA_RFC_BRANCH_FINGERPRINT_V1",
-        "root": {
-          "rfc_id": "00000000-0000-4000-8000-000000000001",
-          "revision": 2,
-          "customer_org_id": null,
-          "local_archive_state": "active"
-        },
-        "subordinates": [
-          {
-            "rfc_hierarchy_edge_id": "00000000-0000-4000-8000-000000000010",
-            "rfc_id": "00000000-0000-4000-8000-000000000002",
-            "revision": 3,
-            "customer_org_id": "00000000-0000-4000-8000-000000000100",
+    "response_rule": "Every hierarchy mutation returns RfcBranchV1 projected inside the same UnitOfWork after the final hierarchy state is known. Because mutation requests have no page-size input, their response uses the RFC children default page size 100. Exact command replay returns the persisted original RfcBranchV1 snapshot and never rebuilds it from later state.",
+    "golden_vectors": [
+      {
+        "id": "SOMA_RFC_BRANCH_FINGERPRINT_V1-G001",
+        "input": {
+          "schema": "SOMA_RFC_BRANCH_FINGERPRINT_V1",
+          "root": {
+            "rfc_id": "00000000-0000-4000-8000-000000000001",
+            "revision": 2,
+            "customer_org_id": null,
             "local_archive_state": "active"
-          }
-        ]
+          },
+          "subordinates": [
+            {
+              "rfc_hierarchy_edge_id": "00000000-0000-4000-8000-000000000010",
+              "rfc_id": "00000000-0000-4000-8000-000000000002",
+              "revision": 3,
+              "customer_org_id": "00000000-0000-4000-8000-000000000100",
+              "local_archive_state": "active"
+            }
+          ]
+        },
+        "expected_canonical_utf8_bytes": 398,
+        "expected_sha256": "12de7e3643a0d3a49cfce579db40c54cc704e5d06b44e6455c277dd2d4da0ea5"
       },
-      "expected_canonical_utf8_bytes": 398,
-      "expected_sha256": "12de7e3643a0d3a49cfce579db40c54cc704e5d06b44e6455c277dd2d4da0ea5"
+      {
+        "id": "SOMA_RFC_BRANCH_FINGERPRINT_V1-G002",
+        "rule": "Two-child vector proves child rfc_id ordering and null/archive participation.",
+        "expected_canonical_utf8_bytes": 614,
+        "expected_sha256": "3b05f958c5d8975244eb4dbaf8de1bf392915ad89fbbc9a1f691895f7a2e42d9"
+      }
+    ]
+  },
+  "branch_cursor": {
+    "profile": "RFC_BRANCH_CURSOR_BODY_V1",
+    "query_id": "GetRfcBranch",
+    "sort_registry_id": "RFC_BRANCH_CHILD_ID_ASC_V1",
+    "last_key_tuple": "array containing exactly the last returned child rfc_id UUID string",
+    "filter_fingerprint_payload": "exact closed object {schema:'SOMA_RFC_BRANCH_FILTER_V1',root_rfc_id:<root UUID>}",
+    "filter_fingerprint_canonicalization": "LLD-01 StrictVersionedJson canonical_json exact UTF-8 followed by lowercase SHA-256 hex",
+    "null_order": "not_applicable",
+    "cursor_body": "exact closed CursorV1 object {version:1,query_id:'GetRfcBranch',sort_registry_id:'RFC_BRANCH_CHILD_ID_ASC_V1',last_key_tuple:[last_child_rfc_id],filter_fingerprint:<sha256>,null_order:'not_applicable'}",
+    "query_page_rule": "GetRfcBranch uses caller limit 1..500, default 100. Hierarchy mutation responses always use limit 100 and cursor input null.",
+    "continuation_rule": "continuation is null when no additional direct child exists after the returned page; otherwise it is the exact semantic CursorV1 body for the last returned child. LLD-12 may integrity-protect/opaquely encode that body for transport but may not alter its semantic fields.",
+    "filter_golden_vector": {
+      "canonical_utf8_bytes": 91,
+      "canonical_json": "{\"root_rfc_id\":\"00000000-0000-4000-8000-000000000001\",\"schema\":\"SOMA_RFC_BRANCH_FILTER_V1\"}",
+      "expected_sha256": "aca97b59292afb3a79decde0b202f4e09b73422dfbded93f610a95e779402dd0"
     }
   }
 }
