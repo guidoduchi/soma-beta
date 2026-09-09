@@ -39,7 +39,7 @@ class TicketImportSrSourceEvidenceProvider:
         row = reader.execute(
             "SELECT f.source_observation_field_id,o.source_observation_id,o.import_run_id,o.canonical_primary_id,"
             "o.source_row_chronology_utc,f.field_key,f.field_class,f.value_state,f.value_kind,f.normalized_text,"
-            "f.integer_value,f.field_logical_sha256,r.run_state,o.source_family,o.entity_kind,o.identity_state "
+            "f.integer_value,f.field_logical_sha256,r.run_state,o.source_family,o.entity_kind,o.identity_state,r.source_family "
             "FROM source_observation_fields f "
             "JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
             "JOIN import_runs r ON r.import_run_id=o.import_run_id "
@@ -48,7 +48,12 @@ class TicketImportSrSourceEvidenceProvider:
         ).fetchone()
         if row is None:
             return None
-        if str(row[13]) != "advanced_search_sr" or str(row[14]) != "service_request" or str(row[15]) != "valid":
+        if (
+            str(row[13]) != "advanced_search_sr"
+            or str(row[14]) != "service_request"
+            or str(row[15]) != "valid"
+            or str(row[16]) != "advanced_search_sr"
+        ):
             return None
         if str(row[12]) not in _PUBLISHED_RUN_STATES:
             return None
@@ -201,7 +206,8 @@ class TicketImportSrSourceEvidenceProvider:
             "FROM source_observation_fields f "
             "JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
             "JOIN import_runs r ON r.import_run_id=o.import_run_id "
-            "WHERE o.source_family='advanced_search_sr' AND o.identity_state='valid' AND o.canonical_primary_id=? "
+            "WHERE o.source_family='advanced_search_sr' AND r.source_family=o.source_family "
+            "AND o.identity_state='valid' AND o.canonical_primary_id=? "
             "AND r.run_state IN ('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') "
             "ORDER BY f.source_observation_field_id ASC",
             (official_sr_no,),
@@ -228,7 +234,8 @@ class TicketImportSrSourceEvidenceProvider:
             return "NO"
         row = uow.connection.execute(
             "SELECT 1 FROM source_observations o JOIN import_runs r ON r.import_run_id=o.import_run_id "
-            "WHERE o.source_family='advanced_search_sr' AND o.entity_kind='service_request' AND o.identity_state='valid' "
+            "WHERE o.source_family='advanced_search_sr' AND r.source_family=o.source_family "
+            "AND o.entity_kind='service_request' AND o.identity_state='valid' "
             "AND o.canonical_primary_id=? AND r.run_state IN "
             "('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') LIMIT 1",
             (official_sr_no,),
