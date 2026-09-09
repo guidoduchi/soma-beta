@@ -1,33 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 
 from .audit_registry import build_tickets_audit_registry
+from .queries.rfc_branches import RfcBranch, RfcBranchQueryService
 from .validation import validate_optional_sha256, validate_reason_category
-
-
-@dataclass(frozen=True, slots=True)
-class RfcHierarchyResult:
-    rfc_hierarchy_edge_id: str
-    parent_rfc_id: str
-    child_rfc_id: str
-    parent_revision: int
-    child_revision: int
-    replayed: bool
-    no_change: bool
-    warnings: tuple[str, ...]
 
 
 class RfcHierarchyService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
-        self._factory = connection_factory
+        self._branch_query = RfcBranchQueryService(connection_factory)
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_tickets_audit_registry()),
@@ -62,38 +49,16 @@ class RfcHierarchyService:
         customer_org_id = None if row[0] is None else str(row[0])
         return customer_org_id, int(row[1])
 
-    def _result(
-        self,
-        *,
-        parent_rfc_id: str,
-        child_rfc_id: str,
-        fallback_edge_id: str | None,
-        replayed: bool,
-        no_change: bool,
-    ) -> RfcHierarchyResult:
-        with ReadSnapshot(self._factory) as snapshot:
-            edge = snapshot.connection.execute(
-                "SELECT rfc_hierarchy_edge_id FROM rfc_hierarchy_edges "
-                "WHERE parent_rfc_id=? AND child_rfc_id=? AND edge_state='active'",
-                (parent_rfc_id, child_rfc_id),
-            ).fetchone()
-            parent_customer, parent_revision = self._load_rfc(snapshot.connection, parent_rfc_id)
-            child_customer, child_revision = self._load_rfc(snapshot.connection, child_rfc_id)
-        if edge is None and fallback_edge_id is None:
-            raise SomaError("PERSISTENCE_FAILURE", "RFC hierarchy mutation did not resolve an active edge")
-        warnings: tuple[str, ...] = ()
-        if parent_customer is None or child_customer is None:
-            warnings = ("RFC_CUSTOMER_UNRESOLVED",)
-        return RfcHierarchyResult(
-            rfc_hierarchy_edge_id=str(edge[0]) if edge is not None else str(fallback_edge_id),
-            parent_rfc_id=parent_rfc_id,
-            child_rfc_id=child_rfc_id,
-            parent_revision=parent_revision,
-            child_revision=child_revision,
-            replayed=replayed,
-            no_change=no_change,
-            warnings=warnings,
-        )
+    def _branch_response_factory(self, root_rfc_id: str):
+        def build_response(uow: UnitOfWork):
+            return self._branch_query.get_from_connection(
+                uow.connection,
+                root_rfc_id=root_rfc_id,
+                cursor=None,
+                limit=100,
+            ).to_response()
+
+        return build_response
 
     def add_subordinate(
         self,
@@ -106,7 +71,7 @@ class RfcHierarchyService:
         review_fingerprint: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> RfcHierarchyResult:
+    ) -> RfcBranch:
         if parent_rfc_id == child_rfc_id:
             raise SomaError("RFC_HIERARCHY_CYCLE", "RFC cannot be its own parent")
         revisions = self._validate_base_revisions(parent_rfc_id, child_rfc_id, base_revisions)
@@ -144,8 +109,9 @@ class RfcHierarchyService:
                         True,
                         None,
                         None,
-                        response_schema="CommandExecutionResultV1",
-                        response={"no_change": True, "result_id": None, "result_type": "NO_CHANGE"},
+                        response_schema="RfcBranchV1",
+                        response_version=1,
+                        response_factory=self._branch_response_factory(parent_rfc_id),
                     )
                 raise SomaError("RFC_PARENT_CONFLICT", "RFC already has a different active parent")
 
@@ -225,15 +191,12 @@ class RfcHierarchyService:
                 "rfc_hierarchy_edge",
                 edge_id,
                 apply,
-                response_schema="CommandExecutionResultV1",
-                response={"no_change": False, "result_id": edge_id, "result_type": "rfc_hierarchy_edge"},
+                response_schema="RfcBranchV1",
+                response_version=1,
+                response_factory=self._branch_response_factory(parent_rfc_id),
             )
 
         result = self._boundary.execute(envelope, prepare)
-        return self._result(
-            parent_rfc_id=parent_rfc_id,
-            child_rfc_id=child_rfc_id,
-            fallback_edge_id=result.result_id,
-            replayed=result.replayed,
-            no_change=result.no_change,
-        )
+        if result.response_schema != "RfcBranchV1" or result.response_version != 1:
+            raise IntegrityFailure("RFC hierarchy committed response contract is invalid")
+        return RfcBranch.from_response(result.response)
