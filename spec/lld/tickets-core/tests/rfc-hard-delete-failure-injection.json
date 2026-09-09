@@ -1,0 +1,27 @@
+{
+  "schema": "SOMA-LLD-FAILURE-INJECTION-V1",
+  "lld_id": "LLD-03",
+  "suite": "RFC hard-delete transactional failure injection",
+  "cases": [
+    {
+      "id": "LLD03-HDFI001",
+      "inject": "after an eligible preview and before command proof consumption, change RFC revision or any local/provider eligibility classification so current SOMA_RFC_HARD_DELETE_ELIGIBILITY_V1 no longer equals the reviewed fingerprint",
+      "expect": "HardDeleteRfc returns RFC_HARD_DELETE_PREVIEW_STALE when the target remains otherwise eligible but the exact reviewed fingerprint changed, or RFC_HARD_DELETE_BLOCKED when any current blocker/INDETERMINATE exists; both occur before proof consumption, receipt, audit or delete"
+    },
+    {
+      "id": "LLD03-HDFI002",
+      "inject": "LLD-04/05/07/09 classifier returns BLOCKED, INDETERMINATE, malformed output or raises while preview or writer revalidation is running",
+      "expect": "BLOCKED maps to the provider's closed dependency blocker; INDETERMINATE/malformed/exception maps to its closed indeterminate blocker; eligible=false and the writer never consumes proof or attempts dependent cleanup/delete"
+    },
+    {
+      "id": "LLD03-HDFI003",
+      "inject": "after all current eligibility checks pass, deliberate proof has wrong action, RFC target, base revision or eligibility fingerprint, or is expired/session-mismatched/already consumed",
+      "expect": "RFC_HARD_DELETE_CONFIRMATION_REQUIRED with zero command receipt, hard-delete audit/result evidence or RFC mutation; client boolean/timestamp/challenge id cannot substitute for DeliberateActionProofV1"
+    },
+    {
+      "id": "LLD03-HDFI004",
+      "inject": "after valid proof consumption and command receipt/audit assembly, force unexpected FK/constraint failure, audit failure, exact-result persistence failure or failure immediately before commit",
+      "expect": "the one database UnitOfWork rolls back command receipt, hard-delete audit/result ref, command result and RFC delete so the RFC remains intact; the already-consumed proof remains unusable and retry requires a fresh deliberate action; no dependent row is deleted or rewritten"
+    }
+  ]
+}
