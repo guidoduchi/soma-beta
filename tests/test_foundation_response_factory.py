@@ -66,6 +66,42 @@ def test_prepared_mutation_requires_exact_response_value_or_factory() -> None:
         prepared.validate()
 
 
+def test_missing_exact_response_fails_before_command_receipt(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    command_id = new_uuid4()
+    envelope = CommandEnvelope(
+        command_id=command_id,
+        command_type="MissingExactResponseProbe",
+        target_type="probe",
+        target_id=None,
+        semantic_payload={},
+    )
+
+    def prepare(uow: UnitOfWork) -> PreparedMutation:
+        return PreparedMutation(
+            True,
+            None,
+            None,
+            response_schema="NoChangeProbeV1",
+        )
+
+    with pytest.raises(ValidationError, match="exact response value or same-UoW response factory"):
+        CommandBoundary(factory, _writer()).execute(envelope, prepare)
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        assert connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT count(*) FROM command_receipt_results WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+
 def test_response_factory_runs_after_mutation_and_never_on_replay(initialized_database) -> None:
     factory = _factory(initialized_database)
     _create_table(factory)
