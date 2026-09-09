@@ -5,7 +5,7 @@ import pytest
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
 from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import PersistenceFailure
+from soma.foundation.errors import PersistenceFailure, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import ObjectContract
@@ -42,6 +42,28 @@ def _create_table(factory) -> None:
             "entity_id TEXT PRIMARY KEY,value_text TEXT NOT NULL"
             ") STRICT"
         )
+
+
+def test_prepared_mutation_requires_explicit_response_schema() -> None:
+    prepared = PreparedMutation(
+        True,
+        None,
+        None,
+        response={"outcome": "NO_CHANGE"},
+    )
+    with pytest.raises(ValidationError, match="response schema must be declared explicitly"):
+        prepared.validate()
+
+
+def test_prepared_mutation_requires_exact_response_value_or_factory() -> None:
+    prepared = PreparedMutation(
+        True,
+        None,
+        None,
+        response_schema="NoChangeProbeV1",
+    )
+    with pytest.raises(ValidationError, match="exact response value or same-UoW response factory"):
+        prepared.validate()
 
 
 def test_response_factory_runs_after_mutation_and_never_on_replay(initialized_database) -> None:
