@@ -3,12 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from soma.foundation.application.command_boundary import (
-    CommandBoundary,
-    CommandEnvelope,
-    CommandExecutionResult,
-    PreparedMutation,
-)
+from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
@@ -19,6 +14,7 @@ from soma.reference.domain.validation import (
     validate_dispatch_name,
     validate_standalone_address,
 )
+from soma.reference.results import ReferenceMutationResult, reference_mutation_result_from_execution
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,11 +105,18 @@ class DispatchLocationService:
                     ),
                 )
 
-            return PreparedMutation(False, "dispatch_location", dispatch_id, apply)
+            return PreparedMutation(
+                False,
+                "dispatch_location",
+                dispatch_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response={"outcome": "APPLIED", "target_id": dispatch_id, "revision": 1},
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        assert result.result_id is not None
-        return DispatchCreateResult(result.result_id, result.replayed)
+        exact = reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+        return DispatchCreateResult(exact.target_id, exact.replayed)
 
     @staticmethod
     def create_dedicated_for_site(
@@ -159,7 +162,7 @@ class DispatchLocationService:
         address_text: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         stored_name, match_key = validate_dispatch_name(name)
         requested_address = None if address_text is None else validate_standalone_address(address_text)
         envelope = CommandEnvelope(
@@ -186,7 +189,14 @@ class DispatchLocationService:
             if address_mode == "standalone" and current_address != effective_address:
                 changed_fields.append("standalone_address_text")
             if not changed_fields:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="ReferenceMutationResultV1",
+                    response_version=1,
+                    response={"outcome": "NO_CHANGE", "target_id": dispatch_location_id, "revision": base_revision},
+                )
             lifecycle_event_id = new_uuid4()
             audit_event_id = new_uuid4()
             now = utc_epoch_seconds()
@@ -227,6 +237,14 @@ class DispatchLocationService:
                     ),
                 )
 
-            return PreparedMutation(False, "dispatch_location", dispatch_location_id, apply)
+            return PreparedMutation(
+                False,
+                "dispatch_location",
+                dispatch_location_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response={"outcome": "APPLIED", "target_id": dispatch_location_id, "revision": base_revision + 1},
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
