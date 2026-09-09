@@ -60,50 +60,53 @@ class RfcLifecycleQueryService:
         state["status_class"] = "unknown"
         return state
 
+    @classmethod
+    def get_from_connection(cls, connection: Any, *, rfc_id: str) -> RfcLifecycleProjection:
+        rfc = connection.execute(
+            "SELECT customer_org_id,local_archive_state FROM rfcs WHERE rfc_id=?",
+            (rfc_id,),
+        ).fetchone()
+        if rfc is None:
+            raise SomaError("NOT_FOUND", "RFC does not exist")
+
+        selected = ",".join((*_RFC_SOURCE_STATE_COLUMNS[:-1], "terminal_epoch_id", "revision"))
+        projection = connection.execute(
+            f"SELECT {selected} FROM rfc_current_source_projection WHERE rfc_id=?",
+            (rfc_id,),
+        ).fetchone()
+        if projection is None:
+            accepted_source_state = cls._empty_source_state()
+            terminal_epoch_id = None
+        else:
+            source_values = projection[:-2] + (projection[-1],)
+            accepted_source_state = {
+                column: value
+                for column, value in zip(_RFC_SOURCE_STATE_COLUMNS, source_values, strict=True)
+            }
+            terminal_epoch_id = None if projection[-2] is None else str(projection[-2])
+
+        warnings: list[str] = []
+        customer_org_id = None if rfc[0] is None else str(rfc[0])
+        if customer_org_id is None:
+            warnings.append("RFC_CUSTOMER_UNRESOLVED")
+        else:
+            customer = connection.execute(
+                "SELECT lifecycle_state FROM customer_organizations WHERE customer_org_id=?",
+                (customer_org_id,),
+            ).fetchone()
+            if customer is None:
+                raise SomaError("PERSISTENCE_FAILURE", "RFC Customer reference does not resolve")
+            if str(customer[0]) != "active":
+                warnings.append("RFC_CUSTOMER_REFERENCE_ARCHIVED")
+
+        return RfcLifecycleProjection(
+            rfc_id=rfc_id,
+            accepted_source_state=accepted_source_state,
+            local_archive_state=str(rfc[1]),
+            terminal_epoch_id=terminal_epoch_id,
+            warnings=tuple(warnings),
+        )
+
     def get(self, *, rfc_id: str) -> RfcLifecycleProjection:
         with ReadSnapshot(self._factory) as snapshot:
-            connection = snapshot.connection
-            rfc = connection.execute(
-                "SELECT customer_org_id,local_archive_state FROM rfcs WHERE rfc_id=?",
-                (rfc_id,),
-            ).fetchone()
-            if rfc is None:
-                raise SomaError("NOT_FOUND", "RFC does not exist")
-
-            selected = ",".join((*_RFC_SOURCE_STATE_COLUMNS[:-1], "terminal_epoch_id", "revision"))
-            projection = connection.execute(
-                f"SELECT {selected} FROM rfc_current_source_projection WHERE rfc_id=?",
-                (rfc_id,),
-            ).fetchone()
-            if projection is None:
-                accepted_source_state = self._empty_source_state()
-                terminal_epoch_id = None
-            else:
-                source_values = projection[:-2] + (projection[-1],)
-                accepted_source_state = {
-                    column: value
-                    for column, value in zip(_RFC_SOURCE_STATE_COLUMNS, source_values, strict=True)
-                }
-                terminal_epoch_id = None if projection[-2] is None else str(projection[-2])
-
-            warnings: list[str] = []
-            customer_org_id = None if rfc[0] is None else str(rfc[0])
-            if customer_org_id is None:
-                warnings.append("RFC_CUSTOMER_UNRESOLVED")
-            else:
-                customer = connection.execute(
-                    "SELECT lifecycle_state FROM customer_organizations WHERE customer_org_id=?",
-                    (customer_org_id,),
-                ).fetchone()
-                if customer is None:
-                    raise SomaError("PERSISTENCE_FAILURE", "RFC Customer reference does not resolve")
-                if str(customer[0]) != "active":
-                    warnings.append("RFC_CUSTOMER_REFERENCE_ARCHIVED")
-
-            return RfcLifecycleProjection(
-                rfc_id=rfc_id,
-                accepted_source_state=accepted_source_state,
-                local_archive_state=str(rfc[1]),
-                terminal_epoch_id=terminal_epoch_id,
-                warnings=tuple(warnings),
-            )
+            return self.get_from_connection(snapshot.connection, rfc_id=rfc_id)
