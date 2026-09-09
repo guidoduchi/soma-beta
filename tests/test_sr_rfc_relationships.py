@@ -58,7 +58,7 @@ def _seed_terminal_sr(factory, service_request_id: str, accepted_command_id: str
             )
 
 
-def test_sr_rfc_link_and_unlink_increment_both_ticket_revisions_once(initialized_database) -> None:
+def test_sr_rfc_link_and_unlink_increment_both_ticket_revisions_once_and_replay_exact_result(initialized_database) -> None:
     factory = _factory(initialized_database)
     sr_service = ServiceRequestService(factory)
     rfc_service = RfcService(factory)
@@ -99,10 +99,28 @@ def test_sr_rfc_link_and_unlink_increment_both_ticket_revisions_once(initialized
         rfc_base_revision=1,
         review_fingerprint=preview.review_fingerprint,
     )
-    assert applied.no_change is False
-    assert applied.state == "active"
-    assert applied.sr_revision == 2
-    assert applied.rfc_revision == 2
+    assert applied.outcome == "APPLIED"
+    assert applied.target_id == sr.service_request_id
+    assert applied.revision == 2
+
+    connection = _read(initialized_database)
+    try:
+        link_id = str(
+            connection.execute(
+                "SELECT sr_rfc_link_id FROM sr_rfc_links WHERE service_request_id=? AND rfc_id=? AND link_state='active'",
+                (sr.service_request_id, rfc.rfc_id),
+            ).fetchone()[0]
+        )
+        assert connection.execute(
+            "SELECT revision FROM service_requests WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 2
+        assert connection.execute(
+            "SELECT revision FROM rfcs WHERE rfc_id=?",
+            (rfc.rfc_id,),
+        ).fetchone()[0] == 2
+    finally:
+        connection.close()
 
     duplicate = relationships.link(
         command_id=new_uuid4(),
@@ -112,8 +130,8 @@ def test_sr_rfc_link_and_unlink_increment_both_ticket_revisions_once(initialized
         rfc_base_revision=2,
     )
     assert duplicate.no_change is True
-    assert duplicate.sr_revision == 2
-    assert duplicate.rfc_revision == 2
+    assert duplicate.target_id == sr.service_request_id
+    assert duplicate.revision == 2
 
     unlink_command = new_uuid4()
     unlinked = relationships.unlink(
@@ -124,10 +142,9 @@ def test_sr_rfc_link_and_unlink_increment_both_ticket_revisions_once(initialized
         rfc_base_revision=2,
         reason_category="reviewed_unlink",
     )
-    assert unlinked.no_change is False
-    assert unlinked.state == "unlinked"
-    assert unlinked.sr_revision == 3
-    assert unlinked.rfc_revision == 3
+    assert unlinked.outcome == "APPLIED"
+    assert unlinked.target_id == sr.service_request_id
+    assert unlinked.revision == 3
 
     absent = relationships.unlink(
         command_id=new_uuid4(),
@@ -138,25 +155,66 @@ def test_sr_rfc_link_and_unlink_increment_both_ticket_revisions_once(initialized
         reason_category="reviewed_unlink",
     )
     assert absent.no_change is True
-    assert absent.sr_revision == 3
-    assert absent.rfc_revision == 3
+    assert absent.target_id == sr.service_request_id
+    assert absent.revision == 3
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE service_requests SET revision=9 WHERE service_request_id=?",
+            (sr.service_request_id,),
+        )
+        uow.connection.execute(
+            "UPDATE rfcs SET revision=10 WHERE rfc_id=?",
+            (rfc.rfc_id,),
+        )
+
+    replay = relationships.unlink(
+        command_id=unlink_command,
+        service_request_id=sr.service_request_id,
+        root_rfc_id=rfc.rfc_id,
+        sr_base_revision=2,
+        rfc_base_revision=2,
+        reason_category="reviewed_unlink",
+    )
+    assert replay.replayed is True
+    assert replay.outcome == "APPLIED"
+    assert replay.target_id == sr.service_request_id
+    assert replay.revision == 3
 
     connection = _read(initialized_database)
     try:
         history = connection.execute(
             "SELECT link_state,closed_at_utc,closed_command_id,reason_category FROM sr_rfc_links WHERE sr_rfc_link_id=?",
-            (applied.relationship_id,),
+            (link_id,),
         ).fetchone()
         assert tuple(history)[:1] == ("unlinked",)
         assert history[1] is not None
         assert history[2] == unlink_command
         assert history[3] is None
+        assert connection.execute(
+            "SELECT revision FROM service_requests WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 9
+        assert connection.execute(
+            "SELECT revision FROM rfcs WHERE rfc_id=?",
+            (rfc.rfc_id,),
+        ).fetchone()[0] == 10
         unlink_audit = connection.execute(
             "SELECT reason_category,payload_json FROM audit_events WHERE command_id=? AND action_type='ticket.sr_rfc_relationship.changed'",
             (unlink_command,),
         ).fetchone()
         assert unlink_audit[0] == "reviewed_unlink"
         assert json.loads(str(unlink_audit[1]))["reason_category"] == "reviewed_unlink"
+        stored = connection.execute(
+            "SELECT response_schema,response_json FROM command_receipt_results WHERE command_id=?",
+            (unlink_command,),
+        ).fetchone()
+        assert stored[0] == "TicketMutationResultV1"
+        assert json.loads(str(stored[1])) == {
+            "outcome": "APPLIED",
+            "revision": 3,
+            "target_id": sr.service_request_id,
+        }
     finally:
         connection.close()
 
@@ -201,7 +259,9 @@ def test_sr_rfc_link_rejects_subordinate_target_and_preserves_origin_provenance(
         subordinate_origin_rfc_id=child.rfc_id,
         review_fingerprint=preview.review_fingerprint,
     )
-    assert result.root_rfc_id == root.rfc_id
+    assert result.outcome == "APPLIED"
+    assert result.target_id == sr.service_request_id
+    assert result.revision == 2
 
     connection = _read(initialized_database)
     try:
@@ -263,7 +323,9 @@ def test_terminal_sr_link_requires_exact_fresh_review_and_failure_has_no_receipt
         rfc_base_revision=1,
         review_fingerprint=preview.review_fingerprint,
     )
-    assert applied.state == "active"
+    assert applied.outcome == "APPLIED"
+    assert applied.target_id == sr.service_request_id
+    assert applied.revision == 2
 
 
 def test_lifecycle_change_after_preview_stales_relationship_review(initialized_database) -> None:
