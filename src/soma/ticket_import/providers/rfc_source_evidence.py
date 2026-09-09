@@ -47,14 +47,19 @@ class TicketImportRfcSourceEvidenceProvider:
         row = reader.execute(
             "SELECT f.source_observation_field_id,o.source_observation_id,o.import_run_id,o.source_family,o.entity_kind,"
             "o.canonical_primary_id,o.canonical_parent_rfc_no,o.source_row_chronology_utc,f.field_key,f.field_class,"
-            "f.value_state,f.value_kind,f.normalized_text,f.integer_value,f.field_logical_sha256,r.run_state,o.identity_state "
-            "FROM source_observation_fields f "
+            "f.value_state,f.value_kind,f.normalized_text,f.integer_value,f.field_logical_sha256,r.run_state,r.source_family,"
+            "o.identity_state FROM source_observation_fields f "
             "JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
             "JOIN import_runs r ON r.import_run_id=o.import_run_id "
             "WHERE f.source_observation_field_id=?",
             (source_observation_field_id,),
         ).fetchone()
-        if row is None or str(row[16]) != "valid" or str(row[15]) not in _PUBLISHED_RUN_STATES:
+        if (
+            row is None
+            or str(row[17]) != "valid"
+            or str(row[15]) not in _PUBLISHED_RUN_STATES
+            or str(row[16]) != str(row[3])
+        ):
             return None
         source_family = str(row[3])
         entity_kind = str(row[4])
@@ -213,7 +218,7 @@ class TicketImportRfcSourceEvidenceProvider:
             "FROM source_observation_fields f "
             "JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
             "JOIN import_runs r ON r.import_run_id=o.import_run_id "
-            "WHERE o.identity_state='valid' AND r.run_state IN "
+            "WHERE o.identity_state='valid' AND r.source_family=o.source_family AND r.run_state IN "
             "('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') AND "
             "((o.source_family='rfc_enhanced' AND o.entity_kind='rfc' AND o.canonical_primary_id=?) OR "
             "(o.source_family='wfm_service_provider' AND o.entity_kind='wfm' AND o.canonical_parent_rfc_no=? "
@@ -242,7 +247,7 @@ class TicketImportRfcSourceEvidenceProvider:
         rfc_no = self._rfc_no(uow.connection, rfc_id)
         row = uow.connection.execute(
             "SELECT 1 FROM source_observations o JOIN import_runs r ON r.import_run_id=o.import_run_id "
-            "WHERE o.identity_state='valid' AND r.run_state IN "
+            "WHERE o.identity_state='valid' AND r.source_family=o.source_family AND r.run_state IN "
             "('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') AND "
             "((o.source_family='rfc_enhanced' AND o.entity_kind='rfc' AND o.canonical_primary_id=?) OR "
             "(o.source_family='wfm_service_provider' AND o.entity_kind='wfm' AND o.canonical_parent_rfc_no=?)) LIMIT 1",
