@@ -45,10 +45,38 @@
     {
       "name":"PreviewRfcTerminalCascade",
       "input":["pending proposal_id","cursor","page_size"],
-      "output":"persisted scope fingerprint and exact counts versus freshly recomputed scope fingerprint/counts, stale reasons, one bounded cross-domain impact page, and deliberate-confirmation requirement",
-      "ordering":"impact_domain_ordinal ASC where Tickets=0,TasksObjectives=1,Communications=2; impact_kind ASC; entity_id ASC",
-      "cursor_tuple":["impact_domain_ordinal","impact_kind","entity_id"],
-      "rules":["full-scope comparison/fingerprint is computed server-side before paging and does not require materializing the entire result in transport memory","read-only","no scope refresh or downstream mutation","INDETERMINATE participant preview fails closed for execution readiness"]
+      "response_type":"RfcTerminalCascadePreviewV1",
+      "read_consistency":"one LLD-01 stable ReadSnapshot; no writer UnitOfWork and no mutation",
+      "output":"persisted scope fingerprint/member count versus freshly recomputed current scope fingerprint/member count, exact stale reasons, provider-bound preview fingerprint, one bounded cross-domain impact page, warnings and execution readiness",
+      "current_scope_rule":"Load current trigger RFC terminal projection inside the snapshot. If current terminal_epoch_id differs from persisted proposal epoch, current_scope_fingerprint=null, current_member_count=0 and stale_reasons includes TERMINAL_EPOCH_CHANGED. If epoch matches and current terminal class/evidence differ, recompute complete current RFC/WFM scope using the current accepted terminal binding and include TERMINAL_EVIDENCE_CHANGED. Any resulting SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 fingerprint mismatch includes RFC_OR_WFM_SCOPE_CHANGED.",
+      "participant_rule":"LLD-05 exposes the same applicable-WFM eligibility selector over ReadSnapshot for recomputation and separately previews Task/Objective impacts. LLD-09 previews Communication impacts. Both return RfcTerminalCascadeImpactProviderPageV1 semantics; provider INDETERMINATE makes impacts empty, continuation null and execution_ready=false.",
+      "local_ticket_impacts":"one RFC_TERMINAL_SCOPE_MEMBER item per freshly recomputed RFC member when a current executable scope exists; ordering follows impact_kind then rfc_id and is independent from transport page size",
+      "ordering":"impact_domain_ordinal ASC where TICKETS=0,TASKS_OBJECTIVES=1,COMMUNICATIONS=2; impact_kind UTF-8 ASC; entity_id UTF-8 ASC",
+      "cursor":{
+        "query_id":"PreviewRfcTerminalCascade",
+        "sort_registry_id":"RFC_TERMINAL_CASCADE_IMPACT_ORDER_V1",
+        "last_key_tuple":"exact array [impact_domain_ordinal:int 0|1|2,impact_kind:string,entity_id:uuid]",
+        "comparison":"lexicographic keyset greater-than over (impact_domain_ordinal,impact_kind,entity_id)",
+        "filter_fingerprint_payload":"exact closed object {schema:'SOMA_RFC_TERMINAL_CASCADE_PREVIEW_FILTER_V1',proposal_id,proposal_revision,preview_fingerprint}",
+        "filter_fingerprint_canonicalization":"LLD-01 StrictVersionedJson canonical_json exact UTF-8 followed by lowercase SHA-256 hex",
+        "null_order":"not_applicable",
+        "continuation_rule":"continuation is emitted only when all providers are READY and another exact impact item exists. Cursor reuse after proposal revision, scope, Task/Objective impact or Communication impact changes fails stale/invalid rather than splicing previews.",
+        "golden_filter_vector":{"canonical_utf8_bytes":220,"canonical_json":"{\"preview_fingerprint\":\"4f67cf4d794157362580f0eb5af5d2d6fd12d11241466c1da0107ee858a2debe\",\"proposal_id\":\"00000000-0000-4000-8000-000000000050\",\"proposal_revision\":1,\"schema\":\"SOMA_RFC_TERMINAL_CASCADE_PREVIEW_FILTER_V1\"}","expected_sha256":"44027d68c497b6916a8cae53e759fa1731716c03edd527ab97dd84a9b5f670c1"}
+      },
+      "preview_fingerprint":{
+        "profile":"SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1",
+        "payload":"exact closed object {schema,proposal_id,proposal_revision,persisted_scope_fingerprint,current_scope_fingerprint,persisted_member_count,current_member_count,stale_reasons,task_objective_preview:{status,exact_count,provider_fingerprint},communication_preview:{status,exact_count,provider_fingerprint}}",
+        "ordering":"stale_reasons in closed ordinal TERMINAL_EPOCH_CHANGED,TERMINAL_EVIDENCE_CHANGED,RFC_OR_WFM_SCOPE_CHANGED; provider summaries use fixed key names and no warning prose",
+        "canonicalization":"LLD-01 StrictVersionedJson canonical_json exact UTF-8 then lowercase SHA-256 hex",
+        "golden_vector":{"canonical_utf8_bytes":686,"canonical_json":"{\"communication_preview\":{\"exact_count\":1,\"provider_fingerprint\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"status\":\"READY\"},\"current_member_count\":2,\"current_scope_fingerprint\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"persisted_member_count\":2,\"persisted_scope_fingerprint\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"proposal_id\":\"00000000-0000-4000-8000-000000000050\",\"proposal_revision\":1,\"schema\":\"SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1\",\"stale_reasons\":[],\"task_objective_preview\":{\"exact_count\":2,\"provider_fingerprint\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"status\":\"READY\"}}","expected_sha256":"4f67cf4d794157362580f0eb5af5d2d6fd12d11241466c1da0107ee858a2debe"}
+      },
+      "rules":[
+        "full-scope comparison and provider fingerprints are computed server-side before transport paging and never trust client-provided members or impact rows",
+        "read-only preview performs no scope refresh, receipt, audit, deliberate-proof consumption or downstream mutation",
+        "execution_ready is true only when proposal remains pending, stale_reasons is empty and both cross-domain providers are READY",
+        "current terminal Closed<->Cancelled correction in the same epoch is represented as TERMINAL_EVIDENCE_CHANGED and normally changes current_scope_fingerprint because terminal class/evidence are fingerprint inputs",
+        "INDETERMINATE participant preview fails closed and never returns a misleading partial cross-domain impact page"
+      ]
     },
     {
       "name":"PreviewRfcArchive",
