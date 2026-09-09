@@ -78,7 +78,12 @@
   "rfc_terminal_participant":[
     "capture_applicable_wfms under LLD-03 caller UoW selects exact active locally executable WFM Tasks whose current owning RFC is in the exact cascade RFC set; returns ordered task_id/task revision/task_no",
     "preview reports affected Objectives, surviving executable counts and any in-progress last-executable loss; any incomplete authority returns INDETERMINATE",
-    "apply revalidates captured identities/revisions/ownership and appends rfc_terminal_terminate execution events for applicable Tasks only; provider source projection remains untouched and no Task outcome is accepted",
+    "writer revalidation recomputes the complete current Task/Objective impact set under the LLD-03 caller UoW and exact-compares the reviewed exact_count/provider_fingerprint before deliberate proof consumption",
+    "apply is called only after both cross-domain revalidations are READY, deliberate proof is consumed and the outer LLD-03 command receipt exists; it receives RfcTerminalCascadeExecutionCommandContextV1 for exact command/actor/review provenance and no proof/session secret",
+    "apply revalidates captured identities/revisions/ownership, appends rfc_terminal_terminate execution events for applicable Tasks only and rebuilds affected Objective projections; provider source projection remains untouched and no Task outcome is accepted",
+    "every Task/Objective consequence/history/audit row created by the apply is provider-owned and references command_context.command_id as its outer command provenance; no nested receipt/commit/rollback is opened",
+    "after all provider-owned writes are assembled, compute SOMA_RFC_TERMINAL_CASCADE_PARTICIPANT_RESULT_V1 over domain TASKS_OBJECTIVES, outer command_id, proposal_id and the complete deterministic ordered immutable result refs plus provider audit_event_ids; return only RfcTerminalCascadeParticipantApplyResultV1 with exact result_ref_count, audit_event_count and result_fingerprint",
+    "the apply summary is bounded post-apply correlation evidence only; no product/business maximum is imposed on Task/Objective consequence cardinality and the complete result set never crosses into LLD-03 audit",
     "unrelated Local Tasks and WFM Tasks outside the exact RFC scope are untouched",
     "all Task/Objective projection rebuilds occur in caller UnitOfWork and any failure rolls the entire RFC cascade back"
   ],
