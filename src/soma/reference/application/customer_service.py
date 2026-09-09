@@ -3,18 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from soma.foundation.application.command_boundary import (
-    CommandBoundary,
-    CommandEnvelope,
-    CommandExecutionResult,
-    PreparedMutation,
-)
+from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
-
 from soma.reference.audit_registry import build_reference_audit_registry
 from soma.reference.domain.account_code_review import (
     AccountCodeReviewSnapshot,
@@ -26,6 +20,7 @@ from soma.reference.domain.validation import (
     validate_customer_name,
     validate_reason_category,
 )
+from soma.reference.results import ReferenceMutationResult, reference_mutation_result_from_execution
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +59,14 @@ class CustomerReferenceService:
             "AND lifecycle_state = 'active'",
             (customer_org_id,),
         ).fetchone()
+
+    @staticmethod
+    def _response(target_id: str, revision: int, *, no_change: bool) -> dict[str, object]:
+        return {
+            "outcome": "NO_CHANGE" if no_change else "APPLIED",
+            "target_id": target_id,
+            "revision": revision,
+        }
 
     def create_customer_organization(
         self,
@@ -159,11 +162,97 @@ class CustomerReferenceService:
                 result_type="customer_organization",
                 result_id=customer_org_id,
                 apply=apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(customer_org_id, 1, no_change=False),
             )
 
-        result = self._boundary.execute(envelope, prepare)
-        assert result.result_id is not None
-        return CustomerCreateResult(result.result_id, result.replayed)
+        exact = reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+        return CustomerCreateResult(exact.target_id, exact.replayed)
+
+    def update_descriptive_data(
+        self,
+        *,
+        command_id: str,
+        customer_org_id: str,
+        base_revision: int,
+        name: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ReferenceMutationResult:
+        stored_name, name_key = validate_customer_name(name)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="UpdateReferenceDescriptiveData",
+            target_type="customer_organization",
+            target_id=customer_org_id,
+            semantic_payload={"name": stored_name},
+            base_revisions={"customer_organization": base_revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            customer = self._active_customer(uow.connection, customer_org_id, base_revision=base_revision)
+            if str(customer[1]) == stored_name and str(customer[2]) == name_key:
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="ReferenceMutationResultV1",
+                    response_version=1,
+                    response=self._response(customer_org_id, base_revision, no_change=True),
+                )
+            lifecycle_event_id = new_uuid4()
+            audit_event_id = new_uuid4()
+            now = utc_epoch_seconds()
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                inner.connection.execute(
+                    "UPDATE customer_organizations SET name=?,name_match_key=?,revision=revision+1,updated_at_utc=? "
+                    "WHERE customer_org_id=?",
+                    (stored_name, name_key, now, customer_org_id),
+                )
+                inner.connection.execute(
+                    "INSERT INTO reference_lifecycle_events(reference_lifecycle_event_id,target_type,target_id,event_type,"
+                    "occurred_at_utc,command_id,reason_category) "
+                    "VALUES (?, 'customer_organization', ?, 'descriptive_corrected', ?, ?, NULL)",
+                    (lifecycle_event_id, customer_org_id, now, command_id),
+                )
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="reference.customer_organization.descriptive_updated",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="customer_organization",
+                    target_id=customer_org_id,
+                    command_id=command_id,
+                    payload_schema="ReferenceDescriptiveAuditV1",
+                    payload_version=1,
+                    payload={
+                        "target_type": "customer_organization",
+                        "target_id": customer_org_id,
+                        "prior_revision": base_revision,
+                        "new_revision": base_revision + 1,
+                        "changed_fields": ["name"],
+                        "lifecycle_event_id": lifecycle_event_id,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("customer_organization", customer_org_id),
+                        AuditResultRef("reference_lifecycle_event", lifecycle_event_id),
+                    ),
+                )
+
+            return PreparedMutation(
+                False,
+                "customer_organization",
+                customer_org_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(customer_org_id, base_revision + 1, no_change=False),
+            )
+
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def set_customer_account_code(
         self,
@@ -175,7 +264,7 @@ class CustomerReferenceService:
         reason_category: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         code_value, code_key = validate_account_code(account_code)
         reason = validate_reason_category(reason_category)
         envelope = CommandEnvelope(
@@ -192,7 +281,14 @@ class CustomerReferenceService:
             prior_revision = int(customer[4])
             current = self._active_code_claim(uow.connection, customer_org_id)
             if current is not None and str(current[2]) == code_key:
-                return PreparedMutation(no_change=True, result_type=None, result_id=None)
+                return PreparedMutation(
+                    no_change=True,
+                    result_type=None,
+                    result_id=None,
+                    response_schema="ReferenceMutationResultV1",
+                    response_version=1,
+                    response=self._response(customer_org_id, prior_revision, no_change=True),
+                )
             other_count = int(
                 uow.connection.execute(
                     "SELECT count(*) FROM customer_org_identifiers "
@@ -260,9 +356,12 @@ class CustomerReferenceService:
                 result_type="customer_org_identifier",
                 result_id=new_identifier_id,
                 apply=apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(customer_org_id, prior_revision + 1, no_change=False),
             )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def preview_account_code_review(
         self,
@@ -299,7 +398,7 @@ class CustomerReferenceService:
         review_context_id: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         code_value, _ = validate_account_code(account_code)
         reason = validate_reason_category(reason_category)
         if reason is None:
@@ -332,7 +431,14 @@ class CustomerReferenceService:
             prior_revision = int(customer[4])
             current = self._active_code_claim(uow.connection, customer_org_id)
             if current is not None and str(current[2]) == code_key:
-                return PreparedMutation(no_change=True, result_type=None, result_id=None)
+                return PreparedMutation(
+                    no_change=True,
+                    result_type=None,
+                    result_id=None,
+                    response_schema="ReferenceMutationResultV1",
+                    response_version=1,
+                    response=self._response(customer_org_id, prior_revision, no_change=True),
+                )
 
             new_identifier_id = new_uuid4()
             superseded_identifier_id = None if current is None else str(current[0])
@@ -390,9 +496,12 @@ class CustomerReferenceService:
                 result_type="customer_org_identifier",
                 result_id=new_identifier_id,
                 apply=apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(customer_org_id, prior_revision + 1, no_change=False),
             )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def reassign_customer_account_code(
         self,
@@ -408,7 +517,7 @@ class CustomerReferenceService:
         review_context_id: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         code_value, _ = validate_account_code(account_code)
         reason = validate_reason_category(reason_category)
         if reason is None:
@@ -439,12 +548,8 @@ class CustomerReferenceService:
                 from_customer_org_id=from_customer_org_id,
                 review_snapshot_hash=review_snapshot_hash,
             )
-            from_customer = self._active_customer(
-                uow.connection, from_customer_org_id, base_revision=from_base_revision
-            )
-            to_customer = self._active_customer(
-                uow.connection, to_customer_org_id, base_revision=to_base_revision
-            )
+            self._active_customer(uow.connection, from_customer_org_id, base_revision=from_base_revision)
+            self._active_customer(uow.connection, to_customer_org_id, base_revision=to_base_revision)
             source_claim = self._active_code_claim(uow.connection, from_customer_org_id)
             if source_claim is None or str(source_claim[2]) != code_key:
                 raise SomaError("REVIEW_CONTEXT_STALE", "source Account Code claim changed")
@@ -498,7 +603,6 @@ class CustomerReferenceService:
                         (now, to_customer_org_id),
                     )
                     changed_customer_ids.append(to_customer_org_id)
-                result_id = new_target_identifier_id or target_identifier_id
                 refs = [AuditResultRef("customer_org_identifier", value) for value in changed_identifier_ids]
                 refs.extend(AuditResultRef("customer_organization", value) for value in changed_customer_ids)
                 return AuditEventInput(
@@ -534,6 +638,13 @@ class CustomerReferenceService:
                 result_type="customer_org_identifier",
                 result_id=result_id,
                 apply=apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(
+                    to_customer_org_id,
+                    to_base_revision if target_same_code else to_base_revision + 1,
+                    no_change=False,
+                ),
             )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
