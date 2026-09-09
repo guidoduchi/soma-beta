@@ -3,24 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from soma.foundation.application.command_boundary import (
-    CommandBoundary,
-    CommandEnvelope,
-    CommandExecutionResult,
-    PreparedMutation,
-)
+from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
-
 from soma.reference.audit_registry import build_reference_audit_registry
 from soma.reference.domain.validation import (
     validate_contact_name,
     validate_email_channel,
     validate_reason_category,
 )
+from soma.reference.results import ReferenceMutationResult, reference_mutation_result_from_execution
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +89,14 @@ class ContactReferenceService:
         if reason is None:
             raise ValidationError("reason_category is required")
         return reason
+
+    @staticmethod
+    def _response(target_id: str, revision: int, *, no_change: bool) -> dict[str, object]:
+        return {
+            "outcome": "NO_CHANGE" if no_change else "APPLIED",
+            "target_id": target_id,
+            "revision": revision,
+        }
 
     def create_contact(
         self,
@@ -183,11 +186,18 @@ class ContactReferenceService:
                     resulting_event_refs=tuple(refs),
                 )
 
-            return PreparedMutation(False, "contact", contact_id, apply)
+            return PreparedMutation(
+                False,
+                "contact",
+                contact_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(contact_id, 1, no_change=False),
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        assert result.result_id is not None
-        return ContactCreateResult(result.result_id, result.replayed)
+        exact = reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+        return ContactCreateResult(exact.target_id, exact.replayed)
 
     def update_contact_descriptive_data(
         self,
@@ -198,7 +208,7 @@ class ContactReferenceService:
         name: str,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         stored_name, name_key = validate_contact_name(name)
         envelope = CommandEnvelope(
             command_id=command_id,
@@ -212,7 +222,14 @@ class ContactReferenceService:
         def prepare(uow: UnitOfWork) -> PreparedMutation:
             row = self._active_contact(uow.connection, contact_id, base_revision=base_revision)
             if str(row[1]) == stored_name and str(row[2]) == name_key:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="ReferenceMutationResultV1",
+                    response_version=1,
+                    response=self._response(contact_id, base_revision, no_change=True),
+                )
             lifecycle_event_id = new_uuid4()
             audit_event_id = new_uuid4()
             now = utc_epoch_seconds()
@@ -252,9 +269,17 @@ class ContactReferenceService:
                     ),
                 )
 
-            return PreparedMutation(False, "contact", contact_id, apply)
+            return PreparedMutation(
+                False,
+                "contact",
+                contact_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(contact_id, base_revision + 1, no_change=False),
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def add_contact_channel(
         self,
@@ -266,7 +291,7 @@ class ContactReferenceService:
         value_text: str,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         if channel_kind != "email":
             raise ValidationError("Beta 1.0 supports only email Contact channels")
         stored_value, match_key = validate_email_channel(value_text)
@@ -321,9 +346,17 @@ class ContactReferenceService:
                     resulting_event_refs=(AuditResultRef("contact_channel", channel_id),),
                 )
 
-            return PreparedMutation(False, "contact_channel", channel_id, apply)
+            return PreparedMutation(
+                False,
+                "contact_channel",
+                channel_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(channel_id, 1, no_change=False),
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def update_contact_channel(
         self,
@@ -336,7 +369,7 @@ class ContactReferenceService:
         value_text: str,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         stored_value, match_key = validate_email_channel(value_text)
         envelope = CommandEnvelope(
             command_id=command_id,
@@ -356,7 +389,14 @@ class ContactReferenceService:
                 channel_base_revision=channel_base_revision,
             )
             if str(channel[3]) == stored_value and str(channel[4]) == match_key:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="ReferenceMutationResultV1",
+                    response_version=1,
+                    response=self._response(contact_channel_id, channel_base_revision, no_change=True),
+                )
             prior_contact_revision = int(contact[4])
             audit_event_id = new_uuid4()
             now = utc_epoch_seconds()
@@ -395,9 +435,17 @@ class ContactReferenceService:
                     resulting_event_refs=(AuditResultRef("contact_channel", contact_channel_id),),
                 )
 
-            return PreparedMutation(False, "contact_channel", contact_channel_id, apply)
+            return PreparedMutation(
+                False,
+                "contact_channel",
+                contact_channel_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(contact_channel_id, channel_base_revision + 1, no_change=False),
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def archive_contact_channel(
         self,
@@ -410,7 +458,7 @@ class ContactReferenceService:
         reason_category: str | None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         reason = self._required_reason(reason_category)
         envelope = CommandEnvelope(
             command_id=command_id,
@@ -467,9 +515,17 @@ class ContactReferenceService:
                     resulting_event_refs=(AuditResultRef("contact_channel", contact_channel_id),),
                 )
 
-            return PreparedMutation(False, "contact_channel", contact_channel_id, apply)
+            return PreparedMutation(
+                False,
+                "contact_channel",
+                contact_channel_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(contact_channel_id, channel_base_revision + 1, no_change=False),
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def change_contact_affiliation(
         self,
@@ -481,7 +537,7 @@ class ContactReferenceService:
         reason_category: str | None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         reason = self._required_reason(reason_category)
         envelope = CommandEnvelope(
             command_id=command_id,
@@ -499,7 +555,14 @@ class ContactReferenceService:
             current = self._current_affiliation(uow.connection, contact_id)
             current_customer_id = None if current is None else str(current[1])
             if current_customer_id == new_customer_org_id:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="ReferenceMutationResultV1",
+                    response_version=1,
+                    response=self._response(contact_id, base_revision, no_change=True),
+                )
 
             prior_affiliation_id = None if current is None else str(current[0])
             new_affiliation_id = new_uuid4() if new_customer_org_id is not None else None
@@ -555,6 +618,14 @@ class ContactReferenceService:
                     resulting_event_refs=tuple(refs),
                 )
 
-            return PreparedMutation(False, "contact", contact_id, apply)
+            return PreparedMutation(
+                False,
+                "contact",
+                contact_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response=self._response(contact_id, prior_contact_revision + 1, no_change=False),
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
