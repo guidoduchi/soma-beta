@@ -81,51 +81,7 @@
       "Task/Objective/Communication preview impact text or derived consequence counts/fingerprints; these are separately bound by SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1 and RfcTerminalCascadeExecutionReviewV1",
       "transport cursor/page boundaries, physical row order and participant iteration order"
     ],
-    "golden_vectors":[
-      {
-        "id":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1-G001",
-        "rule":"Exact-subordinate scope with no applicable WFM proves exact_rfc role/scope binding and empty membership canonicalization.",
-        "input":{
-          "schema":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1",
-          "proposal_contract_version":1,
-          "trigger_rfc_id":"00000000-0000-4000-8000-000000000002",
-          "terminal_epoch_id":"00000000-0000-4000-8000-000000000020",
-          "terminal_status_class":"terminal_closed",
-          "terminal_status_evidence_id":"evidence-terminal-001",
-          "scope_kind":"exact_rfc",
-          "rfc_members":[
-            {"rfc_id":"00000000-0000-4000-8000-000000000002","captured_rfc_revision":2,"captured_role":"subordinate"}
-          ],
-          "wfm_members":[]
-        },
-        "expected_canonical_utf8_bytes":452,
-        "expected_sha256":"b2e7005ebe389fa18cfa0f978f21dab4507d9b44ece6b33fb8a19d9a563c849d"
-      },
-      {
-        "id":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1-G002",
-        "rule":"Root branch with two children/two WFMs proves root-first child ordering, WFM owner/task ordering, role/revision participation and terminal evidence participation.",
-        "input":{
-          "schema":"SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1",
-          "proposal_contract_version":1,
-          "trigger_rfc_id":"00000000-0000-4000-8000-000000000001",
-          "terminal_epoch_id":"00000000-0000-4000-8000-000000000021",
-          "terminal_status_class":"terminal_cancelled",
-          "terminal_status_evidence_id":"evidence-terminal-002",
-          "scope_kind":"root_branch",
-          "rfc_members":[
-            {"rfc_id":"00000000-0000-4000-8000-000000000001","captured_rfc_revision":5,"captured_role":"root"},
-            {"rfc_id":"00000000-0000-4000-8000-000000000002","captured_rfc_revision":3,"captured_role":"subordinate"},
-            {"rfc_id":"00000000-0000-4000-8000-000000000003","captured_rfc_revision":4,"captured_role":"subordinate"}
-          ],
-          "wfm_members":[
-            {"task_id":"00000000-0000-4000-8000-000000000101","owning_rfc_id":"00000000-0000-4000-8000-000000000001","captured_task_revision":7,"captured_task_no":"TK20260909000001"},
-            {"task_id":"00000000-0000-4000-8000-000000000102","owning_rfc_id":"00000000-0000-4000-8000-000000000003","captured_task_revision":2,"captured_task_no":"TK20260909000002"}
-          ]
-        },
-        "expected_canonical_utf8_bytes":1003,
-        "expected_sha256":"92c926573a48d3036d92f56bac40801e73d79e102980a8d2156502c5e94f866c"
-      }
-    ]
+    "golden_vectors_authority":"algorithms/rfc-terminal-cascade-scope-golden-vectors.json"
   },
   "performance":"capture and revalidation use indexed two-level RFC queries plus bounded participant membership/impact reads; no recursive graph traversal or unbounded in-transaction workbook processing is permitted. Complete hash input is bounded by current RFC/WFM and provider-owned terminal-impact authority and should be streamed or otherwise constructed without unrelated domain expansion."
 }
