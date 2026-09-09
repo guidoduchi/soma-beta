@@ -113,8 +113,9 @@ def _apply_published_status(factory, *, rfc_id: str, run_id: str, observation_id
             accepted_command_id=command_id,
             deltas=(delta,),
         )
-        if result.audit_events:
-            AuditWriter(build_tickets_audit_registry()).write_many(uow, result.audit_events)
+        writer = AuditWriter(build_tickets_audit_registry())
+        for event in result.audit_events:
+            writer.write(uow, event)
         return result, command_id
 
 
