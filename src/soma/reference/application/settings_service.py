@@ -30,6 +30,8 @@ class SettingValue:
     revision: int | None
     source: SettingSource
     semantic_owner: str
+    replayed: bool = False
+    no_change: bool = False
 
 
 class SettingService:
@@ -122,6 +124,8 @@ class SettingService:
             revision=revision,
             source="PERSISTED",
             semantic_owner=semantic_owner,
+            replayed=execution.replayed,
+            no_change=execution.no_change,
         )
 
     def get(self, setting_key: str) -> SettingValue:
