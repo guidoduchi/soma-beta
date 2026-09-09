@@ -291,6 +291,7 @@ class RfcSourceProjectionService:
         resulting_status_class = prior_status_class
         resulting_terminal_epoch = prior_terminal_epoch
         pending_cascade_proposal_id: str | None = None
+        terminal_capture_evidence_id: str | None = None
         now = utc_epoch_seconds()
 
         if accepted_status_delta is not None:
@@ -306,28 +307,7 @@ class RfcSourceProjectionService:
                     )
                 resulting_terminal_epoch = new_uuid4()
                 changes["terminal_epoch_id"] = resulting_terminal_epoch
-                pending_cascade_proposal_id = self._terminal_capture.capture_pending(
-                    uow,
-                    trigger_rfc_id=rfc_id,
-                    terminal_epoch_id=resulting_terminal_epoch,
-                    terminal_status_class=resulting_status_class,
-                    terminal_status_evidence_id=accepted_status_delta.evidence_id,
-                    accepted_command_id=accepted_command_id,
-                )
-                if not isinstance(pending_cascade_proposal_id, str) or not pending_cascade_proposal_id:
-                    raise SomaError(
-                        "RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED",
-                        "terminal capture participant returned no pending proposal identity",
-                    )
-                self._verify_captured_proposal(
-                    uow,
-                    proposal_id=pending_cascade_proposal_id,
-                    rfc_id=rfc_id,
-                    terminal_epoch_id=resulting_terminal_epoch,
-                    terminal_status_class=resulting_status_class,
-                    terminal_status_evidence_id=accepted_status_delta.evidence_id,
-                    accepted_command_id=accepted_command_id,
-                )
+                terminal_capture_evidence_id = accepted_status_delta.evidence_id
             elif was_terminal and becomes_terminal:
                 if prior_terminal_epoch is None:
                     raise SomaError("PERSISTENCE_FAILURE", "terminal RFC projection is missing terminal epoch identity")
@@ -372,6 +352,32 @@ class RfcSourceProjectionService:
             if updated.rowcount != 1:
                 raise _invalid("RFC source projection changed before accepted deltas were applied")
             resulting_projection_revision = int(prior_projection_revision) + 1
+
+        if terminal_capture_evidence_id is not None:
+            assert resulting_terminal_epoch is not None
+            assert self._terminal_capture is not None
+            pending_cascade_proposal_id = self._terminal_capture.capture_pending(
+                uow,
+                trigger_rfc_id=rfc_id,
+                terminal_epoch_id=resulting_terminal_epoch,
+                terminal_status_class=resulting_status_class,
+                terminal_status_evidence_id=terminal_capture_evidence_id,
+                accepted_command_id=accepted_command_id,
+            )
+            if not isinstance(pending_cascade_proposal_id, str) or not pending_cascade_proposal_id:
+                raise SomaError(
+                    "RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED",
+                    "terminal capture participant returned no pending proposal identity",
+                )
+            self._verify_captured_proposal(
+                uow,
+                proposal_id=pending_cascade_proposal_id,
+                rfc_id=rfc_id,
+                terminal_epoch_id=resulting_terminal_epoch,
+                terminal_status_class=resulting_status_class,
+                terminal_status_evidence_id=terminal_capture_evidence_id,
+                accepted_command_id=accepted_command_id,
+            )
 
         lifecycle = RfcLifecycleQueryService.get_from_connection(uow.connection, rfc_id=rfc_id)
         ordered_changed_fields = tuple(field for field in _FIELD_ORDER if field in changed_fields)
