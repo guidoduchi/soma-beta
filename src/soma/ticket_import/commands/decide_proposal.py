@@ -5,13 +5,18 @@ import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
+from soma.foundation.application.command_boundary import (
+    CommandBoundary,
+    CommandEnvelope,
+    CommandExecutionResult,
+    PreparedMutation,
+)
 from soma.foundation.audit.registry import AuditRegistry
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, PersistenceFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 from soma.ticket_import.providers.sr_customer_reconciliation import TicketImportSrCustomerReconciliationProvider
 from soma.ticket_import.providers.sr_identity_evidence import TicketImportSrIdentityEvidenceProvider
 from soma.ticket_import.providers.sr_source_evidence import TicketImportSrSourceEvidenceProvider
@@ -130,29 +135,72 @@ class ProposalDecisionService:
             AuditWriter(_build_acceptance_audit_registry()),
         )
 
-    def _result(self, proposal_id: str, *, command_id: str, replayed: bool) -> ProposalDecisionResult:
-        with ReadSnapshot(self._factory) as snapshot:
-            proposal = self._repository.get(snapshot.connection, proposal_id)
-            if proposal is None:
-                raise SomaError("IMPORT_PROPOSAL_NOT_FOUND", "reconciliation proposal does not exist")
-            refs = snapshot.connection.execute(
-                "SELECT r.result_type,r.result_id FROM audit_event_results r "
-                "JOIN audit_events e ON e.audit_event_id=r.audit_event_id "
-                "WHERE e.command_id=? AND e.action_type='ticket_import.proposal_decided' "
-                "ORDER BY r.result_type ASC,r.result_id ASC",
-                (command_id,),
-            ).fetchall()
-        owner_refs = tuple(
-            (str(row[0]), str(row[1]))
+    def _decision_response(
+        self,
+        uow: UnitOfWork,
+        *,
+        proposal_id: str,
+        command_id: str,
+    ) -> dict[str, object]:
+        proposal = self._repository.get(uow.connection, proposal_id)
+        if proposal is None:
+            raise PersistenceFailure("proposal decision response target disappeared before commit")
+        refs = uow.connection.execute(
+            "SELECT r.result_type,r.result_id FROM audit_event_results r "
+            "JOIN audit_events e ON e.audit_event_id=r.audit_event_id "
+            "WHERE e.command_id=? AND e.action_type='ticket_import.proposal_decided' "
+            "ORDER BY r.result_type ASC,r.result_id ASC",
+            (command_id,),
+        ).fetchall()
+        owner_refs = [
+            {"type": str(row[0]), "id": str(row[1])}
             for row in refs
             if str(row[0]) not in _METADATA_RESULT_TYPES
-        )
+        ]
+        return {
+            "proposal_id": proposal_id,
+            "decision": proposal.proposal_state,
+            "revision": proposal.revision,
+            "owner_result_refs": owner_refs,
+        }
+
+    @staticmethod
+    def _result_from_execution(execution: CommandExecutionResult) -> ProposalDecisionResult:
+        if execution.response_schema != "ProposalDecisionResultV1" or execution.response_version != 1:
+            raise IntegrityFailure("proposal decision result schema/version is invalid")
+        response = execution.response
+        if not isinstance(response, dict):
+            raise IntegrityFailure("proposal decision result payload is invalid")
+        proposal_id = response.get("proposal_id")
+        decision = response.get("decision")
+        revision = response.get("revision")
+        refs = response.get("owner_result_refs")
+        if (
+            not isinstance(proposal_id, str)
+            or decision not in {"accepted", "rejected", "deferred"}
+            or type(revision) is not int
+            or revision <= 0
+            or not isinstance(refs, list)
+        ):
+            raise IntegrityFailure("proposal decision result fields are invalid")
+        owner_refs: list[tuple[str, str]] = []
+        for ref in refs:
+            if (
+                not isinstance(ref, dict)
+                or set(ref) != {"type", "id"}
+                or not isinstance(ref.get("type"), str)
+                or not ref.get("type")
+                or not isinstance(ref.get("id"), str)
+                or not ref.get("id")
+            ):
+                raise IntegrityFailure("proposal decision owner result ref is invalid")
+            owner_refs.append((str(ref["type"]), str(ref["id"])))
         return ProposalDecisionResult(
             proposal_id=proposal_id,
-            decision=proposal.proposal_state,
-            revision=proposal.revision,
-            owner_result_refs=owner_refs,
-            replayed=replayed,
+            decision=str(decision),
+            revision=revision,
+            owner_result_refs=tuple(owner_refs),
+            replayed=execution.replayed,
         )
 
     @staticmethod
@@ -268,7 +316,18 @@ class ProposalDecisionService:
             )
             return (*owner_result.audit_events, orchestration)
 
-        return PreparedMutation(False, "reconciliation_proposal", proposal.proposal_id, apply)
+        return PreparedMutation(
+            False,
+            "reconciliation_proposal",
+            proposal.proposal_id,
+            apply,
+            response_schema="ProposalDecisionResultV1",
+            response_factory=lambda inner: self._decision_response(
+                inner,
+                proposal_id=proposal.proposal_id,
+                command_id=command_id,
+            ),
+        )
 
     def _prepare_sr_source_projection_accept(
         self,
@@ -372,7 +431,18 @@ class ProposalDecisionService:
                 owner_result_refs=owner_result.result_refs,
             )
 
-        return PreparedMutation(False, "reconciliation_proposal", proposal.proposal_id, apply)
+        return PreparedMutation(
+            False,
+            "reconciliation_proposal",
+            proposal.proposal_id,
+            apply,
+            response_schema="ProposalDecisionResultV1",
+            response_factory=lambda inner: self._decision_response(
+                inner,
+                proposal_id=proposal.proposal_id,
+                command_id=command_id,
+            ),
+        )
 
     def _prepare_sr_customer_accept(
         self,
@@ -476,7 +546,18 @@ class ProposalDecisionService:
             )
             return (*owner_result.audit_events, orchestration)
 
-        return PreparedMutation(False, "reconciliation_proposal", proposal.proposal_id, apply)
+        return PreparedMutation(
+            False,
+            "reconciliation_proposal",
+            proposal.proposal_id,
+            apply,
+            response_schema="ProposalDecisionResultV1",
+            response_factory=lambda inner: self._decision_response(
+                inner,
+                proposal_id=proposal.proposal_id,
+                command_id=command_id,
+            ),
+        )
 
     def accept(
         self,
@@ -566,8 +647,7 @@ class ProposalDecisionService:
                 "proposal kind has no implemented owning-domain acceptance participant",
             )
 
-        execution = self._boundary.execute(envelope, prepare)
-        return self._result(proposal_id, command_id=command_id, replayed=execution.replayed)
+        return self._result_from_execution(self._boundary.execute(envelope, prepare))
 
     def reject(
         self,
@@ -701,7 +781,17 @@ class ProposalDecisionService:
                     ),
                 )
 
-            return PreparedMutation(False, "reconciliation_proposal", proposal_id, apply)
+            return PreparedMutation(
+                False,
+                "reconciliation_proposal",
+                proposal_id,
+                apply,
+                response_schema="ProposalDecisionResultV1",
+                response_factory=lambda inner: self._decision_response(
+                    inner,
+                    proposal_id=proposal_id,
+                    command_id=command_id,
+                ),
+            )
 
-        execution = self._boundary.execute(envelope, prepare)
-        return self._result(proposal_id, command_id=command_id, replayed=execution.replayed)
+        return self._result_from_execution(self._boundary.execute(envelope, prepare))
