@@ -349,3 +349,55 @@ def test_sr_controlled_evidence_rejects_wrong_vocabulary_and_delta_build(initial
                 after_integer=None,
             )
         assert excinfo.value.code == "IMPORT_PROPOSAL_STALE"
+
+
+def test_sr_status_evidence_rejects_unknown_token_even_with_current_vocabulary(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="33445569",
+    )
+    run_id, observation_id, field_id = _seed_mismatched_field(
+        factory,
+        run_source_family="advanced_search_sr",
+        observation_source_family="advanced_search_sr",
+        source_profile_id="ADVANCED_SEARCH_SR_V1",
+        entity_kind="service_request",
+        canonical_primary_id="33445569",
+        canonical_parent_rfc_no=None,
+        field_key="status",
+        value_kind="controlled",
+        normalized_text="Definitely Closed",
+        vocabulary_id="ADVANCED_SEARCH_STATUS_V1",
+    )
+
+    with UnitOfWork(factory) as uow:
+        provider = TicketImportSrSourceEvidenceProvider()
+        accepted = {
+            "value_state": "usable",
+            "value_kind": "controlled",
+            "value": "Definitely Closed",
+            "source_chronology_utc": 100,
+            "precedence_basis": "source_chronology",
+        }
+        assert provider.validate_published_field(
+            uow,
+            sr.service_request_id,
+            "status",
+            field_id,
+            accepted,
+        ) == "INVALID"
+        with pytest.raises(SomaError) as excinfo:
+            provider.build_source_projection_delta(
+                uow.connection,
+                service_request_id=sr.service_request_id,
+                expected_import_run_id=run_id,
+                expected_source_observation_id=observation_id,
+                source_observation_field_id=field_id,
+                field_key="status",
+                change_kind="set",
+                change_value_kind="controlled",
+                after_text="Definitely Closed",
+                after_integer=None,
+            )
+        assert excinfo.value.code == "IMPORT_PROPOSAL_STALE"
