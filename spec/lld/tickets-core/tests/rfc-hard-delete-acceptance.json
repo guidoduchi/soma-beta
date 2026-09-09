@@ -1,0 +1,52 @@
+{
+  "schema": "SOMA-LLD-TESTS-V1",
+  "lld_id": "LLD-03",
+  "suite": "RFC hard-delete acceptance",
+  "scenarios": [
+    {
+      "id": "LLD03-HD001",
+      "name": "hard_delete_preview_is_complete_deterministic_and_read_only",
+      "prove": [
+        "PreviewRfcHardDelete runs under one stable LLD-01 ReadSnapshot and opens no writer UnitOfWork, command receipt, audit or deliberate-proof consumption path",
+        "all eleven local guards from algorithms/rfc-hard-delete.json execute exactly once in registry ordinal order and all four cross-domain classifiers use the same stable read authority",
+        "manual or purely local provisional creation evidence is eligible only when it is the single valid RFC creation audit; accepted_source_adoption, missing, duplicate or malformed creation evidence blocks",
+        "provider status mapping is exact and invalid/exception provider output becomes INDETERMINATE rather than guessed CLEAR",
+        "SOMA_RFC_HARD_DELETE_PROVIDER_CLASSIFICATION_V1 tokens are derived only by LLD-03 from provider_id, rfc_id and exact status; provider-private rows/tokens do not cross the boundary",
+        "SOMA_RFC_HARD_DELETE_ELIGIBILITY_V1 includes exact RFC identity/revision/archive state/creation context, every local guard status and all four provider classifications/tokens in fixed ordinal order",
+        "the implementation reproduces the published eligible_manual_draft_v1 provider tokens and eligibility_fingerprint exactly",
+        "blocked and INDETERMINATE previews still return a bounded RfcHardDeletePreviewV1 with exact current fingerprint and ordered typed blockers; they are successful query evidence, not RFC_HARD_DELETE_BLOCKED errors",
+        "eligible is true if and only if every local guard and provider status is CLEAR"
+      ]
+    },
+    {
+      "id": "LLD03-HD002",
+      "name": "hard_delete_execution_is_preview_bound_deliberate_and_exactly_replayable",
+      "prove": [
+        "HardDeleteRfc exact replay resolves before owner preparation/current RFC/provider/proof reads and returns the stored HardDeleteRfcResultV1 even though the RFC row no longer exists",
+        "the one-time DeliberateActionProofV1 bearer is excluded from COMMAND_ENVELOPE_V1 semantic request hashing while rfc_id, base_revision and eligibility_fingerprint remain semantic authority",
+        "writer revalidation reruns every local guard/provider classifier and recomputes the exact eligibility fingerprint before proof consumption",
+        "LLD-12 proof is consumed only after current state is eligible and the reviewed fingerprint still matches; expected binding is action tickets.rfc.hard_delete, target_type rfc, exact rfc_id, base_revision and eligibility_fingerprint",
+        "after proof consumption exactly one outer command receipt exists before the surviving deletion audit/result evidence",
+        "ticket.rfc.hard_deleted audit contains only rfc_id, rfc_no, reviewed_revision, eligibility_fingerprint and result=deleted; no challenge id, session/run binding or proof bearer is persisted",
+        "the hard-delete audit_event_id is also the sole hard_delete_evidence result id and equals HardDeleteRfcResultV1.hard_delete_evidence_id",
+        "only the exact rfcs row is deleted; no relationship/history/dependent cleanup or cascade is attempted",
+        "HardDeleteRfcResultV1 is fixed-size deletion evidence containing outcome=deleted, rfc_id, rfc_no, reviewed_revision, eligibility_fingerprint and hard_delete_evidence_id and makes no claim about a current/live RFC revision",
+        "same command_id exact replay consumes no second proof, inserts no second audit/result, performs no provider work and never reconstructs response state from the deleted RFC"
+      ]
+    },
+    {
+      "id": "LLD03-HD003",
+      "name": "hard_delete_closed_guard_registry_preserves_all_history",
+      "prove": [
+        "each local blocker code is emitted from the exact closed registry and ordering in algorithms/rfc-hard-delete.json",
+        "any hierarchy edge history, SR relationship history, Device Reference relationship history, current or removed/edited RFC Working Note history, terminal-cascade history or archive/restore history blocks deletion even when no current active relationship remains",
+        "any RFC source projection row blocks locally and accepted LLD-04 source provenance also blocks through the source_evidence provider; either authority independently fails closed",
+        "any post-creation audit directly targeting the RFC blocks before the current hard-delete audit exists",
+        "LLD-05 Task/Objective, LLD-07 Inventory and LLD-09 Communication protected dependencies block without exporting or deleting provider-owned history",
+        "a provider INDETERMINATE result emits its closed indeterminate blocker and makes eligible=false",
+        "RFC revision must remain exactly 1 and local_archive_state must remain active; archived/restored/corrected/history-bearing RFCs therefore use preservation flows instead",
+        "the hard-delete path introduces no total Task/Communication/Inventory/history cardinality cap because it consumes only bounded three-state provider classifications"
+      ]
+    }
+  ]
+}
