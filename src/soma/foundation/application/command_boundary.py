@@ -81,7 +81,7 @@ class PreparedMutation:
     result_type: str | None
     result_id: str | None
     apply: ApplyMutation | None = None
-    response_schema: str = "CommandExecutionResultV1"
+    response_schema: str = ""
     response_version: int = 1
     response: Any = field(default=_DEFAULT_RESPONSE, repr=False)
     response_factory: ResponseFactory | None = field(default=None, repr=False)
@@ -95,11 +95,13 @@ class PreparedMutation:
         elif self.apply is None:
             raise ValidationError("material command requires a mutation callback")
         if not isinstance(self.response_schema, str) or not self.response_schema:
-            raise ValidationError("command response schema is required")
+            raise ValidationError("command response schema must be declared explicitly")
         if type(self.response_version) is not int or self.response_version <= 0:
             raise ValidationError("command response version must be a positive integer")
         if self.response_factory is not None and self.response is not _DEFAULT_RESPONSE:
             raise ValidationError("command response must use either a value or a response factory, not both")
+        if self.response_factory is None and self.response is _DEFAULT_RESPONSE:
+            raise ValidationError("command must declare an exact response value or same-UoW response factory")
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,19 +146,6 @@ class CommandBoundary:
                 raise PersistenceFailure("authoritative command emitted duplicate audit event identities")
             seen_event_ids.add(event.audit_event_id)
         return events
-
-    @staticmethod
-    def _default_response(
-        *,
-        result_type: str | None,
-        result_id: str | None,
-        no_change: bool,
-    ) -> dict[str, object | None]:
-        return {
-            "no_change": no_change,
-            "result_id": result_id,
-            "result_type": result_type,
-        }
 
     @staticmethod
     def _encode_response(response: Any) -> tuple[str, str, Any]:
@@ -262,11 +251,7 @@ class CommandBoundary:
             if prepared.response_factory is not None:
                 semantic_response = prepared.response_factory(uow)
             elif prepared.response is _DEFAULT_RESPONSE:
-                semantic_response = self._default_response(
-                    result_type=stored_result_type,
-                    result_id=prepared.result_id,
-                    no_change=prepared.no_change,
-                )
+                raise PersistenceFailure("validated command response snapshot unexpectedly disappeared")
             else:
                 semantic_response = prepared.response
 
