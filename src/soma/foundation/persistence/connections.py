@@ -109,16 +109,21 @@ class ConnectionFactory:
 
     @staticmethod
     def _apply_common_pragmas(connection: Any) -> None:
-        connection.execute("PRAGMA foreign_keys=ON")
-        if int(connection.execute("PRAGMA foreign_keys").fetchone()[0]) != 1:
-            raise PersistenceConnectionUnsafe("foreign_keys pragma could not be enabled")
-        connection.execute("PRAGMA busy_timeout=5000")
-        connection.execute("PRAGMA trusted_schema=OFF")
-        connection.execute("PRAGMA temp_store=MEMORY")
-        connection.execute("PRAGMA synchronous=FULL")
-        connection.execute("PRAGMA secure_delete=FAST")
-        try:
-            connection.enable_load_extension(False)
-        except (AttributeError, NotImplementedError):
-            # Packaged-runtime verification owns support for the driver-level API.
-            pass
+        # SQLite can silently ignore an unsupported pragma. Verify every required
+        # setting on each connection before any repository receives it.
+        settings = (
+            ("foreign_keys", "ON", 1),
+            ("busy_timeout", "5000", 5000),
+            ("trusted_schema", "OFF", 0),
+            ("temp_store", "MEMORY", 2),
+            ("synchronous", "FULL", 2),
+            ("secure_delete", "FAST", 2),
+            ("read_uncommitted", "OFF", 0),
+            ("wal_autocheckpoint", "1000", 1000),
+        )
+        for name, setting, expected in settings:
+            connection.execute(f"PRAGMA {name}={setting}")
+            row = connection.execute(f"PRAGMA {name}").fetchone()
+            if row is None or row[0] != expected:
+                raise PersistenceConnectionUnsafe(f"required {name} pragma verification failed")
+        connection.enable_load_extension(False)
