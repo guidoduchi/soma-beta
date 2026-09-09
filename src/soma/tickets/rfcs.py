@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
-from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
+from soma.foundation.application.command_boundary import (
+    CommandBoundary,
+    CommandEnvelope,
+    CommandExecutionResult,
+    PreparedMutation,
+)
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 
 from .audit_registry import build_tickets_audit_registry
+from .queries.rfcs import RfcQueryService
+from .results import TicketMutationResult, ticket_mutation_result_from_execution
 from .validation import validate_optional_sha256, validate_reason_category, validate_rfc_no
 
 _CREATION_CONTEXTS = frozenset({"manual", "provisional", "accepted_source_adoption"})
@@ -29,6 +36,7 @@ class RfcIdentityResult:
 class RfcService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
+        self._queries = RfcQueryService(connection_factory)
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_tickets_audit_registry()),
@@ -51,29 +59,32 @@ class RfcService:
         if str(row[0]) != "active":
             raise SomaError("CUSTOMER_ORG_INACTIVE", "Customer Organization is archived")
 
-    def _result(
-        self,
-        rfc_id: str,
-        *,
-        created_by_command: bool,
-        replayed: bool,
-        no_change: bool,
-    ) -> RfcIdentityResult:
-        with ReadSnapshot(self._factory) as snapshot:
-            row = snapshot.connection.execute(
-                "SELECT rfc_no,customer_org_id,revision FROM rfcs WHERE rfc_id=?",
-                (rfc_id,),
-            ).fetchone()
-        if row is None:
-            raise SomaError("NOT_FOUND", "RFC does not exist")
+    @staticmethod
+    def _identity_result(result: CommandExecutionResult) -> RfcIdentityResult:
+        if (
+            result.response_schema != "RfcDetailV1"
+            or result.response_version != 1
+            or not isinstance(result.response, dict)
+        ):
+            raise IntegrityFailure("RFC identity replay result has the wrong response contract")
+        rfc_id = result.response.get("rfc_id")
+        rfc_no = result.response.get("rfc_no")
+        customer_org_id = result.response.get("customer_org_id")
+        revision = result.response.get("revision")
+        if not isinstance(rfc_id, str) or not isinstance(rfc_no, str):
+            raise IntegrityFailure("RFC identity replay result has invalid identity")
+        if customer_org_id is not None and not isinstance(customer_org_id, str):
+            raise IntegrityFailure("RFC identity replay result has invalid Customer identity")
+        if type(revision) is not int or revision <= 0:
+            raise IntegrityFailure("RFC identity replay result has invalid revision")
         return RfcIdentityResult(
             rfc_id=rfc_id,
-            rfc_no=str(row[0]),
-            customer_org_id=None if row[1] is None else str(row[1]),
-            revision=int(row[2]),
-            created_by_command=created_by_command,
-            replayed=replayed,
-            no_change=no_change,
+            rfc_no=rfc_no,
+            customer_org_id=customer_org_id,
+            revision=revision,
+            created_by_command=not result.no_change,
+            replayed=result.replayed,
+            no_change=result.no_change,
         )
 
     def create_or_adopt_identity(
@@ -106,7 +117,17 @@ class RfcService:
                 (canonical_no,),
             ).fetchone()
             if existing is not None:
-                return PreparedMutation(True, None, None)
+                existing_id = str(existing[0])
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="RfcDetailV1",
+                    response_version=1,
+                    response_factory=lambda inner: asdict(
+                        self._queries.get_from_connection(inner.connection, rfc_id=existing_id)
+                    ),
+                )
             if customer_org_id is not None:
                 self._require_active_customer(uow.connection, customer_org_id)
             rfc_id = new_uuid4()
@@ -140,26 +161,19 @@ class RfcService:
                     resulting_event_refs=(AuditResultRef("rfc", rfc_id),),
                 )
 
-            return PreparedMutation(False, "rfc", rfc_id, apply)
+            return PreparedMutation(
+                False,
+                "rfc",
+                rfc_id,
+                apply,
+                response_schema="RfcDetailV1",
+                response_version=1,
+                response_factory=lambda inner: asdict(
+                    self._queries.get_from_connection(inner.connection, rfc_id=rfc_id)
+                ),
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        if result.result_id is not None:
-            rfc_id = result.result_id
-        else:
-            with ReadSnapshot(self._factory) as snapshot:
-                row = snapshot.connection.execute(
-                    "SELECT rfc_id FROM rfcs WHERE rfc_no=?",
-                    (canonical_no,),
-                ).fetchone()
-            if row is None:
-                raise SomaError("PERSISTENCE_FAILURE", "RFC adoption did not resolve the existing identity")
-            rfc_id = str(row[0])
-        return self._result(
-            rfc_id,
-            created_by_command=result.result_type == "rfc",
-            replayed=result.replayed,
-            no_change=result.no_change,
-        )
+        return self._identity_result(self._boundary.execute(envelope, prepare))
 
     def set_customer(
         self,
@@ -172,7 +186,7 @@ class RfcService:
         review_fingerprint: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> RfcIdentityResult:
+    ) -> TicketMutationResult:
         reason = validate_reason_category(reason_category)
         fingerprint = validate_optional_sha256(review_fingerprint, field="review_fingerprint")
         envelope = CommandEnvelope(
@@ -196,13 +210,21 @@ class RfcService:
             ).fetchone()
             if row is None:
                 raise SomaError("NOT_FOUND", "RFC does not exist")
-            if int(row[1]) != base_revision:
+            current_revision = int(row[1])
+            if current_revision != base_revision:
                 raise SomaError("STALE_REVISION", "RFC revision changed")
             if customer_org_id is not None:
                 self._require_active_customer(uow.connection, customer_org_id)
             prior_customer = None if row[0] is None else str(row[0])
             if prior_customer == customer_org_id:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TicketMutationResultV1",
+                    response_version=1,
+                    response={"outcome": "NO_CHANGE", "target_id": rfc_id, "revision": current_revision},
+                )
 
             parent = uow.connection.execute(
                 "SELECT parent_rfc_id FROM rfc_hierarchy_edges WHERE child_rfc_id=? AND edge_state='active'",
@@ -255,12 +277,14 @@ class RfcService:
                     resulting_event_refs=(AuditResultRef("rfc", rfc_id),),
                 )
 
-            return PreparedMutation(False, "rfc", rfc_id, apply)
+            return PreparedMutation(
+                False,
+                "rfc",
+                rfc_id,
+                apply,
+                response_schema="TicketMutationResultV1",
+                response_version=1,
+                response={"outcome": "APPLIED", "target_id": rfc_id, "revision": base_revision + 1},
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        return self._result(
-            rfc_id,
-            created_by_command=False,
-            replayed=result.replayed,
-            no_change=result.no_change,
-        )
+        return ticket_mutation_result_from_execution(self._boundary.execute(envelope, prepare))

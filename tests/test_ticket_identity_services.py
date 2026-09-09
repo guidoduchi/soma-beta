@@ -8,6 +8,7 @@ from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.reference.application.customer_service import CustomerReferenceService
 from soma.tickets.device_references import DeviceReferenceService
+from soma.tickets.queries.rfcs import RfcQueryService
 from soma.tickets.queries.service_requests import ServiceRequestQueryService
 from soma.tickets.rfcs import RfcService
 from soma.tickets.service_requests import ServiceRequestService
@@ -206,6 +207,7 @@ def test_rfc_exact_identity_adoption_and_customer_branch_consistency(initialized
     customer_a = customers.create_customer_organization(command_id=new_uuid4(), name="Customer A")
     customer_b = customers.create_customer_organization(command_id=new_uuid4(), name="Customer B")
     service = RfcService(factory)
+    queries = RfcQueryService(factory)
 
     root = service.create_or_adopt_identity(
         command_id=new_uuid4(),
@@ -267,8 +269,10 @@ def test_rfc_exact_identity_adoption_and_customer_branch_consistency(initialized
         customer_org_id=customer_a.customer_org_id,
         reason_category="customer_assignment",
     )
-    assert changed.customer_org_id == customer_a.customer_org_id
+    assert changed.target_id == standalone.rfc_id
+    assert changed.outcome == "APPLIED"
     assert changed.revision == 2
+    assert queries.get(rfc_id=standalone.rfc_id).customer_org_id == customer_a.customer_org_id
 
     same = service.set_customer(
         command_id=new_uuid4(),
@@ -290,6 +294,59 @@ def test_rfc_exact_identity_adoption_and_customer_branch_consistency(initialized
         ).fetchone()[0] == 3
     finally:
         connection.close()
+
+
+def test_rfc_replay_is_independent_of_later_owner_state(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    customers = CustomerReferenceService(factory)
+    customer = customers.create_customer_organization(command_id=new_uuid4(), name="Replay Customer")
+    service = RfcService(factory)
+    queries = RfcQueryService(factory)
+
+    create_command_id = new_uuid4()
+    created = service.create_or_adopt_identity(
+        command_id=create_command_id,
+        rfc_no="NC20260908000001",
+        creation_context="manual",
+    )
+    set_customer_command_id = new_uuid4()
+    changed = service.set_customer(
+        command_id=set_customer_command_id,
+        rfc_id=created.rfc_id,
+        base_revision=1,
+        customer_org_id=customer.customer_org_id,
+        reason_category="customer_assignment",
+    )
+    assert changed.revision == 2
+
+    create_replay = service.create_or_adopt_identity(
+        command_id=create_command_id,
+        rfc_no="NC20260908000001",
+        creation_context="manual",
+    )
+    assert create_replay.replayed is True
+    assert create_replay.revision == 1
+    assert create_replay.customer_org_id is None
+
+    connection = _write(initialized_database)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute("UPDATE rfcs SET revision=8 WHERE rfc_id=?", (created.rfc_id,))
+        connection.execute("COMMIT")
+    finally:
+        connection.close()
+
+    customer_replay = service.set_customer(
+        command_id=set_customer_command_id,
+        rfc_id=created.rfc_id,
+        base_revision=1,
+        customer_org_id=customer.customer_org_id,
+        reason_category="customer_assignment",
+    )
+    assert customer_replay.replayed is True
+    assert customer_replay.outcome == "APPLIED"
+    assert customer_replay.revision == 2
+    assert queries.get(rfc_id=created.rfc_id).revision == 8
 
 
 def test_device_reference_equal_names_stale_correction_and_audit_privacy(initialized_database) -> None:

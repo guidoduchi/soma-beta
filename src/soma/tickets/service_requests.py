@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import asdict, dataclass
-from typing import Any
 
 from soma.foundation.application.command_boundary import (
     CommandBoundary,
@@ -18,6 +17,7 @@ from soma.foundation.persistence.uow import UnitOfWork
 
 from .audit_registry import build_tickets_audit_registry
 from .queries.service_requests import ServiceRequestQueryService
+from .results import TicketMutationResult, ticket_mutation_result_from_execution
 from .validation import validate_official_sr_no, validate_review_context_id
 
 
@@ -31,18 +31,6 @@ class ServiceRequestIdentityResult:
     no_change: bool
 
 
-@dataclass(frozen=True, slots=True)
-class TicketMutationResult:
-    outcome: str
-    target_id: str
-    revision: int
-    replayed: bool
-
-    @property
-    def no_change(self) -> bool:
-        return self.outcome == "NO_CHANGE"
-
-
 class ServiceRequestService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
@@ -54,7 +42,11 @@ class ServiceRequestService:
 
     @staticmethod
     def _identity_result(result: CommandExecutionResult) -> ServiceRequestIdentityResult:
-        if result.response_schema != "ServiceRequestDetailV1" or not isinstance(result.response, dict):
+        if (
+            result.response_schema != "ServiceRequestDetailV1"
+            or result.response_version != 1
+            or not isinstance(result.response, dict)
+        ):
             raise IntegrityFailure("Service Request creation replay result has the wrong response contract")
         identity = result.response.get("identity")
         if not isinstance(identity, dict):
@@ -76,24 +68,6 @@ class ServiceRequestService:
             revision=revision,
             replayed=result.replayed,
             no_change=result.no_change,
-        )
-
-    @staticmethod
-    def _mutation_result(result: CommandExecutionResult) -> TicketMutationResult:
-        if result.response_schema != "TicketMutationResultV1" or not isinstance(result.response, dict):
-            raise IntegrityFailure("Service Request mutation replay result has the wrong response contract")
-        outcome = result.response.get("outcome")
-        target_id = result.response.get("target_id")
-        revision = result.response.get("revision")
-        if outcome not in {"APPLIED", "NO_CHANGE"}:
-            raise IntegrityFailure("Service Request mutation replay result has invalid outcome")
-        if not isinstance(target_id, str) or type(revision) is not int or revision <= 0:
-            raise IntegrityFailure("Service Request mutation replay result has invalid target metadata")
-        return TicketMutationResult(
-            outcome=str(outcome),
-            target_id=target_id,
-            revision=revision,
-            replayed=result.replayed,
         )
 
     def create_manual_service_request(
@@ -296,4 +270,4 @@ class ServiceRequestService:
                 },
             )
 
-        return self._mutation_result(self._boundary.execute(envelope, prepare))
+        return ticket_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
