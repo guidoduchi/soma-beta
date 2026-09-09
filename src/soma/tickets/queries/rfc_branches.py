@@ -290,12 +290,7 @@ class RfcBranchQueryService:
         root = self._rfc_query.get_from_connection(connection, rfc_id=root_rfc_id)
         if root.hierarchy_role == "subordinate":
             raise SomaError("PERSISTENCE_FAILURE", "RFC branch root became subordinate during projection")
-        subordinates = tuple(
-            self._rfc_query.get_from_connection(connection, rfc_id=child_id)
-            for child_id in page_ids
-        )
-        if any(child.hierarchy_role != "subordinate" for child in subordinates):
-            raise SomaError("PERSISTENCE_FAILURE", "RFC branch member is not subordinate")
+        subordinates = self._rfc_query.get_subordinates_from_connection(connection, page_ids)
         continuation = _cursor_body(root_rfc_id, page_ids[-1]) if has_more and page_ids else None
         return RfcBranch(
             root=root,
