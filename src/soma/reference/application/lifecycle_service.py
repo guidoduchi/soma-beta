@@ -3,12 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from soma.foundation.application.command_boundary import (
-    CommandBoundary,
-    CommandEnvelope,
-    CommandExecutionResult,
-    PreparedMutation,
-)
+from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
@@ -23,6 +18,7 @@ from soma.reference.domain.dependencies import (
     ReferenceType,
 )
 from soma.reference.domain.validation import validate_reason_category
+from soma.reference.results import ReferenceMutationResult, reference_mutation_result_from_execution
 
 LifecycleOperation = Literal["archive", "reactivate"]
 
@@ -74,7 +70,6 @@ class ReferenceLifecycleService:
     @classmethod
     def _load(cls, connection: Any, target: ReferenceTarget) -> tuple[str, int]:
         table, id_column = cls._table(target.target_type)
-        # table/id names come only from the static registry above, never route/cursor input.
         row = connection.execute(
             f"SELECT lifecycle_state,revision FROM {table} WHERE {id_column}=?",
             (target.target_id,),
@@ -124,7 +119,7 @@ class ReferenceLifecycleService:
         reason_category: str | None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         self._table(target_type)
         reason = self._reason(reason_category)
         target = ReferenceTarget(target_type, target_id)
@@ -188,9 +183,17 @@ class ReferenceLifecycleService:
                     ),
                 )
 
-            return PreparedMutation(False, target_type, target_id, apply)
+            return PreparedMutation(
+                False,
+                target_type,
+                target_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response={"outcome": "APPLIED", "target_id": target_id, "revision": base_revision + 1},
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def reactivate_reference(
         self,
@@ -202,7 +205,7 @@ class ReferenceLifecycleService:
         reason_category: str | None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> CommandExecutionResult:
+    ) -> ReferenceMutationResult:
         self._table(target_type)
         reason = self._reason(reason_category)
         target = ReferenceTarget(target_type, target_id)
@@ -266,9 +269,17 @@ class ReferenceLifecycleService:
                     ),
                 )
 
-            return PreparedMutation(False, target_type, target_id, apply)
+            return PreparedMutation(
+                False,
+                target_type,
+                target_id,
+                apply,
+                response_schema="ReferenceMutationResultV1",
+                response_version=1,
+                response={"outcome": "APPLIED", "target_id": target_id, "revision": base_revision + 1},
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def preview(
         self,
