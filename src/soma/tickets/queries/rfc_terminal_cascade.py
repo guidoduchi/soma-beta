@@ -707,10 +707,19 @@ def _validate_provider_page(
         raise SomaError("RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED", "terminal cascade participant impact order is invalid")
     if after_key is not None and any(key <= after_key for key in keys):
         raise SomaError("RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED", "terminal cascade participant page did not advance its keyset")
+    if len(items) > page.exact_count:
+        raise SomaError("RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED", "terminal cascade participant page exceeds exact_count")
     if page.exact_count == 0 and (items or page.continuation_key is not None):
         raise SomaError("RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED", "empty terminal cascade participant set returned page evidence")
     if page.exact_count > 0 and after_key is None and not items:
         raise SomaError("RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED", "non-empty terminal cascade participant set returned an empty first page")
+    if after_key is None:
+        requires_continuation = len(items) < page.exact_count
+        if requires_continuation != (page.continuation_key is not None):
+            raise SomaError(
+                "RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED",
+                "terminal cascade participant first-page count/continuation is inconsistent",
+            )
     if page.continuation_key is not None:
         if (
             not isinstance(page.continuation_key, tuple)
