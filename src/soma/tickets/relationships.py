@@ -13,6 +13,7 @@ from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 
 from .audit_registry import build_tickets_audit_registry
+from .results import TicketMutationResult, ticket_mutation_result_from_execution
 from .validation import validate_reason_category
 
 
@@ -20,18 +21,6 @@ _TICKET_TARGETS = {
     "service_request": ("service_requests", "service_request_id", "sr_device_reference_links", "sr_device_reference_link_id"),
     "rfc": ("rfcs", "rfc_id", "rfc_device_reference_links", "rfc_device_reference_link_id"),
 }
-
-
-@dataclass(frozen=True, slots=True)
-class TicketDeviceReferenceRelationshipResult:
-    relationship_id: str | None
-    ticket_type: str
-    ticket_id: str
-    device_reference_id: str
-    state: str
-    target_revision: int
-    replayed: bool
-    no_change: bool
 
 
 class TicketDeviceReferenceRelationshipService:
@@ -74,54 +63,6 @@ class TicketDeviceReferenceRelationshipService:
         if row is None:
             raise SomaError("NOT_FOUND", "Device Reference does not exist")
 
-    def _result(
-        self,
-        *,
-        ticket_type: str,
-        ticket_id: str,
-        device_reference_id: str,
-        fallback_relationship_id: str | None,
-        replayed: bool,
-        no_change: bool,
-    ) -> TicketDeviceReferenceRelationshipResult:
-        target_table, target_id_column, link_table, link_id_column = self._target_spec(ticket_type)
-        owner_column = "service_request_id" if ticket_type == "service_request" else "rfc_id"
-        with ReadSnapshot(self._factory) as snapshot:
-            revision = self._load_target_revision(
-                snapshot.connection,
-                target_table,
-                target_id_column,
-                ticket_id,
-            )
-            active = snapshot.connection.execute(
-                f"SELECT {link_id_column} FROM {link_table} "
-                f"WHERE {owner_column}=? AND device_reference_id=? AND link_state='active'",
-                (ticket_id, device_reference_id),
-            ).fetchone()
-            if active is not None:
-                relationship_id = str(active[0])
-                state = "active"
-            elif fallback_relationship_id is not None:
-                closed = snapshot.connection.execute(
-                    f"SELECT link_state FROM {link_table} WHERE {link_id_column}=?",
-                    (fallback_relationship_id,),
-                ).fetchone()
-                relationship_id = fallback_relationship_id
-                state = "absent" if closed is None else str(closed[0])
-            else:
-                relationship_id = None
-                state = "absent"
-        return TicketDeviceReferenceRelationshipResult(
-            relationship_id=relationship_id,
-            ticket_type=ticket_type,
-            ticket_id=ticket_id,
-            device_reference_id=device_reference_id,
-            state=state,
-            target_revision=revision,
-            replayed=replayed,
-            no_change=no_change,
-        )
-
     def link(
         self,
         *,
@@ -133,7 +74,7 @@ class TicketDeviceReferenceRelationshipService:
         reason_category: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> TicketDeviceReferenceRelationshipResult:
+    ) -> TicketMutationResult:
         target_table, target_id_column, link_table, link_id_column = self._target_spec(ticket_type)
         owner_column = "service_request_id" if ticket_type == "service_request" else "rfc_id"
         reason = self._optional_reason(reason_category)
@@ -161,8 +102,19 @@ class TicketDeviceReferenceRelationshipService:
                 f"WHERE {owner_column}=? AND device_reference_id=? AND link_state='active'",
                 (ticket_id, device_reference_id),
             ).fetchone()
+            response = {
+                "outcome": "NO_CHANGE" if existing is not None else "APPLIED",
+                "target_id": ticket_id,
+                "revision": revision,
+            }
             if existing is not None:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TicketMutationResultV1",
+                    response=response,
+                )
 
             relationship_id = new_uuid4()
             audit_event_id = new_uuid4()
@@ -208,17 +160,11 @@ class TicketDeviceReferenceRelationshipService:
                 "ticket_device_reference_relationship",
                 relationship_id,
                 apply,
+                response_schema="TicketMutationResultV1",
+                response=response,
             )
 
-        result = self._boundary.execute(envelope, prepare)
-        return self._result(
-            ticket_type=ticket_type,
-            ticket_id=ticket_id,
-            device_reference_id=device_reference_id,
-            fallback_relationship_id=result.result_id,
-            replayed=result.replayed,
-            no_change=result.no_change,
-        )
+        return ticket_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def unlink(
         self,
@@ -231,7 +177,7 @@ class TicketDeviceReferenceRelationshipService:
         reason_category: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> TicketDeviceReferenceRelationshipResult:
+    ) -> TicketMutationResult:
         target_table, target_id_column, link_table, link_id_column = self._target_spec(ticket_type)
         owner_column = "service_request_id" if ticket_type == "service_request" else "rfc_id"
         reason = self._optional_reason(reason_category)
@@ -259,8 +205,19 @@ class TicketDeviceReferenceRelationshipService:
                 f"WHERE {owner_column}=? AND device_reference_id=? AND link_state='active'",
                 (ticket_id, device_reference_id),
             ).fetchone()
+            response = {
+                "outcome": "NO_CHANGE" if existing is None else "APPLIED",
+                "target_id": ticket_id,
+                "revision": revision,
+            }
             if existing is None:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TicketMutationResultV1",
+                    response=response,
+                )
 
             relationship_id = str(existing[0])
             audit_event_id = new_uuid4()
@@ -305,17 +262,11 @@ class TicketDeviceReferenceRelationshipService:
                 "ticket_device_reference_relationship",
                 relationship_id,
                 apply,
+                response_schema="TicketMutationResultV1",
+                response=response,
             )
 
-        result = self._boundary.execute(envelope, prepare)
-        return self._result(
-            ticket_type=ticket_type,
-            ticket_id=ticket_id,
-            device_reference_id=device_reference_id,
-            fallback_relationship_id=result.result_id,
-            replayed=result.replayed,
-            no_change=result.no_change,
-        )
+        return ticket_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
 
 @dataclass(frozen=True, slots=True)
