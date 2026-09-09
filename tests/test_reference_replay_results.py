@@ -166,7 +166,8 @@ def test_setting_write_replay_returns_original_setting_value_without_owner_reads
 
     with UnitOfWork(factory) as uow:
         uow.connection.execute(
-            "UPDATE setting_values SET value_json='{""enabled"":false}',revision=9 WHERE setting_key='test.replay.enabled'"
+            "UPDATE setting_values SET value_json=?,revision=9 WHERE setting_key=?",
+            ('{"enabled":false}', "test.replay.enabled"),
         )
 
     monkeypatch.setattr(
@@ -227,7 +228,8 @@ def test_setting_no_change_replay_keeps_original_value_and_revision(initialized_
 
     with UnitOfWork(factory) as uow:
         uow.connection.execute(
-            "UPDATE setting_values SET value_json='{""enabled"":false}',revision=5 WHERE setting_key='test.replay.enabled'"
+            "UPDATE setting_values SET value_json=?,revision=5 WHERE setting_key=?",
+            ('{"enabled":false}', "test.replay.enabled"),
         )
 
     replay = service.write(
