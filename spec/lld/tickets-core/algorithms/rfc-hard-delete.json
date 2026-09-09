@@ -1,50 +1,89 @@
 {
-  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "schema":"SOMA-LLD-ALGORITHM-V2",
   "lld_id":"LLD-03",
   "name":"RfcUntouchedManualDraftHardDelete",
   "purpose":"Permit hard deletion only for the exceptionally narrow untouched local RFC draft allowed by authority; otherwise preserve identity/history through lifecycle/archive/correction.",
-  "eligibility":{
-    "all_must_be_true":[
-      "RFC was created manually or as a purely local provisional draft and has no accepted RFC/WFM source adoption/provenance",
-      "RFC has no active or historical RFC hierarchy edge as parent or child",
-      "RFC has no active or historical SR relationship",
-      "RFC has no active or historical Device Reference relationship",
-      "RFC has no Working Notes or removed/edited note audit history",
-      "RFC owns no WFM identity and no WFM/Task history",
-      "RFC participates in no Task/Objective/execution/review history",
-      "RFC has no Communication link/history whose retention depends on it",
-      "RFC has no Inventory/spare-use/dependency history",
-      "RFC has no accepted lifecycle/status/source evidence beyond its local creation",
-      "RFC has no prior archive/restore/correction/terminal-cascade history",
-      "audit/history classification contains only the permitted local creation evidence and no later protected action",
-      "all cross-domain dependency providers return CLEAR; INDETERMINATE fails closed"
-    ]
+  "profiles":{
+    "eligibility":"SOMA_RFC_HARD_DELETE_ELIGIBILITY_V1",
+    "provider_classification":"SOMA_RFC_HARD_DELETE_PROVIDER_CLASSIFICATION_V1",
+    "canonical_encoding":"LLD-01 StrictVersionedJson canonical UTF-8; SHA-256 lowercase hex"
   },
+  "local_guard_registry":[
+    {"ordinal":0,"code":"RFC_CREATION_CONTEXT_NOT_LOCAL","blocked_when":"there is not exactly one ticket.rfc.identity_created_or_adopted audit for this rfc_id with valid RfcIdentityAuditV1 creation_context manual|provisional; accepted_source_adoption, missing, duplicate or malformed creation evidence blocks"},
+    {"ordinal":1,"code":"RFC_REVISION_NOT_INITIAL","blocked_when":"rfcs.revision is not exactly 1"},
+    {"ordinal":2,"code":"RFC_ARCHIVE_STATE_NOT_ACTIVE","blocked_when":"rfcs.local_archive_state is not exactly active"},
+    {"ordinal":3,"code":"RFC_SOURCE_PROJECTION_PRESENT","blocked_when":"rfc_current_source_projection contains any row for rfc_id"},
+    {"ordinal":4,"code":"RFC_HIERARCHY_HISTORY_PRESENT","blocked_when":"rfc_hierarchy_edges contains any row whose parent_rfc_id or child_rfc_id equals rfc_id, regardless of current edge_state"},
+    {"ordinal":5,"code":"RFC_SR_RELATIONSHIP_HISTORY_PRESENT","blocked_when":"sr_rfc_links contains any row for rfc_id, regardless of current link_state"},
+    {"ordinal":6,"code":"RFC_DEVICE_REFERENCE_HISTORY_PRESENT","blocked_when":"rfc_device_reference_links contains any row for rfc_id, regardless of current link_state"},
+    {"ordinal":7,"code":"RFC_WORKING_NOTE_HISTORY_PRESENT","blocked_when":"rfc_working_notes contains any current row for rfc_id OR an LLD-03 WorkingNoteAuditV1 audit records owner_type=rfc and owner_id=rfc_id, including removed/edited history"},
+    {"ordinal":8,"code":"RFC_TERMINAL_CASCADE_HISTORY_PRESENT","blocked_when":"rfc_terminal_cascade_proposals.trigger_rfc_id=rfc_id OR rfc_terminal_cascade_rfc_members.rfc_id=rfc_id OR rfc_terminal_cascade_wfm_members.owning_rfc_id=rfc_id"},
+    {"ordinal":9,"code":"RFC_ARCHIVE_HISTORY_PRESENT","blocked_when":"rfc_archive_operations.requested_rfc_id=rfc_id OR rfc_archive_operation_members.rfc_id=rfc_id OR rfc_archive_events.rfc_id=rfc_id"},
+    {"ordinal":10,"code":"RFC_PROTECTED_AUDIT_HISTORY_PRESENT","blocked_when":"any audit event directly targeting target_type=rfc,target_id=rfc_id exists other than the single permitted ticket.rfc.identity_created_or_adopted creation event; the current hard-delete command is evaluated before its receipt/audit exists"}
+  ],
+  "provider_registry":[
+    {"ordinal":0,"provider_id":"source_evidence","owner":"LLD-04","call":"RfcSourceEvidenceProvider.has_accepted_source_provenance(uow,rfc_id)","map":"NO->CLEAR; YES->BLOCKED; INDETERMINATE/invalid/exception->INDETERMINATE","blocked_code":"RFC_SOURCE_PROVENANCE_PRESENT","indeterminate_code":"RFC_SOURCE_PROVENANCE_INDETERMINATE"},
+    {"ordinal":1,"provider_id":"tasks_objectives","owner":"LLD-05","call":"RfcTerminalTaskParticipant.classify_hard_delete_dependency(uow,rfc_id)","map":"exact CLEAR|BLOCKED|INDETERMINATE; invalid/exception->INDETERMINATE","blocked_code":"RFC_TASKS_OBJECTIVES_DEPENDENCY","indeterminate_code":"RFC_TASKS_OBJECTIVES_INDETERMINATE"},
+    {"ordinal":2,"provider_id":"inventory","owner":"LLD-07","call":"RfcInventoryDependencyProvider.classify_hard_delete_dependency(uow,rfc_id)","map":"exact CLEAR|BLOCKED|INDETERMINATE; invalid/exception->INDETERMINATE","blocked_code":"RFC_INVENTORY_DEPENDENCY","indeterminate_code":"RFC_INVENTORY_INDETERMINATE"},
+    {"ordinal":3,"provider_id":"communications","owner":"LLD-09","call":"RfcTerminalCommunicationParticipant.classify_hard_delete_dependency(uow,rfc_id)","map":"exact CLEAR|BLOCKED|INDETERMINATE; invalid/exception->INDETERMINATE","blocked_code":"RFC_COMMUNICATIONS_DEPENDENCY","indeterminate_code":"RFC_COMMUNICATIONS_INDETERMINATE"}
+  ],
+  "provider_classification_token":{
+    "object":{"schema":"SOMA_RFC_HARD_DELETE_PROVIDER_CLASSIFICATION_V1","provider_id":"exact provider_registry provider_id","rfc_id":"canonical RFC UUID","status":"CLEAR|BLOCKED|INDETERMINATE"},
+    "hash":"SHA-256 of canonical object",
+    "ownership":"LLD-03 derives and validates this token from the provider classification; providers do not expose internal dependency rows or define a second token format",
+    "sufficiency_rule":"the owner command re-runs every provider classifier under the authoritative writer UnitOfWork. A change that affects delete eligibility must change CLEAR/BLOCKED/INDETERMINATE and therefore changes this token; provider-internal changes that preserve CLEAR do not change deletion eligibility."
+  },
+  "eligibility_fingerprint":{
+    "object_key_order_semantics":"canonical JSON key ordering is supplied by StrictVersionedJson; arrays use the fixed registry ordinal order below",
+    "object":{
+      "schema":"SOMA_RFC_HARD_DELETE_ELIGIBILITY_V1",
+      "rfc_id":"canonical RFC UUID",
+      "rfc_no":"exact NC plus fourteen ASCII digits",
+      "rfc_revision":"current positive integer",
+      "local_archive_state":"active|archived",
+      "creation_context":"manual|provisional|accepted_source_adoption|invalid",
+      "local_guards":"array of every local_guard_registry entry exactly once in ordinal order as {code,status:CLEAR|BLOCKED}",
+      "providers":"array of every provider_registry entry exactly once in ordinal order as {provider_id,status:CLEAR|BLOCKED|INDETERMINATE,freshness_token:SOMA_RFC_HARD_DELETE_PROVIDER_CLASSIFICATION_V1 sha256}"
+    },
+    "hash":"SHA-256 lowercase hex of canonical UTF-8 object",
+    "golden_vectors":"algorithms/rfc-hard-delete-eligibility-golden-vectors.json"
+  },
+  "blocker_projection":{
+    "local":"for each BLOCKED local guard emit RfcHardDeleteBlockerV1 with code=guard code and source=local, in local guard ordinal order",
+    "providers":"for each provider after all local blockers, emit blocked_code when status=BLOCKED or indeterminate_code when status=INDETERMINATE; source equals provider_id; provider order is source_evidence,tasks_objectives,inventory,communications",
+    "bounded":"at most 15 blockers: eleven local guards plus one result for each of four providers"
+  },
+  "eligibility":{"true_when":"all eleven local guards are CLEAR and all four provider classifications are CLEAR"},
   "preview":{
-    "mode":"read-only",
-    "output":"eligible boolean, exact RFC revision, typed blockers, determinate/indeterminate provider results, provider freshness tokens and canonical SHA-256 eligibility_fingerprint",
-    "fingerprint":"hash contract version + RFC immutable/business identity + RFC revision + sorted local guard results + named provider results/freshness tokens",
-    "rule":"preview is advisory and cannot authorize deletion; explicit confirmation is bound to the fingerprint"
+    "mode":"one stable read snapshot; provider adapters execute read-only against that same snapshot semantics where their interface supports snapshot/read context; any inability to classify is projected INDETERMINATE",
+    "output":"RfcHardDeletePreviewV1",
+    "rule":"preview is advisory; it returns the exact current eligibility_fingerprint even when blocked. UI may request deliberate-action proof only from an eligible preview and binds that proof to rfc_id, rfc_revision and eligibility_fingerprint."
   },
-  "commit":{
-    "transaction":"one short BEGIN IMMEDIATE UnitOfWork",
-    "steps":[
-      "load exact RFC/revision",
-      "rerun every local eligibility guard and cross-domain provider check against current state using indexed existence checks",
-      "recompute eligibility_fingerprint and require it matches the reviewed eligible preview",
-      "if revision/fingerprint changed return RFC_HARD_DELETE_PREVIEW_STALE; if any blocker/INDETERMINATE exists return RFC_HARD_DELETE_BLOCKED; make no mutation",
-      "insert command_receipt",
-      "append the minimal hard-delete audit event while rfc_id/rfc_no are still available; the current deletion command's own receipt/audit are excluded from the pre-command untouched-history predicate",
-      "delete only the RFC row; no generic cascade is used and any unexpected FK dependency aborts/rolls back",
-      "commit"
-    ]
+  "command_order":[
+    "CommandBoundary exact replay check occurs before prepare, owner-state reads or proof/provider work; replay returns the stored HardDeleteRfcResultV1 without reading the deleted RFC",
+    "validate request shape/proof bearer representation without consuming it",
+    "BEGIN IMMEDIATE one outer LLD-01 UnitOfWork and load exact RFC identity, rfc_no and revision; missing target returns NOT_FOUND",
+    "if current RFC revision differs from base_revision return RFC_HARD_DELETE_PREVIEW_STALE",
+    "rerun all local guards and all four provider classifiers under the current UnitOfWork and recompute provider tokens, blockers and eligibility_fingerprint",
+    "if any blocker or INDETERMINATE exists return RFC_HARD_DELETE_BLOCKED before proof consumption and without receipt/audit/delete",
+    "if recomputed eligibility_fingerprint differs from request eligibility_fingerprint return RFC_HARD_DELETE_PREVIEW_STALE before proof consumption",
+    "call LLD-12 DeliberateActionProofProvider.validate_and_consume with expected_action=tickets.rfc.hard_delete, target={target_type:rfc,target_id:rfc_id}, base_revision and preview_fingerprint=eligibility_fingerprint; proof failure makes no domain mutation",
+    "allocate hard-delete audit_event_id; its value is also the immutable hard_delete_evidence result id",
+    "insert exactly one command_receipt, then append ticket.rfc.hard_deleted audit while rfc_id/rfc_no are still available; payload confirmation_context_id is exactly the consumed DeliberateActionProofV1.challenge_id and contains no proof token/session secret; audit has exactly one result ref {type:hard_delete_evidence,id:audit_event_id}",
+    "DELETE only the exact rfcs row; no dependent delete/unlink/cascade is attempted. Any unexpected FK/constraint aborts and rolls back receipt/audit/delete; consumed deliberate proof remains non-reusable per LLD-12",
+    "store exact HardDeleteRfcResultV1 in command_receipt_results in the same UnitOfWork and commit"
+  ],
+  "result_replay":{
+    "response":"HardDeleteRfcResultV1",
+    "rule":"fixed-size committed result is replayed exactly and is never reconstructed from current state after the RFC row is gone"
   },
-  "audit_resolution":"LLD-01 audit_events.target_id is evidence text rather than an RFC foreign key, so the required deletion audit survives the RFC row. The permitted creation audit and current deletion audit are distinguished from intervening protected history; no audit exception weakens dependency eligibility.",
+  "audit_resolution":"LLD-01 audit_events.target_id and audit_event_results.result_id are evidence text, not RFC foreign keys, so the creation audit and hard-delete evidence survive deletion. No audit exception weakens eligibility.",
   "rules":[
     "no dependent deletion, unlink or cascade is used to manufacture eligibility",
-    "a manual RFC with any independently protected WFM/Task/Objective/Communication/Inventory history is not hard-deletable",
+    "a manual/provisional RFC with any independently protected WFM/Task/Objective/Communication/Inventory history is not hard-deletable",
     "ordinary imported/adopted/history-bearing RFCs use archive/terminal/correction flows instead",
     "hard deletion never applies merely because RFC is archived, terminal, old, omitted from workbook, or currently has no active WFM",
-    "repositories expose no generic RFC delete method outside this service"
+    "repositories expose no generic RFC delete method outside this service",
+    "provider classification tokens are eligibility-classification freshness evidence, not provider database snapshots; writer-time provider reclassification remains authoritative"
   ]
 }
