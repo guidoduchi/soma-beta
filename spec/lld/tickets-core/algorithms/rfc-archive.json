@@ -14,20 +14,24 @@
     "for each currently active reviewed member set only local_archive_state=archived and increment RFC revision",
     "insert operation membership and one archived event only for RFCs actually transitioned by this operation",
     "already archived members receive no membership/event and are not claimed by this operation",
-    "audit exact changed members and commit"
+    "audit the operation with scalar changed_rfc_count/excluded_prearchived_count plus scope fingerprint; exact changed identities remain in operation membership/archive-event rows and may be represented by row-wise audit result refs rather than copied into audit JSON",
+    "commit"
   ],
   "restore_operation":[
     "load exact committed archive operation and its immutable changed-member set",
     "for each member inspect its latest archive event and current RFC archive state",
     "eligible restore member must still be archived and its latest archive event must be archived from this same origin operation",
     "members independently restored/rearchived later are skipped as no-longer-owned-by-operation, never overwritten",
-    "inside one UnitOfWork transition only eligible members to active, increment revisions, append restored events referencing the origin operation, audit exact results and commit"
+    "inside one UnitOfWork transition only eligible members to active, increment revisions, append restored events referencing the origin operation",
+    "audit scalar changed_rfc_count while exact restored identities remain the restored archive-event rows for that command and optional row-wise audit result refs; never copy an unbounded RFC-id array into audit JSON",
+    "commit"
   ],
   "rules":[
     "archive/restore changes only SOMA-local RFC presentation state",
     "source reconciliation continues while archived",
     "archive never changes RFC source lifecycle/status, hierarchy, SR links, WFM/Task/Objective state or Communications",
     "master/root archive is never an implicit recursive side effect; branch membership must be explicitly previewed and revalidated",
-    "operation-scoped restore prevents a later restore from activating an RFC that this operation did not archive"
+    "operation-scoped restore prevents a later restore from activating an RFC that this operation did not archive",
+    "valid branch size is not limited by audit payload collection bounds; exact member history is row-wise persistence authority"
   ]
 }
