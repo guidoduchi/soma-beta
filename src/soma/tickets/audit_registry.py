@@ -14,8 +14,6 @@ _WORKING_NOTE_BODY_MAX_LINES = 512
 _DEFAULT_AUDIT_MAX_UTF8_BYTES = 16_384
 _WORKING_NOTE_EDIT_REMOVE_AUDIT_MAX_UTF8_BYTES = 524_288
 _SHA256_HEX_RE = re.compile(r"[0-9a-f]{64}\Z")
-_TASK_TERMINAL_RESULT_TYPES = frozenset({"task", "objective"})
-_COMMUNICATION_TERMINAL_RESULT_TYPES = frozenset({"communication_link"})
 
 
 def _payload(name: str, fields: set[str], *, max_utf8_bytes: int = _DEFAULT_AUDIT_MAX_UTF8_BYTES) -> ObjectContract:
@@ -89,29 +87,28 @@ def _validate_rfc_terminal_refresh_audit(payload: dict[str, object]) -> None:
             raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal refresh audit scope fingerprint is invalid")
 
 
-def _validate_terminal_result_refs(
+def _validate_terminal_apply_result(
     value: object,
     *,
     field: str,
-    allowed_types: frozenset[str],
+    expected_domain: str,
 ) -> None:
-    if not isinstance(value, list):
-        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field} must be a bounded result-reference list")
-    seen: set[tuple[str, str]] = set()
-    for item in value:
-        if not isinstance(item, dict) or set(item) != {"result_type", "result_id"}:
-            raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field} contains a malformed result reference")
-        result_type = item.get("result_type")
-        if result_type not in allowed_types:
-            raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field} contains an unauthorized result type")
-        try:
-            result_id = require_uuid4(item.get("result_id"))
-        except ValidationError as exc:
-            raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field} contains an invalid result identity") from exc
-        key = (str(result_type), result_id)
-        if key in seen:
-            raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field} contains duplicate result references")
-        seen.add(key)
+    if not isinstance(value, dict) or set(value) != {
+        "domain",
+        "result_ref_count",
+        "audit_event_count",
+        "result_fingerprint",
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field} must be a fixed-shape participant apply summary")
+    if value.get("domain") != expected_domain:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field} belongs to the wrong participant domain")
+    for count_field in ("result_ref_count", "audit_event_count"):
+        count = value.get(count_field)
+        if type(count) is not int or count < 0:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field}.{count_field} must be a non-negative integer")
+    fingerprint = value.get("result_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_HEX_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field}.result_fingerprint must be lowercase SHA-256")
 
 
 def _validate_rfc_terminal_execute_audit(payload: dict[str, object]) -> None:
@@ -131,15 +128,15 @@ def _validate_rfc_terminal_execute_audit(payload: dict[str, object]) -> None:
             raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal execute audit fingerprint is invalid")
     if payload.get("state_transition") != "pending_to_executed":
         raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC terminal execute audit transition is invalid")
-    _validate_terminal_result_refs(
-        payload.get("task_participant_result_refs"),
-        field="task_participant_result_refs",
-        allowed_types=_TASK_TERMINAL_RESULT_TYPES,
+    _validate_terminal_apply_result(
+        payload.get("task_objective_apply_result"),
+        field="task_objective_apply_result",
+        expected_domain="TASKS_OBJECTIVES",
     )
-    _validate_terminal_result_refs(
-        payload.get("communication_participant_result_refs"),
-        field="communication_participant_result_refs",
-        allowed_types=_COMMUNICATION_TERMINAL_RESULT_TYPES,
+    _validate_terminal_apply_result(
+        payload.get("communication_apply_result"),
+        field="communication_apply_result",
+        expected_domain="COMMUNICATIONS",
     )
 
 
@@ -254,7 +251,7 @@ def build_tickets_audit_registry() -> AuditRegistry:
         (
             "ticket.rfc.terminal_cascade_executed",
             "RfcTerminalCascadeAuditV1",
-            {"proposal_id", "proposal_revision", "terminal_epoch_id", "scope_fingerprint", "reviewed_preview_fingerprint", "state_transition", "task_participant_result_refs", "communication_participant_result_refs", "reason_category"},
+            {"proposal_id", "proposal_revision", "terminal_epoch_id", "scope_fingerprint", "reviewed_preview_fingerprint", "state_transition", "task_objective_apply_result", "communication_apply_result", "reason_category"},
             _DEFAULT_AUDIT_MAX_UTF8_BYTES,
             _validate_rfc_terminal_execute_audit,
         ),
