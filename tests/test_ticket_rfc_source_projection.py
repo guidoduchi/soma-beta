@@ -40,6 +40,17 @@ class _ExactTerminalCapture:
         terminal_status_evidence_id: str,
         accepted_command_id: str,
     ) -> str:
+        projection = uow.connection.execute(
+            "SELECT status_class,status_evidence_id,terminal_epoch_id FROM rfc_current_source_projection WHERE rfc_id=?",
+            (trigger_rfc_id,),
+        ).fetchone()
+        assert projection is not None
+        assert tuple(projection) == (
+            terminal_status_class,
+            terminal_status_evidence_id,
+            terminal_epoch_id,
+        )
+
         proposal_id = new_uuid4()
         revision_row = uow.connection.execute(
             "SELECT revision FROM rfcs WHERE rfc_id=?",
