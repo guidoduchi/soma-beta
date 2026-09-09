@@ -4,12 +4,17 @@ import hmac
 import re
 from dataclasses import dataclass
 
-from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
+from soma.foundation.application.command_boundary import (
+    CommandBoundary,
+    CommandEnvelope,
+    CommandExecutionResult,
+    PreparedMutation,
+)
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, PersistenceFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 
 from ..audit_registry import build_ticket_import_audit_registry
 from ..repositories.runs import ImportRunRepository, SourceCheckpointRepository
@@ -40,22 +45,54 @@ class ImportRunFinalizationService:
             AuditWriter(build_ticket_import_audit_registry()),
         )
 
-    def _result(self, import_run_id: str, *, replayed: bool, no_change: bool) -> CheckpointAdvanceResult:
-        with ReadSnapshot(self._factory) as snapshot:
-            run = self._runs.get_checkpoint_transition_run(snapshot.connection, import_run_id)
-            if run is None:
-                raise SomaError("IMPORT_RUN_STALE", "import run no longer exists")
-            checkpoint = self._checkpoints.get(snapshot.connection, run.source_family)
-            if checkpoint is None:
-                raise SomaError("IMPORT_CHECKPOINT_STALE", "source checkpoint no longer exists")
+    def _checkpoint_response(self, uow: UnitOfWork, import_run_id: str) -> dict[str, object]:
+        run = self._runs.get_checkpoint_transition_run(uow.connection, import_run_id)
+        if run is None:
+            raise PersistenceFailure("checkpoint advancement response run disappeared before commit")
+        checkpoint = self._checkpoints.get(uow.connection, run.source_family)
+        if checkpoint is None:
+            raise PersistenceFailure("checkpoint advancement response checkpoint disappeared before commit")
+        return {
+            "import_run_id": import_run_id,
+            "source_family": run.source_family,
+            "run_state": run.run_state,
+            "run_revision": run.revision,
+            "checkpoint_revision": checkpoint.revision,
+        }
+
+    @staticmethod
+    def _result_from_execution(execution: CommandExecutionResult) -> CheckpointAdvanceResult:
+        if execution.response_schema != "CheckpointAdvanceResultV1" or execution.response_version != 1:
+            raise IntegrityFailure("checkpoint advancement result schema/version is invalid")
+        response = execution.response
+        if not isinstance(response, dict):
+            raise IntegrityFailure("checkpoint advancement result payload is invalid")
+        import_run_id = response.get("import_run_id")
+        source_family = response.get("source_family")
+        run_state = response.get("run_state")
+        run_revision = response.get("run_revision")
+        checkpoint_revision = response.get("checkpoint_revision")
+        if (
+            not isinstance(import_run_id, str)
+            or not import_run_id
+            or not isinstance(source_family, str)
+            or not source_family
+            or not isinstance(run_state, str)
+            or not run_state
+            or type(run_revision) is not int
+            or run_revision <= 0
+            or type(checkpoint_revision) is not int
+            or checkpoint_revision <= 0
+        ):
+            raise IntegrityFailure("checkpoint advancement result fields are invalid")
         return CheckpointAdvanceResult(
             import_run_id=import_run_id,
-            source_family=run.source_family,
-            run_state=run.run_state,
-            run_revision=run.revision,
-            checkpoint_revision=checkpoint.revision,
-            replayed=replayed,
-            no_change=no_change,
+            source_family=source_family,
+            run_state=run_state,
+            run_revision=run_revision,
+            checkpoint_revision=checkpoint_revision,
+            replayed=execution.replayed,
+            no_change=execution.no_change,
         )
 
     def record_newer_identical_source_check(
@@ -103,6 +140,9 @@ class ImportRunFinalizationService:
             authorizing_fingerprints={"logical_fingerprint": logical_fingerprint},
         )
 
+        def response_factory(inner: UnitOfWork) -> dict[str, object]:
+            return self._checkpoint_response(inner, import_run_id)
+
         def prepare(uow: UnitOfWork) -> PreparedMutation:
             run = self._runs.get_checkpoint_transition_run(uow.connection, import_run_id)
             if run is None:
@@ -130,7 +170,13 @@ class ImportRunFinalizationService:
                     and checkpoint.chronology_value == run.chronology_value
                     and hmac.compare_digest(checkpoint.logical_fingerprint, run.logical_fingerprint)
                 ):
-                    return PreparedMutation(True, None, None)
+                    return PreparedMutation(
+                        True,
+                        None,
+                        None,
+                        response_schema="CheckpointAdvanceResultV1",
+                        response_factory=response_factory,
+                    )
                 raise SomaError("IMPORT_RUN_STALE", "noop run does not match the current source checkpoint")
 
             if run.run_state != "noop_pending_checkpoint":
@@ -192,11 +238,13 @@ class ImportRunFinalizationService:
                     ),
                 )
 
-            return PreparedMutation(False, "import_run", import_run_id, apply)
+            return PreparedMutation(
+                False,
+                "import_run",
+                import_run_id,
+                apply,
+                response_schema="CheckpointAdvanceResultV1",
+                response_factory=response_factory,
+            )
 
-        execution = self._boundary.execute(envelope, prepare)
-        return self._result(
-            import_run_id,
-            replayed=execution.replayed,
-            no_change=execution.no_change,
-        )
+        return self._result_from_execution(self._boundary.execute(envelope, prepare))
