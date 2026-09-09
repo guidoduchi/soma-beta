@@ -9,7 +9,7 @@ from soma.foundation.application.command_boundary import (
     PreparedMutation,
 )
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
@@ -22,6 +22,8 @@ class LocalUserProfile:
     local_user_profile_id: str
     display_name: str
     revision: int
+    replayed: bool = False
+    no_change: bool = False
 
 
 class LocalUserProfileService:
@@ -29,6 +31,30 @@ class LocalUserProfileService:
         self._factory = connection_factory
         self._audit_writer = AuditWriter(build_reference_audit_registry())
         self._boundary = CommandBoundary(connection_factory, self._audit_writer)
+
+    @staticmethod
+    def _from_execution(execution: CommandExecutionResult) -> LocalUserProfile:
+        if execution.response_schema != "LocalUserProfileV1" or execution.response_version != 1:
+            raise IntegrityFailure("Local User Profile replay result schema/version is invalid")
+        payload = execution.response
+        if not isinstance(payload, dict) or set(payload) != {"local_user_profile_id", "display_name", "revision"}:
+            raise IntegrityFailure("Local User Profile replay result payload is invalid")
+        profile_id = payload["local_user_profile_id"]
+        display_name = payload["display_name"]
+        revision = payload["revision"]
+        if not isinstance(profile_id, str) or not profile_id:
+            raise IntegrityFailure("Local User Profile replay result identity is invalid")
+        if not isinstance(display_name, str) or not display_name:
+            raise IntegrityFailure("Local User Profile replay result display name is invalid")
+        if type(revision) is not int or revision <= 0:
+            raise IntegrityFailure("Local User Profile replay result revision is invalid")
+        return LocalUserProfile(
+            local_user_profile_id=profile_id,
+            display_name=display_name,
+            revision=revision,
+            replayed=execution.replayed,
+            no_change=execution.no_change,
+        )
 
     def ensure_singleton_local_administrator(
         self,
@@ -95,7 +121,7 @@ class LocalUserProfileService:
         base_revision: int,
         display_name: str,
         actor_id: str,
-    ) -> CommandExecutionResult:
+    ) -> LocalUserProfile:
         stored = validate_display_name(display_name)
         require_uuid4(actor_id)
         envelope = CommandEnvelope(
@@ -118,7 +144,18 @@ class LocalUserProfileService:
             if int(row[2]) != base_revision:
                 raise SomaError("STALE_REVISION", "Local User Profile metadata revision changed")
             if str(row[1]) == stored:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="LocalUserProfileV1",
+                    response_version=1,
+                    response={
+                        "local_user_profile_id": actor_id,
+                        "display_name": stored,
+                        "revision": base_revision,
+                    },
+                )
             audit_event_id = new_uuid4()
             now = utc_epoch_seconds()
 
@@ -148,6 +185,18 @@ class LocalUserProfileService:
                     resulting_event_refs=(AuditResultRef("local_user_profile", actor_id),),
                 )
 
-            return PreparedMutation(False, "local_user_profile", actor_id, apply)
+            return PreparedMutation(
+                False,
+                "local_user_profile",
+                actor_id,
+                apply,
+                response_schema="LocalUserProfileV1",
+                response_version=1,
+                response={
+                    "local_user_profile_id": actor_id,
+                    "display_name": stored,
+                    "revision": base_revision + 1,
+                },
+            )
 
-        return self._boundary.execute(envelope, prepare)
+        return self._from_execution(self._boundary.execute(envelope, prepare))
