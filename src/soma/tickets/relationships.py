@@ -285,18 +285,6 @@ class SrRfcLinkPreview:
     warnings: tuple[str, ...]
 
 
-@dataclass(frozen=True, slots=True)
-class SrRfcRelationshipResult:
-    relationship_id: str | None
-    service_request_id: str
-    root_rfc_id: str
-    state: str
-    sr_revision: int
-    rfc_revision: int
-    replayed: bool
-    no_change: bool
-
-
 class ServiceRequestRfcRelationshipService:
     """Authoritative LLD-03 direct SR-to-governing-root RFC relationship service."""
 
@@ -489,46 +477,6 @@ class ServiceRequestRfcRelationshipService:
                 subordinate_origin_rfc_id=subordinate_origin_rfc_id,
             )
 
-    def _result(
-        self,
-        *,
-        service_request_id: str,
-        root_rfc_id: str,
-        fallback_relationship_id: str | None,
-        replayed: bool,
-        no_change: bool,
-    ) -> SrRfcRelationshipResult:
-        with ReadSnapshot(self._factory) as snapshot:
-            sr_revision, _ = self._load_sr(snapshot.connection, service_request_id)
-            rfc_revision, _, _ = self._load_root(snapshot.connection, root_rfc_id)
-            active = snapshot.connection.execute(
-                "SELECT sr_rfc_link_id FROM sr_rfc_links WHERE service_request_id=? AND rfc_id=? AND link_state='active'",
-                (service_request_id, root_rfc_id),
-            ).fetchone()
-            if active is not None:
-                relationship_id = str(active[0])
-                state = "active"
-            elif fallback_relationship_id is not None:
-                row = snapshot.connection.execute(
-                    "SELECT link_state FROM sr_rfc_links WHERE sr_rfc_link_id=?",
-                    (fallback_relationship_id,),
-                ).fetchone()
-                relationship_id = fallback_relationship_id
-                state = "absent" if row is None else str(row[0])
-            else:
-                relationship_id = None
-                state = "absent"
-        return SrRfcRelationshipResult(
-            relationship_id=relationship_id,
-            service_request_id=service_request_id,
-            root_rfc_id=root_rfc_id,
-            state=state,
-            sr_revision=sr_revision,
-            rfc_revision=rfc_revision,
-            replayed=replayed,
-            no_change=no_change,
-        )
-
     def link(
         self,
         *,
@@ -541,7 +489,7 @@ class ServiceRequestRfcRelationshipService:
         review_fingerprint: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> SrRfcRelationshipResult:
+    ) -> TicketMutationResult:
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="LinkServiceRequestToRfc",
@@ -565,7 +513,17 @@ class ServiceRequestRfcRelationshipService:
             if preview.sr_revision != sr_base_revision or preview.rfc_revision != rfc_base_revision:
                 raise SomaError("TICKET_RELATIONSHIP_STALE", "Service Request or RFC revision changed")
             if preview.duplicate_active:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TicketMutationResultV1",
+                    response={
+                        "outcome": "NO_CHANGE",
+                        "target_id": service_request_id,
+                        "revision": preview.sr_revision,
+                    },
+                )
             if review_fingerprint is not None and not hmac.compare_digest(review_fingerprint, preview.review_fingerprint):
                 raise SomaError("TICKET_RELATIONSHIP_STALE", "relationship review fingerprint is stale")
             if preview.review_required and (
@@ -617,16 +575,20 @@ class ServiceRequestRfcRelationshipService:
                     resulting_event_refs=(AuditResultRef("sr_rfc_relationship", relationship_id),),
                 )
 
-            return PreparedMutation(False, "sr_rfc_relationship", relationship_id, apply)
+            return PreparedMutation(
+                False,
+                "sr_rfc_relationship",
+                relationship_id,
+                apply,
+                response_schema="TicketMutationResultV1",
+                response={
+                    "outcome": "APPLIED",
+                    "target_id": service_request_id,
+                    "revision": sr_base_revision + 1,
+                },
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        return self._result(
-            service_request_id=service_request_id,
-            root_rfc_id=rfc_id,
-            fallback_relationship_id=result.result_id,
-            replayed=result.replayed,
-            no_change=result.no_change,
-        )
+        return ticket_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def unlink(
         self,
@@ -639,7 +601,7 @@ class ServiceRequestRfcRelationshipService:
         reason_category: str,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> SrRfcRelationshipResult:
+    ) -> TicketMutationResult:
         reason = validate_reason_category(reason_category)
         envelope = CommandEnvelope(
             command_id=command_id,
@@ -660,7 +622,17 @@ class ServiceRequestRfcRelationshipService:
                 (service_request_id, root_rfc_id),
             ).fetchone()
             if active is None:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TicketMutationResultV1",
+                    response={
+                        "outcome": "NO_CHANGE",
+                        "target_id": service_request_id,
+                        "revision": sr_revision,
+                    },
+                )
 
             relationship_id = str(active[0])
             audit_event_id = new_uuid4()
@@ -707,13 +679,17 @@ class ServiceRequestRfcRelationshipService:
                     resulting_event_refs=(AuditResultRef("sr_rfc_relationship", relationship_id),),
                 )
 
-            return PreparedMutation(False, "sr_rfc_relationship", relationship_id, apply)
+            return PreparedMutation(
+                False,
+                "sr_rfc_relationship",
+                relationship_id,
+                apply,
+                response_schema="TicketMutationResultV1",
+                response={
+                    "outcome": "APPLIED",
+                    "target_id": service_request_id,
+                    "revision": sr_base_revision + 1,
+                },
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        return self._result(
-            service_request_id=service_request_id,
-            root_rfc_id=root_rfc_id,
-            fallback_relationship_id=result.result_id,
-            replayed=result.replayed,
-            no_change=result.no_change,
-        )
+        return ticket_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
