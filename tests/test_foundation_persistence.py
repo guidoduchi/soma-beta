@@ -131,6 +131,8 @@ def test_command_replay_mutates_and_audits_exactly_once(initialized_database) ->
             result_type="test_entity",
             result_id=entity_id,
             apply=apply,
+            response_schema="TestEntityResultV1",
+            response={"entity_id": entity_id, "value_text": "hello"},
         )
 
     first = boundary.execute(envelope, prepare)
@@ -138,6 +140,7 @@ def test_command_replay_mutates_and_audits_exactly_once(initialized_database) ->
     assert first.replayed is False
     assert replay.replayed is True
     assert replay.result_id == entity_id
+    assert first.response == replay.response == {"entity_id": entity_id, "value_text": "hello"}
 
     changed_request = CommandEnvelope(
         command_id=command_id,
