@@ -15,6 +15,7 @@ from soma.tickets.rfc_terminal_cascade import (
     RfcTerminalCascadeWfmMember,
     terminal_cascade_scope_fingerprint,
 )
+from soma.tickets.rfc_terminal_review import RfcTerminalCascadeExecutionReview
 from soma.tickets.rfc_terminal_scope import (
     normalize_terminal_cascade_wfm_members,
     resolve_terminal_cascade_rfc_scope,
@@ -192,6 +193,7 @@ class RfcTerminalCascadePreview:
     continuation: dict[str, Any] | None
     warnings: tuple[str, ...]
     execution_ready: bool
+    execution_review: RfcTerminalCascadeExecutionReview | None
 
     def to_response(self) -> dict[str, Any]:
         return {
@@ -207,6 +209,7 @@ class RfcTerminalCascadePreview:
             "continuation": self.continuation,
             "warnings": list(self.warnings),
             "execution_ready": self.execution_ready,
+            "execution_review": None if self.execution_review is None else self.execution_review.to_response(),
         }
 
 
@@ -1263,6 +1266,7 @@ class RfcTerminalCascadePreviewService:
                     continuation=None,
                     warnings=warnings,
                     execution_ready=False,
+                    execution_review=None,
                 )
 
             ticket_items = self._ticket_impacts(current_scope)
@@ -1283,6 +1287,15 @@ class RfcTerminalCascadePreviewService:
                     preview_fingerprint=preview_fingerprint,
                     last_key=_global_impact_key(impacts[-1]),
                 )
+            execution_review = None
+            if execution_ready:
+                execution_review = RfcTerminalCascadeExecutionReview(
+                    preview_fingerprint=preview_fingerprint,
+                    task_objective_exact_count=task_meta.exact_count,
+                    task_objective_provider_fingerprint=task_meta.provider_fingerprint,
+                    communication_exact_count=communication_meta.exact_count,
+                    communication_provider_fingerprint=communication_meta.provider_fingerprint,
+                )
             return RfcTerminalCascadePreview(
                 proposal_id=proposal.proposal_id,
                 proposal_revision=proposal.proposal_revision,
@@ -1296,4 +1309,5 @@ class RfcTerminalCascadePreviewService:
                 continuation=continuation,
                 warnings=warnings,
                 execution_ready=execution_ready,
+                execution_review=execution_review,
             )
