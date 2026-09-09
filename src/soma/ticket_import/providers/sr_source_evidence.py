@@ -12,6 +12,11 @@ from soma.tickets.sr_source_projection import AcceptedSrFieldDelta
 _PUBLISHED_RUN_STATES = frozenset(
     {"staged", "waiting_review", "recovery_required", "partially_accepted", "accepted", "rejected"}
 )
+_ADVANCED_SEARCH_PROFILE = "ADVANCED_SEARCH_SR_V1"
+_CONTROLLED_VOCABULARIES = {
+    "status": "ADVANCED_SEARCH_STATUS_V1",
+    "customer_severity": "ADVANCED_SEARCH_SEVERITY_V1",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +34,8 @@ class PublishedSrSourceField:
     integer_value: int | None
     field_logical_sha256: str
     run_state: str
+    source_profile_id: str
+    vocabulary_id: str | None
 
 
 class TicketImportSrSourceEvidenceProvider:
@@ -39,8 +46,8 @@ class TicketImportSrSourceEvidenceProvider:
         row = reader.execute(
             "SELECT f.source_observation_field_id,o.source_observation_id,o.import_run_id,o.canonical_primary_id,"
             "o.source_row_chronology_utc,f.field_key,f.field_class,f.value_state,f.value_kind,f.normalized_text,"
-            "f.integer_value,f.field_logical_sha256,r.run_state,o.source_family,o.entity_kind,o.identity_state,r.source_family "
-            "FROM source_observation_fields f "
+            "f.integer_value,f.field_logical_sha256,r.run_state,o.source_family,o.entity_kind,o.identity_state,r.source_family,"
+            "r.source_profile_id,f.vocabulary_id FROM source_observation_fields f "
             "JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
             "JOIN import_runs r ON r.import_run_id=o.import_run_id "
             "WHERE f.source_observation_field_id=?",
@@ -53,6 +60,7 @@ class TicketImportSrSourceEvidenceProvider:
             or str(row[14]) != "service_request"
             or str(row[15]) != "valid"
             or str(row[16]) != "advanced_search_sr"
+            or str(row[17]) != _ADVANCED_SEARCH_PROFILE
         ):
             return None
         if str(row[12]) not in _PUBLISHED_RUN_STATES:
@@ -73,6 +81,8 @@ class TicketImportSrSourceEvidenceProvider:
             integer_value=None if row[10] is None else int(row[10]),
             field_logical_sha256=str(row[11]),
             run_state=str(row[12]),
+            source_profile_id=str(row[17]),
+            vocabulary_id=None if row[18] is None else str(row[18]),
         )
 
     @staticmethod
@@ -84,6 +94,13 @@ class TicketImportSrSourceEvidenceProvider:
         if row is None:
             raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request target no longer exists")
         return None if row[0] is None else str(row[0])
+
+    @staticmethod
+    def _vocabulary_matches(field: PublishedSrSourceField) -> bool:
+        if field.value_kind != "controlled":
+            return field.vocabulary_id is None
+        expected = _CONTROLLED_VOCABULARIES.get(field.field_key)
+        return expected is not None and field.vocabulary_id == expected
 
     def validate_published_field(
         self,
@@ -99,7 +116,7 @@ class TicketImportSrSourceEvidenceProvider:
         official_sr_no = self._official_sr_no(uow.connection, sr_id)
         if official_sr_no is None or field.canonical_sr_no != official_sr_no:
             return "INVALID"
-        if field.field_class != "active" or field.field_key != field_key:
+        if field.field_class != "active" or field.field_key != field_key or not self._vocabulary_matches(field):
             return "INVALID"
         value_state = accepted_value.get("value_state")
         value_kind = accepted_value.get("value_kind")
@@ -154,6 +171,7 @@ class TicketImportSrSourceEvidenceProvider:
             or field.field_class != "active"
             or field.field_key != field_key
             or field.value_kind != change_value_kind
+            or not self._vocabulary_matches(field)
         ):
             raise SomaError("IMPORT_PROPOSAL_STALE", "proposal change no longer binds the exact SR source field")
         if change_kind in {"set", "create"}:
@@ -207,8 +225,11 @@ class TicketImportSrSourceEvidenceProvider:
             "JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
             "JOIN import_runs r ON r.import_run_id=o.import_run_id "
             "WHERE o.source_family='advanced_search_sr' AND r.source_family=o.source_family "
-            "AND o.identity_state='valid' AND o.canonical_primary_id=? "
+            "AND r.source_profile_id='ADVANCED_SEARCH_SR_V1' AND o.identity_state='valid' AND o.canonical_primary_id=? "
             "AND r.run_state IN ('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') "
+            "AND (f.value_kind<>'controlled' OR "
+            "(f.field_key='status' AND f.vocabulary_id='ADVANCED_SEARCH_STATUS_V1') OR "
+            "(f.field_key='customer_severity' AND f.vocabulary_id='ADVANCED_SEARCH_SEVERITY_V1')) "
             "ORDER BY f.source_observation_field_id ASC",
             (official_sr_no,),
         ).fetchall()
@@ -235,7 +256,7 @@ class TicketImportSrSourceEvidenceProvider:
         row = uow.connection.execute(
             "SELECT 1 FROM source_observations o JOIN import_runs r ON r.import_run_id=o.import_run_id "
             "WHERE o.source_family='advanced_search_sr' AND r.source_family=o.source_family "
-            "AND o.entity_kind='service_request' AND o.identity_state='valid' "
+            "AND r.source_profile_id='ADVANCED_SEARCH_SR_V1' AND o.entity_kind='service_request' AND o.identity_state='valid' "
             "AND o.canonical_primary_id=? AND r.run_state IN "
             "('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') LIMIT 1",
             (official_sr_no,),
