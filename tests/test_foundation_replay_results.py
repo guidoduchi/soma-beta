@@ -388,7 +388,13 @@ def test_replay_result_rows_are_append_only(initialized_database) -> None:
     )
     CommandBoundary(factory, AuditWriter(AuditRegistry())).execute(
         envelope,
-        lambda uow: PreparedMutation(no_change=True, result_type="NO_CHANGE", result_id=None),
+        lambda uow: PreparedMutation(
+            no_change=True,
+            result_type="NO_CHANGE",
+            result_id=None,
+            response_schema="AppendOnlyNoChangeResultV1",
+            response={"outcome": "NO_CHANGE"},
+        ),
     )
 
     with pytest.raises(Exception, match="COMMAND_REPLAY_RESULT_APPEND_ONLY"):
