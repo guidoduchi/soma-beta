@@ -6,6 +6,7 @@ import pytest
 
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
+from soma.foundation.persistence.uow import UnitOfWork
 from soma.reference.application.customer_service import CustomerReferenceService
 from soma.tickets.device_references import DeviceReferenceService
 from soma.tickets.relationships import TicketDeviceReferenceRelationshipService
@@ -172,7 +173,7 @@ def test_hierarchy_rejects_known_customer_mismatch_without_edge_mutation(initial
         connection.close()
 
 
-def test_device_reference_links_are_history_preserving_and_do_not_replace_identity(initialized_database) -> None:
+def test_device_reference_links_are_history_preserving_and_replay_exact_result(initialized_database) -> None:
     factory = _factory(initialized_database)
     srs = ServiceRequestService(factory)
     rfcs = RfcService(factory)
@@ -194,8 +195,9 @@ def test_device_reference_links_are_history_preserving_and_do_not_replace_identi
         device_reference_id=device.device_reference_id,
         target_base_revision=1,
     )
-    assert sr_link.state == "active"
-    assert sr_link.target_revision == 1
+    assert sr_link.outcome == "APPLIED"
+    assert sr_link.target_id == sr.service_request_id
+    assert sr_link.revision == 1
 
     duplicate = relationships.link(
         command_id=new_uuid4(),
@@ -205,7 +207,7 @@ def test_device_reference_links_are_history_preserving_and_do_not_replace_identi
         target_base_revision=1,
     )
     assert duplicate.no_change is True
-    assert duplicate.relationship_id == sr_link.relationship_id
+    assert duplicate.revision == 1
 
     rfc_link = relationships.link(
         command_id=new_uuid4(),
@@ -214,8 +216,9 @@ def test_device_reference_links_are_history_preserving_and_do_not_replace_identi
         device_reference_id=device.device_reference_id,
         target_base_revision=1,
     )
-    assert rfc_link.state == "active"
-    assert rfc_link.target_revision == 1
+    assert rfc_link.outcome == "APPLIED"
+    assert rfc_link.target_id == rfc.rfc_id
+    assert rfc_link.revision == 1
 
     unlink_command = new_uuid4()
     unlinked = relationships.unlink(
@@ -226,9 +229,15 @@ def test_device_reference_links_are_history_preserving_and_do_not_replace_identi
         target_base_revision=1,
         reason_category="operator_unlink",
     )
-    assert unlinked.relationship_id == sr_link.relationship_id
-    assert unlinked.state == "unlinked"
-    assert unlinked.target_revision == 1
+    assert unlinked.outcome == "APPLIED"
+    assert unlinked.target_id == sr.service_request_id
+    assert unlinked.revision == 1
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE service_requests SET revision=7 WHERE service_request_id=?",
+            (sr.service_request_id,),
+        )
 
     replay = relationships.unlink(
         command_id=unlink_command,
@@ -239,28 +248,29 @@ def test_device_reference_links_are_history_preserving_and_do_not_replace_identi
         reason_category="operator_unlink",
     )
     assert replay.replayed is True
-    assert replay.state == "unlinked"
+    assert replay.outcome == "APPLIED"
+    assert replay.revision == 1
 
     absent = relationships.unlink(
         command_id=new_uuid4(),
         ticket_type="service_request",
         ticket_id=sr.service_request_id,
         device_reference_id=device.device_reference_id,
-        target_base_revision=1,
+        target_base_revision=7,
         reason_category="operator_unlink",
     )
     assert absent.no_change is True
-    assert absent.state == "absent"
+    assert absent.revision == 7
 
     connection = _read(initialized_database)
     try:
         assert connection.execute(
-            "SELECT link_state FROM sr_device_reference_links WHERE sr_device_reference_link_id=?",
-            (sr_link.relationship_id,),
+            "SELECT link_state FROM sr_device_reference_links WHERE service_request_id=? AND device_reference_id=?",
+            (sr.service_request_id, device.device_reference_id),
         ).fetchone()[0] == "unlinked"
         assert connection.execute(
-            "SELECT link_state FROM rfc_device_reference_links WHERE rfc_device_reference_link_id=?",
-            (rfc_link.relationship_id,),
+            "SELECT link_state FROM rfc_device_reference_links WHERE rfc_id=? AND device_reference_id=?",
+            (rfc.rfc_id, device.device_reference_id),
         ).fetchone()[0] == "active"
         assert connection.execute(
             "SELECT revision FROM device_references WHERE device_reference_id=?",
@@ -269,7 +279,7 @@ def test_device_reference_links_are_history_preserving_and_do_not_replace_identi
         assert connection.execute(
             "SELECT revision FROM service_requests WHERE service_request_id=?",
             (sr.service_request_id,),
-        ).fetchone()[0] == 1
+        ).fetchone()[0] == 7
         assert connection.execute(
             "SELECT revision FROM rfcs WHERE rfc_id=?",
             (rfc.rfc_id,),
@@ -282,6 +292,16 @@ def test_device_reference_links_are_history_preserving_and_do_not_replace_identi
         ]
         assert len(payloads) == 3
         assert all("device-before-regularization" not in payload for payload in payloads)
+        stored = connection.execute(
+            "SELECT response_schema,response_json FROM command_receipt_results WHERE command_id=?",
+            (unlink_command,),
+        ).fetchone()
+        assert stored[0] == "TicketMutationResultV1"
+        assert json.loads(str(stored[1])) == {
+            "outcome": "APPLIED",
+            "revision": 1,
+            "target_id": sr.service_request_id,
+        }
     finally:
         connection.close()
 
