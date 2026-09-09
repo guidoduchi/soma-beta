@@ -17,6 +17,9 @@ _CONTROLLED_VOCABULARIES = {
     "status": "ADVANCED_SEARCH_STATUS_V1",
     "customer_severity": "ADVANCED_SEARCH_SEVERITY_V1",
 }
+_ADVANCED_SEARCH_STATUS_VALUES = frozenset(
+    {"Closed", "Resolved", "Cancelled", "Customer Agreed Suspend"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +103,11 @@ class TicketImportSrSourceEvidenceProvider:
         if field.value_kind != "controlled":
             return field.vocabulary_id is None
         expected = _CONTROLLED_VOCABULARIES.get(field.field_key)
-        return expected is not None and field.vocabulary_id == expected
+        if expected is None or field.vocabulary_id != expected:
+            return False
+        if field.field_key == "status":
+            return field.normalized_text in _ADVANCED_SEARCH_STATUS_VALUES
+        return True
 
     def validate_published_field(
         self,
@@ -228,7 +235,8 @@ class TicketImportSrSourceEvidenceProvider:
             "AND r.source_profile_id='ADVANCED_SEARCH_SR_V1' AND o.identity_state='valid' AND o.canonical_primary_id=? "
             "AND r.run_state IN ('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') "
             "AND (f.value_kind<>'controlled' OR "
-            "(f.field_key='status' AND f.vocabulary_id='ADVANCED_SEARCH_STATUS_V1') OR "
+            "(f.field_key='status' AND f.vocabulary_id='ADVANCED_SEARCH_STATUS_V1' "
+            "AND f.normalized_text IN ('Closed','Resolved','Cancelled','Customer Agreed Suspend')) OR "
             "(f.field_key='customer_severity' AND f.vocabulary_id='ADVANCED_SEARCH_SEVERITY_V1')) "
             "ORDER BY f.source_observation_field_id ASC",
             (official_sr_no,),
