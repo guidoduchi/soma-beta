@@ -52,9 +52,10 @@
         "allocate archive operation ID and insert receipt/operation row",
         "transition only active reviewed members to archived and increment revision",
         "insert immutable operation membership plus archived event for each changed member using resulting RFC revision as event order",
-        "audit exact changes and commit"
+        "audit scalar changed_rfc_count/excluded_prearchived_count plus the complete scope fingerprint; exact changed identities remain row-wise operation/event authority and are never copied into audit JSON",
+        "commit"
       ],
-      "rules":["archive affects RFC local presentation only","pre-existing archived members are never claimed by this operation","branch archive requires explicit exact preview"]
+      "rules":["archive affects RFC local presentation only","pre-existing archived members are never claimed by this operation","branch archive requires explicit exact preview","audit payload bounds never impose a branch-member business cap"]
     },
     {
       "name":"RestoreRfcArchiveOperation",
@@ -64,9 +65,10 @@
         "for each member read current archive state and latest-by-resulting-revision archive event",
         "select only members still archived by this exact origin operation; later restored/rearchived members are excluded",
         "if no member remains eligible return semantic NO_CHANGE",
-        "insert receipt, transition eligible members to active/increment revision, append restored events with resulting revisions referencing origin operation, audit per-member outcomes, commit"
+        "insert receipt, transition eligible members to active/increment revision and append restored events with resulting revisions referencing origin operation",
+        "audit scalar changed_rfc_count while exact restored identities remain row-wise archive events/result references rather than an audit JSON array, then commit"
       ],
-      "rules":["restore never activates a member this operation did not itself archive","source lifecycle/status and downstream domains remain untouched"]
+      "rules":["restore never activates a member this operation did not itself archive","source lifecycle/status and downstream domains remain untouched","audit payload bounds never impose an operation-member business cap"]
     },
     {
       "name":"HardDeleteRfc",
