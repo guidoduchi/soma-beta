@@ -12,6 +12,11 @@ from soma.tickets.rfc_source_projection import RfcAcceptedFieldDelta
 _PUBLISHED_RUN_STATES = frozenset(
     {"staged", "waiting_review", "recovery_required", "partially_accepted", "accepted", "rejected"}
 )
+_SOURCE_PROFILES = {
+    "rfc_enhanced": "RFC_ENHANCED_V1",
+    "wfm_service_provider": "WFM_SERVICE_PROVIDER_V1",
+}
+_RFC_STATUS_VOCABULARY = "RFC_STATUS_V1"
 _RFC_STATUS_CLASSES = {
     "Implement": "implement_eligible",
     "Closed": "terminal_closed",
@@ -37,6 +42,8 @@ class PublishedRfcSourceField:
     integer_value: int | None
     field_logical_sha256: str
     run_state: str
+    source_profile_id: str
+    vocabulary_id: str | None
 
 
 class TicketImportRfcSourceEvidenceProvider:
@@ -48,7 +55,7 @@ class TicketImportRfcSourceEvidenceProvider:
             "SELECT f.source_observation_field_id,o.source_observation_id,o.import_run_id,o.source_family,o.entity_kind,"
             "o.canonical_primary_id,o.canonical_parent_rfc_no,o.source_row_chronology_utc,f.field_key,f.field_class,"
             "f.value_state,f.value_kind,f.normalized_text,f.integer_value,f.field_logical_sha256,r.run_state,r.source_family,"
-            "o.identity_state FROM source_observation_fields f "
+            "o.identity_state,r.source_profile_id,f.vocabulary_id FROM source_observation_fields f "
             "JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
             "JOIN import_runs r ON r.import_run_id=o.import_run_id "
             "WHERE f.source_observation_field_id=?",
@@ -63,6 +70,9 @@ class TicketImportRfcSourceEvidenceProvider:
             return None
         source_family = str(row[3])
         entity_kind = str(row[4])
+        expected_profile = _SOURCE_PROFILES.get(source_family)
+        if expected_profile is None or str(row[18]) != expected_profile:
+            return None
         if source_family == "rfc_enhanced":
             if entity_kind != "rfc" or row[5] is None:
                 return None
@@ -88,6 +98,8 @@ class TicketImportRfcSourceEvidenceProvider:
             integer_value=None if row[13] is None else int(row[13]),
             field_logical_sha256=str(row[14]),
             run_state=str(row[15]),
+            source_profile_id=str(row[18]),
+            vocabulary_id=None if row[19] is None else str(row[19]),
         )
 
     @staticmethod
@@ -104,6 +116,10 @@ class TicketImportRfcSourceEvidenceProvider:
         if field.source_family == "wfm_service_provider" and field.field_key == "rfc_status":
             return "status", "wfm_provisional"
         return None
+
+    @staticmethod
+    def _status_metadata_valid(field: PublishedRfcSourceField) -> bool:
+        return field.value_kind == "controlled" and field.vocabulary_id == _RFC_STATUS_VOCABULARY
 
     @staticmethod
     def _value_matches(field: PublishedRfcSourceField, delta: RfcAcceptedFieldDelta) -> bool:
@@ -144,7 +160,7 @@ class TicketImportRfcSourceEvidenceProvider:
             return "INVALID"
         if delta.field_key == "status":
             if (
-                field.value_kind != "controlled"
+                not self._status_metadata_valid(field)
                 or field.normalized_text not in _RFC_STATUS_CLASSES
                 or delta.status_class != _RFC_STATUS_CLASSES[field.normalized_text]
                 or delta.status_authority != expected_authority
@@ -198,6 +214,8 @@ class TicketImportRfcSourceEvidenceProvider:
         status_class: str | None = None
         status_authority: str | None = None
         if mapped_field_key == "status":
+            if not self._status_metadata_valid(field):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "RFC Status evidence is not bound to RFC_STATUS_V1")
             if field.normalized_text not in _RFC_STATUS_CLASSES:
                 raise SomaError("IMPORT_PROPOSAL_STALE", "unrecognized RFC Status has no accepted current lifecycle authority")
             status_class = _RFC_STATUS_CLASSES[field.normalized_text]
@@ -220,9 +238,11 @@ class TicketImportRfcSourceEvidenceProvider:
             "JOIN import_runs r ON r.import_run_id=o.import_run_id "
             "WHERE o.identity_state='valid' AND r.source_family=o.source_family AND r.run_state IN "
             "('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') AND "
-            "((o.source_family='rfc_enhanced' AND o.entity_kind='rfc' AND o.canonical_primary_id=?) OR "
-            "(o.source_family='wfm_service_provider' AND o.entity_kind='wfm' AND o.canonical_parent_rfc_no=? "
-            "AND f.field_key='rfc_status')) "
+            "((o.source_family='rfc_enhanced' AND r.source_profile_id='RFC_ENHANCED_V1' "
+            "AND o.entity_kind='rfc' AND o.canonical_primary_id=?) OR "
+            "(o.source_family='wfm_service_provider' AND r.source_profile_id='WFM_SERVICE_PROVIDER_V1' "
+            "AND o.entity_kind='wfm' AND o.canonical_parent_rfc_no=? AND f.field_key='rfc_status' "
+            "AND f.value_kind='controlled' AND f.vocabulary_id='RFC_STATUS_V1')) "
             "ORDER BY o.source_family ASC,f.source_observation_field_id ASC",
             (rfc_no, rfc_no),
         ).fetchall()
@@ -249,8 +269,10 @@ class TicketImportRfcSourceEvidenceProvider:
             "SELECT 1 FROM source_observations o JOIN import_runs r ON r.import_run_id=o.import_run_id "
             "WHERE o.identity_state='valid' AND r.source_family=o.source_family AND r.run_state IN "
             "('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') AND "
-            "((o.source_family='rfc_enhanced' AND o.entity_kind='rfc' AND o.canonical_primary_id=?) OR "
-            "(o.source_family='wfm_service_provider' AND o.entity_kind='wfm' AND o.canonical_parent_rfc_no=?)) LIMIT 1",
+            "((o.source_family='rfc_enhanced' AND r.source_profile_id='RFC_ENHANCED_V1' "
+            "AND o.entity_kind='rfc' AND o.canonical_primary_id=?) OR "
+            "(o.source_family='wfm_service_provider' AND r.source_profile_id='WFM_SERVICE_PROVIDER_V1' "
+            "AND o.entity_kind='wfm' AND o.canonical_parent_rfc_no=?)) LIMIT 1",
             (rfc_no, rfc_no),
         ).fetchone()
         return "YES" if row is not None else "NO"
