@@ -9,7 +9,7 @@ from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditW
 from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 
 from .audit_registry import build_tickets_audit_registry
@@ -18,6 +18,7 @@ from .repositories.sr_references import (
     SrContactRelationshipRecord,
     SrCustomerRelationshipRecord,
 )
+from .results import TicketMutationResult, ticket_mutation_result_from_execution
 from .validation import validate_optional_sha256, validate_reason_category
 
 _REFERENCE_ROLES = ("customer_contact", "current_handler_reference")
@@ -41,17 +42,6 @@ class ReferenceChangePreview:
     base_revision: int
     review_fingerprint: str
     warnings: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class ServiceRequestReferenceMutationResult:
-    service_request_id: str
-    reference_role: str
-    relationship_id: str | None
-    target_reference_id: str | None
-    revision: int
-    replayed: bool
-    no_change: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -352,36 +342,13 @@ class ServiceRequestReferenceService:
     def current_reference_token(reader: Any, service_request_id: str) -> str:
         return current_reference_token(reader, service_request_id)
 
-    def _result(
-        self,
-        *,
-        service_request_id: str,
-        reference_role: str,
-        fallback_relationship_id: str | None,
-        replayed: bool,
-        no_change: bool,
-    ) -> ServiceRequestReferenceMutationResult:
-        with ReadSnapshot(self._factory) as snapshot:
-            revision = _require_sr_revision(snapshot.connection, service_request_id)
-            if reference_role == "customer":
-                current_customer = self._repository.current_customer(snapshot.connection, service_request_id)
-                relationship_id = None if current_customer is None else current_customer.relationship_id
-                target_id = None if current_customer is None else current_customer.customer_org_id
-            else:
-                current_contact = self._repository.current_contact(snapshot.connection, service_request_id, reference_role)
-                relationship_id = None if current_contact is None else current_contact.relationship_id
-                target_id = None if current_contact is None else current_contact.contact_id
-            if relationship_id is None:
-                relationship_id = fallback_relationship_id
-        return ServiceRequestReferenceMutationResult(
-            service_request_id=service_request_id,
-            reference_role=reference_role,
-            relationship_id=relationship_id,
-            target_reference_id=target_id,
-            revision=revision,
-            replayed=replayed,
-            no_change=no_change,
-        )
+    @staticmethod
+    def _ticket_response(*, no_change: bool, service_request_id: str, revision: int) -> dict[str, object]:
+        return {
+            "outcome": "NO_CHANGE" if no_change else "APPLIED",
+            "target_id": service_request_id,
+            "revision": revision,
+        }
 
     @staticmethod
     def _participant_failure() -> SomaError:
@@ -401,7 +368,7 @@ class ServiceRequestReferenceService:
         review_fingerprint: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> ServiceRequestReferenceMutationResult:
+    ) -> TicketMutationResult:
         reason = validate_reason_category(reason_category)
         fingerprint = validate_optional_sha256(review_fingerprint, field="review_fingerprint")
         envelope = CommandEnvelope(
@@ -433,7 +400,17 @@ class ServiceRequestReferenceService:
 
             current_customer = None if state.current_relationship is None else state.current_relationship.customer_org_id
             if current_customer == customer_org_id:
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TicketMutationResultV1",
+                    response=self._ticket_response(
+                        no_change=True,
+                        service_request_id=service_request_id,
+                        revision=base_revision,
+                    ),
+                )
 
             prior_relationship_id = None if state.current_relationship is None else state.current_relationship.relationship_id
             new_relationship_id = new_uuid4() if customer_org_id is not None else None
@@ -522,16 +499,20 @@ class ServiceRequestReferenceService:
                     ),
                 )
 
-            return PreparedMutation(False, "service_request_customer_history", result_relationship_id, apply)
+            return PreparedMutation(
+                False,
+                "service_request_customer_history",
+                result_relationship_id,
+                apply,
+                response_schema="TicketMutationResultV1",
+                response=self._ticket_response(
+                    no_change=False,
+                    service_request_id=service_request_id,
+                    revision=base_revision + 1,
+                ),
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        return self._result(
-            service_request_id=service_request_id,
-            reference_role="customer",
-            fallback_relationship_id=result.result_id,
-            replayed=result.replayed,
-            no_change=result.no_change,
-        )
+        return ticket_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def set_contact_reference(
         self,
@@ -546,7 +527,7 @@ class ServiceRequestReferenceService:
         review_fingerprint: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
-    ) -> ServiceRequestReferenceMutationResult:
+    ) -> TicketMutationResult:
         role = _validate_reference_role(reference_role)
         reason = validate_reason_category(reason_category)
         fingerprint = validate_optional_sha256(review_fingerprint, field="review_fingerprint")
@@ -596,7 +577,17 @@ class ServiceRequestReferenceService:
                     and current.supporting_source_observation_id == supporting_sr_source_field_observation_id
                 )
             ):
-                return PreparedMutation(True, None, None)
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TicketMutationResultV1",
+                    response=self._ticket_response(
+                        no_change=True,
+                        service_request_id=service_request_id,
+                        revision=base_revision,
+                    ),
+                )
 
             if state.affiliation_mismatch and fingerprint is None:
                 raise SomaError(
@@ -673,13 +664,17 @@ class ServiceRequestReferenceService:
                     ),
                 )
 
-            return PreparedMutation(False, "service_request_contact_history", result_relationship_id, apply)
+            return PreparedMutation(
+                False,
+                "service_request_contact_history",
+                result_relationship_id,
+                apply,
+                response_schema="TicketMutationResultV1",
+                response=self._ticket_response(
+                    no_change=False,
+                    service_request_id=service_request_id,
+                    revision=base_revision + 1,
+                ),
+            )
 
-        result = self._boundary.execute(envelope, prepare)
-        return self._result(
-            service_request_id=service_request_id,
-            reference_role=role,
-            fallback_relationship_id=result.result_id,
-            replayed=result.replayed,
-            no_change=result.no_change,
-        )
+        return ticket_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
