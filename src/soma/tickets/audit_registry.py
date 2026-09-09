@@ -140,6 +140,29 @@ def _validate_rfc_terminal_execute_audit(payload: dict[str, object]) -> None:
     )
 
 
+def _validate_rfc_archive_audit(payload: dict[str, object]) -> None:
+    try:
+        require_uuid4(payload.get("rfc_archive_operation_id"))
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC archive audit operation identity is invalid") from exc
+    if payload.get("scope_kind") not in {"exact_rfc", "reviewed_branch"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC archive audit scope kind is invalid")
+    fingerprint = payload.get("scope_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_HEX_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC archive audit scope fingerprint is invalid")
+    changed_count = payload.get("changed_rfc_count")
+    excluded_count = payload.get("excluded_prearchived_count")
+    if type(changed_count) is not int or changed_count <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC archive audit changed count must be positive")
+    if type(excluded_count) is not int or excluded_count < 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC archive audit excluded count must be non-negative")
+    if payload.get("resulting_operation_state") not in {"archived", "restored"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC archive audit resulting state is invalid")
+    reason = payload.get("reason_category")
+    if reason is not None and (not isinstance(reason, str) or not reason):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC archive audit reason category is invalid")
+
+
 def build_tickets_audit_registry() -> AuditRegistry:
     registry = AuditRegistry()
     definitions = [
@@ -230,16 +253,16 @@ def build_tickets_audit_registry() -> AuditRegistry:
         (
             "ticket.rfc.archived",
             "RfcArchiveAuditV1",
-            {"rfc_archive_operation_id", "scope_kind", "scope_fingerprint", "changed_rfc_ids", "excluded_prearchived_count", "resulting_operation_state", "reason_category"},
+            {"rfc_archive_operation_id", "scope_kind", "scope_fingerprint", "changed_rfc_count", "excluded_prearchived_count", "resulting_operation_state", "reason_category"},
             _DEFAULT_AUDIT_MAX_UTF8_BYTES,
-            None,
+            _validate_rfc_archive_audit,
         ),
         (
             "ticket.rfc.archive_restored",
             "RfcArchiveAuditV1",
-            {"rfc_archive_operation_id", "scope_kind", "scope_fingerprint", "changed_rfc_ids", "excluded_prearchived_count", "resulting_operation_state", "reason_category"},
+            {"rfc_archive_operation_id", "scope_kind", "scope_fingerprint", "changed_rfc_count", "excluded_prearchived_count", "resulting_operation_state", "reason_category"},
             _DEFAULT_AUDIT_MAX_UTF8_BYTES,
-            None,
+            _validate_rfc_archive_audit,
         ),
         (
             "ticket.rfc.terminal_cascade_refreshed",
