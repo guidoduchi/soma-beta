@@ -83,6 +83,8 @@ _REQUIRED_QUERY_INDEXES = {
     "idx_wfm_terminal_review_source_revision_task",
 }
 
+_MIGRATION_6_SHA256 = "97ceed6eb398dd88fbdefeed964cbbd3334360243d060c2194344df548a89c27"
+
 
 def _factory(initialized_database):
     database_path, factory_for_path = initialized_database
@@ -104,7 +106,7 @@ def _receipt(
     )
 
 
-def _insert_local_task_with_plan(
+def _local_task_with_plan(
     uow: UnitOfWork,
     *,
     task_id: str,
@@ -131,7 +133,7 @@ def _insert_local_task_with_plan(
     )
 
 
-def _insert_objective(
+def _manual_objective(
     uow: UnitOfWork,
     *,
     objective_id: str,
@@ -149,12 +151,11 @@ def _insert_objective(
         target_type="objective",
         target_id=objective_id,
     )
-    tracking_id = f"MW-{sequence:08d}"
     membership_event_id = new_uuid4()
     uow.connection.execute(
         "INSERT INTO objectives(objective_id,tracking_sequence,tracking_id,creation_origin,superseded_by_objective_id,"
         "revision,created_at_utc,created_command_id) VALUES (?, ?, ?, 'manual', NULL, 1, 0, ?)",
-        (objective_id, sequence, tracking_id, command_id),
+        (objective_id, sequence, f"MW-{sequence:08d}", command_id),
     )
     uow.connection.execute(
         "INSERT INTO objective_membership_events(membership_event_id,task_id,event_kind,from_objective_id,to_objective_id,"
@@ -181,44 +182,45 @@ def _insert_objective(
     return membership_event_id
 
 
-def _index_leading_columns(connection, table: str) -> set[str]:
-    leading: set[str] = set()
-    for index_row in connection.execute(f"PRAGMA index_list('{table}')").fetchall():
-        index_name = str(index_row[1]).replace("'", "''")
-        columns = connection.execute(f"PRAGMA index_info('{index_name}')").fetchall()
+def _leading_index_columns(connection, table: str) -> set[str]:
+    result: set[str] = set()
+    for row in connection.execute(f"PRAGMA index_list('{table}')").fetchall():
+        escaped = str(row[1]).replace("'", "''")
+        columns = connection.execute(f"PRAGMA index_info('{escaped}')").fetchall()
         if columns and columns[0][2] is not None:
-            leading.add(str(columns[0][2]))
-    return leading
+            result.add(str(columns[0][2]))
+    return result
 
 
 def test_objectives_tasks_schema_is_complete_strict_indexed_and_fk_clean(initialized_database) -> None:
     factory = _factory(initialized_database)
+    assert len(_TABLES) == 36
     with ReadSnapshot(factory) as snapshot:
-        table_rows = snapshot.connection.execute(
+        rows = snapshot.connection.execute(
             "SELECT name FROM sqlite_schema WHERE type='table' AND name IN ("
             + ",".join("?" for _ in _TABLES)
             + ")",
             tuple(sorted(_TABLES)),
         ).fetchall()
-        assert {str(row[0]) for row in table_rows} == _TABLES
+        assert {str(row[0]) for row in rows} == _TABLES
 
-        strict_by_name = {
+        strict = {
             str(row[1]): int(row[5])
             for row in snapshot.connection.execute("PRAGMA table_list").fetchall()
             if len(row) >= 6
         }
-        assert all(strict_by_name.get(table) == 1 for table in _TABLES)
+        assert all(strict.get(table) == 1 for table in _TABLES)
 
-        index_names = {
+        indexes = {
             str(row[0])
             for row in snapshot.connection.execute(
                 "SELECT name FROM sqlite_schema WHERE type='index' AND name IS NOT NULL"
             ).fetchall()
         }
-        assert _REQUIRED_QUERY_INDEXES <= index_names
+        assert _REQUIRED_QUERY_INDEXES <= indexes
 
         for table in sorted(_TABLES):
-            leading = _index_leading_columns(snapshot.connection, table)
+            leading = _leading_index_columns(snapshot.connection, table)
             for fk in snapshot.connection.execute(f"PRAGMA foreign_key_list('{table}')").fetchall():
                 child_column = str(fk[3])
                 assert child_column in leading, f"{table}.{child_column} lacks a leading-prefix FK index"
@@ -231,14 +233,10 @@ def test_objectives_tasks_schema_is_complete_strict_indexed_and_fk_clean(initial
             "SELECT sequence,migration_id,sha256 FROM schema_migrations ORDER BY sequence"
         ).fetchall()
         assert len(ledger) == 6
-        assert tuple(ledger[-1]) == (
-            6,
-            "beta_0006_objectives_tasks",
-            "97ceed6eb398dd88fbdefeed964cbbd3334360243d060c2194344df548a89c27",
-        )
+        assert tuple(ledger[-1]) == (6, "beta_0006_objectives_tasks", _MIGRATION_6_SHA256)
 
 
-def test_sequence_six_upgrades_an_existing_five_migration_database(
+def test_sequence_six_upgrades_a_real_five_migration_prefix(
     tmp_path: Path,
     migration_directory: Path,
     security_provider,
@@ -246,14 +244,11 @@ def test_sequence_six_upgrades_an_existing_five_migration_database(
     staged = tmp_path / "migrations"
     staged.mkdir()
     full_manifest = json.loads((migration_directory / "manifest.json").read_text(encoding="utf-8"))
-    for entry in full_manifest["migrations"][:5]:
+    prefix = {"schema": full_manifest["schema"], "migrations": full_manifest["migrations"][:5]}
+    for entry in prefix["migrations"]:
         shutil.copyfile(migration_directory / entry["filename"], staged / entry["filename"])
     (staged / "manifest.json").write_text(
-        json.dumps(
-            {"schema": full_manifest["schema"], "migrations": full_manifest["migrations"][:5]},
-            indent=2,
-        )
-        + "\n",
+        json.dumps(prefix, indent=2) + "\n",
         encoding="utf-8",
         newline="\n",
     )
@@ -263,14 +258,14 @@ def test_sequence_six_upgrades_an_existing_five_migration_database(
     def factory_for_path(path: Path) -> ConnectionFactory:
         return ConnectionFactory(path, security_provider, driver=sqlite3)
 
-    runner = MigrationRunner(
+    first = MigrationRunner(
         canonical_database_path=database_path,
         manifest=MigrationManifest.load(staged),
         factory_for_path=factory_for_path,
         app_version="test-five",
         ownership_assertion=lambda: True,
     )
-    assert runner.initialize_or_migrate() == 5
+    assert first.initialize_or_migrate() == 5
 
     factory = factory_for_path(database_path)
     sentinel = new_uuid4()
@@ -279,14 +274,14 @@ def test_sequence_six_upgrades_an_existing_five_migration_database(
 
     shutil.copyfile(migration_directory / "0006_objectives_tasks.sql", staged / "0006_objectives_tasks.sql")
     shutil.copyfile(migration_directory / "manifest.json", staged / "manifest.json")
-    upgraded = MigrationRunner(
+    second = MigrationRunner(
         canonical_database_path=database_path,
         manifest=MigrationManifest.load(staged),
         factory_for_path=factory_for_path,
         app_version="test-six",
         ownership_assertion=lambda: True,
     )
-    assert upgraded.initialize_or_migrate() == 6
+    assert second.initialize_or_migrate() == 6
 
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute(
@@ -298,66 +293,56 @@ def test_sequence_six_upgrades_an_existing_five_migration_database(
         assert snapshot.connection.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
-def test_manual_wfm_initial_assignment_is_draft_deletable_but_history_is_not(initialized_database) -> None:
+def test_manual_wfm_initial_assignment_is_draft_deletable_but_reassignment_is_protected(
+    initialized_database,
+) -> None:
     factory = _factory(initialized_database)
     rfcs = RfcService(factory)
-    first_rfc = rfcs.create_or_adopt_identity(
+    rfc_a = rfcs.create_or_adopt_identity(
         command_id=new_uuid4(), rfc_no="NC20260910010001", creation_context="manual"
     )
-    second_rfc = rfcs.create_or_adopt_identity(
+    rfc_b = rfcs.create_or_adopt_identity(
         command_id=new_uuid4(), rfc_no="NC20260910010002", creation_context="manual"
     )
 
-    task_id = new_uuid4()
-    register_command = new_uuid4()
-    assignment_event_id = new_uuid4()
+    draft_task = new_uuid4()
+    register = new_uuid4()
+    initial_event = new_uuid4()
     with UnitOfWork(factory) as uow:
-        _receipt(
-            uow,
-            register_command,
-            command_type="RegisterManualWfmTask",
-            target_type="task",
-            target_id=task_id,
-        )
+        _receipt(uow, register, command_type="RegisterManualWfmTask", target_type="task", target_id=draft_task)
         uow.connection.execute(
-            "INSERT INTO tasks VALUES (?, 'wfm', NULL, 'wfm_manual', 1, 0, ?)",
-            (task_id, register_command),
+            "INSERT INTO tasks VALUES (?, 'wfm', NULL, 'wfm_manual', 1, 0, ?)", (draft_task, register)
         )
         uow.connection.execute(
             "INSERT INTO wfm_task_identities VALUES (?, 'TK00000000000001', ?, 1, ?)",
-            (task_id, first_rfc.rfc_id, register_command),
+            (draft_task, rfc_a.rfc_id, register),
         )
         uow.connection.execute(
             "INSERT INTO wfm_rfc_assignment_events VALUES (?, ?, NULL, ?, 'manual_registration', 'low', 0, ?)",
-            (assignment_event_id, task_id, first_rfc.rfc_id, register_command),
+            (initial_event, draft_task, rfc_a.rfc_id, register),
         )
 
     with pytest.raises(Exception) as protected:
         with UnitOfWork(factory) as uow:
             uow.connection.execute(
-                "DELETE FROM wfm_rfc_assignment_events WHERE assignment_event_id=?", (assignment_event_id,)
+                "DELETE FROM wfm_rfc_assignment_events WHERE assignment_event_id=?", (initial_event,)
             )
     assert "WFM_ASSIGNMENT_HISTORY_APPEND_ONLY" in str(protected.value)
 
-    hard_delete_command = new_uuid4()
     with UnitOfWork(factory) as uow:
-        _receipt(
-            uow,
-            hard_delete_command,
-            command_type="HardDeleteTask",
-            target_type="task",
-            target_id=task_id,
-        )
+        delete_command = new_uuid4()
+        _receipt(uow, delete_command, command_type="HardDeleteTask", target_type="task", target_id=draft_task)
         uow.connection.execute(
-            "DELETE FROM wfm_rfc_assignment_events WHERE assignment_event_id=?", (assignment_event_id,)
+            "DELETE FROM wfm_rfc_assignment_events WHERE assignment_event_id=?", (initial_event,)
         )
-        uow.connection.execute("DELETE FROM wfm_task_identities WHERE task_id=?", (task_id,))
-        uow.connection.execute("DELETE FROM tasks WHERE task_id=?", (task_id,))
+        uow.connection.execute("DELETE FROM wfm_task_identities WHERE task_id=?", (draft_task,))
+        uow.connection.execute("DELETE FROM tasks WHERE task_id=?", (draft_task,))
 
     history_task = new_uuid4()
     history_register = new_uuid4()
     first_event = new_uuid4()
     second_event = new_uuid4()
+    reassign = new_uuid4()
     with UnitOfWork(factory) as uow:
         _receipt(
             uow,
@@ -371,25 +356,26 @@ def test_manual_wfm_initial_assignment_is_draft_deletable_but_history_is_not(ini
             (history_task, history_register),
         )
         uow.connection.execute(
-            "INSERT INTO wfm_task_identities VALUES (?, 'TK00000000000002', ?, 2, ?)",
-            (history_task, second_rfc.rfc_id, history_register),
+            "INSERT INTO wfm_task_identities VALUES (?, 'TK00000000000002', ?, 1, ?)",
+            (history_task, rfc_a.rfc_id, history_register),
         )
         uow.connection.execute(
             "INSERT INTO wfm_rfc_assignment_events VALUES (?, ?, NULL, ?, 'manual_registration', 'low', 0, ?)",
-            (first_event, history_task, first_rfc.rfc_id, history_register),
+            (first_event, history_task, rfc_a.rfc_id, history_register),
+        )
+        _receipt(uow, reassign, command_type="ReassignWfmParent", target_type="task", target_id=history_task)
+        uow.connection.execute(
+            "UPDATE wfm_task_identities SET current_rfc_id=?,assignment_revision=2 WHERE task_id=?",
+            (rfc_b.rfc_id, history_task),
         )
         uow.connection.execute(
             "INSERT INTO wfm_rfc_assignment_events VALUES (?, ?, ?, ?, 'reviewed_reassignment', 'high', 1, ?)",
-            (second_event, history_task, first_rfc.rfc_id, second_rfc.rfc_id, history_register),
+            (second_event, history_task, rfc_a.rfc_id, rfc_b.rfc_id, reassign),
         )
+
+    with UnitOfWork(factory) as uow:
         delete_command = new_uuid4()
-        _receipt(
-            uow,
-            delete_command,
-            command_type="HardDeleteTask",
-            target_type="task",
-            target_id=history_task,
-        )
+        _receipt(uow, delete_command, command_type="HardDeleteTask", target_type="task", target_id=history_task)
         with pytest.raises(Exception) as protected_history:
             uow.connection.execute(
                 "DELETE FROM wfm_rfc_assignment_events WHERE assignment_event_id=?", (second_event,)
@@ -397,14 +383,14 @@ def test_manual_wfm_initial_assignment_is_draft_deletable_but_history_is_not(ini
         assert "WFM_ASSIGNMENT_HISTORY_APPEND_ONLY" in str(protected_history.value)
 
 
-def test_protected_task_history_cannot_be_erased_to_manufacture_hard_delete(initialized_database) -> None:
+def test_protected_execution_history_cannot_be_erased_to_manufacture_hard_delete(
+    initialized_database,
+) -> None:
     factory = _factory(initialized_database)
-    task_id = new_uuid4()
-    plan_id = new_uuid4()
-    create_command = new_uuid4()
+    task_id, plan_id, create_command = new_uuid4(), new_uuid4(), new_uuid4()
     execution_event = new_uuid4()
     with UnitOfWork(factory) as uow:
-        _insert_local_task_with_plan(
+        _local_task_with_plan(
             uow,
             task_id=task_id,
             plan_id=plan_id,
@@ -419,13 +405,7 @@ def test_protected_task_history_cannot_be_erased_to_manufacture_hard_delete(init
 
     with UnitOfWork(factory) as uow:
         delete_command = new_uuid4()
-        _receipt(
-            uow,
-            delete_command,
-            command_type="HardDeleteTask",
-            target_type="task",
-            target_id=task_id,
-        )
+        _receipt(uow, delete_command, command_type="HardDeleteTask", target_type="task", target_id=task_id)
         with pytest.raises(Exception) as append_only:
             uow.connection.execute(
                 "DELETE FROM task_execution_events WHERE execution_event_id=?", (execution_event,)
@@ -435,21 +415,20 @@ def test_protected_task_history_cannot_be_erased_to_manufacture_hard_delete(init
             uow.connection.execute("DELETE FROM tasks WHERE task_id=?", (task_id,))
 
 
-def test_objective_nonempty_overlap_and_narrow_hard_delete_guards(initialized_database) -> None:
+def test_objective_nonempty_exact_touch_overlap_and_hard_delete_guards(initialized_database) -> None:
     factory = _factory(initialized_database)
     task_a, plan_a = new_uuid4(), new_uuid4()
     task_b, plan_b = new_uuid4(), new_uuid4()
     objective_a, objective_b = new_uuid4(), new_uuid4()
-    create_a, create_b = new_uuid4(), new_uuid4()
 
     with UnitOfWork(factory) as uow:
-        _insert_local_task_with_plan(
-            uow, task_id=task_a, plan_id=plan_a, command_id=create_a, start_utc=10, end_utc=20
+        _local_task_with_plan(
+            uow, task_id=task_a, plan_id=plan_a, command_id=new_uuid4(), start_utc=10, end_utc=20
         )
-        _insert_local_task_with_plan(
-            uow, task_id=task_b, plan_id=plan_b, command_id=create_b, start_utc=20, end_utc=30
+        _local_task_with_plan(
+            uow, task_id=task_b, plan_id=plan_b, command_id=new_uuid4(), start_utc=20, end_utc=30
         )
-        membership_a = _insert_objective(
+        membership_a = _manual_objective(
             uow,
             objective_id=objective_a,
             sequence=1,
@@ -459,7 +438,7 @@ def test_objective_nonempty_overlap_and_narrow_hard_delete_guards(initialized_da
             start_utc=10,
             end_utc=20,
         )
-        _insert_objective(
+        _manual_objective(
             uow,
             objective_id=objective_b,
             sequence=2,
@@ -477,12 +456,12 @@ def test_objective_nonempty_overlap_and_narrow_hard_delete_guards(initialized_da
             )
     assert "OBJECTIVE_OVERLAP" in str(overlap.value)
 
-    wrong_delete = new_uuid4()
     with pytest.raises(Exception) as empty:
         with UnitOfWork(factory) as uow:
+            wrong = new_uuid4()
             _receipt(
                 uow,
-                wrong_delete,
+                wrong,
                 command_type="HardDeleteObjective",
                 target_type="objective",
                 target_id=objective_b,
@@ -492,24 +471,18 @@ def test_objective_nonempty_overlap_and_narrow_hard_delete_guards(initialized_da
             )
     assert "OBJECTIVE_EMPTY" in str(empty.value)
 
-    exact_delete = new_uuid4()
     with UnitOfWork(factory) as uow:
+        exact = new_uuid4()
         _receipt(
             uow,
-            exact_delete,
+            exact,
             command_type="HardDeleteObjective",
             target_type="objective",
             target_id=objective_a,
         )
-        uow.connection.execute(
-            "DELETE FROM objective_task_membership_current WHERE task_id=?", (task_a,)
-        )
-        uow.connection.execute(
-            "DELETE FROM objective_envelope_projection WHERE objective_id=?", (objective_a,)
-        )
-        uow.connection.execute(
-            "DELETE FROM objective_aggregate_projection WHERE objective_id=?", (objective_a,)
-        )
+        uow.connection.execute("DELETE FROM objective_task_membership_current WHERE task_id=?", (task_a,))
+        uow.connection.execute("DELETE FROM objective_envelope_projection WHERE objective_id=?", (objective_a,))
+        uow.connection.execute("DELETE FROM objective_aggregate_projection WHERE objective_id=?", (objective_a,))
         uow.connection.execute(
             "DELETE FROM objective_membership_events WHERE membership_event_id=?", (membership_a,)
         )
@@ -524,20 +497,22 @@ def test_objective_nonempty_overlap_and_narrow_hard_delete_guards(initialized_da
         ).fetchone()[0] == 0
 
 
-def test_exact_regroup_supersession_can_temporarily_move_last_member(initialized_database) -> None:
+def test_exact_touch_manual_merge_can_temporarily_empty_then_supersede_old_objective(
+    initialized_database,
+) -> None:
     factory = _factory(initialized_database)
     task_a, plan_a = new_uuid4(), new_uuid4()
     task_b, plan_b = new_uuid4(), new_uuid4()
     objective_a, objective_b = new_uuid4(), new_uuid4()
 
     with UnitOfWork(factory) as uow:
-        _insert_local_task_with_plan(
+        _local_task_with_plan(
             uow, task_id=task_a, plan_id=plan_a, command_id=new_uuid4(), start_utc=10, end_utc=20
         )
-        _insert_local_task_with_plan(
-            uow, task_id=task_b, plan_id=plan_b, command_id=new_uuid4(), start_utc=11, end_utc=19
+        _local_task_with_plan(
+            uow, task_id=task_b, plan_id=plan_b, command_id=new_uuid4(), start_utc=20, end_utc=30
         )
-        _insert_objective(
+        _manual_objective(
             uow,
             objective_id=objective_a,
             sequence=10,
@@ -547,52 +522,70 @@ def test_exact_regroup_supersession_can_temporarily_move_last_member(initialized
             start_utc=10,
             end_utc=20,
         )
-        _insert_objective(
+        _manual_objective(
             uow,
             objective_id=objective_b,
             sequence=11,
             task_id=task_b,
             plan_id=plan_b,
             command_id=new_uuid4(),
-            start_utc=30,
-            end_utc=40,
+            start_utc=20,
+            end_utc=30,
         )
+
         proposal_id = new_uuid4()
         uow.connection.execute(
-            "INSERT INTO regroup_proposals VALUES (?, 'consolidate', 'manual_request', 'normal', ?, 'pending', ?, 1, 0, NULL)",
+            "INSERT INTO regroup_proposals VALUES (?, 'manual_merge', 'manual_request', 'normal', ?, 'pending', ?, 1, 0, NULL)",
             (proposal_id, "a" * 64, objective_a),
         )
         uow.connection.execute(
             "INSERT INTO regroup_proposal_objective_changes VALUES (?, ?, ?, 'supersede', 1, 1)",
             (new_uuid4(), proposal_id, objective_b),
         )
-        accept_command = new_uuid4()
+        accept = new_uuid4()
         _receipt(
             uow,
-            accept_command,
+            accept,
             command_type="AcceptRegroupProposal",
             target_type="grouping_proposal",
             target_id=proposal_id,
         )
         move_event = new_uuid4()
         uow.connection.execute(
-            "INSERT INTO objective_membership_events VALUES (?, ?, 'move', ?, ?, ?, ?, 'consolidate', 1, ?)",
-            (move_event, task_b, objective_b, objective_a, plan_b, proposal_id, accept_command),
+            "INSERT INTO objective_membership_events VALUES (?, ?, 'move', ?, ?, ?, ?, 'manual_merge', 1, ?)",
+            (move_event, task_b, objective_b, objective_a, plan_b, proposal_id, accept),
         )
         uow.connection.execute(
             "UPDATE objective_task_membership_current SET objective_id=?,membership_revision=membership_revision+1,"
             "last_event_id=?,last_command_id=? WHERE task_id=?",
-            (objective_a, move_event, accept_command, task_b),
+            (objective_a, move_event, accept, task_b),
         )
         uow.connection.execute(
             "UPDATE objectives SET superseded_by_objective_id=?,revision=revision+1 WHERE objective_id=?",
             (objective_a, objective_b),
         )
+        uow.connection.execute(
+            "UPDATE objective_envelope_projection SET end_utc=30,member_count=2,membership_input_fingerprint=?,"
+            "revision=revision+1,last_command_id=? WHERE objective_id=?",
+            ("3" * 64, accept, objective_a),
+        )
+        uow.connection.execute(
+            "UPDATE objective_aggregate_projection SET included_task_count=2,aggregate_input_fingerprint=?,"
+            "revision=revision+1,last_command_id=? WHERE objective_id=?",
+            ("4" * 64, accept, objective_a),
+        )
 
     with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_task_membership_current WHERE objective_id=?", (objective_a,)
+        ).fetchone()[0] == 2
         assert snapshot.connection.execute(
             "SELECT count(*) FROM objective_task_membership_current WHERE objective_id=?", (objective_b,)
         ).fetchone()[0] == 0
         assert snapshot.connection.execute(
             "SELECT superseded_by_objective_id FROM objectives WHERE objective_id=?", (objective_b,)
         ).fetchone()[0] == objective_a
+        assert snapshot.connection.execute(
+            "SELECT start_utc,end_utc,member_count FROM objective_envelope_projection WHERE objective_id=?",
+            (objective_a,),
+        ).fetchone() == (10, 30, 2)
