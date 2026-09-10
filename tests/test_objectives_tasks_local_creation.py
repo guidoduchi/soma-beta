@@ -4,11 +4,14 @@ import json
 
 import pytest
 
-from soma.foundation.errors import IdempotencyConflict, SomaError
+from soma.foundation.errors import IdempotencyConflict, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
-from soma.objectives_tasks.repositories.tasks import TaskPlanRepository
+from soma.objectives_tasks.repositories.tasks import TaskPlanRepository, TaskRelationshipRepository
+from soma.tickets.device_references import DeviceReferenceService
+from soma.tickets.rfcs import RfcService
+from soma.tickets.service_requests import ServiceRequestService
 
 
 def _factory(initialized_database):
@@ -18,6 +21,25 @@ def _factory(initialized_database):
 
 def _result_refs(result) -> set[tuple[str, str]]:
     return {(ref.result_type, ref.result_id) for ref in result.result_refs}
+
+
+def _create_sr(factory) -> str:
+    return ServiceRequestService(factory).create_manual_service_request(command_id=new_uuid4()).service_request_id
+
+
+def _create_rfc(factory, suffix: int = 1) -> str:
+    return RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no=f"NC{suffix:014d}",
+        creation_context="manual",
+    ).rfc_id
+
+
+def _create_device(factory, suffix: int = 1) -> str:
+    return DeviceReferenceService(factory).create(
+        command_id=new_uuid4(),
+        operational_name=f"NE-LAB-{suffix}",
+    ).device_reference_id
 
 
 def test_create_local_task_minimum_is_unscheduled_and_exactly_replayable(initialized_database) -> None:
@@ -180,6 +202,124 @@ def test_local_task_name_uses_unicode17_grapheme_and_utf8_bounds(initialized_dat
             ).fetchone() is None
 
 
+def test_create_local_task_initial_relationships_are_task_owned_and_audit_retained(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = TaskPlanningService(factory)
+    sr_id = _create_sr(factory)
+    rfc_id = _create_rfc(factory, 101)
+    device_id = _create_device(factory, 101)
+    command_id = new_uuid4()
+
+    result = service.create_local_task(
+        command_id=command_id,
+        local_task_name="Replace controller",
+        service_request_ids=[sr_id],
+        rfc_ids=[rfc_id],
+        device_reference_ids=[device_id],
+    )
+    assert _result_refs(result) == {("task", result.task_id)}
+
+    with ReadSnapshot(factory) as snapshot:
+        sr_link = snapshot.connection.execute(
+            "SELECT link_id,service_request_id,active,opened_command_id,closed_command_id "
+            "FROM task_sr_links WHERE task_id=?",
+            (result.task_id,),
+        ).fetchone()
+        rfc_link = snapshot.connection.execute(
+            "SELECT link_id,rfc_id,active,opened_command_id,closed_command_id "
+            "FROM task_rfc_links WHERE task_id=?",
+            (result.task_id,),
+        ).fetchone()
+        device_link = snapshot.connection.execute(
+            "SELECT link_id,device_reference_id,active,opened_command_id,closed_command_id "
+            "FROM task_device_links WHERE task_id=?",
+            (result.task_id,),
+        ).fetchone()
+        assert tuple(sr_link[1:]) == (sr_id, 1, command_id, None)
+        assert tuple(rfc_link[1:]) == (rfc_id, 1, command_id, None)
+        assert tuple(device_link[1:]) == (device_id, 1, command_id, None)
+
+        assert snapshot.connection.execute(
+            "SELECT revision FROM service_requests WHERE service_request_id=?", (sr_id,)
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT revision FROM rfcs WHERE rfc_id=?", (rfc_id,)
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT revision FROM device_references WHERE device_reference_id=?", (device_id,)
+        ).fetchone()[0] == 1
+
+        audit_refs = snapshot.connection.execute(
+            "SELECT r.result_type,r.result_id FROM audit_event_results r "
+            "JOIN audit_events e ON e.audit_event_id=r.audit_event_id WHERE e.command_id=? "
+            "ORDER BY r.result_type,r.result_id",
+            (command_id,),
+        ).fetchall()
+        relationship_ids = {str(sr_link[0]), str(rfc_link[0]), str(device_link[0])}
+        assert {(str(row[0]), str(row[1])) for row in audit_refs} == {
+            ("task", result.task_id),
+            *(("task_relationship", relationship_id) for relationship_id in relationship_ids),
+        }
+
+
+def test_create_local_task_relationship_selection_is_canonical_for_replay(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = TaskPlanningService(factory)
+    first_sr = _create_sr(factory)
+    second_sr = _create_sr(factory)
+    command_id = new_uuid4()
+
+    applied = service.create_local_task(
+        command_id=command_id,
+        local_task_name="Canonical relation order",
+        service_request_ids=[second_sr, first_sr],
+    )
+    replayed = service.create_local_task(
+        command_id=command_id,
+        local_task_name="Canonical relation order",
+        service_request_ids=[first_sr, second_sr],
+    )
+    assert replayed.replayed
+    assert replayed.task_id == applied.task_id
+
+    with ReadSnapshot(factory) as snapshot:
+        rows = snapshot.connection.execute(
+            "SELECT service_request_id FROM task_sr_links WHERE task_id=? ORDER BY service_request_id",
+            (applied.task_id,),
+        ).fetchall()
+        assert [str(row[0]) for row in rows] == sorted([first_sr, second_sr])
+
+
+def test_create_local_task_rejects_duplicate_or_missing_relationship_targets_without_receipt(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = TaskPlanningService(factory)
+    sr_id = _create_sr(factory)
+    duplicate_command = new_uuid4()
+    missing_command = new_uuid4()
+
+    with pytest.raises(ValidationError):
+        service.create_local_task(
+            command_id=duplicate_command,
+            local_task_name="Duplicate relation",
+            service_request_ids=[sr_id, sr_id],
+        )
+    with pytest.raises(ValidationError):
+        service.create_local_task(
+            command_id=missing_command,
+            local_task_name="Missing relation",
+            device_reference_ids=[new_uuid4()],
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        for command_id in (duplicate_command, missing_command):
+            assert snapshot.connection.execute(
+                "SELECT 1 FROM command_receipts WHERE command_id=?", (command_id,)
+            ).fetchone() is None
+            assert snapshot.connection.execute(
+                "SELECT 1 FROM tasks WHERE created_command_id=?", (command_id,)
+            ).fetchone() is None
+
+
 def test_create_local_task_rolls_back_receipt_task_and_plan_then_same_command_retries(
     initialized_database,
     monkeypatch,
@@ -224,6 +364,62 @@ def test_create_local_task_rolls_back_receipt_task_and_plan_then_same_command_re
         command_id=command_id,
         local_task_name="Rollback probe",
         schedule=schedule,
+    )
+    assert retried.outcome == "APPLIED"
+    assert not retried.replayed
+
+
+def test_create_local_task_relationship_failure_rolls_back_every_prior_creation_write(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    service = TaskPlanningService(factory)
+    sr_id = _create_sr(factory)
+    device_id = _create_device(factory, 202)
+    command_id = new_uuid4()
+    original_link = TaskRelationshipRepository.link
+    calls = 0
+
+    def fail_on_second_relationship(uow, row) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("injected F001 relationship failure")
+        original_link(uow, row)
+
+    monkeypatch.setattr(TaskRelationshipRepository, "link", staticmethod(fail_on_second_relationship))
+    with pytest.raises(RuntimeError, match="injected F001 relationship failure"):
+        service.create_local_task(
+            command_id=command_id,
+            local_task_name="Relationship rollback probe",
+            service_request_ids=[sr_id],
+            device_reference_ids=[device_id],
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?", (command_id,)
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM tasks WHERE created_command_id=?", (command_id,)
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM task_sr_links WHERE opened_command_id=?", (command_id,)
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM task_device_links WHERE opened_command_id=?", (command_id,)
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM audit_events WHERE command_id=?", (command_id,)
+        ).fetchone() is None
+
+    monkeypatch.setattr(TaskRelationshipRepository, "link", staticmethod(original_link))
+    retried = service.create_local_task(
+        command_id=command_id,
+        local_task_name="Relationship rollback probe",
+        service_request_ids=[sr_id],
+        device_reference_ids=[device_id],
     )
     assert retried.outcome == "APPLIED"
     assert not retried.replayed
