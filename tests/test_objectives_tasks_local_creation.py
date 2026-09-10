@@ -162,11 +162,19 @@ def test_create_local_task_schedule_preserves_exact_operational_interval_without
             "SELECT 1 FROM objective_task_membership_current WHERE task_id=?", (result.task_id,)
         ).fetchone() is None
         audit_payload = snapshot.connection.execute(
-            "SELECT payload_json FROM audit_events WHERE command_id=? AND action_type='task.created'",
+            "SELECT payload_json,audit_event_id FROM audit_events WHERE command_id=? AND action_type='task.created'",
             (command_id,),
         ).fetchone()
         assert audit_payload is not None
         assert json.loads(str(audit_payload[0]))["task_plan_revision_id"] == plan_revision_id
+        audit_refs = snapshot.connection.execute(
+            "SELECT result_type,result_id FROM audit_event_results WHERE audit_event_id=?",
+            (str(audit_payload[1]),),
+        ).fetchall()
+        assert {(str(row[0]), str(row[1])) for row in audit_refs} == {
+            ("task", result.task_id),
+            ("task_plan", plan_revision_id),
+        }
 
 
 def test_local_task_name_uses_unicode17_grapheme_and_utf8_bounds(initialized_database) -> None:
@@ -185,7 +193,7 @@ def test_local_task_name_uses_unicode17_grapheme_and_utf8_bounds(initialized_dat
 
     rejected_commands: list[str] = []
     for name in (
-        "\u2003\t  ",
+        "\u0085\u2003\t  ",
         "e\u0301" * 241,
         ("e" + "\u0301" * 3) * 150,
     ):
@@ -217,7 +225,6 @@ def test_create_local_task_initial_relationships_are_task_owned_and_audit_retain
         rfc_ids=[rfc_id],
         device_reference_ids=[device_id],
     )
-    assert _result_refs(result) == {("task", result.task_id)}
 
     with ReadSnapshot(factory) as snapshot:
         sr_link = snapshot.connection.execute(
@@ -256,10 +263,12 @@ def test_create_local_task_initial_relationships_are_task_owned_and_audit_retain
             (command_id,),
         ).fetchall()
         relationship_ids = {str(sr_link[0]), str(rfc_link[0]), str(device_link[0])}
-        assert {(str(row[0]), str(row[1])) for row in audit_refs} == {
+        expected_refs = {
             ("task", result.task_id),
             *(("task_relationship", relationship_id) for relationship_id in relationship_ids),
         }
+        assert _result_refs(result) == expected_refs
+        assert {(str(row[0]), str(row[1])) for row in audit_refs} == expected_refs
 
 
 def test_create_local_task_relationship_selection_is_canonical_for_replay(initialized_database) -> None:
@@ -281,6 +290,7 @@ def test_create_local_task_relationship_selection_is_canonical_for_replay(initia
     )
     assert replayed.replayed
     assert replayed.task_id == applied.task_id
+    assert replayed.result_refs == applied.result_refs
 
     with ReadSnapshot(factory) as snapshot:
         rows = snapshot.connection.execute(
@@ -290,12 +300,15 @@ def test_create_local_task_relationship_selection_is_canonical_for_replay(initia
         assert [str(row[0]) for row in rows] == sorted([first_sr, second_sr])
 
 
-def test_create_local_task_rejects_duplicate_or_missing_relationship_targets_without_receipt(initialized_database) -> None:
+def test_create_local_task_rejects_duplicate_missing_or_oversized_relationship_targets_without_receipt(
+    initialized_database,
+) -> None:
     factory = _factory(initialized_database)
     service = TaskPlanningService(factory)
     sr_id = _create_sr(factory)
     duplicate_command = new_uuid4()
     missing_command = new_uuid4()
+    oversized_command = new_uuid4()
 
     with pytest.raises(ValidationError):
         service.create_local_task(
@@ -309,9 +322,15 @@ def test_create_local_task_rejects_duplicate_or_missing_relationship_targets_wit
             local_task_name="Missing relation",
             device_reference_ids=[new_uuid4()],
         )
+    with pytest.raises(ValidationError):
+        service.create_local_task(
+            command_id=oversized_command,
+            local_task_name="Too many initial relations",
+            service_request_ids=[new_uuid4() for _ in range(63)],
+        )
 
     with ReadSnapshot(factory) as snapshot:
-        for command_id in (duplicate_command, missing_command):
+        for command_id in (duplicate_command, missing_command, oversized_command):
             assert snapshot.connection.execute(
                 "SELECT 1 FROM command_receipts WHERE command_id=?", (command_id,)
             ).fetchone() is None
