@@ -1,0 +1,60 @@
+{
+  "schema":"SOMA-LLD-SCHEMA-V1",
+  "lld_id":"LLD-03",
+  "purpose":"Persist the reviewed Advanced Search Service Request disappearance/reappearance warning lifecycle without treating source absence as ticket lifecycle authority or copying LLD-04 source rows into Tickets.",
+  "warning_code":"SR_SOURCE_DISAPPEARANCE_REVIEWED",
+  "tables":[
+    {
+      "name":"sr_source_presence_events",
+      "columns":[
+        "sr_source_presence_event_id TEXT PRIMARY KEY",
+        "service_request_id TEXT NOT NULL REFERENCES service_requests(service_request_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "source_family TEXT NOT NULL CHECK(source_family='advanced_search_sr')",
+        "event_kind TEXT NOT NULL CHECK(event_kind IN ('disappearance_reviewed','reappearance_confirmed'))",
+        "prior_presence_event_id TEXT REFERENCES sr_source_presence_events(sr_source_presence_event_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "import_run_id TEXT NOT NULL CHECK(length(import_run_id)>0)",
+        "source_observation_id TEXT",
+        "prior_source_observation_id TEXT",
+        "reconciliation_proposal_id TEXT",
+        "accepted_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+        "recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)",
+        "CHECK((event_kind='disappearance_reviewed' AND source_observation_id IS NULL AND prior_source_observation_id IS NOT NULL AND reconciliation_proposal_id IS NOT NULL) OR (event_kind='reappearance_confirmed' AND source_observation_id IS NOT NULL AND prior_source_observation_id IS NULL AND reconciliation_proposal_id IS NULL))"
+      ],
+      "rules":[
+        "events are immutable append-only LLD-03 authority; no mutable warning/status row exists",
+        "no event history means no reviewed-disappearance warning; it does not independently assert that the SR is currently present in an external source",
+        "the unique chain root is the first reviewed disappearance for one service_request_id/source_family; every later event references the immediately prior chain head",
+        "event kinds alternate: a reappearance_confirmed follows the exact open disappearance_reviewed event it resolves, and a later disappearance_reviewed follows the exact prior reappearance_confirmed event",
+        "the current chain head is the unique event not referenced as prior_presence_event_id; disappearance_reviewed means warning open and reappearance_confirmed means warning clear",
+        "disappearance_reviewed is created only by accepted sr_source_disappearance_review through ServiceRequestImportMutationService after exact LLD-04 population-absence validation",
+        "reappearance_confirmed is created only inside governed PublishStagedImportRun after exact LLD-04 evidence proves the same canonical SR is present again in the same source family",
+        "import_run_id, source_observation_id, prior_source_observation_id and reconciliation_proposal_id are immutable opaque LLD-04 identities validated through SrSourcePresenceEvidenceProvider; this LLD-03 table has no physical FK into LLD-04 private tables",
+        "reappearance proves source presence only; it accepts no source field value and mutates no SR identity, lifecycle, source projection, Customer, Contact, Current Handler, RFC relationship or other ticket authority",
+        "field-level warnings or unusable non-identity fields do not prevent reappearance when the source observation itself has a valid conflict-free canonical eight-digit SR identity",
+        "BEFORE UPDATE/DELETE raises SR_SOURCE_PRESENCE_APPEND_ONLY"
+      ]
+    }
+  ],
+  "indexes":[
+    "CREATE UNIQUE INDEX uq_sr_source_presence_chain_root ON sr_source_presence_events(service_request_id,source_family) WHERE prior_presence_event_id IS NULL",
+    "CREATE UNIQUE INDEX uq_sr_source_presence_successor ON sr_source_presence_events(prior_presence_event_id) WHERE prior_presence_event_id IS NOT NULL",
+    "CREATE INDEX idx_sr_source_presence_current ON sr_source_presence_events(service_request_id,source_family,sr_source_presence_event_id)",
+    "CREATE INDEX idx_sr_source_presence_command_fk ON sr_source_presence_events(accepted_command_id,sr_source_presence_event_id)",
+    "CREATE INDEX idx_sr_source_presence_import_ref ON sr_source_presence_events(import_run_id,sr_source_presence_event_id)",
+    "CREATE INDEX idx_sr_source_presence_observation_ref ON sr_source_presence_events(source_observation_id,sr_source_presence_event_id)",
+    "CREATE INDEX idx_sr_source_presence_prior_observation_ref ON sr_source_presence_events(prior_source_observation_id,sr_source_presence_event_id)",
+    "CREATE INDEX idx_sr_source_presence_proposal_ref ON sr_source_presence_events(reconciliation_proposal_id,sr_source_presence_event_id)"
+  ],
+  "database_guards":[
+    "BEFORE UPDATE and BEFORE DELETE reject every sr_source_presence_events row",
+    "BEFORE INSERT with prior_presence_event_id verifies the prior row belongs to the same service_request_id/source_family and has the opposite event_kind required by the alternating lifecycle",
+    "the chain-root and successor unique indexes prevent a second independent root or branch from one prior event; application revalidation additionally requires prior_presence_event_id to be the current chain head",
+    "LLD-03 validates every opaque LLD-04 evidence identity through SrSourcePresenceEvidenceProvider inside the authoritative caller UnitOfWork; no trigger queries LLD-04 private tables"
+  ],
+  "current_projection":{
+    "algorithm":"read the unique chain head for service_request_id/source_family by selecting the event with no successor; no materialized current-warning table is required",
+    "warning_rule":"head event_kind=disappearance_reviewed emits exactly SR_SOURCE_DISAPPEARANCE_REVIEWED; head event_kind=reappearance_confirmed or no history emits no source-disappearance warning",
+    "history_rule":"all earlier cycles remain immutable and queryable independently of current warning projection"
+  },
+  "privacy_storage":"Only bounded owner/evidence identifiers and event kind/time persist. Raw workbook rows, labels, field values, parser findings and source text never enter this table."
+}
