@@ -10,10 +10,12 @@ from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import loads_canonical_json, sha256_canonical_json
 
 from ..audit_registry import build_objectives_tasks_audit_registry
-from ..repositories.tasks import TaskRecord, TaskRepository, TaskNoStatus, WfmTaskRepository
+from ..repositories.tasks import TaskNoStatus, TaskRecord, TaskRepository, WfmTaskRepository
 
 Reader = ReadSnapshot | UnitOfWork
 _AUDIT_REGISTRY = build_objectives_tasks_audit_registry()
+_MAX_CREATION_AUDIT_REFS = 64
+_MAX_LOCAL_CREATION_RELATIONSHIP_REFS = 62
 
 
 class InventoryTaskDependencyProvider(Protocol):
@@ -63,6 +65,14 @@ class TaskHardDeletePreview:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class _CreationAuditEvidence:
+    status: str
+    plan_revision_id: str | None = None
+    relationship_ids: frozenset[str] = frozenset()
+    wfm_assignment_event_id: str | None = None
+
+
 class TaskHardDeleteQueryService:
     """Pure LLD-05 hard-delete eligibility shared by preview and writer revalidation."""
 
@@ -86,7 +96,13 @@ class TaskHardDeleteQueryService:
         return connection.execute(sql, (task_id,)).fetchone() is not None
 
     @staticmethod
-    def _allowed_draft_links(connection, *, table: str, id_column: str, task: TaskRecord) -> tuple[tuple[str, ...], bool]:
+    def _allowed_draft_links(
+        connection,
+        *,
+        table: str,
+        id_column: str,
+        task: TaskRecord,
+    ) -> tuple[tuple[str, ...], bool]:
         rows = connection.execute(
             f"SELECT {id_column},active,opened_command_id,closed_command_id FROM {table} "
             "WHERE task_id=? ORDER BY " + id_column,
@@ -120,39 +136,41 @@ class TaskHardDeleteQueryService:
         return "CLEAR"
 
     @staticmethod
-    def _creation_audit_status(connection, task: TaskRecord) -> tuple[str, str | None]:
+    def _creation_audit_evidence(connection, task: TaskRecord) -> _CreationAuditEvidence:
         expected_action = "task.wfm_registered" if task.task_kind == "wfm" else "task.created"
         rows = connection.execute(
-            "SELECT action_type,action_version,command_id,target_type,target_id,payload_schema,payload_version,payload_json "
+            "SELECT audit_event_id,action_type,action_version,command_id,target_type,target_id,"
+            "payload_schema,payload_version,payload_json "
             "FROM audit_events WHERE target_type='task' AND target_id=? ORDER BY audit_event_id",
             (task.task_id,),
         ).fetchall()
         if not rows:
-            return "INDETERMINATE", None
+            return _CreationAuditEvidence("INDETERMINATE")
         creation = [
             row
             for row in rows
-            if str(row[0]) == expected_action and str(row[2]) == task.created_command_id
+            if str(row[1]) == expected_action and str(row[3]) == task.created_command_id
         ]
         if len(creation) != 1:
-            return "INDETERMINATE", None
+            return _CreationAuditEvidence("INDETERMINATE")
         if len(rows) != 1:
-            return "BLOCKED", None
+            return _CreationAuditEvidence("BLOCKED")
 
         row = creation[0]
         try:
-            action_version = int(row[1])
-            contract = _AUDIT_REGISTRY.resolve(str(row[0]), action_version)
+            audit_event_id = require_uuid4(str(row[0]))
+            action_version = int(row[2])
+            contract = _AUDIT_REGISTRY.resolve(str(row[1]), action_version)
             if (
-                str(row[3]) != "task"
-                or str(row[4]) != task.task_id
-                or str(row[5]) != contract.payload_schema
-                or int(row[6]) != contract.payload_version
-                or not isinstance(row[7], str)
+                str(row[4]) != "task"
+                or str(row[5]) != task.task_id
+                or str(row[6]) != contract.payload_schema
+                or int(row[7]) != contract.payload_version
+                or not isinstance(row[8], str)
             ):
-                return "INDETERMINATE", None
+                return _CreationAuditEvidence("INDETERMINATE")
             payload = loads_canonical_json(
-                row[7],
+                row[8],
                 max_bytes=contract.payload_contract.max_utf8_bytes,
                 max_depth=contract.payload_contract.max_depth,
                 max_collection_items=contract.payload_contract.max_collection_items,
@@ -161,14 +179,68 @@ class TaskHardDeleteQueryService:
             if contract.sensitivity_validator is not None:
                 contract.sensitivity_validator(validated)
         except (SomaError, ValidationError, TypeError, ValueError):
-            return "INDETERMINATE", None
+            return _CreationAuditEvidence("INDETERMINATE")
 
         if validated.get("task_id") != task.task_id:
-            return "INDETERMINATE", None
+            return _CreationAuditEvidence("INDETERMINATE")
         plan_revision_id = validated.get("task_plan_revision_id")
-        if plan_revision_id is not None and not isinstance(plan_revision_id, str):
-            return "INDETERMINATE", None
-        return "CLEAR", plan_revision_id
+        if plan_revision_id is not None:
+            if not isinstance(plan_revision_id, str):
+                return _CreationAuditEvidence("INDETERMINATE")
+            try:
+                plan_revision_id = require_uuid4(plan_revision_id)
+            except ValidationError:
+                return _CreationAuditEvidence("INDETERMINATE")
+
+        ref_rows = connection.execute(
+            "SELECT ordinal,result_type,result_id FROM audit_event_results "
+            "WHERE audit_event_id=? ORDER BY ordinal LIMIT ?",
+            (audit_event_id, _MAX_CREATION_AUDIT_REFS + 1),
+        ).fetchall()
+        if len(ref_rows) > _MAX_CREATION_AUDIT_REFS:
+            return _CreationAuditEvidence("INDETERMINATE")
+        try:
+            ordinals = [int(ref[0]) for ref in ref_rows]
+            if ordinals != list(range(len(ref_rows))):
+                return _CreationAuditEvidence("INDETERMINATE")
+            pairs = [(str(ref[1]), require_uuid4(str(ref[2]))) for ref in ref_rows]
+        except (TypeError, ValueError, ValidationError):
+            return _CreationAuditEvidence("INDETERMINATE")
+        if pairs != sorted(pairs):
+            return _CreationAuditEvidence("INDETERMINATE")
+
+        task_refs = [result_id for result_type, result_id in pairs if result_type == "task"]
+        if task_refs != [task.task_id]:
+            return _CreationAuditEvidence("INDETERMINATE")
+
+        if task.task_kind == "local":
+            if any(result_type not in {"task", "task_plan", "task_relationship"} for result_type, _ in pairs):
+                return _CreationAuditEvidence("INDETERMINATE")
+            plan_refs = [result_id for result_type, result_id in pairs if result_type == "task_plan"]
+            expected_plan_refs = [] if plan_revision_id is None else [plan_revision_id]
+            if plan_refs != expected_plan_refs:
+                return _CreationAuditEvidence("INDETERMINATE")
+            relationship_ids = frozenset(
+                result_id for result_type, result_id in pairs if result_type == "task_relationship"
+            )
+            if len(relationship_ids) > _MAX_LOCAL_CREATION_RELATIONSHIP_REFS:
+                return _CreationAuditEvidence("INDETERMINATE")
+            return _CreationAuditEvidence(
+                "CLEAR",
+                plan_revision_id=plan_revision_id,
+                relationship_ids=relationship_ids,
+            )
+
+        if any(result_type not in {"task", "wfm_assignment"} for result_type, _ in pairs):
+            return _CreationAuditEvidence("INDETERMINATE")
+        assignment_refs = [result_id for result_type, result_id in pairs if result_type == "wfm_assignment"]
+        if len(assignment_refs) != 1:
+            return _CreationAuditEvidence("INDETERMINATE")
+        return _CreationAuditEvidence(
+            "CLEAR",
+            plan_revision_id=plan_revision_id,
+            wfm_assignment_event_id=assignment_refs[0],
+        )
 
     @staticmethod
     def _plan_state(connection, task: TaskRecord) -> tuple[str | None, str]:
@@ -262,23 +334,13 @@ class TaskHardDeleteQueryService:
         add("TASK_REVISION_NOT_INITIAL", "BLOCKED" if task.revision != 1 else "CLEAR")
         add("TASK_CREATION_RECEIPT_INVALID", self._creation_receipt_status(connection, task))
 
-        creation_audit_status, creation_audit_plan_revision_id = self._creation_audit_status(connection, task)
+        creation_audit = self._creation_audit_evidence(connection, task)
+        creation_audit_status = creation_audit.status
 
         task_no, assignment_event_id, wfm_status = self._wfm_state(connection, task)
-        add("WFM_IDENTITY_OR_ASSIGNMENT_HISTORY_PRESENT", wfm_status)
-
         plan_revision_id, plan_status = self._plan_state(connection, task)
-        if (
-            creation_audit_status == "CLEAR"
-            and plan_status == "CLEAR"
-            and creation_audit_plan_revision_id != plan_revision_id
-        ):
-            creation_audit_status = "INDETERMINATE"
-        add("TASK_AUDIT_HISTORY_PRESENT", creation_audit_status)
-        add("TASK_PLAN_HISTORY_PRESENT", plan_status)
 
         lock_projection_present, lock_status = self._lock_projection_state(connection, task.task_id)
-        add("TASK_LOCK_HISTORY_PRESENT", lock_status)
 
         sr_links, sr_history = self._allowed_draft_links(
             connection, table="task_sr_links", id_column="link_id", task=task
@@ -289,7 +351,34 @@ class TaskHardDeleteQueryService:
         device_links, device_history = self._allowed_draft_links(
             connection, table="task_device_links", id_column="link_id", task=task
         )
-        add("TASK_RELATIONSHIP_HISTORY_PRESENT", "BLOCKED" if sr_history or rfc_history or device_history else "CLEAR")
+        relationship_history = sr_history or rfc_history or device_history
+
+        if (
+            creation_audit_status == "CLEAR"
+            and plan_status == "CLEAR"
+            and creation_audit.plan_revision_id != plan_revision_id
+        ):
+            creation_audit_status = "INDETERMINATE"
+        if (
+            creation_audit_status == "CLEAR"
+            and task.task_kind == "wfm"
+            and wfm_status == "CLEAR"
+            and creation_audit.wfm_assignment_event_id != assignment_event_id
+        ):
+            creation_audit_status = "INDETERMINATE"
+        if (
+            creation_audit_status == "CLEAR"
+            and task.task_kind == "local"
+            and not relationship_history
+            and creation_audit.relationship_ids != frozenset((*sr_links, *rfc_links, *device_links))
+        ):
+            creation_audit_status = "INDETERMINATE"
+
+        add("WFM_IDENTITY_OR_ASSIGNMENT_HISTORY_PRESENT", wfm_status)
+        add("TASK_AUDIT_HISTORY_PRESENT", creation_audit_status)
+        add("TASK_PLAN_HISTORY_PRESENT", plan_status)
+        add("TASK_LOCK_HISTORY_PRESENT", lock_status)
+        add("TASK_RELATIONSHIP_HISTORY_PRESENT", "BLOCKED" if relationship_history else "CLEAR")
 
         history_checks = (
             ("WFM_SOURCE_HISTORY_PRESENT", "SELECT 1 FROM wfm_source_projection_cache WHERE task_id=? LIMIT 1"),
