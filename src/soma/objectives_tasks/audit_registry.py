@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
 from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
@@ -16,6 +18,18 @@ _TASK_AUDIT_FIELDS = frozenset(
         "reason_category",
     }
 )
+_HARD_DELETE_AUDIT_FIELDS = frozenset(
+    {
+        "target_type",
+        "target_id",
+        "reviewed_revision",
+        "eligibility_fingerprint",
+        "confirmation_context_id",
+        "retained_related_ids",
+        "result",
+    }
+)
+_SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _validate_wfm_registered(payload: dict[str, object]) -> None:
@@ -40,6 +54,60 @@ def _validate_wfm_registered(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM registration audit reason must be null")
 
 
+def _validate_hard_delete(payload: dict[str, object]) -> None:
+    if payload.get("target_type") != "task" or payload.get("result") != "deleted":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete audit target/result is invalid")
+    target_id = payload.get("target_id")
+    try:
+        if not isinstance(target_id, str):
+            raise ValidationError("target_id must be UUID text")
+        require_uuid4(target_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete target identity is invalid") from exc
+    revision = payload.get("reviewed_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete reviewed revision is invalid")
+    fingerprint = payload.get("eligibility_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete eligibility fingerprint is invalid")
+    confirmation = payload.get("confirmation_context_id")
+    if confirmation is not None:
+        if not isinstance(confirmation, str):
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete confirmation context must be text or null")
+        try:
+            encoded = confirmation.encode("utf-8", errors="strict")
+        except UnicodeEncodeError as exc:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete confirmation context is invalid Unicode") from exc
+        if not encoded or len(encoded) > 1024 or "\x00" in confirmation or "\r" in confirmation or "\n" in confirmation:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete confirmation context violates its bound")
+    retained = payload.get("retained_related_ids")
+    if not isinstance(retained, list) or len(retained) > 32:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete retained-related list is invalid")
+    seen: set[str] = set()
+    for value in retained:
+        try:
+            if not isinstance(value, str):
+                raise ValidationError("retained identity must be UUID text")
+            require_uuid4(value)
+        except ValidationError as exc:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete retained identity is invalid") from exc
+        if value in seen:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete retained identities must be unique")
+        seen.add(value)
+
+
+def _contract(name: str, fields: frozenset[str], *, max_items: int = 32) -> ObjectContract:
+    return ObjectContract(
+        name=name,
+        version=1,
+        required_fields=fields,
+        allowed_fields=fields,
+        max_depth=4,
+        max_collection_items=max_items,
+        max_utf8_bytes=16_384,
+    )
+
+
 def build_objectives_tasks_audit_registry() -> AuditRegistry:
     registry = AuditRegistry()
     registry.register(
@@ -48,16 +116,18 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
             action_version=1,
             payload_schema="TaskAuditV1",
             payload_version=1,
-            payload_contract=ObjectContract(
-                name="TaskAuditV1",
-                version=1,
-                required_fields=_TASK_AUDIT_FIELDS,
-                allowed_fields=_TASK_AUDIT_FIELDS,
-                max_depth=3,
-                max_collection_items=16,
-                max_utf8_bytes=16_384,
-            ),
+            payload_contract=_contract("TaskAuditV1", _TASK_AUDIT_FIELDS, max_items=16),
             sensitivity_validator=_validate_wfm_registered,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.hard_deleted",
+            action_version=1,
+            payload_schema="HardDeleteAuditV1",
+            payload_version=1,
+            payload_contract=_contract("HardDeleteAuditV1", _HARD_DELETE_AUDIT_FIELDS),
+            sensitivity_validator=_validate_hard_delete,
         )
     )
     return registry
