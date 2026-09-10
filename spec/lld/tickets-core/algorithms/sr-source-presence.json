@@ -1,0 +1,35 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V2",
+  "lld_id":"LLD-03",
+  "name":"ServiceRequestSourcePresenceReviewLifecycle",
+  "scope":"Advanced Search Service Request source-presence warning history only; source field projection and ticket lifecycle remain separate authorities.",
+  "source_family":"advanced_search_sr",
+  "warning_code":"SR_SOURCE_DISAPPEARANCE_REVIEWED",
+  "state_type":{"name":"SrSourcePresenceStateV1","fields":["service_request_id","source_family","latest_event_id|null","latest_event_kind|null","active_disappearance_event_id|null","warning_active","base_token_sha256"],"rules":["no history => latest fields null, active_disappearance_event_id null, warning_active=false","disappearance_reviewed head => active_disappearance_event_id=head id, warning_active=true","reappearance_confirmed head => active_disappearance_event_id=null, warning_active=false"]},
+  "apply_result_type":{"name":"SrSourcePresenceApplyResultV1","fields":["service_request_id","source_family","presence_event_id","event_kind","prior_presence_event_id|null","warning_active"],"bounded":true},
+  "base_token":{"profile":"SOMA_SR_SOURCE_PRESENCE_BASE_V1","object":{"schema":"SOMA_SR_SOURCE_PRESENCE_BASE_V1","service_request_id":"uuid","official_sr_no":"exact current eight ASCII digits","service_request_revision":"int>0","source_family":"advanced_search_sr","latest_event_id":"uuid|null","latest_event_kind":"disappearance_reviewed|reappearance_confirmed|null","active_disappearance_event_id":"uuid|null"},"canonicalization":"LLD-01 StrictVersionedJson canonical_json exactly: ensure_ascii=false, allow_nan=false, sort_keys=true, separators=(',',':'), UTF-8; lowercase SHA-256 of exact canonical bytes","rule":"proposal generation and disappearance acceptance use the identical reader algorithm; any SR revision or presence-chain-head change changes the token"},
+  "disappearance_acceptance":[
+    "AcceptReconciliationProposal owns the one outer LLD-01 UnitOfWork and receipt; ServiceRequestImportMutationService creates no nested receipt/commit.",
+    "before owner mutation, LLD-04 revalidates pending sr_source_disappearance_review revision/fingerprint/base token and population_absence evidence against the exact current complete published Advanced Search run",
+    "LLD-03 recomputes SOMA_SR_SOURCE_PRESENCE_BASE_V1 in the supplied writer UnitOfWork and requires exact equality with the proposal base-state token",
+    "SrSourcePresenceEvidenceProvider.validate_disappearance_acceptance proves proposal kind/evidence mode/target SR/current import_run/prior_source_observation and canonical prior SR identity; INVALID or INDETERMINATE fails closed",
+    "an active disappearance warning is not opened twice: proposal generation suppresses a new review while warning_active=true; commit-time head drift makes an older proposal stale unless exact outer command replay already returned its recorded result",
+    "after the outer receipt exists, append one disappearance_reviewed event linked to the current chain head (null only for the first event), add the registered LLD-03 source-presence audit/result reference, then allow LLD-04 disposition/run-counter writes and commit",
+    "no Service Request identity/lifecycle/source-field projection/Customer/Contact/Current Handler/RFC relationship or other ticket authority is changed"
+  ],
+  "reappearance_reconciliation":[
+    "PublishStagedImportRun never clears source-presence warnings directly and never sends an unbounded SR list through a cross-packet participant.",
+    "when an advanced_search_sr run becomes authoritatively published, the same publication UnitOfWork enqueue_or_coalesces one ticket_import.sr_reappearance_reconcile durable job keyed by import_run_id; failed publication rolls back the enqueue and therefore cannot clear any warning",
+    "the durable job scans only valid conflict-free canonical SR identities from that exact published run using deterministic keyset pagination; no workbook bytes/raw rows are re-read",
+    "each job checkpoint transaction processes a configured technical page bounded by LLD-04 import processing bounds; it resolves current LLD-03 SR identity and SrSourcePresenceStateV1 for each candidate",
+    "when warning_active=false no LLD-03 mutation command is created; when warning_active=true the worker executes one internal command per SR with an exact command_id/dedupe identity derived from job/import_run/service_request/active_disappearance_event, so retries use Foundation replay rather than duplicate events",
+    "inside each internal command writer UnitOfWork, LLD-03 exact-compares expected_active_disappearance_event_id to the current chain head, then SrSourcePresenceEvidenceProvider.validate_reappearance_evidence proves the source_observation belongs to the exact published advanced_search_sr run, has a conflict-free canonical eight-digit SR identity equal to the current official SR, and is valid evidence of row presence",
+    "field-level warnings, missing optional fields, unknown controlled values or unusable non-identity fields do not block reappearance when canonical SR identity evidence is valid; acceptance of any source field value is out of scope",
+    "append one reappearance_confirmed event whose prior_presence_event_id is the exact active disappearance event, add the registered LLD-03 audit/result reference, and commit; provider or head drift INVALID/INDETERMINATE fails closed without clearing the warning",
+    "after each bounded page commits, the durable job checkpoint advances; restart resumes after the last committed keyset position and Foundation command replay makes already-completed per-SR resolutions harmless",
+    "a later reviewed disappearance appends a new disappearance_reviewed event after the reappearance head, preserving every prior cycle"
+  ],
+  "query_projection":["GetServiceRequest reads only LLD-03 presence history and emits warning code SR_SOURCE_DISAPPEARANCE_REVIEWED exactly when the current chain head is disappearance_reviewed","pending/rejected/deferred/superseded disappearance proposals are LLD-04 evidence only and never surface as an LLD-03 domain warning","reappearance clearing is reflected when its LLD-03 event commits; history remains immutable and independently inspectable"],
+  "transaction_rules":["LLD-04 proposal acceptance and each internal reappearance resolution command use exactly one outer LLD-01 UnitOfWork/receipt","cross-packet providers are read-only validators in the caller UnitOfWork and never commit","durable reappearance processing is bounded/checkpointed and never makes PublishStagedImportRun writer duration proportional to the source population","no runtime sequence-14 schema/code may be activated before the accepted migration prefix 1..13 exists"],
+  "failure_rules":["stale/missing/malformed/ambiguous/cross-SR/cross-source evidence fails closed","failed publication enqueues no reappearance work","failed per-SR resolution rolls back its receipt/event/audit/result and remains retryable from the durable job checkpoint","exact replay returns the original result without rereading mutable current presence/source state"]
+}
