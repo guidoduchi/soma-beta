@@ -53,6 +53,17 @@ _TASK_PLAN_CORRECTION_AUDIT_FIELDS = frozenset(
         "correction_review_fingerprint",
     }
 )
+_TASK_LOCK_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "lock_event_id",
+        "lock_kind",
+        "action",
+        "resulting_task_revision",
+        "resulting_lock_revision",
+        "reason_category",
+    }
+)
 _HARD_DELETE_AUDIT_FIELDS = frozenset(
     {
         "target_type",
@@ -203,6 +214,29 @@ def _validate_task_plan_corrected(payload: dict[str, object]) -> None:
     _validate_bounded_reason(payload.get("reason_category"), required=True, label="Task plan correction")
 
 
+def _validate_task_lock_changed(payload: dict[str, object]) -> None:
+    task_id = payload.get("task_id")
+    lock_event_id = payload.get("lock_event_id")
+    try:
+        for value in (task_id, lock_event_id):
+            if not isinstance(value, str):
+                raise ValidationError("Task lock audit identity must be UUID text")
+            require_uuid4(value)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit identity is invalid") from exc
+    if payload.get("lock_kind") not in {"plan", "membership"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit lock_kind is invalid")
+    if payload.get("action") not in {"lock", "unlock"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit action is invalid")
+    task_revision = payload.get("resulting_task_revision")
+    lock_revision = payload.get("resulting_lock_revision")
+    if type(task_revision) is not int or task_revision <= 1:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit Task revision is invalid")
+    if type(lock_revision) is not int or lock_revision <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit lock revision is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=True, label="Task lock")
+
+
 def _validate_hard_delete(payload: dict[str, object]) -> None:
     if payload.get("target_type") != "task" or payload.get("result") != "deleted":
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task hard-delete audit target/result is invalid")
@@ -307,6 +341,16 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
             payload_version=1,
             payload_contract=_contract("TaskPlanCorrectionAuditV1", _TASK_PLAN_CORRECTION_AUDIT_FIELDS, max_items=16),
             sensitivity_validator=_validate_task_plan_corrected,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.lock_changed",
+            action_version=1,
+            payload_schema="TaskLockAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskLockAuditV1", _TASK_LOCK_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_task_lock_changed,
         )
     )
     registry.register(
