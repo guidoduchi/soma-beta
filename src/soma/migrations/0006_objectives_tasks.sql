@@ -624,3 +624,76 @@ CREATE TRIGGER source_terminal_review_update_guard BEFORE UPDATE ON wfm_source_t
     SELECT CASE WHEN OLD.state<>'pending' OR NEW.source_terminal_review_id<>OLD.source_terminal_review_id OR NEW.task_id<>OLD.task_id OR NEW.source_projection_revision<>OLD.source_projection_revision OR NEW.provider_lifecycle_class<>OLD.provider_lifecycle_class OR NEW.input_fingerprint<>OLD.input_fingerprint OR NEW.created_at_utc<>OLD.created_at_utc OR NEW.revision<>OLD.revision+1 OR NEW.state NOT IN ('retain_local_work','terminate_local_work','superseded') OR NEW.last_command_id IS NULL OR (NEW.state='retain_local_work' AND (NEW.decided_at_utc IS NULL OR NEW.local_consequence_event_id IS NOT NULL)) OR (NEW.state='terminate_local_work' AND (NEW.decided_at_utc IS NULL OR NEW.local_consequence_event_id IS NULL OR NOT EXISTS (SELECT 1 FROM task_execution_events WHERE execution_event_id=NEW.local_consequence_event_id AND task_id=NEW.task_id AND event_kind='source_terminal_consequence'))) OR (NEW.state='superseded' AND NEW.local_consequence_event_id IS NOT NULL) THEN RAISE(ABORT,'SOURCE_TERMINAL_REVIEW_HISTORY_INVALID') END;
 END;
 CREATE TRIGGER source_terminal_review_delete_guard BEFORE DELETE ON wfm_source_terminal_reviews BEGIN SELECT RAISE(ABORT,'SOURCE_TERMINAL_REVIEW_HISTORY_APPEND_ONLY'); END;
+
+-- Narrow transactional exceptions required by accepted regroup/reconsider semantics.
+DROP TRIGGER objective_membership_nonempty_delete_guard;
+CREATE TRIGGER objective_membership_nonempty_delete_guard AFTER DELETE ON objective_task_membership_current
+WHEN EXISTS (SELECT 1 FROM objectives WHERE objective_id=OLD.objective_id AND superseded_by_objective_id IS NULL)
+ AND NOT EXISTS (SELECT 1 FROM objective_task_membership_current WHERE objective_id=OLD.objective_id)
+ AND NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteObjective' AND target_type='objective' AND target_id=OLD.objective_id)
+ AND NOT EXISTS (
+    SELECT 1
+    FROM command_receipts cr
+    JOIN regroup_proposals p ON p.regroup_proposal_id=cr.target_id AND p.state='pending'
+    JOIN regroup_proposal_objective_changes c ON c.regroup_proposal_id=p.regroup_proposal_id
+    WHERE cr.command_type='AcceptRegroupProposal'
+      AND cr.target_type='grouping_proposal'
+      AND c.objective_id=OLD.objective_id
+      AND c.action='supersede'
+ )
+BEGIN SELECT RAISE(ABORT,'OBJECTIVE_EMPTY'); END;
+
+DROP TRIGGER objective_membership_nonempty_move_guard;
+CREATE TRIGGER objective_membership_nonempty_move_guard AFTER UPDATE OF objective_id ON objective_task_membership_current
+WHEN NEW.objective_id<>OLD.objective_id
+ AND EXISTS (SELECT 1 FROM objectives WHERE objective_id=OLD.objective_id AND superseded_by_objective_id IS NULL)
+ AND NOT EXISTS (SELECT 1 FROM objective_task_membership_current WHERE objective_id=OLD.objective_id)
+ AND NOT EXISTS (
+    SELECT 1
+    FROM command_receipts cr
+    JOIN regroup_proposals p ON p.regroup_proposal_id=cr.target_id AND p.state='pending'
+    JOIN regroup_proposal_objective_changes c ON c.regroup_proposal_id=p.regroup_proposal_id
+    WHERE cr.command_type='AcceptRegroupProposal'
+      AND cr.target_type='grouping_proposal'
+      AND c.objective_id=OLD.objective_id
+      AND c.action='supersede'
+ )
+BEGIN SELECT RAISE(ABORT,'OBJECTIVE_EMPTY'); END;
+
+DROP TRIGGER regroup_objective_change_update_guard;
+CREATE TRIGGER regroup_objective_change_update_guard BEFORE UPDATE ON regroup_proposal_objective_changes BEGIN
+    SELECT CASE WHEN NOT (
+        OLD.action='create'
+        AND OLD.objective_id IS NULL
+        AND NEW.objective_id IS NOT NULL
+        AND NEW.proposal_objective_change_id=OLD.proposal_objective_change_id
+        AND NEW.regroup_proposal_id=OLD.regroup_proposal_id
+        AND NEW.action=OLD.action
+        AND NEW.expected_objective_revision IS OLD.expected_objective_revision
+        AND NEW.expected_envelope_revision IS OLD.expected_envelope_revision
+        AND EXISTS (
+            SELECT 1 FROM command_receipts
+            WHERE command_type='AcceptRegroupProposal'
+              AND target_type='grouping_proposal'
+              AND target_id=OLD.regroup_proposal_id
+        )
+        AND EXISTS (
+            SELECT 1 FROM regroup_proposals
+            WHERE regroup_proposal_id=OLD.regroup_proposal_id AND state='pending'
+        )
+    ) THEN RAISE(ABORT,'GROUPING_PROPOSAL_HISTORY_APPEND_ONLY') END;
+END;
+
+DROP TRIGGER regroup_rejection_update_guard;
+CREATE TRIGGER regroup_rejection_update_guard BEFORE UPDATE ON regroup_rejection_events BEGIN
+    SELECT CASE WHEN NOT (
+        OLD.reconsidered_at_utc IS NULL
+        AND NEW.reconsidered_at_utc IS NOT NULL
+        AND NEW.rejection_event_id=OLD.rejection_event_id
+        AND NEW.regroup_proposal_id=OLD.regroup_proposal_id
+        AND NEW.input_fingerprint=OLD.input_fingerprint
+        AND NEW.reason_code=OLD.reason_code
+        AND NEW.recorded_at_utc=OLD.recorded_at_utc
+        AND NEW.command_id=OLD.command_id
+    ) THEN RAISE(ABORT,'GROUPING_REJECTION_HISTORY_APPEND_ONLY') END;
+END;
