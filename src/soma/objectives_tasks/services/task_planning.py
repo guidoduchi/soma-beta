@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import regex
 
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
@@ -20,6 +22,8 @@ from ..repositories.tasks import (
     TaskPlanRecord,
     TaskPlanRepository,
     TaskRecord,
+    TaskRelationshipRecord,
+    TaskRelationshipRepository,
     TaskRepository,
     WfmTaskRepository,
 )
@@ -27,6 +31,7 @@ from ..repositories.tasks import (
 _TERMINAL_RFC_STATUS_CLASSES = frozenset({"terminal_closed", "terminal_cancelled"})
 _LOCAL_TASK_NAME_MAX_GRAPHEMES = 240
 _LOCAL_TASK_NAME_MAX_UTF8_BYTES = 1024
+_RELATIONSHIP_EXISTENCE_CHUNK = 256
 
 
 def validate_local_task_name(value: str) -> str:
@@ -50,6 +55,23 @@ def validate_local_task_name(value: str) -> str:
     return value
 
 
+def _canonical_relationship_ids(value: Sequence[str], *, field: str) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValidationError(f"{field} must be a sequence of UUIDs")
+    canonical: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            raise ValidationError(f"{field} must contain UUID text")
+        identity = require_uuid4(item)
+        if identity in seen:
+            raise ValidationError(f"{field} cannot contain duplicate identities")
+        seen.add(identity)
+        canonical.append(identity)
+    canonical.sort()
+    return tuple(canonical)
+
+
 def validate_wfm_task_no(value: str) -> str:
     if (
         not isinstance(value, str)
@@ -69,10 +91,92 @@ class TaskPlanningService:
         self._tasks = TaskRepository()
         self._wfm = WfmTaskRepository()
         self._plans = TaskPlanRepository()
+        self._relationships = TaskRelationshipRepository()
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_objectives_tasks_audit_registry()),
         )
+
+    @staticmethod
+    def _require_existing_relationship_targets(
+        connection,
+        *,
+        identities: tuple[str, ...],
+        table: str,
+        id_column: str,
+        field: str,
+    ) -> None:
+        if not identities:
+            return
+        missing = set(identities)
+        for offset in range(0, len(identities), _RELATIONSHIP_EXISTENCE_CHUNK):
+            chunk = identities[offset : offset + _RELATIONSHIP_EXISTENCE_CHUNK]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = connection.execute(
+                f"SELECT {id_column} FROM {table} WHERE {id_column} IN ({placeholders})",
+                chunk,
+            ).fetchall()
+            missing.difference_update(str(row[0]) for row in rows)
+        if missing:
+            raise ValidationError(f"{field} contains an identity that does not exist")
+
+    @classmethod
+    def _revalidate_local_relationship_targets(
+        cls,
+        connection,
+        *,
+        service_request_ids: tuple[str, ...],
+        rfc_ids: tuple[str, ...],
+        device_reference_ids: tuple[str, ...],
+    ) -> None:
+        cls._require_existing_relationship_targets(
+            connection,
+            identities=service_request_ids,
+            table="service_requests",
+            id_column="service_request_id",
+            field="service_request_ids",
+        )
+        cls._require_existing_relationship_targets(
+            connection,
+            identities=rfc_ids,
+            table="rfcs",
+            id_column="rfc_id",
+            field="rfc_ids",
+        )
+        cls._require_existing_relationship_targets(
+            connection,
+            identities=device_reference_ids,
+            table="device_references",
+            id_column="device_reference_id",
+            field="device_reference_ids",
+        )
+
+    @staticmethod
+    def _initial_relationship_rows(
+        *,
+        task_id: str,
+        command_id: str,
+        service_request_ids: tuple[str, ...],
+        rfc_ids: tuple[str, ...],
+        device_reference_ids: tuple[str, ...],
+    ) -> tuple[TaskRelationshipRecord, ...]:
+        rows: list[TaskRelationshipRecord] = []
+        for kind, identities in (
+            ("sr", service_request_ids),
+            ("rfc", rfc_ids),
+            ("device", device_reference_ids),
+        ):
+            for related_id in identities:
+                rows.append(
+                    TaskRelationshipRecord(
+                        relationship_id=new_uuid4(),
+                        task_id=task_id,
+                        relationship_kind=kind,
+                        related_id=related_id,
+                        opened_command_id=command_id,
+                    )
+                )
+        return tuple(rows)
 
     @staticmethod
     def _require_eligible_rfc(connection, rfc_id: str) -> None:
@@ -94,6 +198,9 @@ class TaskPlanningService:
         command_id: str,
         local_task_name: str,
         schedule: AcceptedTaskSchedule | None = None,
+        service_request_ids: Sequence[str] = (),
+        rfc_ids: Sequence[str] = (),
+        device_reference_ids: Sequence[str] = (),
         actor_kind: str = "local_user",
         actor_id: str | None = None,
     ) -> TaskMutationResult:
@@ -101,6 +208,9 @@ class TaskPlanningService:
         if schedule is not None and not isinstance(schedule, AcceptedTaskSchedule):
             raise ValidationError("schedule must be AcceptedTaskSchedule or None")
         accepted_schedule = None if schedule is None else schedule.validate()
+        canonical_sr_ids = _canonical_relationship_ids(service_request_ids, field="service_request_ids")
+        canonical_rfc_ids = _canonical_relationship_ids(rfc_ids, field="rfc_ids")
+        canonical_device_ids = _canonical_relationship_ids(device_reference_ids, field="device_reference_ids")
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="CreateLocalTask",
@@ -109,12 +219,30 @@ class TaskPlanningService:
             semantic_payload={
                 "local_task_name": stored_name,
                 "schedule": None if accepted_schedule is None else accepted_schedule.semantic_payload(),
+                "relationships": {
+                    "service_request_ids": list(canonical_sr_ids),
+                    "rfc_ids": list(canonical_rfc_ids),
+                    "device_reference_ids": list(canonical_device_ids),
+                },
             },
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            self._revalidate_local_relationship_targets(
+                uow.connection,
+                service_request_ids=canonical_sr_ids,
+                rfc_ids=canonical_rfc_ids,
+                device_reference_ids=canonical_device_ids,
+            )
             task_id = new_uuid4()
             plan_revision_id = None if accepted_schedule is None else new_uuid4()
+            relationship_rows = self._initial_relationship_rows(
+                task_id=task_id,
+                command_id=command_id,
+                service_request_ids=canonical_sr_ids,
+                rfc_ids=canonical_rfc_ids,
+                device_reference_ids=canonical_device_ids,
+            )
             audit_event_id = new_uuid4()
             now = utc_epoch_seconds()
 
@@ -148,6 +276,15 @@ class TaskPlanningService:
                             command_id=command_id,
                         ),
                     )
+                for relationship in relationship_rows:
+                    self._relationships.link(inner, relationship)
+                audit_refs = [AuditResultRef("task", task_id)]
+                if plan_revision_id is not None:
+                    audit_refs.append(AuditResultRef("task_plan", plan_revision_id))
+                audit_refs.extend(
+                    AuditResultRef("task_relationship", relationship.relationship_id)
+                    for relationship in relationship_rows
+                )
                 return AuditEventInput(
                     audit_event_id=audit_event_id,
                     action_type="task.created",
@@ -167,7 +304,7 @@ class TaskPlanningService:
                         "task_plan_revision_id": plan_revision_id,
                         "reason_category": None,
                     },
-                    resulting_event_refs=(AuditResultRef("task", task_id),),
+                    resulting_event_refs=tuple(audit_refs),
                 )
 
             result_refs = [{"type": "task", "id": task_id}]
