@@ -11,3 +11,4 @@ def test_terminal_cascade_public_command_owners_match_certified_module_map() -> 
     assert RfcTerminalCascadeExecutionService.__module__ == "soma.tickets.rfc_terminal_cascade"
     assert RfcTerminalCascadeRefreshService.__module__ == "soma.tickets.rfc_terminal_cascade"
     assert compatibility_module.RfcTerminalCascadeExecutionService is RfcTerminalCascadeExecutionService
+    assert compatibility_module.__all__ == ["RfcTerminalCascadeExecutionService"]
