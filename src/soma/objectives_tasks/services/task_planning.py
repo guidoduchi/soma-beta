@@ -35,6 +35,8 @@ _LOCAL_TASK_NAME_MAX_UTF8_BYTES = 1024
 _LOCAL_TASK_INITIAL_RELATIONSHIP_MAX = 62
 _RELATIONSHIP_EXISTENCE_CHUNK = 256
 _TASK_REASON_CATEGORY_MAX_UTF8_BYTES = 128
+_TERMINAL_WFM_SOURCE_CLASSES = frozenset({"complete", "plan_cancel"})
+_PROTECTED_OBJECTIVE_PLAN_STATES = frozenset({"historical_structure", "reviewed", "superseded"})
 
 
 def validate_local_task_name(value: str) -> str:
@@ -339,6 +341,106 @@ class TaskPlanningService:
             )
             else "low"
         )
+
+    @staticmethod
+    def _load_current_objective_plan_context(connection, task_id: str) -> tuple[str, str, str, str | None, str, str | None, int] | None:
+        row = connection.execute(
+            "SELECT m.objective_id,m.accepted_plan_revision_id,o.creation_origin,o.superseded_by_objective_id,"
+            "a.execution_state,a.attention_reason,a.revision "
+            "FROM objective_task_membership_current m "
+            "LEFT JOIN objectives o ON o.objective_id=m.objective_id "
+            "LEFT JOIN objective_aggregate_projection a ON a.objective_id=m.objective_id "
+            "WHERE m.task_id=?",
+            (task_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        if row[2] is None or row[4] is None or row[6] is None:
+            raise SomaError(
+                "TASK_PLAN_LOCKED",
+                "current Objective plan authority cannot be reconciled safely",
+            )
+        return (
+            str(row[0]),
+            str(row[1]),
+            str(row[2]),
+            None if row[3] is None else str(row[3]),
+            str(row[4]),
+            None if row[5] is None else str(row[5]),
+            int(row[6]),
+        )
+
+    @classmethod
+    def _require_ordinary_plan_unlocked(
+        cls,
+        connection,
+        task_id: str,
+        objective_context: tuple[str, str, str, str | None, str, str | None, int] | None,
+    ) -> None:
+        explicit = connection.execute(
+            "SELECT explicit_plan_lock FROM task_lock_projection WHERE task_id=?",
+            (task_id,),
+        ).fetchone()
+        if explicit is not None and int(explicit[0]) == 1:
+            raise SomaError("TASK_PLAN_LOCKED", "Task has an explicit current plan lock")
+
+        if connection.execute(
+            "SELECT 1 FROM task_execution_events WHERE task_id=? AND event_kind<>'correction' LIMIT 1",
+            (task_id,),
+        ).fetchone() is not None:
+            raise SomaError("TASK_PLAN_LOCKED", "accepted Task execution history locks ordinary plan replacement")
+
+        source = connection.execute(
+            "SELECT provider_lifecycle_class,source_projection_revision "
+            "FROM wfm_source_projection_cache WHERE task_id=?",
+            (task_id,),
+        ).fetchone()
+        if source is not None and str(source[0]) in _TERMINAL_WFM_SOURCE_CLASSES:
+            source_revision = int(source[1])
+            review = connection.execute(
+                "SELECT state FROM wfm_source_terminal_reviews "
+                "WHERE task_id=? AND source_projection_revision=? "
+                "ORDER BY created_at_utc DESC,source_terminal_review_id DESC LIMIT 1",
+                (task_id, source_revision),
+            ).fetchone()
+            if review is None or str(review[0]) != "retain_local_work":
+                raise SomaError(
+                    "TASK_PLAN_LOCKED",
+                    "current terminal WFM source consequence is unresolved or protected",
+                )
+
+        if objective_context is not None:
+            _objective_id, _pinned_plan_id, creation_origin, superseded_by, execution_state, _attention, _revision = objective_context
+            if (
+                superseded_by is not None
+                or creation_origin == "historical_provider_complete"
+                or execution_state in _PROTECTED_OBJECTIVE_PLAN_STATES
+            ):
+                raise SomaError(
+                    "TASK_PLAN_LOCKED",
+                    "current Objective history protects the Task plan from ordinary replacement",
+                )
+
+    @staticmethod
+    def _surface_plan_membership_mismatch(
+        uow: UnitOfWork,
+        *,
+        objective_context: tuple[str, str, str, str | None, str, str | None, int] | None,
+        command_id: str,
+    ) -> None:
+        if objective_context is None:
+            return
+        objective_id, _pinned_plan_id, _origin, _superseded_by, _state, attention_reason, aggregate_revision = objective_context
+        if attention_reason is not None:
+            return
+        updated = uow.connection.execute(
+            "UPDATE objective_aggregate_projection "
+            "SET attention_reason='plan_membership_mismatch',revision=revision+1,last_command_id=? "
+            "WHERE objective_id=? AND revision=? AND attention_reason IS NULL",
+            (command_id, objective_id, aggregate_revision),
+        )
+        if updated.rowcount != 1:
+            raise IntegrityFailure("Objective aggregate authority changed during Task plan mismatch projection")
 
     def create_local_task(
         self,
@@ -816,6 +918,161 @@ class TaskPlanningService:
                     "task_id": canonical_task_id,
                     "revision": resulting_revision,
                     "result_refs": [{"type": "wfm_assignment", "id": assignment_event_id}],
+                },
+            )
+
+        return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+
+    def set_task_plan(
+        self,
+        *,
+        command_id: str,
+        task_id: str,
+        task_revision: int,
+        current_plan_revision: int,
+        schedule: AcceptedTaskSchedule,
+        reason_category: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> TaskMutationResult:
+        canonical_task_id = require_uuid4(task_id)
+        if type(task_revision) is not int or task_revision <= 0:
+            raise ValidationError("task_revision must be a positive integer")
+        if type(current_plan_revision) is not int or current_plan_revision < 0:
+            raise ValidationError("current_plan_revision must be a nonnegative integer")
+        if not isinstance(schedule, AcceptedTaskSchedule):
+            raise ValidationError("schedule must be AcceptedTaskSchedule")
+        accepted_schedule = schedule.validate()
+        reason = None if reason_category is None else validate_task_reason_category(reason_category)
+
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="SetTaskPlan",
+            target_type="task",
+            target_id=canonical_task_id,
+            semantic_payload={
+                "current_plan_revision": current_plan_revision,
+                "schedule": accepted_schedule.semantic_payload(),
+                "origin": "manual",
+                "reason_category": reason,
+            },
+            base_revisions={canonical_task_id: task_revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            task = self._tasks.get(uow.connection, canonical_task_id)
+            if task is None:
+                raise SomaError("TASK_NOT_FOUND", "Task does not exist in current authority")
+            if task.revision != task_revision:
+                raise SomaError("TASK_STALE", "Task revision changed before plan acceptance")
+
+            pointer = self._plans.current_pointer(uow.connection, canonical_task_id)
+            prior_plan = None
+            if current_plan_revision == 0:
+                if pointer is not None:
+                    raise SomaError("TASK_STALE", "Task gained a current plan after the reviewed absence")
+            else:
+                if pointer is None or pointer.revision != current_plan_revision:
+                    raise SomaError("TASK_STALE", "Task current-plan revision changed before plan acceptance")
+                prior_plan = self._plans.get_revision(uow.connection, pointer.plan_revision_id)
+                if prior_plan is None or prior_plan.task_id != canonical_task_id:
+                    raise SomaError("TASK_STALE", "Task current-plan pointer does not resolve to owned immutable history")
+
+            if prior_plan is not None and (
+                prior_plan.start_utc == accepted_schedule.start_utc
+                and prior_plan.end_utc == accepted_schedule.end_utc
+                and prior_plan.scheduling_timezone_iana == accepted_schedule.scheduling_timezone_iana
+            ):
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TaskMutationResultV1",
+                    response_version=1,
+                    response={
+                        "outcome": "NO_CHANGE",
+                        "task_id": canonical_task_id,
+                        "revision": task.revision,
+                        "result_refs": [],
+                    },
+                )
+
+            objective_context = self._load_current_objective_plan_context(uow.connection, canonical_task_id)
+            self._require_ordinary_plan_unlocked(uow.connection, canonical_task_id, objective_context)
+
+            plan_revision_id = new_uuid4()
+            audit_event_id = new_uuid4()
+            now = utc_epoch_seconds()
+            resulting_revision = task.revision + 1
+            prior_plan_revision_id = None if prior_plan is None else prior_plan.plan_revision_id
+            membership_plan_mismatch = objective_context is not None and objective_context[1] != plan_revision_id
+            plan_row = TaskPlanRecord(
+                plan_revision_id=plan_revision_id,
+                task_id=canonical_task_id,
+                start_utc=accepted_schedule.start_utc,
+                end_utc=accepted_schedule.end_utc,
+                origin="manual",
+                scheduling_timezone_iana=accepted_schedule.scheduling_timezone_iana,
+                source_observation_id=None,
+                predecessor_plan_revision_id=prior_plan_revision_id,
+                reason_code=reason,
+                accepted_at_utc=now,
+                command_id=command_id,
+            )
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                self._plans.append_and_set_current(
+                    inner,
+                    plan_row,
+                    expected_current_revision=current_plan_revision,
+                )
+                self._tasks.increment_revision(
+                    inner,
+                    task_id=canonical_task_id,
+                    expected_revision=task_revision,
+                )
+                if membership_plan_mismatch:
+                    self._surface_plan_membership_mismatch(
+                        inner,
+                        objective_context=objective_context,
+                        command_id=command_id,
+                    )
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="task.plan_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="task",
+                    target_id=canonical_task_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                    payload_schema="TaskPlanAuditV1",
+                    payload_version=1,
+                    payload={
+                        "task_id": canonical_task_id,
+                        "prior_plan_revision_id": prior_plan_revision_id,
+                        "new_plan_revision_id": plan_revision_id,
+                        "resulting_task_revision": resulting_revision,
+                        "origin": "manual",
+                        "reason_category": reason,
+                        "membership_plan_mismatch": membership_plan_mismatch,
+                    },
+                    resulting_event_refs=(AuditResultRef("task_plan", plan_revision_id),),
+                )
+
+            return PreparedMutation(
+                False,
+                "task_plan",
+                plan_revision_id,
+                apply,
+                response_schema="TaskMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "task_id": canonical_task_id,
+                    "revision": resulting_revision,
+                    "result_refs": [{"type": "task_plan", "id": plan_revision_id}],
                 },
             )
 
