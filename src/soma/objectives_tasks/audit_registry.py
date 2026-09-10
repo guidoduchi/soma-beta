@@ -41,6 +41,18 @@ _TASK_PLAN_AUDIT_FIELDS = frozenset(
         "membership_plan_mismatch",
     }
 )
+_TASK_PLAN_CORRECTION_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "prior_plan_revision_id",
+        "new_plan_revision_id",
+        "resulting_task_revision",
+        "reason_category",
+        "membership_plan_mismatch",
+        "review_risk",
+        "correction_review_fingerprint",
+    }
+)
 _HARD_DELETE_AUDIT_FIELDS = frozenset(
     {
         "target_type",
@@ -63,6 +75,19 @@ _TASK_PLAN_ORIGINS = frozenset(
         "historical_source_structure",
     }
 )
+
+
+def _validate_bounded_reason(reason: object, *, required: bool, label: str) -> None:
+    if reason is None and not required:
+        return
+    if not isinstance(reason, str):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{label} reason must be text")
+    try:
+        encoded = reason.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{label} reason is invalid Unicode") from exc
+    if not encoded or len(encoded) > 128 or "\x00" in reason or "\r" in reason or "\n" in reason:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{label} reason violates its bound")
 
 
 def _validate_task_creation_payload(
@@ -122,15 +147,7 @@ def _validate_wfm_parent_reassigned(payload: dict[str, object]) -> None:
     revision = payload.get("resulting_revision")
     if type(revision) is not int or revision <= 1:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment revision is invalid")
-    reason = payload.get("reason_category")
-    if not isinstance(reason, str):
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment reason is required")
-    try:
-        encoded = reason.encode("utf-8", errors="strict")
-    except UnicodeEncodeError as exc:
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment reason is invalid Unicode") from exc
-    if not encoded or len(encoded) > 128 or "\x00" in reason or "\r" in reason or "\n" in reason:
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment reason violates its bound")
+    _validate_bounded_reason(payload.get("reason_category"), required=True, label="WFM parent reassignment")
 
 
 def _validate_task_plan_changed(payload: dict[str, object]) -> None:
@@ -157,16 +174,33 @@ def _validate_task_plan_changed(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit origin is invalid")
     if type(payload.get("membership_plan_mismatch")) is not bool:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit membership mismatch flag is invalid")
-    reason = payload.get("reason_category")
-    if reason is not None:
-        if not isinstance(reason, str):
-            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit reason must be text or null")
-        try:
-            encoded = reason.encode("utf-8", errors="strict")
-        except UnicodeEncodeError as exc:
-            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit reason is invalid Unicode") from exc
-        if not encoded or len(encoded) > 128 or "\x00" in reason or "\r" in reason or "\n" in reason:
-            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit reason violates its bound")
+    _validate_bounded_reason(payload.get("reason_category"), required=False, label="Task plan audit")
+
+
+def _validate_task_plan_corrected(payload: dict[str, object]) -> None:
+    task_id = payload.get("task_id")
+    prior_plan_revision_id = payload.get("prior_plan_revision_id")
+    new_plan_revision_id = payload.get("new_plan_revision_id")
+    try:
+        for value in (task_id, prior_plan_revision_id, new_plan_revision_id):
+            if not isinstance(value, str):
+                raise ValidationError("Task plan correction identities must be UUID text")
+            require_uuid4(value)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction audit identity is invalid") from exc
+    if prior_plan_revision_id == new_plan_revision_id:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction must reference a new plan revision")
+    revision = payload.get("resulting_task_revision")
+    if type(revision) is not int or revision <= 1:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction Task revision is invalid")
+    if type(payload.get("membership_plan_mismatch")) is not bool:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction membership mismatch flag is invalid")
+    if payload.get("review_risk") not in {"LOW", "HIGH"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction review risk is invalid")
+    fingerprint = payload.get("correction_review_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction review fingerprint is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=True, label="Task plan correction")
 
 
 def _validate_hard_delete(payload: dict[str, object]) -> None:
@@ -263,6 +297,16 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
             payload_version=1,
             payload_contract=_contract("TaskPlanAuditV1", _TASK_PLAN_AUDIT_FIELDS, max_items=16),
             sensitivity_validator=_validate_task_plan_changed,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.plan_corrected",
+            action_version=1,
+            payload_schema="TaskPlanCorrectionAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskPlanCorrectionAuditV1", _TASK_PLAN_CORRECTION_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_task_plan_corrected,
         )
     )
     registry.register(
