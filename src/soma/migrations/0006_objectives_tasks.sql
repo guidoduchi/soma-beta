@@ -697,3 +697,75 @@ CREATE TRIGGER regroup_rejection_update_guard BEFORE UPDATE ON regroup_rejection
         AND NEW.command_id=OLD.command_id
     ) THEN RAISE(ABORT,'GROUPING_REJECTION_HISTORY_APPEND_ONLY') END;
 END;
+
+-- Permanent WFM Task No retirement authority for the narrow source-free manual
+-- hard-delete correction path.  The retired task_id deliberately has no FK:
+-- the owning Task row is removed later in the same HardDeleteTask UnitOfWork.
+CREATE TABLE wfm_task_no_retirements (
+    retirement_id TEXT PRIMARY KEY,
+    task_no TEXT NOT NULL UNIQUE CHECK(length(task_no)=16 AND substr(task_no,1,2)='TK' AND substr(task_no,3) NOT GLOB '*[^0-9]*'),
+    retired_task_id TEXT NOT NULL UNIQUE,
+    retired_at_utc INTEGER NOT NULL CHECK(retired_at_utc >= 0),
+    hard_delete_command_id TEXT NOT NULL UNIQUE REFERENCES command_receipts(command_id) ON DELETE RESTRICT ON UPDATE RESTRICT
+) STRICT;
+
+CREATE INDEX idx_wfm_task_no_retirements_hard_delete_command
+ON wfm_task_no_retirements(hard_delete_command_id,retirement_id);
+
+CREATE TRIGGER wfm_task_no_retirement_insert_guard BEFORE INSERT ON wfm_task_no_retirements BEGIN
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1
+        FROM command_receipts cr
+        JOIN tasks t ON t.task_id=NEW.retired_task_id
+        JOIN wfm_task_identities w ON w.task_id=t.task_id
+        WHERE cr.command_id=NEW.hard_delete_command_id
+          AND cr.command_type='HardDeleteTask'
+          AND cr.target_type='task'
+          AND cr.target_id=NEW.retired_task_id
+          AND t.task_kind='wfm'
+          AND t.creation_origin='wfm_manual'
+          AND w.task_no=NEW.task_no
+          AND NOT EXISTS (SELECT 1 FROM wfm_source_projection_cache s WHERE s.task_id=t.task_id)
+    ) THEN RAISE(ABORT,'WFM_TASK_NO_RETIREMENT_INVALID') END;
+END;
+CREATE TRIGGER wfm_task_no_retirement_update_guard BEFORE UPDATE ON wfm_task_no_retirements BEGIN
+    SELECT RAISE(ABORT,'WFM_TASK_NO_RETIREMENT_APPEND_ONLY');
+END;
+CREATE TRIGGER wfm_task_no_retirement_delete_guard BEFORE DELETE ON wfm_task_no_retirements BEGIN
+    SELECT RAISE(ABORT,'WFM_TASK_NO_RETIREMENT_APPEND_ONLY');
+END;
+
+CREATE TRIGGER wfm_identity_retired_insert_guard BEFORE INSERT ON wfm_task_identities BEGIN
+    SELECT CASE WHEN EXISTS (
+        SELECT 1 FROM wfm_task_no_retirements WHERE task_no=NEW.task_no
+    ) THEN RAISE(ABORT,'WFM_TASK_NO_RETIRED') END;
+END;
+
+CREATE TRIGGER wfm_assignment_retirement_delete_guard BEFORE DELETE ON wfm_rfc_assignment_events BEGIN
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1
+        FROM wfm_task_identities w
+        JOIN wfm_task_no_retirements r
+          ON r.retired_task_id=w.task_id AND r.task_no=w.task_no
+        JOIN command_receipts cr
+          ON cr.command_id=r.hard_delete_command_id
+        WHERE w.task_id=OLD.task_id
+          AND cr.command_type='HardDeleteTask'
+          AND cr.target_type='task'
+          AND cr.target_id=OLD.task_id
+    ) THEN RAISE(ABORT,'WFM_TASK_NO_RETIREMENT_REQUIRED') END;
+END;
+
+CREATE TRIGGER wfm_identity_retirement_delete_guard BEFORE DELETE ON wfm_task_identities BEGIN
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1
+        FROM wfm_task_no_retirements r
+        JOIN command_receipts cr
+          ON cr.command_id=r.hard_delete_command_id
+        WHERE r.retired_task_id=OLD.task_id
+          AND r.task_no=OLD.task_no
+          AND cr.command_type='HardDeleteTask'
+          AND cr.target_type='task'
+          AND cr.target_id=OLD.task_id
+    ) THEN RAISE(ABORT,'WFM_TASK_NO_RETIREMENT_REQUIRED') END;
+END;
