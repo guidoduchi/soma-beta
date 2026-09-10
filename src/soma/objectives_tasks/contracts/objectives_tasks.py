@@ -45,14 +45,20 @@ class AcceptedTaskSchedule:
 
 
 @dataclass(frozen=True, slots=True)
+class TaskResultRef:
+    result_type: str
+    result_id: str
+
+    def to_response(self) -> dict[str, str]:
+        return {"type": self.result_type, "id": self.result_id}
+
+
+@dataclass(frozen=True, slots=True)
 class TaskMutationResult:
     outcome: str
     task_id: str
-    task_no: str
-    rfc_id: str
-    task_revision: int
-    assignment_revision: int
-    plan_revision_id: str | None
+    revision: int
+    result_refs: tuple[TaskResultRef, ...]
     replayed: bool
 
     @property
@@ -60,16 +66,20 @@ class TaskMutationResult:
         return self.outcome == "NO_CHANGE"
 
 
+def _validate_ref_text(value: object, *, field: str, max_utf8_bytes: int) -> str:
+    if not isinstance(value, str):
+        raise IntegrityFailure(f"Task mutation {field} must be text")
+    try:
+        encoded = value.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise IntegrityFailure(f"Task mutation {field} must be valid Unicode") from exc
+    if not encoded or len(encoded) > max_utf8_bytes or "\x00" in value or "\r" in value or "\n" in value:
+        raise IntegrityFailure(f"Task mutation {field} violates its bounded one-line contract")
+    return value
+
+
 def task_mutation_result_from_execution(result: CommandExecutionResult) -> TaskMutationResult:
-    expected_fields = {
-        "outcome",
-        "task_id",
-        "task_no",
-        "rfc_id",
-        "task_revision",
-        "assignment_revision",
-        "plan_revision_id",
-    }
+    expected_fields = {"outcome", "task_id", "revision", "result_refs"}
     if (
         result.response_schema != "TaskMutationResultV1"
         or result.response_version != 1
@@ -80,42 +90,43 @@ def task_mutation_result_from_execution(result: CommandExecutionResult) -> TaskM
     response = result.response
     outcome = response.get("outcome")
     task_id = response.get("task_id")
-    task_no = response.get("task_no")
-    rfc_id = response.get("rfc_id")
-    task_revision = response.get("task_revision")
-    assignment_revision = response.get("assignment_revision")
-    plan_revision_id = response.get("plan_revision_id")
+    revision = response.get("revision")
+    raw_refs = response.get("result_refs")
     if outcome not in {"APPLIED", "NO_CHANGE"} or bool(result.no_change) != (outcome == "NO_CHANGE"):
         raise IntegrityFailure("Task mutation replay result has inconsistent outcome")
     try:
-        if not isinstance(task_id, str) or not isinstance(rfc_id, str):
-            raise ValidationError("Task mutation identity metadata must be UUID text")
+        if not isinstance(task_id, str):
+            raise ValidationError("task_id must be UUID text")
         require_uuid4(task_id)
-        require_uuid4(rfc_id)
-        if plan_revision_id is not None:
-            if not isinstance(plan_revision_id, str):
-                raise ValidationError("Task plan revision identity must be UUID text")
-            require_uuid4(plan_revision_id)
-    except (ValidationError, TypeError, ValueError) as exc:
-        raise IntegrityFailure("Task mutation replay result has invalid identity metadata") from exc
-    if (
-        not isinstance(task_no, str)
-        or len(task_no) != 16
-        or not task_no.startswith("TK")
-        or any(character < "0" or character > "9" for character in task_no[2:])
-    ):
-        raise IntegrityFailure("Task mutation replay result has invalid WFM Task No")
-    if type(task_revision) is not int or task_revision <= 0:
+    except ValidationError as exc:
+        raise IntegrityFailure("Task mutation replay result has invalid Task identity") from exc
+    if type(revision) is not int or revision <= 0:
         raise IntegrityFailure("Task mutation replay result has invalid Task revision")
-    if type(assignment_revision) is not int or assignment_revision <= 0:
-        raise IntegrityFailure("Task mutation replay result has invalid assignment revision")
+    if not isinstance(raw_refs, list) or len(raw_refs) > 64:
+        raise IntegrityFailure("Task mutation replay result refs are invalid")
+    refs: list[TaskResultRef] = []
+    seen: set[tuple[str, str]] = set()
+    for raw in raw_refs:
+        if not isinstance(raw, dict) or set(raw) != {"type", "id"}:
+            raise IntegrityFailure("Task mutation result ref has the wrong shape")
+        result_type = _validate_ref_text(raw.get("type"), field="result ref type", max_utf8_bytes=128)
+        result_id = _validate_ref_text(raw.get("id"), field="result ref id", max_utf8_bytes=1024)
+        identity = (result_type, result_id)
+        if identity in seen:
+            raise IntegrityFailure("Task mutation result refs contain a duplicate")
+        seen.add(identity)
+        refs.append(TaskResultRef(result_type, result_id))
+    if outcome == "NO_CHANGE" and refs:
+        raise IntegrityFailure("Task mutation NO_CHANGE response cannot claim material result refs")
+    if outcome == "APPLIED":
+        if not isinstance(result.result_type, str) or not isinstance(result.result_id, str):
+            raise IntegrityFailure("Task mutation material receipt is missing result identity")
+        if (result.result_type, result.result_id) not in seen:
+            raise IntegrityFailure("Task mutation response does not include its material receipt result")
     return TaskMutationResult(
         outcome=str(outcome),
         task_id=task_id,
-        task_no=task_no,
-        rfc_id=rfc_id,
-        task_revision=task_revision,
-        assignment_revision=assignment_revision,
-        plan_revision_id=plan_revision_id,
+        revision=revision,
+        result_refs=tuple(refs),
         replayed=result.replayed,
     )
