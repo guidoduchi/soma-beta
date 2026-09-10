@@ -28,6 +28,7 @@
   "collection_bounds":{
     "query_default_page_size":100,
     "query_max_page_size":1000,
+    "create_local_task_initial_relationships":{"max_total_ids":62,"fields":["initial_service_request_ids","initial_rfc_ids","initial_device_reference_ids"],"rule":"each field is an optional unique UUID array with set semantics; duplicates reject, canonical request hashing sorts each array by canonical lowercase UUID text, and the combined creation-time count may not exceed 62 so Task + optional plan + relationship refs fit TaskMutationResultV1's existing 64-ref bound; this is a creation-command replay/audit ceiling, not a business maximum on relationships added later through ChangeTaskRelationship"},
     "rule":"page limits constrain rendering/materialization only; exact totals, grouping authority, exports and persisted proposal membership are never inferred from one page",
     "grouping_workset_soft_threshold":100000,
     "grouping_workset_rule":"the sweep-line algorithm is O(n log n); above the soft threshold computation must run as a durable bounded-memory job and may not fall back to O(n^2) pairwise comparison",
