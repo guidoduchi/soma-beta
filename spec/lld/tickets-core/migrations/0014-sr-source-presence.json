@@ -14,3 +14,4 @@
   "implementation_blocker":"Do not add 0014_sr_source_presence.sql to the implementation runtime manifest while any accepted runtime sequence 6 through 13 is absent. The LLD-03 source-presence owner/query code may be implemented only when its migration can participate in a contiguous accepted runtime prefix.",
   "rollback":"No runtime down migration. LLD-01 applies and verifies sequence 14 atomically after the complete accepted 1..13 prefix; failure never exposes partial source-presence history authority."
 }
+
