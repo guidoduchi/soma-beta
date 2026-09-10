@@ -6,7 +6,7 @@
     "BETA-REQ-0012":["algorithms/identifiers.json","commands/tickets.json","schema/tickets.json","tests/core-acceptance.json"],
     "BETA-REQ-0038":["schema/relationships.json","queries/tickets.json","interfaces.json","tests/core-acceptance.json"],
     "BETA-REQ-0039":["schema/relationships.json","queries/tickets.json","commands/tickets.json","tests/core-acceptance.json"],
-    "BETA-REQ-0040":["schema/relationships.json","algorithms/rfc-hierarchy.json","types/transport.json","queries/tickets.json","interfaces/cross-packet.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json"],
+    "BETA-REQ-0040":["schema/relationships.json","algorithms/rfc-hierarchy.json","algorithms/rfc-hierarchy-review.json","types/transport.json","queries/tickets.json","interfaces/cross-packet.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json"],
     "BETA-REQ-0052":["schema/tickets.json","commands/tickets.json","queries/tickets.json","audit/actions.json","tests/core-acceptance.json"],
     "BETA-REQ-0053":["schema/allocators.json","schema/tickets.json","commands/tickets.json","tests/core-acceptance.json"],
     "BETA-REQ-0057":["schema/sr-source-projection.json","algorithms/sr-source-current.json","queries/sr-reference.json","tests/core-acceptance.json","tests/sr-reference-acceptance.json"],
@@ -16,7 +16,7 @@
     "BETA-REQ-0148":["schema/tickets.json","schema/rfc-source-projection.json","interfaces.json","tests/core-acceptance.json","tests/rfc-lifecycle-acceptance.json"],
     "BETA-REQ-0149":["schema/rfc-source-projection.json","schema/rfc-terminal-cascade.json","commands/rfc-lifecycle.json","transitions/ticket-lifecycle.json","tests/rfc-lifecycle-acceptance.json","tests/rfc-lifecycle-failure-injection.json"],
     "BETA-REQ-0150":["schema/rfc-source-projection.json","interfaces.json","commands/rfc-lifecycle.json","tests/rfc-lifecycle-acceptance.json"],
-    "BETA-REQ-0152":["schema/relationships.json","algorithms/rfc-hierarchy.json","types/transport.json","queries/tickets.json","interfaces/cross-packet.json","algorithms/rfc-hard-delete.json","algorithms/rfc-hard-delete-eligibility-golden-vectors.json","types/rfc-lifecycle-transport.json","commands/rfc-lifecycle.json","audit/rfc-lifecycle.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json","tests/rfc-lifecycle-acceptance.json","tests/rfc-hard-delete-acceptance.json","tests/rfc-hard-delete-failure-injection.json"],
+    "BETA-REQ-0152":["schema/relationships.json","algorithms/rfc-hierarchy.json","algorithms/rfc-hierarchy-review.json","types/transport.json","queries/tickets.json","interfaces/cross-packet.json","algorithms/rfc-hard-delete.json","algorithms/rfc-hard-delete-eligibility-golden-vectors.json","types/rfc-lifecycle-transport.json","commands/rfc-lifecycle.json","audit/rfc-lifecycle.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json","tests/rfc-lifecycle-acceptance.json","tests/rfc-hard-delete-acceptance.json","tests/rfc-hard-delete-failure-injection.json"],
     "BETA-REQ-0153":["schema/rfc-archive-history.json","algorithms/rfc-archive.json","commands/rfc-lifecycle.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json","tests/rfc-lifecycle-acceptance.json"],
     "BETA-REQ-0154":["schema/relationships.json","commands/tickets.json","queries/tickets.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json"],
     "BETA-REQ-0165":["schema/tickets.json","schema/relationships.json","commands/tickets.json","queries/tickets.json","tests/core-acceptance.json"]
