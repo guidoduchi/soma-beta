@@ -92,6 +92,8 @@ class TaskHardDeleteQueryService:
             "WHERE task_id=? ORDER BY " + id_column,
             (task.task_id,),
         ).fetchall()
+        if task.task_kind == "wfm":
+            return (), bool(rows)
         allowed: list[str] = []
         history_present = False
         for row in rows:
@@ -185,8 +187,9 @@ class TaskHardDeleteQueryService:
             return None, "BLOCKED"
         row = rows[0]
         plan_id = str(row[0])
+        allowed_origins = {"manual"} if task.task_kind == "wfm" else {"manual", "objective_initialization"}
         if (
-            str(row[1]) not in {"manual", "objective_initialization"}
+            str(row[1]) not in allowed_origins
             or row[2] is not None
             or row[3] is not None
             or str(row[4]) != task.created_command_id
