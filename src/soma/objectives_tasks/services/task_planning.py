@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import regex
+
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
@@ -23,6 +25,29 @@ from ..repositories.tasks import (
 )
 
 _TERMINAL_RFC_STATUS_CLASSES = frozenset({"terminal_closed", "terminal_cancelled"})
+_LOCAL_TASK_NAME_MAX_GRAPHEMES = 240
+_LOCAL_TASK_NAME_MAX_UTF8_BYTES = 1024
+
+
+def validate_local_task_name(value: str) -> str:
+    if not isinstance(value, str):
+        raise SomaError("TASK_NAME_REQUIRED", "Local Task name must be text")
+    try:
+        encoded = value.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SomaError("TASK_NAME_REQUIRED", "Local Task name must be valid Unicode") from exc
+    if not encoded or len(encoded) > _LOCAL_TASK_NAME_MAX_UTF8_BYTES:
+        raise SomaError("TASK_NAME_REQUIRED", "Local Task name is empty or exceeds its UTF-8 byte bound")
+    if regex.fullmatch(r"\s*", value, flags=regex.VERSION1) is not None:
+        raise SomaError("TASK_NAME_REQUIRED", "Local Task name cannot be blank")
+    grapheme_count = 0
+    for _ in regex.finditer(r"\X", value, flags=regex.VERSION1):
+        grapheme_count += 1
+        if grapheme_count > _LOCAL_TASK_NAME_MAX_GRAPHEMES:
+            raise SomaError("TASK_NAME_REQUIRED", "Local Task name exceeds its grapheme bound")
+    if grapheme_count == 0:
+        raise SomaError("TASK_NAME_REQUIRED", "Local Task name cannot be empty")
+    return value
 
 
 def validate_wfm_task_no(value: str) -> str:
@@ -37,7 +62,7 @@ def validate_wfm_task_no(value: str) -> str:
 
 
 class TaskPlanningService:
-    """Initial LLD-05 planning authority for manual WFM identity registration."""
+    """Initial LLD-05 planning authority for Local and manual WFM Task creation."""
 
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
@@ -62,6 +87,108 @@ class TaskPlanningService:
         archive_state, status_class = str(row[0]), str(row[1])
         if archive_state != "active" or status_class in _TERMINAL_RFC_STATUS_CLASSES:
             raise SomaError("WFM_RFC_NOT_ELIGIBLE", "owning RFC cannot own active nonterminal WFM work")
+
+    def create_local_task(
+        self,
+        *,
+        command_id: str,
+        local_task_name: str,
+        schedule: AcceptedTaskSchedule | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> TaskMutationResult:
+        stored_name = validate_local_task_name(local_task_name)
+        if schedule is not None and not isinstance(schedule, AcceptedTaskSchedule):
+            raise ValidationError("schedule must be AcceptedTaskSchedule or None")
+        accepted_schedule = None if schedule is None else schedule.validate()
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CreateLocalTask",
+            target_type="task",
+            target_id=None,
+            semantic_payload={
+                "local_task_name": stored_name,
+                "schedule": None if accepted_schedule is None else accepted_schedule.semantic_payload(),
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            task_id = new_uuid4()
+            plan_revision_id = None if accepted_schedule is None else new_uuid4()
+            audit_event_id = new_uuid4()
+            now = utc_epoch_seconds()
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                self._tasks.insert(
+                    inner,
+                    TaskRecord(
+                        task_id=task_id,
+                        task_kind="local",
+                        local_task_name=stored_name,
+                        creation_origin="manual",
+                        revision=1,
+                        created_at_utc=now,
+                        created_command_id=command_id,
+                    ),
+                )
+                if accepted_schedule is not None and plan_revision_id is not None:
+                    self._plans.insert_initial(
+                        inner,
+                        TaskPlanRecord(
+                            plan_revision_id=plan_revision_id,
+                            task_id=task_id,
+                            start_utc=accepted_schedule.start_utc,
+                            end_utc=accepted_schedule.end_utc,
+                            origin="manual",
+                            scheduling_timezone_iana=accepted_schedule.scheduling_timezone_iana,
+                            source_observation_id=None,
+                            predecessor_plan_revision_id=None,
+                            reason_code=None,
+                            accepted_at_utc=now,
+                            command_id=command_id,
+                        ),
+                    )
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="task.created",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="task",
+                    target_id=task_id,
+                    command_id=command_id,
+                    payload_schema="TaskAuditV1",
+                    payload_version=1,
+                    payload={
+                        "task_id": task_id,
+                        "task_kind": "local",
+                        "creation_origin": "manual",
+                        "resulting_revision": 1,
+                        "task_plan_revision_id": plan_revision_id,
+                        "reason_category": None,
+                    },
+                    resulting_event_refs=(AuditResultRef("task", task_id),),
+                )
+
+            result_refs = [{"type": "task", "id": task_id}]
+            if plan_revision_id is not None:
+                result_refs.append({"type": "task_plan", "id": plan_revision_id})
+            return PreparedMutation(
+                False,
+                "task",
+                task_id,
+                apply,
+                response_schema="TaskMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "task_id": task_id,
+                    "revision": 1,
+                    "result_refs": result_refs,
+                },
+            )
+
+        return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def register_manual_wfm_task(
         self,
