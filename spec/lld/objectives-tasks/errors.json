@@ -21,6 +21,7 @@
     {"code":"TASK_RETRY_CYCLE","http_status":409,"meaning":"Retry relation would create an identity cycle or self-reference."},
     {"code":"TASK_ACTIVITY_LINEAGE_CONFLICT","http_status":409,"meaning":"Reviewed activity-lineage assignment conflicts with immutable retry/attempt evidence."},
     {"code":"WFM_TASK_NO_INVALID","http_status":422,"meaning":"WFM Task No. is not exact TK plus fourteen digits."},
+    {"code":"WFM_TASK_NO_RETIRED","http_status":409,"meaning":"Canonical WFM Task No. was retired by an eligible hard-delete correction and cannot be registered or source-adopted again."},
     {"code":"WFM_RFC_NOT_ELIGIBLE","http_status":409,"meaning":"Owning RFC is not currently eligible to own active nonterminal WFM work."},
     {"code":"WFM_PARENT_STALE","http_status":409,"meaning":"Owning RFC identity/hierarchy/lifecycle changed since preview."},
     {"code":"WFM_COMPETING_ATTEMPT","http_status":409,"meaning":"More than one overlapping active WFM attempt is currently classified in the same reviewed activity lineage and requires explicit resolution."},
