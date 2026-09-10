@@ -11,3 +11,4 @@
     {"query":"RfcTerminalTaskCascadePreview","ordering":"captured task_id ASC, then affected objective_id ASC; impact codes in closed registry order","pagination":"bounded participant result; complete scope authority is established server-side before any presentation paging","required_indexes":["wfm_task_identities(current_rfc_id,task_id)","objective_task_membership_current(objective_id,task_id)","task_execution_projection PK(task_id)","task_outcome_current PK(task_id)"],"tests":["LLD05-T019","LLD05-T020","LLD05-T043"]}
   ]
 }
+
