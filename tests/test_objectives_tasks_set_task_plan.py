@@ -76,11 +76,19 @@ def _attach_planned_objective(
         ).fetchone()
         objective_id = new_uuid4()
         event_id = new_uuid4()
+        tracking_sequence = int(
+            uow.connection.execute(
+                "SELECT COALESCE(MAX(tracking_sequence),90000000)+1 FROM objectives"
+            ).fetchone()[0]
+        )
+        if tracking_sequence > 99_999_999:
+            raise AssertionError("synthetic Objective tracking range exhausted")
+        tracking_id = f"MW-{tracking_sequence:08d}"
         uow.connection.execute(
             "INSERT INTO objectives(objective_id,tracking_sequence,tracking_id,creation_origin,"
             "superseded_by_objective_id,revision,created_at_utc,created_command_id) "
             "VALUES (?,?,?, ?,NULL,1,1,?)",
-            (objective_id, 90_000_001, "MW-90000001", creation_origin, creation_command_id),
+            (objective_id, tracking_sequence, tracking_id, creation_origin, creation_command_id),
         )
         uow.connection.execute(
             "INSERT INTO objective_membership_events(membership_event_id,task_id,event_kind,from_objective_id,"
@@ -142,8 +150,15 @@ def _seed_terminal_wfm_source(factory, *, task_id: str, command_id: str) -> None
         )
 
 
-def _seed_retain_review(factory, *, task_id: str, command_id: str, created_at: int = 1) -> str:
-    review_id = new_uuid4()
+def _seed_retain_review(
+    factory,
+    *,
+    task_id: str,
+    command_id: str,
+    created_at: int = 1,
+    review_id: str | None = None,
+) -> str:
+    review_id = new_uuid4() if review_id is None else review_id
     with UnitOfWork(factory) as uow:
         uow.connection.execute(
             "INSERT INTO wfm_source_terminal_reviews(source_terminal_review_id,task_id,source_projection_revision,"
@@ -493,6 +508,38 @@ def test_set_task_plan_newer_pending_terminal_review_defeats_older_retain(initia
             schedule=_schedule(1_909_000_000, 1_909_003_600),
         )
     assert stale_review.value.code == "TASK_PLAN_LOCKED"
+    assert not _receipt_exists(factory, command_id)
+
+
+def test_set_task_plan_same_timestamp_pending_review_dominates_retain_without_uuid_ordering(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    registration_command, wfm = _create_wfm(factory, task_no="TK00000000900003")
+    _seed_terminal_wfm_source(factory, task_id=wfm.task_id, command_id=registration_command)
+    _seed_retain_review(
+        factory,
+        task_id=wfm.task_id,
+        command_id=registration_command,
+        created_at=7,
+        review_id="ffffffff-ffff-4fff-bfff-ffffffffffff",
+    )
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO wfm_source_terminal_reviews(source_terminal_review_id,task_id,source_projection_revision,"
+            "provider_lifecycle_class,input_fingerprint,state,local_consequence_event_id,revision,created_at_utc,"
+            "decided_at_utc,last_command_id) VALUES (?,?,1,'complete',?,'pending',NULL,1,7,NULL,NULL)",
+            ("00000000-0000-4000-8000-000000000001", wfm.task_id, "f" * 64),
+        )
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as unresolved:
+        TaskPlanningService(factory).set_task_plan(
+            command_id=command_id,
+            task_id=wfm.task_id,
+            task_revision=1,
+            current_plan_revision=0,
+            schedule=_schedule(1_909_100_000, 1_909_103_600),
+        )
+    assert unresolved.value.code == "TASK_PLAN_LOCKED"
     assert not _receipt_exists(factory, command_id)
 
 
