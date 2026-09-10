@@ -33,6 +33,10 @@ def _insert_hard_delete_receipt(uow: UnitOfWork, *, command_id: str, task_id: st
     )
 
 
+def _result_refs(result) -> set[tuple[str, str]]:
+    return {(ref.result_type, ref.result_id) for ref in result.result_refs}
+
+
 def test_register_manual_wfm_task_persists_identity_assignment_audit_and_exact_replay(initialized_database) -> None:
     factory = _factory(initialized_database)
     rfc_id = _create_rfc(factory, "NC00000000000001")
@@ -47,11 +51,7 @@ def test_register_manual_wfm_task_persists_identity_assignment_audit_and_exact_r
     )
 
     assert applied.outcome == "APPLIED"
-    assert applied.task_no == task_no
-    assert applied.rfc_id == rfc_id
-    assert applied.task_revision == 1
-    assert applied.assignment_revision == 1
-    assert applied.plan_revision_id is None
+    assert applied.revision == 1
     assert not applied.replayed
     assert not applied.no_change
 
@@ -76,6 +76,10 @@ def test_register_manual_wfm_task_persists_identity_assignment_audit_and_exact_r
         assert assignment is not None
         assignment_event_id = str(assignment[0])
         assert tuple(assignment[1:]) == (None, rfc_id, "manual_registration", "low", command_id)
+        assert _result_refs(applied) == {
+            ("task", applied.task_id),
+            ("wfm_assignment", assignment_event_id),
+        }
 
         audit = snapshot.connection.execute(
             "SELECT action_type,payload_json FROM audit_events WHERE command_id=?",
@@ -110,10 +114,15 @@ def test_register_manual_wfm_task_persists_identity_assignment_audit_and_exact_r
         assert tuple(receipt) == ("RegisterManualWfmTask", "task", None, "task", applied.task_id)
 
         exact = snapshot.connection.execute(
-            "SELECT response_schema,response_version FROM command_receipt_results WHERE command_id=?",
+            "SELECT response_schema,response_version,response_json FROM command_receipt_results WHERE command_id=?",
             (command_id,),
         ).fetchone()
-        assert tuple(exact) == ("TaskMutationResultV1", 1)
+        assert tuple(exact[:2]) == ("TaskMutationResultV1", 1)
+        exact_payload = json.loads(str(exact[2]))
+        assert set(exact_payload) == {"outcome", "task_id", "revision", "result_refs"}
+        assert exact_payload["outcome"] == "APPLIED"
+        assert exact_payload["task_id"] == applied.task_id
+        assert exact_payload["revision"] == 1
 
     replayed = service.register_manual_wfm_task(
         command_id=command_id,
@@ -121,16 +130,10 @@ def test_register_manual_wfm_task_persists_identity_assignment_audit_and_exact_r
         rfc_id=rfc_id,
     )
     assert replayed.replayed
-    assert replayed == type(replayed)(
-        outcome="APPLIED",
-        task_id=applied.task_id,
-        task_no=task_no,
-        rfc_id=rfc_id,
-        task_revision=1,
-        assignment_revision=1,
-        plan_revision_id=None,
-        replayed=True,
-    )
+    assert replayed.outcome == applied.outcome
+    assert replayed.task_id == applied.task_id
+    assert replayed.revision == applied.revision
+    assert replayed.result_refs == applied.result_refs
 
     no_change_command = new_uuid4()
     adopted = service.register_manual_wfm_task(
@@ -141,6 +144,8 @@ def test_register_manual_wfm_task_persists_identity_assignment_audit_and_exact_r
     assert adopted.no_change
     assert adopted.outcome == "NO_CHANGE"
     assert adopted.task_id == applied.task_id
+    assert adopted.revision == 1
+    assert adopted.result_refs == ()
     assert not adopted.replayed
 
     with ReadSnapshot(factory) as snapshot:
@@ -148,8 +153,8 @@ def test_register_manual_wfm_task_persists_identity_assignment_audit_and_exact_r
             "SELECT count(*) FROM audit_events WHERE command_id=?", (no_change_command,)
         ).fetchone()[0] == 0
         assert snapshot.connection.execute(
-            "SELECT result_type FROM command_receipts WHERE command_id=?", (no_change_command,)
-        ).fetchone()[0] == "NO_CHANGE"
+            "SELECT result_type,result_id FROM command_receipts WHERE command_id=?", (no_change_command,)
+        ).fetchone() == ("NO_CHANGE", None)
         assert snapshot.connection.execute(
             "SELECT count(*) FROM wfm_rfc_assignment_events WHERE task_id=?", (applied.task_id,)
         ).fetchone()[0] == 1
@@ -172,7 +177,9 @@ def test_register_manual_wfm_task_with_schedule_persists_manual_operational_plan
         rfc_id=rfc_id,
         schedule=schedule,
     )
-    assert result.plan_revision_id is not None
+    plan_refs = [ref.result_id for ref in result.result_refs if ref.result_type == "task_plan"]
+    assert len(plan_refs) == 1
+    plan_revision_id = plan_refs[0]
 
     with ReadSnapshot(factory) as snapshot:
         plan = snapshot.connection.execute(
@@ -180,7 +187,7 @@ def test_register_manual_wfm_task_with_schedule_persists_manual_operational_plan
             "p.predecessor_plan_revision_id,p.reason_code,p.command_id,c.revision,c.last_command_id "
             "FROM task_plan_revisions p JOIN task_plan_current c ON c.plan_revision_id=p.plan_revision_id "
             "WHERE p.plan_revision_id=? AND p.task_id=?",
-            (result.plan_revision_id, result.task_id),
+            (plan_revision_id, result.task_id),
         ).fetchone()
         assert tuple(plan) == (
             schedule.start_utc,
@@ -200,7 +207,7 @@ def test_register_manual_wfm_task_with_schedule_persists_manual_operational_plan
             (command_id,),
         ).fetchone()
         assert audit_payload is not None
-        assert json.loads(str(audit_payload[0]))["task_plan_revision_id"] == result.plan_revision_id
+        assert json.loads(str(audit_payload[0]))["task_plan_revision_id"] == plan_revision_id
 
         ref_types = snapshot.connection.execute(
             "SELECT r.result_type FROM audit_event_results r JOIN audit_events e ON e.audit_event_id=r.audit_event_id "
@@ -208,6 +215,7 @@ def test_register_manual_wfm_task_with_schedule_persists_manual_operational_plan
             (command_id,),
         ).fetchall()
         assert [str(row[0]) for row in ref_types] == ["task", "wfm_assignment"]
+        assert {ref.result_type for ref in result.result_refs} == {"task", "task_plan", "wfm_assignment"}
 
 
 def test_register_manual_wfm_task_rejects_different_parent_and_missing_rfc_before_receipt(initialized_database) -> None:
