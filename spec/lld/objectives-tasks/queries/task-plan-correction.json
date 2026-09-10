@@ -1,0 +1,20 @@
+{
+  "schema":"SOMA-LLD-QUERIES-V1",
+  "lld_id":"LLD-05",
+  "queries":[
+    {
+      "name":"TaskPlanCorrectionPreview",
+      "input":["task_id","task_revision","current_plan_revision","exact current plan_revision_id","replacement schedule","snapshot"],
+      "returns":["eligible boolean","risk LOW|HIGH","exact SOMA_TASK_PLAN_CORRECTION_REVIEW_V1 fingerprint","bounded closed risk_reasons","bounded closed blockers"],
+      "rules":[
+        "pure stable-snapshot query; missing Task/current plan or supplied Task/current-plan freshness mismatch returns TASK_NOT_FOUND or TASK_STALE rather than guessing a review context",
+        "fingerprint binds exact Task revision; current plan pointer revision/id and immutable interval/timezone/origin; the proposed replacement interval/timezone; explicit plan-lock presence/revision/value/last-event authority; execution current projection plus accepted non-correction-history count/current event authority; current outcome authority; applicable WFM source projection revision/lifecycle/base token/source-plan authority plus exact-current-source-revision terminal-review state vector; and applicable current Objective membership revision/pin/event, Objective revision/origin/supersession, envelope revision/fingerprint and aggregate revision/state/attention authority",
+        "fingerprint serialization uses strict canonical JSON under schema SOMA_TASK_PLAN_CORRECTION_REVIEW_V1 and lowercase SHA-256; row/UUID ordering is never chronology and only owner-defined semantic state enters the fingerprint",
+        "risk is HIGH iff current authority contains explicit_plan_lock=true, accepted non-correction Task execution history, current accepted Task outcome, current terminal WFM source history, or protected current Objective history; otherwise LOW",
+        "an exact-current-source-revision pending WFM source-terminal review appears as blocker SOURCE_TERMINAL_REVIEW_PENDING; the correction command may not override it",
+        "projection/current/history inconsistency produces no authorizing fingerprint and fails closed as TASK_PLAN_LOCKED",
+        "preview has no receipt, audit, domain revision, lock mutation, source-terminal review mutation, grouping proposal or external effect"
+      ]
+    }
+  ]
+}
