@@ -73,6 +73,7 @@
   },
   "rules":[
     "Each operation has one owning source-module destination; private helpers may be factored but authority cannot migrate across packet boundaries.",
+    "Reviewed Task-plan correction is isolated in services/task_plan_correction.py so its preview-bound override authority does not enlarge ordinary SetTaskPlan authority.",
     "Pure previews live under queries and never create command receipts or audit events.",
     "Starting selected Tasks from an Objective context is Task execution authority in services/task_execution.py; it creates no Objective execution event/timestamp/authority.",
     "LLD-03 and LLD-04 participant entry points receive the caller's already-open UnitOfWork/command context and never commit or create a second receipt.",
