@@ -230,6 +230,14 @@ class TaskPlanningService:
             "SELECT 1 FROM task_plan_current WHERE task_id=? LIMIT 1",
             task_id,
         )
+        plan_current_bound = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_plan_current c JOIN task_plan_revisions p "
+            "ON p.plan_revision_id=c.plan_revision_id AND p.task_id=c.task_id "
+            "WHERE c.task_id=? LIMIT 1",
+            task_id,
+        )
+
         objective_history = cls._history_exists(
             connection,
             "SELECT 1 FROM objective_membership_events WHERE task_id=? LIMIT 1",
@@ -240,6 +248,15 @@ class TaskPlanningService:
             "SELECT 1 FROM objective_task_membership_current WHERE task_id=? LIMIT 1",
             task_id,
         )
+        objective_current_bound = cls._history_exists(
+            connection,
+            "SELECT 1 FROM objective_task_membership_current c JOIN objective_membership_events e "
+            "ON e.membership_event_id=c.last_event_id AND e.task_id=c.task_id "
+            "AND e.accepted_plan_revision_id=c.accepted_plan_revision_id AND e.to_objective_id=c.objective_id "
+            "WHERE c.task_id=? LIMIT 1",
+            task_id,
+        )
+
         execution_history = cls._history_exists(
             connection,
             "SELECT 1 FROM task_execution_events WHERE task_id=? LIMIT 1",
@@ -250,6 +267,14 @@ class TaskPlanningService:
             "SELECT 1 FROM task_execution_projection WHERE task_id=? LIMIT 1",
             task_id,
         )
+        execution_current_bound = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_execution_projection c JOIN task_execution_events e "
+            "ON e.execution_event_id=c.last_event_id AND e.task_id=c.task_id "
+            "WHERE c.task_id=? LIMIT 1",
+            task_id,
+        )
+
         outcome_history = cls._history_exists(
             connection,
             "SELECT 1 FROM task_outcome_events WHERE task_id=? LIMIT 1",
@@ -260,16 +285,25 @@ class TaskPlanningService:
             "SELECT 1 FROM task_outcome_current WHERE task_id=? LIMIT 1",
             task_id,
         )
+        outcome_current_bound = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_outcome_current c JOIN task_outcome_events e "
+            "ON e.outcome_event_id=c.outcome_event_id AND e.task_id=c.task_id "
+            "AND e.accepted_outcome=c.accepted_outcome WHERE c.task_id=? LIMIT 1",
+            task_id,
+        )
+
         if (
-            (plan_current and not plan_history)
-            or (objective_current and not objective_history)
-            or (execution_current and not execution_history)
-            or (outcome_current and not outcome_history)
+            (plan_current and not plan_current_bound)
+            or (objective_current and not objective_current_bound)
+            or (execution_current and not execution_current_bound)
+            or (outcome_current and not outcome_current_bound)
         ):
             raise SomaError(
                 "WFM_PARENT_STALE",
                 "WFM Task history projections cannot be reconciled to their owned history",
             )
+
         source_history = cls._history_exists(
             connection,
             "SELECT 1 FROM wfm_source_projection_cache WHERE task_id=? LIMIT 1",
