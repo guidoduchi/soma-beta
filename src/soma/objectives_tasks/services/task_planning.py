@@ -397,13 +397,15 @@ class TaskPlanningService:
         ).fetchone()
         if source is not None and str(source[0]) in _TERMINAL_WFM_SOURCE_CLASSES:
             source_revision = int(source[1])
-            review = connection.execute(
-                "SELECT state FROM wfm_source_terminal_reviews "
-                "WHERE task_id=? AND source_projection_revision=? "
-                "ORDER BY created_at_utc DESC,source_terminal_review_id DESC LIMIT 1",
-                (task_id, source_revision),
+            review_authority = connection.execute(
+                "SELECT "
+                "EXISTS(SELECT 1 FROM wfm_source_terminal_reviews "
+                "WHERE task_id=? AND source_projection_revision=? AND state='pending'),"
+                "EXISTS(SELECT 1 FROM wfm_source_terminal_reviews "
+                "WHERE task_id=? AND source_projection_revision=? AND state='retain_local_work')",
+                (task_id, source_revision, task_id, source_revision),
             ).fetchone()
-            if review is None or str(review[0]) != "retain_local_work":
+            if review_authority is None or int(review_authority[0]) == 1 or int(review_authority[1]) != 1:
                 raise SomaError(
                     "TASK_PLAN_LOCKED",
                     "current terminal WFM source consequence is unresolved or protected",
