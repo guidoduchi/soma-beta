@@ -30,6 +30,12 @@
       "migration_id": "beta_0005_command_replay_results",
       "filename": "0005_command_replay_results.sql",
       "sha256": "2aa0b287431d72c47af0e89d5ad28b00e4f21667c40e407fea87390caf826ba7"
+    },
+    {
+      "sequence": 6,
+      "migration_id": "beta_0006_objectives_tasks",
+      "filename": "0006_objectives_tasks.sql",
+      "sha256": "97ceed6eb398dd88fbdefeed964cbbd3334360243d060c2194344df548a89c27"
     }
   ]
 }
