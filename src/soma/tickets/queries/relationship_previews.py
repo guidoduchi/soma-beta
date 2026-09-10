@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
@@ -373,3 +373,41 @@ class RfcHierarchyPreviewQueryService:
                 child_rfc_id=child_rfc_id,
                 new_parent_rfc_id=new_parent_rfc_id,
             )
+
+
+class SrRfcLinkPreviewQueryService:
+    """Read-only PreviewSrRfcLink owner; resolves subordinate origin to its governing root."""
+
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
+        from soma.tickets.relationships import ServiceRequestRfcRelationshipService
+
+        self._evaluator = ServiceRequestRfcRelationshipService(connection_factory)
+
+    def preview(self, *, service_request_id: str, rfc_id: str):
+        sr_id = require_uuid4(service_request_id)
+        requested_rfc_id = require_uuid4(rfc_id)
+        with ReadSnapshot(self._factory) as snapshot:
+            connection = snapshot.connection
+            parent = connection.execute(
+                "SELECT parent_rfc_id FROM rfc_hierarchy_edges WHERE child_rfc_id=? AND edge_state='active'",
+                (requested_rfc_id,),
+            ).fetchone()
+            if parent is None:
+                root_rfc_id = requested_rfc_id
+                subordinate_origin_rfc_id = None
+            else:
+                root_rfc_id = str(parent[0])
+                subordinate_origin_rfc_id = requested_rfc_id
+                if connection.execute(
+                    "SELECT 1 FROM rfc_hierarchy_edges WHERE child_rfc_id=? AND edge_state='active'",
+                    (root_rfc_id,),
+                ).fetchone() is not None:
+                    raise IntegrityFailure("RFC hierarchy exceeds the accepted two-level invariant")
+            result = self._evaluator._preview_with_reader(
+                connection,
+                service_request_id=sr_id,
+                rfc_id=root_rfc_id,
+                subordinate_origin_rfc_id=subordinate_origin_rfc_id,
+            )
+            return replace(result, requested_rfc_id=requested_rfc_id)
