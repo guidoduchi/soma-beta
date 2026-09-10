@@ -6,7 +6,7 @@
     "domain":"domain/{tasks,objectives,grouping,reviews,retries}.py",
     "repositories":"repositories/{tasks,objectives,grouping,reviews}.py",
     "services":"services/{task_planning,task_execution,task_review,retries,objectives,grouping,historical,source_terminal,hard_delete,timezone}.py",
-    "queries":"queries/{tasks,objectives,grouping,reviews,hard_delete,timezone,cascade}.py",
+    "queries":"queries/{tasks,objectives,grouping,reviews,hard_delete,timezone,cascade,task_plan_correction}.py",
     "transport":"api/routes_objectives_tasks.py",
     "types":"contracts/objectives_tasks.py"
   },
@@ -49,6 +49,7 @@
     "TaskList":"queries/tasks.py",
     "TaskWorkbench":"queries/tasks.py",
     "TaskGroupingEligibility":"queries/grouping.py",
+    "TaskPlanCorrectionPreview":"queries/task_plan_correction.py",
     "TaskHardDeletePreview":"queries/hard_delete.py",
     "ObjectiveList":"queries/objectives.py",
     "ObjectiveWorkbench":"queries/objectives.py",
