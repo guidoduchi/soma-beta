@@ -69,10 +69,13 @@ def test_register_manual_wfm_task_persists_identity_assignment_audit_and_exact_r
         assert tuple(identity) == (task_no, rfc_id, 1, command_id)
 
         assignment = snapshot.connection.execute(
-            "SELECT prior_rfc_id,new_rfc_id,reason_code,review_risk,command_id FROM wfm_rfc_assignment_events WHERE task_id=?",
+            "SELECT assignment_event_id,prior_rfc_id,new_rfc_id,reason_code,review_risk,command_id "
+            "FROM wfm_rfc_assignment_events WHERE task_id=?",
             (applied.task_id,),
         ).fetchone()
-        assert tuple(assignment) == (None, rfc_id, "manual_registration", "low", command_id)
+        assert assignment is not None
+        assignment_event_id = str(assignment[0])
+        assert tuple(assignment[1:]) == (None, rfc_id, "manual_registration", "low", command_id)
 
         audit = snapshot.connection.execute(
             "SELECT action_type,payload_json FROM audit_events WHERE command_id=?",
@@ -97,9 +100,7 @@ def test_register_manual_wfm_task_persists_identity_assignment_audit_and_exact_r
         ).fetchall()
         assert [(str(row[0]), str(row[1])) for row in refs] == [
             ("task", applied.task_id),
-            ("wfm_assignment", str(assignment[4]) if False else str(snapshot.connection.execute(
-                "SELECT assignment_event_id FROM wfm_rfc_assignment_events WHERE task_id=?", (applied.task_id,)
-            ).fetchone()[0])),
+            ("wfm_assignment", assignment_event_id),
         ]
 
         receipt = snapshot.connection.execute(
