@@ -13,7 +13,9 @@ from ..contracts.objectives_tasks import AcceptedTaskSchedule
 from ..repositories.tasks import TaskPlanRepository, TaskRepository, WfmTaskRepository
 
 _TERMINAL_WFM_SOURCE_CLASSES = frozenset({"complete", "plan_cancel"})
-_PROTECTED_OBJECTIVE_PLAN_STATES = frozenset({"historical_structure", "reviewed", "superseded"})
+_PROTECTED_OBJECTIVE_PLAN_STATES = frozenset(
+    {"historical_structure", "in_progress", "awaiting_review", "reviewed", "superseded"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -243,8 +245,8 @@ class TaskPlanCorrectionQueryService:
             "SELECT m.objective_id,m.accepted_plan_revision_id,m.membership_revision,m.last_event_id,m.last_command_id,"
             "o.revision,o.creation_origin,o.superseded_by_objective_id,"
             "e.start_utc,e.end_utc,e.member_count,e.membership_input_fingerprint,e.revision,e.last_command_id,"
-            "a.execution_state,a.aggregate_outcome,a.attention_reason,a.included_task_count,a.excluded_task_count,"
-            "a.aggregate_input_fingerprint,a.revision,a.last_command_id "
+            "a.execution_state,a.aggregate_outcome,a.actual_start_utc,a.actual_end_utc,a.attention_reason,"
+            "a.included_task_count,a.excluded_task_count,a.aggregate_input_fingerprint,a.revision,a.last_command_id "
             "FROM objective_task_membership_current m "
             "LEFT JOIN objectives o ON o.objective_id=m.objective_id "
             "LEFT JOIN objective_envelope_projection e ON e.objective_id=m.objective_id "
@@ -254,7 +256,7 @@ class TaskPlanCorrectionQueryService:
         ).fetchone()
         if row is None:
             return None, False
-        if any(row[index] is None for index in (5, 6, 8, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21)):
+        if any(row[index] is None for index in (5, 6, 8, 9, 10, 11, 12, 13, 14, 19, 20, 21, 22, 23)):
             raise SomaError("TASK_PLAN_LOCKED", "current Objective authority is incomplete")
         objective_id = str(row[0])
         pinned_plan_id = str(row[1])
@@ -264,11 +266,7 @@ class TaskPlanCorrectionQueryService:
             "FROM objective_membership_events WHERE membership_event_id=? AND task_id=?",
             (last_event_id, task_id),
         ).fetchone()
-        if (
-            event is None
-            or str(event[2]) != objective_id
-            or str(event[3]) != pinned_plan_id
-        ):
+        if event is None or str(event[2]) != objective_id or str(event[3]) != pinned_plan_id:
             raise SomaError("TASK_PLAN_LOCKED", "current Objective membership is not bound to same-Task history")
         execution_state = str(row[14])
         protected = (
@@ -308,12 +306,14 @@ class TaskPlanCorrectionQueryService:
             "aggregate": {
                 "execution_state": execution_state,
                 "aggregate_outcome": None if row[15] is None else str(row[15]),
-                "attention_reason": None if row[16] is None else str(row[16]),
-                "included_task_count": int(row[17]),
-                "excluded_task_count": int(row[18]),
-                "aggregate_input_fingerprint": str(row[19]),
-                "revision": int(row[20]),
-                "last_command_id": str(row[21]),
+                "actual_start_utc": None if row[16] is None else int(row[16]),
+                "actual_end_utc": None if row[17] is None else int(row[17]),
+                "attention_reason": None if row[18] is None else str(row[18]),
+                "included_task_count": int(row[19]),
+                "excluded_task_count": int(row[20]),
+                "aggregate_input_fingerprint": str(row[21]),
+                "revision": int(row[22]),
+                "last_command_id": str(row[23]),
             },
         }, protected
 
@@ -341,27 +341,19 @@ class TaskPlanCorrectionQueryService:
         if task.revision != task_revision:
             raise SomaError("TASK_STALE", "Task revision changed since correction preview input")
         pointer = TaskPlanRepository.current_pointer(connection, canonical_task_id)
-        if (
-            pointer is None
-            or pointer.revision != current_plan_revision
-            or pointer.plan_revision_id != canonical_plan_id
-        ):
+        if pointer is None or pointer.revision != current_plan_revision or pointer.plan_revision_id != canonical_plan_id:
             raise SomaError("TASK_STALE", "Task current-plan authority changed since correction preview input")
         current_plan = TaskPlanRepository.get_revision(connection, canonical_plan_id)
         if current_plan is None or current_plan.task_id != canonical_task_id:
             raise SomaError("TASK_STALE", "Task current-plan pointer does not resolve to owned immutable history")
 
         lock_authority = cls._load_lock_authority(connection, canonical_task_id)
-        execution_authority, non_correction_execution_count = cls._load_execution_authority(
-            connection, canonical_task_id
-        )
+        execution_authority, non_correction_execution_count = cls._load_execution_authority(connection, canonical_task_id)
         outcome_authority = cls._load_outcome_authority(connection, canonical_task_id)
         source_authority, pending_source_terminal_review = cls._load_wfm_source_authority(
             connection, canonical_task_id, task.task_kind
         )
-        objective_authority, protected_objective = cls._load_objective_authority(
-            connection, canonical_task_id
-        )
+        objective_authority, protected_objective = cls._load_objective_authority(connection, canonical_task_id)
 
         risk_reasons: list[str] = []
         if lock_authority is not None and bool(lock_authority["explicit_plan_lock"]):
@@ -370,10 +362,7 @@ class TaskPlanCorrectionQueryService:
             risk_reasons.append("EXECUTION_HISTORY")
         if outcome_authority is not None:
             risk_reasons.append("TASK_OUTCOME")
-        if (
-            source_authority is not None
-            and source_authority["provider_lifecycle_class"] in _TERMINAL_WFM_SOURCE_CLASSES
-        ):
+        if source_authority is not None and source_authority["provider_lifecycle_class"] in _TERMINAL_WFM_SOURCE_CLASSES:
             risk_reasons.append("TERMINAL_WFM_SOURCE")
         if protected_objective:
             risk_reasons.append("PROTECTED_OBJECTIVE_HISTORY")
