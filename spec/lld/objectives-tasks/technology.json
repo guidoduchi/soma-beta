@@ -4,6 +4,7 @@
   "runtime":[
     "Python 3.13/3.14 domain/service layer over LLD-01 SQLite STRICT persistence and UnitOfWork abstractions",
     "Python standard-library datetime/zoneinfo for schedule conversion; LLD-12 packaging must guarantee an offline IANA tzdata source on supported Windows installations",
+    "regex==2026.7.19 for Unicode 17.0.0 UAX #29 default extended grapheme-cluster segmentation; Local Task semantic bounds count VERSION1 \\X matches and never substitute Python code-point length",
     "hashlib.sha256 over canonical bounded proposal/input serialization for stale/rejection fingerprints"
   ],
   "algorithm_choices":{
