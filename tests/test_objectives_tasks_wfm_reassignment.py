@@ -43,17 +43,64 @@ def _receipt_exists(factory, command_id: str) -> bool:
         ).fetchone() is not None
 
 
+def _rfc_authority(factory, rfc_id: str) -> tuple[int, int]:
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT r.revision,COALESCE(p.revision,0) "
+            "FROM rfcs r LEFT JOIN rfc_current_source_projection p ON p.rfc_id=r.rfc_id "
+            "WHERE r.rfc_id=?",
+            (rfc_id,),
+        ).fetchone()
+    assert row is not None
+    return int(row[0]), int(row[1])
+
+
+def _freshness(factory, *, current_rfc_id: str, new_rfc_id: str) -> dict[str, int]:
+    current_rfc_revision, current_source_revision = _rfc_authority(factory, current_rfc_id)
+    new_rfc_revision, new_source_revision = _rfc_authority(factory, new_rfc_id)
+    return {
+        "current_rfc_revision": current_rfc_revision,
+        "current_rfc_source_projection_revision": current_source_revision,
+        "new_rfc_revision": new_rfc_revision,
+        "new_rfc_source_projection_revision": new_source_revision,
+    }
+
+
+def _reassign(
+    factory,
+    *,
+    task_id: str,
+    task_revision: int,
+    assignment_revision: int,
+    current_rfc_id: str,
+    new_rfc_id: str,
+    command_id: str | None = None,
+    reason_category: str = "manual_correction",
+    accept_high_risk: bool = False,
+    freshness: dict[str, int] | None = None,
+):
+    bases = _freshness(factory, current_rfc_id=current_rfc_id, new_rfc_id=new_rfc_id) if freshness is None else freshness
+    return TaskPlanningService(factory).reassign_wfm_parent(
+        command_id=new_uuid4() if command_id is None else command_id,
+        task_id=task_id,
+        task_revision=task_revision,
+        assignment_revision=assignment_revision,
+        new_rfc_id=new_rfc_id,
+        reason_category=reason_category,
+        accept_high_risk=accept_high_risk,
+        **bases,
+    )
+
+
 def test_reassign_wfm_parent_low_risk_preserves_identity_and_audits_exact_event(initialized_database) -> None:
     factory = _factory(initialized_database)
     old_rfc = _create_rfc(factory, "NC00000000000101")
     new_rfc = _create_rfc(factory, "NC00000000000102")
     _, registered = _register(factory, rfc_id=old_rfc, task_no="TK00000000000101")
-    service = TaskPlanningService(factory)
     command_id = new_uuid4()
+    rfc_bases = _freshness(factory, current_rfc_id=old_rfc, new_rfc_id=new_rfc)
 
     with ReadSnapshot(factory) as snapshot:
-        old_rfc_revision = int(snapshot.connection.execute("SELECT revision FROM rfcs WHERE rfc_id=?", (old_rfc,)).fetchone()[0])
-        new_rfc_revision = int(snapshot.connection.execute("SELECT revision FROM rfcs WHERE rfc_id=?", (new_rfc,)).fetchone()[0])
         before_task = snapshot.connection.execute(
             "SELECT task_kind,creation_origin,created_command_id FROM tasks WHERE task_id=?",
             (registered.task_id,),
@@ -63,14 +110,15 @@ def test_reassign_wfm_parent_low_risk_preserves_identity_and_audits_exact_event(
             (registered.task_id,),
         ).fetchone()
 
-    result = service.reassign_wfm_parent(
+    result = _reassign(
+        factory,
         command_id=command_id,
         task_id=registered.task_id,
         task_revision=1,
         assignment_revision=1,
+        current_rfc_id=old_rfc,
         new_rfc_id=new_rfc,
-        reason_category="manual_correction",
-        accept_high_risk=False,
+        freshness=rfc_bases,
     )
 
     assert result.outcome == "APPLIED"
@@ -109,8 +157,16 @@ def test_reassign_wfm_parent_low_risk_preserves_identity_and_audits_exact_event(
             command_id,
         )
 
-        assert int(snapshot.connection.execute("SELECT revision FROM rfcs WHERE rfc_id=?", (old_rfc,)).fetchone()[0]) == old_rfc_revision
-        assert int(snapshot.connection.execute("SELECT revision FROM rfcs WHERE rfc_id=?", (new_rfc,)).fetchone()[0]) == new_rfc_revision
+        assert snapshot.connection.execute(
+            "SELECT revision FROM rfcs WHERE rfc_id=?", (old_rfc,)
+        ).fetchone()[0] == rfc_bases["current_rfc_revision"]
+        assert snapshot.connection.execute(
+            "SELECT revision FROM rfcs WHERE rfc_id=?", (new_rfc,)
+        ).fetchone()[0] == rfc_bases["new_rfc_revision"]
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM rfc_current_source_projection WHERE rfc_id IN (?,?)",
+            (old_rfc, new_rfc),
+        ).fetchone()[0] == 0
         for table in (
             "task_plan_revisions",
             "wfm_source_projection_cache",
@@ -125,7 +181,9 @@ def test_reassign_wfm_parent_low_risk_preserves_identity_and_audits_exact_event(
                     (registered.task_id, registered.task_id),
                 ).fetchone()[0]
             else:
-                count = snapshot.connection.execute(f"SELECT count(*) FROM {table} WHERE task_id=?", (registered.task_id,)).fetchone()[0]
+                count = snapshot.connection.execute(
+                    f"SELECT count(*) FROM {table} WHERE task_id=?", (registered.task_id,)
+                ).fetchone()[0]
             assert count == 0
 
         audit = snapshot.connection.execute(
@@ -152,24 +210,31 @@ def test_reassign_wfm_parent_low_risk_preserves_identity_and_audits_exact_event(
         assert [(str(row[0]), str(row[1])) for row in refs] == [("wfm_assignment", assignment_event_id)]
 
 
-def test_reassign_wfm_parent_exact_replay_and_same_parent_no_change(initialized_database) -> None:
+def test_reassign_wfm_parent_exact_replay_precedes_rfc_reads_and_same_parent_no_change(initialized_database) -> None:
     factory = _factory(initialized_database)
     old_rfc = _create_rfc(factory, "NC00000000000103")
     new_rfc = _create_rfc(factory, "NC00000000000104")
     _, registered = _register(factory, rfc_id=old_rfc, task_no="TK00000000000102")
-    service = TaskPlanningService(factory)
     command_id = new_uuid4()
+    original_bases = _freshness(factory, current_rfc_id=old_rfc, new_rfc_id=new_rfc)
     kwargs = dict(
         command_id=command_id,
         task_id=registered.task_id,
         task_revision=1,
         assignment_revision=1,
+        current_rfc_id=old_rfc,
         new_rfc_id=new_rfc,
         reason_category="operator_review",
         accept_high_risk=False,
+        freshness=original_bases,
     )
-    applied = service.reassign_wfm_parent(**kwargs)
-    replay = service.reassign_wfm_parent(**kwargs)
+    applied = _reassign(factory, **kwargs)
+
+    # Replay must not depend on mutable RFC authority after the original commit.
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute("UPDATE rfcs SET revision=revision+1 WHERE rfc_id=?", (old_rfc,))
+        uow.connection.execute("UPDATE rfcs SET revision=revision+1 WHERE rfc_id=?", (new_rfc,))
+    replay = _reassign(factory, **kwargs)
     assert replay.replayed
     assert replay.outcome == applied.outcome
     assert replay.task_id == applied.task_id
@@ -177,14 +242,15 @@ def test_reassign_wfm_parent_exact_replay_and_same_parent_no_change(initialized_
     assert replay.result_refs == applied.result_refs
 
     no_change_command = new_uuid4()
-    no_change = service.reassign_wfm_parent(
+    no_change = _reassign(
+        factory,
         command_id=no_change_command,
         task_id=registered.task_id,
         task_revision=2,
         assignment_revision=2,
+        current_rfc_id=new_rfc,
         new_rfc_id=new_rfc,
         reason_category="confirm_parent",
-        accept_high_risk=False,
     )
     assert no_change.no_change
     assert no_change.revision == 2
@@ -209,35 +275,122 @@ def test_reassign_wfm_parent_rejects_stale_task_and_assignment_before_receipt(in
     old_rfc = _create_rfc(factory, "NC00000000000105")
     new_rfc = _create_rfc(factory, "NC00000000000106")
     _, registered = _register(factory, rfc_id=old_rfc, task_no="TK00000000000103")
-    service = TaskPlanningService(factory)
+    bases = _freshness(factory, current_rfc_id=old_rfc, new_rfc_id=new_rfc)
 
     stale_task_command = new_uuid4()
     with pytest.raises(SomaError) as stale_task:
-        service.reassign_wfm_parent(
+        _reassign(
+            factory,
             command_id=stale_task_command,
             task_id=registered.task_id,
             task_revision=2,
             assignment_revision=1,
+            current_rfc_id=old_rfc,
             new_rfc_id=new_rfc,
-            reason_category="manual_correction",
-            accept_high_risk=False,
+            freshness=bases,
         )
     assert stale_task.value.code == "TASK_STALE"
     assert not _receipt_exists(factory, stale_task_command)
 
     stale_assignment_command = new_uuid4()
     with pytest.raises(SomaError) as stale_assignment:
-        service.reassign_wfm_parent(
+        _reassign(
+            factory,
             command_id=stale_assignment_command,
             task_id=registered.task_id,
             task_revision=1,
             assignment_revision=2,
+            current_rfc_id=old_rfc,
             new_rfc_id=new_rfc,
-            reason_category="manual_correction",
-            accept_high_risk=False,
+            freshness=bases,
         )
     assert stale_assignment.value.code == "WFM_PARENT_STALE"
     assert not _receipt_exists(factory, stale_assignment_command)
+
+
+@pytest.mark.parametrize(
+    ("side", "authority_kind"),
+    (
+        ("current", "rfc_revision"),
+        ("current", "source_revision"),
+        ("candidate", "rfc_revision"),
+        ("candidate", "source_revision"),
+    ),
+)
+def test_reassign_wfm_parent_binds_both_rfc_freshness_authorities(
+    initialized_database, side: str, authority_kind: str
+) -> None:
+    factory = _factory(initialized_database)
+    suffix = {
+        ("current", "rfc_revision"): ("18", "19", "11"),
+        ("current", "source_revision"): ("20", "21", "12"),
+        ("candidate", "rfc_revision"): ("22", "23", "13"),
+        ("candidate", "source_revision"): ("24", "25", "14"),
+    }[(side, authority_kind)]
+    old_rfc = _create_rfc(factory, f"NC000000000001{suffix[0]}")
+    new_rfc = _create_rfc(factory, f"NC000000000001{suffix[1]}")
+    _, registered = _register(factory, rfc_id=old_rfc, task_no=f"TK000000000001{suffix[2]}")
+    captured = _freshness(factory, current_rfc_id=old_rfc, new_rfc_id=new_rfc)
+    changed_rfc = old_rfc if side == "current" else new_rfc
+
+    with UnitOfWork(factory) as uow:
+        if authority_kind == "rfc_revision":
+            uow.connection.execute("UPDATE rfcs SET revision=revision+1 WHERE rfc_id=?", (changed_rfc,))
+        else:
+            uow.connection.execute(
+                "INSERT INTO rfc_current_source_projection(rfc_id,revision) VALUES (?,1)",
+                (changed_rfc,),
+            )
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as stale:
+        _reassign(
+            factory,
+            command_id=command_id,
+            task_id=registered.task_id,
+            task_revision=1,
+            assignment_revision=1,
+            current_rfc_id=old_rfc,
+            new_rfc_id=new_rfc,
+            freshness=captured,
+        )
+    assert stale.value.code == "WFM_PARENT_STALE"
+    assert not _receipt_exists(factory, command_id)
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT current_rfc_id,assignment_revision FROM wfm_task_identities WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone() == (old_rfc, 1)
+        assert snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?", (registered.task_id,)
+        ).fetchone() == (1,)
+
+
+def test_reassign_wfm_parent_exact_but_archived_candidate_is_not_eligible(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    old_rfc = _create_rfc(factory, "NC00000000000126")
+    new_rfc = _create_rfc(factory, "NC00000000000127")
+    _, registered = _register(factory, rfc_id=old_rfc, task_no="TK00000000000115")
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE rfcs SET local_archive_state='archived',revision=revision+1 WHERE rfc_id=?",
+            (new_rfc,),
+        )
+    fresh = _freshness(factory, current_rfc_id=old_rfc, new_rfc_id=new_rfc)
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as blocked:
+        _reassign(
+            factory,
+            command_id=command_id,
+            task_id=registered.task_id,
+            task_revision=1,
+            assignment_revision=1,
+            current_rfc_id=old_rfc,
+            new_rfc_id=new_rfc,
+            freshness=fresh,
+        )
+    assert blocked.value.code == "WFM_RFC_NOT_ELIGIBLE"
+    assert not _receipt_exists(factory, command_id)
 
 
 def test_reassign_wfm_parent_high_risk_plan_requires_explicit_acceptance(initialized_database) -> None:
@@ -255,30 +408,34 @@ def test_reassign_wfm_parent_high_risk_plan_requires_explicit_acceptance(initial
         task_no="TK00000000000104",
         schedule=schedule,
     )
-    service = TaskPlanningService(factory)
+    bases = _freshness(factory, current_rfc_id=old_rfc, new_rfc_id=new_rfc)
 
     denied_command = new_uuid4()
     with pytest.raises(SomaError) as denied:
-        service.reassign_wfm_parent(
+        _reassign(
+            factory,
             command_id=denied_command,
             task_id=registered.task_id,
             task_revision=1,
             assignment_revision=1,
+            current_rfc_id=old_rfc,
             new_rfc_id=new_rfc,
             reason_category="reviewed_move",
-            accept_high_risk=False,
+            freshness=bases,
         )
     assert denied.value.code == "WFM_PARENT_REVIEW_REQUIRED"
     assert not _receipt_exists(factory, denied_command)
 
-    accepted = service.reassign_wfm_parent(
-        command_id=new_uuid4(),
+    accepted = _reassign(
+        factory,
         task_id=registered.task_id,
         task_revision=1,
         assignment_revision=1,
+        current_rfc_id=old_rfc,
         new_rfc_id=new_rfc,
         reason_category="reviewed_move",
         accept_high_risk=True,
+        freshness=bases,
     )
     assert accepted.revision == 2
     with ReadSnapshot(factory) as snapshot:
@@ -309,14 +466,15 @@ def test_reassign_wfm_parent_source_projection_is_high_risk(initialized_database
 
     command_id = new_uuid4()
     with pytest.raises(SomaError) as denied:
-        TaskPlanningService(factory).reassign_wfm_parent(
+        _reassign(
+            factory,
             command_id=command_id,
             task_id=registered.task_id,
             task_revision=1,
             assignment_revision=1,
+            current_rfc_id=old_rfc,
             new_rfc_id=new_rfc,
             reason_category="source_conflict_review",
-            accept_high_risk=False,
         )
     assert denied.value.code == "WFM_PARENT_REVIEW_REQUIRED"
     assert not _receipt_exists(factory, command_id)
@@ -327,6 +485,7 @@ def test_reassign_wfm_parent_rejects_missing_candidate_and_local_task(initialize
     old_rfc = _create_rfc(factory, "NC00000000000111")
     _, registered = _register(factory, rfc_id=old_rfc, task_no="TK00000000000106")
     service = TaskPlanningService(factory)
+    current_revision, current_source_revision = _rfc_authority(factory, old_rfc)
 
     missing_command = new_uuid4()
     with pytest.raises(SomaError) as missing:
@@ -335,7 +494,11 @@ def test_reassign_wfm_parent_rejects_missing_candidate_and_local_task(initialize
             task_id=registered.task_id,
             task_revision=1,
             assignment_revision=1,
+            current_rfc_revision=current_revision,
+            current_rfc_source_projection_revision=current_source_revision,
             new_rfc_id=new_uuid4(),
+            new_rfc_revision=1,
+            new_rfc_source_projection_revision=0,
             reason_category="manual_correction",
             accept_high_risk=False,
         )
@@ -350,7 +513,11 @@ def test_reassign_wfm_parent_rejects_missing_candidate_and_local_task(initialize
             task_id=local.task_id,
             task_revision=1,
             assignment_revision=1,
+            current_rfc_revision=current_revision,
+            current_rfc_source_projection_revision=current_source_revision,
             new_rfc_id=old_rfc,
+            new_rfc_revision=current_revision,
+            new_rfc_source_projection_revision=current_source_revision,
             reason_category="manual_correction",
             accept_high_risk=False,
         )
@@ -363,23 +530,32 @@ def test_reassign_wfm_parent_preflight_is_strict_and_writes_nothing(initialized_
     old_rfc = _create_rfc(factory, "NC00000000000112")
     new_rfc = _create_rfc(factory, "NC00000000000113")
     _, registered = _register(factory, rfc_id=old_rfc, task_no="TK00000000000107")
-    service = TaskPlanningService(factory)
-
+    valid = {
+        "task_revision": 1,
+        "assignment_revision": 1,
+        "reason_category": "x",
+        "accept_high_risk": False,
+        **_freshness(factory, current_rfc_id=old_rfc, new_rfc_id=new_rfc),
+    }
     cases = (
-        {"task_revision": True, "assignment_revision": 1, "reason_category": "x", "accept_high_risk": False},
-        {"task_revision": 1, "assignment_revision": 0, "reason_category": "x", "accept_high_risk": False},
-        {"task_revision": 1, "assignment_revision": 1, "reason_category": "", "accept_high_risk": False},
-        {"task_revision": 1, "assignment_revision": 1, "reason_category": "x\nunsafe", "accept_high_risk": False},
-        {"task_revision": 1, "assignment_revision": 1, "reason_category": "x", "accept_high_risk": 1},
+        {"task_revision": True},
+        {"assignment_revision": 0},
+        {"current_rfc_revision": 0},
+        {"current_rfc_source_projection_revision": -1},
+        {"new_rfc_revision": True},
+        {"new_rfc_source_projection_revision": -1},
+        {"reason_category": ""},
+        {"reason_category": "x\nunsafe"},
+        {"accept_high_risk": 1},
     )
-    for case in cases:
+    for override in cases:
         command_id = new_uuid4()
         with pytest.raises(ValidationError):
-            service.reassign_wfm_parent(
+            TaskPlanningService(factory).reassign_wfm_parent(
                 command_id=command_id,
                 task_id=registered.task_id,
                 new_rfc_id=new_rfc,
-                **case,
+                **(valid | override),
             )
         assert not _receipt_exists(factory, command_id)
 
@@ -393,6 +569,7 @@ def test_reassign_wfm_parent_rolls_back_identity_revision_event_and_receipt_on_a
     _, registered = _register(factory, rfc_id=old_rfc, task_no="TK00000000000108")
     service = TaskPlanningService(factory)
     command_id = new_uuid4()
+    bases = _freshness(factory, current_rfc_id=old_rfc, new_rfc_id=new_rfc)
 
     def fail_audit(*_args, **_kwargs):
         raise SomaError("AUDIT_PERSISTENCE_FAILURE", "injected reassignment audit failure")
@@ -407,17 +584,18 @@ def test_reassign_wfm_parent_rolls_back_identity_revision_event_and_receipt_on_a
             new_rfc_id=new_rfc,
             reason_category="manual_correction",
             accept_high_risk=False,
+            **bases,
         )
     assert failure.value.code == "AUDIT_PERSISTENCE_FAILURE"
 
     with ReadSnapshot(factory) as snapshot:
-        assert tuple(snapshot.connection.execute(
+        assert snapshot.connection.execute(
             "SELECT revision FROM tasks WHERE task_id=?", (registered.task_id,)
-        ).fetchone()) == (1,)
-        assert tuple(snapshot.connection.execute(
+        ).fetchone() == (1,)
+        assert snapshot.connection.execute(
             "SELECT current_rfc_id,assignment_revision FROM wfm_task_identities WHERE task_id=?",
             (registered.task_id,),
-        ).fetchone()) == (old_rfc, 1)
+        ).fetchone() == (old_rfc, 1)
         assert snapshot.connection.execute(
             "SELECT count(*) FROM wfm_rfc_assignment_events WHERE task_id=?",
             (registered.task_id,),
@@ -433,29 +611,45 @@ def test_reassign_wfm_parent_fails_closed_on_cross_task_current_plan_corruption(
     new_rfc = _create_rfc(factory, "NC00000000000117")
     schedule_a = AcceptedTaskSchedule(1_810_000_000, 1_810_003_600, "America/Guayaquil")
     schedule_b = AcceptedTaskSchedule(1_820_000_000, 1_820_003_600, "America/Guayaquil")
-    target_command, target = _register(
-        factory, rfc_id=old_rfc, task_no="TK00000000000109", schedule=schedule_a
-    )
-    _, donor = _register(
-        factory, rfc_id=old_rfc, task_no="TK00000000000110", schedule=schedule_b
-    )
+    _, target = _register(factory, rfc_id=old_rfc, task_no="TK00000000000109", schedule=schedule_a)
+    _, donor = _register(factory, rfc_id=old_rfc, task_no="TK00000000000110", schedule=schedule_b)
+
+    # Simulate out-of-band/legacy corruption beyond the normal DB backstops, then restore the exact guards.
     with UnitOfWork(factory) as uow:
-        donor_plan = str(uow.connection.execute(
-            "SELECT plan_revision_id FROM task_plan_current WHERE task_id=?", (donor.task_id,)
-        ).fetchone()[0])
-        uow.connection.execute("DELETE FROM task_plan_current WHERE task_id IN (?,?)", (target.task_id, donor.task_id))
+        donor_plan = str(
+            uow.connection.execute(
+                "SELECT plan_revision_id FROM task_plan_current WHERE task_id=?", (donor.task_id,)
+            ).fetchone()[0]
+        )
+        uow.connection.execute("DROP TRIGGER task_plan_current_delete_guard")
+        uow.connection.execute("DROP TRIGGER task_plan_current_update_guard")
+        uow.connection.execute("DELETE FROM task_plan_current WHERE task_id=?", (donor.task_id,))
         uow.connection.execute(
-            "INSERT INTO task_plan_current(task_id,plan_revision_id,revision,last_command_id) VALUES (?,?,1,?)",
-            (target.task_id, donor_plan, target_command),
+            "UPDATE task_plan_current SET plan_revision_id=?,revision=revision+1 WHERE task_id=?",
+            (donor_plan, target.task_id),
+        )
+        uow.connection.execute(
+            "CREATE TRIGGER task_plan_current_update_guard BEFORE UPDATE ON task_plan_current BEGIN "
+            "SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.revision<>OLD.revision+1 "
+            "OR NEW.plan_revision_id=OLD.plan_revision_id OR NOT EXISTS "
+            "(SELECT 1 FROM task_plan_revisions WHERE plan_revision_id=NEW.plan_revision_id AND task_id=NEW.task_id) "
+            "THEN RAISE(ABORT,'TASK_PLAN_CURRENT_INVALID') END; END"
+        )
+        uow.connection.execute(
+            "CREATE TRIGGER task_plan_current_delete_guard BEFORE DELETE ON task_plan_current BEGIN "
+            "SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' "
+            "AND target_type='task' AND target_id=OLD.task_id) THEN RAISE(ABORT,'TASK_PLAN_CURRENT_PROTECTED') END; END"
         )
 
     command_id = new_uuid4()
     with pytest.raises(SomaError) as stale:
-        TaskPlanningService(factory).reassign_wfm_parent(
+        _reassign(
+            factory,
             command_id=command_id,
             task_id=target.task_id,
             task_revision=1,
             assignment_revision=1,
+            current_rfc_id=old_rfc,
             new_rfc_id=new_rfc,
             reason_category="corrupt_projection_review",
             accept_high_risk=True,

@@ -200,18 +200,28 @@ class TaskPlanningService:
         return tuple(rows)
 
     @staticmethod
-    def _require_eligible_rfc(connection, rfc_id: str) -> None:
+    def _load_rfc_parent_authority(connection, rfc_id: str) -> tuple[int, int, str, str] | None:
         row = connection.execute(
-            "SELECT r.local_archive_state,COALESCE(p.status_class,'unknown') "
+            "SELECT r.revision,COALESCE(p.revision,0),r.local_archive_state,COALESCE(p.status_class,'unknown') "
             "FROM rfcs r LEFT JOIN rfc_current_source_projection p ON p.rfc_id=r.rfc_id "
             "WHERE r.rfc_id=?",
             (rfc_id,),
         ).fetchone()
         if row is None:
+            return None
+        return int(row[0]), int(row[1]), str(row[2]), str(row[3])
+
+    @staticmethod
+    def _assert_eligible_rfc_authority(authority: tuple[int, int, str, str] | None) -> None:
+        if authority is None:
             raise SomaError("WFM_RFC_NOT_ELIGIBLE", "owning RFC does not exist")
-        archive_state, status_class = str(row[0]), str(row[1])
+        _rfc_revision, _source_revision, archive_state, status_class = authority
         if archive_state != "active" or status_class in _TERMINAL_RFC_STATUS_CLASSES:
             raise SomaError("WFM_RFC_NOT_ELIGIBLE", "owning RFC cannot own active nonterminal WFM work")
+
+    @classmethod
+    def _require_eligible_rfc(cls, connection, rfc_id: str) -> None:
+        cls._assert_eligible_rfc_authority(cls._load_rfc_parent_authority(connection, rfc_id))
 
     @staticmethod
     def _history_exists(connection, sql: str, task_id: str, *, twice: bool = False) -> bool:
@@ -638,7 +648,11 @@ class TaskPlanningService:
         task_id: str,
         task_revision: int,
         assignment_revision: int,
+        current_rfc_revision: int,
+        current_rfc_source_projection_revision: int,
         new_rfc_id: str,
+        new_rfc_revision: int,
+        new_rfc_source_projection_revision: int,
         reason_category: str,
         accept_high_risk: bool,
         actor_kind: str = "local_user",
@@ -646,10 +660,20 @@ class TaskPlanningService:
     ) -> TaskMutationResult:
         canonical_task_id = require_uuid4(task_id)
         canonical_new_rfc_id = require_uuid4(new_rfc_id)
-        if type(task_revision) is not int or task_revision <= 0:
-            raise ValidationError("task_revision must be a positive integer")
-        if type(assignment_revision) is not int or assignment_revision <= 0:
-            raise ValidationError("assignment_revision must be a positive integer")
+        for field, value in (
+            ("task_revision", task_revision),
+            ("assignment_revision", assignment_revision),
+            ("current_rfc_revision", current_rfc_revision),
+            ("new_rfc_revision", new_rfc_revision),
+        ):
+            if type(value) is not int or value <= 0:
+                raise ValidationError(f"{field} must be a positive integer")
+        for field, value in (
+            ("current_rfc_source_projection_revision", current_rfc_source_projection_revision),
+            ("new_rfc_source_projection_revision", new_rfc_source_projection_revision),
+        ):
+            if type(value) is not int or value < 0:
+                raise ValidationError(f"{field} must be a nonnegative integer")
         reason = validate_task_reason_category(reason_category)
         if type(accept_high_risk) is not bool:
             raise ValidationError("accept_high_risk must be a boolean")
@@ -660,7 +684,11 @@ class TaskPlanningService:
             target_type="task",
             target_id=canonical_task_id,
             semantic_payload={
+                "current_rfc_revision": current_rfc_revision,
+                "current_rfc_source_projection_revision": current_rfc_source_projection_revision,
                 "new_rfc_id": canonical_new_rfc_id,
+                "new_rfc_revision": new_rfc_revision,
+                "new_rfc_source_projection_revision": new_rfc_source_projection_revision,
                 "reason_category": reason,
                 "accept_high_risk": accept_high_risk,
             },
@@ -679,7 +707,33 @@ class TaskPlanningService:
                 raise SomaError("TASK_STALE", "Task revision changed before WFM parent reassignment")
             if identity.assignment_revision != assignment_revision:
                 raise SomaError("WFM_PARENT_STALE", "WFM assignment revision changed before reassignment")
-            if identity.current_rfc_id == canonical_new_rfc_id:
+
+            prior_rfc_id = identity.current_rfc_id
+            current_authority = self._load_rfc_parent_authority(uow.connection, prior_rfc_id)
+            if current_authority is None:
+                raise SomaError("WFM_PARENT_STALE", "current WFM parent RFC disappeared from authority")
+            candidate_authority = self._load_rfc_parent_authority(uow.connection, canonical_new_rfc_id)
+            if candidate_authority is None:
+                raise SomaError("WFM_RFC_NOT_ELIGIBLE", "owning RFC does not exist")
+
+            if current_authority[:2] != (
+                current_rfc_revision,
+                current_rfc_source_projection_revision,
+            ):
+                raise SomaError(
+                    "WFM_PARENT_STALE",
+                    "current WFM parent RFC hierarchy or source-lifecycle authority changed",
+                )
+            if candidate_authority[:2] != (
+                new_rfc_revision,
+                new_rfc_source_projection_revision,
+            ):
+                raise SomaError(
+                    "WFM_PARENT_STALE",
+                    "candidate WFM parent RFC hierarchy or source-lifecycle authority changed",
+                )
+
+            if prior_rfc_id == canonical_new_rfc_id:
                 return PreparedMutation(
                     True,
                     None,
@@ -700,9 +754,8 @@ class TaskPlanningService:
                     "WFM_PARENT_REVIEW_REQUIRED",
                     "protected Task history requires explicit high-risk WFM parent reassignment acceptance",
                 )
-            self._require_eligible_rfc(uow.connection, canonical_new_rfc_id)
+            self._assert_eligible_rfc_authority(candidate_authority)
 
-            prior_rfc_id = identity.current_rfc_id
             assignment_event_id = new_uuid4()
             audit_event_id = new_uuid4()
             now = utc_epoch_seconds()
