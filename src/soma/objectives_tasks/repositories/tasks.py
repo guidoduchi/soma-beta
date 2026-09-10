@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from soma.foundation.errors import IntegrityFailure
+from soma.foundation.errors import IntegrityFailure, ValidationError
 from soma.foundation.persistence.uow import UnitOfWork
 
 
@@ -47,6 +47,15 @@ class TaskPlanRecord:
     reason_code: str | None
     accepted_at_utc: int
     command_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class TaskRelationshipRecord:
+    relationship_id: str
+    task_id: str
+    relationship_kind: str
+    related_id: str
+    opened_command_id: str
 
 
 class TaskRepository:
@@ -216,4 +225,23 @@ class TaskPlanRepository:
         uow.connection.execute(
             "INSERT INTO task_plan_current(task_id,plan_revision_id,revision,last_command_id) VALUES (?,?,1,?)",
             (row.task_id, row.plan_revision_id, row.command_id),
+        )
+
+
+class TaskRelationshipRepository:
+    _INSERT_SQL = {
+        "sr": "INSERT INTO task_sr_links(link_id,task_id,service_request_id,active,opened_command_id,closed_command_id) VALUES (?,?,?,1,?,NULL)",
+        "rfc": "INSERT INTO task_rfc_links(link_id,task_id,rfc_id,active,opened_command_id,closed_command_id) VALUES (?,?,?,1,?,NULL)",
+        "device": "INSERT INTO task_device_links(link_id,task_id,device_reference_id,active,opened_command_id,closed_command_id) VALUES (?,?,?,1,?,NULL)",
+    }
+
+    @staticmethod
+    def link(uow: UnitOfWork, row: TaskRelationshipRecord) -> None:
+        try:
+            sql = TaskRelationshipRepository._INSERT_SQL[row.relationship_kind]
+        except KeyError as exc:
+            raise ValidationError("unsupported Task relationship kind") from exc
+        uow.connection.execute(
+            sql,
+            (row.relationship_id, row.task_id, row.related_id, row.opened_command_id),
         )
