@@ -5,7 +5,7 @@
   "modules":{
     "domain":"domain/{tasks,objectives,grouping,reviews,retries}.py",
     "repositories":"repositories/{tasks,objectives,grouping,reviews}.py",
-    "services":"services/{task_planning,task_execution,task_review,retries,objectives,grouping,historical,source_terminal,hard_delete,timezone}.py",
+    "services":"services/{task_planning,task_plan_correction,task_execution,task_review,retries,objectives,grouping,historical,source_terminal,hard_delete,timezone}.py",
     "queries":"queries/{tasks,objectives,grouping,reviews,hard_delete,timezone,cascade,task_plan_correction}.py",
     "transport":"api/routes_objectives_tasks.py",
     "types":"contracts/objectives_tasks.py"
@@ -15,7 +15,7 @@
     "RegisterManualWfmTask":"services/task_planning.py",
     "ReassignWfmParent":"services/task_planning.py",
     "SetTaskPlan":"services/task_planning.py",
-    "CorrectTaskPlan":"services/task_planning.py",
+    "CorrectTaskPlan":"services/task_plan_correction.py",
     "SetExplicitTaskLock":"services/task_planning.py",
     "ChangeTaskRelationship":"services/task_planning.py",
     "ReviewWfmActivityRelationship":"services/retries.py",
