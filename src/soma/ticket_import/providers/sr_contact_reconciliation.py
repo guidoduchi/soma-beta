@@ -12,6 +12,9 @@ _ROLE_BINDINGS = {
     "customer_contact": ("sr_contact_reconciliation", "customer_contact_label"),
     "current_handler_reference": ("sr_current_handler_reconciliation", "current_handler_label"),
 }
+_PUBLISHED_RUN_STATES = frozenset(
+    {"staged", "waiting_review", "recovery_required", "partially_accepted", "accepted", "rejected"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,25 +38,19 @@ class TicketImportSrContactReconciliationProvider:
         except KeyError as exc:
             raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact reconciliation role is invalid") from exc
 
-    @classmethod
-    def _source_field(
-        cls,
+    @staticmethod
+    def _require_observation(
         reader: Any,
         *,
-        expected_import_run_id: str,
         source_observation_id: str,
-        source_observation_field_id: str,
+        expected_import_run_id: str,
         canonical_sr_no: str,
-        reference_role: str,
-    ) -> str:
-        _proposal_kind, expected_field_key = cls._binding(reference_role)
+    ) -> None:
         row = reader.execute(
-            "SELECT o.import_run_id,o.source_family,o.entity_kind,o.identity_state,o.canonical_primary_id,"
-            "f.field_key,f.field_class,f.value_state,f.value_kind,f.normalized_text "
-            "FROM source_observation_fields f "
-            "JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
-            "WHERE f.source_observation_field_id=? AND o.source_observation_id=?",
-            (source_observation_field_id, source_observation_id),
+            "SELECT o.import_run_id,o.source_family,o.entity_kind,o.identity_state,o.canonical_primary_id,r.run_state,"
+            "r.source_family,r.source_profile_id FROM source_observations o "
+            "JOIN import_runs r ON r.import_run_id=o.import_run_id WHERE o.source_observation_id=?",
+            (source_observation_id,),
         ).fetchone()
         if (
             row is None
@@ -62,14 +59,95 @@ class TicketImportSrContactReconciliationProvider:
             or str(row[2]) != "service_request"
             or str(row[3]) != "valid"
             or str(row[4]) != canonical_sr_no
-            or str(row[5]) != expected_field_key
-            or str(row[6]) != "active"
-            or str(row[7]) != "usable"
-            or str(row[8]) != "text"
-            or row[9] is None
+            or str(row[5]) not in _PUBLISHED_RUN_STATES
+            or str(row[6]) != "advanced_search_sr"
+            or str(row[7]) != "ADVANCED_SEARCH_SR_V1"
         ):
-            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact reconciliation source evidence is no longer exact")
-        return str(row[9])
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact reconciliation source observation is no longer exact")
+
+    @staticmethod
+    def _usable_text_fields(reader: Any, *, source_observation_id: str, field_key: str) -> list[tuple[str, str]]:
+        rows = reader.execute(
+            "SELECT source_observation_field_id,normalized_text FROM source_observation_fields "
+            "WHERE source_observation_id=? AND field_key=? AND field_class='active' "
+            "AND value_state='usable' AND value_kind='text' ORDER BY source_observation_field_id ASC",
+            (source_observation_id, field_key),
+        ).fetchall()
+        return [(str(row[0]), str(row[1])) for row in rows if row[1] is not None]
+
+    @staticmethod
+    def _support_field(
+        reader: Any,
+        *,
+        source_observation_field_id: str,
+        canonical_sr_no: str,
+        expected_field_key: str,
+    ) -> tuple[str, str]:
+        row = reader.execute(
+            "SELECT f.source_observation_id,f.field_key,f.field_class,f.value_state,f.value_kind,f.normalized_text,"
+            "o.source_family,o.entity_kind,o.identity_state,o.canonical_primary_id,r.run_state,r.source_family,r.source_profile_id "
+            "FROM source_observation_fields f JOIN source_observations o ON o.source_observation_id=f.source_observation_id "
+            "JOIN import_runs r ON r.import_run_id=o.import_run_id WHERE f.source_observation_field_id=?",
+            (source_observation_field_id,),
+        ).fetchone()
+        if (
+            row is None
+            or str(row[1]) != expected_field_key
+            or str(row[2]) != "active"
+            or str(row[3]) != "usable"
+            or str(row[4]) != "text"
+            or row[5] is None
+            or str(row[6]) != "advanced_search_sr"
+            or str(row[7]) != "service_request"
+            or str(row[8]) != "valid"
+            or str(row[9]) != canonical_sr_no
+            or str(row[10]) not in _PUBLISHED_RUN_STATES
+            or str(row[11]) != "advanced_search_sr"
+            or str(row[12]) != "ADVANCED_SEARCH_SR_V1"
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact supporting source field is no longer exact")
+        return str(row[0]), str(row[5])
+
+    def _matcher_name(
+        self,
+        reader: Any,
+        *,
+        expected_import_run_id: str,
+        source_observation_id: str,
+        source_observation_field_id: str,
+        canonical_sr_no: str,
+        reference_role: str,
+    ) -> str:
+        _proposal_kind, field_key = self._binding(reference_role)
+        self._require_observation(
+            reader,
+            source_observation_id=source_observation_id,
+            expected_import_run_id=expected_import_run_id,
+            canonical_sr_no=canonical_sr_no,
+        )
+        current_fields = self._usable_text_fields(
+            reader,
+            source_observation_id=source_observation_id,
+            field_key=field_key,
+        )
+        if len(current_fields) != 1:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact current import matching evidence is not singular usable text")
+        current_field_id, current_label = current_fields[0]
+        support_observation_id, support_label = self._support_field(
+            reader,
+            source_observation_field_id=source_observation_field_id,
+            canonical_sr_no=canonical_sr_no,
+            expected_field_key=field_key,
+        )
+        if reference_role == "customer_contact":
+            if current_field_id != source_observation_field_id or support_observation_id != source_observation_id:
+                raise SomaError("IMPORT_PROPOSAL_STALE", "Customer Contact proposal no longer binds its exact current import field")
+        elif current_label != support_label:
+            raise SomaError(
+                "IMPORT_PROPOSAL_STALE",
+                "Current Handler import label no longer equals the accepted supporting handler evidence",
+            )
+        return current_label
 
     def revalidate_reviewed_candidate(
         self,
@@ -90,7 +168,7 @@ class TicketImportSrContactReconciliationProvider:
         after_integer: int | None,
         source_observation_field_id: str | None,
     ) -> ReviewedContactCandidate:
-        del service_request_id  # identity is proven by canonical SR/source binding; owner state is revalidated separately.
+        del service_request_id  # LLD-03 separately owns and revalidates current reference state.
         self._binding(reference_role)
         if field_key != "contact_id" or change_kind != "set" or value_kind != "identity":
             raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact reconciliation proposal change encoding is invalid")
@@ -102,7 +180,7 @@ class TicketImportSrContactReconciliationProvider:
         except ValidationError as exc:
             raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact reconciliation identity is invalid") from exc
 
-        raw_name = self._source_field(
+        raw_name = self._matcher_name(
             reader,
             expected_import_run_id=expected_import_run_id,
             source_observation_id=source_observation_id,
@@ -164,12 +242,11 @@ class TicketImportSrContactReconciliationProvider:
             return "INVALID"
 
         row = reader.execute(
-            "SELECT p.proposal_kind,p.target_kind,p.target_internal_id,p.proposal_state,p.source_observation_id,"
-            "p.revision,p.proposal_fingerprint_sha256,c.field_key,c.change_kind,c.value_kind,c.after_text,"
-            "c.source_observation_field_id,f.field_key,f.field_class,f.value_state,f.value_kind "
-            "FROM reconciliation_proposals p "
-            "JOIN reconciliation_proposal_changes c ON c.reconciliation_proposal_id=p.reconciliation_proposal_id "
-            "JOIN source_observation_fields f ON f.source_observation_field_id=c.source_observation_field_id "
+            "SELECT p.proposal_kind,p.target_kind,p.target_internal_id,p.target_business_id,p.proposal_state,"
+            "p.source_observation_id,p.import_run_id,p.revision,p.proposal_fingerprint_sha256,c.field_key,c.change_kind,"
+            "c.value_kind,c.after_text,c.source_observation_field_id "
+            "FROM reconciliation_proposals p JOIN reconciliation_proposal_changes c "
+            "ON c.reconciliation_proposal_id=p.reconciliation_proposal_id "
             "WHERE p.reconciliation_proposal_id=? AND c.ordinal=0 "
             "AND NOT EXISTS (SELECT 1 FROM reconciliation_proposal_changes c2 "
             "WHERE c2.reconciliation_proposal_id=p.reconciliation_proposal_id AND c2.ordinal<>0)",
@@ -184,23 +261,45 @@ class TicketImportSrContactReconciliationProvider:
             or str(row[0]) != expected_kind
             or str(row[1]) != "service_request"
             or str(row[2]) != sr_id
-            or str(row[3]) != "pending"
-            or row[4] is None
-            or int(row[5]) != proposal_revision
-            or str(row[6]) != proposal_fingerprint
-            or str(row[7]) != "contact_id"
-            or str(row[8]) != "set"
-            or str(row[9]) != "identity"
-            or str(row[10]) != target_contact_id
-            or str(row[11]) != source_observation_field_id
-            or str(row[12]) != expected_source_field_key
-            or str(row[13]) != "active"
-            or str(row[14]) != "usable"
-            or str(row[15]) != "text"
+            or row[3] is None
+            or str(row[4]) != "pending"
+            or row[5] is None
+            or row[6] is None
+            or int(row[7]) != proposal_revision
+            or str(row[8]) != proposal_fingerprint
+            or str(row[9]) != "contact_id"
+            or str(row[10]) != "set"
+            or str(row[11]) != "identity"
+            or str(row[12]) != target_contact_id
+            or str(row[13]) != source_observation_field_id
             or receipt is None
             or str(receipt[0]) != "AcceptReconciliationProposal"
             or str(receipt[1]) != "reconciliation_proposal"
             or str(receipt[2]) != proposal_id
+        ):
+            return "INVALID"
+        try:
+            cls()._matcher_name(
+                reader,
+                expected_import_run_id=str(row[6]),
+                source_observation_id=str(row[5]),
+                source_observation_field_id=source_observation_field_id,
+                canonical_sr_no=str(row[3]),
+                reference_role=reference_role,
+            )
+        except SomaError:
+            return "INVALID"
+        support = reader.execute(
+            "SELECT field_key,field_class,value_state,value_kind FROM source_observation_fields "
+            "WHERE source_observation_field_id=?",
+            (source_observation_field_id,),
+        ).fetchone()
+        if (
+            support is None
+            or str(support[0]) != expected_source_field_key
+            or str(support[1]) != "active"
+            or str(support[2]) != "usable"
+            or str(support[3]) != "text"
         ):
             return "INVALID"
         return "VALID"
