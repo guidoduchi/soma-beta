@@ -20,7 +20,9 @@ from ..repositories.tasks import TaskPlanRecord, TaskPlanRepository, TaskReposit
 from .task_planning import validate_task_reason_category
 
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
-_PROTECTED_OBJECTIVE_PLAN_STATES = frozenset({"historical_structure", "reviewed", "superseded"})
+_PROTECTED_OBJECTIVE_PLAN_STATES = frozenset(
+    {"historical_structure", "in_progress", "awaiting_review", "reviewed", "superseded"}
+)
 
 
 def _validate_correction_fingerprint(value: str) -> str:
