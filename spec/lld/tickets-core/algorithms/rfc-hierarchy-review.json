@@ -1,0 +1,48 @@
+{
+  "schema": "SOMA-LLD-ALGORITHM-V1",
+  "lld_id": "LLD-03",
+  "name": "RfcHierarchyReviewFingerprint",
+  "profile": "SOMA_RFC_HIERARCHY_REVIEW_V1",
+  "purpose": "Exact reviewed-correction freshness for reparent/detach. It composes current LLD-03 structural review facts with the complete bounded LLD-05 history authority so reviewed consequences cannot drift while hierarchy remains unchanged.",
+  "availability": "Only when RfcHierarchyHistoryAuthorityV1.status=READY. INDETERMINATE produces no review fingerprint and cannot authorize mutation.",
+  "closed_object": {
+    "schema": "literal SOMA_RFC_HIERARCHY_REVIEW_V1",
+    "action": "reparent|detach",
+    "child_rfc_id": "uuid",
+    "old_parent_rfc_id": "uuid",
+    "new_parent_rfc_id": "uuid|null; null only for detach",
+    "old_edge_id": "uuid",
+    "old_branch_fingerprint": "SOMA_RFC_BRANCH_FINGERPRINT_V1",
+    "new_branch_fingerprint": "SOMA_RFC_BRANCH_FINGERPRINT_V1|null; null only for detach",
+    "history_risk": "LOW|HIGH",
+    "history_evidence_exact_count": "int>=0",
+    "history_provider_fingerprint": "SOMA_RFC_HIERARCHY_HISTORY_AUTHORITY_V1",
+    "blockers": "bounded ordered stable-code array",
+    "warnings": "bounded ordered stable-code array"
+  },
+  "ordering": "blockers use validate_parent_child closed validator order then code UTF-8; warnings use closed validator order then code UTF-8",
+  "canonicalization": "Serialize the exact closed object with LLD-01 StrictVersionedJson canonical_json exactly (ensure_ascii=false, allow_nan=false, sort_keys=true, separators=(',',':'), UTF-8); no extra keys are permitted.",
+  "digest": "lowercase SHA-256 hex over exact canonical UTF-8 bytes",
+  "command_rule": "Writer reconstructs this object from current owner/provider authority before receipt/mutation. HIGH requires exact supplied review_fingerprint; LOW permits null, but if a fingerprint is supplied it must exactly match. Any structural, blocker/warning or LLD-05 provider fingerprint/count change invalidates the old review even if history_risk remains HIGH or LOW.",
+  "provider_boundary": "Only risk/count/provider_fingerprint cross from LLD-05. No Task/WFM/Objective row, body, description or history list is copied into LLD-03 request, result or audit.",
+  "golden_vector": {
+    "id": "SOMA_RFC_HIERARCHY_REVIEW_V1-G001",
+    "input": {
+      "schema": "SOMA_RFC_HIERARCHY_REVIEW_V1",
+      "action": "reparent",
+      "child_rfc_id": "00000000-0000-4000-8000-000000000002",
+      "old_parent_rfc_id": "00000000-0000-4000-8000-000000000001",
+      "new_parent_rfc_id": "00000000-0000-4000-8000-000000000003",
+      "old_edge_id": "00000000-0000-4000-8000-000000000010",
+      "old_branch_fingerprint": "12de7e3643a0d3a49cfce579db40c54cc704e5d06b44e6455c277dd2d4da0ea5",
+      "new_branch_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "history_risk": "HIGH",
+      "history_evidence_exact_count": 2,
+      "history_provider_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "blockers": [],
+      "warnings": []
+    },
+    "expected_canonical_utf8_bytes": 651,
+    "expected_sha256": "4a56f5220d8cf52271f4c7ae81ee024f99707910bc5a920dcd7244f8e5850360"
+  }
+}
