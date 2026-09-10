@@ -94,6 +94,15 @@ class TaskRepository:
             ),
         )
 
+    @staticmethod
+    def increment_revision(uow: UnitOfWork, *, task_id: str, expected_revision: int) -> None:
+        updated = uow.connection.execute(
+            "UPDATE tasks SET revision=revision+1 WHERE task_id=? AND revision=?",
+            (task_id, expected_revision),
+        )
+        if updated.rowcount != 1:
+            raise IntegrityFailure("Task revision changed during guarded mutation")
+
 
 class WfmTaskRepository:
     @staticmethod
@@ -174,6 +183,42 @@ class WfmTaskRepository:
             "INSERT INTO wfm_rfc_assignment_events(assignment_event_id,task_id,prior_rfc_id,new_rfc_id,reason_code,"
             "review_risk,recorded_at_utc,command_id) VALUES (?,?,NULL,?,'manual_registration','low',?,?)",
             (assignment_event_id, task_id, rfc_id, recorded_at_utc, command_id),
+        )
+
+    @staticmethod
+    def reassign_rfc(
+        uow: UnitOfWork,
+        *,
+        assignment_event_id: str,
+        task_id: str,
+        prior_rfc_id: str,
+        new_rfc_id: str,
+        expected_assignment_revision: int,
+        reason_code: str,
+        review_risk: str,
+        command_id: str,
+        recorded_at_utc: int,
+    ) -> None:
+        updated = uow.connection.execute(
+            "UPDATE wfm_task_identities SET current_rfc_id=?,assignment_revision=assignment_revision+1 "
+            "WHERE task_id=? AND current_rfc_id=? AND assignment_revision=?",
+            (new_rfc_id, task_id, prior_rfc_id, expected_assignment_revision),
+        )
+        if updated.rowcount != 1:
+            raise IntegrityFailure("WFM assignment authority changed during guarded reassignment")
+        uow.connection.execute(
+            "INSERT INTO wfm_rfc_assignment_events(assignment_event_id,task_id,prior_rfc_id,new_rfc_id,reason_code,"
+            "review_risk,recorded_at_utc,command_id) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                assignment_event_id,
+                task_id,
+                prior_rfc_id,
+                new_rfc_id,
+                reason_code,
+                review_risk,
+                recorded_at_utc,
+                command_id,
+            ),
         )
 
     @staticmethod

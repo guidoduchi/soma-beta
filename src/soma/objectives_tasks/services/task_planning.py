@@ -34,6 +34,7 @@ _LOCAL_TASK_NAME_MAX_GRAPHEMES = 240
 _LOCAL_TASK_NAME_MAX_UTF8_BYTES = 1024
 _LOCAL_TASK_INITIAL_RELATIONSHIP_MAX = 62
 _RELATIONSHIP_EXISTENCE_CHUNK = 256
+_TASK_REASON_CATEGORY_MAX_UTF8_BYTES = 128
 
 
 def validate_local_task_name(value: str) -> str:
@@ -85,8 +86,26 @@ def validate_wfm_task_no(value: str) -> str:
     return value
 
 
+def validate_task_reason_category(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValidationError("reason_category must be text")
+    try:
+        encoded = value.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise ValidationError("reason_category must be valid Unicode") from exc
+    if (
+        not encoded
+        or len(encoded) > _TASK_REASON_CATEGORY_MAX_UTF8_BYTES
+        or "\x00" in value
+        or "\r" in value
+        or "\n" in value
+    ):
+        raise ValidationError("reason_category violates its bounded one-line contract")
+    return value
+
+
 class TaskPlanningService:
-    """Initial LLD-05 planning authority for Local and manual WFM Task creation."""
+    """LLD-05 Task identity, initial planning, and WFM parent authority."""
 
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
@@ -193,6 +212,89 @@ class TaskPlanningService:
         archive_state, status_class = str(row[0]), str(row[1])
         if archive_state != "active" or status_class in _TERMINAL_RFC_STATUS_CLASSES:
             raise SomaError("WFM_RFC_NOT_ELIGIBLE", "owning RFC cannot own active nonterminal WFM work")
+
+    @staticmethod
+    def _history_exists(connection, sql: str, task_id: str, *, twice: bool = False) -> bool:
+        params = (task_id, task_id) if twice else (task_id,)
+        return connection.execute(sql, params).fetchone() is not None
+
+    @classmethod
+    def _classify_wfm_parent_history_risk(cls, connection, task_id: str) -> str:
+        plan_history = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_plan_revisions WHERE task_id=? LIMIT 1",
+            task_id,
+        )
+        plan_current = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_plan_current WHERE task_id=? LIMIT 1",
+            task_id,
+        )
+        objective_history = cls._history_exists(
+            connection,
+            "SELECT 1 FROM objective_membership_events WHERE task_id=? LIMIT 1",
+            task_id,
+        )
+        objective_current = cls._history_exists(
+            connection,
+            "SELECT 1 FROM objective_task_membership_current WHERE task_id=? LIMIT 1",
+            task_id,
+        )
+        execution_history = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_execution_events WHERE task_id=? LIMIT 1",
+            task_id,
+        )
+        execution_current = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_execution_projection WHERE task_id=? LIMIT 1",
+            task_id,
+        )
+        outcome_history = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_outcome_events WHERE task_id=? LIMIT 1",
+            task_id,
+        )
+        outcome_current = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_outcome_current WHERE task_id=? LIMIT 1",
+            task_id,
+        )
+        if (
+            (plan_current and not plan_history)
+            or (objective_current and not objective_history)
+            or (execution_current and not execution_history)
+            or (outcome_current and not outcome_history)
+        ):
+            raise SomaError(
+                "WFM_PARENT_STALE",
+                "WFM Task history projections cannot be reconciled to their owned history",
+            )
+        source_history = cls._history_exists(
+            connection,
+            "SELECT 1 FROM wfm_source_projection_cache WHERE task_id=? LIMIT 1",
+            task_id,
+        )
+        retry_history = cls._history_exists(
+            connection,
+            "SELECT 1 FROM task_retry_relations WHERE predecessor_task_id=? OR successor_task_id=? LIMIT 1",
+            task_id,
+            twice=True,
+        )
+        return (
+            "high"
+            if any(
+                (
+                    plan_history,
+                    source_history,
+                    objective_history,
+                    execution_history,
+                    retry_history,
+                    outcome_history,
+                )
+            )
+            else "low"
+        )
 
     def create_local_task(
         self,
@@ -490,6 +592,143 @@ class TaskPlanningService:
                     "task_id": task_id,
                     "revision": 1,
                     "result_refs": result_refs,
+                },
+            )
+
+        return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+
+    def reassign_wfm_parent(
+        self,
+        *,
+        command_id: str,
+        task_id: str,
+        task_revision: int,
+        assignment_revision: int,
+        new_rfc_id: str,
+        reason_category: str,
+        accept_high_risk: bool,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> TaskMutationResult:
+        canonical_task_id = require_uuid4(task_id)
+        canonical_new_rfc_id = require_uuid4(new_rfc_id)
+        if type(task_revision) is not int or task_revision <= 0:
+            raise ValidationError("task_revision must be a positive integer")
+        if type(assignment_revision) is not int or assignment_revision <= 0:
+            raise ValidationError("assignment_revision must be a positive integer")
+        reason = validate_task_reason_category(reason_category)
+        if type(accept_high_risk) is not bool:
+            raise ValidationError("accept_high_risk must be a boolean")
+
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="ReassignWfmParent",
+            target_type="task",
+            target_id=canonical_task_id,
+            semantic_payload={
+                "new_rfc_id": canonical_new_rfc_id,
+                "reason_category": reason,
+                "accept_high_risk": accept_high_risk,
+            },
+            base_revisions={
+                canonical_task_id: task_revision,
+                f"wfm_assignment:{canonical_task_id}": assignment_revision,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            task = self._tasks.get(uow.connection, canonical_task_id)
+            identity = self._wfm.get_identity(uow.connection, canonical_task_id)
+            if task is None or task.task_kind != "wfm" or identity is None:
+                raise SomaError("TASK_NOT_FOUND", "WFM Task does not exist in current authority")
+            if task.revision != task_revision:
+                raise SomaError("TASK_STALE", "Task revision changed before WFM parent reassignment")
+            if identity.assignment_revision != assignment_revision:
+                raise SomaError("WFM_PARENT_STALE", "WFM assignment revision changed before reassignment")
+            if identity.current_rfc_id == canonical_new_rfc_id:
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="TaskMutationResultV1",
+                    response_version=1,
+                    response={
+                        "outcome": "NO_CHANGE",
+                        "task_id": canonical_task_id,
+                        "revision": task.revision,
+                        "result_refs": [],
+                    },
+                )
+
+            review_risk = self._classify_wfm_parent_history_risk(uow.connection, canonical_task_id)
+            if review_risk == "high" and not accept_high_risk:
+                raise SomaError(
+                    "WFM_PARENT_REVIEW_REQUIRED",
+                    "protected Task history requires explicit high-risk WFM parent reassignment acceptance",
+                )
+            self._require_eligible_rfc(uow.connection, canonical_new_rfc_id)
+
+            prior_rfc_id = identity.current_rfc_id
+            assignment_event_id = new_uuid4()
+            audit_event_id = new_uuid4()
+            now = utc_epoch_seconds()
+            resulting_revision = task.revision + 1
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                self._wfm.reassign_rfc(
+                    inner,
+                    assignment_event_id=assignment_event_id,
+                    task_id=canonical_task_id,
+                    prior_rfc_id=prior_rfc_id,
+                    new_rfc_id=canonical_new_rfc_id,
+                    expected_assignment_revision=assignment_revision,
+                    reason_code=reason,
+                    review_risk=review_risk,
+                    command_id=command_id,
+                    recorded_at_utc=now,
+                )
+                self._tasks.increment_revision(
+                    inner,
+                    task_id=canonical_task_id,
+                    expected_revision=task_revision,
+                )
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="task.wfm_parent_reassigned",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="task",
+                    target_id=canonical_task_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                    payload_schema="TaskRelationshipAuditV1",
+                    payload_version=1,
+                    payload={
+                        "task_id": canonical_task_id,
+                        "relationship_kind": "wfm_parent",
+                        "action": "REASSIGN",
+                        "relationship_id": assignment_event_id,
+                        "related_id": canonical_new_rfc_id,
+                        "prior_related_id": prior_rfc_id,
+                        "resulting_revision": resulting_revision,
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(AuditResultRef("wfm_assignment", assignment_event_id),),
+                )
+
+            return PreparedMutation(
+                False,
+                "wfm_assignment",
+                assignment_event_id,
+                apply,
+                response_schema="TaskMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "task_id": canonical_task_id,
+                    "revision": resulting_revision,
+                    "result_refs": [{"type": "wfm_assignment", "id": assignment_event_id}],
                 },
             )
 

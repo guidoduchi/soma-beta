@@ -18,6 +18,18 @@ _TASK_AUDIT_FIELDS = frozenset(
         "reason_category",
     }
 )
+_TASK_RELATIONSHIP_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "relationship_kind",
+        "action",
+        "relationship_id",
+        "related_id",
+        "prior_related_id",
+        "resulting_revision",
+        "reason_category",
+    }
+)
 _HARD_DELETE_AUDIT_FIELDS = frozenset(
     {
         "target_type",
@@ -68,6 +80,38 @@ def _validate_wfm_registered(payload: dict[str, object]) -> None:
     _validate_task_creation_payload(payload, expected_kind="wfm", expected_origin="wfm_manual")
     if payload.get("reason_category") is not None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM registration audit reason must be null")
+
+
+def _validate_wfm_parent_reassigned(payload: dict[str, object]) -> None:
+    try:
+        values = (
+            payload.get("task_id"),
+            payload.get("relationship_id"),
+            payload.get("related_id"),
+            payload.get("prior_related_id"),
+        )
+        for index, value in enumerate(values):
+            if index == 3 and value is None:
+                continue
+            if not isinstance(value, str):
+                raise ValidationError("relationship audit identity must be UUID text")
+            require_uuid4(value)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment audit identity is invalid") from exc
+    if payload.get("relationship_kind") != "wfm_parent" or payload.get("action") != "REASSIGN":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment audit action is invalid")
+    revision = payload.get("resulting_revision")
+    if type(revision) is not int or revision <= 1:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment revision is invalid")
+    reason = payload.get("reason_category")
+    if not isinstance(reason, str):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment reason is required")
+    try:
+        encoded = reason.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment reason is invalid Unicode") from exc
+    if not encoded or len(encoded) > 128 or "\x00" in reason or "\r" in reason or "\n" in reason:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment reason violates its bound")
 
 
 def _validate_hard_delete(payload: dict[str, object]) -> None:
@@ -144,6 +188,16 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
             payload_version=1,
             payload_contract=_contract("TaskAuditV1", _TASK_AUDIT_FIELDS, max_items=16),
             sensitivity_validator=_validate_wfm_registered,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.wfm_parent_reassigned",
+            action_version=1,
+            payload_schema="TaskRelationshipAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskRelationshipAuditV1", _TASK_RELATIONSHIP_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_wfm_parent_reassigned,
         )
     )
     registry.register(
