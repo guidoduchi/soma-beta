@@ -2,7 +2,7 @@
   "schema":"SOMA-LLD-BOUNDS-V1",
   "lld_id":"LLD-05",
   "text_bounds":{
-    "local_task_name":{"min_graphemes":1,"max_graphemes":240,"max_utf8_bytes":1024,"rule":"manual overflow rejects; no silent truncation"},
+    "local_task_name":{"min_graphemes":1,"max_graphemes":240,"max_utf8_bytes":1024,"rule":"manual overflow rejects; no silent truncation; blank means the exact string contains no non-whitespace code point after trimming Unicode 17 White_Space under LLD-02 UNICODE_MATCH_V1; accepted spelling/spacing is persisted unchanged"},
     "reason_text":{"min_graphemes":1,"max_graphemes":1000,"max_utf8_bytes":4096,"rule":"required only where a reviewed correction/retention choice needs operator rationale; audit stores the bounded allowlisted reason field only"},
     "warning_summary":{"max_graphemes":320,"max_utf8_bytes":1536,"rule":"generated from closed reason codes plus bounded identifiers, never arbitrary workbook/body content"}
   },
@@ -10,7 +10,7 @@
     "unicode_version":"17.0.0",
     "semantic_unit":"default extended grapheme cluster",
     "algorithm":"Unicode Standard Annex #29 Unicode Text Segmentation default extended grapheme-cluster rules",
-    "runtime_binding":"regex==2026.7.19 using VERSION1 \\X segmentation over the exact accepted string",
+    "runtime_binding":"regex==2026.9.10 using VERSION1 \\X segmentation over the exact accepted string",
     "rules":["grapheme count is evaluated on the exact string that will be persisted; no normalization, truncation or code-point-count substitution is allowed","UTF-8 byte bounds are independent and must also pass","implementation dependency/version is pinned in technology.json so Unicode segmentation cannot drift with the host runtime"]
   },
   "time_bounds":{
