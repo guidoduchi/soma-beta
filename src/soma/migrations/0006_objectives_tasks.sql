@@ -461,652 +461,166 @@ CREATE INDEX idx_wfm_terminal_review_source_revision_task ON wfm_source_terminal
 CREATE INDEX idx_wfm_terminal_review_consequence_fk ON wfm_source_terminal_reviews(local_consequence_event_id);
 CREATE INDEX idx_wfm_terminal_review_last_command_fk ON wfm_source_terminal_reviews(last_command_id);
 
-CREATE TRIGGER tasks_identity_immutable
-BEFORE UPDATE ON tasks
-WHEN NEW.task_id <> OLD.task_id
-  OR NEW.task_kind <> OLD.task_kind
-  OR NEW.creation_origin <> OLD.creation_origin
-  OR NEW.created_at_utc <> OLD.created_at_utc
-  OR NEW.created_command_id <> OLD.created_command_id
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_IDENTITY_IMMUTABLE');
+CREATE TRIGGER tasks_update_guard BEFORE UPDATE ON tasks BEGIN
+    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.task_kind<>OLD.task_kind OR NEW.local_task_name IS NOT OLD.local_task_name OR NEW.creation_origin<>OLD.creation_origin OR NEW.created_at_utc<>OLD.created_at_utc OR NEW.created_command_id<>OLD.created_command_id OR NEW.revision<>OLD.revision+1 THEN RAISE(ABORT,'TASK_IDENTITY_IMMUTABLE') END;
+END;
+CREATE TRIGGER tasks_delete_guard BEFORE DELETE ON tasks BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id) THEN RAISE(ABORT,'TASK_HARD_DELETE_REQUIRED') END;
+END;
+CREATE TRIGGER wfm_identity_insert_guard BEFORE INSERT ON wfm_task_identities BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM tasks WHERE task_id=NEW.task_id AND task_kind='wfm') THEN RAISE(ABORT,'WFM_TASK_KIND_INVALID') END;
+END;
+CREATE TRIGGER wfm_identity_update_guard BEFORE UPDATE ON wfm_task_identities BEGIN
+    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.task_no<>OLD.task_no OR NEW.created_command_id<>OLD.created_command_id OR NEW.assignment_revision<>OLD.assignment_revision+1 OR NEW.current_rfc_id=OLD.current_rfc_id THEN RAISE(ABORT,'WFM_IDENTITY_IMMUTABLE') END;
+END;
+CREATE TRIGGER wfm_assignment_update_guard BEFORE UPDATE ON wfm_rfc_assignment_events BEGIN SELECT RAISE(ABORT,'WFM_ASSIGNMENT_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER wfm_assignment_delete_guard BEFORE DELETE ON wfm_rfc_assignment_events BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id)
+      OR NOT EXISTS (SELECT 1 FROM tasks t JOIN wfm_task_identities w ON w.task_id=t.task_id WHERE t.task_id=OLD.task_id AND t.task_kind='wfm' AND t.creation_origin='wfm_manual' AND OLD.prior_rfc_id IS NULL AND OLD.new_rfc_id=w.current_rfc_id AND OLD.command_id=w.created_command_id)
+      OR (SELECT count(*) FROM wfm_rfc_assignment_events WHERE task_id=OLD.task_id)<>1
+      OR EXISTS (SELECT 1 FROM wfm_source_projection_cache WHERE task_id=OLD.task_id)
+      THEN RAISE(ABORT,'WFM_ASSIGNMENT_HISTORY_APPEND_ONLY') END;
+END;
+CREATE TRIGGER wfm_identity_delete_guard BEFORE DELETE ON wfm_task_identities BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id)
+      OR NOT EXISTS (SELECT 1 FROM tasks WHERE task_id=OLD.task_id AND task_kind='wfm' AND creation_origin='wfm_manual')
+      OR EXISTS (SELECT 1 FROM wfm_source_projection_cache WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM wfm_rfc_assignment_events WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_plan_revisions WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_execution_events WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_outcome_events WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_lock_events WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM objective_task_membership_current WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_retry_relations WHERE predecessor_task_id=OLD.task_id OR successor_task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_activity_lineage_events WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_operational_count_events WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_sr_links WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_rfc_links WHERE task_id=OLD.task_id)
+      OR EXISTS (SELECT 1 FROM task_device_links WHERE task_id=OLD.task_id)
+      THEN RAISE(ABORT,'WFM_IDENTITY_PROTECTED') END;
+END;
+CREATE TRIGGER wfm_source_projection_update_guard BEFORE UPDATE ON wfm_source_projection_cache BEGIN
+    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.source_projection_revision<>OLD.source_projection_revision+1 THEN RAISE(ABORT,'WFM_SOURCE_PROJECTION_INVALID') END;
+END;
+CREATE TRIGGER wfm_source_projection_delete_guard BEFORE DELETE ON wfm_source_projection_cache BEGIN SELECT RAISE(ABORT,'WFM_SOURCE_PROJECTION_PROTECTED'); END;
+CREATE TRIGGER task_plan_revision_update_guard BEFORE UPDATE ON task_plan_revisions BEGIN SELECT RAISE(ABORT,'TASK_PLAN_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_plan_revision_delete_guard BEFORE DELETE ON task_plan_revisions BEGIN
+    SELECT CASE WHEN OLD.predecessor_plan_revision_id IS NOT NULL OR OLD.source_observation_id IS NOT NULL OR OLD.origin NOT IN ('manual','objective_initialization') OR EXISTS (SELECT 1 FROM task_plan_revisions p WHERE p.task_id=OLD.task_id AND p.plan_revision_id<>OLD.plan_revision_id) OR NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id) THEN RAISE(ABORT,'TASK_PLAN_HISTORY_APPEND_ONLY') END;
+END;
+CREATE TRIGGER task_plan_current_insert_guard BEFORE INSERT ON task_plan_current BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM task_plan_revisions WHERE plan_revision_id=NEW.plan_revision_id AND task_id=NEW.task_id) THEN RAISE(ABORT,'TASK_PLAN_CURRENT_INVALID') END;
+END;
+CREATE TRIGGER task_plan_current_update_guard BEFORE UPDATE ON task_plan_current BEGIN
+    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.revision<>OLD.revision+1 OR NEW.plan_revision_id=OLD.plan_revision_id OR NOT EXISTS (SELECT 1 FROM task_plan_revisions WHERE plan_revision_id=NEW.plan_revision_id AND task_id=NEW.task_id) THEN RAISE(ABORT,'TASK_PLAN_CURRENT_INVALID') END;
+END;
+CREATE TRIGGER task_plan_current_delete_guard BEFORE DELETE ON task_plan_current BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id) THEN RAISE(ABORT,'TASK_PLAN_CURRENT_PROTECTED') END;
+END;
+CREATE TRIGGER task_execution_event_update_guard BEFORE UPDATE ON task_execution_events BEGIN SELECT RAISE(ABORT,'TASK_EXECUTION_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_execution_event_delete_guard BEFORE DELETE ON task_execution_events BEGIN SELECT RAISE(ABORT,'TASK_EXECUTION_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_execution_projection_insert_guard BEFORE INSERT ON task_execution_projection BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM task_execution_events WHERE execution_event_id=NEW.last_event_id AND task_id=NEW.task_id) THEN RAISE(ABORT,'TASK_EXECUTION_PROJECTION_INVALID') END;
+END;
+CREATE TRIGGER task_execution_projection_update_guard BEFORE UPDATE ON task_execution_projection BEGIN
+    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.revision<>OLD.revision+1 OR NOT EXISTS (SELECT 1 FROM task_execution_events WHERE execution_event_id=NEW.last_event_id AND task_id=NEW.task_id) THEN RAISE(ABORT,'TASK_EXECUTION_PROJECTION_INVALID') END;
+END;
+CREATE TRIGGER task_outcome_event_update_guard BEFORE UPDATE ON task_outcome_events BEGIN SELECT RAISE(ABORT,'TASK_OUTCOME_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_outcome_event_delete_guard BEFORE DELETE ON task_outcome_events BEGIN SELECT RAISE(ABORT,'TASK_OUTCOME_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_outcome_current_insert_guard BEFORE INSERT ON task_outcome_current BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM task_outcome_events WHERE outcome_event_id=NEW.outcome_event_id AND task_id=NEW.task_id AND accepted_outcome=NEW.accepted_outcome AND reviewed_at_utc=NEW.reviewed_at_utc) THEN RAISE(ABORT,'TASK_OUTCOME_CURRENT_INVALID') END;
+END;
+CREATE TRIGGER task_outcome_current_update_guard BEFORE UPDATE ON task_outcome_current BEGIN
+    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.revision<>OLD.revision+1 OR NEW.outcome_event_id=OLD.outcome_event_id OR NOT EXISTS (SELECT 1 FROM task_outcome_events WHERE outcome_event_id=NEW.outcome_event_id AND task_id=NEW.task_id AND accepted_outcome=NEW.accepted_outcome AND reviewed_at_utc=NEW.reviewed_at_utc) THEN RAISE(ABORT,'TASK_OUTCOME_CURRENT_INVALID') END;
+END;
+CREATE TRIGGER task_lock_event_update_guard BEFORE UPDATE ON task_lock_events BEGIN SELECT RAISE(ABORT,'TASK_LOCK_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_lock_event_delete_guard BEFORE DELETE ON task_lock_events BEGIN SELECT RAISE(ABORT,'TASK_LOCK_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_lock_projection_insert_guard BEFORE INSERT ON task_lock_projection WHEN NEW.last_event_id IS NOT NULL BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM task_lock_events WHERE lock_event_id=NEW.last_event_id AND task_id=NEW.task_id) THEN RAISE(ABORT,'TASK_LOCK_PROJECTION_INVALID') END;
+END;
+CREATE TRIGGER task_lock_projection_update_guard BEFORE UPDATE ON task_lock_projection BEGIN
+    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.revision<>OLD.revision+1 OR (NEW.last_event_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM task_lock_events WHERE lock_event_id=NEW.last_event_id AND task_id=NEW.task_id)) THEN RAISE(ABORT,'TASK_LOCK_PROJECTION_INVALID') END;
+END;
+CREATE TRIGGER task_lock_projection_delete_guard BEFORE DELETE ON task_lock_projection BEGIN
+    SELECT CASE WHEN OLD.last_event_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id) THEN RAISE(ABORT,'TASK_LOCK_PROJECTION_PROTECTED') END;
 END;
 
-CREATE TRIGGER wfm_identity_immutable
-BEFORE UPDATE ON wfm_task_identities
-WHEN NEW.task_id <> OLD.task_id
-  OR NEW.task_no <> OLD.task_no
-  OR NEW.created_command_id <> OLD.created_command_id
-BEGIN
-    SELECT RAISE(ABORT, 'WFM_IDENTITY_IMMUTABLE');
+CREATE TRIGGER task_sr_link_insert_guard BEFORE INSERT ON task_sr_links BEGIN SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM tasks WHERE task_id=NEW.task_id AND task_kind='local') THEN RAISE(ABORT,'TASK_RELATIONSHIP_INVALID') END; END;
+CREATE TRIGGER task_rfc_link_insert_guard BEFORE INSERT ON task_rfc_links BEGIN SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM tasks WHERE task_id=NEW.task_id AND task_kind='local') THEN RAISE(ABORT,'TASK_RELATIONSHIP_INVALID') END; END;
+CREATE TRIGGER task_sr_link_update_guard BEFORE UPDATE ON task_sr_links BEGIN SELECT CASE WHEN OLD.active<>1 OR NEW.link_id<>OLD.link_id OR NEW.task_id<>OLD.task_id OR NEW.service_request_id<>OLD.service_request_id OR NEW.opened_command_id<>OLD.opened_command_id OR NEW.active<>0 OR NEW.closed_command_id IS NULL THEN RAISE(ABORT,'TASK_RELATIONSHIP_HISTORY_APPEND_ONLY') END; END;
+CREATE TRIGGER task_rfc_link_update_guard BEFORE UPDATE ON task_rfc_links BEGIN SELECT CASE WHEN OLD.active<>1 OR NEW.link_id<>OLD.link_id OR NEW.task_id<>OLD.task_id OR NEW.rfc_id<>OLD.rfc_id OR NEW.opened_command_id<>OLD.opened_command_id OR NEW.active<>0 OR NEW.closed_command_id IS NULL THEN RAISE(ABORT,'TASK_RELATIONSHIP_HISTORY_APPEND_ONLY') END; END;
+CREATE TRIGGER task_device_link_update_guard BEFORE UPDATE ON task_device_links BEGIN SELECT CASE WHEN OLD.active<>1 OR NEW.link_id<>OLD.link_id OR NEW.task_id<>OLD.task_id OR NEW.device_reference_id<>OLD.device_reference_id OR NEW.opened_command_id<>OLD.opened_command_id OR NEW.active<>0 OR NEW.closed_command_id IS NULL THEN RAISE(ABORT,'TASK_RELATIONSHIP_HISTORY_APPEND_ONLY') END; END;
+CREATE TRIGGER task_sr_link_delete_guard BEFORE DELETE ON task_sr_links BEGIN SELECT CASE WHEN OLD.active<>1 OR NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id) THEN RAISE(ABORT,'TASK_RELATIONSHIP_HISTORY_APPEND_ONLY') END; END;
+CREATE TRIGGER task_rfc_link_delete_guard BEFORE DELETE ON task_rfc_links BEGIN SELECT CASE WHEN OLD.active<>1 OR NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id) THEN RAISE(ABORT,'TASK_RELATIONSHIP_HISTORY_APPEND_ONLY') END; END;
+CREATE TRIGGER task_device_link_delete_guard BEFORE DELETE ON task_device_links BEGIN SELECT CASE WHEN OLD.active<>1 OR NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id) THEN RAISE(ABORT,'TASK_RELATIONSHIP_HISTORY_APPEND_ONLY') END; END;
+CREATE TRIGGER task_retry_update_guard BEFORE UPDATE ON task_retry_relations BEGIN SELECT RAISE(ABORT,'TASK_RETRY_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_retry_delete_guard BEFORE DELETE ON task_retry_relations BEGIN SELECT RAISE(ABORT,'TASK_RETRY_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_activity_lineage_update_guard BEFORE UPDATE ON task_activity_lineages BEGIN SELECT RAISE(ABORT,'TASK_ACTIVITY_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_activity_lineage_delete_guard BEFORE DELETE ON task_activity_lineages BEGIN SELECT RAISE(ABORT,'TASK_ACTIVITY_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_activity_event_update_guard BEFORE UPDATE ON task_activity_lineage_events BEGIN SELECT RAISE(ABORT,'TASK_ACTIVITY_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_activity_event_delete_guard BEFORE DELETE ON task_activity_lineage_events BEGIN SELECT RAISE(ABORT,'TASK_ACTIVITY_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_activity_current_insert_guard BEFORE INSERT ON task_activity_lineage_current BEGIN SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM task_activity_lineage_events WHERE lineage_event_id=NEW.last_event_id AND task_id=NEW.task_id AND new_lineage_id=NEW.activity_lineage_id) THEN RAISE(ABORT,'TASK_ACTIVITY_CURRENT_INVALID') END; END;
+CREATE TRIGGER task_activity_current_update_guard BEFORE UPDATE ON task_activity_lineage_current BEGIN SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.revision<>OLD.revision+1 OR NOT EXISTS (SELECT 1 FROM task_activity_lineage_events WHERE lineage_event_id=NEW.last_event_id AND task_id=NEW.task_id AND new_lineage_id=NEW.activity_lineage_id) THEN RAISE(ABORT,'TASK_ACTIVITY_CURRENT_INVALID') END; END;
+CREATE TRIGGER task_count_event_update_guard BEFORE UPDATE ON task_operational_count_events BEGIN SELECT RAISE(ABORT,'TASK_COUNT_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_count_event_delete_guard BEFORE DELETE ON task_operational_count_events BEGIN SELECT RAISE(ABORT,'TASK_COUNT_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER task_count_current_insert_guard BEFORE INSERT ON task_operational_count_current BEGIN SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM task_operational_count_events WHERE inclusion_event_id=NEW.last_event_id AND task_id=NEW.task_id AND included=NEW.included) THEN RAISE(ABORT,'TASK_COUNT_CURRENT_INVALID') END; END;
+CREATE TRIGGER task_count_current_update_guard BEFORE UPDATE ON task_operational_count_current BEGIN SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.revision<>OLD.revision+1 OR NOT EXISTS (SELECT 1 FROM task_operational_count_events WHERE inclusion_event_id=NEW.last_event_id AND task_id=NEW.task_id AND included=NEW.included) THEN RAISE(ABORT,'TASK_COUNT_CURRENT_INVALID') END; END;
+
+CREATE TRIGGER objective_allocator_update_guard BEFORE UPDATE ON objective_tracking_allocator BEGIN SELECT CASE WHEN NEW.singleton_id<>1 OR NEW.next_sequence<>OLD.next_sequence+1 OR NEW.revision<>OLD.revision+1 OR NEW.last_command_id IS NULL THEN RAISE(ABORT,'OBJECTIVE_TRACKING_ALLOCATOR_INVALID') END; END;
+CREATE TRIGGER objective_allocator_delete_guard BEFORE DELETE ON objective_tracking_allocator BEGIN SELECT RAISE(ABORT,'OBJECTIVE_TRACKING_ALLOCATOR_PROTECTED'); END;
+CREATE TRIGGER objective_update_guard BEFORE UPDATE ON objectives BEGIN
+    SELECT CASE WHEN NEW.objective_id<>OLD.objective_id OR NEW.tracking_sequence<>OLD.tracking_sequence OR NEW.tracking_id<>OLD.tracking_id OR NEW.creation_origin<>OLD.creation_origin OR NEW.created_at_utc<>OLD.created_at_utc OR NEW.created_command_id<>OLD.created_command_id OR NEW.revision<>OLD.revision+1 OR OLD.superseded_by_objective_id IS NOT NULL OR NEW.superseded_by_objective_id IS NULL OR NEW.superseded_by_objective_id=OLD.objective_id THEN RAISE(ABORT,'OBJECTIVE_IDENTITY_IMMUTABLE') END;
 END;
-
-CREATE TRIGGER wfm_identity_requires_wfm_task_insert
-BEFORE INSERT ON wfm_task_identities
-WHEN NOT EXISTS (
-    SELECT 1 FROM tasks t WHERE t.task_id=NEW.task_id AND t.task_kind='wfm'
-)
-BEGIN
-    SELECT RAISE(ABORT, 'WFM_IDENTITY_TASK_KIND');
+CREATE TRIGGER objective_delete_guard BEFORE DELETE ON objectives BEGIN
+    SELECT CASE WHEN OLD.creation_origin<>'manual' OR OLD.superseded_by_objective_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteObjective' AND target_type='objective' AND target_id=OLD.objective_id) THEN RAISE(ABORT,'OBJECTIVE_HARD_DELETE_REQUIRED') END;
 END;
-
-CREATE TRIGGER task_plan_current_owner_insert
-BEFORE INSERT ON task_plan_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_plan_revisions p
-    WHERE p.plan_revision_id=NEW.plan_revision_id AND p.task_id=NEW.task_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_PLAN_OWNER_MISMATCH');
+CREATE TRIGGER objective_membership_event_update_guard BEFORE UPDATE ON objective_membership_events BEGIN SELECT RAISE(ABORT,'OBJECTIVE_MEMBERSHIP_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER objective_membership_event_delete_guard BEFORE DELETE ON objective_membership_events BEGIN
+    SELECT CASE WHEN OLD.event_kind<>'add' OR OLD.from_objective_id IS NOT NULL OR OLD.to_objective_id IS NULL OR OLD.grouping_proposal_id IS NOT NULL
+      OR NOT EXISTS (SELECT 1 FROM objectives o WHERE o.objective_id=OLD.to_objective_id AND o.creation_origin='manual' AND o.superseded_by_objective_id IS NULL AND o.created_command_id=OLD.command_id)
+      OR NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteObjective' AND target_type='objective' AND target_id=OLD.to_objective_id)
+      OR EXISTS (SELECT 1 FROM objective_membership_events e JOIN objectives o ON o.objective_id=OLD.to_objective_id WHERE e.membership_event_id<>OLD.membership_event_id AND (e.from_objective_id=OLD.to_objective_id OR e.to_objective_id=OLD.to_objective_id) AND NOT (e.event_kind='add' AND e.from_objective_id IS NULL AND e.to_objective_id=OLD.to_objective_id AND e.grouping_proposal_id IS NULL AND e.command_id=o.created_command_id))
+      THEN RAISE(ABORT,'OBJECTIVE_MEMBERSHIP_HISTORY_APPEND_ONLY') END;
 END;
-
-CREATE TRIGGER task_plan_current_owner_update
-BEFORE UPDATE OF plan_revision_id,task_id ON task_plan_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_plan_revisions p
-    WHERE p.plan_revision_id=NEW.plan_revision_id AND p.task_id=NEW.task_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_PLAN_OWNER_MISMATCH');
+CREATE TRIGGER objective_membership_current_insert_guard BEFORE INSERT ON objective_task_membership_current BEGIN
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM task_plan_revisions WHERE plan_revision_id=NEW.accepted_plan_revision_id AND task_id=NEW.task_id) OR NOT EXISTS (SELECT 1 FROM objective_membership_events WHERE membership_event_id=NEW.last_event_id AND task_id=NEW.task_id AND to_objective_id=NEW.objective_id AND accepted_plan_revision_id=NEW.accepted_plan_revision_id) THEN RAISE(ABORT,'OBJECTIVE_MEMBERSHIP_INVALID') END;
 END;
-
-CREATE TRIGGER task_execution_projection_owner_insert
-BEFORE INSERT ON task_execution_projection
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_execution_events e
-    WHERE e.execution_event_id=NEW.last_event_id AND e.task_id=NEW.task_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_EXECUTION_OWNER_MISMATCH');
+CREATE TRIGGER objective_membership_current_update_guard BEFORE UPDATE ON objective_task_membership_current BEGIN
+    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.membership_revision<>OLD.membership_revision+1 OR NOT EXISTS (SELECT 1 FROM task_plan_revisions WHERE plan_revision_id=NEW.accepted_plan_revision_id AND task_id=NEW.task_id) OR NOT EXISTS (SELECT 1 FROM objective_membership_events WHERE membership_event_id=NEW.last_event_id AND task_id=NEW.task_id AND to_objective_id=NEW.objective_id AND accepted_plan_revision_id=NEW.accepted_plan_revision_id) THEN RAISE(ABORT,'OBJECTIVE_MEMBERSHIP_INVALID') END;
 END;
-
-CREATE TRIGGER task_execution_projection_owner_update
-BEFORE UPDATE OF last_event_id,task_id ON task_execution_projection
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_execution_events e
-    WHERE e.execution_event_id=NEW.last_event_id AND e.task_id=NEW.task_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_EXECUTION_OWNER_MISMATCH');
+CREATE TRIGGER objective_membership_nonempty_delete_guard AFTER DELETE ON objective_task_membership_current WHEN EXISTS (SELECT 1 FROM objectives WHERE objective_id=OLD.objective_id AND superseded_by_objective_id IS NULL) AND NOT EXISTS (SELECT 1 FROM objective_task_membership_current WHERE objective_id=OLD.objective_id) AND NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteObjective' AND target_type='objective' AND target_id=OLD.objective_id) BEGIN SELECT RAISE(ABORT,'OBJECTIVE_EMPTY'); END;
+CREATE TRIGGER objective_membership_nonempty_move_guard AFTER UPDATE OF objective_id ON objective_task_membership_current WHEN NEW.objective_id<>OLD.objective_id AND EXISTS (SELECT 1 FROM objectives WHERE objective_id=OLD.objective_id AND superseded_by_objective_id IS NULL) AND NOT EXISTS (SELECT 1 FROM objective_task_membership_current WHERE objective_id=OLD.objective_id) BEGIN SELECT RAISE(ABORT,'OBJECTIVE_EMPTY'); END;
+CREATE TRIGGER objective_envelope_insert_overlap_guard BEFORE INSERT ON objective_envelope_projection WHEN EXISTS (SELECT 1 FROM objectives WHERE objective_id=NEW.objective_id AND superseded_by_objective_id IS NULL) BEGIN
+    SELECT CASE WHEN EXISTS (SELECT 1 FROM objective_envelope_projection e JOIN objectives o ON o.objective_id=e.objective_id WHERE e.objective_id<>NEW.objective_id AND o.superseded_by_objective_id IS NULL AND NEW.start_utc<e.end_utc AND NEW.end_utc>e.start_utc) THEN RAISE(ABORT,'OBJECTIVE_OVERLAP') END;
 END;
-
-CREATE TRIGGER task_outcome_current_owner_insert
-BEFORE INSERT ON task_outcome_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_outcome_events e
-    WHERE e.outcome_event_id=NEW.outcome_event_id
-      AND e.task_id=NEW.task_id
-      AND e.accepted_outcome=NEW.accepted_outcome
-      AND e.reviewed_at_utc=NEW.reviewed_at_utc
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_OUTCOME_OWNER_MISMATCH');
+CREATE TRIGGER objective_envelope_update_guard BEFORE UPDATE ON objective_envelope_projection BEGIN
+    SELECT CASE WHEN NEW.objective_id<>OLD.objective_id OR NEW.revision<>OLD.revision+1 OR (EXISTS (SELECT 1 FROM objectives WHERE objective_id=NEW.objective_id AND superseded_by_objective_id IS NULL) AND EXISTS (SELECT 1 FROM objective_envelope_projection e JOIN objectives o ON o.objective_id=e.objective_id WHERE e.objective_id<>NEW.objective_id AND o.superseded_by_objective_id IS NULL AND NEW.start_utc<e.end_utc AND NEW.end_utc>e.start_utc)) THEN RAISE(ABORT,'OBJECTIVE_OVERLAP') END;
 END;
+CREATE TRIGGER objective_envelope_delete_guard BEFORE DELETE ON objective_envelope_projection BEGIN SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteObjective' AND target_type='objective' AND target_id=OLD.objective_id) THEN RAISE(ABORT,'OBJECTIVE_PROJECTION_PROTECTED') END; END;
+CREATE TRIGGER objective_aggregate_update_guard BEFORE UPDATE ON objective_aggregate_projection BEGIN SELECT CASE WHEN NEW.objective_id<>OLD.objective_id OR NEW.revision<>OLD.revision+1 THEN RAISE(ABORT,'OBJECTIVE_AGGREGATE_INVALID') END; END;
+CREATE TRIGGER objective_aggregate_delete_guard BEFORE DELETE ON objective_aggregate_projection BEGIN SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteObjective' AND target_type='objective' AND target_id=OLD.objective_id) THEN RAISE(ABORT,'OBJECTIVE_PROJECTION_PROTECTED') END; END;
+CREATE TRIGGER objective_review_update_guard BEFORE UPDATE ON objective_review_events BEGIN SELECT RAISE(ABORT,'OBJECTIVE_REVIEW_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER objective_review_delete_guard BEFORE DELETE ON objective_review_events BEGIN SELECT RAISE(ABORT,'OBJECTIVE_REVIEW_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER objective_archive_event_update_guard BEFORE UPDATE ON objective_archive_events BEGIN SELECT RAISE(ABORT,'OBJECTIVE_ARCHIVE_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER objective_archive_event_delete_guard BEFORE DELETE ON objective_archive_events BEGIN SELECT RAISE(ABORT,'OBJECTIVE_ARCHIVE_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER objective_archive_projection_insert_guard BEFORE INSERT ON objective_archive_projection WHEN NEW.last_event_id IS NOT NULL BEGIN SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM objective_archive_events WHERE archive_event_id=NEW.last_event_id AND objective_id=NEW.objective_id AND ((NEW.archived=1 AND action='archive') OR (NEW.archived=0 AND action='restore'))) THEN RAISE(ABORT,'OBJECTIVE_ARCHIVE_PROJECTION_INVALID') END; END;
+CREATE TRIGGER objective_archive_projection_update_guard BEFORE UPDATE ON objective_archive_projection BEGIN SELECT CASE WHEN NEW.objective_id<>OLD.objective_id OR NEW.revision<>OLD.revision+1 OR (NEW.last_event_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM objective_archive_events WHERE archive_event_id=NEW.last_event_id AND objective_id=NEW.objective_id AND ((NEW.archived=1 AND action='archive') OR (NEW.archived=0 AND action='restore')))) THEN RAISE(ABORT,'OBJECTIVE_ARCHIVE_PROJECTION_INVALID') END; END;
+CREATE TRIGGER objective_archive_projection_delete_guard BEFORE DELETE ON objective_archive_projection BEGIN SELECT CASE WHEN OLD.last_event_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteObjective' AND target_type='objective' AND target_id=OLD.objective_id) THEN RAISE(ABORT,'OBJECTIVE_ARCHIVE_PROJECTION_PROTECTED') END; END;
 
-CREATE TRIGGER task_outcome_current_owner_update
-BEFORE UPDATE OF outcome_event_id,task_id,accepted_outcome,reviewed_at_utc ON task_outcome_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_outcome_events e
-    WHERE e.outcome_event_id=NEW.outcome_event_id
-      AND e.task_id=NEW.task_id
-      AND e.accepted_outcome=NEW.accepted_outcome
-      AND e.reviewed_at_utc=NEW.reviewed_at_utc
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_OUTCOME_OWNER_MISMATCH');
+CREATE TRIGGER regroup_proposal_update_guard BEFORE UPDATE ON regroup_proposals BEGIN
+    SELECT CASE WHEN OLD.state<>'pending' OR NEW.regroup_proposal_id<>OLD.regroup_proposal_id OR NEW.proposal_kind<>OLD.proposal_kind OR NEW.origin<>OLD.origin OR NEW.risk_tier<>OLD.risk_tier OR NEW.input_fingerprint<>OLD.input_fingerprint OR NEW.survivor_objective_id IS NOT OLD.survivor_objective_id OR NEW.created_at_utc<>OLD.created_at_utc OR NEW.revision<>OLD.revision+1 OR NEW.state NOT IN ('accepted','rejected','superseded') OR NEW.last_command_id IS NULL THEN RAISE(ABORT,'GROUPING_PROPOSAL_HISTORY_INVALID') END;
 END;
-
-CREATE TRIGGER task_lock_projection_owner_insert
-BEFORE INSERT ON task_lock_projection
-WHEN NEW.last_event_id IS NOT NULL
- AND NOT EXISTS (
-    SELECT 1 FROM task_lock_events e
-    WHERE e.lock_event_id=NEW.last_event_id AND e.task_id=NEW.task_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_LOCK_OWNER_MISMATCH');
+CREATE TRIGGER regroup_proposal_delete_guard BEFORE DELETE ON regroup_proposals BEGIN SELECT RAISE(ABORT,'GROUPING_PROPOSAL_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER regroup_task_change_update_guard BEFORE UPDATE ON regroup_proposal_task_changes BEGIN SELECT RAISE(ABORT,'GROUPING_PROPOSAL_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER regroup_task_change_delete_guard BEFORE DELETE ON regroup_proposal_task_changes BEGIN SELECT RAISE(ABORT,'GROUPING_PROPOSAL_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER regroup_objective_change_update_guard BEFORE UPDATE ON regroup_proposal_objective_changes BEGIN SELECT RAISE(ABORT,'GROUPING_PROPOSAL_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER regroup_objective_change_delete_guard BEFORE DELETE ON regroup_proposal_objective_changes BEGIN SELECT RAISE(ABORT,'GROUPING_PROPOSAL_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER regroup_rejection_update_guard BEFORE UPDATE ON regroup_rejection_events BEGIN SELECT RAISE(ABORT,'GROUPING_REJECTION_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER regroup_rejection_delete_guard BEFORE DELETE ON regroup_rejection_events BEGIN SELECT RAISE(ABORT,'GROUPING_REJECTION_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER historical_proposal_update_guard BEFORE UPDATE ON historical_objective_proposals BEGIN
+    SELECT CASE WHEN OLD.state<>'pending' OR NEW.historical_proposal_id<>OLD.historical_proposal_id OR NEW.task_id<>OLD.task_id OR NEW.expected_wfm_source_projection_revision<>OLD.expected_wfm_source_projection_revision OR NEW.expected_source_plan_start_utc<>OLD.expected_source_plan_start_utc OR NEW.expected_source_plan_end_utc<>OLD.expected_source_plan_end_utc OR NEW.expected_source_observation_id<>OLD.expected_source_observation_id OR NEW.expected_matching_operational_plan_revision_id IS NOT OLD.expected_matching_operational_plan_revision_id OR NEW.input_fingerprint<>OLD.input_fingerprint OR NEW.created_at_utc<>OLD.created_at_utc OR NEW.revision<>OLD.revision+1 OR NEW.state NOT IN ('accepted','rejected','superseded') OR NEW.last_command_id IS NULL THEN RAISE(ABORT,'HISTORICAL_PROPOSAL_HISTORY_INVALID') END;
 END;
-
-CREATE TRIGGER task_lock_projection_owner_update
-BEFORE UPDATE OF last_event_id,task_id ON task_lock_projection
-WHEN NEW.last_event_id IS NOT NULL
- AND NOT EXISTS (
-    SELECT 1 FROM task_lock_events e
-    WHERE e.lock_event_id=NEW.last_event_id AND e.task_id=NEW.task_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_LOCK_OWNER_MISMATCH');
+CREATE TRIGGER historical_proposal_delete_guard BEFORE DELETE ON historical_objective_proposals BEGIN SELECT RAISE(ABORT,'HISTORICAL_PROPOSAL_HISTORY_APPEND_ONLY'); END;
+CREATE TRIGGER source_terminal_review_update_guard BEFORE UPDATE ON wfm_source_terminal_reviews BEGIN
+    SELECT CASE WHEN OLD.state<>'pending' OR NEW.source_terminal_review_id<>OLD.source_terminal_review_id OR NEW.task_id<>OLD.task_id OR NEW.source_projection_revision<>OLD.source_projection_revision OR NEW.provider_lifecycle_class<>OLD.provider_lifecycle_class OR NEW.input_fingerprint<>OLD.input_fingerprint OR NEW.created_at_utc<>OLD.created_at_utc OR NEW.revision<>OLD.revision+1 OR NEW.state NOT IN ('retain_local_work','terminate_local_work','superseded') OR NEW.last_command_id IS NULL OR (NEW.state='retain_local_work' AND (NEW.decided_at_utc IS NULL OR NEW.local_consequence_event_id IS NOT NULL)) OR (NEW.state='terminate_local_work' AND (NEW.decided_at_utc IS NULL OR NEW.local_consequence_event_id IS NULL OR NOT EXISTS (SELECT 1 FROM task_execution_events WHERE execution_event_id=NEW.local_consequence_event_id AND task_id=NEW.task_id AND event_kind='source_terminal_consequence'))) OR (NEW.state='superseded' AND NEW.local_consequence_event_id IS NOT NULL) THEN RAISE(ABORT,'SOURCE_TERMINAL_REVIEW_HISTORY_INVALID') END;
 END;
-
-CREATE TRIGGER task_activity_current_owner_insert
-BEFORE INSERT ON task_activity_lineage_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_activity_lineage_events e
-    WHERE e.lineage_event_id=NEW.last_event_id
-      AND e.task_id=NEW.task_id
-      AND e.new_lineage_id=NEW.activity_lineage_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_ACTIVITY_OWNER_MISMATCH');
-END;
-
-CREATE TRIGGER task_activity_current_owner_update
-BEFORE UPDATE OF activity_lineage_id,last_event_id,task_id ON task_activity_lineage_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_activity_lineage_events e
-    WHERE e.lineage_event_id=NEW.last_event_id
-      AND e.task_id=NEW.task_id
-      AND e.new_lineage_id=NEW.activity_lineage_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_ACTIVITY_OWNER_MISMATCH');
-END;
-
-CREATE TRIGGER task_operational_count_current_owner_insert
-BEFORE INSERT ON task_operational_count_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_operational_count_events e
-    WHERE e.inclusion_event_id=NEW.last_event_id
-      AND e.task_id=NEW.task_id
-      AND e.included=NEW.included
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_COUNT_OWNER_MISMATCH');
-END;
-
-CREATE TRIGGER task_operational_count_current_owner_update
-BEFORE UPDATE OF included,last_event_id,task_id ON task_operational_count_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_operational_count_events e
-    WHERE e.inclusion_event_id=NEW.last_event_id
-      AND e.task_id=NEW.task_id
-      AND e.included=NEW.included
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_COUNT_OWNER_MISMATCH');
-END;
-
-CREATE TRIGGER objective_membership_current_owner_insert
-BEFORE INSERT ON objective_task_membership_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_plan_revisions p
-    WHERE p.plan_revision_id=NEW.accepted_plan_revision_id AND p.task_id=NEW.task_id
-)
-OR NOT EXISTS (
-    SELECT 1 FROM objective_membership_events e
-    WHERE e.membership_event_id=NEW.last_event_id
-      AND e.task_id=NEW.task_id
-      AND e.accepted_plan_revision_id=NEW.accepted_plan_revision_id
-      AND e.to_objective_id=NEW.objective_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_MEMBERSHIP_OWNER_MISMATCH');
-END;
-
-CREATE TRIGGER objective_membership_current_owner_update
-BEFORE UPDATE OF objective_id,accepted_plan_revision_id,last_event_id,task_id ON objective_task_membership_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM task_plan_revisions p
-    WHERE p.plan_revision_id=NEW.accepted_plan_revision_id AND p.task_id=NEW.task_id
-)
-OR NOT EXISTS (
-    SELECT 1 FROM objective_membership_events e
-    WHERE e.membership_event_id=NEW.last_event_id
-      AND e.task_id=NEW.task_id
-      AND e.accepted_plan_revision_id=NEW.accepted_plan_revision_id
-      AND e.to_objective_id=NEW.objective_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_MEMBERSHIP_OWNER_MISMATCH');
-END;
-
-CREATE TRIGGER objective_archive_projection_owner_insert
-BEFORE INSERT ON objective_archive_projection
-WHEN NEW.last_event_id IS NOT NULL
- AND NOT EXISTS (
-    SELECT 1 FROM objective_archive_events e
-    WHERE e.archive_event_id=NEW.last_event_id AND e.objective_id=NEW.objective_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_ARCHIVE_OWNER_MISMATCH');
-END;
-
-CREATE TRIGGER objective_archive_projection_owner_update
-BEFORE UPDATE OF last_event_id,objective_id ON objective_archive_projection
-WHEN NEW.last_event_id IS NOT NULL
- AND NOT EXISTS (
-    SELECT 1 FROM objective_archive_events e
-    WHERE e.archive_event_id=NEW.last_event_id AND e.objective_id=NEW.objective_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_ARCHIVE_OWNER_MISMATCH');
-END;
-
-CREATE TRIGGER objectives_identity_immutable
-BEFORE UPDATE ON objectives
-WHEN NEW.objective_id <> OLD.objective_id
-  OR NEW.tracking_sequence <> OLD.tracking_sequence
-  OR NEW.tracking_id <> OLD.tracking_id
-  OR NEW.creation_origin <> OLD.creation_origin
-  OR NEW.created_at_utc <> OLD.created_at_utc
-  OR NEW.created_command_id <> OLD.created_command_id
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_IDENTITY_IMMUTABLE');
-END;
-
-CREATE TRIGGER objectives_supersession_monotonic
-BEFORE UPDATE OF superseded_by_objective_id ON objectives
-WHEN OLD.superseded_by_objective_id IS NOT NULL
- AND NEW.superseded_by_objective_id IS NOT OLD.superseded_by_objective_id
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_SUPERSESSION_IMMUTABLE');
-END;
-
-CREATE TRIGGER task_sr_links_local_only_insert
-BEFORE INSERT ON task_sr_links
-WHEN NOT EXISTS (SELECT 1 FROM tasks t WHERE t.task_id=NEW.task_id AND t.task_kind='local')
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_RELATIONSHIP_KIND_INVALID');
-END;
-
-CREATE TRIGGER task_rfc_links_local_only_insert
-BEFORE INSERT ON task_rfc_links
-WHEN NOT EXISTS (SELECT 1 FROM tasks t WHERE t.task_id=NEW.task_id AND t.task_kind='local')
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_RELATIONSHIP_KIND_INVALID');
-END;
-
-CREATE TRIGGER task_sr_links_history_update
-BEFORE UPDATE ON task_sr_links
-WHEN OLD.active=0
-  OR NEW.link_id<>OLD.link_id
-  OR NEW.task_id<>OLD.task_id
-  OR NEW.service_request_id<>OLD.service_request_id
-  OR NEW.opened_command_id<>OLD.opened_command_id
-  OR NOT (OLD.active=1 AND NEW.active=0 AND OLD.closed_command_id IS NULL AND NEW.closed_command_id IS NOT NULL)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_RELATIONSHIP_HISTORY_INVALID');
-END;
-
-CREATE TRIGGER task_rfc_links_history_update
-BEFORE UPDATE ON task_rfc_links
-WHEN OLD.active=0
-  OR NEW.link_id<>OLD.link_id
-  OR NEW.task_id<>OLD.task_id
-  OR NEW.rfc_id<>OLD.rfc_id
-  OR NEW.opened_command_id<>OLD.opened_command_id
-  OR NOT (OLD.active=1 AND NEW.active=0 AND OLD.closed_command_id IS NULL AND NEW.closed_command_id IS NOT NULL)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_RELATIONSHIP_HISTORY_INVALID');
-END;
-
-CREATE TRIGGER task_device_links_history_update
-BEFORE UPDATE ON task_device_links
-WHEN OLD.active=0
-  OR NEW.link_id<>OLD.link_id
-  OR NEW.task_id<>OLD.task_id
-  OR NEW.device_reference_id<>OLD.device_reference_id
-  OR NEW.opened_command_id<>OLD.opened_command_id
-  OR NOT (OLD.active=1 AND NEW.active=0 AND OLD.closed_command_id IS NULL AND NEW.closed_command_id IS NOT NULL)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_RELATIONSHIP_HISTORY_INVALID');
-END;
-
-CREATE TRIGGER task_sr_links_delete_guard
-BEFORE DELETE ON task_sr_links
-WHEN OLD.active<>1
- OR NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteTask'
-      AND r.target_type='task'
-      AND r.target_id=OLD.task_id
- )
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_RELATIONSHIP_PROTECTED_HISTORY');
-END;
-
-CREATE TRIGGER task_rfc_links_delete_guard
-BEFORE DELETE ON task_rfc_links
-WHEN OLD.active<>1
- OR NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteTask'
-      AND r.target_type='task'
-      AND r.target_id=OLD.task_id
- )
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_RELATIONSHIP_PROTECTED_HISTORY');
-END;
-
-CREATE TRIGGER task_device_links_delete_guard
-BEFORE DELETE ON task_device_links
-WHEN OLD.active<>1
- OR NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteTask'
-      AND r.target_type='task'
-      AND r.target_id=OLD.task_id
- )
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_RELATIONSHIP_PROTECTED_HISTORY');
-END;
-
-CREATE TRIGGER wfm_assignment_events_before_update
-BEFORE UPDATE ON wfm_rfc_assignment_events
-BEGIN
-    SELECT RAISE(ABORT, 'WFM_ASSIGNMENT_HISTORY_APPEND_ONLY');
-END;
-
-CREATE TRIGGER wfm_assignment_events_before_delete
-BEFORE DELETE ON wfm_rfc_assignment_events
-WHEN OLD.prior_rfc_id IS NOT NULL
- OR EXISTS (
-    SELECT 1 FROM wfm_rfc_assignment_events e
-    WHERE e.task_id=OLD.task_id AND e.assignment_event_id<>OLD.assignment_event_id
- )
- OR NOT EXISTS (
-    SELECT 1 FROM tasks t
-    WHERE t.task_id=OLD.task_id AND t.task_kind='wfm' AND t.creation_origin='wfm_manual'
- )
- OR EXISTS (
-    SELECT 1 FROM wfm_source_projection_cache s WHERE s.task_id=OLD.task_id
- )
- OR NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteTask' AND r.target_type='task' AND r.target_id=OLD.task_id
- )
-BEGIN
-    SELECT RAISE(ABORT, 'WFM_ASSIGNMENT_HISTORY_APPEND_ONLY');
-END;
-
-CREATE TRIGGER task_plan_revisions_before_update
-BEFORE UPDATE ON task_plan_revisions
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_PLAN_HISTORY_APPEND_ONLY');
-END;
-
-CREATE TRIGGER task_plan_revisions_before_delete
-BEFORE DELETE ON task_plan_revisions
-WHEN OLD.predecessor_plan_revision_id IS NOT NULL
- OR OLD.source_observation_id IS NOT NULL
- OR OLD.origin NOT IN ('manual','objective_initialization')
- OR EXISTS (
-    SELECT 1 FROM task_plan_revisions p
-    WHERE p.task_id=OLD.task_id AND p.plan_revision_id<>OLD.plan_revision_id
- )
- OR NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteTask' AND r.target_type='task' AND r.target_id=OLD.task_id
- )
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_PLAN_HISTORY_APPEND_ONLY');
-END;
-
-CREATE TRIGGER task_execution_events_before_update
-BEFORE UPDATE ON task_execution_events
-BEGIN SELECT RAISE(ABORT, 'TASK_EXECUTION_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_execution_events_before_delete
-BEFORE DELETE ON task_execution_events
-BEGIN SELECT RAISE(ABORT, 'TASK_EXECUTION_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_outcome_events_before_update
-BEFORE UPDATE ON task_outcome_events
-BEGIN SELECT RAISE(ABORT, 'TASK_OUTCOME_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_outcome_events_before_delete
-BEFORE DELETE ON task_outcome_events
-BEGIN SELECT RAISE(ABORT, 'TASK_OUTCOME_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_lock_events_before_update
-BEFORE UPDATE ON task_lock_events
-BEGIN SELECT RAISE(ABORT, 'TASK_LOCK_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_lock_events_before_delete
-BEFORE DELETE ON task_lock_events
-BEGIN SELECT RAISE(ABORT, 'TASK_LOCK_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_retry_relations_before_update
-BEFORE UPDATE ON task_retry_relations
-BEGIN SELECT RAISE(ABORT, 'TASK_RETRY_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_retry_relations_before_delete
-BEFORE DELETE ON task_retry_relations
-BEGIN SELECT RAISE(ABORT, 'TASK_RETRY_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_activity_lineages_before_update
-BEFORE UPDATE ON task_activity_lineages
-BEGIN SELECT RAISE(ABORT, 'TASK_ACTIVITY_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_activity_lineages_before_delete
-BEFORE DELETE ON task_activity_lineages
-BEGIN SELECT RAISE(ABORT, 'TASK_ACTIVITY_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_activity_events_before_update
-BEFORE UPDATE ON task_activity_lineage_events
-BEGIN SELECT RAISE(ABORT, 'TASK_ACTIVITY_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_activity_events_before_delete
-BEFORE DELETE ON task_activity_lineage_events
-BEGIN SELECT RAISE(ABORT, 'TASK_ACTIVITY_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_operational_count_events_before_update
-BEFORE UPDATE ON task_operational_count_events
-BEGIN SELECT RAISE(ABORT, 'TASK_COUNT_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER task_operational_count_events_before_delete
-BEFORE DELETE ON task_operational_count_events
-BEGIN SELECT RAISE(ABORT, 'TASK_COUNT_HISTORY_APPEND_ONLY'); END;
-
-CREATE TRIGGER objective_membership_events_before_update
-BEFORE UPDATE ON objective_membership_events
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_MEMBERSHIP_HISTORY_APPEND_ONLY');
-END;
-
-CREATE TRIGGER objective_membership_events_before_delete
-BEFORE DELETE ON objective_membership_events
-WHEN OLD.event_kind<>'add'
- OR OLD.from_objective_id IS NOT NULL
- OR OLD.to_objective_id IS NULL
- OR NOT EXISTS (
-    SELECT 1 FROM objectives o
-    WHERE o.objective_id=OLD.to_objective_id
-      AND o.creation_origin='manual'
-      AND o.superseded_by_objective_id IS NULL
-      AND o.created_command_id=OLD.command_id
- )
- OR NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteObjective'
-      AND r.target_type='objective'
-      AND r.target_id=OLD.to_objective_id
- )
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_MEMBERSHIP_HISTORY_APPEND_ONLY');
-END;
-
-CREATE TRIGGER objective_review_events_before_update
-BEFORE UPDATE ON objective_review_events
-BEGIN SELECT RAISE(ABORT, 'OBJECTIVE_REVIEW_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER objective_review_events_before_delete
-BEFORE DELETE ON objective_review_events
-BEGIN SELECT RAISE(ABORT, 'OBJECTIVE_REVIEW_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER objective_archive_events_before_update
-BEFORE UPDATE ON objective_archive_events
-BEGIN SELECT RAISE(ABORT, 'OBJECTIVE_ARCHIVE_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER objective_archive_events_before_delete
-BEFORE DELETE ON objective_archive_events
-BEGIN SELECT RAISE(ABORT, 'OBJECTIVE_ARCHIVE_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER regroup_rejection_events_before_update
-BEFORE UPDATE ON regroup_rejection_events
-BEGIN SELECT RAISE(ABORT, 'REGROUP_REJECTION_HISTORY_APPEND_ONLY'); END;
-CREATE TRIGGER regroup_rejection_events_before_delete
-BEFORE DELETE ON regroup_rejection_events
-BEGIN SELECT RAISE(ABORT, 'REGROUP_REJECTION_HISTORY_APPEND_ONLY'); END;
-
-CREATE TRIGGER wfm_source_projection_before_delete
-BEFORE DELETE ON wfm_source_projection_cache
-BEGIN
-    SELECT RAISE(ABORT, 'WFM_SOURCE_PROJECTION_PROTECTED');
-END;
-
-CREATE TRIGGER task_plan_current_before_delete
-BEFORE DELETE ON task_plan_current
-WHEN NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteTask' AND r.target_type='task' AND r.target_id=OLD.task_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_PLAN_CURRENT_DELETE_REQUIRES_HARD_DELETE');
-END;
-
-CREATE TRIGGER task_delete_requires_hard_delete
-BEFORE DELETE ON tasks
-WHEN NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteTask' AND r.target_type='task' AND r.target_id=OLD.task_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'TASK_DELETE_REQUIRES_HARD_DELETE');
-END;
-
-CREATE TRIGGER wfm_identity_delete_guard
-BEFORE DELETE ON wfm_task_identities
-WHEN NOT EXISTS (
-    SELECT 1 FROM tasks t
-    WHERE t.task_id=OLD.task_id AND t.creation_origin='wfm_manual'
-)
- OR EXISTS (SELECT 1 FROM wfm_source_projection_cache s WHERE s.task_id=OLD.task_id)
- OR NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteTask' AND r.target_type='task' AND r.target_id=OLD.task_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'WFM_IDENTITY_PROTECTED');
-END;
-
-CREATE TRIGGER objective_membership_nonempty_after_delete
-AFTER DELETE ON objective_task_membership_current
-WHEN EXISTS (
-    SELECT 1 FROM objectives o
-    WHERE o.objective_id=OLD.objective_id AND o.superseded_by_objective_id IS NULL
-)
- AND NOT EXISTS (
-    SELECT 1 FROM objective_task_membership_current m WHERE m.objective_id=OLD.objective_id
-)
- AND NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteObjective'
-      AND r.target_type='objective'
-      AND r.target_id=OLD.objective_id
-)
- AND NOT EXISTS (
-    SELECT 1
-    FROM command_receipts r
-    JOIN regroup_proposal_objective_changes c
-      ON c.regroup_proposal_id=r.target_id
-     AND c.objective_id=OLD.objective_id
-     AND c.action='supersede'
-    WHERE r.command_type='AcceptRegroupProposal'
-      AND r.target_type='grouping_proposal'
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_EMPTY');
-END;
-
-CREATE TRIGGER objective_membership_nonempty_after_move
-AFTER UPDATE OF objective_id ON objective_task_membership_current
-WHEN NEW.objective_id<>OLD.objective_id
- AND EXISTS (
-    SELECT 1 FROM objectives o
-    WHERE o.objective_id=OLD.objective_id AND o.superseded_by_objective_id IS NULL
-)
- AND NOT EXISTS (
-    SELECT 1 FROM objective_task_membership_current m WHERE m.objective_id=OLD.objective_id
-)
- AND NOT EXISTS (
-    SELECT 1
-    FROM command_receipts r
-    JOIN regroup_proposal_objective_changes c
-      ON c.regroup_proposal_id=r.target_id
-     AND c.objective_id=OLD.objective_id
-     AND c.action='supersede'
-    WHERE r.command_type='AcceptRegroupProposal'
-      AND r.target_type='grouping_proposal'
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_EMPTY');
-END;
-
-CREATE TRIGGER objective_envelope_no_overlap_insert
-BEFORE INSERT ON objective_envelope_projection
-WHEN EXISTS (
-    SELECT 1
-    FROM objectives candidate
-    JOIN objective_envelope_projection other ON 1=1
-    JOIN objectives current ON current.objective_id=other.objective_id
-    WHERE candidate.objective_id=NEW.objective_id
-      AND candidate.superseded_by_objective_id IS NULL
-      AND current.superseded_by_objective_id IS NULL
-      AND current.objective_id<>NEW.objective_id
-      AND other.start_utc < NEW.end_utc
-      AND other.end_utc > NEW.start_utc
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_OVERLAP');
-END;
-
-CREATE TRIGGER objective_envelope_no_overlap_update
-BEFORE UPDATE OF start_utc,end_utc,objective_id ON objective_envelope_projection
-WHEN EXISTS (
-    SELECT 1
-    FROM objectives candidate
-    JOIN objective_envelope_projection other ON 1=1
-    JOIN objectives current ON current.objective_id=other.objective_id
-    WHERE candidate.objective_id=NEW.objective_id
-      AND candidate.superseded_by_objective_id IS NULL
-      AND current.superseded_by_objective_id IS NULL
-      AND current.objective_id<>NEW.objective_id
-      AND other.start_utc < NEW.end_utc
-      AND other.end_utc > NEW.start_utc
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_OVERLAP');
-END;
-
-CREATE TRIGGER objective_delete_requires_hard_delete
-BEFORE DELETE ON objectives
-WHEN NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteObjective'
-      AND r.target_type='objective'
-      AND r.target_id=OLD.objective_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_DELETE_REQUIRES_HARD_DELETE');
-END;
-
-CREATE TRIGGER objective_envelope_delete_guard
-BEFORE DELETE ON objective_envelope_projection
-WHEN NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteObjective'
-      AND r.target_type='objective'
-      AND r.target_id=OLD.objective_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_ENVELOPE_DELETE_REQUIRES_HARD_DELETE');
-END;
-
-CREATE TRIGGER objective_aggregate_delete_guard
-BEFORE DELETE ON objective_aggregate_projection
-WHEN NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteObjective'
-      AND r.target_type='objective'
-      AND r.target_id=OLD.objective_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_AGGREGATE_DELETE_REQUIRES_HARD_DELETE');
-END;
-
-CREATE TRIGGER objective_archive_projection_delete_guard
-BEFORE DELETE ON objective_archive_projection
-WHEN OLD.last_event_id IS NOT NULL
- OR NOT EXISTS (
-    SELECT 1 FROM command_receipts r
-    WHERE r.command_type='HardDeleteObjective'
-      AND r.target_type='objective'
-      AND r.target_id=OLD.objective_id
-)
-BEGIN
-    SELECT RAISE(ABORT, 'OBJECTIVE_ARCHIVE_PROJECTION_PROTECTED');
-END;
+CREATE TRIGGER source_terminal_review_delete_guard BEFORE DELETE ON wfm_source_terminal_reviews BEGIN SELECT RAISE(ABORT,'SOURCE_TERMINAL_REVIEW_HISTORY_APPEND_ONLY'); END;
