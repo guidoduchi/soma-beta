@@ -35,7 +35,7 @@
       "sequence": 6,
       "migration_id": "beta_0006_objectives_tasks",
       "filename": "0006_objectives_tasks.sql",
-      "sha256": "97ceed6eb398dd88fbdefeed964cbbd3334360243d060c2194344df548a89c27"
+      "sha256": "73f2601485135bf7bd64595976131f3d63727e35fb64217f81dbca1876ca1fcd"
     }
   ]
 }
