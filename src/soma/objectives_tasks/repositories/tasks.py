@@ -50,6 +50,14 @@ class TaskPlanRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class TaskPlanCurrentPointer:
+    task_id: str
+    plan_revision_id: str
+    revision: int
+    last_command_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class TaskRelationshipRecord:
     relationship_id: str
     task_id: str
@@ -248,7 +256,46 @@ class TaskPlanRepository:
         return None if row is None else str(row[0])
 
     @staticmethod
-    def insert_initial(uow: UnitOfWork, row: TaskPlanRecord) -> None:
+    def current_pointer(reader: Any, task_id: str) -> TaskPlanCurrentPointer | None:
+        row = reader.execute(
+            "SELECT task_id,plan_revision_id,revision,last_command_id FROM task_plan_current WHERE task_id=?",
+            (task_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return TaskPlanCurrentPointer(
+            task_id=str(row[0]),
+            plan_revision_id=str(row[1]),
+            revision=int(row[2]),
+            last_command_id=str(row[3]),
+        )
+
+    @staticmethod
+    def get_revision(reader: Any, plan_revision_id: str) -> TaskPlanRecord | None:
+        row = reader.execute(
+            "SELECT plan_revision_id,task_id,start_utc,end_utc,origin,scheduling_timezone_iana,"
+            "source_observation_id,predecessor_plan_revision_id,reason_code,accepted_at_utc,command_id "
+            "FROM task_plan_revisions WHERE plan_revision_id=?",
+            (plan_revision_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return TaskPlanRecord(
+            plan_revision_id=str(row[0]),
+            task_id=str(row[1]),
+            start_utc=int(row[2]),
+            end_utc=int(row[3]),
+            origin=str(row[4]),
+            scheduling_timezone_iana=str(row[5]),
+            source_observation_id=None if row[6] is None else str(row[6]),
+            predecessor_plan_revision_id=None if row[7] is None else str(row[7]),
+            reason_code=None if row[8] is None else str(row[8]),
+            accepted_at_utc=int(row[9]),
+            command_id=str(row[10]),
+        )
+
+    @staticmethod
+    def _insert_revision(uow: UnitOfWork, row: TaskPlanRecord) -> None:
         uow.connection.execute(
             "INSERT INTO task_plan_revisions(plan_revision_id,task_id,start_utc,end_utc,origin,scheduling_timezone_iana,"
             "source_observation_id,predecessor_plan_revision_id,reason_code,accepted_at_utc,command_id) "
@@ -267,10 +314,37 @@ class TaskPlanRepository:
                 row.command_id,
             ),
         )
+
+    @classmethod
+    def insert_initial(cls, uow: UnitOfWork, row: TaskPlanRecord) -> None:
+        cls._insert_revision(uow, row)
         uow.connection.execute(
             "INSERT INTO task_plan_current(task_id,plan_revision_id,revision,last_command_id) VALUES (?,?,1,?)",
             (row.task_id, row.plan_revision_id, row.command_id),
         )
+
+    @classmethod
+    def append_and_set_current(
+        cls,
+        uow: UnitOfWork,
+        row: TaskPlanRecord,
+        *,
+        expected_current_revision: int,
+    ) -> None:
+        cls._insert_revision(uow, row)
+        if expected_current_revision == 0:
+            uow.connection.execute(
+                "INSERT INTO task_plan_current(task_id,plan_revision_id,revision,last_command_id) VALUES (?,?,1,?)",
+                (row.task_id, row.plan_revision_id, row.command_id),
+            )
+            return
+        updated = uow.connection.execute(
+            "UPDATE task_plan_current SET plan_revision_id=?,revision=revision+1,last_command_id=? "
+            "WHERE task_id=? AND revision=?",
+            (row.plan_revision_id, row.command_id, row.task_id, expected_current_revision),
+        )
+        if updated.rowcount != 1:
+            raise IntegrityFailure("Task current-plan authority changed during guarded mutation")
 
 
 class TaskRelationshipRepository:
