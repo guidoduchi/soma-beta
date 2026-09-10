@@ -9,7 +9,7 @@
     "BETA-REQ-0040":["schema/relationships.json","algorithms/rfc-hierarchy.json","algorithms/rfc-hierarchy-review.json","types/transport.json","queries/tickets.json","interfaces/cross-packet.json","transitions/ticket-lifecycle.json","tests/core-acceptance.json"],
     "BETA-REQ-0052":["schema/tickets.json","commands/tickets.json","queries/tickets.json","audit/actions.json","tests/core-acceptance.json"],
     "BETA-REQ-0053":["schema/allocators.json","schema/tickets.json","commands/tickets.json","tests/core-acceptance.json"],
-    "BETA-REQ-0057":["schema/sr-source-projection.json","algorithms/sr-source-current.json","queries/sr-reference.json","tests/core-acceptance.json","tests/sr-reference-acceptance.json"],
+    "BETA-REQ-0057":["schema/sr-source-projection.json","algorithms/sr-source-current.json","schema/sr-source-presence.json","algorithms/sr-source-presence.json","migrations/0014-sr-source-presence.json","queries/tickets.json","queries/sr-reference.json","interfaces/cross-packet-v2.json","tests/core-acceptance.json","tests/sr-reference-acceptance.json"],
     "BETA-REQ-0075":["schema/tickets.json","schema/sr-source-projection.json","queries/tickets.json","tests/core-acceptance.json","tests/sr-reference-acceptance.json"],
     "BETA-REQ-0076":["schema/tickets.json","schema/sr-source-projection.json","commands/tickets.json","tests/core-acceptance.json"],
     "BETA-REQ-0147":["schema/rfc-source-projection.json","transitions/ticket-lifecycle.json","queries/rfc-lifecycle.json","tests/rfc-lifecycle-acceptance.json"],
@@ -22,11 +22,12 @@
     "BETA-REQ-0165":["schema/tickets.json","schema/relationships.json","commands/tickets.json","queries/tickets.json","tests/core-acceptance.json"]
   },
   "fragments":["tests/traceability/commands-core-a.json","tests/traceability/commands-core-b.json","tests/traceability/commands-lifecycle.json","tests/traceability/queries-core.json","tests/traceability/queries-lifecycle.json"],
-  "migration":{"sequence":3,"path":"migrations/0003-tickets-core.json","objects":"all LLD-03 identity, relationship, source-projection, terminal-cascade, archive-history and protection objects"},
+  "migration":{"sequence":3,"path":"migrations/0003-tickets-core.json","objects":"all LLD-03 identity, relationship, source-projection, terminal-cascade, archive-history and protection objects","forward_additions":[{"sequence":14,"path":"migrations/0014-sr-source-presence.json","objects":"sr_source_presence_events plus append-only chain guards and supporting indexes"}]},
   "cross_packet":[
     {"interface":"UnitOfWork/CommandReceiptStore/AuditWriter","provider":"LLD-01","consumer":"LLD-03"},
     {"interface":"Customer/Contact/LocalUserProfile identity and lifecycle readers","provider":"LLD-02","consumer":"LLD-03"},
-    {"interface":"SrSourceEvidenceProvider/RfcSourceEvidenceProvider plus reviewed import caller","provider":"LLD-04","consumer":"LLD-03"},
+    {"interface":"SrSourceEvidenceProvider/RfcSourceEvidenceProvider/SrSourcePresenceEvidenceProvider plus reviewed import caller","provider":"LLD-04","consumer":"LLD-03"},
+    {"interface":"ServiceRequestImportReader/ServiceRequestImportMutationService","provider":"LLD-03","consumer":"LLD-04"},
     {"interface":"RfcTerminalTaskParticipant","provider":"LLD-05","consumer":"LLD-03"},
     {"interface":"RfcHistoryRiskProvider","provider":"LLD-05","consumer":"LLD-03"},
     {"interface":"ServiceRequestCustomerClassificationParticipant","provider":"LLD-06","consumer":"LLD-03"},
@@ -38,12 +39,14 @@
   "reverse_orphan_checks":[
     "Every authoritative LLD-03 command has exactly one bounded traceability edge proving request/response, transaction boundary, revision effects, audit, errors, tests and COMMAND_ENVELOPE_V1 or the exact shared outer-command equivalent.",
     "Every LLD-03 query has deterministic total ordering, bounded point semantics or CURSOR_V1 keyset pagination, supporting index evidence and concrete tests.",
+    "Accepted Advanced Search disappearance creates one immutable disappearance_reviewed owner event only after exact LLD-04 population-absence validation; GetServiceRequest derives SR_SOURCE_DISAPPEARANCE_REVIEWED only from the current chain head. Automatic reappearance appends one reappearance_confirmed event only after exact published-run identity evidence and never accepts source fields or mutates ticket lifecycle/relationships.",
+    "The source-presence repair is a forward LLD-03 addition at globally reserved sequence 14. Historical migration 3 and reserved sequences 6 through 13 remain unchanged; runtime 0014 cannot be accepted or applied until the complete 1 through 13 prefix exists.",
     "Direct SR-to-RFC persistence targets only the governing root; subordinate SR context is query-derived and RFC hierarchy remains exactly two levels.",
     "RFC reparent/detach review freshness is SOMA_RFC_HIERARCHY_REVIEW_V1: exact old/new structural branch authority plus old edge, blockers/warnings and the complete bounded LLD-05 history risk/count/provider fingerprint. Preview uses one stable Snapshot; writer recomputes the same RfcHistoryRiskProvider authority in its current UnitOfWork before receipt/mutation. Any relevant history change stales the review even when hierarchy and LOW/HIGH classification are unchanged; INDETERMINATE never authorizes mutation; no provider-owned Task/WFM/Objective rows are copied into LLD-03.",
     "The RFC hierarchy review-freshness repair changes no persisted schema or migration allocation; it composes existing hierarchy state with bounded read-only LLD-05 authority and leaves historical migration 3 unchanged.",
     "Accepted terminal RFC source evidence may create or supersede a pending cascade proposal but never executes Task/Objective/Communication consequences; ExecuteRfcTerminalCascade separately requires exact proposal/terminal/scope freshness, both complete provider impact revalidations, exact reviewed SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1 equality and only then a session-bound deliberate proof before same-UoW participant effects.",
     "Device Reference identity and ticket links survive later Infrastructure regularization; Working Notes remain SOMA-owned and import-inaccessible.",
-    "LLD-04 source/proposal identities stored by LLD-03 are exact immutable opaque evidence references validated through provider interfaces; no sequence-3 physical FK or trigger reaches sequence-4 private tables.",
+    "LLD-04 source/proposal identities stored by LLD-03 are exact immutable opaque evidence references validated through provider interfaces; neither sequence 3 nor forward sequence 14 creates a physical FK or trigger into LLD-04 private tables.",
     "RFC archive/restore is operation-scoped SOMA-local presentation state; protected history is append-preserved.",
     "RFC hard delete is limited to a determinate untouched manual/purely-local provisional draft: stable read preview and current writer revalidation share the exact local/provider predicates, SOMA_RFC_HARD_DELETE_ELIGIBILITY_V1 has a golden vector, stale/blocked state fails before LLD-12 proof consumption, successful delete persists only bounded audit/result evidence, and exact replay requires no surviving RFC row or reusable proof."
   ]
