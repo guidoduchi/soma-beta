@@ -85,10 +85,11 @@ class PreparedMutation:
     response_version: int = 1
     response: Any = field(default=_DEFAULT_RESPONSE, repr=False)
     response_factory: ResponseFactory | None = field(default=None, repr=False)
+    after_audit: Callable[[UnitOfWork], None] | None = field(default=None, repr=False)
 
     def validate(self) -> None:
         if self.no_change:
-            if self.apply is not None:
+            if self.apply is not None or self.after_audit is not None:
                 raise ValidationError("NO_CHANGE command cannot contain a mutation callback")
             if self.result_type not in (None, "NO_CHANGE") or self.result_id is not None:
                 raise ValidationError("NO_CHANGE result identity is invalid")
@@ -247,6 +248,8 @@ class CommandBoundary:
                 events = self._normalize_audit_emission(prepared.apply(uow), envelope.command_id)
                 for event in events:
                     self._audit_writer.write(uow, event)
+                if prepared.after_audit is not None:
+                    prepared.after_audit(uow)
 
             if prepared.response_factory is not None:
                 semantic_response = prepared.response_factory(uow)

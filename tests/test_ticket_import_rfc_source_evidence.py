@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.persistence.uow import UnitOfWork
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.ticket_import.providers.rfc_source_evidence import TicketImportRfcSourceEvidenceProvider
 from soma.tickets.rfc_source_projection import RfcAcceptedFieldDelta
 from soma.tickets.rfcs import RfcService
@@ -303,3 +303,21 @@ def test_wfm_rfc_status_must_bind_exact_parent_rfc(initialized_database) -> None
 
     with UnitOfWork(factory) as uow:
         assert provider.validate_accepted_delta(uow, target.rfc_id, delta, field_id) == "INVALID"
+
+
+def test_hard_delete_provenance_uses_identical_snapshot_and_writer_predicate(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    rfc = _rfc(factory, "NC20260908001009")
+    provider = TicketImportRfcSourceEvidenceProvider()
+    for reader_type in (ReadSnapshot, UnitOfWork):
+        with reader_type(factory) as reader:
+            before = reader.connection.total_changes
+            assert provider.has_accepted_source_provenance(reader, rfc.rfc_id) == "NO"
+            assert reader.connection.total_changes == before
+    _seed_field(factory, source_family="rfc_enhanced", canonical_primary_id=rfc.rfc_no,
+                field_key="summary", value_kind="text", normalized_text="Published evidence")
+    for reader_type in (ReadSnapshot, UnitOfWork):
+        with reader_type(factory) as reader:
+            before = reader.connection.total_changes
+            assert provider.has_accepted_source_provenance(reader, rfc.rfc_id) == "YES"
+            assert reader.connection.total_changes == before

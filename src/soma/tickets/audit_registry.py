@@ -163,6 +163,24 @@ def _validate_rfc_archive_audit(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC archive audit reason category is invalid")
 
 
+def _validate_rfc_hard_delete_audit(payload: dict[str, object]) -> None:
+    try:
+        require_uuid4(payload.get("rfc_id"))
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC hard-delete identity is invalid") from exc
+    rfc_no = payload.get("rfc_no")
+    if not isinstance(rfc_no, str) or re.fullmatch(r"NC[0-9]{14}", rfc_no) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC hard-delete number is invalid")
+    revision = payload.get("reviewed_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC hard-delete reviewed revision is invalid")
+    fingerprint = payload.get("eligibility_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_HEX_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC hard-delete fingerprint is invalid")
+    if payload.get("result") != "deleted":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RFC hard-delete result is invalid")
+
+
 def build_tickets_audit_registry() -> AuditRegistry:
     registry = AuditRegistry()
     definitions = [
@@ -281,9 +299,9 @@ def build_tickets_audit_registry() -> AuditRegistry:
         (
             "ticket.rfc.hard_deleted",
             "RfcHardDeleteAuditV1",
-            {"rfc_id", "rfc_no", "reviewed_revision", "eligibility_fingerprint", "confirmation_context_id", "result"},
+            {"rfc_id", "rfc_no", "reviewed_revision", "eligibility_fingerprint", "result"},
             _DEFAULT_AUDIT_MAX_UTF8_BYTES,
-            None,
+            _validate_rfc_hard_delete_audit,
         ),
         (
             "ticket.working_note.added",

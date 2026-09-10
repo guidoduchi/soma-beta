@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from soma.foundation.errors import SomaError
-from soma.foundation.persistence.uow import UnitOfWork
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 from soma.tickets.rfc_source_projection import RfcAcceptedFieldDelta
 
@@ -263,9 +263,9 @@ class TicketImportRfcSourceEvidenceProvider:
             }
         )
 
-    def has_accepted_source_provenance(self, uow: UnitOfWork, rfc_id: str) -> str:
-        rfc_no = self._rfc_no(uow.connection, rfc_id)
-        row = uow.connection.execute(
+    def has_accepted_source_provenance(self, reader: ReadSnapshot | UnitOfWork, rfc_id: str) -> str:
+        rfc_no = self._rfc_no(reader.connection, rfc_id)
+        row = reader.connection.execute(
             "SELECT 1 FROM source_observations o JOIN import_runs r ON r.import_run_id=o.import_run_id "
             "WHERE o.identity_state='valid' AND r.source_family=o.source_family AND r.run_state IN "
             "('staged','waiting_review','recovery_required','partially_accepted','accepted','rejected') AND "

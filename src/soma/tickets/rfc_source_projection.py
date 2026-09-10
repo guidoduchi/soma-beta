@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
-from soma.foundation.persistence.uow import UnitOfWork
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.tickets.queries.rfc_lifecycle import RfcLifecycleProjection, RfcLifecycleQueryService
 
 
@@ -41,7 +41,7 @@ class RfcSourceEvidenceProvider(Protocol):
         evidence_id: str,
     ) -> str: ...
 
-    def has_accepted_source_provenance(self, uow: UnitOfWork, rfc_id: str) -> str: ...
+    def has_accepted_source_provenance(self, reader: ReadSnapshot | UnitOfWork, rfc_id: str) -> str: ...
 
     def source_freshness_token(self, uow: UnitOfWork, rfc_id: str) -> str: ...
 
