@@ -2,16 +2,96 @@
   "schema":"SOMA-LLD-QUERIES-V1",
   "lld_id":"LLD-03",
   "queries":[
-    {"name":"GetServiceRequest","input":["service_request_id or exact business identity"],"output":"immutable identity, official/local business IDs, revision, current accepted source projection when available, linked root RFC count, Device Reference count, warnings","ordering":"single result","rules":["business-ID lookup resolves one surviving SR","historical/terminal presentation never creates another entity"]},
-    {"name":"GetRfc","input":["rfc_id or canonical rfc_no"],"output":"immutable identity, canonical RFC No., current Customer or unresolved, derived hierarchy role, local archive state, current accepted source projection, counts/warnings","ordering":"single result","rule":"master/subordinate/standalone role is derived from active rfc_hierarchy_edges"},
-    {"name":"GetRfcBranch","input":["root_rfc_id","cursor","page_size"],"output":"RfcBranchV1: root plus keyset-paginated direct subordinate rows, exact semantic CursorV1 continuation body, and complete-branch SOMA_RFC_BRANCH_FINGERPRINT_V1","ordering":"direct subordinate rfc_id ASC; root is fixed context and is not repeated as a paginated child row","cursor_tuple":["child_rfc_id"],"cursor_contract":"spec/lld/tickets-core/algorithms/rfc-hierarchy.json#branch_cursor","fingerprint_contract":"spec/lld/tickets-core/algorithms/rfc-hierarchy.json#branch_fingerprint","rules":["root must be parentless","page_size is 1..500 with default 100","branch_fingerprint covers the complete structural branch and is independent of page size/cursor","no arbitrary child-count cap","no recursive traversal beyond one child level","known branch Customer mismatch is invariant failure, unresolved member is explicit warning"]},
-    {"name":"GetServiceRequestRfcBranches","input":["service_request_id","cursor","page_size"],"output":"one bounded keyset page of logical branch-member rows grouped for presentation by governing root; each row carries direct root-link provenance, member_rfc_id and root|subordinate role","ordering":"root_rfc_id ASC, role_ordinal ASC where root=0 and subordinate=1, member_rfc_id ASC","cursor_tuple":["root_rfc_id","role_ordinal","member_rfc_id"],"rules":["no subordinate direct link is synthesized","root link provenance is repeated only as bounded query projection, never copied into subordinate persistence","WFM/Task data joined through owning LLD interfaces, not copied into SR relationship rows"]},
-    {"name":"GetEffectiveServiceRequestContextForRfc","input":["rfc_id","cursor","page_size"],"output":"bounded keyset page of direct active SR relationships for the governing root; subordinate requests include inherited_via_root identity on each projected row","ordering":"service_request_id ASC","cursor_tuple":["service_request_id"],"rule":"inherited context is query-derived and never persisted as subordinate sr_rfc_links"},
-    {"name":"ListTicketDeviceReferences","targets":["service_request","rfc"],"input":["target_id","cursor","page_size"],"output":"active Device Reference identities/current operational names plus optional registration projection supplied by LLD-08","ordering":"device_reference_id ASC","cursor_tuple":["device_reference_id"],"rules":["registration projection is optional derived metadata","query never substitutes network_element_id for device_reference_id"]},
-    {"name":"GetRfcDeviceContextForBranch","input":["root_rfc_id","cursor","page_size"],"output":"one bounded keyset page of root/subordinate Device Reference rows carrying owning_rfc_id, role and device_reference_id so presentation can group without copying ownership","ordering":"owning_rfc_id ASC, device_reference_id ASC","cursor_tuple":["owning_rfc_id","device_reference_id"],"rule":"sets are not unioned into copied branch ownership; UI may display a derived union/grouping only with source RFC provenance"},
-    {"name":"ListWorkingNotes","targets":["service_request","rfc"],"input":["ticket_id","cursor","page_size"],"output":"keyset page of active note identity, current body, revision, immutable created_at_utc, updated_at_utc, and creating Local User Profile identity","ordering":"created_at_utc ASC, working_note_id ASC","cursor_tuple":["created_at_utc","working_note_id"],"rules":["current active note content only; audit/history surfaces provide prior edited/removed content","creator identity remains available independently of mutable display metadata","imports never participate in note mutation"]},
-    {"name":"PreviewRfcHierarchyMutation","request_type":"RfcHierarchyPreviewQueryV1","response_type":"RfcHierarchyMutationPreviewV1","input":["action reparent|detach","child_rfc_id","new_parent_rfc_id|null"],"output":"exact current old/new structural branch fingerprints and edge/revision context, blockers/warnings, bounded LLD-05 RfcHierarchyHistoryAuthorityV1, review_required and SOMA_RFC_HIERARCHY_REVIEW_V1 fingerprint when provider READY","ordering":"closed validator order; bounded single mutation preview","rules":["one stable read snapshot is used for all LLD-03 facts and the LLD-05 history authority","old parent/edge and base revisions are server-resolved; client role/old-parent state is never authority","INDETERMINATE provider returns no review_fingerprint and cannot authorize reparent/detach","READY LOW returns review_required=false; READY HIGH returns review_required=true","review_fingerprint binds exact old/new structural branch authority, old edge, history risk/count/provider fingerprint, blockers and warnings","the review fingerprint changes when relevant LLD-05 history changes even if the RFC hierarchy and LOW/HIGH classification do not","read-only advisory preview; command reconstructs the same authority inside its writer UnitOfWork before receipt/mutation"]},
-    {"name":"PreviewSrRfcLink","input":["service_request_id","origin/target rfc_id"],"output":"resolved governing root, current duplicate state, subordinate-origin provenance, exact current SR/RFC lifecycle evidence and revisions, terminal/historical review-required state, relationship/context impact summary","ordering":"bounded single relationship preview","rules":["a proposed new link involving terminal/historical current presentation is review-required and the review binds to the exact lifecycle evidence shown","an already-active pair remains semantic NO_CHANGE","preview cannot merge entities/devices/tasks/notes and cannot authorize stale mutation"]}
+    {
+      "name":"GetServiceRequest",
+      "input":["service_request_id or exact business identity"],
+      "output":"immutable identity, official/local business IDs, revision, current accepted source projection when available, linked root RFC count, Device Reference count, warnings",
+      "ordering":"single result",
+      "rules":["business-ID lookup resolves one surviving SR","historical/terminal presentation never creates another entity"]
+    },
+    {
+      "name":"GetRfc",
+      "input":["rfc_id or canonical rfc_no"],
+      "output":"immutable identity, canonical RFC No., current Customer or unresolved, derived hierarchy role, local archive state, current accepted source projection, counts/warnings",
+      "ordering":"single result",
+      "rule":"master/subordinate/standalone role is derived from active rfc_hierarchy_edges"
+    },
+    {
+      "name":"GetRfcBranch",
+      "input":["root_rfc_id","cursor","page_size"],
+      "output":"RfcBranchV1: root plus keyset-paginated direct subordinate rows, exact semantic CursorV1 continuation body, and complete-branch SOMA_RFC_BRANCH_FINGERPRINT_V1",
+      "ordering":"direct subordinate rfc_id ASC; root is fixed context and is not repeated as a paginated child row",
+      "cursor_tuple":["child_rfc_id"],
+      "cursor_contract":"spec/lld/tickets-core/algorithms/rfc-hierarchy.json#branch_cursor",
+      "fingerprint_contract":"spec/lld/tickets-core/algorithms/rfc-hierarchy.json#branch_fingerprint",
+      "rules":["root must be parentless","page_size is 1..500 with default 100","branch_fingerprint covers the complete structural branch and is independent of page size/cursor","no arbitrary child-count cap","no recursive traversal beyond one child level","known branch Customer mismatch is invariant failure, unresolved member is explicit warning"]
+    },
+    {
+      "name":"GetServiceRequestRfcBranches",
+      "input":["service_request_id","cursor","page_size"],
+      "output":"one bounded keyset page of logical branch-member rows grouped for presentation by governing root; each row carries direct root-link provenance, member_rfc_id and root|subordinate role",
+      "ordering":"root_rfc_id ASC, role_ordinal ASC where root=0 and subordinate=1, member_rfc_id ASC",
+      "cursor_tuple":["root_rfc_id","role_ordinal","member_rfc_id"],
+      "rules":["no subordinate direct link is synthesized","root link provenance is repeated only as bounded query projection, never copied into subordinate persistence","WFM/Task data joined through owning LLD interfaces, not copied into SR relationship rows"]
+    },
+    {
+      "name":"GetEffectiveServiceRequestContextForRfc",
+      "input":["rfc_id","cursor","page_size"],
+      "output":"bounded keyset page of direct active SR relationships for the governing root; subordinate requests include inherited_via_root identity on each projected row",
+      "ordering":"service_request_id ASC",
+      "cursor_tuple":["service_request_id"],
+      "rule":"inherited context is query-derived and never persisted as subordinate sr_rfc_links"
+    },
+    {
+      "name":"ListTicketDeviceReferences",
+      "targets":["service_request","rfc"],
+      "input":["target_id","cursor","page_size"],
+      "output":"active Device Reference identities/current operational names plus optional registration projection supplied by LLD-08",
+      "ordering":"device_reference_id ASC",
+      "cursor_tuple":["device_reference_id"],
+      "rules":["registration projection is optional derived metadata","query never substitutes network_element_id for device_reference_id"]
+    },
+    {
+      "name":"GetRfcDeviceContextForBranch",
+      "input":["root_rfc_id","cursor","page_size"],
+      "output":"one bounded keyset page of root/subordinate Device Reference rows carrying owning_rfc_id, role and device_reference_id so presentation can group without copying ownership",
+      "ordering":"owning_rfc_id ASC, device_reference_id ASC",
+      "cursor_tuple":["owning_rfc_id","device_reference_id"],
+      "rule":"sets are not unioned into copied branch ownership; UI may display a derived union/grouping only with source RFC provenance"
+    },
+    {
+      "name":"ListWorkingNotes",
+      "targets":["service_request","rfc"],
+      "input":["ticket_id","cursor","page_size"],
+      "output":"keyset page of active note identity, current body, revision, immutable created_at_utc, updated_at_utc, and creating Local User Profile identity",
+      "ordering":"created_at_utc ASC, working_note_id ASC",
+      "cursor_tuple":["created_at_utc","working_note_id"],
+      "rules":["current active note content only; audit/history surfaces provide prior edited/removed content","creator identity remains available independently of mutable display metadata","imports never participate in note mutation"]
+    },
+    {
+      "name":"PreviewRfcHierarchyMutation",
+      "request_type":"RfcHierarchyPreviewQueryV1",
+      "response_type":"RfcHierarchyMutationPreviewV1",
+      "input":["action reparent|detach","child_rfc_id","new_parent_rfc_id|null"],
+      "output":"exact current old/new structural branch fingerprints and edge/revision context, blockers/warnings, bounded LLD-05 RfcHierarchyHistoryAuthorityV1, review_required and SOMA_RFC_HIERARCHY_REVIEW_V1 fingerprint when provider READY",
+      "ordering":"closed validator order; bounded single mutation preview",
+      "rules":[
+        "one stable read snapshot is used for all LLD-03 facts and the LLD-05 history authority",
+        "old parent/edge and base revisions are server-resolved; client role/old-parent state is never authority",
+        "INDETERMINATE provider returns no review_fingerprint and cannot authorize reparent/detach",
+        "READY LOW returns review_required=false; READY HIGH returns review_required=true",
+        "review_fingerprint binds exact old/new structural branch authority, old edge, history risk/count/provider fingerprint, blockers and warnings",
+        "the review fingerprint changes when relevant LLD-05 history changes even if the RFC hierarchy and LOW/HIGH classification do not",
+        "read-only advisory preview; command reconstructs the same authority inside its writer UnitOfWork before receipt/mutation"
+      ]
+    },
+    {
+      "name":"PreviewSrRfcLink",
+      "input":["service_request_id","origin/target rfc_id"],
+      "output":"resolved governing root, current duplicate state, subordinate-origin provenance, exact current SR/RFC lifecycle evidence and revisions, terminal/historical review-required state, relationship/context impact summary",
+      "ordering":"bounded single relationship preview",
+      "rules":["a proposed new link involving terminal/historical current presentation is review-required and the review binds to the exact lifecycle evidence shown","an already-active pair remains semantic NO_CHANGE","preview cannot merge entities/devices/tasks/notes and cannot authorize stale mutation"]
+    }
   ],
   "pagination":"All unbounded collections use CURSOR_V1 deterministic keyset cursors with page_size constrained by packet bounds. No product business cap such as 20 RFC children is introduced, and no query materializes an unbounded child/device/SR collection before paging."
 }
