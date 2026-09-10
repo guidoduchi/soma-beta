@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 
 
+# Intentional one-shot CI probe; delete after binding the exact immutable digest.
 def test_migration6_digest_probe() -> None:
     migration = Path(__file__).parents[1] / "src" / "soma" / "migrations" / "0006_objectives_tasks.sql"
     digest = hashlib.sha256(migration.read_bytes()).hexdigest()
