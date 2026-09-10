@@ -9,7 +9,6 @@ from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import TaskPlanningService
 from soma.objectives_tasks.services.task_explicit_lock import TaskExplicitLockService
-from soma.tickets.rfcs import RfcService
 
 
 def _factory(initialized_database):
@@ -31,6 +30,15 @@ def _receipt_exists(factory, command_id: str) -> bool:
         ).fetchone() is not None
 
 
+def _created_command_id(factory, task_id: str) -> str:
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT created_command_id FROM tasks WHERE task_id=?", (task_id,)
+        ).fetchone()
+    assert row is not None
+    return str(row[0])
+
+
 def _lock_projection(factory, task_id: str):
     with ReadSnapshot(factory) as snapshot:
         return snapshot.connection.execute(
@@ -50,6 +58,22 @@ def _lock(factory, *, task_id: str, task_revision: int, lock_revision: int, kind
         action=action,
         reason_category=f"operator_{action}_{kind}",
     )
+
+
+def _seed_execution(factory, task_id: str) -> None:
+    command_id = _created_command_id(factory, task_id)
+    with UnitOfWork(factory) as uow:
+        event_id = new_uuid4()
+        uow.connection.execute(
+            "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
+            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',10,NULL,NULL,NULL,10,?)",
+            (event_id, task_id, command_id),
+        )
+        uow.connection.execute(
+            "INSERT INTO task_execution_projection(task_id,execution_state,actual_start_utc,actual_end_utc,"
+            "effective_termination_utc,termination_reason,revision,last_event_id) VALUES (?,'in_progress',10,NULL,NULL,NULL,1,?)",
+            (task_id, event_id),
+        )
 
 
 def test_first_plan_lock_creates_projection_event_and_exact_audit(initialized_database) -> None:
@@ -121,7 +145,7 @@ def test_material_changes_preserve_other_dimension_and_advance_both_revisions_on
             "SELECT revision FROM tasks WHERE task_id=?", (task.task_id,)
         ).fetchone() == (4,)
         rows = snapshot.connection.execute(
-            "SELECT lock_kind,action FROM task_lock_events WHERE task_id=? ORDER BY recorded_at_utc,lock_event_id",
+            "SELECT lock_kind,action FROM task_lock_events WHERE task_id=?",
             (task.task_id,),
         ).fetchall()
         assert sorted((str(row[0]), str(row[1])) for row in rows) == [
@@ -256,18 +280,7 @@ def test_material_unlock_is_blocked_by_accepted_execution_without_misleading_his
     factory = _factory(initialized_database)
     task = _create_local(factory)
     _lock(factory, task_id=task.task_id, task_revision=1, lock_revision=0, kind="plan", action="lock")
-    with UnitOfWork(factory) as uow:
-        event_id = new_uuid4()
-        uow.connection.execute(
-            "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',10,NULL,NULL,NULL,10,?)",
-            (event_id, task.task_id, task.created_command_id),
-        )
-        uow.connection.execute(
-            "INSERT INTO task_execution_projection(task_id,execution_state,actual_start_utc,actual_end_utc,"
-            "effective_termination_utc,termination_reason,revision,last_event_id) VALUES (?,'in_progress',10,NULL,NULL,NULL,1,?)",
-            (task.task_id, event_id),
-        )
+    _seed_execution(factory, task.task_id)
     command_id = new_uuid4()
     with pytest.raises(SomaError) as blocked:
         TaskExplicitLockService(factory).set_explicit_task_lock(
@@ -293,18 +306,7 @@ def test_material_unlock_is_blocked_by_accepted_execution_without_misleading_his
 def test_explicitly_false_unlock_is_no_change_even_when_execution_derives_effective_lock(initialized_database) -> None:
     factory = _factory(initialized_database)
     task = _create_local(factory)
-    with UnitOfWork(factory) as uow:
-        event_id = new_uuid4()
-        uow.connection.execute(
-            "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',10,NULL,NULL,NULL,10,?)",
-            (event_id, task.task_id, task.created_command_id),
-        )
-        uow.connection.execute(
-            "INSERT INTO task_execution_projection(task_id,execution_state,actual_start_utc,actual_end_utc,"
-            "effective_termination_utc,termination_reason,revision,last_event_id) VALUES (?,'in_progress',10,NULL,NULL,NULL,1,?)",
-            (task.task_id, event_id),
-        )
+    _seed_execution(factory, task.task_id)
     command_id = new_uuid4()
     result = TaskExplicitLockService(factory).set_explicit_task_lock(
         command_id=command_id,
