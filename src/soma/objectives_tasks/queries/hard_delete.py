@@ -268,7 +268,11 @@ class TaskHardDeleteQueryService:
         add("WFM_IDENTITY_OR_ASSIGNMENT_HISTORY_PRESENT", wfm_status)
 
         plan_revision_id, plan_status = self._plan_state(connection, task)
-        if creation_audit_status == "CLEAR" and creation_audit_plan_revision_id != plan_revision_id:
+        if (
+            creation_audit_status == "CLEAR"
+            and plan_status == "CLEAR"
+            and creation_audit_plan_revision_id != plan_revision_id
+        ):
             creation_audit_status = "INDETERMINATE"
         add("TASK_AUDIT_HISTORY_PRESENT", creation_audit_status)
         add("TASK_PLAN_HISTORY_PRESENT", plan_status)
