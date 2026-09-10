@@ -10,6 +10,7 @@ from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
+from soma.reference.domain.matching import trim_match_whitespace
 
 from ..audit_registry import build_objectives_tasks_audit_registry
 from ..contracts.objectives_tasks import (
@@ -31,6 +32,7 @@ from ..repositories.tasks import (
 _TERMINAL_RFC_STATUS_CLASSES = frozenset({"terminal_closed", "terminal_cancelled"})
 _LOCAL_TASK_NAME_MAX_GRAPHEMES = 240
 _LOCAL_TASK_NAME_MAX_UTF8_BYTES = 1024
+_LOCAL_TASK_INITIAL_RELATIONSHIP_MAX = 62
 _RELATIONSHIP_EXISTENCE_CHUNK = 256
 
 
@@ -43,7 +45,7 @@ def validate_local_task_name(value: str) -> str:
         raise SomaError("TASK_NAME_REQUIRED", "Local Task name must be valid Unicode") from exc
     if not encoded or len(encoded) > _LOCAL_TASK_NAME_MAX_UTF8_BYTES:
         raise SomaError("TASK_NAME_REQUIRED", "Local Task name is empty or exceeds its UTF-8 byte bound")
-    if regex.fullmatch(r"\s*", value, flags=regex.VERSION1) is not None:
+    if not trim_match_whitespace(value):
         raise SomaError("TASK_NAME_REQUIRED", "Local Task name cannot be blank")
     grapheme_count = 0
     for _ in regex.finditer(r"\X", value, flags=regex.VERSION1):
@@ -211,6 +213,11 @@ class TaskPlanningService:
         canonical_sr_ids = _canonical_relationship_ids(service_request_ids, field="service_request_ids")
         canonical_rfc_ids = _canonical_relationship_ids(rfc_ids, field="rfc_ids")
         canonical_device_ids = _canonical_relationship_ids(device_reference_ids, field="device_reference_ids")
+        relationship_count = len(canonical_sr_ids) + len(canonical_rfc_ids) + len(canonical_device_ids)
+        if relationship_count > _LOCAL_TASK_INITIAL_RELATIONSHIP_MAX:
+            raise ValidationError(
+                f"CreateLocalTask accepts at most {_LOCAL_TASK_INITIAL_RELATIONSHIP_MAX} initial relationships"
+            )
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="CreateLocalTask",
@@ -310,6 +317,10 @@ class TaskPlanningService:
             result_refs = [{"type": "task", "id": task_id}]
             if plan_revision_id is not None:
                 result_refs.append({"type": "task_plan", "id": plan_revision_id})
+            result_refs.extend(
+                {"type": "task_relationship", "id": relationship.relationship_id}
+                for relationship in relationship_rows
+            )
             return PreparedMutation(
                 False,
                 "task",
