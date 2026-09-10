@@ -5,9 +5,9 @@
     {
       "name":"GetServiceRequest",
       "input":["service_request_id or exact business identity"],
-      "output":"immutable identity, official/local business IDs, revision, current accepted source projection when available, linked root RFC count, Device Reference count, warnings",
+      "output":"immutable identity, official/local business IDs, revision, current accepted source projection when available, linked root RFC count, Device Reference count, warnings including SR_SOURCE_DISAPPEARANCE_REVIEWED when active",
       "ordering":"single result",
-      "rules":["business-ID lookup resolves one surviving SR","historical/terminal presentation never creates another entity"]
+      "rules":["business-ID lookup resolves one surviving SR","historical/terminal presentation never creates another entity","source-disappearance warning state is derived only from the current immutable sr_source_presence_events chain head under algorithms/sr-source-presence.json","head disappearance_reviewed emits exactly SR_SOURCE_DISAPPEARANCE_REVIEWED; head reappearance_confirmed or no source-presence history emits no disappearance warning","pending/rejected/deferred/superseded LLD-04 disappearance proposals never surface as an LLD-03 domain warning"]
     },
     {
       "name":"GetRfc",
