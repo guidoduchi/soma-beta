@@ -1,0 +1,16 @@
+{
+  "schema":"SOMA-LLD-MIGRATION-V2",
+  "lld_id":"LLD-03",
+  "sequence":14,
+  "migration_id":"beta_0014_sr_source_presence",
+  "runtime_filename":"0014_sr_source_presence.sql",
+  "global_allocation":"spec/lld/migrations.json",
+  "runtime_prefix_requirement":"LLD-01 AcceptedMigrationRunner may accept/apply sequence 14 only after exact accepted runtime migrations 1 through 13 are present and verified contiguously; design allocation alone does not authorize publishing runtime SQL/hash early.",
+  "physical_dependencies":["beta_0001_foundation command_receipts","beta_0003_tickets_core service_requests"],
+  "schema_sources":["schema/sr-source-presence.json"],
+  "objects":["table:sr_source_presence_events","indexes:all chain/current/evidence/receipt indexes declared by schema/sr-source-presence.json","triggers:append-only and same-owner/alternating prior-event guards declared by schema/sr-source-presence.json"],
+  "cross_packet_reference_policy":["LLD-04 import_run/source_observation/prior_source_observation/reconciliation_proposal identities remain opaque immutable evidence references validated through SrSourcePresenceEvidenceProvider; sequence 14 creates no FK or trigger into LLD-04 private tables.","Although sequence 14 executes after the complete 1..13 runtime prefix, its schema semantics remain owned by LLD-03 and it acquires no ownership of LLD-05..LLD-12 state."],
+  "verification":["sr_source_presence_events is SQLite STRICT","foreign_key_check succeeds after sequence 14","accepted_command_id and prior_presence_event_id physical FKs have effective leading-prefix index coverage","one chain root per service_request_id/source_family and at most one successor per prior event are enforced","prior-event insert guard rejects cross-SR/cross-source or non-alternating links","UPDATE/DELETE negative-write probes raise SR_SOURCE_PRESENCE_APPEND_ONLY","no LLD-04 table is queried by migration triggers or required for migration verification"],
+  "implementation_blocker":"Do not add 0014_sr_source_presence.sql to the implementation runtime manifest while any accepted runtime sequence 6 through 13 is absent. The LLD-03 source-presence owner/query code may be implemented only when its migration can participate in a contiguous accepted runtime prefix.",
+  "rollback":"No runtime down migration. LLD-01 applies and verifies sequence 14 atomically after the complete accepted 1..13 prefix; failure never exposes partial source-presence history authority."
+}
