@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Protocol
 
-from soma.foundation.errors import IntegrityFailure, SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
@@ -53,17 +53,11 @@ class TaskHardDeletePreview:
         return self.status == "ELIGIBLE"
 
     def to_response(self) -> dict[str, object]:
+        """Return the closed public HardDeletePreviewV1 transport shape."""
         return {
-            "status": self.status,
-            "task_id": self.task_id,
-            "task_kind": self.task_kind,
-            "task_no": self.task_no,
-            "task_revision": self.task_revision,
-            "eligibility_fingerprint": self.eligibility_fingerprint,
-            "blockers": [asdict(blocker) for blocker in self.blockers],
-            "draft_rows": asdict(self.draft_rows),
-            "inventory_status": self.inventory_status,
-            "inventory_freshness_token": self.inventory_freshness_token,
+            "eligible": self.eligible,
+            "fingerprint": self.eligibility_fingerprint,
+            "blockers": [blocker.code for blocker in self.blockers],
         }
 
 
@@ -345,8 +339,12 @@ class TaskHardDeleteQueryService:
             inventory_freshness_token=inventory_token,
         )
 
-    def preview(self, *, task_id: str) -> TaskHardDeletePreview:
+    def preview(self, *, task_id: str, base_revision: int) -> TaskHardDeletePreview:
         canonical_id = require_uuid4(task_id)
+        if type(base_revision) is not int or base_revision <= 0:
+            raise ValidationError("base_revision must be a positive integer")
         with ReadSnapshot(self._factory) as snapshot:
             task = self.load_task(snapshot, canonical_id)
+            if task.revision != base_revision:
+                raise SomaError("HARD_DELETE_BLOCKED", "Task revision changed; refresh the Task before preview")
             return self.evaluate(snapshot, task=task)
