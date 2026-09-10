@@ -27,7 +27,7 @@
         "event kinds alternate: a reappearance_confirmed follows the exact open disappearance_reviewed event it resolves, and a later disappearance_reviewed follows the exact prior reappearance_confirmed event",
         "the current chain head is the unique event not referenced as prior_presence_event_id; disappearance_reviewed means warning open and reappearance_confirmed means warning clear",
         "disappearance_reviewed is created only by accepted sr_source_disappearance_review through ServiceRequestImportMutationService after exact LLD-04 population-absence validation",
-        "reappearance_confirmed is created only inside governed PublishStagedImportRun after exact LLD-04 evidence proves the same canonical SR is present again in the same source family",
+        "reappearance_confirmed is created only by the bounded replay-safe internal reappearance command dispatched by ticket_import.sr_reappearance_reconcile after exact LLD-04 evidence proves the same canonical SR is present again in the exact published source-family run",
         "import_run_id, source_observation_id, prior_source_observation_id and reconciliation_proposal_id are immutable opaque LLD-04 identities validated through SrSourcePresenceEvidenceProvider; this LLD-03 table has no physical FK into LLD-04 private tables",
         "reappearance proves source presence only; it accepts no source field value and mutates no SR identity, lifecycle, source projection, Customer, Contact, Current Handler, RFC relationship or other ticket authority",
         "field-level warnings or unusable non-identity fields do not prevent reappearance when the source observation itself has a valid conflict-free canonical eight-digit SR identity",
