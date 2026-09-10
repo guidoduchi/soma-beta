@@ -12,7 +12,8 @@
     "run SR-candidate extraction over RFC Summary and create sr_rfc_link_candidate proposals only against existing exact SR identities; direct target resolves through current LLD-03 governing root at acceptance time"
   ],
   "wfm_flow":[
-    "for each conflict-free canonical WFM observation resolve exact Task No. through LLD-05 and exact parent RFC through LLD-03",
+    "for each conflict-free canonical WFM observation classify exact Task No. through LLD-05 task_no_status and resolve exact parent RFC through LLD-03; ACTIVE resolves the current WFM identity, RETIRED emits WFM_TASK_ID_RETIRED as a blocked identity finding with no WFM domain mutation proposal, and ABSENT alone may enter wfm_create_or_adopt review",
+    "a RETIRED Task No. never emits wfm_create_or_adopt, wfm_source_projection, wfm_plan_reconciliation or any other LLD-05 mutation proposal; retirement is immutable nonreuse authority and unrelated WFM identities remain independently reviewable",
     "when RFC is missing, emit wfm_provisional_rfc proposal using exact RFC identity and bounded WFM hints; never fabricate SR/hierarchy",
     "active nonterminal WFM under missing/provisional RFC also emits separate high-risk wfm_provisional_eligibility proposal; its acceptance invokes LLD-03 RFC lifecycle authority and records a visibly wfm_provisional implement-eligibility projection only when stronger Enhanced RFC evidence does not block it; historical Complete/Plan Cancel never emits this proposal",
     "emit wfm_create_or_adopt and independent wfm_source_projection proposals under LLD-05 while preserving exact Task identity and owner",
