@@ -115,11 +115,8 @@ class TaskPlanningService:
                     response={
                         "outcome": "NO_CHANGE",
                         "task_id": task.task_id,
-                        "task_no": identity.task_no,
-                        "rfc_id": identity.current_rfc_id,
-                        "task_revision": task.revision,
-                        "assignment_revision": identity.assignment_revision,
-                        "plan_revision_id": self._plans.current_plan_revision_id(uow.connection, task.task_id),
+                        "revision": task.revision,
+                        "result_refs": [],
                     },
                 )
 
@@ -200,6 +197,12 @@ class TaskPlanningService:
                     ),
                 )
 
+            result_refs = [
+                {"type": "task", "id": task_id},
+                {"type": "wfm_assignment", "id": assignment_event_id},
+            ]
+            if plan_revision_id is not None:
+                result_refs.append({"type": "task_plan", "id": plan_revision_id})
             return PreparedMutation(
                 False,
                 "task",
@@ -210,11 +213,8 @@ class TaskPlanningService:
                 response={
                     "outcome": "APPLIED",
                     "task_id": task_id,
-                    "task_no": canonical_task_no,
-                    "rfc_id": canonical_rfc_id,
-                    "task_revision": 1,
-                    "assignment_revision": 1,
-                    "plan_revision_id": plan_revision_id,
+                    "revision": 1,
+                    "result_refs": result_refs,
                 },
             )
 
