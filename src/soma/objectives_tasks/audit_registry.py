@@ -32,7 +32,12 @@ _HARD_DELETE_AUDIT_FIELDS = frozenset(
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 
 
-def _validate_wfm_registered(payload: dict[str, object]) -> None:
+def _validate_task_creation_payload(
+    payload: dict[str, object],
+    *,
+    expected_kind: str,
+    expected_origin: str,
+) -> None:
     task_id = payload.get("task_id")
     plan_revision_id = payload.get("task_plan_revision_id")
     try:
@@ -44,12 +49,23 @@ def _validate_wfm_registered(payload: dict[str, object]) -> None:
                 raise ValidationError("task_plan_revision_id must be UUID text")
             require_uuid4(plan_revision_id)
     except ValidationError as exc:
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM registration audit identity is invalid") from exc
-    if payload.get("task_kind") != "wfm" or payload.get("creation_origin") != "wfm_manual":
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM registration audit owner metadata is invalid")
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit identity is invalid") from exc
+    if payload.get("task_kind") != expected_kind or payload.get("creation_origin") != expected_origin:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit owner metadata is invalid")
     revision = payload.get("resulting_revision")
     if type(revision) is not int or revision != 1:
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM registration audit revision must be one")
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit revision must be one")
+    reason = payload.get("reason_category")
+    if reason is not None and not isinstance(reason, str):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit reason must be text or null")
+
+
+def _validate_task_created(payload: dict[str, object]) -> None:
+    _validate_task_creation_payload(payload, expected_kind="local", expected_origin="manual")
+
+
+def _validate_wfm_registered(payload: dict[str, object]) -> None:
+    _validate_task_creation_payload(payload, expected_kind="wfm", expected_origin="wfm_manual")
     if payload.get("reason_category") is not None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM registration audit reason must be null")
 
@@ -110,6 +126,16 @@ def _contract(name: str, fields: frozenset[str], *, max_items: int = 32) -> Obje
 
 def build_objectives_tasks_audit_registry() -> AuditRegistry:
     registry = AuditRegistry()
+    registry.register(
+        AuditActionContract(
+            action_type="task.created",
+            action_version=1,
+            payload_schema="TaskAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskAuditV1", _TASK_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_task_created,
+        )
+    )
     registry.register(
         AuditActionContract(
             action_type="task.wfm_registered",
