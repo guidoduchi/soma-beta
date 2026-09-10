@@ -660,7 +660,11 @@ def test_set_task_plan_blocks_historical_objective_and_fails_closed_when_aggrega
     assert protected.value.code == "TASK_PLAN_LOCKED"
     assert not _receipt_exists(factory, command_id)
 
-    creation_command, indeterminate = _create_local(factory, name="Missing aggregate", schedule=schedule)
+    creation_command, indeterminate = _create_local(
+        factory,
+        name="Missing aggregate",
+        schedule=_schedule(1_916_000_000, 1_916_003_600),
+    )
     _attach_planned_objective(
         factory,
         task_id=indeterminate.task_id,
@@ -674,7 +678,7 @@ def test_set_task_plan_blocks_historical_objective_and_fails_closed_when_aggrega
             task_id=indeterminate.task_id,
             task_revision=1,
             current_plan_revision=1,
-            schedule=_schedule(1_916_000_000, 1_916_003_600),
+            schedule=_schedule(1_916_010_000, 1_916_013_600),
         )
     assert missing.value.code == "TASK_PLAN_LOCKED"
     assert not _receipt_exists(factory, command_id)
