@@ -18,7 +18,7 @@
         "insert receipt",
         "append one immutable task_plan_revision with origin=correction, source_observation_id=null, predecessor_plan_revision_id equal to the exact prior current plan revision id, required reason_category, and accepted replacement interval/timezone; advance task_plan_current.revision exactly once and tasks.revision exactly once",
         "preserve source-plan evidence, execution/outcome evidence, explicit lock history/state, and all Objective membership pins/envelopes; for mutable planned/current Objective context surface plan_membership_mismatch without replacing higher-priority attention, while terminal/historical/reviewed/superseded Objective membership, envelope and aggregate history remain frozen and expose mismatch only through derived read state",
-        "audit one task.plan_corrected.v1 event with exact prior/new plan refs, resulting Task revision, reason_category, computed LOW|HIGH risk and correction_review_fingerprint, commit, then request grouping recompute where current lifecycle remains eligible"
+        "audit one task.plan_corrected.v1 event with exact prior/new plan refs, resulting Task revision, reason_category, computed LOW|HIGH risk and correction_review_fingerprint and commit atomically; only after successful commit may grouping recompute be requested where current lifecycle remains eligible"
       ],
       "rules":[
         "TaskPlanCorrectionPreview is the authoritative side-effect-free producer of correction_review_fingerprint; the command never accepts a caller-invented risk classification",
