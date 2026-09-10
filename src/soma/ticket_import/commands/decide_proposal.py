@@ -39,6 +39,10 @@ from ..repositories.proposals import ProposalRecord, ProposalRepository
 
 _HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 _METADATA_RESULT_TYPES = frozenset({"proposal_disposition", "proposal_equivalence_decision"})
+_TERMINAL_SR_STATUSES = frozenset({"Closed", "Resolved", "Cancelled"})
+_REVIEWED_SR_SOURCE_CORRECTION_KINDS = frozenset(
+    {"sr_terminal_reversal_review", "sr_suspension_regression_review"}
+)
 
 
 class ServiceRequestImportMutationParticipant(Protocol):
@@ -329,6 +333,86 @@ class ProposalDecisionService:
             ),
         )
 
+    @staticmethod
+    def _require_reviewed_source_correction_shape(
+        connection: Any,
+        *,
+        proposal: ProposalRecord,
+        changes: list[Any],
+    ) -> None:
+        if proposal.risk_class != "high" or len(changes) != 1:
+            raise SomaError(
+                "IMPORT_PROPOSAL_STALE",
+                "reviewed SR source correction must remain one high-risk field change",
+            )
+        change = changes[0]
+        if proposal.proposal_kind == "sr_terminal_reversal_review":
+            if (
+                change.field_key != "status"
+                or change.change_kind != "set"
+                or change.value_kind != "controlled"
+                or change.before_text is None
+                or change.after_text is None
+                or change.before_integer is not None
+                or change.after_integer is not None
+                or change.source_observation_field_id is None
+            ):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "terminal correction proposal encoding is invalid")
+            row = connection.execute(
+                "SELECT o.value_state,o.value_kind,o.text_value FROM sr_current_source_projection p "
+                "JOIN sr_source_field_observations o ON o.sr_source_field_observation_id=p.status_observation_id "
+                "WHERE p.service_request_id=?",
+                (proposal.target_internal_id,),
+            ).fetchone()
+            if (
+                row is None
+                or str(row[0]) != "usable"
+                or str(row[1]) != "controlled"
+                or row[2] is None
+                or str(row[2]) not in _TERMINAL_SR_STATUSES
+                or str(row[2]) != change.before_text
+                or change.after_text == change.before_text
+            ):
+                raise SomaError(
+                    "IMPORT_PROPOSAL_STALE",
+                    "terminal correction no longer matches the accepted terminal source state",
+                )
+            return
+        if proposal.proposal_kind == "sr_suspension_regression_review":
+            if (
+                change.field_key != "suspension_duration"
+                or change.change_kind != "set"
+                or change.value_kind != "duration_seconds"
+                or change.before_text is not None
+                or change.after_text is not None
+                or type(change.before_integer) is not int
+                or change.before_integer <= 0
+                or change.after_integer != 0
+                or change.source_observation_field_id is None
+            ):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "suspension regression proposal encoding is invalid")
+            row = connection.execute(
+                "SELECT o.value_state,o.value_kind,o.integer_value FROM sr_current_source_projection p "
+                "JOIN sr_source_field_observations o "
+                "ON o.sr_source_field_observation_id=p.suspension_duration_observation_id "
+                "WHERE p.service_request_id=?",
+                (proposal.target_internal_id,),
+            ).fetchone()
+            if (
+                row is None
+                or str(row[0]) != "usable"
+                or str(row[1]) != "duration_seconds"
+                or type(row[2]) is not int
+                or int(row[2]) <= 0
+                or int(row[2]) != change.before_integer
+            ):
+                raise SomaError(
+                    "IMPORT_PROPOSAL_STALE",
+                    "suspension regression no longer matches the accepted nonzero source duration",
+                )
+            return
+        raise IntegrityFailure("unsupported reviewed SR source correction kind")
+
     def _prepare_sr_source_projection_accept(
         self,
         uow: UnitOfWork,
@@ -341,6 +425,7 @@ class ProposalDecisionService:
         reason: str | None,
         actor_kind: str,
         actor_id: str | None,
+        precedence_basis: str = "source_chronology",
     ) -> PreparedMutation:
         if (
             proposal.evidence_mode != "observed_row"
@@ -376,6 +461,14 @@ class ProposalDecisionService:
             raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection change set is empty or exceeds field registry")
         if len({change.field_key for change in changes}) != len(changes):
             raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection proposal repeats a field")
+        if precedence_basis == "reviewed_correction":
+            self._require_reviewed_source_correction_shape(
+                uow.connection,
+                proposal=proposal,
+                changes=changes,
+            )
+        elif precedence_basis != "source_chronology":
+            raise IntegrityFailure("unsupported SR source projection precedence basis")
         deltas = []
         for change in changes:
             if change.source_observation_field_id is None:
@@ -392,7 +485,7 @@ class ProposalDecisionService:
                     change_value_kind=change.value_kind,
                     after_text=change.after_text,
                     after_integer=change.after_integer,
-                    precedence_basis="source_chronology",
+                    precedence_basis=precedence_basis,
                 )
             )
 
@@ -629,6 +722,19 @@ class ProposalDecisionService:
                     reason=reason,
                     actor_kind=actor_kind,
                     actor_id=actor_id,
+                )
+            if proposal.proposal_kind in _REVIEWED_SR_SOURCE_CORRECTION_KINDS:
+                return self._prepare_sr_source_projection_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    precedence_basis="reviewed_correction",
                 )
             if proposal.proposal_kind == "sr_customer_reconciliation":
                 return self._prepare_sr_customer_accept(
