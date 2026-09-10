@@ -83,21 +83,19 @@ def _validate_wfm_registered(payload: dict[str, object]) -> None:
 
 
 def _validate_wfm_parent_reassigned(payload: dict[str, object]) -> None:
+    task_id = payload.get("task_id")
+    relationship_id = payload.get("relationship_id")
+    related_id = payload.get("related_id")
+    prior_related_id = payload.get("prior_related_id")
     try:
-        values = (
-            payload.get("task_id"),
-            payload.get("relationship_id"),
-            payload.get("related_id"),
-            payload.get("prior_related_id"),
-        )
-        for index, value in enumerate(values):
-            if index == 3 and value is None:
-                continue
+        for value in (task_id, relationship_id, related_id, prior_related_id):
             if not isinstance(value, str):
                 raise ValidationError("relationship audit identity must be UUID text")
             require_uuid4(value)
     except ValidationError as exc:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment audit identity is invalid") from exc
+    if related_id == prior_related_id:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment must change the owning RFC")
     if payload.get("relationship_kind") != "wfm_parent" or payload.get("action") != "REASSIGN":
         raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment audit action is invalid")
     revision = payload.get("resulting_revision")
