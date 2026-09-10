@@ -20,6 +20,7 @@ _TABLES = {
     "wfm_task_identities",
     "wfm_rfc_assignment_events",
     "wfm_source_projection_cache",
+    "wfm_task_no_retirements",
     "task_plan_revisions",
     "task_plan_current",
     "task_execution_events",
@@ -57,6 +58,7 @@ _TABLES = {
 _REQUIRED_QUERY_INDEXES = {
     "idx_wfm_identity_rfc_task",
     "idx_wfm_assignment_task_recorded",
+    "idx_wfm_task_no_retirements_hard_delete_command",
     "idx_task_plan_task_accepted",
     "idx_task_execution_task_recorded",
     "idx_task_outcome_task_reviewed",
@@ -83,7 +85,7 @@ _REQUIRED_QUERY_INDEXES = {
     "idx_wfm_terminal_review_source_revision_task",
 }
 
-_MIGRATION_6_SHA256 = "97ceed6eb398dd88fbdefeed964cbbd3334360243d060c2194344df548a89c27"
+_MIGRATION_6_SHA256 = "73f2601485135bf7bd64595976131f3d63727e35fb64217f81dbca1876ca1fcd"
 
 
 def _factory(initialized_database):
@@ -194,7 +196,7 @@ def _leading_index_columns(connection, table: str) -> set[str]:
 
 def test_objectives_tasks_schema_is_complete_strict_indexed_and_fk_clean(initialized_database) -> None:
     factory = _factory(initialized_database)
-    assert len(_TABLES) == 36
+    assert len(_TABLES) == 37
     with ReadSnapshot(factory) as snapshot:
         rows = snapshot.connection.execute(
             "SELECT name FROM sqlite_schema WHERE type='table' AND name IN ("
@@ -308,41 +310,104 @@ def test_manual_wfm_initial_assignment_is_draft_deletable_but_reassignment_is_pr
     draft_task = new_uuid4()
     register = new_uuid4()
     initial_event = new_uuid4()
+    task_no = "TK00000000000001"
     with UnitOfWork(factory) as uow:
         _receipt(uow, register, command_type="RegisterManualWfmTask", target_type="task", target_id=draft_task)
         uow.connection.execute(
             "INSERT INTO tasks VALUES (?, 'wfm', NULL, 'wfm_manual', 1, 0, ?)", (draft_task, register)
         )
         uow.connection.execute(
-            "INSERT INTO wfm_task_identities VALUES (?, 'TK00000000000001', ?, 1, ?)",
-            (draft_task, rfc_a.rfc_id, register),
+            "INSERT INTO wfm_task_identities VALUES (?, ?, ?, 1, ?)",
+            (draft_task, task_no, rfc_a.rfc_id, register),
         )
         uow.connection.execute(
             "INSERT INTO wfm_rfc_assignment_events VALUES (?, ?, NULL, ?, 'manual_registration', 'low', 0, ?)",
             (initial_event, draft_task, rfc_a.rfc_id, register),
         )
 
-    with pytest.raises(Exception) as protected:
+    with pytest.raises(Exception):
         with UnitOfWork(factory) as uow:
             uow.connection.execute(
                 "DELETE FROM wfm_rfc_assignment_events WHERE assignment_event_id=?", (initial_event,)
             )
-    assert "WFM_ASSIGNMENT_HISTORY_APPEND_ONLY" in str(protected.value)
 
+    with pytest.raises(Exception) as invalid_retirement:
+        with UnitOfWork(factory) as uow:
+            wrong_delete = new_uuid4()
+            _receipt(uow, wrong_delete, command_type="HardDeleteTask", target_type="task", target_id=draft_task)
+            uow.connection.execute(
+                "INSERT INTO wfm_task_no_retirements(retirement_id,task_no,retired_task_id,retired_at_utc,hard_delete_command_id) "
+                "VALUES (?, 'TK00000000000009', ?, 0, ?)",
+                (new_uuid4(), draft_task, wrong_delete),
+            )
+    assert "WFM_TASK_NO_RETIREMENT_INVALID" in str(invalid_retirement.value)
+
+    retirement_id = new_uuid4()
+    delete_command = new_uuid4()
     with UnitOfWork(factory) as uow:
-        delete_command = new_uuid4()
         _receipt(uow, delete_command, command_type="HardDeleteTask", target_type="task", target_id=draft_task)
+        uow.connection.execute(
+            "INSERT INTO wfm_task_no_retirements(retirement_id,task_no,retired_task_id,retired_at_utc,hard_delete_command_id) "
+            "VALUES (?, ?, ?, 0, ?)",
+            (retirement_id, task_no, draft_task, delete_command),
+        )
         uow.connection.execute(
             "DELETE FROM wfm_rfc_assignment_events WHERE assignment_event_id=?", (initial_event,)
         )
         uow.connection.execute("DELETE FROM wfm_task_identities WHERE task_id=?", (draft_task,))
         uow.connection.execute("DELETE FROM tasks WHERE task_id=?", (draft_task,))
 
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT task_no,retired_task_id,hard_delete_command_id FROM wfm_task_no_retirements WHERE retirement_id=?",
+            (retirement_id,),
+        ).fetchone() == (task_no, draft_task, delete_command)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM tasks WHERE task_id=?", (draft_task,)
+        ).fetchone()[0] == 0
+
+    with pytest.raises(Exception) as immutable_update:
+        with UnitOfWork(factory) as uow:
+            uow.connection.execute(
+                "UPDATE wfm_task_no_retirements SET retired_at_utc=1 WHERE retirement_id=?",
+                (retirement_id,),
+            )
+    assert "WFM_TASK_NO_RETIREMENT_APPEND_ONLY" in str(immutable_update.value)
+
+    with pytest.raises(Exception) as immutable_delete:
+        with UnitOfWork(factory) as uow:
+            uow.connection.execute(
+                "DELETE FROM wfm_task_no_retirements WHERE retirement_id=?", (retirement_id,)
+            )
+    assert "WFM_TASK_NO_RETIREMENT_APPEND_ONLY" in str(immutable_delete.value)
+
+    resurrect_task = new_uuid4()
+    resurrect_register = new_uuid4()
+    with pytest.raises(Exception) as retired_identity:
+        with UnitOfWork(factory) as uow:
+            _receipt(
+                uow,
+                resurrect_register,
+                command_type="RegisterManualWfmTask",
+                target_type="task",
+                target_id=resurrect_task,
+            )
+            uow.connection.execute(
+                "INSERT INTO tasks VALUES (?, 'wfm', NULL, 'wfm_manual', 1, 0, ?)",
+                (resurrect_task, resurrect_register),
+            )
+            uow.connection.execute(
+                "INSERT INTO wfm_task_identities VALUES (?, ?, ?, 1, ?)",
+                (resurrect_task, task_no, rfc_a.rfc_id, resurrect_register),
+            )
+    assert "WFM_TASK_NO_RETIRED" in str(retired_identity.value)
+
     history_task = new_uuid4()
     history_register = new_uuid4()
     first_event = new_uuid4()
     second_event = new_uuid4()
     reassign = new_uuid4()
+    history_task_no = "TK00000000000002"
     with UnitOfWork(factory) as uow:
         _receipt(
             uow,
@@ -356,8 +421,8 @@ def test_manual_wfm_initial_assignment_is_draft_deletable_but_reassignment_is_pr
             (history_task, history_register),
         )
         uow.connection.execute(
-            "INSERT INTO wfm_task_identities VALUES (?, 'TK00000000000002', ?, 1, ?)",
-            (history_task, rfc_a.rfc_id, history_register),
+            "INSERT INTO wfm_task_identities VALUES (?, ?, ?, 1, ?)",
+            (history_task, history_task_no, rfc_a.rfc_id, history_register),
         )
         uow.connection.execute(
             "INSERT INTO wfm_rfc_assignment_events VALUES (?, ?, NULL, ?, 'manual_registration', 'low', 0, ?)",
@@ -373,14 +438,33 @@ def test_manual_wfm_initial_assignment_is_draft_deletable_but_reassignment_is_pr
             (second_event, history_task, rfc_a.rfc_id, rfc_b.rfc_id, reassign),
         )
 
-    with UnitOfWork(factory) as uow:
-        delete_command = new_uuid4()
-        _receipt(uow, delete_command, command_type="HardDeleteTask", target_type="task", target_id=history_task)
-        with pytest.raises(Exception) as protected_history:
+    with pytest.raises(Exception) as protected_history:
+        with UnitOfWork(factory) as uow:
+            history_delete = new_uuid4()
+            _receipt(
+                uow,
+                history_delete,
+                command_type="HardDeleteTask",
+                target_type="task",
+                target_id=history_task,
+            )
+            uow.connection.execute(
+                "INSERT INTO wfm_task_no_retirements(retirement_id,task_no,retired_task_id,retired_at_utc,hard_delete_command_id) "
+                "VALUES (?, ?, ?, 2, ?)",
+                (new_uuid4(), history_task_no, history_task, history_delete),
+            )
             uow.connection.execute(
                 "DELETE FROM wfm_rfc_assignment_events WHERE assignment_event_id=?", (second_event,)
             )
-        assert "WFM_ASSIGNMENT_HISTORY_APPEND_ONLY" in str(protected_history.value)
+    assert "WFM_ASSIGNMENT_HISTORY_APPEND_ONLY" in str(protected_history.value)
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM wfm_task_no_retirements WHERE retired_task_id=?", (history_task,)
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM wfm_rfc_assignment_events WHERE task_id=?", (history_task,)
+        ).fetchone()[0] == 2
 
 
 def test_protected_execution_history_cannot_be_erased_to_manufacture_hard_delete(
