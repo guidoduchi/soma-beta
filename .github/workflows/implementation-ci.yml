@@ -36,18 +36,6 @@ jobs:
       - name: Compile package
         shell: pwsh
         run: python -m compileall -q src tests
-      - name: Compute migration 6 digest
-        id: migration6
-        shell: pwsh
-        run: |
-          $sha = (Get-FileHash src/soma/migrations/0006_objectives_tasks.sql -Algorithm SHA256).Hash.ToLowerInvariant()
-          "sha=$sha" >> $env:GITHUB_OUTPUT
-          Set-Content -Path migration6.sha256 -Value $sha -NoNewline
-      - name: Publish migration 6 digest
-        uses: actions/upload-artifact@v4
-        with:
-          name: migration6-${{ matrix.python-version }}-${{ steps.migration6.outputs.sha }}
-          path: migration6.sha256
       - name: Run complete implementation test suite
         shell: pwsh
         run: python -m pytest
