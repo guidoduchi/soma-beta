@@ -66,13 +66,15 @@ CREATE TABLE task_plan_current (
 CREATE TABLE task_execution_events (
     execution_event_id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL REFERENCES tasks(task_id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+    execution_revision INTEGER NOT NULL CHECK(execution_revision > 0),
     event_kind TEXT NOT NULL CHECK(event_kind IN ('start','end','manual_cancel','rfc_terminal_terminate','source_terminal_consequence','correction')),
     effective_at_utc INTEGER NULL CHECK(effective_at_utc IS NULL OR effective_at_utc >= 0),
     target_event_id TEXT NULL REFERENCES task_execution_events(execution_event_id) ON DELETE RESTRICT ON UPDATE RESTRICT,
     correction_action TEXT NULL CHECK(correction_action IS NULL OR correction_action IN ('replace_time','withdraw')),
     reason_code TEXT NULL,
     recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc >= 0),
-    command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT ON UPDATE RESTRICT
+    command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+    UNIQUE(task_id,execution_revision)
 ) STRICT;
 
 CREATE TABLE task_execution_projection (
@@ -381,6 +383,7 @@ CREATE INDEX idx_task_plan_task_accepted ON task_plan_revisions(task_id,accepted
 CREATE INDEX idx_task_plan_predecessor_fk ON task_plan_revisions(predecessor_plan_revision_id);
 CREATE INDEX idx_task_plan_command_fk ON task_plan_revisions(command_id);
 CREATE INDEX idx_task_plan_current_last_command_fk ON task_plan_current(last_command_id);
+CREATE INDEX idx_task_execution_task_revision ON task_execution_events(task_id,execution_revision);
 CREATE INDEX idx_task_execution_task_recorded ON task_execution_events(task_id,recorded_at_utc,execution_event_id);
 CREATE INDEX idx_task_execution_target_fk ON task_execution_events(target_event_id);
 CREATE INDEX idx_task_execution_command_fk ON task_execution_events(command_id);
@@ -516,13 +519,16 @@ END;
 CREATE TRIGGER task_plan_current_delete_guard BEFORE DELETE ON task_plan_current BEGIN
     SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM command_receipts WHERE command_type='HardDeleteTask' AND target_type='task' AND target_id=OLD.task_id) THEN RAISE(ABORT,'TASK_PLAN_CURRENT_PROTECTED') END;
 END;
+CREATE TRIGGER task_execution_event_insert_guard BEFORE INSERT ON task_execution_events BEGIN
+    SELECT CASE WHEN NEW.execution_revision <> COALESCE((SELECT max(execution_revision) FROM task_execution_events WHERE task_id=NEW.task_id),0)+1 THEN RAISE(ABORT,'TASK_EXECUTION_REVISION_SEQUENCE_INVALID') END;
+END;
 CREATE TRIGGER task_execution_event_update_guard BEFORE UPDATE ON task_execution_events BEGIN SELECT RAISE(ABORT,'TASK_EXECUTION_HISTORY_APPEND_ONLY'); END;
 CREATE TRIGGER task_execution_event_delete_guard BEFORE DELETE ON task_execution_events BEGIN SELECT RAISE(ABORT,'TASK_EXECUTION_HISTORY_APPEND_ONLY'); END;
 CREATE TRIGGER task_execution_projection_insert_guard BEFORE INSERT ON task_execution_projection BEGIN
-    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM task_execution_events WHERE execution_event_id=NEW.last_event_id AND task_id=NEW.task_id) THEN RAISE(ABORT,'TASK_EXECUTION_PROJECTION_INVALID') END;
+    SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM task_execution_events WHERE execution_event_id=NEW.last_event_id AND task_id=NEW.task_id AND execution_revision=NEW.revision) OR (SELECT count(*) FROM task_execution_events WHERE task_id=NEW.task_id)<>NEW.revision THEN RAISE(ABORT,'TASK_EXECUTION_PROJECTION_INVALID') END;
 END;
 CREATE TRIGGER task_execution_projection_update_guard BEFORE UPDATE ON task_execution_projection BEGIN
-    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.revision<>OLD.revision+1 OR NOT EXISTS (SELECT 1 FROM task_execution_events WHERE execution_event_id=NEW.last_event_id AND task_id=NEW.task_id) THEN RAISE(ABORT,'TASK_EXECUTION_PROJECTION_INVALID') END;
+    SELECT CASE WHEN NEW.task_id<>OLD.task_id OR NEW.revision<>OLD.revision+1 OR NOT EXISTS (SELECT 1 FROM task_execution_events WHERE execution_event_id=NEW.last_event_id AND task_id=NEW.task_id AND execution_revision=NEW.revision) OR (SELECT count(*) FROM task_execution_events WHERE task_id=NEW.task_id)<>NEW.revision THEN RAISE(ABORT,'TASK_EXECUTION_PROJECTION_INVALID') END;
 END;
 CREATE TRIGGER task_outcome_event_update_guard BEFORE UPDATE ON task_outcome_events BEGIN SELECT RAISE(ABORT,'TASK_OUTCOME_HISTORY_APPEND_ONLY'); END;
 CREATE TRIGGER task_outcome_event_delete_guard BEFORE DELETE ON task_outcome_events BEGIN SELECT RAISE(ABORT,'TASK_OUTCOME_HISTORY_APPEND_ONLY'); END;
