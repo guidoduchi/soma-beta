@@ -5,5 +5,5 @@
   "leaves":["tests/acceptance-task-grouping.json","tests/acceptance-execution-history.json","tests/acceptance-cross-domain.json"],
   "expected_case_ids":{"first":"LLD05-T001","last":"LLD05-T048","count":48},
   "coverage_rule":"All 48 historical acceptance scenario IDs remain normative and must be executed exactly once across the declared leaves; splitting the suite changes only granularity, never expected behavior or traceability.",
-  "semantic_focus":["Task minimum/identity/planning and strict global overlap grouping","execution/outcome/review/provider-terminal and historical structure boundaries","timezone/derived-context/delete/archive/performance/rejection/cross-domain transaction invariants"]
+  "semantic_focus":["Task minimum/identity/planning and strict global overlap grouping","execution/outcome/review/provider-terminal and historical structure boundaries, including execution_revision=0 exact no-history absence and umbrella Task-revision freshness for material lifecycle mutation","timezone/derived-context/delete/archive/performance/rejection/cross-domain transaction invariants"]
 }
