@@ -6,7 +6,7 @@
     {
       "name":"WfmActivityRelationshipReviewPreview",
       "input":[
-        "seed_task_ids: unique canonical UUIDv4 array with at least two WFM Tasks, canonical-sorted by task_id",
+        "seed_task_ids: unique canonical UUIDv4 array of 2..1000 WFM Tasks, canonical-sorted by task_id",
         "decision: distinct_activity|same_activity|retry_lineage|unresolved_source_error",
         "affected_cursor: CursorV1|null",
         "affected_limit: int 1..1000 default 100"
@@ -16,7 +16,7 @@
         "when affected_cursor is present validate CURSOR_V1 owner plus exact seed_task_ids+decision review scope and recover its bound review_fingerprint plus last task_id; a cursor from another query/scope is invalid rather than silently reused",
         "load every seed Task and require task_kind=wfm plus a distinct canonical TK identity; missing Task/WFM identity returns TASK_NOT_FOUND",
         "for retry_lineage require exactly two seed Tasks and one existing immutable direct retry edge between them; otherwise return TASK_ACTIVITY_LINEAGE_CONFLICT",
-        "expand the complete touched-lineage closure by indexed task_activity_lineage_current(activity_lineage_id,task_id) reads so every current member whose same-activity relationship would change is visible in the preview",
+        "expand the complete touched-lineage closure by indexed task_activity_lineage_current(activity_lineage_id,task_id) reads so every current member whose same-activity relationship would change is visible in the preview; the 1000-seed request bound does not cap this authoritative closure",
         "load exact per-affected-Task Task revision, WFM assignment identity/revision, source projection revision/absence and source lifecycle/plan evidence, current operational plan revision/absence and interval, local execution/outcome projection revisions/states, retry adjacency and current lineage revision/id/last event/last decision",
         "compute SOMA_WFM_ACTIVITY_RELATIONSHIP_REVIEW_V1 over the exact canonical authority described by commands/task-activity-review.json; when affected_cursor is present require its bound review_fingerprint to equal this current fingerprint or reject the stale cursor and require preview restart",
         "derive whether accepting the requested decision is semantic NO_CHANGE under current authority",
