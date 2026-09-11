@@ -1,5 +1,10 @@
 """Typed LLD-05 command and result contracts."""
 
-from .objectives_tasks import AcceptedTaskSchedule, TaskMutationResult, TaskResultRef
+from .objectives_tasks import (
+    AcceptedTaskSchedule,
+    ObjectiveMutationResult,
+    TaskMutationResult,
+    TaskResultRef,
+)
 
-__all__ = ["AcceptedTaskSchedule", "TaskMutationResult", "TaskResultRef"]
+__all__ = ["AcceptedTaskSchedule", "ObjectiveMutationResult", "TaskMutationResult", "TaskResultRef"]
