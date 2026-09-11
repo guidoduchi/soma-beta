@@ -149,10 +149,11 @@ def test_start_task_execution_from_exact_absence_is_atomic_and_replayable(initia
             "target_event_id": None,
             "task_id": task_id,
         }
-        assert snapshot.connection.execute(
+        audit_ref = snapshot.connection.execute(
             "SELECT result_type,result_id FROM audit_event_results WHERE audit_event_id=?",
             (str(audit[1]),),
-        ).fetchone() == ("task_execution_event", event_id)
+        ).fetchone()
+        assert tuple(audit_ref) == ("task_execution_event", event_id)
 
     # Exact replay must not consult later Task state.
     with UnitOfWork(factory) as uow:
