@@ -4,12 +4,18 @@
   "name":"TASK_OBJECTIVE_LIFECYCLE_REVIEW_V1",
   "task_execution_projection":[
     "fold append-only task_execution_events in deterministic recorded_at_utc,event_id order while applying correction events to exact target evidence",
+    "exact no-history authority has no task_execution_projection row and no task_execution_events; readers expose logical execution_state=not_started with execution_revision=0 as an absence freshness token without fabricating a persisted row/event. Once any execution event exists, task_execution_projection must exist with positive revision even when corrections make the current-effective logical state not_started; event history without its required projection fails closed as integrity drift",
     "not_started: no current-effective start and no current-effective termination/cancel event",
     "in_progress: one current-effective start exists and no current-effective end/termination closes it",
     "ended: current-effective start and end exist, end>=start, and no later effective termination supersedes the open execution interpretation",
     "terminated: current-effective manual_cancel/rfc_terminal_terminate/source_terminal_consequence closes executable work; actual_start remains null when no accepted start, otherwise preserves actual start; termination does not fabricate actual end",
     "a correction may replace/withdraw exact occurrence time only when the resulting full chronology remains valid; prior evidence remains immutable",
     "recorded_at is never substituted for an unknown/missing effective occurrence time"
+  ],
+  "task_revision_freshness":[
+    "tasks.revision is the umbrella freshness token for material Task-owned mutable authority. Every material accepted plan, relationship, explicit-lock, activity-lineage classification, execution, reviewed-outcome or governed local terminal-consequence mutation increments it exactly once unless the owning command explicitly declares a separate immutable topology that intentionally leaves Task revision unchanged, such as LinkWfmRetryAttempt",
+    "owned sub-projection revisions remain independent freshness tokens and advance according to their own material mutation; advancing tasks.revision never substitutes for revalidating the exact execution/outcome/plan/lock/membership authority required by a command",
+    "cross-domain captures that bind Task revision, including RFC-terminal Task participation, therefore cannot cross an unseen material local execution/outcome change even when that caller does not carry every LLD-05 sub-projection revision"
   ],
   "task_review_state":[
     "if task_outcome_current exists and its event remains valid against corrected execution evidence, review_state=reviewed with accepted outcome/reviewed_at",
@@ -62,14 +68,14 @@
     "rule":"canonical aggregate uses mixed for any heterogeneous Task outcomes; whole-Objective Cancelled is therefore impossible after any Task began execution"
   },
   "objective_review_fingerprint":{
-    "fields":"version; objective_id/revision; sorted current task_id + membership revision + pinned plan revision + execution revision + current outcome event/revision + inclusion revision/default; supersession state",
+    "fields":"version; objective_id/revision; sorted current task_id + membership revision + pinned plan revision + execution revision where 0 means exact no-history execution authority + current outcome event/revision + inclusion revision/default; supersession state",
     "hash":"SHA-256 canonical UTF-8",
     "rule":"reviewed_at is server recording time after exact fingerprint revalidation; it does not enter actual execution chronology"
   },
   "source_terminal_review":[
     "when accepted LLD-04 WFM projection changes to Complete or Plan Cancel, provider source status remains immutable evidence/current source projection only",
     "if the Task still has local executable work or Objective consequence, create/supersede wfm_source_terminal_reviews pending row bound to exact source projection revision and local input fingerprint; do not append execution/outcome evidence",
-    "local input fingerprint includes task revision, execution revision/state, outcome revision, current plan revision, membership objective/pin/revision, effective locks and provider source projection revision",
+    "local input fingerprint includes task revision, execution revision/state where revision 0 means exact no-history execution authority, outcome revision, current plan revision, membership objective/pin/revision, effective locks and provider source projection revision",
     "retain_local_work records the reviewed decision only; a later materially changed source/local state may create a fresh review",
     "terminate_local_work appends one source_terminal_consequence execution event in the same UoW and transitions the exact review; no Task outcome is added",
     "after termination rebuild affected Objective aggregate; if it was in progress and now has zero executable Tasks set lost_last_executable/awaiting review, otherwise preserve surviving work and show source-terminal warning",
@@ -80,7 +86,7 @@
     "preview reports affected Objectives, surviving executable counts and any in-progress last-executable loss; any incomplete authority returns INDETERMINATE",
     "writer revalidation recomputes the complete current Task/Objective impact set under the LLD-03 caller UoW and exact-compares the reviewed exact_count/provider_fingerprint before deliberate proof consumption",
     "apply is called only after both cross-domain revalidations are READY, deliberate proof is consumed and the outer LLD-03 command receipt exists; it receives RfcTerminalCascadeExecutionCommandContextV1 for exact command/actor/review provenance and no proof/session secret",
-    "apply revalidates captured identities/revisions/ownership, appends rfc_terminal_terminate execution events for applicable Tasks only and rebuilds affected Objective projections; provider source projection remains untouched and no Task outcome is accepted",
+    "apply revalidates captured identities/revisions/ownership, appends rfc_terminal_terminate execution events for applicable Tasks only, advances every materially affected tasks.revision and execution projection revision exactly once, and rebuilds affected Objective projections; provider source projection remains untouched and no Task outcome is accepted",
     "every Task/Objective consequence/history/audit row created by the apply is provider-owned and references command_context.command_id as its outer command provenance; no nested receipt/commit/rollback is opened",
     "after all provider-owned writes are assembled, compute SOMA_RFC_TERMINAL_CASCADE_PARTICIPANT_RESULT_V1 over domain TASKS_OBJECTIVES, outer command_id, proposal_id and the complete deterministic ordered immutable result refs plus provider audit_event_ids; return only RfcTerminalCascadeParticipantApplyResultV1 with exact result_ref_count, audit_event_count and result_fingerprint",
     "the apply summary is bounded post-apply correlation evidence only; no product/business maximum is imposed on Task/Objective consequence cardinality and the complete result set never crosses into LLD-03 audit",
