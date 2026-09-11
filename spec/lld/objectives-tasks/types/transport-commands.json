@@ -11,7 +11,7 @@
     "CorrectTaskPlanRequestV1":{"kind":"command_payload","command":"CorrectTaskPlan","path_fields":["task_id:uuid"],"payload_contract":"commands/task-plan-correction.json#CorrectTaskPlan.input","command_envelope":"COMMAND_ENVELOPE_V1"},
     "SetExplicitTaskLockRequestV1":{"kind":"command_payload","command":"SetExplicitTaskLock","path_fields":["task_id:uuid"],"payload_contract":"commands/task-explicit-lock.json#SetExplicitTaskLock.input","command_envelope":"COMMAND_ENVELOPE_V1"},
     "ChangeTaskRelationshipRequestV1":{"kind":"command_payload","command":"ChangeTaskRelationship","path_fields":["task_id:uuid"],"payload_contract":"commands/task-relationship-mutation.json#ChangeTaskRelationship.input","command_envelope":"COMMAND_ENVELOPE_V1"},
-    "ReviewWfmActivityRelationshipRequestV1":{"kind":"command_payload","command":"ReviewWfmActivityRelationship","payload_contract":"commands/task-planning.json#ReviewWfmActivityRelationship.input","command_envelope":"COMMAND_ENVELOPE_V1"},
+    "ReviewWfmActivityRelationshipRequestV1":{"kind":"command_payload","command":"ReviewWfmActivityRelationship","payload_contract":"commands/task-activity-review.json#ReviewWfmActivityRelationship.input","command_envelope":"COMMAND_ENVELOPE_V1"},
     "CreateLocalTaskRetryRequestV1":{"kind":"command_payload","command":"CreateLocalTaskRetry","path_fields":["task_id:uuid"],"payload_contract":"commands/task-planning.json#CreateLocalTaskRetry.input","command_envelope":"COMMAND_ENVELOPE_V1"},
     "LinkWfmRetryAttemptRequestV1":{"kind":"command_payload","command":"LinkWfmRetryAttempt","path_fields":["task_id:uuid"],"payload_contract":"commands/task-planning.json#LinkWfmRetryAttempt.input","command_envelope":"COMMAND_ENVELOPE_V1"},
 
