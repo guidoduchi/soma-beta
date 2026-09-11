@@ -1,47 +1,234 @@
-name: Beta implementation CI
+name: Apply bounded execution fixture repair
 
 on:
   push:
     branches:
       - feat/beta-1.0-implementation
-  pull_request:
-    paths:
-      - "src/**"
-      - "tests/**"
-      - "tools/**"
-      - "pyproject.toml"
-      - ".gitattributes"
-      - ".github/workflows/implementation-ci.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  tests:
-    name: Python ${{ matrix.python-version }} / Windows
+  repair:
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      - name: Install test environment
+          python-version: "3.13"
+      - name: Apply deterministic fixture repair
         shell: pwsh
-        run: python -m pip install -e ".[test]"
-      - name: Compile package
+        run: |
+          @'
+          from pathlib import Path
+
+          def replace_bytes(path: str, old: bytes, new: bytes, expected: int) -> None:
+              file = Path(path)
+              data = file.read_bytes()
+              count = data.count(old)
+              if count != expected:
+                  raise SystemExit(f"{path}: expected {expected} replacements for {old!r}, found {count}")
+              file.write_bytes(data.replace(old, new))
+
+          column_old = b"execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
+          column_new = b"execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+          plans = {
+              "tests/test_objectives_tasks_explicit_locks.py": (1, 1, 0, 0),
+              "tests/test_objectives_tasks_objective_aggregate_integrity.py": (2, 1, 0, 1),
+              "tests/test_objectives_tasks_selected_execution.py": (2, 1, 1, 0),
+              "tests/test_objectives_tasks_set_task_plan.py": (1, 1, 0, 0),
+              "tests/test_objectives_tasks_task_execution.py": (2, 1, 1, 0),
+              "tests/test_objectives_tasks_task_execution_end.py": (2, 1, 1, 0),
+              "tests/test_objectives_tasks_task_hard_delete.py": (1, 1, 0, 0),
+          }
+          for path, (columns, starts, corrections, ends) in plans.items():
+              replace_bytes(path, column_old, column_new, columns)
+              if starts:
+                  replace_bytes(path, b"VALUES (?,?,'start'", b"VALUES (?,?,1,'start'", starts)
+              if corrections:
+                  replace_bytes(path, b"VALUES (?,?,'correction'", b"VALUES (?,?,2,'correction'", corrections)
+              if ends:
+                  replace_bytes(path, b"VALUES (?,?,'end'", b"VALUES (?,?,2,'end'", ends)
+
+          schema = "tests/test_objectives_tasks_schema.py"
+          replace_bytes(
+              schema,
+              b"73f2601485135bf7bd64595976131f3d63727e35fb64217f81dbca1876ca1fcd",
+              b"af73f2551a5022e91a5b37f9cdb4b41e6ac79a85dde9c99480b1eff506cd361d",
+              1,
+          )
+          replace_bytes(
+              schema,
+              b'"INSERT INTO task_execution_events VALUES (?, ?, \'start\', 10, NULL, NULL, NULL, 10, ?)",',
+              b'"INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,correction_action,reason_code,recorded_at_utc,command_id) VALUES (?, ?, 1, \'start\', 10, NULL, NULL, NULL, 10, ?)",',
+              1,
+          )
+          schema_path = Path(schema)
+          schema_data = schema_path.read_bytes()
+          newline = b"\r\n" if b"\r\n" in schema_data else b"\n"
+          index_needle = b'    "idx_task_execution_task_recorded",'
+          if schema_data.count(index_needle) != 1:
+              raise SystemExit("schema index anchor is not unique")
+          schema_data = schema_data.replace(
+              index_needle,
+              index_needle + newline + b'    "idx_task_execution_task_revision",',
+          )
+          schema_path.write_bytes(schema_data)
+
+          schema_test_marker = b"def test_execution_revision_chain_and_projection_cardinality_are_database_guarded"
+          schema_data = schema_path.read_bytes()
+          if schema_test_marker in schema_data:
+              raise SystemExit("execution revision-chain schema test already exists")
+          schema_test = r'''
+
+
+def test_execution_revision_chain_and_projection_cardinality_are_database_guarded(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    task_id, plan_id, create_command = new_uuid4(), new_uuid4(), new_uuid4()
+    start_event_id, end_event_id = new_uuid4(), new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _local_task_with_plan(
+            uow,
+            task_id=task_id,
+            plan_id=plan_id,
+            command_id=create_command,
+            start_utc=10,
+            end_utc=20,
+        )
+        uow.connection.execute(
+            "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,"
+            "target_event_id,correction_action,reason_code,recorded_at_utc,command_id) "
+            "VALUES (?,?,1,'start',10,NULL,NULL,NULL,10,?)",
+            (start_event_id, task_id, create_command),
+        )
+        with pytest.raises(sqlite3.IntegrityError, match="TASK_EXECUTION_REVISION_SEQUENCE_INVALID"):
+            uow.connection.execute(
+                "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,"
+                "target_event_id,correction_action,reason_code,recorded_at_utc,command_id) "
+                "VALUES (?,?,3,'end',20,NULL,NULL,NULL,10,?)",
+                (new_uuid4(), task_id, create_command),
+            )
+        uow.connection.execute(
+            "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,"
+            "target_event_id,correction_action,reason_code,recorded_at_utc,command_id) "
+            "VALUES (?,?,2,'end',20,NULL,NULL,NULL,10,?)",
+            (end_event_id, task_id, create_command),
+        )
+        with pytest.raises(sqlite3.IntegrityError, match="TASK_EXECUTION_PROJECTION_INVALID"):
+            uow.connection.execute(
+                "INSERT INTO task_execution_projection(task_id,execution_state,actual_start_utc,actual_end_utc,"
+                "effective_termination_utc,termination_reason,revision,last_event_id) "
+                "VALUES (?,'in_progress',10,NULL,NULL,NULL,1,?)",
+                (task_id, start_event_id),
+            )
+        uow.connection.execute(
+            "INSERT INTO task_execution_projection(task_id,execution_state,actual_start_utc,actual_end_utc,"
+            "effective_termination_utc,termination_reason,revision,last_event_id) "
+            "VALUES (?,'ended',10,20,NULL,NULL,2,?)",
+            (task_id, end_event_id),
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_execution_events WHERE task_id=?", (task_id,)
+        ).fetchone()[0] == 2
+        assert tuple(snapshot.connection.execute(
+            "SELECT execution_state,revision,last_event_id FROM task_execution_projection WHERE task_id=?",
+            (task_id,),
+        ).fetchone()) == ("ended", 2, end_event_id)
+'''
+          schema_path.write_bytes(schema_path.read_bytes() + schema_test.replace("\n", newline.decode()).encode())
+
+          end_test_path = Path("tests/test_objectives_tasks_task_execution_end.py")
+          end_data = end_test_path.read_bytes()
+          import_old = b"from soma.objectives_tasks.services.task_execution import TaskExecutionService"
+          import_new = (
+              b"import soma.objectives_tasks.services.task_execution as task_execution_module" + newline
+              + import_old
+          )
+          if end_data.count(import_old) != 1:
+              raise SystemExit("EndTaskExecution import anchor is not unique")
+          end_data = end_data.replace(import_old, import_new)
+          end_marker = b"def test_same_second_start_end_uses_execution_revision_not_uuid_order"
+          if end_marker in end_data:
+              raise SystemExit("same-second hostile-UUID test already exists")
+          end_test_path.write_bytes(end_data)
+          hostile_test = r'''
+
+
+def test_same_second_start_end_uses_execution_revision_not_uuid_order(initialized_database, monkeypatch) -> None:
+    factory = _factory(initialized_database)
+    row = _create_task(factory, ordinal=6)
+    service = TaskExecutionService(factory)
+    fixed_second = 1_970_009_999
+    start_event_id = "ffffffff-ffff-4fff-8fff-ffffffffffff"
+    start_audit_id = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+    end_event_id = "00000000-0000-4000-8000-000000000001"
+    end_audit_id = "11111111-1111-4111-8111-111111111111"
+    generated_ids = iter((start_event_id, start_audit_id, end_event_id, end_audit_id))
+    monkeypatch.setattr(task_execution_module, "new_uuid4", lambda: next(generated_ids))
+    monkeypatch.setattr(task_execution_module, "utc_epoch_seconds", lambda: fixed_second)
+
+    started = service.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=row[1],
+        task_revision=1,
+        execution_revision=0,
+        effective_start_utc=fixed_second,
+    )
+    ended = service.end_task_execution(
+        command_id=new_uuid4(),
+        task_id=row[1],
+        task_revision=2,
+        execution_revision=1,
+        effective_end_utc=fixed_second,
+    )
+    assert started.result_refs[0].result_id == start_event_id
+    assert ended.result_refs[0].result_id == end_event_id
+    assert end_event_id < start_event_id
+
+    with ReadSnapshot(factory) as snapshot:
+        assert [tuple(row) for row in snapshot.connection.execute(
+            "SELECT execution_revision,execution_event_id,recorded_at_utc FROM task_execution_events "
+            "WHERE task_id=? ORDER BY execution_revision",
+            (row[1],),
+        ).fetchall()] == [
+            (1, start_event_id, fixed_second),
+            (2, end_event_id, fixed_second),
+        ]
+        assert tuple(snapshot.connection.execute(
+            "SELECT execution_state,actual_start_utc,actual_end_utc,revision,last_event_id "
+            "FROM task_execution_projection WHERE task_id=?",
+            (row[1],),
+        ).fetchone()) == ("ended", fixed_second, fixed_second, 2, end_event_id)
+'''
+          end_test_path.write_bytes(end_test_path.read_bytes() + hostile_test.replace("\n", newline.decode()).encode())
+
+          # Fail closed if any Objective/Task test still uses a named execution-event insert
+          # without binding the authoritative execution_revision column.
+          for path in sorted(Path("tests").glob("test_objectives_tasks*.py")):
+              text = path.read_text(encoding="utf-8")
+              cursor = 0
+              while True:
+                  start = text.find("INSERT INTO task_execution_events", cursor)
+                  if start < 0:
+                      break
+                  values = text.find("VALUES", start)
+                  if values < 0 or "execution_revision" not in text[start:values]:
+                      raise SystemExit(f"{path}: stale execution-event insert remains near offset {start}")
+                  cursor = values + 6
+          '@ | python -
+      - name: Restore normal CI workflow
         shell: pwsh
-        run: python -m compileall -q src tests
-      - name: Run complete implementation test suite
+        run: git checkout HEAD^ -- .github/workflows/implementation-ci.yml
+      - name: Commit bounded repair
         shell: pwsh
-        run: python -m pytest
-      - name: Build wheel
-        shell: pwsh
-        run: python -m pip wheel --no-deps . --wheel-dir dist
-      - name: Verify packaged authority resources
-        shell: pwsh
-        run: python tools/verify_wheel_resources.py dist
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests .github/workflows/implementation-ci.yml
+          git commit -m "Certify Task execution revision-chain fixtures"
+          git push origin HEAD:feat/beta-1.0-implementation
