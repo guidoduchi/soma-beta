@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,11 +14,17 @@ from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import ObjectContract
 
 from ..audit_registry import build_objectives_tasks_audit_registry
-from ..contracts.objectives_tasks import TaskMutationResult, task_mutation_result_from_execution
+from ..contracts.objectives_tasks import (
+    ObjectiveMutationResult,
+    TaskMutationResult,
+    objective_mutation_result_from_execution,
+    task_mutation_result_from_execution,
+)
 from ..repositories.objectives import ObjectiveProjectionRepository
 from ..repositories.tasks import TaskRepository
 
 _CANONICAL_NOW = "canonical-now"
+_MAX_SELECTED_TASKS = 100
 _EXECUTION_AUDIT_FIELDS = frozenset(
     {
         "task_id",
@@ -30,7 +37,24 @@ _EXECUTION_AUDIT_FIELDS = frozenset(
         "reason_category",
     }
 )
+_BATCH_START_AUDIT_FIELDS = frozenset(
+    {
+        "objective_scope_id",
+        "selected_task_ids",
+        "task_execution_event_ids",
+        "resulting_task_revisions",
+        "aggregate_input_fingerprint",
+        "resulting_objective_projection_revision",
+    }
+)
 _TERMINAL_EVENT_KINDS = frozenset({"manual_cancel", "rfc_terminal_terminate", "source_terminal_consequence"})
+
+
+@dataclass(frozen=True, slots=True)
+class SelectedTaskExecutionStart:
+    task_id: str
+    task_revision: int
+    execution_revision: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +66,12 @@ class _ExecutionAuthority:
     effective_termination_utc: int | None
     last_event_id: str | None
     projection_exists: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _SelectedStartAuthority:
+    request: SelectedTaskExecutionStart
+    execution: _ExecutionAuthority
 
 
 @dataclass(slots=True)
@@ -95,6 +125,65 @@ def _validate_execution_audit(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit execution revision is invalid")
 
 
+def _validate_batch_start_audit(payload: dict[str, object]) -> None:
+    objective_id = payload.get("objective_scope_id")
+    task_ids = payload.get("selected_task_ids")
+    event_ids = payload.get("task_execution_event_ids")
+    revisions = payload.get("resulting_task_revisions")
+    fingerprint = payload.get("aggregate_input_fingerprint")
+    aggregate_revision = payload.get("resulting_objective_projection_revision")
+    try:
+        if not isinstance(objective_id, str):
+            raise ValidationError("Objective identity must be UUID text")
+        require_uuid4(objective_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task start Objective identity is invalid") from exc
+    if not isinstance(task_ids, list) or not (1 <= len(task_ids) <= _MAX_SELECTED_TASKS):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task start Task list is invalid")
+    canonical_task_ids: list[str] = []
+    try:
+        for value in task_ids:
+            if not isinstance(value, str):
+                raise ValidationError("Task identity must be UUID text")
+            canonical_task_ids.append(require_uuid4(value))
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task start Task identity is invalid") from exc
+    if canonical_task_ids != sorted(canonical_task_ids) or len(set(canonical_task_ids)) != len(canonical_task_ids):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task start Task identities are not canonical and unique")
+    if not isinstance(event_ids, list) or len(event_ids) != len(canonical_task_ids):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task start event list is misaligned")
+    canonical_event_ids: list[str] = []
+    try:
+        for value in event_ids:
+            if not isinstance(value, str):
+                raise ValidationError("execution event identity must be UUID text")
+            canonical_event_ids.append(require_uuid4(value))
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task start event identity is invalid") from exc
+    if len(set(canonical_event_ids)) != len(canonical_event_ids):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task start event identities contain duplicates")
+    if not isinstance(revisions, dict) or set(revisions) != set(canonical_task_ids):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task resulting revisions are not exact")
+    for task_id in canonical_task_ids:
+        value = revisions.get(task_id)
+        if not isinstance(value, dict) or set(value) != {"task_revision", "execution_revision"}:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task resulting revision entry has wrong shape")
+        task_revision = value.get("task_revision")
+        execution_revision = value.get("execution_revision")
+        if type(task_revision) is not int or task_revision < 2:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task resulting Task revision is invalid")
+        if type(execution_revision) is not int or execution_revision < 1:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task resulting execution revision is invalid")
+    if (
+        not isinstance(fingerprint, str)
+        or len(fingerprint) != 64
+        or any(character not in "0123456789abcdef" for character in fingerprint)
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task aggregate fingerprint is invalid")
+    if type(aggregate_revision) is not int or aggregate_revision < 1:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "selected-Task aggregate revision is invalid")
+
+
 def _build_execution_audit_registry() -> AuditRegistry:
     registry = build_objectives_tasks_audit_registry()
     registry.register(
@@ -113,6 +202,24 @@ def _build_execution_audit_registry() -> AuditRegistry:
                 max_utf8_bytes=16_384,
             ),
             sensitivity_validator=_validate_execution_audit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.execution_batch_started",
+            action_version=1,
+            payload_schema="SelectedTaskStartAuditV1",
+            payload_version=1,
+            payload_contract=ObjectContract(
+                name="SelectedTaskStartAuditV1",
+                version=1,
+                required_fields=_BATCH_START_AUDIT_FIELDS,
+                allowed_fields=_BATCH_START_AUDIT_FIELDS,
+                max_depth=3,
+                max_collection_items=512,
+                max_utf8_bytes=65_536,
+            ),
+            sensitivity_validator=_validate_batch_start_audit,
         )
     )
     return registry
@@ -206,7 +313,7 @@ def _fold_execution_history(rows: list[Any]) -> tuple[str, int | None, int | Non
 
 
 class TaskExecutionService:
-    """LLD-05 Task execution owner. This slice implements StartTaskExecution."""
+    """LLD-05 Task execution owner."""
 
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._tasks = TaskRepository()
@@ -272,6 +379,63 @@ class TaskExecutionService:
             raise IntegrityFailure("Task current outcome revision is invalid")
         return True
 
+    @staticmethod
+    def _validate_objective_scope(
+        connection: Any,
+        *,
+        objective_id: str,
+        objective_revision: int,
+        envelope_revision: int,
+    ) -> None:
+        row = connection.execute(
+            "SELECT revision,superseded_by_objective_id FROM objectives WHERE objective_id=?",
+            (objective_id,),
+        ).fetchone()
+        if row is None:
+            raise SomaError("OBJECTIVE_NOT_FOUND", "Objective does not exist")
+        stored_revision = row[0]
+        if type(stored_revision) is not int or stored_revision <= 0:
+            raise IntegrityFailure("Objective revision is invalid")
+        if stored_revision != objective_revision or row[1] is not None:
+            raise SomaError("OBJECTIVE_STALE", "Objective revision/currentness changed")
+        envelope = connection.execute(
+            "SELECT revision FROM objective_envelope_projection WHERE objective_id=?",
+            (objective_id,),
+        ).fetchone()
+        if envelope is None:
+            raise IntegrityFailure("current Objective is missing envelope projection")
+        stored_envelope_revision = envelope[0]
+        if type(stored_envelope_revision) is not int or stored_envelope_revision <= 0:
+            raise IntegrityFailure("Objective envelope revision is invalid")
+        if stored_envelope_revision != envelope_revision:
+            raise SomaError("OBJECTIVE_STALE", "Objective envelope revision changed")
+
+    @staticmethod
+    def _insert_or_advance_start_projection(
+        inner: UnitOfWork,
+        *,
+        task_id: str,
+        authority: _ExecutionAuthority,
+        event_id: str,
+        accepted_start: int,
+    ) -> None:
+        if not authority.projection_exists:
+            inner.connection.execute(
+                "INSERT INTO task_execution_projection(task_id,execution_state,actual_start_utc,actual_end_utc,"
+                "effective_termination_utc,termination_reason,revision,last_event_id) "
+                "VALUES (?,'in_progress',?,NULL,NULL,NULL,1,?)",
+                (task_id, accepted_start, event_id),
+            )
+            return
+        updated = inner.connection.execute(
+            "UPDATE task_execution_projection SET execution_state='in_progress',actual_start_utc=?,actual_end_utc=NULL,"
+            "effective_termination_utc=NULL,termination_reason=NULL,revision=revision+1,last_event_id=? "
+            "WHERE task_id=? AND revision=?",
+            (accepted_start, event_id, task_id, authority.revision),
+        )
+        if updated.rowcount != 1:
+            raise IntegrityFailure("Task execution projection changed during guarded start")
+
     def start_task_execution(
         self,
         *,
@@ -335,22 +499,13 @@ class TaskExecutionService:
                     "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',?,NULL,NULL,NULL,?,?)",
                     (event_id, canonical_task_id, accepted_start, recorded_at, command_id),
                 )
-                if not authority.projection_exists:
-                    inner.connection.execute(
-                        "INSERT INTO task_execution_projection(task_id,execution_state,actual_start_utc,actual_end_utc,"
-                        "effective_termination_utc,termination_reason,revision,last_event_id) "
-                        "VALUES (?,'in_progress',?,NULL,NULL,NULL,1,?)",
-                        (canonical_task_id, accepted_start, event_id),
-                    )
-                else:
-                    updated = inner.connection.execute(
-                        "UPDATE task_execution_projection SET execution_state='in_progress',actual_start_utc=?,actual_end_utc=NULL,"
-                        "effective_termination_utc=NULL,termination_reason=NULL,revision=revision+1,last_event_id=? "
-                        "WHERE task_id=? AND revision=?",
-                        (accepted_start, event_id, canonical_task_id, authority.revision),
-                    )
-                    if updated.rowcount != 1:
-                        raise IntegrityFailure("Task execution projection changed during guarded start")
+                self._insert_or_advance_start_projection(
+                    inner,
+                    task_id=canonical_task_id,
+                    authority=authority,
+                    event_id=event_id,
+                    accepted_start=accepted_start,
+                )
                 self._tasks.increment_revision(
                     inner,
                     task_id=canonical_task_id,
@@ -404,3 +559,187 @@ class TaskExecutionService:
             )
 
         return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+
+    def start_selected_objective_tasks(
+        self,
+        *,
+        command_id: str,
+        objective_id: str,
+        objective_revision: int,
+        objective_envelope_revision: int,
+        selected_tasks: Sequence[SelectedTaskExecutionStart],
+        effective_start_utc: int | str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ObjectiveMutationResult:
+        canonical_objective_id = require_uuid4(objective_id)
+        expected_objective_revision = _require_revision(objective_revision, label="objective_revision")
+        expected_envelope_revision = _require_revision(
+            objective_envelope_revision,
+            label="objective_envelope_revision",
+        )
+        if not isinstance(selected_tasks, Sequence) or isinstance(selected_tasks, (str, bytes)):
+            raise ValidationError("selected_tasks must be a bounded sequence")
+        if not (1 <= len(selected_tasks) <= _MAX_SELECTED_TASKS):
+            raise ValidationError("selected_tasks must contain between 1 and 100 Tasks")
+        canonical_requests: list[SelectedTaskExecutionStart] = []
+        for entry in selected_tasks:
+            if not isinstance(entry, SelectedTaskExecutionStart):
+                raise ValidationError("selected_tasks entries must be SelectedTaskExecutionStart values")
+            canonical_requests.append(
+                SelectedTaskExecutionStart(
+                    task_id=require_uuid4(entry.task_id),
+                    task_revision=_require_revision(entry.task_revision, label="selected task_revision"),
+                    execution_revision=_require_revision(
+                        entry.execution_revision,
+                        label="selected execution_revision",
+                        allow_zero=True,
+                    ),
+                )
+            )
+        canonical_requests.sort(key=lambda value: value.task_id)
+        if len({entry.task_id for entry in canonical_requests}) != len(canonical_requests):
+            raise ValidationError("selected_tasks cannot contain duplicate task_id")
+        effective_request = _validate_effective_start(effective_start_utc)
+        semantic_selected = [
+            {
+                "task_id": entry.task_id,
+                "task_revision": entry.task_revision,
+                "execution_revision": entry.execution_revision,
+            }
+            for entry in canonical_requests
+        ]
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="StartSelectedObjectiveTasks",
+            target_type="objective",
+            target_id=canonical_objective_id,
+            semantic_payload={
+                "objective_envelope_revision": expected_envelope_revision,
+                "selected_tasks": semantic_selected,
+                "effective_start_utc": effective_request,
+            },
+            base_revisions={canonical_objective_id: expected_objective_revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            self._validate_objective_scope(
+                uow.connection,
+                objective_id=canonical_objective_id,
+                objective_revision=expected_objective_revision,
+                envelope_revision=expected_envelope_revision,
+            )
+            selected_authorities: list[_SelectedStartAuthority] = []
+            for request in canonical_requests:
+                membership = self._objectives.current_membership_for_task(uow.connection, request.task_id)
+                if membership is None or membership.objective_id != canonical_objective_id:
+                    raise SomaError("TASK_STALE", "selected Task is no longer a current member of this Objective")
+                task = self._tasks.get(uow.connection, request.task_id)
+                if task is None or task.revision != request.task_revision:
+                    raise SomaError("TASK_STALE", "selected Task revision changed")
+                authority = self._execution_authority(uow.connection, request.task_id)
+                if authority.revision != request.execution_revision:
+                    raise SomaError("TASK_STALE", "selected Task execution revision changed")
+                if authority.state == "in_progress":
+                    raise SomaError(
+                        "TASK_EXECUTION_ALREADY_STARTED",
+                        "selected Task already has current accepted start evidence",
+                    )
+                if authority.state in {"ended", "terminated"} or self._has_terminal_outcome(
+                    uow.connection, request.task_id
+                ):
+                    raise SomaError(
+                        "TASK_EXECUTION_ALREADY_TERMINAL",
+                        "selected Task execution/outcome is already terminal",
+                    )
+                if authority.state != "not_started":
+                    raise IntegrityFailure("selected Task execution authority has unsupported start state")
+                selected_authorities.append(_SelectedStartAuthority(request, authority))
+
+            recorded_at = utc_epoch_seconds()
+            accepted_start = recorded_at if effective_request == _CANONICAL_NOW else int(effective_request)
+            event_ids = [new_uuid4() for _ in selected_authorities]
+            audit_event_id = new_uuid4()
+            primary_event_id = event_ids[0]
+            response_refs = [
+                {"type": "task_execution_event", "id": event_id}
+                for event_id in event_ids
+            ]
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                resulting_revisions: dict[str, dict[str, int]] = {}
+                for selected, event_id in zip(selected_authorities, event_ids, strict=True):
+                    request = selected.request
+                    authority = selected.execution
+                    inner.connection.execute(
+                        "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
+                        "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',?,NULL,NULL,NULL,?,?)",
+                        (event_id, request.task_id, accepted_start, recorded_at, command_id),
+                    )
+                    self._insert_or_advance_start_projection(
+                        inner,
+                        task_id=request.task_id,
+                        authority=authority,
+                        event_id=event_id,
+                        accepted_start=accepted_start,
+                    )
+                    self._tasks.increment_revision(
+                        inner,
+                        task_id=request.task_id,
+                        expected_revision=request.task_revision,
+                    )
+                    resulting_revisions[request.task_id] = {
+                        "task_revision": request.task_revision + 1,
+                        "execution_revision": authority.revision + 1,
+                    }
+                aggregate = self._objectives.rebuild_aggregate(
+                    inner,
+                    objective_id=canonical_objective_id,
+                    command_id=command_id,
+                )
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="task.execution_batch_started",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="objective",
+                    target_id=canonical_objective_id,
+                    reason_category=None,
+                    command_id=command_id,
+                    payload_schema="SelectedTaskStartAuditV1",
+                    payload_version=1,
+                    payload={
+                        "objective_scope_id": canonical_objective_id,
+                        "selected_task_ids": [selected.request.task_id for selected in selected_authorities],
+                        "task_execution_event_ids": event_ids,
+                        "resulting_task_revisions": resulting_revisions,
+                        "aggregate_input_fingerprint": aggregate.aggregate_input_fingerprint,
+                        "resulting_objective_projection_revision": aggregate.revision,
+                    },
+                    resulting_event_refs=tuple(
+                        AuditResultRef("task_execution_event", event_id) for event_id in event_ids
+                    ),
+                )
+
+            return PreparedMutation(
+                False,
+                "task_execution_event",
+                primary_event_id,
+                apply,
+                response_schema="ObjectiveMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "objective_id": canonical_objective_id,
+                    "revision": expected_objective_revision,
+                    "result_refs": response_refs,
+                },
+            )
+
+        result = objective_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+        if any(ref.result_type != "task_execution_event" for ref in result.result_refs):
+            raise IntegrityFailure("selected-Task start result contains unsupported result ref type")
+        if len(result.result_refs) != len(canonical_requests):
+            raise IntegrityFailure("selected-Task start result count does not match selected Task count")
+        return result
