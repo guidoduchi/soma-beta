@@ -11,14 +11,19 @@ from .queries.task_activity_review import (
     WfmActivityRelationshipReviewPreview,
     WfmActivityRelationshipReviewQueryService,
 )
+from .repositories.objectives import ObjectiveAggregateProjection, ObjectiveProjectionRepository
 from .repositories.tasks import TaskNoStatus, WfmTaskRepository
 from .services.hard_delete import TaskHardDeleteService
 from .services.retries import TaskRetryService
 from .services.task_activity_review import WfmActivityRelationshipReviewService
+from .services.task_execution import TaskExecutionService
 from .services.task_planning import TaskPlanningService
 
 __all__ = [
     "AcceptedTaskSchedule",
+    "ObjectiveAggregateProjection",
+    "ObjectiveProjectionRepository",
+    "TaskExecutionService",
     "TaskHardDeletePreview",
     "TaskHardDeleteQueryService",
     "TaskHardDeleteService",
