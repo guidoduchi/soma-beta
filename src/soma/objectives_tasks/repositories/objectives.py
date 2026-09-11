@@ -246,8 +246,9 @@ class ObjectiveProjectionRepository:
             "ic.revision,ic.included,ic.last_event_id,ie.task_id,ie.included,"
             "me.task_id,me.to_objective_id,me.accepted_plan_revision_id,"
             "(SELECT count(*) FROM task_execution_events hx WHERE hx.task_id=m.task_id),"
+            "(SELECT max(hx.execution_revision) FROM task_execution_events hx WHERE hx.task_id=m.task_id),"
             "(SELECT hx.execution_event_id FROM task_execution_events hx WHERE hx.task_id=m.task_id "
-            " ORDER BY hx.recorded_at_utc DESC,hx.execution_event_id DESC LIMIT 1) "
+            " ORDER BY hx.execution_revision DESC LIMIT 1) "
             "FROM objective_task_membership_current m "
             "JOIN task_plan_revisions mp ON mp.plan_revision_id=m.accepted_plan_revision_id "
             "LEFT JOIN task_plan_current pc ON pc.task_id=m.task_id "
@@ -285,8 +286,14 @@ class ObjectiveProjectionRepository:
             execution_event_count = row[30]
             if type(execution_event_count) is not int or execution_event_count < 0:
                 raise IntegrityFailure("Task execution event count is invalid")
-            latest_execution_event_id = None if row[31] is None else _stored_uuid(
-                row[31], label="latest Task execution event identity"
+            max_execution_event_revision = row[31]
+            if execution_event_count == 0:
+                if max_execution_event_revision is not None:
+                    raise IntegrityFailure("empty Task execution history has a positive revision")
+            elif type(max_execution_event_revision) is not int or max_execution_event_revision != execution_event_count:
+                raise IntegrityFailure("Task execution history revision sequence is not contiguous")
+            latest_execution_event_id = None if row[32] is None else _stored_uuid(
+                row[32], label="latest Task execution event identity"
             )
             if (execution_event_count == 0) != (latest_execution_event_id is None):
                 raise IntegrityFailure("Task execution event authority has inconsistent latest-event evidence")
@@ -299,11 +306,13 @@ class ObjectiveProjectionRepository:
                 execution_state = str(row[11])
                 if execution_state not in _EXECUTION_STATES or row[15] is None or row[16] is None:
                     raise IntegrityFailure("Task execution projection is incomplete")
+                if execution_revision != execution_event_count:
+                    raise IntegrityFailure("Task execution projection revision does not equal immutable event count")
                 if _stored_uuid(row[16], label="Task execution last-event owner identity") != task_id:
                     raise IntegrityFailure("Task execution projection points to another Task's event")
                 projection_last_event_id = _stored_uuid(row[15], label="Task execution projection last event identity")
                 if latest_execution_event_id != projection_last_event_id:
-                    raise IntegrityFailure("Task execution projection does not point to latest immutable history")
+                    raise IntegrityFailure("Task execution projection does not point to final immutable revision history")
                 actual_start = _optional_nonnegative(row[12], label="Task actual start")
                 actual_end = _optional_nonnegative(row[13], label="Task actual end")
                 termination = _optional_nonnegative(row[14], label="Task termination instant")
