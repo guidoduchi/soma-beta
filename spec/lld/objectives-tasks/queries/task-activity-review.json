@@ -7,10 +7,13 @@
       "name":"WfmActivityRelationshipReviewPreview",
       "input":[
         "seed_task_ids: unique canonical UUIDv4 array with at least two WFM Tasks, canonical-sorted by task_id",
-        "decision: distinct_activity|same_activity|retry_lineage|unresolved_source_error"
+        "decision: distinct_activity|same_activity|retry_lineage|unresolved_source_error",
+        "affected_cursor: CursorV1|null",
+        "affected_limit: int 1..1000 default 100"
       ],
       "steps":[
         "run against one stable read snapshot and create no command receipt, audit event, domain row or revision",
+        "validate affected_cursor through CURSOR_V1 using this query owner and the exact seed_task_ids+decision review scope; a cursor from another scope/query is invalid rather than silently reused",
         "load every seed Task and require task_kind=wfm plus a distinct canonical TK identity; missing Task/WFM identity returns TASK_NOT_FOUND",
         "for retry_lineage require exactly two seed Tasks and one existing immutable direct retry edge between them; otherwise return TASK_ACTIVITY_LINEAGE_CONFLICT",
         "expand the complete touched-lineage closure by indexed task_activity_lineage_current(activity_lineage_id,task_id) reads so every current member whose same-activity relationship would change is visible in the preview",
@@ -18,11 +21,12 @@
         "compute SOMA_WFM_ACTIVITY_RELATIONSHIP_REVIEW_V1 over the exact canonical authority described by commands/task-activity-review.json",
         "derive whether accepting the requested decision is semantic NO_CHANGE under current authority",
         "derive projected competing-attempt consequence without mutating authority; same_activity/retry_lineage/unresolved_source_error may preview competing_attempt=true and remain eligible for commit",
-        "return exact seed Task revisions, affected_task_count, bounded first affected-task page ordered by task_id, continuation cursor when needed, current/prospective lineage summary, retry relation id/null, projected competing-attempt flag and review_fingerprint"
+        "return exact seed Task revisions, affected_task_count, the requested bounded affected-task page ordered by task_id, continuation cursor when more affected Tasks remain, current/prospective lineage summary, retry relation id/null, projected competing-attempt flag and review_fingerprint"
       ],
       "rules":[
         "preview is advisory read authority only; ReviewWfmActivityRelationship must recompute and exact-compare the fingerprint inside its writer UnitOfWork",
-        "transport paging of affected Tasks never changes the complete closure included in fingerprint/affected_task_count",
+        "transport paging of affected Tasks never changes the complete closure included in fingerprint/affected_task_count; every page for unchanged authority returns the same review_fingerprint",
+        "affected_cursor is presentation state only and is never an input to SOMA_WFM_ACTIVITY_RELATIONSHIP_REVIEW_V1 or command idempotency",
         "source-plan fallback is conflict-evidence only and never becomes accepted operational Task-plan or Objective grouping authority",
         "provider Complete/Plan Cancel alone never makes local work terminal"
       ]
