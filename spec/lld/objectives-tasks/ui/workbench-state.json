@@ -53,8 +53,8 @@
   },
   "retry_review":{
     "local":"show predecessor immutable attempt, proposed new Task identity allocated only on successful commit, new independent interval, selectable current SR/RFC/Device links, and current LLD-07 eligible Inventory relationship selections when available",
-    "wfm":"requires separately existing distinct TK attempt; UI only links reviewed retry lineage",
-    "rule":"never present retry as reopening/resetting the old Task or cloning an Objective identity"
+    "wfm":"requires a separately existing distinct canonical TK attempt; LinkWfmRetryAttempt reviews and creates only the immutable predecessor/successor retry edge, while same-activity/distinct/retry-lineage classification is a separate ReviewWfmActivityRelationship action after that edge exists",
+    "rule":"never present retry as reopening/resetting the old Task, cloning an Objective identity, or implicitly deciding activity lineage"
   },
   "timezone":{
     "setting":"OBJECTIVE_TIMEZONE_V1",
