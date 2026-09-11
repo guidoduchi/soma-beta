@@ -20,7 +20,7 @@
   "task_review_state":[
     "if current task_outcome_current remains valid against corrected execution evidence => reviewed with accepted outcome/reviewed_at",
     "else if execution_state in ended|terminated => awaiting_review",
-    "else if current Objective envelope is due/past with no accepted outcome => awaiting_review/due_unreviewed without creating execution/outcome",
+    "else if current Objective envelope is due/past with no accepted outcome => read-time awaiting_review/due_unreviewed without creating execution/outcome or mutating aggregate authority",
     "else => not_due_or_in_progress"
   ],
   "task_outcome_acceptance_matrix":{
@@ -45,6 +45,7 @@
     "rule":"provider status alone does not make local executable=false until governed consequence/cascade applies, except historical Tasks adopted from already-terminal provider evidence that never became executable"
   },
   "objective_aggregate_derivation":[
+    "exact material input, canonical fingerprint, absence tokens, review-currentness and projection-revision semantics are OBJECTIVE_AGGREGATE_INPUT_V1 in algorithms/objective-aggregate.json",
     "load current nonsuperseded membership, pinned plan revisions, Task execution/outcome, operational-count inclusion and current valid review fingerprint",
     "envelope=min pinned start/max pinned end; member_count>0",
     "actual_start_utc=min accepted member actual_start, else null",
@@ -54,7 +55,7 @@
     "any member in_progress => in_progress",
     "if accepted work began and governed transition leaves zero executable members before all outcomes reviewed => awaiting_review/lost_last_executable",
     "if all current members have valid accepted outcomes => derive aggregate outcome; reviewed only when a current objective_review_event fingerprint matches exact membership/outcome/inclusion, else awaiting_review",
-    "else if current time>=envelope.end_utc => awaiting_review/due_unreviewed without fabricated Task outcome; else planned",
+    "otherwise persisted aggregate remains planned; ObjectiveList/Workbench/ReviewQueue derive due_unreviewed from explicit as_of_utc and pinned envelope without writing a receipt, audit event or projection revision",
     "current plan differing from any membership pin adds plan_membership_mismatch unless higher safety attention applies"
   ],
   "objective_outcome_derivation":{
