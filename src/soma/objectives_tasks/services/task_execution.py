@@ -337,8 +337,8 @@ class TaskExecutionService:
             (task_id,),
         ).fetchone()
         rows = connection.execute(
-            "SELECT execution_event_id,event_kind,effective_at_utc,target_event_id,correction_action "
-            "FROM task_execution_events WHERE task_id=? ORDER BY recorded_at_utc,execution_event_id",
+            "SELECT execution_event_id,event_kind,effective_at_utc,target_event_id,correction_action,execution_revision "
+            "FROM task_execution_events WHERE task_id=? ORDER BY execution_revision",
             (task_id,),
         ).fetchall()
         if projection is None:
@@ -350,13 +350,19 @@ class TaskExecutionService:
         revision = projection[0]
         if type(revision) is not int or revision <= 0:
             raise IntegrityFailure("Task execution projection revision is invalid")
+        if len(rows) != revision:
+            raise IntegrityFailure("Task execution projection revision does not equal immutable event count")
+        for expected_revision, row in enumerate(rows, start=1):
+            event_revision = row[5]
+            if type(event_revision) is not int or event_revision != expected_revision:
+                raise IntegrityFailure("Task execution history revision sequence is not contiguous")
         state = str(projection[1])
         actual_start = _stored_time(projection[2], label="Task actual start", required=False)
         actual_end = _stored_time(projection[3], label="Task actual end", required=False)
         termination = _stored_time(projection[4], label="Task termination instant", required=False)
         last_event_id = _stored_uuid(projection[5], label="Task execution projection last event")
         if last_event_id != _stored_uuid(rows[-1][0], label="Task execution final event identity"):
-            raise IntegrityFailure("Task execution projection does not reference the latest immutable event")
+            raise IntegrityFailure("Task execution projection does not reference the final immutable revision event")
         folded = _fold_execution_history(rows)
         if (state, actual_start, actual_end, termination) != folded:
             raise IntegrityFailure("Task execution projection disagrees with folded immutable history")
@@ -501,9 +507,9 @@ class TaskExecutionService:
 
             def apply(inner: UnitOfWork) -> AuditEventInput:
                 inner.connection.execute(
-                    "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-                    "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',?,NULL,NULL,NULL,?,?)",
-                    (event_id, canonical_task_id, accepted_start, recorded_at, command_id),
+                    "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+                    "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,?,'start',?,NULL,NULL,NULL,?,?)",
+                    (event_id, canonical_task_id, resulting_execution_revision, accepted_start, recorded_at, command_id),
                 )
                 self._insert_or_advance_start_projection(
                     inner,
@@ -677,10 +683,11 @@ class TaskExecutionService:
                 for selected, event_id in zip(selected_authorities, event_ids, strict=True):
                     request = selected.request
                     authority = selected.execution
+                    resulting_execution_revision = authority.revision + 1
                     inner.connection.execute(
-                        "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-                        "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',?,NULL,NULL,NULL,?,?)",
-                        (event_id, request.task_id, accepted_start, recorded_at, command_id),
+                        "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+                        "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,?,'start',?,NULL,NULL,NULL,?,?)",
+                        (event_id, request.task_id, resulting_execution_revision, accepted_start, recorded_at, command_id),
                     )
                     self._insert_or_advance_start_projection(
                         inner,
@@ -696,7 +703,7 @@ class TaskExecutionService:
                     )
                     resulting_revisions[request.task_id] = {
                         "task_revision": request.task_revision + 1,
-                        "execution_revision": authority.revision + 1,
+                        "execution_revision": resulting_execution_revision,
                     }
                 aggregate = self._objectives.rebuild_aggregate(
                     inner,
@@ -805,9 +812,9 @@ class TaskExecutionService:
 
             def apply(inner: UnitOfWork) -> AuditEventInput:
                 inner.connection.execute(
-                    "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-                    "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'end',?,NULL,NULL,NULL,?,?)",
-                    (event_id, canonical_task_id, accepted_end, recorded_at, command_id),
+                    "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+                    "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,?,'end',?,NULL,NULL,NULL,?,?)",
+                    (event_id, canonical_task_id, resulting_execution_revision, accepted_end, recorded_at, command_id),
                 )
                 updated = inner.connection.execute(
                     "UPDATE task_execution_projection SET execution_state='ended',actual_end_utc=?,"
