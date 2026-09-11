@@ -289,34 +289,45 @@ def test_already_active_link_and_absent_unlink_are_no_change(initialized_databas
     )
 
     same_command = new_uuid4()
-    same = _change(
-        factory,
+    same_kwargs = dict(
         command_id=same_command,
         task_id=task.task_id,
         task_revision=2,
-        kind="sr",
+        relationship_kind="sr",
         target_id=sr_id,
         action="link",
     )
+    same = TaskRelationshipService(factory).change_task_relationship(**same_kwargs)
     assert same.no_change and same.revision == 2 and same.result_refs == ()
-    assert not _receipt_exists(factory, same_command)
+    assert _receipt_exists(factory, same_command)
+    same_replay = TaskRelationshipService(factory).change_task_relationship(**same_kwargs)
+    assert same_replay.replayed and same_replay.no_change
+    assert same_replay.revision == same.revision and same_replay.result_refs == same.result_refs
     assert first.result_refs[0].result_id == _relationship_rows(
         factory, task.task_id, "sr", sr_id
     )[0][0]
 
     absent_command = new_uuid4()
-    absent = _change(
-        factory,
+    absent_kwargs = dict(
         command_id=absent_command,
         task_id=task.task_id,
         task_revision=2,
-        kind="device",
+        relationship_kind="device",
         target_id=device_id,
         action="unlink",
-        reason="nothing_to_remove",
+        reason_category="nothing_to_remove",
     )
+    absent = TaskRelationshipService(factory).change_task_relationship(**absent_kwargs)
     assert absent.no_change and absent.revision == 2 and absent.result_refs == ()
-    assert not _receipt_exists(factory, absent_command)
+    assert _receipt_exists(factory, absent_command)
+    absent_replay = TaskRelationshipService(factory).change_task_relationship(**absent_kwargs)
+    assert absent_replay.replayed and absent_replay.no_change
+    assert absent_replay.revision == absent.revision and absent_replay.result_refs == absent.result_refs
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id IN (?,?)",
+            (same_command, absent_command),
+        ).fetchone()[0] == 0
     assert _task_revision(factory, task.task_id) == 2
 
 
