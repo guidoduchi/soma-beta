@@ -84,7 +84,7 @@ def _build_retry_audit_registry() -> AuditRegistry:
                 required_fields=_RETRY_AUDIT_FIELDS,
                 allowed_fields=_RETRY_AUDIT_FIELDS,
                 max_depth=4,
-                max_collection_items=8,
+                max_collection_items=9,
                 max_utf8_bytes=16_384,
             ),
             sensitivity_validator=_validate_retry_audit_payload,
