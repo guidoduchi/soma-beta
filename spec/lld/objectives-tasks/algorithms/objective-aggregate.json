@@ -1,0 +1,62 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-05",
+  "name":"OBJECTIVE_AGGREGATE_INPUT_V1",
+  "fingerprint":{
+    "schema_token":"SOMA_OBJECTIVE_AGGREGATE_INPUT_V1",
+    "serialization":"SHA-256 of LLD-01 canonical JSON UTF-8 over the exact object below; object keys use canonical JSON ordering and members are sorted by task_id ascending",
+    "object":{
+      "schema":"SOMA_OBJECTIVE_AGGREGATE_INPUT_V1",
+      "objective":{"objective_id":"canonical UUIDv4","revision":"int>=1","creation_origin":"manual|automatic_grouping|historical_provider_complete","superseded_by_objective_id":"canonical UUIDv4|null"},
+      "members":"array sorted by task_id of {task_id, membership_revision, accepted_plan:{plan_revision_id,start_utc,end_utc}, current_plan:{revision,plan_revision_id|null}, execution:{revision,state,actual_start_utc,actual_end_utc,effective_termination_utc}, outcome:{revision,outcome_event_id|null,accepted_outcome|null}, operational_count:{revision,included}}",
+      "current_review":"null or {objective_review_event_id,review_fingerprint,derived_outcome} for the deterministic latest review event whose review_fingerprint exactly matches the current OBJECTIVE_REVIEW_INPUT_V1 fingerprint"
+    },
+    "absence_tokens":[
+      "current_plan revision 0 means exact task_plan_current absence and therefore plan_revision_id=null; current Objective membership normally makes this an integrity failure because its accepted plan must still exist",
+      "execution revision 0 means exact absence of task_execution_projection and task_execution_events and serializes state=not_started with all actual/termination instants null",
+      "outcome revision 0 means exact task_outcome_current absence and serializes event/outcome null",
+      "operational_count revision 0 means no current inclusion row and serializes included=true"
+    ],
+    "excludes":[
+      "wall-clock/current time or query as_of_utc",
+      "recorded_at/reviewed_at values that do not alter accepted execution/outcome authority",
+      "audit ids, last_command_id and command receipt metadata",
+      "Customer/RFC/SR/Device display context",
+      "provider source fields except where a separately governed local execution consequence has already changed Task execution authority"
+    ]
+  },
+  "review_fingerprint":{
+    "schema_token":"OBJECTIVE_REVIEW_INPUT_V1",
+    "serialization":"SHA-256 canonical JSON over {schema,objective_id,objective_revision,superseded_by_objective_id,members}; members sorted by task_id",
+    "member":"{task_id,membership_revision,accepted_plan_revision_id,execution_revision,outcome_event_id|null,outcome_revision,operational_count_revision,included}",
+    "rule":"Only a review event whose stored review_fingerprint exactly equals this current fingerprint is current. Later membership, execution/outcome correction, inclusion or supersession authority makes prior review non-current without editing history."
+  },
+  "derivation":{
+    "rules":[
+      "validate every current membership pin belongs to the same Task and points to an existing positive-duration accepted plan; duplicate or foreign authority fails closed",
+      "actual_start_utc is minimum accepted member actual_start_utc when any exists, else null",
+      "actual_end_utc is null while any started member is in_progress; once every started member is terminal, it is the maximum known actual_end_utc or effective_termination_utc, and any required unknown terminal occurrence keeps it null",
+      "superseded Objective derives superseded",
+      "historical_provider_complete with no accepted Task execution derives historical_structure; all members excluded may additionally derive excluded_from_operational_counts",
+      "any in_progress member derives in_progress",
+      "all members with current execution-compatible accepted outcomes derive aggregate outcome; state is reviewed only when current_review is non-null, otherwise awaiting_review",
+      "governed loss of the final executable member after accepted started work derives awaiting_review/lost_last_executable",
+      "otherwise persisted aggregate state is planned; clock passage alone never mutates objective_aggregate_projection",
+      "current operational plan id differing from any membership accepted_plan_revision_id derives plan_membership_mismatch unless a higher-safety attention reason applies"
+    ],
+    "outcomes":[
+      "all included completed => completed",
+      "all included incomplete => incomplete",
+      "all included cancelled_without_execution and no accepted current or preserved uncorrected start => cancelled",
+      "heterogeneous included outcomes => mixed",
+      "zero included with at least one excluded => excluded_from_operational_counts"
+    ]
+  },
+  "clock_boundary":{
+    "rule":"ObjectiveList, ObjectiveWorkbench and ObjectiveReviewQueue may derive an effective read-time awaiting_review/due_unreviewed overlay when as_of_utc>=membership-pinned envelope end and the material aggregate would otherwise remain planned/unreviewed. This overlay is read-only, creates no receipt/revision/audit row, and never fabricates Task outcome or execution evidence.",
+    "persistence":"A later material command may rebuild objective_aggregate_projection from the same material authority, but the aggregate_input_fingerprint never includes current time and a clock-only due overlay never causes a projection revision increment."
+  },
+  "projection_revision":{
+    "rule":"rebuild computes the exact material fingerprint before writing. If an existing aggregate row already has that fingerprint and the same material derived fields, leave the row and revision unchanged. Otherwise create revision 1 or advance revision exactly once and set last_command_id to the owning outer command. A fingerprint/field disagreement for supposedly equal material authority fails closed as integrity drift."
+  }
+}
