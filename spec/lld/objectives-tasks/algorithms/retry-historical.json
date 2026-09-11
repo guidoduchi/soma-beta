@@ -15,8 +15,9 @@
   "wfm_retry":[
     "a retry WFM must already possess a distinct canonical TK+14 identity; no command derives or increments provider Task No.",
     "exact same TK is the same WFM attempt and cannot become its own retry",
-    "LinkWfmRetryAttempt revalidates both identities, immediate-edge uniqueness and no cycle before appending retry relation",
-    "reviewed retry lineage normally assigns predecessor/successor to one activity_lineage_id unless explicit evidence classifies them as distinct activities instead",
+    "LinkWfmRetryAttempt revalidates both identities, exact requested Task revisions, immediate-edge uniqueness and no cycle before appending the immutable retry relation",
+    "LinkWfmRetryAttempt preserves all activity-lineage events/current projections; retry-edge creation and reviewed activity classification are separate authorities",
+    "after the retry edge exists, ReviewWfmActivityRelationship may explicitly accept retry_lineage using that exact immutable edge as fingerprinted evidence, or may classify the attempts as distinct_activity or unresolved_source_error when the reviewed evidence supports that decision",
     "provider source facts/status/plans of both attempts remain independent",
     "the successor enters normal plan reconciliation and grouping; no Objective is cloned or linked directly as a retry target"
   ],
@@ -30,7 +31,7 @@
     "lineage is a reviewed SOMA operational classification, never inferred solely from same RFC, Task Name, Summary or overlapping time",
     "distinct_activity leaves/assigns separate lineage context so multiple distinct WFMs may coexist in one Objective",
     "same_activity assigns one shared lineage and triggers active-overlap conflict evaluation",
-    "retry_lineage requires a legal retry edge and shared lineage",
+    "retry_lineage requires a legal pre-existing retry edge and shared lineage; the review never creates, redirects or deletes that retry edge",
     "unresolved_source_error preserves all identities and blocks automatic competing-attempt resolution",
     "lineage correction appends events and preserves prior classifications"
   ],
