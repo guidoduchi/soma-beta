@@ -28,8 +28,7 @@ def _factory(initialized_database):
 
 def _create_local(factory):
     return TaskPlanningService(factory).create_local_task(
-        command_id=new_uuid4(),
-        local_task_name="Relationship target",
+        command_id=new_uuid4(), local_task_name="Relationship target"
     )
 
 
@@ -49,33 +48,29 @@ def _create_rfc(factory, suffix: int) -> str:
 
 def _create_device(factory, suffix: int) -> str:
     return DeviceReferenceService(factory).create(
-        command_id=new_uuid4(),
-        operational_name=f"NE-REL-{suffix}",
+        command_id=new_uuid4(), operational_name=f"NE-REL-{suffix}"
     ).device_reference_id
 
 
-def _create_wfm(factory, suffix: int = 1):
-    rfc_id = _create_rfc(factory, 8_000 + suffix)
+def _create_wfm(factory, suffix: int):
     return TaskPlanningService(factory).register_manual_wfm_task(
         command_id=new_uuid4(),
         task_no=f"TK{suffix:014d}",
-        rfc_id=rfc_id,
+        rfc_id=_create_rfc(factory, 8_000 + suffix),
     )
 
 
 def _receipt_exists(factory, command_id: str) -> bool:
     with ReadSnapshot(factory) as snapshot:
         return snapshot.connection.execute(
-            "SELECT 1 FROM command_receipts WHERE command_id=?",
-            (command_id,),
+            "SELECT 1 FROM command_receipts WHERE command_id=?", (command_id,)
         ).fetchone() is not None
 
 
 def _task_revision(factory, task_id: str) -> int:
     with ReadSnapshot(factory) as snapshot:
         row = snapshot.connection.execute(
-            "SELECT revision FROM tasks WHERE task_id=?",
-            (task_id,),
+            "SELECT revision FROM tasks WHERE task_id=?", (task_id,)
         ).fetchone()
     assert row is not None
     return int(row[0])
@@ -85,8 +80,8 @@ def _relationship_rows(factory, task_id: str, kind: str, target_id: str):
     table, target_column = _RELATIONSHIP_STORAGE[kind]
     with ReadSnapshot(factory) as snapshot:
         return snapshot.connection.execute(
-            f"SELECT link_id,active,opened_command_id,closed_command_id "
-            f"FROM {table} WHERE task_id=? AND {target_column}=? ORDER BY rowid",
+            f"SELECT link_id,active,opened_command_id,closed_command_id FROM {table} "
+            f"WHERE task_id=? AND {target_column}=? ORDER BY rowid",
             (task_id, target_id),
         ).fetchall()
 
@@ -94,13 +89,13 @@ def _relationship_rows(factory, task_id: str, kind: str, target_id: str):
 def _change(
     factory,
     *,
-    command_id: str | None = None,
     task_id: str,
     task_revision: int,
     kind: str,
     target_id: str,
     action: str,
     reason: str | None = None,
+    command_id: str | None = None,
 ):
     return TaskRelationshipService(factory).change_task_relationship(
         command_id=new_uuid4() if command_id is None else command_id,
@@ -139,10 +134,13 @@ def test_local_task_links_sr_rfc_and_device_with_exact_audit(initialized_databas
         assert len(result.result_refs) == 1
         relationship_id = result.result_refs[0].result_id
         assert result.result_refs[0].result_type == "task_relationship"
+        assert tuple(_relationship_rows(factory, task.task_id, kind, targets[kind])[0]) == (
+            relationship_id,
+            1,
+            command_id,
+            None,
+        )
 
-        rows = _relationship_rows(factory, task.task_id, kind, targets[kind])
-        assert len(rows) == 1
-        assert tuple(rows[0]) == (relationship_id, 1, command_id, None)
         with ReadSnapshot(factory) as snapshot:
             audit = snapshot.connection.execute(
                 "SELECT audit_event_id,action_type,payload_schema,payload_json "
@@ -172,13 +170,14 @@ def test_local_task_links_sr_rfc_and_device_with_exact_audit(initialized_databas
     assert _task_revision(factory, task.task_id) == 4
 
 
-def test_wfm_device_relationship_is_legal_and_advances_task_revision(initialized_database) -> None:
+def test_wfm_device_link_and_unlink_are_legal_and_revisioned(initialized_database) -> None:
     factory = _factory(initialized_database)
     task = _create_wfm(factory, 201)
     device_id = _create_device(factory, 201)
-
+    open_command_id = new_uuid4()
     linked = _change(
         factory,
+        command_id=open_command_id,
         task_id=task.task_id,
         task_revision=1,
         kind="device",
@@ -204,7 +203,7 @@ def test_wfm_device_relationship_is_legal_and_advances_task_revision(initialized
     assert tuple(_relationship_rows(factory, task.task_id, "device", device_id)[0]) == (
         relationship_id,
         0,
-        linked.result_refs[0].result_id and _relationship_rows(factory, task.task_id, "device", device_id)[0][2],
+        open_command_id,
         close_command_id,
     )
     assert _task_revision(factory, task.task_id) == 3
@@ -236,7 +235,6 @@ def test_wfm_direct_sr_and_rfc_relationships_are_rejected_before_receipt(initial
 def test_missing_target_fails_before_no_change_or_receipt(initialized_database) -> None:
     factory = _factory(initialized_database)
     task = _create_local(factory)
-
     for kind in ("sr", "rfc", "device"):
         for action in ("link", "unlink"):
             command_id = new_uuid4()
@@ -261,7 +259,6 @@ def test_stale_task_revision_fails_before_receipt(initialized_database) -> None:
     task = _create_local(factory)
     device_id = _create_device(factory, 203)
     command_id = new_uuid4()
-
     with pytest.raises(SomaError) as exc_info:
         _change(
             factory,
@@ -277,12 +274,11 @@ def test_stale_task_revision_fails_before_receipt(initialized_database) -> None:
     assert _relationship_rows(factory, task.task_id, "device", device_id) == []
 
 
-def test_already_active_link_and_absent_unlink_are_semantic_no_change(initialized_database) -> None:
+def test_already_active_link_and_absent_unlink_are_no_change(initialized_database) -> None:
     factory = _factory(initialized_database)
     task = _create_local(factory)
     sr_id = _create_sr(factory)
     device_id = _create_device(factory, 204)
-
     first = _change(
         factory,
         task_id=task.task_id,
@@ -291,6 +287,7 @@ def test_already_active_link_and_absent_unlink_are_semantic_no_change(initialize
         target_id=sr_id,
         action="link",
     )
+
     same_command = new_uuid4()
     same = _change(
         factory,
@@ -301,11 +298,11 @@ def test_already_active_link_and_absent_unlink_are_semantic_no_change(initialize
         target_id=sr_id,
         action="link",
     )
-    assert same.no_change
-    assert same.revision == 2
-    assert same.result_refs == ()
+    assert same.no_change and same.revision == 2 and same.result_refs == ()
     assert not _receipt_exists(factory, same_command)
-    assert len(_relationship_rows(factory, task.task_id, "sr", sr_id)) == 1
+    assert first.result_refs[0].result_id == _relationship_rows(
+        factory, task.task_id, "sr", sr_id
+    )[0][0]
 
     absent_command = new_uuid4()
     absent = _change(
@@ -318,12 +315,9 @@ def test_already_active_link_and_absent_unlink_are_semantic_no_change(initialize
         action="unlink",
         reason="nothing_to_remove",
     )
-    assert absent.no_change
-    assert absent.revision == 2
-    assert absent.result_refs == ()
+    assert absent.no_change and absent.revision == 2 and absent.result_refs == ()
     assert not _receipt_exists(factory, absent_command)
     assert _task_revision(factory, task.task_id) == 2
-    assert first.result_refs[0].result_id == _relationship_rows(factory, task.task_id, "sr", sr_id)[0][0]
 
 
 def test_unlink_closes_same_row_and_relink_allocates_new_identity(initialized_database) -> None:
@@ -331,7 +325,6 @@ def test_unlink_closes_same_row_and_relink_allocates_new_identity(initialized_da
     task = _create_local(factory)
     rfc_id = _create_rfc(factory, 205)
     service = TaskRelationshipService(factory)
-
     open_command = new_uuid4()
     opened = service.change_task_relationship(
         command_id=open_command,
@@ -354,9 +347,12 @@ def test_unlink_closes_same_row_and_relink_allocates_new_identity(initialized_da
         reason_category="relationship_no_longer_applies",
     )
     assert closed.result_refs[0].result_id == first_id
-    rows = _relationship_rows(factory, task.task_id, "rfc", rfc_id)
-    assert len(rows) == 1
-    assert tuple(rows[0]) == (first_id, 0, open_command, close_command)
+    assert tuple(_relationship_rows(factory, task.task_id, "rfc", rfc_id)[0]) == (
+        first_id,
+        0,
+        open_command,
+        close_command,
+    )
 
     reopened = service.change_task_relationship(
         command_id=new_uuid4(),
@@ -371,9 +367,7 @@ def test_unlink_closes_same_row_and_relink_allocates_new_identity(initialized_da
     rows = _relationship_rows(factory, task.task_id, "rfc", rfc_id)
     assert len(rows) == 2
     assert tuple(rows[0]) == (first_id, 0, open_command, close_command)
-    assert str(rows[1][0]) == second_id
-    assert int(rows[1][1]) == 1
-    assert rows[1][3] is None
+    assert str(rows[1][0]) == second_id and int(rows[1][1]) == 1 and rows[1][3] is None
     assert _task_revision(factory, task.task_id) == 4
 
 
@@ -381,7 +375,6 @@ def test_target_metadata_revision_is_not_relationship_freshness_authority(initia
     factory = _factory(initialized_database)
     task = _create_local(factory)
     device_id = _create_device(factory, 206)
-
     corrected = DeviceReferenceService(factory).correct_name(
         command_id=new_uuid4(),
         device_reference_id=device_id,
@@ -390,7 +383,6 @@ def test_target_metadata_revision_is_not_relationship_freshness_authority(initia
         reason_category="name_correction",
     )
     assert corrected.revision == 2
-
     linked = _change(
         factory,
         task_id=task.task_id,
@@ -399,11 +391,10 @@ def test_target_metadata_revision_is_not_relationship_freshness_authority(initia
         target_id=device_id,
         action="link",
     )
-    assert linked.outcome == "APPLIED"
-    assert linked.revision == 2
+    assert linked.outcome == "APPLIED" and linked.revision == 2
 
 
-def test_exact_replay_after_later_close_returns_original_result_without_reopening(initialized_database) -> None:
+def test_exact_replay_after_later_close_does_not_reopen(initialized_database) -> None:
     factory = _factory(initialized_database)
     task = _create_local(factory)
     device_id = _create_device(factory, 207)
@@ -417,7 +408,6 @@ def test_exact_replay_after_later_close_returns_original_result_without_reopenin
         target_id=device_id,
         action="link",
     )
-
     opened = service.change_task_relationship(**open_kwargs)
     relationship_id = opened.result_refs[0].result_id
     service.change_task_relationship(
@@ -436,20 +426,16 @@ def test_exact_replay_after_later_close_returns_original_result_without_reopenin
     assert replay.revision == opened.revision == 2
     assert replay.result_refs == opened.result_refs
     rows = _relationship_rows(factory, task.task_id, "device", device_id)
-    assert len(rows) == 1
-    assert str(rows[0][0]) == relationship_id
-    assert int(rows[0][1]) == 0
-    assert rows[0][3] is not None
+    assert len(rows) == 1 and str(rows[0][0]) == relationship_id and int(rows[0][1]) == 0
     assert _task_revision(factory, task.task_id) == 3
 
 
-def test_command_id_collision_different_payload_does_not_cross_current_state(initialized_database) -> None:
+def test_command_id_collision_different_payload_is_rejected_before_state_reads(initialized_database) -> None:
     factory = _factory(initialized_database)
     task = _create_local(factory)
     device_id = _create_device(factory, 208)
     command_id = new_uuid4()
     service = TaskRelationshipService(factory)
-
     opened = service.change_task_relationship(
         command_id=command_id,
         task_id=task.task_id,
@@ -469,10 +455,8 @@ def test_command_id_collision_different_payload_does_not_cross_current_state(ini
             reason_category="different_payload",
         )
     rows = _relationship_rows(factory, task.task_id, "device", device_id)
-    assert len(rows) == 1
-    assert str(rows[0][0]) == opened.result_refs[0].result_id
-    assert int(rows[0][1]) == 1
-    assert _task_revision(factory, task.task_id) == 2
+    assert len(rows) == 1 and str(rows[0][0]) == opened.result_refs[0].result_id
+    assert int(rows[0][1]) == 1 and _task_revision(factory, task.task_id) == 2
 
 
 def test_preflight_is_strict_and_writes_nothing(initialized_database) -> None:
@@ -557,8 +541,6 @@ def test_audit_failure_rolls_back_unlink_and_keeps_active_row(initialized_databa
         )
     assert not _receipt_exists(factory, command_id)
     rows = _relationship_rows(factory, task.task_id, "sr", sr_id)
-    assert len(rows) == 1
-    assert str(rows[0][0]) == relationship_id
-    assert int(rows[0][1]) == 1
-    assert rows[0][3] is None
+    assert len(rows) == 1 and str(rows[0][0]) == relationship_id
+    assert int(rows[0][1]) == 1 and rows[0][3] is None
     assert _task_revision(factory, task.task_id) == 2
