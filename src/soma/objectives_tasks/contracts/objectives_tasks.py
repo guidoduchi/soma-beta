@@ -67,6 +67,19 @@ class TaskMutationResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ObjectiveMutationResult:
+    outcome: str
+    objective_id: str
+    revision: int
+    result_refs: tuple[TaskResultRef, ...]
+    replayed: bool
+
+    @property
+    def no_change(self) -> bool:
+        return self.outcome == "NO_CHANGE"
+
+
+@dataclass(frozen=True, slots=True)
 class WfmActivityRelationshipReviewResult:
     outcome: str
     decision: str
@@ -144,6 +157,46 @@ def task_mutation_result_from_execution(result: CommandExecutionResult) -> TaskM
     return TaskMutationResult(
         outcome=str(outcome),
         task_id=task_id,
+        revision=revision,
+        result_refs=refs,
+        replayed=result.replayed,
+    )
+
+
+def objective_mutation_result_from_execution(result: CommandExecutionResult) -> ObjectiveMutationResult:
+    expected_fields = {"outcome", "objective_id", "revision", "result_refs"}
+    if (
+        result.response_schema != "ObjectiveMutationResultV1"
+        or result.response_version != 1
+        or not isinstance(result.response, dict)
+        or set(result.response) != expected_fields
+    ):
+        raise IntegrityFailure("Objective mutation replay result has the wrong response contract")
+    response = result.response
+    outcome = response.get("outcome")
+    objective_id = response.get("objective_id")
+    revision = response.get("revision")
+    if outcome not in {"APPLIED", "NO_CHANGE"} or bool(result.no_change) != (outcome == "NO_CHANGE"):
+        raise IntegrityFailure("Objective mutation replay result has inconsistent outcome")
+    try:
+        if not isinstance(objective_id, str):
+            raise ValidationError("objective_id must be UUID text")
+        require_uuid4(objective_id)
+    except ValidationError as exc:
+        raise IntegrityFailure("Objective mutation replay result has invalid Objective identity") from exc
+    if type(revision) is not int or revision <= 0:
+        raise IntegrityFailure("Objective mutation replay result has invalid Objective revision")
+    refs = _parse_result_refs(response.get("result_refs"), max_items=100)
+    if outcome == "NO_CHANGE" and refs:
+        raise IntegrityFailure("Objective mutation NO_CHANGE response cannot claim material result refs")
+    if outcome == "APPLIED":
+        if not isinstance(result.result_type, str) or not isinstance(result.result_id, str):
+            raise IntegrityFailure("Objective mutation material receipt is missing result identity")
+        if (result.result_type, result.result_id) not in {(ref.result_type, ref.result_id) for ref in refs}:
+            raise IntegrityFailure("Objective mutation response does not include its material receipt result")
+    return ObjectiveMutationResult(
+        outcome=str(outcome),
+        objective_id=objective_id,
         revision=revision,
         result_refs=refs,
         replayed=result.replayed,
