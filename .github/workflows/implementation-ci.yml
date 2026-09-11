@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 3
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -206,8 +206,6 @@ def test_same_second_start_end_uses_execution_revision_not_uuid_order(initialize
 '''
           end_test_path.write_bytes(end_test_path.read_bytes() + hostile_test.replace("\n", newline.decode()).encode())
 
-          # Fail closed if any Objective/Task test still uses a named execution-event insert
-          # without binding the authoritative execution_revision column.
           for path in sorted(Path("tests").glob("test_objectives_tasks*.py")):
               text = path.read_text(encoding="utf-8")
               cursor = 0
@@ -222,7 +220,7 @@ def test_same_second_start_end_uses_execution_revision_not_uuid_order(initialize
           '@ | python -
       - name: Restore normal CI workflow
         shell: pwsh
-        run: git checkout HEAD^ -- .github/workflows/implementation-ci.yml
+        run: git checkout 78da01fbda583276bccaa85f97b6e6509332c8e4 -- .github/workflows/implementation-ci.yml
       - name: Commit bounded repair
         shell: pwsh
         run: |
