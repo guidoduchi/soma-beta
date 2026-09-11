@@ -1,102 +1,47 @@
-name: Apply bounded execution fixture repair
+name: Beta implementation CI
 
 on:
   push:
     branches:
       - feat/beta-1.0-implementation
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "tools/**"
+      - "pyproject.toml"
+      - ".gitattributes"
+      - ".github/workflows/implementation-ci.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  repair:
+  tests:
+    name: Python ${{ matrix.python-version }} / Windows
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-      - name: Apply deterministic fixture repair
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install test environment
         shell: pwsh
-        run: |
-          @'
-          from pathlib import Path
-
-          def replace_bytes(path: str, old: bytes, new: bytes, expected: int) -> None:
-              file = Path(path)
-              data = file.read_bytes()
-              count = data.count(old)
-              if count != expected:
-                  raise SystemExit(f"{path}: expected {expected} replacements, found {count}")
-              file.write_bytes(data.replace(old, new))
-
-          column_old = b"execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-          column_new = b"execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
-          plans = {
-              "tests/test_objectives_tasks_explicit_locks.py": (1, 1, 0, 0),
-              "tests/test_objectives_tasks_objective_aggregate_integrity.py": (2, 1, 0, 1),
-              "tests/test_objectives_tasks_selected_execution.py": (2, 1, 1, 0),
-              "tests/test_objectives_tasks_set_task_plan.py": (1, 1, 0, 0),
-              "tests/test_objectives_tasks_task_execution.py": (2, 1, 1, 0),
-              "tests/test_objectives_tasks_task_execution_end.py": (2, 1, 1, 0),
-              "tests/test_objectives_tasks_task_hard_delete.py": (1, 1, 0, 0),
-          }
-          for path, (columns, starts, corrections, ends) in plans.items():
-              replace_bytes(path, column_old, column_new, columns)
-              if starts:
-                  replace_bytes(path, b"VALUES (?,?,'start'", b"VALUES (?,?,1,'start'", starts)
-              if corrections:
-                  replace_bytes(path, b"VALUES (?,?,'correction'", b"VALUES (?,?,2,'correction'", corrections)
-              if ends:
-                  replace_bytes(path, b"VALUES (?,?,'end'", b"VALUES (?,?,2,'end'", ends)
-
-          schema = "tests/test_objectives_tasks_schema.py"
-          replace_bytes(
-              schema,
-              b"73f2601485135bf7bd64595976131f3d63727e35fb64217f81dbca1876ca1fcd",
-              b"af73f2551a5022e91a5b37f9cdb4b41e6ac79a85dde9c99480b1eff506cd361d",
-              1,
-          )
-          replace_bytes(
-              schema,
-              b"INSERT INTO task_execution_events VALUES (?, ?, 'start', 10, NULL, NULL, NULL, 10, ?)",
-              b"INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,correction_action,reason_code,recorded_at_utc,command_id) VALUES (?, ?, 1, 'start', 10, NULL, NULL, NULL, 10, ?)",
-              1,
-          )
-          schema_path = Path(schema)
-          schema_data = schema_path.read_bytes()
-          newline = b"\r\n" if b"\r\n" in schema_data else b"\n"
-          index_needle = b'    "idx_task_execution_task_recorded",'
-          if schema_data.count(index_needle) != 1:
-              raise SystemExit("schema index anchor is not unique")
-          schema_path.write_bytes(schema_data.replace(
-              index_needle,
-              index_needle + newline + b'    "idx_task_execution_task_revision",',
-          ))
-
-          for path in sorted(Path("tests").glob("test_objectives_tasks*.py")):
-              text = path.read_text(encoding="utf-8")
-              cursor = 0
-              while True:
-                  start = text.find("INSERT INTO task_execution_events", cursor)
-                  if start < 0:
-                      break
-                  values = text.find("VALUES", start)
-                  if values < 0 or "execution_revision" not in text[start:values]:
-                      raise SystemExit(f"{path}: stale execution-event insert remains near offset {start}")
-                  cursor = values + 6
-          '@ | python -
-      - name: Restore normal CI workflow
+        run: python -m pip install -e ".[test]"
+      - name: Compile package
         shell: pwsh
-        run: git checkout 78da01fbda583276bccaa85f97b6e6509332c8e4 -- .github/workflows/implementation-ci.yml
-      - name: Commit bounded repair
+        run: python -m compileall -q src tests
+      - name: Run complete implementation test suite
         shell: pwsh
-        run: |
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests .github/workflows/implementation-ci.yml
-          git commit -m "Rebind Task execution revision fixtures"
-          git push origin HEAD:feat/beta-1.0-implementation
+        run: python -m pytest
+      - name: Build wheel
+        shell: pwsh
+        run: python -m pip wheel --no-deps . --wheel-dir dist
+      - name: Verify packaged authority resources
+        shell: pwsh
+        run: python tools/verify_wheel_resources.py dist

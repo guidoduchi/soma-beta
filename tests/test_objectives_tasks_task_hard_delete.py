@@ -579,9 +579,9 @@ def test_execution_or_outcome_history_blocks_hard_delete(deletion, history_kind)
         if history_kind == "execution":
             uow.connection.execute(
                 "INSERT INTO task_execution_events("
-                "execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,correction_action,"
+                "execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,correction_action,"
                 "reason_code,recorded_at_utc,command_id"
-                ") VALUES (?,?,'start',1,NULL,NULL,NULL,1,?)",
+                ") VALUES (?,?,1,'start',1,NULL,NULL,NULL,1,?)",
                 (new_uuid4(), registered.task_id, history_command),
             )
             expected = "TASK_EXECUTION_HISTORY_PRESENT"

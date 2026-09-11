@@ -432,8 +432,8 @@ def test_set_task_plan_is_blocked_by_explicit_plan_lock_and_execution_history(in
     with UnitOfWork(factory) as uow:
         event_id = new_uuid4()
         uow.connection.execute(
-            "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',10,NULL,NULL,NULL,10,?)",
+            "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,1,'start',10,NULL,NULL,NULL,10,?)",
             (event_id, execution.task_id, execution_command),
         )
         uow.connection.execute(

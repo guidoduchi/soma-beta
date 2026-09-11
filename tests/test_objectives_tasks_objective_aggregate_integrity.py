@@ -79,8 +79,8 @@ def test_aggregate_rebuild_rejects_hidden_execution_history_without_projection(i
     hidden_event_id = new_uuid4()
     with UnitOfWork(factory) as uow:
         uow.connection.execute(
-            "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',?,NULL,NULL,NULL,2,?)",
+            "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,1,'start',?,NULL,NULL,NULL,2,?)",
             (hidden_event_id, task_id, start_utc + 10, creation_command),
         )
 
@@ -108,8 +108,8 @@ def test_aggregate_rebuild_rejects_projection_that_does_not_point_to_latest_even
     trailing_event_id = new_uuid4()
     with UnitOfWork(factory) as uow:
         uow.connection.execute(
-            "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'end',?,NULL,NULL,NULL,2147483647,?)",
+            "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,2,'end',?,NULL,NULL,NULL,2147483647,?)",
             (trailing_event_id, task_id, start_utc + 20, creation_command),
         )
 

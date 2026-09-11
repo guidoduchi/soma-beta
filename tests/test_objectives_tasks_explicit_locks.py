@@ -65,8 +65,8 @@ def _seed_execution(factory, task_id: str) -> None:
     with UnitOfWork(factory) as uow:
         event_id = new_uuid4()
         uow.connection.execute(
-            "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',10,NULL,NULL,NULL,10,?)",
+            "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,1,'start',10,NULL,NULL,NULL,10,?)",
             (event_id, task_id, command_id),
         )
         uow.connection.execute(

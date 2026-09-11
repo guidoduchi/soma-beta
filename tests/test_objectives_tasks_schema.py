@@ -61,6 +61,7 @@ _REQUIRED_QUERY_INDEXES = {
     "idx_wfm_task_no_retirements_hard_delete_command",
     "idx_task_plan_task_accepted",
     "idx_task_execution_task_recorded",
+    "idx_task_execution_task_revision",
     "idx_task_outcome_task_reviewed",
     "idx_task_sr_links_task_active_target",
     "uq_task_sr_links_active",
@@ -85,7 +86,7 @@ _REQUIRED_QUERY_INDEXES = {
     "idx_wfm_terminal_review_source_revision_task",
 }
 
-_MIGRATION_6_SHA256 = "73f2601485135bf7bd64595976131f3d63727e35fb64217f81dbca1876ca1fcd"
+_MIGRATION_6_SHA256 = "af73f2551a5022e91a5b37f9cdb4b41e6ac79a85dde9c99480b1eff506cd361d"
 
 
 def _factory(initialized_database):
@@ -483,7 +484,7 @@ def test_protected_execution_history_cannot_be_erased_to_manufacture_hard_delete
             end_utc=20,
         )
         uow.connection.execute(
-            "INSERT INTO task_execution_events VALUES (?, ?, 'start', 10, NULL, NULL, NULL, 10, ?)",
+            "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,correction_action,reason_code,recorded_at_utc,command_id) VALUES (?, ?, 1, 'start', 10, NULL, NULL, NULL, 10, ?)",
             (execution_event, task_id, create_command),
         )
 

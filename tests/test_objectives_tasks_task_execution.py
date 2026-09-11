@@ -285,13 +285,13 @@ def test_start_after_corrected_to_not_started_uses_positive_execution_revision(i
     correction_id = new_uuid4()
     with UnitOfWork(factory) as uow:
         uow.connection.execute(
-            "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'start',?,NULL,NULL,NULL,1,?)",
+            "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,1,'start',?,NULL,NULL,NULL,1,?)",
             (original_start_id, task_id, 1_940_040_100, creation_command),
         )
         uow.connection.execute(
-            "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
-            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'correction',NULL,?,'withdraw','test',2,?)",
+            "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+            "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,2,'correction',NULL,?,'withdraw','test',2,?)",
             (correction_id, task_id, original_start_id, creation_command),
         )
         uow.connection.execute(
