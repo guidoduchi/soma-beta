@@ -100,6 +100,12 @@ def _validate_effective_start(value: object) -> int | str:
     raise ValidationError("effective_start_utc must be a nonnegative UTC whole second or exact canonical-now token")
 
 
+def _validate_effective_end(value: object) -> int:
+    if type(value) is not int or value < 0:
+        raise ValidationError("effective_end_utc must be a nonnegative UTC whole second")
+    return value
+
+
 def _validate_execution_audit(payload: dict[str, object]) -> None:
     task_id = payload.get("task_id")
     event_id = payload.get("execution_event_id")
@@ -110,13 +116,13 @@ def _validate_execution_audit(payload: dict[str, object]) -> None:
         require_uuid4(event_id)
     except ValidationError as exc:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit identity is invalid") from exc
-    if payload.get("event_kind") != "start":
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "StartTaskExecution audit event kind is invalid")
+    if payload.get("event_kind") not in {"start", "end"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit event kind is invalid")
     effective_at = payload.get("effective_at_utc")
     if type(effective_at) is not int or effective_at < 0:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit effective time is invalid")
     if payload.get("target_event_id") is not None or payload.get("reason_category") is not None:
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "StartTaskExecution audit cannot claim correction/reason authority")
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution start/end audit cannot claim correction/reason authority")
     task_revision = payload.get("resulting_task_revision")
     execution_revision = payload.get("resulting_execution_revision")
     if type(task_revision) is not int or task_revision <= 1:
@@ -743,3 +749,124 @@ class TaskExecutionService:
         if len(result.result_refs) != len(canonical_requests):
             raise IntegrityFailure("selected-Task start result count does not match selected Task count")
         return result
+
+    def end_task_execution(
+        self,
+        *,
+        command_id: str,
+        task_id: str,
+        task_revision: int,
+        execution_revision: int,
+        effective_end_utc: int,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> TaskMutationResult:
+        canonical_task_id = require_uuid4(task_id)
+        expected_task_revision = _require_revision(task_revision, label="task_revision")
+        expected_execution_revision = _require_revision(execution_revision, label="execution_revision")
+        accepted_end = _validate_effective_end(effective_end_utc)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="EndTaskExecution",
+            target_type="task",
+            target_id=canonical_task_id,
+            semantic_payload={
+                "execution_revision": expected_execution_revision,
+                "effective_end_utc": accepted_end,
+            },
+            base_revisions={canonical_task_id: expected_task_revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            task = self._tasks.get(uow.connection, canonical_task_id)
+            if task is None:
+                raise SomaError("TASK_NOT_FOUND", "Task does not exist")
+            if task.revision != expected_task_revision:
+                raise SomaError("TASK_STALE", "Task revision changed")
+            authority = self._execution_authority(uow.connection, canonical_task_id)
+            if authority.revision != expected_execution_revision:
+                raise SomaError("TASK_STALE", "Task execution revision changed")
+            if authority.state == "not_started":
+                raise SomaError("TASK_EXECUTION_NOT_STARTED", "Task has no current accepted start evidence")
+            if authority.state in {"ended", "terminated"}:
+                raise SomaError("TASK_EXECUTION_ALREADY_TERMINAL", "Task execution is already terminal")
+            if authority.state != "in_progress" or authority.actual_start_utc is None:
+                raise IntegrityFailure("Task execution authority has invalid in-progress state")
+            if self._has_terminal_outcome(uow.connection, canonical_task_id):
+                raise IntegrityFailure("Task has a reviewed terminal outcome before execution end")
+            if accepted_end < authority.actual_start_utc:
+                raise ValidationError("effective_end_utc cannot precede current accepted actual start")
+
+            recorded_at = utc_epoch_seconds()
+            event_id = new_uuid4()
+            audit_event_id = new_uuid4()
+            resulting_task_revision = task.revision + 1
+            resulting_execution_revision = authority.revision + 1
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                inner.connection.execute(
+                    "INSERT INTO task_execution_events(execution_event_id,task_id,event_kind,effective_at_utc,target_event_id,"
+                    "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,'end',?,NULL,NULL,NULL,?,?)",
+                    (event_id, canonical_task_id, accepted_end, recorded_at, command_id),
+                )
+                updated = inner.connection.execute(
+                    "UPDATE task_execution_projection SET execution_state='ended',actual_end_utc=?,"
+                    "effective_termination_utc=NULL,termination_reason=NULL,revision=revision+1,last_event_id=? "
+                    "WHERE task_id=? AND revision=?",
+                    (accepted_end, event_id, canonical_task_id, authority.revision),
+                )
+                if updated.rowcount != 1:
+                    raise IntegrityFailure("Task execution projection changed during guarded end")
+                self._tasks.increment_revision(
+                    inner,
+                    task_id=canonical_task_id,
+                    expected_revision=expected_task_revision,
+                )
+                membership = self._objectives.current_membership_for_task(inner.connection, canonical_task_id)
+                if membership is not None:
+                    self._objectives.rebuild_aggregate(
+                        inner,
+                        objective_id=membership.objective_id,
+                        command_id=command_id,
+                    )
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="task.execution_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="task",
+                    target_id=canonical_task_id,
+                    reason_category=None,
+                    command_id=command_id,
+                    payload_schema="TaskExecutionAuditV1",
+                    payload_version=1,
+                    payload={
+                        "task_id": canonical_task_id,
+                        "execution_event_id": event_id,
+                        "event_kind": "end",
+                        "effective_at_utc": accepted_end,
+                        "target_event_id": None,
+                        "resulting_task_revision": resulting_task_revision,
+                        "resulting_execution_revision": resulting_execution_revision,
+                        "reason_category": None,
+                    },
+                    resulting_event_refs=(AuditResultRef("task_execution_event", event_id),),
+                )
+
+            return PreparedMutation(
+                False,
+                "task_execution_event",
+                event_id,
+                apply,
+                response_schema="TaskMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "task_id": canonical_task_id,
+                    "revision": resulting_task_revision,
+                    "result_refs": [{"type": "task_execution_event", "id": event_id}],
+                },
+            )
+
+        return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
