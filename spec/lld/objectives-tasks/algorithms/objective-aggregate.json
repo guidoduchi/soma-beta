@@ -22,7 +22,7 @@
       "recorded_at/reviewed_at values that do not alter accepted execution/outcome authority",
       "audit ids, last_command_id and command receipt metadata",
       "Customer/RFC/SR/Device display context",
-      "provider source fields except where a separately governed local execution consequence has already changed Task execution authority"
+      "provider source fields and source-terminal review state; a governed local consequence enters the aggregate only through changed Task execution/outcome authority"
     ]
   },
   "review_fingerprint":{
@@ -42,7 +42,7 @@
       "all members with current execution-compatible accepted outcomes derive aggregate outcome; state is reviewed only when current_review is non-null, otherwise awaiting_review",
       "governed loss of the final executable member after accepted started work derives awaiting_review/lost_last_executable",
       "otherwise persisted aggregate state is planned; clock passage alone never mutates objective_aggregate_projection",
-      "current operational plan id differing from any membership accepted_plan_revision_id derives plan_membership_mismatch unless a higher-safety attention reason applies"
+      "current operational plan id differing from any membership accepted_plan_revision_id derives plan_membership_mismatch unless a higher-safety material attention reason applies"
     ],
     "outcomes":[
       "all included completed => completed",
@@ -52,9 +52,10 @@
       "zero included with at least one excluded => excluded_from_operational_counts"
     ]
   },
-  "clock_boundary":{
-    "rule":"ObjectiveList, ObjectiveWorkbench and ObjectiveReviewQueue may derive an effective read-time awaiting_review/due_unreviewed overlay when as_of_utc>=membership-pinned envelope end and the material aggregate would otherwise remain planned/unreviewed. This overlay is read-only, creates no receipt/revision/audit row, and never fabricates Task outcome or execution evidence.",
-    "persistence":"A later material command may rebuild objective_aggregate_projection from the same material authority, but the aggregate_input_fingerprint never includes current time and a clock-only due overlay never causes a projection revision increment."
+  "read_overlays":{
+    "due_unreviewed":"ObjectiveList, ObjectiveWorkbench and ObjectiveReviewQueue may derive an effective read-time awaiting_review/due_unreviewed overlay when as_of_utc>=membership-pinned envelope end and material aggregate would otherwise remain planned/unreviewed.",
+    "source_terminal_conflict":"Objective workbench/review queries may derive source_terminal_conflict from current WFM provider/source-terminal-review authority. It is warning/review context only until a governed local consequence changes Task execution/outcome authority; it does not enter SOMA_OBJECTIVE_AGGREGATE_INPUT_V1 and does not independently mutate objective_aggregate_projection.",
+    "rule":"Read overlays create no receipt, domain/projection revision or audit event and never fabricate Task outcome/execution evidence. A later material command may rebuild from material authority, but an overlay-only difference cannot advance the aggregate revision."
   },
   "projection_revision":{
     "rule":"rebuild computes the exact material fingerprint before writing. If an existing aggregate row already has that fingerprint and the same material derived fields, leave the row and revision unchanged. Otherwise create revision 1 or advance revision exactly once and set last_command_id to the owning outer command. A fingerprint/field disagreement for supposedly equal material authority fails closed as integrity drift."
