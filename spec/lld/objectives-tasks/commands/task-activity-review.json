@@ -6,18 +6,18 @@
     {
       "name":"ReviewWfmActivityRelationship",
       "input":[
-        "seed_tasks: unique canonical task_id/task_revision pairs with at least two WFM Tasks, canonical-sorted by task_id",
+        "seed_tasks: unique canonical task_id/task_revision pairs for 2..1000 WFM Tasks, canonical-sorted by task_id",
         "decision: distinct_activity|same_activity|retry_lineage|unresolved_source_error",
         "review_fingerprint: exact lowercase sha256 from WfmActivityRelationshipReviewPreview",
         "reason_category: nonempty one-line UTF-8 text 1..128 bytes, no NUL/CR/LF",
         "command_id"
       ],
       "steps":[
-        "pure-preflight require at least two unique canonical UUIDv4 seed task identities, positive integer Task revisions, canonical task_id ordering, one closed decision, exact lowercase sha256 review_fingerprint and bounded reason_category",
+        "pure-preflight require 2..1000 unique canonical UUIDv4 seed task identities, positive integer Task revisions, canonical task_id ordering, one closed decision, exact lowercase sha256 review_fingerprint and bounded reason_category",
         "inside one writer UnitOfWork load every seed Task and require task_kind=wfm plus a distinct canonical TK identity; missing Task/WFM identity returns TASK_NOT_FOUND and any Task revision mismatch returns TASK_STALE before receipt/domain mutation",
         "recompute SOMA_WFM_ACTIVITY_RELATIONSHIP_REVIEW_V1 from current authority using the same algorithm as WfmActivityRelationshipReviewPreview and exact-compare the supplied review_fingerprint; any change in seed Task revision, WFM identity, source projection, current operational plan, local execution/outcome, retry adjacency, current lineage membership/revision/last decision or complete touched-lineage closure returns TASK_ACTIVITY_REVIEW_STALE before receipt/domain mutation",
         "for retry_lineage require exactly two seed Tasks and one existing immutable direct task_retry_relations edge between them in either predecessor/successor direction; this command never creates, redirects or deletes a retry edge",
-        "derive the complete affected lineage closure before mutation: every Task currently belonging to a lineage touched by any seed Task is included in the preview/fingerprint so a reviewed merge/split cannot silently change an unreviewed third Task's same-activity relationship",
+        "derive the complete affected lineage closure before mutation: every Task currently belonging to a lineage touched by any seed Task is included in the preview/fingerprint so a reviewed merge/split cannot silently change an unreviewed third Task's same-activity relationship; the 1000-seed request bound never caps this authoritative closure",
         "if the requested decision is already the exact accepted current classification for the reviewed seed/closure under the same current authority, return semantic NO_CHANGE after exact freshness; Foundation still persists the command receipt and immutable replay-result snapshot but no lineage event, Task/lineage revision or audit event is created",
         "insert one outer receipt for a material review",
         "distinct_activity assigns each affected Task a fresh opaque singleton activity_lineage_id; append one lineage event per affected Task with reason_code=distinct_activity and prior/new lineage identities, then create/advance each current lineage projection",
