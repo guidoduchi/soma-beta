@@ -1,0 +1,128 @@
+name: RC006 A2 Allocate Product Contract Final
+
+on:
+  push:
+    branches:
+      - foundation/product-contract-v0.1
+    paths:
+      - '.github/workflows/rc006-a2-allocate-product-contract-final.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  allocate:
+    runs-on: ubuntu-latest
+    env:
+      A2_WORK: /tmp/rc006-a2-product-allocation-final
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Verify zero boundary and reproduce prediction
+        run: |
+          set -euo pipefail
+          mkdir -p "$A2_WORK"
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py --repo . check-state --expect-zero --output "$A2_WORK/readiness.json"
+          test ! -e docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl
+          test "$(git rev-parse HEAD:docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl)" = "3fdbad0c4b9484735020a1dec2698c0e7e14ef95"
+          test "$(git hash-object docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl)" = "3fdbad0c4b9484735020a1dec2698c0e7e14ef95"
+          test "$(git rev-parse HEAD:tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py)" = "d479b0e8158b96487d696792f3077e56cf7cce0d"
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py --repo . preallocate --mode INITIAL --source-path docs/PRODUCT_CONTRACT.md --candidates docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl --batch-id A2-BATCH-0001-PRODUCT-CONTRACT --output "$A2_WORK/preallocation.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          r=json.loads((Path(os.environ['A2_WORK'])/'preallocation.json').read_text())
+          assert r['result']=='PASS' and r['mutation_performed'] is False
+          assert r['assertion_count']==431 and r['candidate_count']==431
+          assert r['first_assertion_id']=='A2-ASSERT-000001' and r['last_assertion_id']=='A2-ASSERT-000431'
+          assert r['candidate_git_blob_sha']=='3fdbad0c4b9484735020a1dec2698c0e7e14ef95'
+          assert r['candidate_payload_sha256']=='97dffb8a826747fc9bc12bdbb876147da591b2e1350bed9a319cb86b9bab1ba7'
+          assert r['section_ordinals']==list(range(1,28))
+          assert r['new_ledger_sha256']=='bbb71e9d6b7e0b9cff67f1b979c86a3e72664ad93f5df6a6d1c8326e947f0155'
+          assert r['new_state_sha256']=='ffb863cca14f8b4e799c0554b6caae5cdbde1a7f7ae199481a4f1ec2ad412602'
+          assert r['result_payload_sha256']=='438fc4635080f763d05734706715d10798b7ec6ee78d6d1c609d2db6e6b468e8'
+          assert r['tool_git_blob_sha']=='d479b0e8158b96487d696792f3077e56cf7cce0d'
+          assert r['tool_sha256']=='6c59ba98d47af0ff2f9d233c3fd425b0c8b60d1e42938c514574c8423458ab56'
+          print('PREALLOCATION_REPRODUCTION\tPASS')
+          PY
+
+      - name: Execute exact batch and verify outputs
+        run: |
+          set -euo pipefail
+          python tools/reconciliation/allocate_rc006_a2_assertions_v1_2.py --repo . allocate --mode INITIAL --source-path docs/PRODUCT_CONTRACT.md --candidates docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl --batch-id A2-BATCH-0001-PRODUCT-CONTRACT --output "$A2_WORK/allocation.json"
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          r=json.loads((Path(os.environ['A2_WORK'])/'allocation.json').read_text())
+          assert r['result']=='PASS' and r['mutation_performed'] is True
+          assert r['assertion_count']==431 and r['first_assertion_id']=='A2-ASSERT-000001' and r['last_assertion_id']=='A2-ASSERT-000431'
+          assert r['new_ledger_sha256']=='bbb71e9d6b7e0b9cff67f1b979c86a3e72664ad93f5df6a6d1c8326e947f0155'
+          assert r['new_state_sha256']=='ffb863cca14f8b4e799c0554b6caae5cdbde1a7f7ae199481a4f1ec2ad412602'
+          ledger=Path('docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl').read_bytes()
+          state_raw=Path('docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json').read_bytes()
+          assert hashlib.sha256(ledger).hexdigest()==r['new_ledger_sha256']
+          assert hashlib.sha256(state_raw).hexdigest()==r['new_state_sha256']
+          rows=[json.loads(x) for x in ledger.decode().splitlines()]
+          assert len(rows)==431
+          assert [x['assertion_id'] for x in rows]==[f'A2-ASSERT-{i:06d}' for i in range(1,432)]
+          assert all(x['allocation_batch_id']=='A2-BATCH-0001-PRODUCT-CONTRACT' for x in rows)
+          assert all(x['source_path']=='docs/PRODUCT_CONTRACT.md' for x in rows)
+          assert all(x['semantic_review']=='PENDING_AUTHORITY' for x in rows)
+          s=json.loads(state_raw)
+          assert s['allocated_count']==431 and s['highest_allocated_assertion_id']=='A2-ASSERT-000431' and s['next_assertion_number']==432
+          assert s['completed_initial_sources']==['docs/PRODUCT_CONTRACT.md'] and len(s['batches'])==1
+          print('ALLOCATION_OUTPUTS\tPASS')
+          PY
+          test "$(git rev-parse HEAD:docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl)" = "3fdbad0c4b9484735020a1dec2698c0e7e14ef95"
+          test "$(git hash-object docs/reconciliation/candidates/RC006_A2_PRODUCT_CONTRACT_CANDIDATES.jsonl)" = "3fdbad0c4b9484735020a1dec2698c0e7e14ef95"
+
+      - name: Create immutable batch evidence
+        env:
+          EXECUTION_WORKFLOW_COMMIT: ${{ github.sha }}
+          EXECUTION_RUN_ID: ${{ github.run_id }}
+          EXECUTION_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          r=json.loads((Path(os.environ['A2_WORK'])/'allocation.json').read_text())
+          lines=[
+            '# RC-006-A2 Product Contract allocation batch evidence','',
+            '**Batch:** `A2-BATCH-0001-PRODUCT-CONTRACT`  ','**Status:** `ALLOCATED / VERIFIED`  ',
+            '**Scope:** stable-ID allocation only; reverse canonical authority mapping and A2 certification remain open.','',
+            '## Execution identity','',f"- Baseline: `A2-BASELINE-002`",f"- Workflow source commit: `{os.environ['EXECUTION_WORKFLOW_COMMIT']}`",f"- GitHub Actions run: `{os.environ['EXECUTION_RUN_ID']}`",f"- Run attempt: `{os.environ['EXECUTION_RUN_ATTEMPT']}`",f"- Allocator version: `{r['tool_version']}`",f"- Allocator Git blob: `{r['tool_git_blob_sha']}`",f"- Allocator SHA-256: `{r['tool_sha256']}`",'',
+            '## Frozen candidate identity','',f"- Source path: `{r['source_path']}`",f"- Pinned B002 source commit: `{r['pinned_source_commit']}`",f"- Pinned source blob: `{r['pinned_source_blob_sha']}`",f"- Candidate path: `{r['candidate_path']}`",f"- Candidate Git blob: `{r['candidate_git_blob_sha']}`",f"- Candidate payload SHA-256: `{r['candidate_payload_sha256']}`",f"- Candidate count: `{r['candidate_count']}`",f"- Section count: `{r['section_count_with_candidates']}`",'- Section ordinals: `1..27`','',
+            '## Allocation result','',f"- Result: `{r['result']}`",f"- First assertion: `{r['first_assertion_id']}`",f"- Last assertion: `{r['last_assertion_id']}`",f"- Assertion count: `{r['assertion_count']}`",f"- Previous state SHA-256: `{r['previous_state_sha256']}`",f"- Result payload SHA-256: `{r['result_payload_sha256']}`",f"- Authority ledger SHA-256: `{r['new_ledger_sha256']}`",f"- Allocation state SHA-256: `{r['new_state_sha256']}`",'',
+            'All 431 records remain `PENDING_AUTHORITY`; this artifact does not claim reverse-authority completion or RC-006-A2 certification PASS.',''
+          ]
+          Path('docs/reconciliation/RC006_A2_BATCH_0001_PRODUCT_CONTRACT.md').write_text('\n'.join(lines),encoding='utf-8',newline='\n')
+          PY
+
+      - name: Enforce and commit exact three-file boundary
+        run: |
+          set -euo pipefail
+          rm -rf tools/reconciliation/__pycache__
+          python - <<'PY'
+          import subprocess
+          expected={'docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl','docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json','docs/reconciliation/RC006_A2_BATCH_0001_PRODUCT_CONTRACT.md'}
+          paths={line[3:].split(' -> ',1)[-1] for line in subprocess.check_output(['git','status','--porcelain=v1'],text=True).splitlines()}
+          assert paths==expected,(paths,expected)
+          print('THREE_FILE_WORKTREE_BOUNDARY\tPASS')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/reconciliation/RC006_A2_ASSERTION_AUTHORITY.jsonl docs/reconciliation/RC006_A2_ASSERTION_ALLOCATION_STATE.json docs/reconciliation/RC006_A2_BATCH_0001_PRODUCT_CONTRACT.md
+          test "$(git diff --cached --name-only | wc -l)" -eq 3
+          git commit -m 'Allocate A2 Product Contract assertions 000001-000431'
+          git push origin HEAD:foundation/product-contract-v0.1

@@ -1,0 +1,110 @@
+# SOMA Beta Domain Glossary
+
+This glossary is normative product language. UI copy, schemas, imports, and documentation should use these terms consistently.
+
+| Term | Contract definition |
+|---|---|
+| Local User Profile | The sole authenticating local administrator profile for one SOMA installation. |
+| Registered Person | Descriptive product language for a person represented canonically by a Contact record. It is not a second entity type and is not a login account. |
+| Contact | The reusable operational/business record representing a person or role. A Contact has its own immutable identity, may optionally belong to a Customer Organization, and is distinct from the Local User Profile. |
+| Customer Organization | The customer boundary that owns Contracts and Datacenter Sites. Equal names or city labels do not merge different organizations or physical locations. |
+| Contract | A service agreement belonging to exactly one Customer Organization under which one or more Contract Product Lines and their SLA policies are configured. One Customer Organization may have multiple Contracts. |
+| Product | An untrusted Advanced Search source column discarded by Beta 1.0; it cannot classify an SR or create operational relationships. |
+| Product Line | A reusable service or technology classification, such as IT or NFV. It does not own SLA policy outside a Contract. |
+| Contract Product Line | One occurrence of a reusable Product Line inside one Contract. It owns that Contract-specific SLA cohort policy. Different Customer Organizations may configure different policies for the same Product Line. |
+| Service Request (SR) | A pivotal Ticket that connects service work, RFCs, spares, and infrastructure evidence. Official identity: exactly 8 digits; manual local identity: `LSR-` + 8 digits. |
+| Request for Change (RFC) | A change Ticket that owns WFM Tasks. Official identity: `NC` + 14 digits. RFC hierarchy is exactly two levels. |
+| Master RFC | A root RFC that may own direct subordinate RFCs and is the only RFC role eligible for direct SR↔RFC links. Local Tasks may link to either master or subordinate RFCs. |
+| Subordinate RFC | An RFC owned by exactly one master RFC. It cannot own another RFC or act as a master. |
+| Task | A first-class unit of work with its own identity, classified as either a Local Task or WFM Task and belonging to at most one Objective. |
+| Local Task | A manually registered Task whose only required user-supplied field is Task Name. It may link to zero or many SRs, master or subordinate RFCs, Spare Part Units, and Device References; a Device Reference may remain unregistered or resolve to one Network Element without replacing the Task relationship. |
+| WFM Task | An externally generated Task subtype imported or registered with external identity `TK` + 14 digits; it belongs to exactly one RFC. |
+| Master WFM | A WFM Task whose owning RFC currently projects master-RFC context. The role is derived from RFC ownership, is not a WFM-to-WFM hierarchy or unique branch slot, and multiple master-owned WFMs may remain distinct. |
+| Subordinate WFM | A WFM owned by a subordinate RFC; its master/SR context is derived through the RFC hierarchy. |
+| WFM source plan | The accepted provider/source planned interval for one WFM attempt. It remains immutable source evidence distinct from SOMA operational planning, Objective envelope, and actual execution. |
+| Operational Task plan | The accepted local schedule governing a Task for SOMA planning. It may originate from a reviewed WFM source plan or Objective-created initialization but remains independently reviewable and historically preserved. |
+| Objective | A Maintenance Window with one reviewed planned timeframe and at least one Task from creation. |
+| Objective envelope | The Objective planned interval derived from the accepted operational plans of its member Tasks. It is not authority to overwrite a Task plan or proof of actual execution. |
+| Actual execution interval | Independently accepted Task or Objective execution chronology. It remains distinct from source planning, operational Task planning, and the Objective envelope. |
+| Device Reference | An involved device identity used by Tickets, Tasks, and Inventory. It may resolve to Infrastructure or remain unregistered. |
+| Unregistered Device Reference | A valid Device Reference not yet promoted to an Infrastructure Network Element. It remains usable throughout the workflow. |
+| Spare Need | The Service-Request-level planning record aggregated by BOM across contributing Device Part Units from any relevant Device under that SR. It records description and quantity, preserves contributor links, remains reusable, and is not consumed by a request attempt. |
+| Device Part Unit | One actual component installed in, removed from, or diagnosed under one Device and, when known, one slot. It owns its actual BOM, optional manufacturer serial, condition, fault state, and installation/removal history. |
+| Fault Part | The operational role of a Device Part Unit that is diagnosed faulty, removed, or selected as a return candidate; it is not a second physical-unit record. |
+| Stock | The Inventory view of physical Spare Part Units grouped by BOM and eligibility while retaining unit identity, condition, location, origin, reservation, and history. |
+| Spare Request | A request and tracking container with immutable SOMA and temporary identities. It normally begins as a local draft from SR-level Needs, while a request prepared or submitted outside SOMA is registered into the same model through reviewed reconciliation. Draft generation never proves sending. It records requested receiver and delivery/self-pickup logistics and may later receive its official `SR` + 7 identifier. Requested quantity `N` may yield incremental `M ≤ N` C10 RMAs while pending or unfulfilled quantity remains explainable. |
+| RMA | One C10 two-sided obligation under exactly one official Spare Request: first a promise of one inbound replacement and later an obligation to return one selected physical unit. It may target one Device Part Unit, link to at most one direct inbound Spare Part Unit, and reference its return unit separately. It is neither a quantity container nor a physical unit. |
+| Fault Tag | An identified physical-return attempt containing independently identified memberships for open RMA return obligations and their selected physical units. It may span different Service Requests and Spare Requests and preserves submission, pickup-origin, warehouse, correction-replacement, resend, and archival history. |
+| Fault Tag membership | An immutable relationship within one Fault Tag referencing exactly one open RMA return obligation and exactly one selected physical return unit. Ticket and Device context is derived rather than independently copied. |
+| Fault Tag correction replacement | A new Fault Tag with new identities that supersedes one materially wrong actual submission through linear `corrects/replaces` lineage. It is distinct from an operational resend. |
+| Fault Tag resend | A later return attempt following genuine warehouse rejection, linked through `resend of` lineage and carrying its own submission and pickup-origin snapshot. |
+| Part Number / BOM code | The catalog, compatibility, and inventory grouping identifier for a type of component. |
+| Spare Part Unit | One physical Inventory component tracked by immutable SOMA identity, BOM, optional manufacturer serial, condition, location, and lifecycle. It may have zero or one origin RMA and remains distinct from Device Part Units, RMA obligations, and return relationships. |
+| Submission-logistics snapshot | Immutable evidence of the requested delivery or self-pickup mode, intended receiver, dispatch or pickup location, effective address, and recipient context accepted with a Spare Request submission. It is intent, not proof of dispatch or receipt. |
+| Actual logistics event | An append-oriented record of dispatch, pickup, delivery, receipt, location, custody, receiver, chronology, or observed condition. One event may cover several RMAs or units while each participant remains independently addressable. |
+| Inventory correction | An append-only decision targeting one exact accepted lifecycle event or relationship. It preserves the original evidence and entity identities while recalculating the current projection. A genuine later rejection or resend is new history, not a correction. |
+| Infrastructure | Installed organizational, physical, device, and component structure plus its history. |
+| Cloud Type | A reusable logical platform classification such as PRV, B2B, AMS, BES, or NFV. The same type may be deployed at many Sites. |
+| Cloud Deployment | One occurrence of a Cloud Type at exactly one Site. It is distinct from deployments of the same type at other Sites. |
+| Site | One physical Datacenter belonging to exactly one Customer Organization. Site names and city codes may repeat across organizations, but each physical location is a distinct Site and automatically has one exclusive Dispatch Location. |
+| Dispatch Location | A reusable physical logistics address whose role is operation-specific. A Spare Request may use it for delivery or self-pickup; a Fault Tag may use it as the pickup origin from which return units are dispatched or collected. The pickup origin is not the warehouse destination. A site-bound location inherits the Site address. |
+| Network Element Model | A reusable device type/model definition. |
+| Network Element | A registered device instance with immutable SOMA identity, nonblank operational name, and one physical Site. Model, serial, precise placement, Cloud Deployment, and IP inventory may be completed progressively. |
+| Network Element IP Address | An optional stored address belonging to one Network Element. It is descriptive inventory and matching evidence, not relational identity or proof of connectivity. One address per Network Element may be primary. |
+| Compound containment | The acyclic parent/child forest among Network Elements or compound sub-elements, distinct from physical placement, Component installation, and connectivity. |
+| Component | A BOM-compatible or historically installed part associated with a Network Element or compound sub-element. |
+| Infrastructure Workbook | A versioned SOMA-generated `.xlsx` family used for empty device registration, human-readable current-device discovery export, and reviewed round-trip updates. Import identities are authoritative only within their source installation. |
+| Population | Updating source-owned fields on an identity-matched record while preserving SOMA-owned meaning and history. |
+| Import Review | Operator acceptance, rejection, or conflict resolution for proposed source changes. |
+| Workbench | The focused split ticket view with a tabbed working area and local communication-evidence preview. |
+| Communication Source Scope | Immutable mailbox/account context for one or more reconciled PST/OST stores. It is independent of file path and scopes message identity, coverage, and high-water state. |
+| Trackable communication entity | An accepted SR, Spare Request, RMA, RFC, WFM Task, Objective, or Fault Tag whose supported identities may match communications while its lifecycle remains eligible. |
+| Retained communication | One canonical data-minimized matched message with immutable SOMA identity and zero-many independently historical entity links. Unmatched content is never retained. |
+| Communication coverage | Completed source/folder/time ranges actually processed under a scan profile. Historical coverage is distinct from the forward high-water position. |
+| Targeted backfill | A bounded identity/source/folder/range job repairing older missing communication coverage without rewinding unrelated forward progress. |
+| Deep Scan | An explicitly initiated and confirmed broad communication scan; it is never an automatic fallback. |
+| Orphaned — Pending Purge | A retained communication with no valid link or protected dependency, held for a configurable positive grace period defaulting to seven exact elapsed days before transactional revalidation and content purge. |
+| Terminal communication summary | Frozen non-reconstructable received/sent/final-time/final-direction evidence shown after an SR or RFC's direct communication links are removed. |
+| Active row | The one row currently used by keyboard navigation and default row actions; it is distinct from keyboard focus, multi-selection membership, and the record already opened. |
+| Scroll owner | The nearest applicable scrollable surface beneath the pointer, holding the touch gesture, or carrying keyboard focus; it alone consumes the applicable scroll input in that context. |
+| Deliberate hold | An allowlisted continuous three-second confirmation interaction with semantic progress and equivalent pointer, touch, and keyboard behavior; release or cancellation before completion produces no action. |
+| UI working copy | Unsaved operator edits based on one accepted record revision; it is neither accepted operational truth nor necessarily the same as a persistent domain entity whose lifecycle state is Draft. |
+| Semantic design token | A versioned visual value named for operational meaning—such as warning, selected, historical, or destructive—rather than one hard-coded component color or dimension. |
+| Directional design reference | Approved visual inspiration for hierarchy, composition, density, or interaction patterns that does not define exact pixels, proprietary assets, terminology, or acceptance results. |
+| Visual acceptance fixture | A versioned approved synthetic/sanitized UI state with defined rendering context and tolerance used for visual acceptance or regression evidence. |
+| Export golden fixture | A versioned approved synthetic/sanitized input and expected normalized structure/content/rendering used to verify generated artifacts while explicitly controlling permissible nondeterminism. |
+| Domain lifecycle evidence | An immutable accepted operational occurrence with its own event type, target, actor/source, recording time, and independently supported effective chronology when known. It is not application audit or technical diagnostics. |
+| Application audit event | An append-only record of one meaningful accepted SOMA command, decision, configuration change, relationship mutation, correction, or deletion. It references minimal action-specific facts and resulting domain events without copying whole entities. |
+| Technical diagnostic | A non-authoritative structured engineering record stored outside SQLite with UTC emission time, severity, component, event code, run correlation, and allowlisted redacted context. Diagnostic failure cannot make an unsafe operation succeed. |
+| Runtime registry | The atomic minimal local record used by the launcher to locate and then verify a SOMA run through exact loopback origin, PID and independent process-birth identity, per-run identity, protocol/data-instance identity, and authenticated health. The registry alone is never proof. |
+| Persisted JSON contract | A named and versioned schema governing one approved JSON document class, including types, semantics, bounds, compatibility, atomic upgrade, and sensitivity rules. Valid JSON syntax alone is insufficient. |
+| Historical View | The retained view for records outside the configured Daily, Weekly, or Monthly main period. |
+| SLA Cohort Tier | A Contract Product Line rule requiring a percentage of eligible SRs of one severity to resolve or close within an inclusive duration. |
+| SLA Result | A derived individual-duration or cohort-compliance result calculated from Contract Product Line policy, severity, effective Report Date, suspension, endpoint, and reporting-period facts. |
+
+## Identifier rules
+
+| Record | Official format | Local identity allowed? |
+|---|---:|---|
+| Service Request | 8 digits | `LSR-` + 8 digits, starting locally at `LSR-00000001`; later official mapping is explicit and reviewed |
+| Request for Change | `NC` + 14 digits | Provisional RFC may be created by manual WFM registration |
+| WFM Task | `TK` + 14 digits | No; a manual task without this identity is a Local Task |
+| Spare Request | `SR` + 7 digits when assigned externally | Always originates with an immutable SOMA temporary tracking identifier; the official identifier is attached later without replacing it |
+| RMA | `C` + 10 digits | The business identifier belongs to the obligation record; target, inbound, return, and physical-unit identities remain separate |
+| Spare Part Unit | Manufacturer serial when available | `LSU-` + 8 digits, starting locally at `LSU-00000001`; official Spare Request and RMA references are optional |
+| Local Task | SOMA-generated | Always generated; never inherited from its Objective |
+
+Identity is not a mutable descriptive field. Corrections use explicit reconciliation so references and audit history remain intelligible.
+
+| Term | Meaning |
+|---|---|
+| Source chronology checkpoint | The accepted per-source-family ordering position used for replay/conflict decisions; it is independent of communications coverage and business-event time. |
+| RFC branch | Exactly one root/master RFC and its direct subordinate RFCs in the two-level acyclic hierarchy. |
+| Work-package partition | Customer and RFC-branch context shown inside one temporal Objective component; it explains membership but does not authorize overlapping Objectives. |
+| Skin | A governed built-in aesthetic token family that cannot change domain meaning, layout, workflow, confirmation safety, or accessibility. |
+| Appearance mode | Light, Dark, or System selection applied within the chosen skin; System follows the operating system without changing skin. |
+| Objective timezone | The operator-selected IANA timezone used only for Objective/Task schedule entry, calendar grouping, and maintenance-window presentation. It has no authority over SLA, source, communication, retention, Inventory, or audit chronology. |
+| Operational SLA timezone | The fixed `America/Guayaquil` timezone used for ordinary operational/SLA calendar interpretation and monthly SLA cohort boundaries outside the separately governed Objective/Task scheduling and source-adapter exceptions. |
+| Activity lineage | The reviewed relationship indicating that distinct WFM Task identities are attempts of the same operational activity; distinct identity alone does not prove duplicate work. |
+| Excluded from operational counts | Historical Objective/Task presentation state that removes selected history from current aggregates without deleting or rewriting its identities, evidence, membership, audit, or completed reports. |
+| Action-scoped Undo | A bounded safe inverse attached to one reversible accepted action and independently revalidated; it is not authority to rewrite immutable evidence. |
