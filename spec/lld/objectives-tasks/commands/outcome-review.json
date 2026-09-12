@@ -47,7 +47,7 @@
       ],
       "steps": [
         "pure-preflight validates identifiers/revisions/outcome/reason/fingerprint without reading owner state",
-        "inside one writer UoW load exact Task, fold contiguous execution history, and reconcile exact outcome absence or positive linear outcome chain/current pointer; task_revision/execution_revision/outcome revision or current-event mismatch returns TASK_STALE before review-fingerprint comparison and integrity disagreement fails closed",
+        "inside one writer UoW load exact Task, fold contiguous execution history, and reconcile exact outcome absence or positive linear outcome chain/current pointer; because this mutation consumes a reviewed preview, any task_revision/execution_revision/outcome revision/current-event drift from those reviewed inputs returns TASK_REVIEW_STALE before receipt, while integrity disagreement fails closed; TASK_STALE remains the ordinary freshness error for non-preview-bound Task mutations",
         "recompute SOMA_TASK_OUTCOME_REVIEW_V1 from current owner authority and exact request and require fingerprint equality before receipt",
         "validate requested outcome against current corrected execution: completed requires ended with accepted start/end; incomplete requires accepted start and ended or terminated plus reason when evidence does not explain incompleteness; cancelled_without_execution requires no current-effective accepted start and terminated evidence",
         "if a current reviewed outcome exists, return semantic NO_CHANGE only when it remains valid and requested outcome plus normalized reason exactly equal the current event under the exact fingerprint; any different current reviewed outcome is not overwritten and requires CorrectTaskOutcome",
@@ -76,7 +76,7 @@
       ],
       "steps": [
         "pure-preflight validates identifiers/revisions/outcome/reason/fingerprint without reading owner state",
-        "inside one writer UoW load exact Task/execution authority and reconcile positive outcome history/current projection as one linear append-only chain; task_revision/execution_revision/current_outcome_revision/current_outcome_event_id mismatch returns TASK_STALE, current outcome revision must equal event count/chain length, and the event id must be its exact tip",
+        "inside one writer UoW load exact Task/execution authority and reconcile positive outcome history/current projection as one linear append-only chain; because this mutation consumes a reviewed preview, any task_revision/execution_revision/current_outcome_revision/current_outcome_event_id drift from those reviewed inputs returns TASK_REVIEW_STALE before receipt; current outcome revision must equal event count/chain length and the event id must be its exact tip, with integrity disagreement failing closed; TASK_STALE remains the ordinary freshness error for non-preview-bound Task mutations",
         "recompute SOMA_TASK_OUTCOME_CORRECTION_REVIEW_V1 from current authority and exact request and require fingerprint equality before receipt; any execution/current-outcome drift returns TASK_REVIEW_STALE",
         "validate replacement against current corrected execution using the same Task outcome acceptance matrix; do not trust client-computed state",
         "if replacement outcome plus normalized reason exactly equal the current event under the exact fingerprint, return semantic NO_CHANGE without appending history/revisions/audit",
