@@ -27,6 +27,7 @@
     {"code":"WFM_TASK_NO_RETIRED","http_status":409,"meaning":"Canonical WFM Task No. was retired by an eligible hard-delete correction and cannot be registered or source-adopted again."},
     {"code":"WFM_RFC_NOT_ELIGIBLE","http_status":409,"meaning":"Owning RFC is not currently eligible to own active nonterminal WFM work."},
     {"code":"WFM_PARENT_STALE","http_status":409,"meaning":"Owning RFC identity/hierarchy/lifecycle or WFM assignment authority changed since the reviewed mutation context."},
+    {"code":"WFM_SOURCE_TERMINAL_STALE","http_status":409,"meaning":"The pending WFM source-terminal review, accepted terminal source projection, or exact SOMA_WFM_SOURCE_TERMINAL_REVIEW_V1 local-authority fingerprint changed or was superseded; refresh the source-terminal review before deciding a local consequence."},
     {"code":"WFM_PARENT_REVIEW_REQUIRED","http_status":409,"meaning":"Current protected Task history makes WFM parent reassignment high-risk and requires explicit high-risk acceptance."},
     {"code":"WFM_COMPETING_ATTEMPT","http_status":409,"meaning":"More than one overlapping active WFM attempt is currently classified in the same reviewed activity lineage and requires explicit resolution."},
     {"code":"OBJECTIVE_NOT_FOUND","http_status":404,"meaning":"Objective identity does not exist."},
