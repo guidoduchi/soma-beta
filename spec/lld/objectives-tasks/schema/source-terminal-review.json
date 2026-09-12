@@ -2,6 +2,27 @@
   "schema":"SOMA-LLD-SCHEMA-V1",
   "lld_id":"LLD-05",
   "purpose":"Persist the separation between accepted provider Complete/Plan Cancel evidence and any later reviewed local Task/Objective consequence.",
+  "fingerprint_contract":{
+    "schema":"SOMA_WFM_SOURCE_TERMINAL_REVIEW_V1",
+    "serialization":"LLD-01 StrictVersionedJson canonical_json of the exact closed object below, SHA-256 over the exact UTF-8 bytes, lowercase hex",
+    "object":{
+      "schema":"SOMA_WFM_SOURCE_TERMINAL_REVIEW_V1",
+      "task_id":"canonical UUIDv4",
+      "source":{"source_projection_revision":"int>=1","provider_lifecycle_class":"complete|plan_cancel","accepted_source_observation_id":"canonical UUIDv4","source_base_token":"lowercase sha256"},
+      "execution":{"revision":"int>=0","execution_state":"not_started|in_progress|ended|terminated","actual_start_utc":"int>=0|null","actual_end_utc":"int>=0|null","effective_termination_utc":"int>=0|null","termination_reason":"string|null","last_event_id":"canonical UUIDv4|null"},
+      "plan":"null or {plan_revision_id:canonical UUIDv4,revision:int>=1}",
+      "membership":"null or {objective_id:canonical UUIDv4,accepted_plan_revision_id:canonical UUIDv4,membership_revision:int>=1,last_event_id:canonical UUIDv4,objective_aggregate_revision:int>=1,objective_aggregate_input_fingerprint:lowercase sha256}",
+      "lock":{"revision":"int>=0","explicit_plan_lock":"boolean","explicit_membership_lock":"boolean","last_event_id":"canonical UUIDv4|null"}
+    },
+    "normalization":[
+      "exact execution absence is encoded as revision=0, execution_state=not_started and every execution instant/reason/last_event_id null; positive execution authority must reconcile complete contiguous history to the stored projection before hashing",
+      "plan null means exact absence of task_plan_current; a nonnull plan binds both current pointer revision and plan_revision_id",
+      "membership null means exact absence of objective_task_membership_current; a nonnull membership additionally binds the current Objective aggregate revision/fingerprint so changes to other members that alter reviewed local consequence invalidate the review",
+      "exact lock-projection absence is encoded as revision=0, explicit_plan_lock=false, explicit_membership_lock=false,last_event_id=null; positive lock authority must reconcile current projection/history before hashing",
+      "accepted_source_observation_id is mandatory for terminal review authority even though the rebuildable source projection permits null for nonterminal/manual states",
+      "timestamps, UUID lexical order, UI ordering and descriptive RFC/WFM text are not chronology/fingerprint inputs beyond the explicitly listed authority fields"
+    ]
+  },
   "tables":[
     {
       "name":"wfm_source_terminal_reviews",
@@ -20,10 +41,10 @@
       ],
       "rules":[
         "accepted provider terminal evidence may create or supersede a pending review only when current local executable work or Objective consequence requires a decision",
-        "a pending review is bound to the exact accepted WFM source projection revision and current local execution/membership/plan-lock input fingerprint",
+        "a pending review is bound to the exact SOMA_WFM_SOURCE_TERMINAL_REVIEW_V1 fingerprint; producer and resolver use the identical algorithm against their supplied current reader/UoW",
+        "any material source projection, current execution, operational plan, Objective membership/aggregate consequence or explicit lock authority change changes the fingerprint; stale pending evidence is preserved by transitioning that old review to superseded rather than rewriting its fingerprint/source binding",
         "retain_local_work records a reviewed local decision and does not modify provider status, Task execution, Task outcome or Objective membership",
         "terminate_local_work references the exact local source_terminal_consequence execution event created by ResolveWfmSourceTerminalConsequence in the same UnitOfWork",
-        "new material source/local state supersedes stale pending review rather than editing its evidence",
         "provider Complete/Plan Cancel alone never inserts local execution/outcome evidence"
       ]
     }
