@@ -20,6 +20,7 @@ from ..contracts.objectives_tasks import (
     objective_mutation_result_from_execution,
     task_mutation_result_from_execution,
 )
+from ..queries.execution_review import TaskExecutionCorrectionQueryService
 from ..repositories.objectives import ObjectiveProjectionRepository
 from ..repositories.tasks import TaskRepository
 
@@ -60,6 +61,7 @@ _BATCH_START_AUDIT_FIELDS = frozenset(
     }
 )
 _TERMINAL_EVENT_KINDS = frozenset({"manual_cancel", "rfc_terminal_terminate", "source_terminal_consequence"})
+_GOVERNED_TERMINAL_EVENT_KINDS = frozenset({"rfc_terminal_terminate", "source_terminal_consequence"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +141,16 @@ def _validate_reason_category(value: object) -> str:
         or "\n" in value
     ):
         raise ValidationError("reason_category violates its bounded one-line contract")
+    return value
+
+
+def _validate_sha256(value: object, *, label: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValidationError(f"{label} must be lowercase SHA-256 hex")
     return value
 
 
@@ -440,6 +452,7 @@ class TaskExecutionService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._tasks = TaskRepository()
         self._objectives = ObjectiveProjectionRepository()
+        self._execution_corrections = TaskExecutionCorrectionQueryService(connection_factory)
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(_build_execution_audit_registry()),
@@ -1016,6 +1029,239 @@ class TaskExecutionService:
                         "resulting_task_revision": resulting_task_revision,
                         "resulting_execution_revision": resulting_execution_revision,
                         "reason_category": None,
+                    },
+                    resulting_event_refs=(AuditResultRef("task_execution_event", event_id),),
+                )
+
+            return PreparedMutation(
+                False,
+                "task_execution_event",
+                event_id,
+                apply,
+                response_schema="TaskMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "task_id": canonical_task_id,
+                    "revision": resulting_task_revision,
+                    "result_refs": [{"type": "task_execution_event", "id": event_id}],
+                },
+            )
+
+        return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+
+    def correct_task_execution_evidence(
+        self,
+        *,
+        command_id: str,
+        task_id: str,
+        task_revision: int,
+        execution_revision: int,
+        target_execution_event_id: str,
+        target_execution_revision: int,
+        correction_action: str,
+        replacement_effective_at_utc: int | None,
+        reason_category: str,
+        correction_review_fingerprint: str,
+        accept_outcome_invalidation: bool,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> TaskMutationResult:
+        canonical_task_id = require_uuid4(task_id)
+        expected_task_revision = _require_revision(task_revision, label="task_revision")
+        expected_execution_revision = _require_revision(execution_revision, label="execution_revision")
+        canonical_target_id = require_uuid4(target_execution_event_id)
+        expected_target_revision = _require_revision(
+            target_execution_revision,
+            label="target_execution_revision",
+        )
+        if correction_action not in {"replace_time", "withdraw"}:
+            raise ValidationError("correction_action must be replace_time or withdraw")
+        if correction_action == "replace_time":
+            replacement = _validate_effective_end(replacement_effective_at_utc)
+        else:
+            if replacement_effective_at_utc is not None:
+                raise ValidationError("replacement_effective_at_utc must be null for withdraw")
+            replacement = None
+        reason = _validate_reason_category(reason_category)
+        fingerprint = _validate_sha256(
+            correction_review_fingerprint,
+            label="correction_review_fingerprint",
+        )
+        if type(accept_outcome_invalidation) is not bool:
+            raise ValidationError("accept_outcome_invalidation must be boolean")
+
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CorrectTaskExecutionEvidence",
+            target_type="task",
+            target_id=canonical_task_id,
+            semantic_payload={
+                "execution_revision": expected_execution_revision,
+                "target_execution_event_id": canonical_target_id,
+                "target_execution_revision": expected_target_revision,
+                "correction_action": correction_action,
+                "replacement_effective_at_utc": replacement,
+                "reason_category": reason,
+                "accept_outcome_invalidation": accept_outcome_invalidation,
+            },
+            base_revisions={canonical_task_id: expected_task_revision},
+            authorizing_fingerprints={"correction_review_fingerprint": fingerprint},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            try:
+                preview = self._execution_corrections.evaluate_connection(
+                    uow.connection,
+                    task_id=canonical_task_id,
+                    task_revision=expected_task_revision,
+                    execution_revision=expected_execution_revision,
+                    target_execution_event_id=canonical_target_id,
+                    target_execution_revision=expected_target_revision,
+                    correction_action=correction_action,
+                    replacement_effective_at_utc=replacement,
+                    reason_category=reason,
+                )
+            except SomaError as exc:
+                if exc.code == "TASK_STALE":
+                    raise SomaError(
+                        "TASK_REVIEW_STALE",
+                        "Task execution correction authority changed after preview",
+                    ) from exc
+                raise
+
+            if preview.correction_review_fingerprint != fingerprint:
+                raise SomaError(
+                    "TASK_REVIEW_STALE",
+                    "Task execution correction fingerprint changed after preview",
+                )
+            if "TARGET_NOT_CURRENT_EFFECTIVE" in preview.blockers:
+                raise SomaError(
+                    "TASK_REVIEW_STALE",
+                    "Task execution correction target is no longer current-effective",
+                )
+            if preview.blockers:
+                raise SomaError(
+                    "TASK_OUTCOME_INVALID_FOR_EXECUTION",
+                    "Requested Task execution correction is not eligible under current execution authority",
+                )
+            if preview.outcome_invalidation_required and not accept_outcome_invalidation:
+                raise SomaError(
+                    "TASK_OUTCOME_INVALID_FOR_EXECUTION",
+                    "Task execution correction requires explicit reviewed outcome invalidation acknowledgement",
+                )
+
+            task = self._tasks.get(uow.connection, canonical_task_id)
+            if task is None:
+                raise SomaError("TASK_NOT_FOUND", "Task does not exist")
+            if task.revision != expected_task_revision:
+                raise SomaError(
+                    "TASK_REVIEW_STALE",
+                    "Task execution correction Task revision changed during writer revalidation",
+                )
+            authority = self._execution_authority(uow.connection, canonical_task_id)
+            if authority.revision != expected_execution_revision or authority.last_event_id is None:
+                raise SomaError(
+                    "TASK_REVIEW_STALE",
+                    "Task execution correction revision changed during writer revalidation",
+                )
+            target = uow.connection.execute(
+                "SELECT event_kind FROM task_execution_events "
+                "WHERE task_id=? AND execution_event_id=? AND execution_revision=?",
+                (canonical_task_id, canonical_target_id, expected_target_revision),
+            ).fetchone()
+            if target is None or str(target[0]) == "correction":
+                raise SomaError(
+                    "TASK_REVIEW_STALE",
+                    "Task execution correction target changed during writer revalidation",
+                )
+            if correction_action == "withdraw" and str(target[0]) in _GOVERNED_TERMINAL_EVENT_KINDS:
+                raise SomaError(
+                    "TASK_OUTCOME_INVALID_FOR_EXECUTION",
+                    "Governed terminal execution evidence cannot be withdrawn by generic correction",
+                )
+
+            recorded_at = utc_epoch_seconds()
+            event_id = new_uuid4()
+            audit_event_id = new_uuid4()
+            resulting_task_revision = task.revision + 1
+            resulting_execution_revision = authority.revision + 1
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                inner.connection.execute(
+                    "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+                    "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,?,'correction',?,?,?,?,?,?)",
+                    (
+                        event_id,
+                        canonical_task_id,
+                        resulting_execution_revision,
+                        replacement,
+                        canonical_target_id,
+                        correction_action,
+                        reason,
+                        recorded_at,
+                        command_id,
+                    ),
+                )
+                rows = inner.connection.execute(
+                    "SELECT execution_event_id,event_kind,effective_at_utc,target_event_id,correction_action,execution_revision "
+                    "FROM task_execution_events WHERE task_id=? ORDER BY execution_revision",
+                    (canonical_task_id,),
+                ).fetchall()
+                folded_state, folded_start, folded_end, folded_termination = _fold_execution_history(rows)
+                if len(rows) != resulting_execution_revision:
+                    raise IntegrityFailure("Task execution correction did not produce contiguous revision history")
+                updated = inner.connection.execute(
+                    "UPDATE task_execution_projection SET execution_state=?,actual_start_utc=?,actual_end_utc=?,"
+                    "effective_termination_utc=?,termination_reason=CASE WHEN ?='terminated' THEN termination_reason ELSE NULL END,"
+                    "revision=revision+1,last_event_id=? WHERE task_id=? AND revision=? AND last_event_id=?",
+                    (
+                        folded_state,
+                        folded_start,
+                        folded_end,
+                        folded_termination,
+                        folded_state,
+                        event_id,
+                        canonical_task_id,
+                        authority.revision,
+                        authority.last_event_id,
+                    ),
+                )
+                if updated.rowcount != 1:
+                    raise IntegrityFailure("Task execution projection changed during guarded correction")
+                self._tasks.increment_revision(
+                    inner,
+                    task_id=canonical_task_id,
+                    expected_revision=expected_task_revision,
+                )
+                membership = self._objectives.current_membership_for_task(inner.connection, canonical_task_id)
+                if membership is not None:
+                    self._objectives.rebuild_aggregate(
+                        inner,
+                        objective_id=membership.objective_id,
+                        command_id=command_id,
+                    )
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="task.execution_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="task",
+                    target_id=canonical_task_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                    payload_schema="TaskExecutionAuditV1",
+                    payload_version=1,
+                    payload={
+                        "task_id": canonical_task_id,
+                        "execution_event_id": event_id,
+                        "event_kind": "correction",
+                        "effective_at_utc": replacement,
+                        "target_event_id": canonical_target_id,
+                        "resulting_task_revision": resulting_task_revision,
+                        "resulting_execution_revision": resulting_execution_revision,
+                        "reason_category": reason,
                     },
                     resulting_event_refs=(AuditResultRef("task_execution_event", event_id),),
                 )
