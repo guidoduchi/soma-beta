@@ -1,0 +1,18 @@
+{
+  "schema":"SOMA-LLD-TRACEABILITY-FRAGMENT-V1",
+  "lld_id":"LLD-04",
+  "family":"wfm_competing_attempt_review",
+  "command_edges":[
+    {
+      "command":"ResolveWfmCompetingAttemptReview",
+      "request_type":"ResolveWfmCompetingAttemptReviewRequestV1",
+      "response_type":"ProposalDecisionResultV1",
+      "transaction_boundary":"one outer LLD-01 UnitOfWork/receipt shared with LLD-05 WfmActivityReviewParticipant; no nested receipt/commit/rollback",
+      "revision_effects":"accepted LLD-04 proposal/run revisions increment once; LLD-05 Task/lineage revisions change only for participant APPLIED and follow the same standalone activity-review authority; participant NO_CHANGE changes no LLD-05 revision",
+      "audit":"ticket_import.proposal_decided.v1",
+      "errors":["IMPORT_PROPOSAL_NOT_FOUND","IMPORT_PROPOSAL_STALE","IMPORT_PROPOSAL_BLOCKED","IMPORT_RECOVERY_AUTHORIZATION_REQUIRED","IMPORT_RECOVERY_REVIEW_STALE","IDEMPOTENCY_CONFLICT"],
+      "tests":["LLD04-T035","LLD04-F023","LLD04-F024"],
+      "idempotency":"COMMAND_ENVELOPE_V1 binds proposal id/revision/fingerprint/base conflict token, explicit decision, exact LLD-05 activity-review fingerprint and reason; exact replay resolves before current conflict/Task reads"
+    }
+  ]
+}
