@@ -58,11 +58,11 @@ def _stored_uuid(value: object, *, field: str) -> str:
 
 
 def _stored_rfc_no(value: object) -> str:
+    if not isinstance(value, str):
+        raise IntegrityFailure("stored RFC No. is not text")
     try:
-        if not isinstance(value, str):
-            raise ValidationError("stored RFC No. must be text")
         return validate_rfc_no(value)
-    except ValidationError as exc:
+    except SomaError as exc:
         raise IntegrityFailure("stored RFC No. is not canonical") from exc
 
 
