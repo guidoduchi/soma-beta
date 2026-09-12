@@ -93,7 +93,7 @@ def test_aggregate_rebuild_rejects_hidden_execution_history_without_projection(i
             )
 
 
-def test_aggregate_rebuild_rejects_projection_that_does_not_point_to_latest_event(initialized_database) -> None:
+def test_aggregate_rebuild_rejects_projection_lagging_immutable_execution_history(initialized_database) -> None:
     factory = _factory(initialized_database)
     creation_command, task_id, objective_id, start_utc = _seed_member_objective(factory, ordinal=2)
     started = TaskExecutionService(factory).start_task_execution(
@@ -113,7 +113,7 @@ def test_aggregate_rebuild_rejects_projection_that_does_not_point_to_latest_even
             (trailing_event_id, task_id, start_utc + 20, creation_command),
         )
 
-    with pytest.raises(IntegrityFailure, match="latest immutable history"):
+    with pytest.raises(IntegrityFailure, match="projection revision does not equal immutable event count"):
         with UnitOfWork(factory) as uow:
             ObjectiveProjectionRepository.rebuild_aggregate(
                 uow,
