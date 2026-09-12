@@ -93,26 +93,31 @@
     {
       "name": "ResolveWfmSourceTerminalConsequence",
       "input": [
-        "source_terminal_review_id",
-        "task_id",
-        "exact source projection revision",
-        "exact input_fingerprint",
-        "decision retain_local_work|terminate_local_work",
-        "reason_category",
+        "source_terminal_review_id: canonical UUIDv4",
+        "task_id: canonical UUIDv4",
+        "source_projection_revision: int>=1",
+        "input_fingerprint: lowercase SHA-256 under SOMA_WFM_SOURCE_TERMINAL_REVIEW_V1",
+        "decision: retain_local_work|terminate_local_work",
+        "reason_category: bounded nonempty code",
         "command_id"
       ],
       "steps": [
-        "inside UoW require exact pending wfm_source_terminal_reviews row, current provider Complete or Plan Cancel evidence, matching source projection revision and recomputed local input fingerprint",
-        "insert receipt",
-        "retain_local_work transitions review only and leaves execution/membership intact; terminate_local_work appends source_terminal_consequence termination evidence at execution_revision=prior execution projection revision+1 but no Task outcome and links the review to that event",
-        "update review/projections",
-        "if an in-progress Objective loses its last executable Task derive Incomplete — Awaiting Review attention; otherwise surviving work continues with warning",
-        "audit and commit"
+        "pure-preflight validates identifiers, positive source_projection_revision, exact lowercase input_fingerprint, closed decision and bounded reason without reading owner state",
+        "exact command replay resolves before prepare/owner-state reads and returns the immutable original response without recomputing source/local review authority",
+        "inside one writer UoW require source_terminal_review_id is the exact pending review for task_id with matching source_projection_revision and stored input_fingerprint; a missing/superseded/nonpending/different review returns WFM_SOURCE_TERMINAL_STALE before receipt, while missing Task returns TASK_NOT_FOUND",
+        "reconcile current accepted wfm_source_projection_cache and require provider_lifecycle_class remains complete|plan_cancel, source_projection_revision and review lifecycle class match exactly, accepted_source_observation_id remains present, and current source evidence remains the review source authority; source drift returns WFM_SOURCE_TERMINAL_STALE before receipt",
+        "recompute SOMA_WFM_SOURCE_TERMINAL_REVIEW_V1 from the exact current source projection, contiguous execution authority, current operational plan pointer, current Objective membership plus aggregate consequence, and explicit lock authority; require byte-equivalent input_fingerprint or return WFM_SOURCE_TERMINAL_STALE before receipt",
+        "for retain_local_work, insert one receipt then transition only that review pending->retain_local_work with revision+1, decided_at_utc and last_command_id; provider source projection, Task revision/execution/outcome/plan/membership and Objective projections remain unchanged",
+        "for terminate_local_work, require current-effective execution is not already ended/terminated; insert one receipt, append exactly one source_terminal_consequence execution event at prior execution revision+1, rebuild execution projection to terminated, increment tasks.revision exactly once, transition the same review pending->terminate_local_work with revision+1 and local_consequence_event_id equal to that exact event, while Task outcome remains unchanged",
+        "after terminate_local_work rebuild the affected Objective aggregate from exact current member authority; if already-started Objective work loses its final executable Task derive lost_last_executable/Awaiting Review, otherwise surviving work remains represented without silent membership restructuring",
+        "append one task.source_terminal_consequence_resolved.v1 audit event binding review/source evidence/fingerprint/decision and optional execution event, then commit the exact immutable response atomically"
       ],
       "rules": [
-        "never modifies provider status",
+        "never modifies provider status/source evidence, Task outcome or Objective membership",
         "provider Complete/Plan Cancel alone does not execute this command",
-        "terminal Objective membership is not silently restructured"
+        "terminal Objective membership is not silently restructured",
+        "SOMA_WFM_SOURCE_TERMINAL_REVIEW_V1 is both producer and resolver freshness authority; stale review rows are preserved/superseded rather than rewritten",
+        "recording time and UUID lexical order never establish source/execution/review chronology"
       ]
     }
   ]
