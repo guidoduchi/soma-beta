@@ -71,7 +71,7 @@ def _is_reparse_stat(stat_result: os.stat_result) -> bool:
 
 def _reject_unsupported_windows_namespace(path: Path) -> None:
     raw = os.fspath(path)
-    normalized = raw.replace("/", "\\")
+    normalized = raw.replace("/", "\\") if os.name == "nt" else raw
     lowered = normalized.lower()
     if (
         normalized.startswith("\\\\")
