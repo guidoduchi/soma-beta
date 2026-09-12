@@ -50,6 +50,7 @@
     "RfcHierarchyService":"src/soma/tickets/rfc_hierarchy.py",
     "ServiceRequestReferenceService":"src/soma/tickets/sr_references.py",
     "ServiceRequestImportMutationService":"src/soma/tickets/import_mutations.py",
+    "RfcImportReader":"src/soma/tickets/rfc_import_reader.py",
     "RfcImportMutationService":"src/soma/tickets/import_mutations.py",
     "SrSourceProjectionService":"src/soma/tickets/sr_source_projection.py"
   },
@@ -68,6 +69,7 @@
   "rules":[
     "Each listed operation has one owning source-module destination; implementation may factor private helpers but cannot move authority across packet/domain boundaries.",
     "Cross-packet participants are injected through interfaces and receive the existing UnitOfWork; their implementation modules remain owned by their provider packets.",
+    "RfcImportReader is read-only cross-packet authority and exposes only the bounded exact identity/source/link context declared to LLD-04; it never creates a receipt or mutates RFC state.",
     "RfcHierarchyService is the sole application service allowed to create/supersede hierarchy edges; repository modules never expose an alternate commit path.",
     "Import mutation services accept already-reviewed LLD-04 evidence/proposals or exact governed reappearance evidence and never parse workbook content.",
     "ServiceRequestSourcePresenceRepository owns only immutable schema/sr-source-presence.json history; warning projection is read by GetServiceRequest and no generic warning repository is introduced."
