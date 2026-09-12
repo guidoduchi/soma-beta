@@ -86,6 +86,7 @@ _TASK_PLAN_ORIGINS = frozenset(
         "historical_source_structure",
     }
 )
+_WFM_REGISTRATION_ORIGINS = frozenset({"wfm_manual", "wfm_source_adoption", "historical_source"})
 
 
 def _validate_bounded_reason(reason: object, *, required: bool, label: str) -> None:
@@ -105,7 +106,7 @@ def _validate_task_creation_payload(
     payload: dict[str, object],
     *,
     expected_kind: str,
-    expected_origin: str,
+    expected_origin: str | frozenset[str],
 ) -> None:
     task_id = payload.get("task_id")
     plan_revision_id = payload.get("task_plan_revision_id")
@@ -119,7 +120,9 @@ def _validate_task_creation_payload(
             require_uuid4(plan_revision_id)
     except ValidationError as exc:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit identity is invalid") from exc
-    if payload.get("task_kind") != expected_kind or payload.get("creation_origin") != expected_origin:
+    origin = payload.get("creation_origin")
+    origin_valid = origin in expected_origin if isinstance(expected_origin, frozenset) else origin == expected_origin
+    if payload.get("task_kind") != expected_kind or not origin_valid:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit owner metadata is invalid")
     revision = payload.get("resulting_revision")
     if type(revision) is not int or revision != 1:
@@ -134,7 +137,7 @@ def _validate_task_created(payload: dict[str, object]) -> None:
 
 
 def _validate_wfm_registered(payload: dict[str, object]) -> None:
-    _validate_task_creation_payload(payload, expected_kind="wfm", expected_origin="wfm_manual")
+    _validate_task_creation_payload(payload, expected_kind="wfm", expected_origin=_WFM_REGISTRATION_ORIGINS)
     if payload.get("reason_category") is not None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM registration audit reason must be null")
 
