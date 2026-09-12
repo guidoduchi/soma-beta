@@ -25,6 +25,7 @@ from ..repositories.tasks import TaskRepository
 
 _CANONICAL_NOW = "canonical-now"
 _MAX_SELECTED_TASKS = 100
+_MAX_REASON_UTF8_BYTES = 128
 _EXECUTION_AUDIT_FIELDS = frozenset(
     {
         "task_id",
@@ -34,6 +35,17 @@ _EXECUTION_AUDIT_FIELDS = frozenset(
         "target_event_id",
         "resulting_task_revision",
         "resulting_execution_revision",
+        "reason_category",
+    }
+)
+_OUTCOME_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "outcome_event_id",
+        "accepted_outcome",
+        "correction_of_event_id",
+        "resulting_outcome_revision",
+        "review_fingerprint",
         "reason_category",
     }
 )
@@ -106,29 +118,114 @@ def _validate_effective_end(value: object) -> int:
     return value
 
 
+def _validate_effective_cancel(value: object) -> int:
+    if type(value) is not int or value < 0:
+        raise ValidationError("effective_cancel_utc must be a nonnegative UTC whole second")
+    return value
+
+
+def _validate_reason_category(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValidationError("reason_category must be text")
+    try:
+        encoded = value.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise ValidationError("reason_category must be valid Unicode") from exc
+    if (
+        not encoded
+        or len(encoded) > _MAX_REASON_UTF8_BYTES
+        or "\x00" in value
+        or "\r" in value
+        or "\n" in value
+    ):
+        raise ValidationError("reason_category violates its bounded one-line contract")
+    return value
+
+
 def _validate_execution_audit(payload: dict[str, object]) -> None:
     task_id = payload.get("task_id")
     event_id = payload.get("execution_event_id")
+    target_event_id = payload.get("target_event_id")
     try:
         if not isinstance(task_id, str) or not isinstance(event_id, str):
             raise ValidationError("execution audit identities must be UUID text")
         require_uuid4(task_id)
         require_uuid4(event_id)
+        if target_event_id is not None:
+            if not isinstance(target_event_id, str):
+                raise ValidationError("execution audit target identity must be UUID text or null")
+            require_uuid4(target_event_id)
     except ValidationError as exc:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit identity is invalid") from exc
-    if payload.get("event_kind") not in {"start", "end"}:
+
+    event_kind = payload.get("event_kind")
+    if event_kind not in {"start", "end", "manual_cancel", "correction"}:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit event kind is invalid")
     effective_at = payload.get("effective_at_utc")
-    if type(effective_at) is not int or effective_at < 0:
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit effective time is invalid")
-    if payload.get("target_event_id") is not None or payload.get("reason_category") is not None:
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution start/end audit cannot claim correction/reason authority")
+    reason = payload.get("reason_category")
+    if event_kind in {"start", "end"}:
+        if type(effective_at) is not int or effective_at < 0:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit effective time is invalid")
+        if target_event_id is not None or reason is not None:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution start/end audit cannot claim correction/reason authority")
+    elif event_kind == "manual_cancel":
+        if type(effective_at) is not int or effective_at < 0 or target_event_id is not None:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task cancellation audit shape is invalid")
+        try:
+            _validate_reason_category(reason)
+        except ValidationError as exc:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task cancellation audit reason is invalid") from exc
+    else:
+        if effective_at is not None and (type(effective_at) is not int or effective_at < 0):
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task correction audit effective time is invalid")
+        if target_event_id is None:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task correction audit target is required")
+        try:
+            _validate_reason_category(reason)
+        except ValidationError as exc:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task correction audit reason is invalid") from exc
+
     task_revision = payload.get("resulting_task_revision")
     execution_revision = payload.get("resulting_execution_revision")
     if type(task_revision) is not int or task_revision <= 1:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit Task revision is invalid")
     if type(execution_revision) is not int or execution_revision <= 0:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Task execution audit execution revision is invalid")
+
+
+def _validate_outcome_audit(payload: dict[str, object]) -> None:
+    task_id = payload.get("task_id")
+    event_id = payload.get("outcome_event_id")
+    correction_of_event_id = payload.get("correction_of_event_id")
+    try:
+        if not isinstance(task_id, str) or not isinstance(event_id, str):
+            raise ValidationError("outcome audit identities must be UUID text")
+        require_uuid4(task_id)
+        require_uuid4(event_id)
+        if correction_of_event_id is not None:
+            if not isinstance(correction_of_event_id, str):
+                raise ValidationError("outcome correction identity must be UUID text or null")
+            require_uuid4(correction_of_event_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task outcome audit identity is invalid") from exc
+    if payload.get("accepted_outcome") not in {"completed", "incomplete", "cancelled_without_execution"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task outcome audit token is invalid")
+    revision = payload.get("resulting_outcome_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task outcome audit revision is invalid")
+    fingerprint = payload.get("review_fingerprint")
+    if (
+        not isinstance(fingerprint, str)
+        or len(fingerprint) != 64
+        or any(character not in "0123456789abcdef" for character in fingerprint)
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task outcome audit fingerprint is invalid")
+    reason = payload.get("reason_category")
+    if reason is not None:
+        try:
+            _validate_reason_category(reason)
+        except ValidationError as exc:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Task outcome audit reason is invalid") from exc
 
 
 def _validate_batch_start_audit(payload: dict[str, object]) -> None:
@@ -212,6 +309,24 @@ def _build_execution_audit_registry() -> AuditRegistry:
     )
     registry.register(
         AuditActionContract(
+            action_type="task.outcome_reviewed",
+            action_version=1,
+            payload_schema="TaskOutcomeAuditV1",
+            payload_version=1,
+            payload_contract=ObjectContract(
+                name="TaskOutcomeAuditV1",
+                version=1,
+                required_fields=_OUTCOME_AUDIT_FIELDS,
+                allowed_fields=_OUTCOME_AUDIT_FIELDS,
+                max_depth=3,
+                max_collection_items=8,
+                max_utf8_bytes=16_384,
+            ),
+            sensitivity_validator=_validate_outcome_audit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
             action_type="task.execution_batch_started",
             action_version=1,
             payload_schema="SelectedTaskStartAuditV1",
@@ -267,11 +382,12 @@ def _fold_execution_history(rows: list[Any]) -> tuple[str, int | None, int | Non
             target = evidence.get(target_id)
             if target is None:
                 raise IntegrityFailure("Task execution correction targets missing or later evidence")
+            if target.withdrawn:
+                raise IntegrityFailure("Task execution correction targets non-current-effective evidence")
             if correction_action == "replace_time":
                 if effective_at is None:
                     raise IntegrityFailure("replace-time execution correction has no replacement instant")
                 target.effective_at_utc = effective_at
-                target.withdrawn = False
             else:
                 if effective_at is not None:
                     raise IntegrityFailure("withdraw execution correction unexpectedly carries effective time")
@@ -383,12 +499,28 @@ class TaskExecutionService:
             (task_id,),
         ).fetchone()
         if row is None:
+            history_count = int(
+                connection.execute(
+                    "SELECT count(*) FROM task_outcome_events WHERE task_id=?",
+                    (task_id,),
+                ).fetchone()[0]
+            )
+            if history_count != 0:
+                raise IntegrityFailure("Task outcome history exists without current projection")
             return False
         _stored_uuid(row[0], label="Task current outcome event identity")
         if str(row[1]) not in {"completed", "incomplete", "cancelled_without_execution"}:
             raise IntegrityFailure("Task current outcome token is invalid")
         if type(row[2]) is not int or row[2] <= 0:
             raise IntegrityFailure("Task current outcome revision is invalid")
+        history_count = int(
+            connection.execute(
+                "SELECT count(*) FROM task_outcome_events WHERE task_id=?",
+                (task_id,),
+            ).fetchone()[0]
+        )
+        if history_count != int(row[2]):
+            raise IntegrityFailure("Task outcome projection revision disagrees with immutable history")
         return True
 
     @staticmethod
@@ -447,6 +579,33 @@ class TaskExecutionService:
         )
         if updated.rowcount != 1:
             raise IntegrityFailure("Task execution projection changed during guarded start")
+
+    @staticmethod
+    def _insert_or_advance_cancel_projection(
+        inner: UnitOfWork,
+        *,
+        task_id: str,
+        authority: _ExecutionAuthority,
+        event_id: str,
+        accepted_cancel: int,
+        reason: str,
+    ) -> None:
+        if not authority.projection_exists:
+            inner.connection.execute(
+                "INSERT INTO task_execution_projection(task_id,execution_state,actual_start_utc,actual_end_utc,"
+                "effective_termination_utc,termination_reason,revision,last_event_id) "
+                "VALUES (?,'terminated',NULL,NULL,?,?,1,?)",
+                (task_id, accepted_cancel, reason, event_id),
+            )
+            return
+        updated = inner.connection.execute(
+            "UPDATE task_execution_projection SET execution_state='terminated',actual_start_utc=NULL,actual_end_utc=NULL,"
+            "effective_termination_utc=?,termination_reason=?,revision=revision+1,last_event_id=? "
+            "WHERE task_id=? AND revision=?",
+            (accepted_cancel, reason, event_id, task_id, authority.revision),
+        )
+        if updated.rowcount != 1:
+            raise IntegrityFailure("Task execution projection changed during guarded cancellation")
 
     def start_task_execution(
         self,
@@ -873,6 +1032,195 @@ class TaskExecutionService:
                     "task_id": canonical_task_id,
                     "revision": resulting_task_revision,
                     "result_refs": [{"type": "task_execution_event", "id": event_id}],
+                },
+            )
+
+        return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+
+    def cancel_task_without_execution(
+        self,
+        *,
+        command_id: str,
+        task_id: str,
+        task_revision: int,
+        execution_revision: int,
+        outcome_revision: int,
+        effective_cancel_utc: int,
+        reason_category: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> TaskMutationResult:
+        canonical_task_id = require_uuid4(task_id)
+        expected_task_revision = _require_revision(task_revision, label="task_revision")
+        expected_execution_revision = _require_revision(
+            execution_revision,
+            label="execution_revision",
+            allow_zero=True,
+        )
+        if type(outcome_revision) is not int or outcome_revision != 0:
+            raise ValidationError("outcome_revision must be exactly zero for cancellation without execution")
+        accepted_cancel = _validate_effective_cancel(effective_cancel_utc)
+        reason = _validate_reason_category(reason_category)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CancelTaskWithoutExecution",
+            target_type="task",
+            target_id=canonical_task_id,
+            semantic_payload={
+                "execution_revision": expected_execution_revision,
+                "outcome_revision": 0,
+                "effective_cancel_utc": accepted_cancel,
+                "reason_category": reason,
+            },
+            base_revisions={canonical_task_id: expected_task_revision},
+        )
+        request_hash = envelope.request_hash()
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            task = self._tasks.get(uow.connection, canonical_task_id)
+            if task is None:
+                raise SomaError("TASK_NOT_FOUND", "Task does not exist")
+            authority = self._execution_authority(uow.connection, canonical_task_id)
+            has_outcome = self._has_terminal_outcome(uow.connection, canonical_task_id)
+
+            if authority.revision != expected_execution_revision:
+                if authority.state == "in_progress" and authority.actual_start_utc is not None:
+                    raise SomaError(
+                        "TASK_CANCEL_AFTER_START",
+                        "Task accepted start evidence before cancellation writer revalidation",
+                    )
+                if authority.state in {"ended", "terminated"}:
+                    raise SomaError("TASK_EXECUTION_ALREADY_TERMINAL", "Task execution is already terminal")
+                raise SomaError("TASK_STALE", "Task execution revision changed before cancellation")
+            if authority.state == "in_progress" and authority.actual_start_utc is not None:
+                raise SomaError("TASK_CANCEL_AFTER_START", "Task already has accepted start evidence")
+            if authority.state in {"ended", "terminated"} or has_outcome:
+                raise SomaError("TASK_EXECUTION_ALREADY_TERMINAL", "Task execution/outcome is already terminal")
+            if task.revision != expected_task_revision:
+                raise SomaError("TASK_STALE", "Task revision changed before cancellation")
+            if authority.state != "not_started" or authority.actual_start_utc is not None:
+                raise IntegrityFailure("Task cancellation authority is not current-effective not_started")
+
+            recorded_at = utc_epoch_seconds()
+            execution_event_id = new_uuid4()
+            outcome_event_id = new_uuid4()
+            execution_audit_id = new_uuid4()
+            outcome_audit_id = new_uuid4()
+            resulting_task_revision = task.revision + 1
+            resulting_execution_revision = authority.revision + 1
+
+            def apply(inner: UnitOfWork) -> tuple[AuditEventInput, ...]:
+                inner.connection.execute(
+                    "INSERT INTO task_execution_events(execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,target_event_id,"
+                    "correction_action,reason_code,recorded_at_utc,command_id) VALUES (?,?,?,'manual_cancel',?,NULL,NULL,?,?,?)",
+                    (
+                        execution_event_id,
+                        canonical_task_id,
+                        resulting_execution_revision,
+                        accepted_cancel,
+                        reason,
+                        recorded_at,
+                        command_id,
+                    ),
+                )
+                self._insert_or_advance_cancel_projection(
+                    inner,
+                    task_id=canonical_task_id,
+                    authority=authority,
+                    event_id=execution_event_id,
+                    accepted_cancel=accepted_cancel,
+                    reason=reason,
+                )
+                inner.connection.execute(
+                    "INSERT INTO task_outcome_events(outcome_event_id,task_id,accepted_outcome,correction_of_event_id,"
+                    "reason_code,reviewed_at_utc,command_id) VALUES (?,?,'cancelled_without_execution',NULL,?,?,?)",
+                    (outcome_event_id, canonical_task_id, reason, recorded_at, command_id),
+                )
+                inner.connection.execute(
+                    "INSERT INTO task_outcome_current(task_id,outcome_event_id,accepted_outcome,reviewed_at_utc,revision,last_command_id) "
+                    "VALUES (?,?,'cancelled_without_execution',?,1,?)",
+                    (canonical_task_id, outcome_event_id, recorded_at, command_id),
+                )
+                self._tasks.increment_revision(
+                    inner,
+                    task_id=canonical_task_id,
+                    expected_revision=expected_task_revision,
+                )
+                membership = self._objectives.current_membership_for_task(inner.connection, canonical_task_id)
+                if membership is not None:
+                    self._objectives.rebuild_aggregate(
+                        inner,
+                        objective_id=membership.objective_id,
+                        command_id=command_id,
+                    )
+                execution_audit = AuditEventInput(
+                    audit_event_id=execution_audit_id,
+                    action_type="task.execution_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="task",
+                    target_id=canonical_task_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                    payload_schema="TaskExecutionAuditV1",
+                    payload_version=1,
+                    payload={
+                        "task_id": canonical_task_id,
+                        "execution_event_id": execution_event_id,
+                        "event_kind": "manual_cancel",
+                        "effective_at_utc": accepted_cancel,
+                        "target_event_id": None,
+                        "resulting_task_revision": resulting_task_revision,
+                        "resulting_execution_revision": resulting_execution_revision,
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("task_execution_event", execution_event_id),
+                    ),
+                )
+                outcome_audit = AuditEventInput(
+                    audit_event_id=outcome_audit_id,
+                    action_type="task.outcome_reviewed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="task",
+                    target_id=canonical_task_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                    payload_schema="TaskOutcomeAuditV1",
+                    payload_version=1,
+                    payload={
+                        "task_id": canonical_task_id,
+                        "outcome_event_id": outcome_event_id,
+                        "accepted_outcome": "cancelled_without_execution",
+                        "correction_of_event_id": None,
+                        "resulting_outcome_revision": 1,
+                        "review_fingerprint": request_hash,
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("task_outcome_event", outcome_event_id),
+                    ),
+                )
+                return (execution_audit, outcome_audit)
+
+            return PreparedMutation(
+                False,
+                "task_execution_event",
+                execution_event_id,
+                apply,
+                response_schema="TaskMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "task_id": canonical_task_id,
+                    "revision": resulting_task_revision,
+                    "result_refs": [
+                        {"type": "task_execution_event", "id": execution_event_id},
+                        {"type": "task_outcome_event", "id": outcome_event_id},
+                    ],
                 },
             )
 
