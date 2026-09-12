@@ -447,3 +447,94 @@ class WfmActivityRelationshipReviewService:
             )
 
         return wfm_activity_review_result_from_execution(self._boundary.execute(envelope, prepare))
+
+
+@dataclass(frozen=True, slots=True)
+class WfmActivityReviewCommandContext:
+    command_id: str
+    actor_kind: str = "local_user"
+    actor_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class WfmActivityReviewParticipantResult:
+    outcome: str
+    decision: str
+    review_fingerprint: str
+    affected_task_count: int
+    result_refs: tuple[tuple[str, str], ...]
+
+
+class WfmActivityReviewParticipant:
+    """Same-UoW activity-lineage review participant consumed by LLD-04."""
+
+    @staticmethod
+    def apply_reviewed_activity_relationship(
+        uow: UnitOfWork,
+        *,
+        seed_tasks: Sequence[tuple[str, int]],
+        decision: str,
+        review_fingerprint: str,
+        reason_category: str,
+        command_context: WfmActivityReviewCommandContext,
+    ) -> WfmActivityReviewParticipantResult:
+        if not isinstance(command_context, WfmActivityReviewCommandContext):
+            raise ValidationError("command_context must be WfmActivityReviewCommandContext")
+        command_id = require_uuid4(command_context.command_id)
+        if uow.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None:
+            raise IntegrityFailure("WFM activity-review participant requires caller-owned command receipt")
+        seed_pairs = _canonical_seed_pairs(seed_tasks)
+        canonical_decision = validate_activity_review_decision(decision)
+        fingerprint = _validate_review_fingerprint(review_fingerprint)
+        reason = validate_task_reason_category(reason_category)
+        seed_ids = tuple(task_id for task_id, _ in seed_pairs)
+
+        WfmActivityRelationshipReviewService._require_seed_freshness(uow, seed_pairs)
+        evaluation = WfmActivityRelationshipReviewQueryService.evaluate_connection(
+            uow.connection,
+            seed_task_ids=seed_ids,
+            decision=canonical_decision,
+        )
+        if evaluation.review_fingerprint != fingerprint:
+            raise SomaError(
+                "TASK_ACTIVITY_REVIEW_STALE",
+                "WFM activity-review authority changed since preview",
+            )
+        if evaluation.semantic_no_change:
+            return WfmActivityReviewParticipantResult(
+                outcome="NO_CHANGE",
+                decision=canonical_decision,
+                review_fingerprint=fingerprint,
+                affected_task_count=evaluation.affected_task_count,
+                result_refs=(),
+            )
+
+        plan = WfmActivityRelationshipReviewService._plan_material_review(evaluation)
+        audits = WfmActivityRelationshipReviewService._apply_material_review(
+            uow,
+            command_id=command_id,
+            evaluation=evaluation,
+            plan=plan,
+            reason_category=reason,
+            actor_kind=command_context.actor_kind,
+            actor_id=command_context.actor_id,
+        )
+        audit_writer = AuditWriter(_build_activity_review_audit_registry())
+        for audit in audits:
+            audit_writer.write(uow, audit)
+
+        refs: list[tuple[str, str]] = [
+            ("task_activity_lineage_event", plan.primary_event_id)
+        ]
+        if len(plan.new_lineage_ids) == 1:
+            refs.append(("task_activity_lineage", plan.new_lineage_ids[0]))
+        return WfmActivityReviewParticipantResult(
+            outcome="APPLIED",
+            decision=canonical_decision,
+            review_fingerprint=fingerprint,
+            affected_task_count=evaluation.affected_task_count,
+            result_refs=tuple(refs),
+        )
