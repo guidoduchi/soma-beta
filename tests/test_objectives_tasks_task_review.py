@@ -112,7 +112,7 @@ def test_review_task_outcome_applies_replays_and_exact_no_change(initialized_dat
 
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute(
-            "SELECT accepted_outcome,correction_of_event_id,revision "
+            "SELECT c.accepted_outcome,e.correction_of_event_id,c.revision "
             "FROM task_outcome_current c JOIN task_outcome_events e "
             "ON e.outcome_event_id=c.outcome_event_id WHERE c.task_id=?",
             (task_id,),
