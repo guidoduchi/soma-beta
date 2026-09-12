@@ -7,70 +7,16 @@
   "response_type":"ProposalDecisionResultV1",
   "pure_preflight":false,
   "transaction_boundary":"one short outer LLD-01 UnitOfWork shared with the LLD-05 WfmActivityReviewParticipant; no nested receipt/commit/rollback",
-  "authoritative_reads":[
-    "exact pending wfm_competing_attempt_review proposal/revision/fingerprint/base token and immutable WFM source observation",
-    "parent run/recovery authorization authority",
-    "current LLD-03 exact owning RFC identity resolved from source_observation.canonical_parent_rfc_no",
-    "current LLD-05 WFM identity/source projection and WfmImportActivityConflictSetV1",
-    "current LLD-05 SOMA_WFM_ACTIVITY_RELATIONSHIP_REVIEW_V1 authority through WfmActivityReviewParticipant"
-  ],
-  "input":[
-    "proposal_id path UUID",
-    "command_id UUID",
-    "proposal_revision int>=1",
-    "proposal_fingerprint lowercase sha256",
-    "base_state_token lowercase sha256 equal to the proposal's WFM conflict_fingerprint",
-    "counterpart_task_id canonical UUIDv4 naming one currently conflicting same-lineage Task",
-    "decision distinct_activity|same_activity|retry_lineage|unresolved_source_error",
-    "activity_review_fingerprint lowercase sha256 from WfmActivityRelationshipReviewPreview for the exact current subject/counterpart seed pair and requested decision",
-    "reason_category nonempty one-line UTF-8 1..128 bytes, no NUL/CR/LF"
-  ],
-  "guards":[
-    "exact command replay is resolved before prepare/owner-state reads",
-    "proposal exists, is pending, kind=wfm_competing_attempt_review, risk=high, evidence_mode=observed_row and target_kind=activity_lineage",
-    "request proposal_revision/proposal_fingerprint/base_state_token exact-match persisted immutable review binding; recovery_required run has the latest exact authorization",
-    "proposal source observation is published conflict-free source_family=wfm_service_provider entity_kind=wfm identity_state=valid with exact canonical TK+14 and canonical parent NC+14",
-    "proposal target_business_id equals the observation Task No.; target_internal_id is the reviewed activity_lineage_id captured when the proposal was generated",
-    "the source observation contains a complete validated planned_start/planned_end pair; partial/malformed/blank-unscheduled plan evidence cannot support competing-attempt review",
-    "LLD-03 resolves canonical_parent_rfc_no to the exact current RFC identity; LLD-05 task_no_status must now be ACTIVE and get_by_task_no must bind the exact current Task to that RFC",
-    "the current LLD-05 accepted WFM source projection must reference the exact proposal source_observation_id and must contain the exact source-plan UTC endpoints represented by the proposal observation; therefore identity/source-projection proposals must be accepted first when this review originated from newer source evidence",
-    "call WfmImportReader.activity_conflicts in the same writer UoW with subject {task_no,current_rfc_id,task_id}, the exact proposal source interval and request counterpart_task_id; classification must be SAME_REVIEWED_LINEAGE_OVERLAP, returned activity_lineage_id must equal proposal target_internal_id, selected_counterpart must name request counterpart_task_id, and returned conflict_fingerprint must exact-match both request base_state_token and proposal base_state_token_sha256",
-    "derive seed_tasks as the canonical task_id-sorted pair {subject task_id/current tasks.revision, selected counterpart task_id/selected counterpart task_revision}; the client never chooses seed revisions or expands the reviewed closure",
-    "activity_review_fingerprint is independently recomputed by LLD-05 for the explicit decision over that exact seed pair; overlap/conflict evidence never selects the decision"
-  ],
-  "idempotency":"COMMAND_ENVELOPE_V1 binds proposal id/revision/fingerprint/base token, counterpart_task_id, decision, activity_review_fingerprint and reason_category; exact replay returns the immutable original ProposalDecisionResultV1 before current conflict/Task reads",
+  "authoritative_reads":["exact pending wfm_competing_attempt_review proposal/revision/fingerprint/base token/change and immutable WFM source observation","parent run/recovery authorization authority","current LLD-03 exact owning RFC identity resolved from source_observation.canonical_parent_rfc_no","current LLD-05 WFM identity/source projection and WfmImportActivityConflictSetV1","current LLD-05 SOMA_WFM_ACTIVITY_RELATIONSHIP_REVIEW_V1 authority through WfmActivityReviewParticipant"],
+  "input":["proposal_id path UUID","command_id UUID","proposal_revision int>=1","proposal_fingerprint lowercase sha256","base_state_token lowercase sha256 equal to the proposal's WFM conflict_fingerprint","decision distinct_activity|same_activity|retry_lineage|unresolved_source_error","activity_review_fingerprint lowercase sha256 from WfmActivityRelationshipReviewPreview for the exact current subject/persisted-counterpart seed pair and requested decision","reason_category nonempty one-line UTF-8 1..128 bytes, no NUL/CR/LF"],
+  "guards":["exact command replay is resolved before prepare/owner-state reads","proposal exists, is pending, kind=wfm_competing_attempt_review, risk=high, evidence_mode=observed_row and target_kind=activity_lineage","request proposal_revision/proposal_fingerprint/base_state_token exact-match persisted immutable review binding; recovery_required run has the latest exact authorization","proposal source observation is published conflict-free source_family=wfm_service_provider entity_kind=wfm identity_state=valid with exact canonical TK+14 and canonical parent NC+14","proposal target_business_id equals the observation Task No.; target_internal_id is the reviewed activity_lineage_id captured when the proposal was generated","proposal changes are exactly one ordinal-0 conflict identity change with field_key=competing_attempt_counterpart,before_text=null,after_text=canonical UUIDv4 counterpart_task_id,source_observation_field_id=null; the counterpart is immutable proposal evidence and not client-selectable","the source observation contains a complete validated planned_start/planned_end pair; partial/malformed/blank-unscheduled plan evidence cannot support competing-attempt review","LLD-03 resolves canonical_parent_rfc_no to the exact current RFC identity; LLD-05 task_no_status must now be ACTIVE and get_by_task_no must bind the exact current Task to that RFC","the current LLD-05 accepted WFM source projection must reference the exact proposal source_observation_id and must contain the exact source-plan UTC endpoints represented by the proposal observation; therefore identity/source-projection proposals must be accepted first when this review originated from newer source evidence","call WfmImportReader.activity_conflicts in the same writer UoW with subject {task_no,current_rfc_id,task_id}, the exact proposal source interval and the persisted counterpart_task_id; classification must be SAME_REVIEWED_LINEAGE_OVERLAP, returned activity_lineage_id must equal proposal target_internal_id, selected_counterpart must name the persisted counterpart, and returned conflict_fingerprint must exact-match both request base_state_token and proposal base_state_token_sha256","derive seed_tasks as the canonical task_id-sorted pair {subject task_id/current tasks.revision, selected counterpart task_id/selected counterpart task_revision}; the client never chooses Task identities or revisions and never expands the reviewed closure","activity_review_fingerprint is independently recomputed by LLD-05 for the explicit decision over that exact seed pair; overlap/conflict evidence never selects the decision"],
+  "idempotency":"COMMAND_ENVELOPE_V1 binds proposal id/revision/fingerprint/base token, decision, activity_review_fingerprint and reason_category; the counterpart is already immutable proposal evidence. Exact replay returns the immutable original ProposalDecisionResultV1 before current conflict/Task reads",
   "receipt_order":"all LLD-04/current conflict guards -> insert one outer command receipt -> call WfmActivityReviewParticipant -> accepted proposal disposition/proposal/run counters -> ticket_import.proposal_decided.v1 audit/result evidence -> commit",
   "participant_contract":"WfmActivityReviewParticipant receives the already-open UoW and outer command context. It exact-checks seed Task revisions, recomputes the complete touched-lineage review fingerprint and applies the same semantic NO_CHANGE/material lineage authority as standalone ReviewWfmActivityRelationship. It creates no receipt and never commits/rolls back. APPLIED and NO_CHANGE are both valid reviewed outcomes for this LLD-04 proposal: a NO_CHANGE means the operator explicitly confirmed the already-current classification under exact current authority, so LLD-04 may still terminally accept the review proposal while LLD-05 creates no duplicate lineage/audit history.",
-  "mutations":[
-    "LLD-05 activity-lineage/event/current/Task revisions and registered owner audits only when participant result is APPLIED",
-    "proposal_dispositions decision=accepted",
-    "reconciliation_proposals pending->accepted revision+1",
-    "import_runs accepted/pending counters and revision according to the existing LLD-04 proposal-decision contract",
-    "ticket_import.proposal_decided.v1 audit plus bounded participant owner_result_refs"
-  ],
-  "rules":[
-    "Generic AcceptReconciliationProposal MUST return IMPORT_PROPOSAL_BLOCKED for wfm_competing_attempt_review; only this command may accept that proposal kind.",
-    "Proposal generation may occur only when WfmImportActivityConflictSetV1.classification=SAME_REVIEWED_LINEAGE_OVERLAP. An ABSENT/unadopted Task, exact lineage absence, different reviewed lineage, unscheduled evidence, terminal local execution/outcome or mere overlap without same-lineage authority cannot emit this proposal.",
-    "The proposal base_state_token_sha256 is exactly the WfmImportActivityConflictSetV1 conflict_fingerprint from generation. The proposal fingerprint separately binds immutable source observation/change/profile evidence; neither token contains an operator decision.",
-    "The proposal target_kind is activity_lineage, target_internal_id is the reviewed subject activity_lineage_id and target_business_id is the canonical subject Task No. One explanatory ordinal-0 proposal change uses field_key=competing_attempt_counterpart, change_kind=conflict, value_kind=identity, before_text=null, after_text=suggested_counterpart_task_id and source_observation_field_id=null. The suggested counterpart is display/review evidence only and does not force the request counterpart; any requested counterpart must be revalidated as a member of the exact current fingerprint-bound conflict set.",
-    "Source identity/adoption/source projection and activity classification remain separate authorities. Accepting create/adopt or source projection cannot silently accept this review; resolving this review cannot rewrite provider source evidence or operational Task plan.",
-    "If conflict authority changed or disappeared, return IMPORT_PROPOSAL_STALE before receipt; refreshed proposal calculation may supersede the old review rather than rewriting its immutable evidence.",
-    "If LLD-05 seed revision changes, activity review fingerprint changes, retry relation is invalid, participant audit fails or any participant write fails, the complete outer UoW rolls back and the LLD-04 proposal remains pending.",
-    "No Task/TK identity is ever merged by this workflow; lineage is reviewed classification only."
-  ],
+  "mutations":["LLD-05 activity-lineage/event/current/Task revisions and registered owner audits only when participant result is APPLIED","proposal_dispositions decision=accepted","reconciliation_proposals pending->accepted revision+1","import_runs accepted/pending counters and revision according to the existing LLD-04 proposal-decision contract","ticket_import.proposal_decided.v1 audit plus bounded participant owner_result_refs"],
+  "rules":["Generic AcceptReconciliationProposal MUST return IMPORT_PROPOSAL_BLOCKED for wfm_competing_attempt_review; only this command may accept that proposal kind.","Proposal generation may occur only when WfmImportActivityConflictSetV1.classification=SAME_REVIEWED_LINEAGE_OVERLAP. An ABSENT/unadopted Task, exact lineage absence, different reviewed lineage, unscheduled evidence, terminal local execution/outcome or mere overlap without same-lineage authority cannot emit this proposal.","The proposal base_state_token_sha256 is exactly the complete WfmImportActivityConflictSetV1 conflict_fingerprint from generation. The proposal fingerprint separately binds immutable source observation/change/profile evidence; neither token contains an operator decision.","The proposal target_kind is activity_lineage, target_internal_id is the reviewed subject activity_lineage_id and target_business_id is the canonical subject Task No. The one ordinal-0 conflict change persists exactly the provider's deterministic suggested_counterpart_task_id from generation and therefore fixes the pair reviewed by this proposal.","Source identity/adoption/source projection and activity classification remain separate authorities. Accepting create/adopt or source projection cannot silently accept this review; resolving this review cannot rewrite provider source evidence or operational Task plan.","If conflict authority changed or disappeared, return IMPORT_PROPOSAL_STALE before receipt; refreshed proposal calculation may supersede the old review rather than rewriting its immutable evidence. If another conflict remains after a successful relationship review, refreshed reconciliation may surface it under a new fingerprint.","If LLD-05 seed revision changes, activity review fingerprint changes, retry relation is invalid, participant audit fails or any participant write fails, the complete outer UoW rolls back and the LLD-04 proposal remains pending.","No Task/TK identity is ever merged by this workflow; lineage is reviewed classification only."],
   "revision_effects":"LLD-04 proposal/run revisions increment exactly once for accepted disposition. LLD-05 affected Task/lineage revisions follow ReviewWfmActivityRelationship semantics; participant NO_CHANGE increments no LLD-05 revision.",
   "audit_action":"ticket_import.proposal_decided.v1 plus zero-or-more task.activity_relationship_reviewed.v1 owner audits from the same UoW",
-  "errors":[
-    "IMPORT_PROPOSAL_NOT_FOUND",
-    "IMPORT_PROPOSAL_STALE",
-    "IMPORT_PROPOSAL_BLOCKED",
-    "IMPORT_RECOVERY_AUTHORIZATION_REQUIRED",
-    "IMPORT_RECOVERY_REVIEW_STALE",
-    "TASK_NOT_FOUND",
-    "TASK_STALE",
-    "TASK_ACTIVITY_LINEAGE_CONFLICT",
-    "TASK_ACTIVITY_REVIEW_STALE",
-    "IDEMPOTENCY_CONFLICT"
-  ],
+  "errors":["IMPORT_PROPOSAL_NOT_FOUND","IMPORT_PROPOSAL_STALE","IMPORT_PROPOSAL_BLOCKED","IMPORT_RECOVERY_AUTHORIZATION_REQUIRED","IMPORT_RECOVERY_REVIEW_STALE","TASK_NOT_FOUND","TASK_STALE","TASK_ACTIVITY_LINEAGE_CONFLICT","TASK_ACTIVITY_REVIEW_STALE","IDEMPOTENCY_CONFLICT"],
   "acceptance_test_ids":["LLD04-T035","LLD04-F023","LLD04-F024"]
 }
