@@ -334,12 +334,18 @@ class ObjectiveProjectionRepository:
             if row[17] is not None:
                 outcome_revision = _positive(row[17], label="Task outcome revision")
                 outcome_event_id = _stored_uuid(row[18], label="Task outcome event identity")
-                accepted_outcome = str(row[19])
-                if accepted_outcome not in _OUTCOMES or row[20] is None or row[21] is None:
+                latest_reviewed_outcome = str(row[19])
+                if latest_reviewed_outcome not in _OUTCOMES or row[20] is None or row[21] is None:
                     raise IntegrityFailure("Task outcome projection is incomplete")
-                if _stored_uuid(row[20], label="Task outcome event owner identity") != task_id or str(row[21]) != accepted_outcome:
+                if _stored_uuid(row[20], label="Task outcome event owner identity") != task_id or str(row[21]) != latest_reviewed_outcome:
                     raise IntegrityFailure("Task outcome projection disagrees with immutable history")
-                cls._validate_outcome_execution(accepted_outcome, execution_state, actual_start, actual_end)
+                if cls._outcome_matches_execution(
+                    latest_reviewed_outcome,
+                    execution_state,
+                    actual_start,
+                    actual_end,
+                ):
+                    accepted_outcome = latest_reviewed_outcome
             elif any(row[index] is not None for index in (18, 19, 20, 21)):
                 raise IntegrityFailure("Task outcome absence authority is inconsistent")
 
@@ -412,18 +418,30 @@ class ObjectiveProjectionRepository:
             raise IntegrityFailure("terminated execution projection fabricates actual end")
 
     @staticmethod
+    def _outcome_matches_execution(
+        outcome: str,
+        state: str,
+        actual_start: int | None,
+        actual_end: int | None,
+    ) -> bool:
+        if outcome == "completed":
+            return state == "ended" and actual_start is not None and actual_end is not None
+        if outcome == "incomplete":
+            return state in {"ended", "terminated"} and actual_start is not None
+        if outcome == "cancelled_without_execution":
+            return state == "terminated" and actual_start is None
+        raise IntegrityFailure("Task outcome token is invalid")
+
+    @classmethod
     def _validate_outcome_execution(
+        cls,
         outcome: str,
         state: str,
         actual_start: int | None,
         actual_end: int | None,
     ) -> None:
-        if outcome == "completed" and (state != "ended" or actual_start is None or actual_end is None):
-            raise IntegrityFailure("completed Task outcome is incompatible with execution authority")
-        if outcome == "incomplete" and (state not in {"ended", "terminated"} or actual_start is None):
-            raise IntegrityFailure("incomplete Task outcome is incompatible with execution authority")
-        if outcome == "cancelled_without_execution" and (state != "terminated" or actual_start is not None):
-            raise IntegrityFailure("cancelled Task outcome is incompatible with execution authority")
+        if not cls._outcome_matches_execution(outcome, state, actual_start, actual_end):
+            raise IntegrityFailure("Task outcome is incompatible with execution authority")
 
     @staticmethod
     def _review_fingerprint(
