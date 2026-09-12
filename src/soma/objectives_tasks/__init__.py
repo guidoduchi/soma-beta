@@ -16,6 +16,7 @@ from .repositories.objectives import ObjectiveAggregateProjection, ObjectiveProj
 from .repositories.tasks import TaskNoStatus, WfmTaskRepository
 from .services.hard_delete import TaskHardDeleteService
 from .services.retries import TaskRetryService
+from .services.source_terminal import WfmSourceTerminalService
 from .services.task_activity_review import WfmActivityRelationshipReviewService
 from .services.task_execution import SelectedTaskExecutionStart, TaskExecutionService
 from .services.task_planning import TaskPlanningService
@@ -39,5 +40,6 @@ __all__ = [
     "WfmActivityRelationshipReviewQueryService",
     "WfmActivityRelationshipReviewResult",
     "WfmActivityRelationshipReviewService",
+    "WfmSourceTerminalService",
     "WfmTaskRepository",
 ]
