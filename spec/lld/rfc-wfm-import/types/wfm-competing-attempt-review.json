@@ -1,0 +1,22 @@
+{
+  "schema":"SOMA-LLD-TYPE-LEAF-V2",
+  "lld_id":"LLD-04",
+  "family":"command_request_types",
+  "types":{
+    "ResolveWfmCompetingAttemptReviewRequestV1":{
+      "kind":"object",
+      "additionalProperties":false,
+      "required":["command_id","proposal_revision","proposal_fingerprint","base_state_token","decision","activity_review_fingerprint","reason_category"],
+      "properties":{
+        "command_id":"uuid",
+        "proposal_revision":"int>=1",
+        "proposal_fingerprint":"sha256",
+        "base_state_token":"sha256",
+        "decision":"distinct_activity|same_activity|retry_lineage|unresolved_source_error",
+        "activity_review_fingerprint":"sha256",
+        "reason_category":"string 1..128 UTF-8 bytes; one line; no NUL/CR/LF"
+      }
+    }
+  },
+  "rules":["proposal_id is path authority and is not duplicated in the body","the exact counterpart Task identity is immutable proposal evidence and is not client-selectable","activity_review_fingerprint comes from the LLD-05 WfmActivityRelationshipReviewPreview for the exact proposal subject/counterpart pair and requested decision","COMMAND_ENVELOPE_V1 binds every required semantic field"]
+}
