@@ -1,0 +1,46 @@
+{
+  "schema": "SOMA-LLD-FAILURE-TESTS-V1",
+  "lld_id": "LLD-05",
+  "family": "execution_outcome_review_freshness_and_rollback",
+  "cases": [
+    {
+      "id": "LLD05-F037",
+      "inject": "TaskExecutionCorrectionPreview succeeds, then Task execution revision/target-effective state or current outcome authority changes before CorrectTaskExecutionEvidence",
+      "expect": "writer recomputation rejects TASK_REVIEW_STALE before receipt/evidence append; no stale reviewed correction is accepted"
+    },
+    {
+      "id": "LLD05-F038",
+      "inject": "execution correction would invalidate the current reviewed Task outcome but accept_outcome_invalidation is false",
+      "expect": "TASK_OUTCOME_INVALID_FOR_EXECUTION before receipt; execution history/projection, outcome event/current pointer, Task revision and Objective aggregate remain unchanged"
+    },
+    {
+      "id": "LLD05-F039",
+      "inject": "TaskOutcomeReviewPreview succeeds, then execution evidence changes before ReviewTaskOutcome",
+      "expect": "TASK_REVIEW_STALE; no outcome event/current projection/Task revision/audit mutation occurs"
+    },
+    {
+      "id": "LLD05-F040",
+      "inject": "TaskOutcomeCorrectionPreview succeeds, then another accepted outcome correction advances the current outcome tip before CorrectTaskOutcome",
+      "expect": "TASK_REVIEW_STALE; command cannot branch correction history from the stale prior event"
+    },
+    {
+      "id": "LLD05-F041",
+      "inject": "CancelTaskWithoutExecution caller observed not_started, but a Task start commits before cancellation writer revalidation",
+      "expect": "current-UoW guard returns TASK_CANCEL_AFTER_START; accepted start survives and no manual_cancel/outcome row commits"
+    },
+    {
+      "id": "LLD05-F042",
+      "inject": "CorrectTaskOutcome after outcome event/current pointer and affected Objective aggregate rebuild but before audit/replay-result completion",
+      "expect": "one outer UoW rolls back correction event/current revision, Task revision, aggregate rebuild, receipt/audit/replay result; prior outcome remains exact current tip"
+    },
+    {
+      "id": "LLD05-F043",
+      "inject": "CorrectTaskExecutionEvidence after correction event/projection and affected Objective aggregate rebuild but before audit/replay-result completion",
+      "expect": "one outer UoW rolls back correction event, execution/Task revisions, aggregate rebuild, receipt/audit/replay result; prior execution interpretation and outcome currentness remain exact"
+    }
+  ],
+  "global_assertions": [
+    "review fingerprints are preview evidence only: writer-UoW recomputation must reject stale target/execution/outcome authority before receipt or domain mutation",
+    "outcome correction history remains one linear current-tip chain across stale-preview and rollback failures"
+  ]
+}

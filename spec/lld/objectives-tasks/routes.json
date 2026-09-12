@@ -2,7 +2,7 @@
   "schema":"SOMA-LLD-ROUTES-V2",
   "lld_id":"LLD-05",
   "canonical_api_prefix":"/api/v1",
-  "route_fragments":["routes/objectives-grouping.json"],
+  "route_fragments":["routes/objectives-grouping.json","routes/execution-review-previews.json"],
   "routes":[
     {"method":"GET","path":"/api/v1/tasks","handler_kind":"query","handler":"TaskList","request_type":"TaskListQueryV1","response_type":"TaskPageV1","success_status":200,"max_request_bytes":4096,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["VALIDATION_FAILED"]},
     {"method":"GET","path":"/api/v1/tasks/{task_id}","handler_kind":"query","handler":"TaskWorkbench","request_type":"TaskIdQueryV1","response_type":"TaskDetailV1","success_status":200,"max_request_bytes":2048,"auth_policy":"LLD12_BROWSER_QUERY_V1","error_codes":["TASK_NOT_FOUND"]},

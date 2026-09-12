@@ -1,0 +1,119 @@
+{
+  "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+  "lld_id": "LLD-05",
+  "family": "task_cancellation_outcome_review_and_source_terminal",
+  "commands": [
+    {
+      "name": "CancelTaskWithoutExecution",
+      "input": [
+        "task_id: canonical UUIDv4",
+        "task_revision: int>=1",
+        "execution_revision: int>=0 where 0 means exact execution history/projection absence",
+        "outcome_revision: int=0 meaning exact task_outcome_current and task_outcome_events absence",
+        "effective_cancel_utc: known UTC whole second >=0",
+        "reason_category: bounded nonempty code",
+        "command_id"
+      ],
+      "steps": [
+        "pure-preflight validates UUID/revision/time/reason shape",
+        "inside one writer UoW load exact Task; require task_revision exact; reconcile execution authority so revision 0 means exact no-history absence while a positive revision may legitimately fold to logical not_started after corrections; mismatch returns TASK_STALE",
+        "require outcome_revision=0 and exact absence of both task_outcome_current and owned outcome history; any history/current mismatch fails closed and any accepted outcome blocks cancellation",
+        "require current-effective execution state not_started with no accepted start and no terminal execution; a current-effective start returns TASK_CANCEL_AFTER_START and existing terminal authority returns TASK_EXECUTION_ALREADY_TERMINAL before receipt",
+        "insert one receipt, append one manual_cancel execution event at prior execution revision+1 using effective_cancel_utc, rebuild execution projection to terminated, and append the first outcome event cancelled_without_execution with correction_of_event_id null",
+        "create task_outcome_current at revision 1, resolve reviewed_at_utc once from server canonical recording time, increment tasks.revision exactly once, and do not alter provider WFM status/source evidence",
+        "rebuild affected Objective aggregate, append one task.execution_changed.v1 audit entry for the manual_cancel event and one task.outcome_reviewed.v1 entry for the cancelled outcome under the same receipt, using the canonical COMMAND_ENVELOPE_V1 request_hash as the latter audit review_fingerprint because this command has no separate preview; commit exact immutable response atomically"
+      ],
+      "rules": [
+        "pristine execution revision 0 and corrected positive-revision logical not_started are distinct freshness authorities and both are revalidated exactly",
+        "effective cancellation time and outcome reviewed/recording time are distinct",
+        "execution chronology remains the contiguous execution_revision chain",
+        "cancellation never rewrites provider status or prior evidence and cannot proceed when any outcome history already exists",
+        "replay occurs before owner-state reads",
+        "CancelTaskWithoutExecution introduces no bespoke review-fingerprint format; its exact command request hash already binds Task/execution/outcome-absence freshness, effective cancellation time and reason for bounded audit correlation"
+      ]
+    },
+    {
+      "name": "ReviewTaskOutcome",
+      "input": [
+        "task_id: canonical UUIDv4",
+        "task_revision: int>=1",
+        "execution_revision: int>=1",
+        "outcome_revision: int>=0 where 0 means exact outcome history/current absence",
+        "current_outcome_event_id: canonical UUIDv4 iff outcome_revision>0, else null",
+        "outcome: completed|incomplete|cancelled_without_execution",
+        "reason_category: bounded code or null according to acceptance matrix",
+        "outcome_review_fingerprint: lowercase SHA-256 from TaskOutcomeReviewPreview",
+        "command_id"
+      ],
+      "steps": [
+        "pure-preflight validates identifiers/revisions/outcome/reason/fingerprint without reading owner state",
+        "inside one writer UoW load exact Task, fold contiguous execution history, and reconcile exact outcome absence or positive linear outcome chain/current pointer; task_revision/execution_revision/outcome revision or current-event mismatch returns TASK_STALE before review-fingerprint comparison and integrity disagreement fails closed",
+        "recompute SOMA_TASK_OUTCOME_REVIEW_V1 from current owner authority and exact request and require fingerprint equality before receipt",
+        "validate requested outcome against current corrected execution: completed requires ended with accepted start/end; incomplete requires accepted start and ended or terminated plus reason when evidence does not explain incompleteness; cancelled_without_execution requires no current-effective accepted start and terminated evidence",
+        "if a current reviewed outcome exists, return semantic NO_CHANGE only when it remains valid and requested outcome plus normalized reason exactly equal the current event under the exact fingerprint; any different current reviewed outcome is not overwritten and requires CorrectTaskOutcome",
+        "for material first review, insert one receipt, resolve reviewed_at_utc once from server canonical recording time, append one outcome event with correction_of_event_id null, create task_outcome_current revision 1, and increment tasks.revision exactly once; execution revision/history are unchanged",
+        "rebuild affected Objective aggregate/current-review validity, append one task.outcome_reviewed.v1 audit event and commit exact immutable response atomically"
+      ],
+      "rules": [
+        "reviewed_at is acceptance/recording time and never substitutes for actual execution occurrence",
+        "NO_CHANGE creates no outcome history, Task revision increment or fake audit; exact replay still returns the immutable original command result",
+        "review fingerprint is evidence of the exact reviewed state and never replaces writer-UoW revalidation",
+        "replay occurs before owner-state reads"
+      ]
+    },
+    {
+      "name": "CorrectTaskOutcome",
+      "input": [
+        "task_id: canonical UUIDv4",
+        "task_revision: int>=1",
+        "execution_revision: int>=1",
+        "current_outcome_revision: int>=1",
+        "current_outcome_event_id: canonical UUIDv4",
+        "replacement_outcome: completed|incomplete|cancelled_without_execution",
+        "reason_category: bounded code or null according to acceptance matrix",
+        "correction_review_fingerprint: lowercase SHA-256 from TaskOutcomeCorrectionPreview",
+        "command_id"
+      ],
+      "steps": [
+        "pure-preflight validates identifiers/revisions/outcome/reason/fingerprint without reading owner state",
+        "inside one writer UoW load exact Task/execution authority and reconcile positive outcome history/current projection as one linear append-only chain; task_revision/execution_revision/current_outcome_revision/current_outcome_event_id mismatch returns TASK_STALE, current outcome revision must equal event count/chain length, and the event id must be its exact tip",
+        "recompute SOMA_TASK_OUTCOME_CORRECTION_REVIEW_V1 from current authority and exact request and require fingerprint equality before receipt; any execution/current-outcome drift returns TASK_REVIEW_STALE",
+        "validate replacement against current corrected execution using the same Task outcome acceptance matrix; do not trust client-computed state",
+        "if replacement outcome plus normalized reason exactly equal the current event under the exact fingerprint, return semantic NO_CHANGE without appending history/revisions/audit",
+        "otherwise insert one receipt, resolve reviewed_at_utc once from server canonical recording time, append exactly one outcome event whose correction_of_event_id equals the exact prior current tip, advance task_outcome_current revision exactly once, and increment tasks.revision exactly once; prior outcome rows remain immutable",
+        "rebuild affected Objective aggregate and invalidate any Objective review whose fingerprint changed; append one task.outcome_reviewed.v1 audit event and commit exact immutable response atomically"
+      ],
+      "rules": [
+        "same Task attempt/execution history survives; retry is a separate command",
+        "outcome correction is linear append-only authority and never branches from a non-current event",
+        "reviewed_at/UUID order never determines outcome correction chronology; current chain tip plus current outcome revision do",
+        "replay occurs before owner-state reads"
+      ]
+    },
+    {
+      "name": "ResolveWfmSourceTerminalConsequence",
+      "input": [
+        "source_terminal_review_id",
+        "task_id",
+        "exact source projection revision",
+        "exact input_fingerprint",
+        "decision retain_local_work|terminate_local_work",
+        "reason_category",
+        "command_id"
+      ],
+      "steps": [
+        "inside UoW require exact pending wfm_source_terminal_reviews row, current provider Complete or Plan Cancel evidence, matching source projection revision and recomputed local input fingerprint",
+        "insert receipt",
+        "retain_local_work transitions review only and leaves execution/membership intact; terminate_local_work appends source_terminal_consequence termination evidence at execution_revision=prior execution projection revision+1 but no Task outcome and links the review to that event",
+        "update review/projections",
+        "if an in-progress Objective loses its last executable Task derive Incomplete — Awaiting Review attention; otherwise surviving work continues with warning",
+        "audit and commit"
+      ],
+      "rules": [
+        "never modifies provider status",
+        "provider Complete/Plan Cancel alone does not execute this command",
+        "terminal Objective membership is not silently restructured"
+      ]
+    }
+  ]
+}

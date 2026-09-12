@@ -1,0 +1,59 @@
+{
+  "schema": "SOMA-LLD-ROUTE-FRAGMENT-V1",
+  "lld_id": "LLD-05",
+  "family": "task_execution_outcome_review_preview_routes",
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks/{task_id}/execution/correct-preview",
+      "handler_kind": "query",
+      "handler": "TaskExecutionCorrectionPreview",
+      "request_type": "TaskExecutionCorrectionPreviewQueryV1",
+      "response_type": "TaskExecutionCorrectionPreviewV1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LLD12_BROWSER_QUERY_V1",
+      "error_codes": [
+        "TASK_NOT_FOUND",
+        "TASK_STALE",
+        "TASK_REVIEW_STALE",
+        "TASK_OUTCOME_INVALID_FOR_EXECUTION"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks/{task_id}/review-preview",
+      "handler_kind": "query",
+      "handler": "TaskOutcomeReviewPreview",
+      "request_type": "TaskOutcomeReviewPreviewQueryV1",
+      "response_type": "TaskOutcomeReviewPreviewV1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LLD12_BROWSER_QUERY_V1",
+      "error_codes": [
+        "TASK_NOT_FOUND",
+        "TASK_STALE",
+        "TASK_REVIEW_STALE",
+        "TASK_OUTCOME_INVALID_FOR_EXECUTION"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks/{task_id}/review/correct-preview",
+      "handler_kind": "query",
+      "handler": "TaskOutcomeCorrectionPreview",
+      "request_type": "TaskOutcomeCorrectionPreviewQueryV1",
+      "response_type": "TaskOutcomeCorrectionPreviewV1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LLD12_BROWSER_QUERY_V1",
+      "error_codes": [
+        "TASK_NOT_FOUND",
+        "TASK_STALE",
+        "TASK_REVIEW_STALE",
+        "TASK_OUTCOME_INVALID_FOR_EXECUTION"
+      ]
+    }
+  ],
+  "rule": "These routes are pure exact-fingerprint previews. They create no receipt, audit event, domain revision, execution/outcome mutation or Objective aggregate change; later commands revalidate the exact owner authority under the writer UnitOfWork."
+}

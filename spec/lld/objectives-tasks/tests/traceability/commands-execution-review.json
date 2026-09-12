@@ -1,0 +1,100 @@
+{
+  "schema": "SOMA-LLD-TRACEABILITY-COMMAND-FRAGMENT-V1",
+  "lld_id": "LLD-05",
+  "command_edges": [
+    {
+      "command": "CorrectTaskExecutionEvidence",
+      "request_type": "CorrectTaskExecutionEvidenceRequestV1",
+      "response_type": "TaskMutationResultV1",
+      "transaction_boundary": "one UnitOfWork after pure request validation; exact Task revision, contiguous execution projection/history, current-effective non-correction target identity+revision, current outcome chain/currentness and SOMA_TASK_EXECUTION_CORRECTION_REVIEW_V1 are recomputed under the writer lock before receipt",
+      "revision_effects": "material correction increments tasks.revision and execution projection revision exactly once; prior execution/outcome evidence stays immutable and outcome revision is unchanged. If reviewed invalidation was explicitly accepted, incompatible prior outcome remains historical/latest-reviewed evidence but is excluded from current valid outcome derivation. Affected Objective aggregate rebuilds and prior Objective review may stale by fingerprint",
+      "audit": "task.execution_changed.v1",
+      "errors": [
+        "TASK_NOT_FOUND",
+        "TASK_STALE",
+        "TASK_REVIEW_STALE",
+        "TASK_OUTCOME_INVALID_FOR_EXECUTION",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "tests": [
+        "LLD05-T026",
+        "LLD05-T027",
+        "LLD05-F037",
+        "LLD05-F038",
+        "LLD05-F043"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1 binds exact task/execution/target revisions, requested correction, reviewed fingerprint and explicit outcome-invalidation acknowledgement; replay returns immutable original result before owner reads"
+    },
+    {
+      "command": "CancelTaskWithoutExecution",
+      "request_type": "CancelTaskWithoutExecutionRequestV1",
+      "response_type": "TaskMutationResultV1",
+      "transaction_boundary": "one UnitOfWork; exact Task revision, exact execution revision including 0=no-history versus positive corrected not_started, and exact outcome-history/current absence are revalidated before receipt plus cancellation/outcome evidence",
+      "revision_effects": "material cancellation increments tasks.revision exactly once, creates/advances execution projection once and creates outcome chain/current revision 1 exactly once; Objective aggregate is rebuilt from member facts",
+      "audit": [
+        "task.execution_changed.v1",
+        "task.outcome_reviewed.v1"
+      ],
+      "errors": [
+        "TASK_NOT_FOUND",
+        "TASK_STALE",
+        "TASK_CANCEL_AFTER_START",
+        "TASK_EXECUTION_ALREADY_TERMINAL",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "tests": [
+        "LLD05-T016",
+        "LLD05-T017",
+        "LLD05-T019",
+        "LLD05-F041"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1 binds task/execution/outcome absence freshness, effective cancellation time and reason; replay returns the same cancellation/outcome result"
+    },
+    {
+      "command": "ReviewTaskOutcome",
+      "request_type": "ReviewTaskOutcomeRequestV1",
+      "response_type": "TaskMutationResultV1",
+      "transaction_boundary": "one UnitOfWork; exact Task revision, contiguous execution authority, exact outcome absence/current chain and SOMA_TASK_OUTCOME_REVIEW_V1 are recomputed before append. A changed reviewed context returns TASK_REVIEW_STALE before receipt/domain mutation",
+      "revision_effects": "material first review increments tasks.revision and outcome current revision exactly once; execution evidence is unchanged. Exact identical compatible current outcome+reason may be NO_CHANGE with no domain history/revision/audit",
+      "audit": "task.outcome_reviewed.v1",
+      "errors": [
+        "TASK_NOT_FOUND",
+        "TASK_STALE",
+        "TASK_REVIEW_STALE",
+        "TASK_OUTCOME_INVALID_FOR_EXECUTION",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "tests": [
+        "LLD05-T015",
+        "LLD05-T016",
+        "LLD05-T018",
+        "LLD05-T026",
+        "LLD05-T046",
+        "LLD05-F039"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1 + exact SOMA_TASK_OUTCOME_REVIEW_V1; replay is exact and NO_CHANGE is allowed only for byte-equivalent reviewed authority plus identical requested outcome/reason"
+    },
+    {
+      "command": "CorrectTaskOutcome",
+      "request_type": "CorrectTaskOutcomeRequestV1",
+      "response_type": "TaskMutationResultV1",
+      "transaction_boundary": "one UnitOfWork; exact Task/execution authority plus linear outcome chain/current revision+tip and SOMA_TASK_OUTCOME_CORRECTION_REVIEW_V1 are recomputed before append; stale tip/revision/execution blocks before receipt",
+      "revision_effects": "material correction increments tasks.revision and current outcome revision exactly once; new event correction_of points to exact old current tip; prior outcome remains immutable and affected Objective review may stale by fingerprint. Exact same replacement+reason may be NO_CHANGE under exact fingerprint",
+      "audit": "task.outcome_reviewed.v1",
+      "errors": [
+        "TASK_NOT_FOUND",
+        "TASK_STALE",
+        "TASK_REVIEW_STALE",
+        "TASK_OUTCOME_INVALID_FOR_EXECUTION",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "tests": [
+        "LLD05-T018",
+        "LLD05-T027",
+        "LLD05-F040",
+        "LLD05-F042"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1 + exact SOMA_TASK_OUTCOME_CORRECTION_REVIEW_V1 bound to current outcome revision/tip and current execution authority; replay cannot branch or duplicate correction history"
+    }
+  ]
+}

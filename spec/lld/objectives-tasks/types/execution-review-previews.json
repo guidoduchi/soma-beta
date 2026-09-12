@@ -1,0 +1,106 @@
+{
+  "schema": "SOMA-LLD-TYPE-LEAF-V2",
+  "lld_id": "LLD-05",
+  "family": "execution_outcome_review_preview_types",
+  "type_rules": [
+    "Preview DTOs are transport-only; owner state is recomputed from repositories and caller-supplied derived execution/outcome state is never authoritative."
+  ],
+  "types": {
+    "TaskExecutionCorrectionPreviewQueryV1": {
+      "kind": "transport_query",
+      "path_fields": [
+        "task_id:uuid"
+      ],
+      "body_contract": "queries/execution-review.json#TaskExecutionCorrectionPreview.input",
+      "unknown_fields": "reject"
+    },
+    "TaskOutcomeReviewPreviewQueryV1": {
+      "kind": "transport_query",
+      "path_fields": [
+        "task_id:uuid"
+      ],
+      "body_contract": "queries/execution-review.json#TaskOutcomeReviewPreview.input",
+      "unknown_fields": "reject"
+    },
+    "TaskOutcomeCorrectionPreviewQueryV1": {
+      "kind": "transport_query",
+      "path_fields": [
+        "task_id:uuid"
+      ],
+      "body_contract": "queries/execution-review.json#TaskOutcomeCorrectionPreview.input",
+      "unknown_fields": "reject"
+    },
+    "TaskExecutionCorrectionPreviewV1": {
+      "kind": "object",
+      "required": [
+        "eligible",
+        "correction_review_fingerprint",
+        "execution_revision",
+        "target_execution_event_id",
+        "target_execution_revision",
+        "target_event_kind",
+        "target_effective_at_utc",
+        "resulting_execution_state",
+        "outcome_invalidation_required",
+        "current_outcome_revision",
+        "current_outcome_event_id",
+        "blockers"
+      ],
+      "fields": {
+        "eligible": "bool",
+        "correction_review_fingerprint": "sha256 hex",
+        "execution_revision": "int>=1",
+        "target_execution_event_id": "uuid",
+        "target_execution_revision": "int>=1",
+        "target_event_kind": "start|end|manual_cancel|rfc_terminal_terminate|source_terminal_consequence",
+        "target_effective_at_utc": "utc whole second|null",
+        "resulting_execution_state": "not_started|in_progress|ended|terminated",
+        "outcome_invalidation_required": "bool",
+        "current_outcome_revision": "int>=0",
+        "current_outcome_event_id": "uuid|null",
+        "blockers": "bounded array<TARGET_NOT_CURRENT_EFFECTIVE|INVALID_CORRECTED_CHRONOLOGY|GOVERNED_TERMINAL_WITHDRAW_FORBIDDEN>"
+      },
+      "rule": "current_outcome_revision=0 iff exact outcome history/current absence; fingerprint always covers exact current outcome authority and simulated corrected fold."
+    },
+    "TaskOutcomeReviewPreviewV1": {
+      "kind": "object",
+      "required": [
+        "eligible",
+        "outcome_review_fingerprint",
+        "current_outcome_revision",
+        "current_outcome_event_id",
+        "semantic_no_change",
+        "blockers"
+      ],
+      "fields": {
+        "eligible": "bool",
+        "outcome_review_fingerprint": "sha256 hex",
+        "current_outcome_revision": "int>=0",
+        "current_outcome_event_id": "uuid|null",
+        "semantic_no_change": "bool",
+        "blockers": "bounded array<EXECUTION_NOT_TERMINAL|OUTCOME_INVALID_FOR_EXECUTION|CURRENT_OUTCOME_REQUIRES_CORRECTION>"
+      },
+      "rule": "semantic_no_change requires exact compatible current outcome plus exact requested outcome/reason under the fingerprint."
+    },
+    "TaskOutcomeCorrectionPreviewV1": {
+      "kind": "object",
+      "required": [
+        "eligible",
+        "correction_review_fingerprint",
+        "current_outcome_revision",
+        "current_outcome_event_id",
+        "semantic_no_change",
+        "blockers"
+      ],
+      "fields": {
+        "eligible": "bool",
+        "correction_review_fingerprint": "sha256 hex",
+        "current_outcome_revision": "int>=1",
+        "current_outcome_event_id": "uuid",
+        "semantic_no_change": "bool",
+        "blockers": "bounded array<OUTCOME_INVALID_FOR_EXECUTION|OUTCOME_CHAIN_INTEGRITY>"
+      },
+      "rule": "fingerprint binds the exact current linear outcome-chain tip and current corrected execution authority."
+    }
+  }
+}

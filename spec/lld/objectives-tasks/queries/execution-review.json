@@ -1,0 +1,99 @@
+{
+  "schema": "SOMA-LLD-QUERIES-V1",
+  "lld_id": "LLD-05",
+  "queries": [
+    {
+      "name": "TaskExecutionCorrectionPreview",
+      "input": [
+        "task_id",
+        "task_revision",
+        "execution_revision",
+        "target_execution_event_id",
+        "target_execution_revision",
+        "correction_action replace_time|withdraw",
+        "replacement_effective_at_utc required only for replace_time",
+        "reason_category",
+        "snapshot"
+      ],
+      "returns": [
+        "eligible boolean",
+        "exact SOMA_TASK_EXECUTION_CORRECTION_REVIEW_V1 fingerprint",
+        "target current-effective event kind/revision/effective instant",
+        "resulting folded execution state/instants",
+        "current outcome revision/event or exact absence",
+        "outcome_invalidation_required boolean",
+        "bounded closed blockers"
+      ],
+      "rules": [
+        "pure stable-snapshot query; supplied Task/execution/target revisions must exact-match current authority or the preview fails stale rather than guessing a review context",
+        "execution authority must reconcile projection revision/event count/final-event identity to one contiguous execution_revision chain before a fingerprint can be issued",
+        "the target must be an owned non-correction base execution event at exactly target_execution_revision and must remain current-effective after all corrections through execution_revision; an already withdrawn target is not eligible",
+        "withdraw is not an authorizing path for rfc_terminal_terminate or source_terminal_consequence because those terminal facts are bound to separate governed RFC/source-terminal decisions; replacing their effective instant may be reviewed only while the terminal base event remains effective and resulting chronology is valid",
+        "simulate the requested correction against complete immutable execution history and require a valid fold; correction never trusts a caller-computed state or aggregate",
+        "fingerprint binds schema/version, task_id/task_revision, execution_revision plus projection state/instants/last_event_id, exact target event identity/revision/kind/original effective instant, its current-effective instant after prior corrections, requested action/replacement/reason, current outcome exact absence or revision/current-event/outcome/reason/reviewed_at, resulting folded execution state/instants and outcome_invalidation_required",
+        "fingerprint serialization uses LLD-01 strict canonical JSON under schema SOMA_TASK_EXECUTION_CORRECTION_REVIEW_V1 and lowercase SHA-256; timestamps and UUID lexical order never provide mutation chronology",
+        "outcome_invalidation_required is true only when a current reviewed outcome that is presently valid would cease to satisfy the Task outcome acceptance matrix under the simulated corrected execution",
+        "preview has no receipt, audit, domain revision, execution/outcome mutation, Objective rebuild or external effect"
+      ]
+    },
+    {
+      "name": "TaskOutcomeReviewPreview",
+      "input": [
+        "task_id",
+        "task_revision",
+        "execution_revision",
+        "outcome_revision where 0 means exact outcome-history/current absence",
+        "current_outcome_event_id null iff outcome_revision=0",
+        "requested outcome completed|incomplete|cancelled_without_execution",
+        "reason_category when required",
+        "snapshot"
+      ],
+      "returns": [
+        "eligible boolean",
+        "exact SOMA_TASK_OUTCOME_REVIEW_V1 fingerprint",
+        "current outcome revision/event or exact absence",
+        "semantic_no_change boolean",
+        "bounded closed blockers"
+      ],
+      "rules": [
+        "pure stable-snapshot query; supplied Task/execution/outcome revisions and current-outcome identity must exact-match current authority or return TASK_STALE rather than guessing a review context; projection/history disagreement fails closed",
+        "execution authority is folded strictly by contiguous execution_revision; outcome authority is absent only when both task_outcome_current and task_outcome_events are absent",
+        "positive outcome authority must be one linear append-only chain whose current revision equals owned event count and whose current event is the unique chain tip",
+        "requested outcome is checked against the current corrected execution acceptance matrix; caller-provided outcome currentness is never trusted",
+        "fingerprint binds schema/version, task_id/task_revision, execution revision/projection/last_event_id and folded state/instants, current outcome exact absence or revision/current-event/outcome/reason/reviewed_at, requested outcome and normalized reason",
+        "fingerprint serialization uses LLD-01 strict canonical JSON under schema SOMA_TASK_OUTCOME_REVIEW_V1 and lowercase SHA-256",
+        "semantic_no_change is true only when the exact current reviewed outcome remains valid and both requested outcome and normalized reason exactly equal the current event; any different current reviewed outcome requires CorrectTaskOutcome rather than overwrite",
+        "preview has no receipt, audit, domain revision, history append, Objective rebuild or external effect"
+      ]
+    },
+    {
+      "name": "TaskOutcomeCorrectionPreview",
+      "input": [
+        "task_id",
+        "task_revision",
+        "execution_revision",
+        "current_outcome_revision int>=1",
+        "current_outcome_event_id",
+        "replacement outcome completed|incomplete|cancelled_without_execution",
+        "reason_category",
+        "snapshot"
+      ],
+      "returns": [
+        "eligible boolean",
+        "exact SOMA_TASK_OUTCOME_CORRECTION_REVIEW_V1 fingerprint",
+        "current outcome revision/event/outcome",
+        "semantic_no_change boolean",
+        "bounded closed blockers"
+      ],
+      "rules": [
+        "pure stable-snapshot query; exact Task/execution/current-outcome revision and current event identity are mandatory; supplied freshness mismatch returns TASK_STALE rather than generating a fingerprint for different authority",
+        "positive outcome authority must reconcile to one linear append-only chain before preview; current revision equals event count/chain length and current_outcome_event_id is the exact tip",
+        "replacement outcome is checked against current corrected execution evidence and never against caller-computed execution state",
+        "fingerprint binds schema/version, task_id/task_revision, exact execution revision/projection/last_event_id and folded state/instants, exact current outcome revision/event/outcome/reason/reviewed_at, replacement outcome and normalized reason",
+        "fingerprint serialization uses LLD-01 strict canonical JSON under schema SOMA_TASK_OUTCOME_CORRECTION_REVIEW_V1 and lowercase SHA-256",
+        "semantic_no_change is true only when replacement outcome and normalized reason exactly equal the current event under the exact fingerprint; otherwise accepted correction must append against that exact tip",
+        "preview has no receipt, audit, domain revision, history append, Objective rebuild or external effect"
+      ]
+    }
+  ]
+}
