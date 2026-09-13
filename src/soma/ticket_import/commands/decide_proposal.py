@@ -20,6 +20,20 @@ from ._proposal_decision_core import (
 class ProposalDecisionService(_CoreProposalDecisionService):
     """Public proposal-decision service with the certified SR field-set freshness repair."""
 
+    @staticmethod
+    def _current_status_is_terminal(connection: Any, service_request_id: str) -> bool:
+        row = connection.execute(
+            "SELECT o.value_state,o.value_kind,o.text_value FROM sr_current_source_projection p "
+            "JOIN sr_source_field_observations o ON o.sr_source_field_observation_id=p.status_observation_id "
+            "WHERE p.service_request_id=?",
+            (service_request_id,),
+        ).fetchone()
+        if row is None:
+            return False
+        if str(row[0]) != "usable" or str(row[1]) != "controlled" or row[2] is None:
+            raise IntegrityFailure("current Service Request Status projection is invalid")
+        return str(row[2]) in _TERMINAL_SR_STATUSES
+
     def _prepare_sr_source_projection_accept(
         self,
         uow: UnitOfWork,
@@ -80,13 +94,28 @@ class ProposalDecisionService(_CoreProposalDecisionService):
                 proposal=proposal,
                 changes=changes,
             )
+            if (
+                proposal.proposal_kind == "sr_terminal_reversal_review"
+                and changes[0].after_text in _TERMINAL_SR_STATUSES
+            ):
+                raise SomaError(
+                    "IMPORT_PROPOSAL_STALE",
+                    "terminal SR source reversal must end in a nonterminal Status",
+                )
         elif precedence_basis == "source_chronology":
-            terminal_entries = [
-                change
-                for change in changes
-                if change.field_key == "status" and change.after_text in _TERMINAL_SR_STATUSES
-            ]
-            if terminal_entries and (proposal.risk_class != "high" or len(changes) != 1):
+            terminal_target = next(
+                (
+                    change
+                    for change in changes
+                    if change.field_key == "status" and change.after_text in _TERMINAL_SR_STATUSES
+                ),
+                None,
+            )
+            if (
+                terminal_target is not None
+                and not self._current_status_is_terminal(uow.connection, proposal.target_internal_id)
+                and (proposal.risk_class != "high" or len(changes) != 1)
+            ):
                 raise SomaError(
                     "IMPORT_PROPOSAL_STALE",
                     "terminal SR source entry must remain one high-risk Status proposal",
