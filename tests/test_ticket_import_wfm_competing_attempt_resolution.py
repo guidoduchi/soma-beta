@@ -56,8 +56,9 @@ def _register_wfm(
 
 
 def _review_same_activity(factory, task_ids: tuple[str, str]) -> str:
+    canonical_task_ids = tuple(sorted(task_ids))
     query = WfmActivityRelationshipReviewQueryService(factory)
-    preview = query.preview(seed_task_ids=task_ids, decision="same_activity")
+    preview = query.preview(seed_task_ids=canonical_task_ids, decision="same_activity")
     result = WfmActivityRelationshipReviewService(factory).review_wfm_activity_relationship(
         command_id=new_uuid4(),
         seed_tasks=tuple((seed.task_id, seed.task_revision) for seed in preview.seed_tasks),
@@ -70,7 +71,7 @@ def _review_same_activity(factory, task_ids: tuple[str, str]) -> str:
         rows = snapshot.connection.execute(
             "SELECT task_id,activity_lineage_id FROM task_activity_lineage_current "
             "WHERE task_id IN (?,?) ORDER BY task_id",
-            tuple(sorted(task_ids)),
+            canonical_task_ids,
         ).fetchall()
     assert len(rows) == 2
     lineage_ids = {str(row[1]) for row in rows}
@@ -242,8 +243,9 @@ def _seed_review_scope(factory, *, suffix: int = 960) -> dict[str, object]:
 
 
 def _activity_preview(factory, scope: dict[str, object], decision: str):
+    seed_task_ids = tuple(sorted((str(scope["subject_id"]), str(scope["counterpart_id"]))))
     return WfmActivityRelationshipReviewQueryService(factory).preview(
-        seed_task_ids=(str(scope["subject_id"]), str(scope["counterpart_id"])),
+        seed_task_ids=seed_task_ids,
         decision=decision,
     )
 
@@ -477,7 +479,7 @@ def test_competing_attempt_final_orchestration_audit_failure_rolls_back_owner_mu
             (scope["subject_id"], scope["counterpart_id"]),
         ).fetchall()
         before_lineage = snapshot.connection.execute(
-            "SELECT task_id,activity_lineage_id,lineage_revision,last_event_id FROM task_activity_lineage_current "
+            "SELECT task_id,activity_lineage_id,revision,last_event_id FROM task_activity_lineage_current "
             "WHERE task_id IN (?,?) ORDER BY task_id",
             (scope["subject_id"], scope["counterpart_id"]),
         ).fetchall()
@@ -507,7 +509,7 @@ def test_competing_attempt_final_orchestration_audit_failure_rolls_back_owner_mu
             (scope["subject_id"], scope["counterpart_id"]),
         ).fetchall() == before_tasks
         assert snapshot.connection.execute(
-            "SELECT task_id,activity_lineage_id,lineage_revision,last_event_id FROM task_activity_lineage_current "
+            "SELECT task_id,activity_lineage_id,revision,last_event_id FROM task_activity_lineage_current "
             "WHERE task_id IN (?,?) ORDER BY task_id",
             (scope["subject_id"], scope["counterpart_id"]),
         ).fetchall() == before_lineage
