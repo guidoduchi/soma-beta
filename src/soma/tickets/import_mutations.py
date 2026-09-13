@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef
-from soma.foundation.errors import SomaError
-from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
+from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 
@@ -28,6 +28,21 @@ from .sr_source_projection import (
     SrSourceProjectionService,
 )
 from .validation import validate_official_sr_no
+
+
+_SR_SOURCE_FIELD_COLUMNS = {
+    "problem_summary": "problem_summary_observation_id",
+    "report_date": "report_date_observation_id",
+    "customer_contact_label": "customer_contact_observation_id",
+    "customer_severity": "customer_severity_observation_id",
+    "current_handler_label": "current_handler_observation_id",
+    "status": "status_observation_id",
+    "customer_org_label": "customer_org_observation_id",
+    "customer_account_code": "customer_account_code_observation_id",
+    "suspend_planned_end": "suspend_planned_end_observation_id",
+    "suspension_duration": "suspension_duration_observation_id",
+    "last_update": "last_update_observation_id",
+}
 
 
 class AcceptedSrCustomerProposalProvider(Protocol):
@@ -190,6 +205,18 @@ class ServiceRequestImportReader:
     def source_acceptance_base_token(reader: Any, service_request_id: str) -> str:
         return ServiceRequestImportMutationService.source_acceptance_base_token(reader, service_request_id)
 
+    @staticmethod
+    def source_field_set_base_token(
+        reader: Any,
+        service_request_id: str,
+        field_keys: tuple[str, ...],
+    ) -> str:
+        return ServiceRequestImportMutationService.source_field_set_base_token(
+            reader,
+            service_request_id,
+            field_keys,
+        )
+
 
 class ServiceRequestImportMutationService:
     """LLD-03 owner boundary used by LLD-04's already-open UnitOfWork."""
@@ -331,6 +358,76 @@ class ServiceRequestImportMutationService:
             }
         )
 
+    @staticmethod
+    def source_field_set_base_token(
+        reader: Any,
+        service_request_id: str,
+        field_keys: tuple[str, ...],
+    ) -> str:
+        canonical_service_request_id = require_uuid4(service_request_id)
+        if not isinstance(field_keys, tuple) or not field_keys:
+            raise ValidationError("SR source field-set token requires a nonempty tuple of field keys")
+        if any(not isinstance(field_key, str) or not field_key for field_key in field_keys):
+            raise ValidationError("SR source field-set token field keys must be nonempty strings")
+        if len(set(field_keys)) != len(field_keys):
+            raise ValidationError("SR source field-set token field keys must be unique")
+        if any(field_key not in _SR_SOURCE_FIELD_COLUMNS for field_key in field_keys):
+            raise ValidationError("SR source field-set token contains an unallowlisted source field")
+
+        sr = reader.execute(
+            "SELECT official_sr_no FROM service_requests WHERE service_request_id=?",
+            (canonical_service_request_id,),
+        ).fetchone()
+        if sr is None:
+            raise SomaError("NOT_FOUND", "Service Request does not exist")
+        if sr[0] is None:
+            raise SomaError(
+                "IMPORT_PROPOSAL_STALE",
+                "Service Request source field-set token requires official identity",
+            )
+        official_sr_no = validate_official_sr_no(str(sr[0]))
+
+        fields: list[dict[str, object]] = []
+        for field_key in sorted(field_keys, key=lambda value: value.encode("utf-8")):
+            projection_column = _SR_SOURCE_FIELD_COLUMNS[field_key]
+            projection = reader.execute(
+                f"SELECT {projection_column} FROM sr_current_source_projection WHERE service_request_id=?",
+                (canonical_service_request_id,),
+            ).fetchone()
+            current = None
+            if projection is not None and projection[0] is not None:
+                observation_id = require_uuid4(str(projection[0]))
+                observation = reader.execute(
+                    "SELECT sr_source_field_observation_id,field_key,value_state,value_kind,text_value,integer_value,"
+                    "source_chronology_utc,precedence_basis FROM sr_source_field_observations "
+                    "WHERE sr_source_field_observation_id=? AND service_request_id=?",
+                    (observation_id, canonical_service_request_id),
+                ).fetchone()
+                if observation is None or str(observation[1]) != field_key:
+                    raise SomaError(
+                        "PERSISTENCE_FAILURE",
+                        "Service Request source projection points to invalid field authority",
+                    )
+                current = {
+                    "sr_source_field_observation_id": str(observation[0]),
+                    "value_state": str(observation[2]),
+                    "value_kind": str(observation[3]),
+                    "text_value": None if observation[4] is None else str(observation[4]),
+                    "integer_value": None if observation[5] is None else int(observation[5]),
+                    "source_chronology_utc": None if observation[6] is None else int(observation[6]),
+                    "precedence_basis": str(observation[7]),
+                }
+            fields.append({"field_key": field_key, "current": current})
+
+        return sha256_canonical_json(
+            {
+                "schema": "SOMA_SR_SOURCE_FIELD_SET_BASE_V1",
+                "service_request_id": canonical_service_request_id,
+                "official_sr_no": official_sr_no,
+                "fields": fields,
+            }
+        )
+
     @classmethod
     def customer_reconciliation_base_token(
         cls,
@@ -412,14 +509,19 @@ class ServiceRequestImportMutationService:
         uow: UnitOfWork,
         mutation: ServiceRequestSourceProjectionMutation,
     ) -> ServiceRequestImportMutationResult:
+        field_keys = tuple(delta.field_key for delta in mutation.accepted_delta_set.deltas)
         try:
-            current_token = self.source_acceptance_base_token(uow.connection, mutation.service_request_id)
+            current_token = self.source_field_set_base_token(
+                uow.connection,
+                mutation.service_request_id,
+                field_keys,
+            )
         except SomaError as exc:
             if exc.code == "NOT_FOUND":
                 raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request target no longer exists") from exc
             raise
         if not hmac.compare_digest(current_token, mutation.base_state_token):
-            raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request source acceptance base token changed")
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request source field-set base token changed")
         projection_result = self._projection_service.apply_accepted_field_deltas(
             uow,
             mutation.service_request_id,
