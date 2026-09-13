@@ -81,7 +81,7 @@ class SourceFindingRepository:
         return canonical_run_id, source_family
 
     @staticmethod
-    def _validate_finding(finding: NormalizedFindingEvidence) -> str | None:
+    def validate_finding(finding: NormalizedFindingEvidence) -> str | None:
         observation_id = None
         if finding.source_observation_id is not None:
             observation_id = require_uuid4(finding.source_observation_id)
@@ -102,7 +102,11 @@ class SourceFindingRepository:
         if finding.field_key is not None:
             if not isinstance(finding.field_key, str) or not finding.field_key or "\x00" in finding.field_key:
                 raise ValidationError("finding field_key must be nonempty NUL-free text when supplied")
-            if len(finding.field_key.encode("utf-8", errors="strict")) > _MAX_FIELD_KEY_UTF8_BYTES:
+            try:
+                encoded_field_key = finding.field_key.encode("utf-8", errors="strict")
+            except UnicodeEncodeError as exc:
+                raise ValidationError("finding field_key must be valid Unicode text") from exc
+            if len(encoded_field_key) > _MAX_FIELD_KEY_UTF8_BYTES:
                 raise ValidationError("finding field_key exceeds the bounded semantic-key ceiling")
         return observation_id
 
@@ -126,7 +130,7 @@ class SourceFindingRepository:
         normalized_observation_ids: list[str | None] = []
         referenced_ids: set[str] = set()
         for finding in findings:
-            observation_id = cls._validate_finding(finding)
+            observation_id = cls.validate_finding(finding)
             normalized_observation_ids.append(observation_id)
             if observation_id is not None:
                 referenced_ids.add(observation_id)
