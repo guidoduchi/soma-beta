@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.ticket_import.parsing.advanced_search import parse_advanced_search
@@ -214,8 +214,19 @@ def test_large_parse_commits_as_bounded_2000_row_batches(
     assert finding_count == len(parsed.global_findings)
     assert tuple(state) == ("validating", 1)
 
+    with pytest.raises(ValidationError):
+        with UnitOfWork(factory) as uow:
+            stage_advanced_search_parse_batch(
+                uow,
+                import_run_id=run_id,
+                expected_run_revision=1,
+                parsed=parsed,
+                start_index=2_000,
+                include_global_findings=True,
+            )
 
-def test_invalid_finding_code_fails_before_batch_rows_are_inserted(
+
+def test_cross_family_finding_code_fails_before_batch_rows_are_inserted(
     initialized_database,
     tmp_path: Path,
 ) -> None:
@@ -227,7 +238,7 @@ def test_invalid_finding_code_fails_before_batch_rows_are_inserted(
     parsed = _parse(path)
     row = parsed.rows[0]
     assert row.findings and row.findings[0].finding_code == "SOURCE_CONTROLLED_VALUE_UNKNOWN"
-    poisoned_finding = replace(row.findings[0], finding_code="NOT_IN_LLD04_CATALOGUE")
+    poisoned_finding = replace(row.findings[0], finding_code="WFM_TASK_ID_INVALID")
     poisoned_row = replace(row, findings=(poisoned_finding, *row.findings[1:]))
     poisoned = replace(parsed, rows=(poisoned_row, *parsed.rows[1:]))
 
