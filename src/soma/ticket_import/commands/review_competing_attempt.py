@@ -47,6 +47,18 @@ def _reason(value: object) -> str:
     return value
 
 
+def _stored_review_uuid(value: object, *, label: str) -> str:
+    try:
+        if not isinstance(value, str):
+            raise ValidationError(f"stored {label} must be UUID text")
+        return require_uuid4(value)
+    except ValidationError as exc:
+        raise SomaError(
+            "IMPORT_PROPOSAL_STALE",
+            f"competing-attempt proposal {label} is not canonical UUIDv4 evidence",
+        ) from exc
+
+
 class WfmCompetingAttemptReviewService:
     """Dedicated LLD-04 orchestration for reviewed WFM competing-attempt proposals."""
 
@@ -191,8 +203,11 @@ class WfmCompetingAttemptReviewService:
                 or change.source_observation_field_id is not None
             ):
                 raise SomaError("IMPORT_PROPOSAL_STALE", "competing-attempt proposal change binding is invalid")
-            counterpart_task_id = require_uuid4(change.after_text)
-            expected_lineage_id = require_uuid4(proposal.target_internal_id)
+            counterpart_task_id = _stored_review_uuid(change.after_text, label="counterpart Task identity")
+            expected_lineage_id = _stored_review_uuid(
+                proposal.target_internal_id,
+                label="activity lineage identity",
+            )
 
             evidence = self._evidence.load_exact(
                 uow.connection,
@@ -202,14 +217,31 @@ class WfmCompetingAttemptReviewService:
             if evidence.task_no != proposal.target_business_id:
                 raise SomaError("IMPORT_PROPOSAL_STALE", "proposal target Task No no longer matches source evidence")
 
-            rfc = self._rfc_reader.get_by_number(uow.connection, evidence.parent_rfc_no)
+            try:
+                rfc = self._rfc_reader.get_by_number(uow.connection, evidence.parent_rfc_no)
+            except SomaError as exc:
+                if exc.code == "RFC_ID_INVALID":
+                    raise SomaError(
+                        "IMPORT_PROPOSAL_STALE",
+                        "owning RFC source identity is not canonical published evidence",
+                    ) from exc
+                raise
             if rfc is None:
                 raise SomaError("IMPORT_PROPOSAL_STALE", "owning RFC identity no longer exists")
             rfc_id = rfc.get("rfc_id")
             if not isinstance(rfc_id, str):
                 raise IntegrityFailure("RFC import reader returned invalid identity")
 
-            if self._wfm_reader.task_no_status(uow.connection, evidence.task_no) != "ACTIVE":
+            try:
+                task_no_status = self._wfm_reader.task_no_status(uow.connection, evidence.task_no)
+            except SomaError as exc:
+                if exc.code == "WFM_TASK_NO_INVALID":
+                    raise SomaError(
+                        "IMPORT_PROPOSAL_STALE",
+                        "WFM source Task No is not canonical published evidence",
+                    ) from exc
+                raise
+            if task_no_status != "ACTIVE":
                 raise SomaError("IMPORT_PROPOSAL_STALE", "WFM Task No is no longer ACTIVE")
             identity = self._wfm_reader.get_by_task_no(uow.connection, evidence.task_no)
             if identity is None:
