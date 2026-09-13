@@ -709,7 +709,8 @@ def _parse_semantic_field(
 
 
 def _classify_rows(rows: list[ParsedAdvancedSearchRow]) -> list[ParsedAdvancedSearchRow]:
-    variants = partition_row_variants(row.logical_row for row in rows)
+    valid_rows = [row for row in rows if row.logical_row.identity_state == "valid"]
+    variants = partition_row_variants(row.logical_row for row in valid_rows)
     classification_by_key: dict[tuple[str, str | None, str], tuple[str, int, int]] = {}
     for variant in variants:
         classification_by_key[
@@ -725,6 +726,9 @@ def _classify_rows(rows: list[ParsedAdvancedSearchRow]) -> list[ParsedAdvancedSe
         )
     output: list[ParsedAdvancedSearchRow] = []
     for parsed in rows:
+        if parsed.logical_row.identity_state != "valid":
+            output.append(parsed)
+            continue
         key = (
             parsed.logical_row.entity_kind,
             parsed.logical_row.canonical_primary_id,
