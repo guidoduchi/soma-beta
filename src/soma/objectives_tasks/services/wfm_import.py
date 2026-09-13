@@ -11,6 +11,7 @@ from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seco
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 
+from ..queries.task_activity_review import _load_authorities
 from ..repositories.tasks import (
     TaskNoStatus,
     TaskPlanRecord,
@@ -32,6 +33,7 @@ _PROPOSAL_KINDS = frozenset({"wfm_create_or_adopt", "wfm_source_projection", "wf
 _SOURCE_CLASSES = frozenset({"unknown", "active", "complete", "plan_cancel"})
 _TERMINAL_SOURCE_CLASSES = frozenset({"complete", "plan_cancel"})
 _WFM_SOURCE_SCHEDULING_TIMEZONE_IANA = "America/Guayaquil"
+_WFM_ACTIVITY_CONFLICT_SCHEMA = "SOMA_WFM_IMPORT_ACTIVITY_CONFLICT_V1"
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 
 
@@ -213,6 +215,87 @@ def _effective_plan_lock_token(reader: Any, task_id: str) -> dict[str, object]:
     return explicit
 
 
+def _activity_candidate(value: object) -> tuple[str, str, str | None]:
+    if not isinstance(value, dict) or set(value) != {"task_no", "current_rfc_id", "task_id"}:
+        raise ValidationError("WFM activity candidate must contain exactly task_no, current_rfc_id, and task_id")
+    task_no = validate_wfm_task_no(value["task_no"])
+    current_rfc_id = value["current_rfc_id"]
+    if not isinstance(current_rfc_id, str):
+        raise ValidationError("WFM activity candidate current_rfc_id must be canonical UUIDv4 text")
+    current_rfc_id = require_uuid4(current_rfc_id)
+    task_id_raw = value["task_id"]
+    if task_id_raw is None:
+        task_id = None
+    elif isinstance(task_id_raw, str):
+        task_id = require_uuid4(task_id_raw)
+    else:
+        raise ValidationError("WFM activity candidate task_id must be canonical UUIDv4 text or null")
+    return task_no, current_rfc_id, task_id
+
+
+def _activity_interval(value: object) -> tuple[int, int]:
+    if not isinstance(value, dict) or set(value) != {"start_utc", "end_utc"}:
+        raise ValidationError("WFM activity interval must contain exactly start_utc and end_utc")
+    start = value["start_utc"]
+    end = value["end_utc"]
+    if type(start) is not int or type(end) is not int or start < 0 or end <= start:
+        raise ValidationError("WFM activity interval must be a valid nonnegative whole-second interval")
+    return start, end
+
+
+def _activity_conflict_entry(authority: Any) -> dict[str, object]:
+    interval = authority.conflict_interval
+    if interval is None:
+        raise IntegrityFailure("WFM activity conflict entry has no conflict interval")
+    if authority.operational_plan_start_utc is not None:
+        basis = "operational_plan"
+        interval_revision = authority.operational_plan_revision
+        interval_revision_id = authority.operational_plan_revision_id
+    else:
+        basis = "source_plan"
+        interval_revision = authority.source_projection_revision
+        interval_revision_id = None
+    if interval_revision <= 0:
+        raise IntegrityFailure("WFM activity conflict interval has no positive revision authority")
+    execution_state = authority.execution_state or "not_started"
+    return {
+        "task_id": authority.task_id,
+        "task_no": authority.task_no,
+        "current_rfc_id": authority.current_rfc_id,
+        "assignment_revision": authority.assignment_revision,
+        "task_revision": authority.task_revision,
+        "activity_lineage_id": authority.activity_lineage_id,
+        "lineage_revision": authority.lineage_revision,
+        "last_lineage_event_id": authority.last_lineage_event_id,
+        "interval_basis": basis,
+        "interval_revision": interval_revision,
+        "interval_revision_id": interval_revision_id,
+        "start_utc": interval[0],
+        "end_utc": interval[1],
+        "execution_revision": authority.execution_revision,
+        "execution_state": execution_state,
+        "outcome_revision": authority.outcome_revision,
+        "accepted_outcome": authority.accepted_outcome,
+    }
+
+
+def _activity_conflict_fingerprint(
+    *,
+    subject: dict[str, object],
+    start_utc: int,
+    end_utc: int,
+    conflicts: tuple[dict[str, object], ...],
+) -> str:
+    return sha256_canonical_json(
+        {
+            "schema": _WFM_ACTIVITY_CONFLICT_SCHEMA,
+            "subject": subject,
+            "candidate_interval": {"start_utc": start_utc, "end_utc": end_utc},
+            "conflicts": list(conflicts),
+        }
+    )
+
+
 class WfmImportReader:
     """Read-only LLD-05 import owner context consumed by LLD-04."""
 
@@ -253,6 +336,150 @@ class WfmImportReader:
     @staticmethod
     def operational_plan_context(reader: Any, task_id: str) -> dict[str, object] | None:
         return _operational_plan_token(reader, require_uuid4(task_id))
+
+    @staticmethod
+    def activity_conflicts(
+        reader: Any,
+        task_id_or_candidate: object,
+        interval: object,
+        counterpart_task_id: str | None = None,
+    ) -> dict[str, object]:
+        task_no, current_rfc_id, task_id = _activity_candidate(task_id_or_candidate)
+        start_utc, end_utc = _activity_interval(interval)
+        counterpart = None if counterpart_task_id is None else require_uuid4(counterpart_task_id)
+        status = WfmTaskRepository.task_no_status(reader, task_no)
+        identity = WfmTaskRepository.get_by_task_no(reader, task_no)
+        if status is TaskNoStatus.RETIRED:
+            raise SomaError("WFM_TASK_NO_RETIRED", "retired WFM Task No cannot become activity-conflict authority")
+        if task_id is None:
+            if status is TaskNoStatus.ACTIVE or identity is not None:
+                raise SomaError("TASK_STALE", "WFM activity candidate omits current ACTIVE identity authority")
+            if counterpart is not None:
+                raise SomaError("TASK_STALE", "unadopted WFM candidate cannot validate a counterpart")
+            subject = {
+                "task_id": None,
+                "task_no": task_no,
+                "current_rfc_id": current_rfc_id,
+                "assignment_revision": None,
+                "task_revision": None,
+                "activity_lineage_id": None,
+                "lineage_revision": None,
+                "last_lineage_event_id": None,
+            }
+            return {
+                "classification": "NO_REVIEWED_LINEAGE",
+                "subject_task_id": None,
+                "activity_lineage_id": None,
+                "exact_conflict_count": 0,
+                "suggested_counterpart_task_id": None,
+                "selected_counterpart": None,
+                "conflict_fingerprint": _activity_conflict_fingerprint(
+                    subject=subject,
+                    start_utc=start_utc,
+                    end_utc=end_utc,
+                    conflicts=(),
+                ),
+            }
+        if status is not TaskNoStatus.ACTIVE or identity is None:
+            raise SomaError("TASK_STALE", "WFM activity target is not current ACTIVE identity authority")
+        if identity.task_id != task_id or identity.current_rfc_id != current_rfc_id:
+            raise SomaError("TASK_STALE", "WFM activity target identity or RFC authority changed")
+
+        subject_authority = _load_authorities(reader, (task_id,))[0]
+        if subject_authority.task_no != task_no or subject_authority.current_rfc_id != current_rfc_id:
+            raise IntegrityFailure("WFM activity subject authority disagrees with canonical identity")
+        subject = {
+            "task_id": subject_authority.task_id,
+            "task_no": subject_authority.task_no,
+            "current_rfc_id": subject_authority.current_rfc_id,
+            "assignment_revision": subject_authority.assignment_revision,
+            "task_revision": subject_authority.task_revision,
+            "activity_lineage_id": subject_authority.activity_lineage_id,
+            "lineage_revision": subject_authority.lineage_revision,
+            "last_lineage_event_id": subject_authority.last_lineage_event_id,
+        }
+        lineage_id = subject_authority.activity_lineage_id
+        if lineage_id is not None and not subject_authority.locally_active:
+            if counterpart is not None:
+                raise SomaError("TASK_STALE", "locally terminal WFM activity target has no current competing-attempt authority")
+            return {
+                "classification": "CLEAR",
+                "subject_task_id": task_id,
+                "activity_lineage_id": lineage_id,
+                "exact_conflict_count": 0,
+                "suggested_counterpart_task_id": None,
+                "selected_counterpart": None,
+                "conflict_fingerprint": _activity_conflict_fingerprint(
+                    subject=subject,
+                    start_utc=start_utc,
+                    end_utc=end_utc,
+                    conflicts=(),
+                ),
+            }
+        if lineage_id is None:
+            if counterpart is not None:
+                raise SomaError("TASK_STALE", "WFM activity target has no reviewed lineage counterpart authority")
+            return {
+                "classification": "NO_REVIEWED_LINEAGE",
+                "subject_task_id": task_id,
+                "activity_lineage_id": None,
+                "exact_conflict_count": 0,
+                "suggested_counterpart_task_id": None,
+                "selected_counterpart": None,
+                "conflict_fingerprint": _activity_conflict_fingerprint(
+                    subject=subject,
+                    start_utc=start_utc,
+                    end_utc=end_utc,
+                    conflicts=(),
+                ),
+            }
+
+        rows = reader.execute(
+            "SELECT task_id FROM task_activity_lineage_current "
+            "WHERE activity_lineage_id=? AND task_id<>? ORDER BY task_id",
+            (lineage_id, task_id),
+        ).fetchall()
+        other_ids = tuple(str(row[0]) for row in rows)
+        authorities = () if not other_ids else _load_authorities(reader, other_ids)
+        conflicts: list[dict[str, object]] = []
+        authority_by_id: dict[str, Any] = {}
+        for authority in authorities:
+            if authority.activity_lineage_id != lineage_id:
+                raise IntegrityFailure("WFM activity conflict closure escaped reviewed lineage authority")
+            if not authority.locally_active:
+                continue
+            other_interval = authority.conflict_interval
+            if other_interval is None:
+                continue
+            if start_utc < other_interval[1] and other_interval[0] < end_utc:
+                conflicts.append(_activity_conflict_entry(authority))
+                authority_by_id[authority.task_id] = authority
+        conflicts.sort(key=lambda item: str(item["task_id"]))
+        exact_conflicts = tuple(conflicts)
+        suggested = None if not exact_conflicts else str(exact_conflicts[0]["task_id"])
+        selected = None
+        if counterpart is not None:
+            selected_authority = authority_by_id.get(counterpart)
+            if selected_authority is None:
+                raise SomaError("TASK_STALE", "reviewed WFM competing-attempt counterpart is no longer a current conflict")
+            selected = {
+                "task_id": selected_authority.task_id,
+                "task_revision": selected_authority.task_revision,
+            }
+        return {
+            "classification": "CLEAR" if not exact_conflicts else "SAME_REVIEWED_LINEAGE_OVERLAP",
+            "subject_task_id": task_id,
+            "activity_lineage_id": lineage_id,
+            "exact_conflict_count": len(exact_conflicts),
+            "suggested_counterpart_task_id": suggested,
+            "selected_counterpart": selected,
+            "conflict_fingerprint": _activity_conflict_fingerprint(
+                subject=subject,
+                start_utc=start_utc,
+                end_utc=end_utc,
+                conflicts=exact_conflicts,
+            ),
+        }
 
     @staticmethod
     def source_acceptance_base_token(reader: Any, target: WfmImportBaseTarget) -> str:
