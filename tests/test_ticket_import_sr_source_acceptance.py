@@ -25,11 +25,12 @@ def _official_sr(factory, sr_no: str):
     )
 
 
-def _base_token(factory, service_request_id: str) -> str:
+def _field_set_token(factory, service_request_id: str, field_keys: tuple[str, ...]) -> str:
     with ReadSnapshot(factory) as snapshot:
-        return ServiceRequestImportMutationService.source_acceptance_base_token(
+        return ServiceRequestImportMutationService.source_field_set_base_token(
             snapshot.connection,
             service_request_id,
+            field_keys,
         )
 
 
@@ -49,7 +50,11 @@ def _seed_source_projection_proposal(
     field_id = new_uuid4()
     proposal_id = new_uuid4()
     fingerprint = "7" * 64
-    token = _base_token(factory, target_service_request_id) if base_state_token is None else base_state_token
+    token = (
+        _field_set_token(factory, target_service_request_id, (field_key,))
+        if base_state_token is None
+        else base_state_token
+    )
     canonical_sr_no = target_sr_no if source_sr_no is None else source_sr_no
     with UnitOfWork(factory) as uow:
         uow.connection.execute(
@@ -97,6 +102,17 @@ def _seed_source_projection_proposal(
         "fingerprint": fingerprint,
         "base_token": token,
     }
+
+
+def _accept(factory, seeded, *, reason="reviewed_source_projection"):
+    return ProposalDecisionService(factory).accept(
+        command_id=new_uuid4(),
+        proposal_id=seeded["proposal_id"],
+        proposal_revision=1,
+        proposal_fingerprint=seeded["fingerprint"],
+        base_state_token=seeded["base_token"],
+        reason_category=reason,
+    )
 
 
 def test_accept_sr_source_projection_is_one_uow_and_replay_is_exact(initialized_database) -> None:
@@ -186,28 +202,33 @@ def test_accept_sr_source_projection_is_one_uow_and_replay_is_exact(initialized_
         ).fetchone()[0] == 1
 
 
-def test_accept_stale_owner_base_fails_before_receipt_and_leaves_proposal_pending(initialized_database) -> None:
+def test_accept_same_field_drift_fails_before_receipt_and_leaves_proposal_pending(initialized_database) -> None:
     factory = _factory(initialized_database)
     sr = _official_sr(factory, "22334456")
-    seeded = _seed_source_projection_proposal(
+    stale = _seed_source_projection_proposal(
         factory,
         target_service_request_id=sr.service_request_id,
         target_sr_no="22334456",
+        field_value="Problem Alpha",
+        chronology=100,
     )
-    with UnitOfWork(factory) as uow:
-        uow.connection.execute(
-            "UPDATE service_requests SET revision=revision+1,updated_at_utc=updated_at_utc+1 WHERE service_request_id=?",
-            (sr.service_request_id,),
-        )
+    newer = _seed_source_projection_proposal(
+        factory,
+        target_service_request_id=sr.service_request_id,
+        target_sr_no="22334456",
+        field_value="Problem Beta",
+        chronology=200,
+    )
+    _accept(factory, newer, reason="newer_same_field")
     command_id = new_uuid4()
 
     with pytest.raises(SomaError) as excinfo:
         ProposalDecisionService(factory).accept(
             command_id=command_id,
-            proposal_id=seeded["proposal_id"],
+            proposal_id=stale["proposal_id"],
             proposal_revision=1,
-            proposal_fingerprint=seeded["fingerprint"],
-            base_state_token=seeded["base_token"],
+            proposal_fingerprint=stale["fingerprint"],
+            base_state_token=stale["base_token"],
         )
     assert excinfo.value.code == "IMPORT_PROPOSAL_STALE"
     with ReadSnapshot(factory) as snapshot:
@@ -217,21 +238,69 @@ def test_accept_stale_owner_base_fails_before_receipt_and_leaves_proposal_pendin
         ).fetchone() is None
         assert snapshot.connection.execute(
             "SELECT proposal_state FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
-            (seeded["proposal_id"],),
+            (stale["proposal_id"],),
         ).fetchone()[0] == "pending"
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM proposal_dispositions WHERE reconciliation_proposal_id=?",
-            (seeded["proposal_id"],),
+            (stale["proposal_id"],),
         ).fetchone()[0] == 0
-        assert snapshot.connection.execute(
-            "SELECT COUNT(*) FROM sr_source_field_observations WHERE service_request_id=?",
+        current = snapshot.connection.execute(
+            "SELECT o.text_value FROM sr_current_source_projection p "
+            "JOIN sr_source_field_observations o ON o.sr_source_field_observation_id=p.problem_summary_observation_id "
+            "WHERE p.service_request_id=?",
             (sr.service_request_id,),
-        ).fetchone()[0] == 0
-        run = snapshot.connection.execute(
-            "SELECT pending_proposal_count,accepted_proposal_count,revision FROM import_runs WHERE import_run_id=?",
-            (seeded["run_id"],),
         ).fetchone()
-        assert tuple(run) == (1, 0, 1)
+        assert tuple(current) == ("Problem Beta",)
+
+
+@pytest.mark.parametrize(
+    ("sr_no", "first_field", "first_value", "second_field", "second_value"),
+    [
+        ("22334460", "problem_summary", "Problem A", "customer_contact_label", "Contact A"),
+        ("22334461", "customer_contact_label", "Contact B", "problem_summary", "Problem B"),
+    ],
+)
+def test_disjoint_same_sr_source_proposals_remain_acceptable_in_either_order(
+    initialized_database,
+    sr_no,
+    first_field,
+    first_value,
+    second_field,
+    second_value,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _official_sr(factory, sr_no)
+    first = _seed_source_projection_proposal(
+        factory,
+        target_service_request_id=sr.service_request_id,
+        target_sr_no=sr_no,
+        field_key=first_field,
+        field_value=first_value,
+        chronology=100,
+    )
+    second = _seed_source_projection_proposal(
+        factory,
+        target_service_request_id=sr.service_request_id,
+        target_sr_no=sr_no,
+        field_key=second_field,
+        field_value=second_value,
+        chronology=100,
+    )
+
+    first_result = _accept(factory, first, reason="first_disjoint_field")
+    second_result = _accept(factory, second, reason="second_disjoint_field")
+    assert first_result.decision == "accepted"
+    assert second_result.decision == "accepted"
+
+    with ReadSnapshot(factory) as snapshot:
+        projection = snapshot.connection.execute(
+            "SELECT p.problem_summary_observation_id,p.customer_contact_observation_id,p.revision "
+            "FROM sr_current_source_projection p WHERE p.service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()
+        assert projection[0] is not None
+        assert projection[1] is not None
+        assert projection[2] == 2
 
 
 def test_accept_rejects_cross_sr_source_field_substitution_without_receipt(initialized_database) -> None:
@@ -272,8 +341,12 @@ def test_accept_rejects_cross_sr_source_field_substitution_without_receipt(initi
 
 class _FailAfterReceiptOwner:
     @staticmethod
-    def source_acceptance_base_token(reader, service_request_id: str) -> str:
-        return ServiceRequestImportMutationService.source_acceptance_base_token(reader, service_request_id)
+    def source_field_set_base_token(reader, service_request_id: str, field_keys: tuple[str, ...]) -> str:
+        return ServiceRequestImportMutationService.source_field_set_base_token(
+            reader,
+            service_request_id,
+            field_keys,
+        )
 
     @staticmethod
     def apply_accepted_source_projection(uow: UnitOfWork, mutation: ServiceRequestSourceProjectionMutation):
