@@ -49,7 +49,7 @@
     "each physical header normalizes once and may resolve to at most one registry field",
     "two physical columns resolving to the same semantic field are a duplicate-semantic-header conflict and block the workbook before row mutation",
     "missing required identity header rejects the workbook",
-    "missing optional-active or deferred headers create coverage findings and never clear prior accepted domain truth",
+    "each missing optional-active or deferred semantic header emits one workbook-scope warning finding code SOURCE_HEADER_COVERAGE_MISSING bound to that canonical field_key; it never fabricates a blank field observation and never clears prior accepted domain truth",
     "unregistered headers are discarded from domain staging after security/resource scanning and do not enter logical identity/fingerprint except through the registry-version identifier",
     "column order is irrelevant; logical serialization orders by canonical field key"
   ],
