@@ -5,7 +5,7 @@ from typing import Any
 
 from soma.foundation.errors import IntegrityFailure
 from soma.foundation.identifiers import require_uuid4
-from soma.tickets.import_mutations import ServiceRequestImportReader
+from soma.tickets.service_request_import_reader import ServiceRequestImportReader
 
 from .advanced_search import _load_source_observation, _proposal, _scope_status
 from .engine import ProposalChangeDraft, ReconciliationProposalDraft
