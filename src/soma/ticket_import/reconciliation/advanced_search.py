@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.strict_json import sha256_canonical_json
 from soma.ticket_import.profiles.registry import require_field_spec, require_profile_versions
@@ -334,6 +334,19 @@ def _change(
     )
 
 
+def _field_set_base_token(
+    authority: ServiceRequestImportReader,
+    reader: Any,
+    service_request_id: str,
+    changes: tuple[ProposalChangeDraft, ...],
+) -> str:
+    field_keys = tuple(change.field_key for change in changes)
+    return _require_sha256(
+        authority.source_field_set_base_token(reader, service_request_id, field_keys),
+        label="Service Request source field-set base token",
+    )
+
+
 def _proposal(
     *,
     source: _SourceObservation,
@@ -438,11 +451,6 @@ def build_advanced_search_sr_source_projection_proposals(
         raise IntegrityFailure("Service Request import reader returned a mismatched official identity")
 
     current_projection = authority.current_source_projection(reader, canonical_service_request_id)
-    base_state_token = _require_sha256(
-        authority.source_acceptance_base_token(reader, canonical_service_request_id),
-        label="Service Request source acceptance base token",
-    )
-
     ordinary: list[tuple[_SourceField, _CurrentField | None, _CandidateValue]] = []
     terminal_entry: list[tuple[_SourceField, _CurrentField | None, _CandidateValue]] = []
     reviewed_terminal: list[tuple[_SourceField, _CurrentField | None, _CandidateValue]] = []
@@ -516,7 +524,12 @@ def build_advanced_search_sr_source_projection_proposals(
                 service_request_id=canonical_service_request_id,
                 proposal_kind="sr_source_projection",
                 risk_class="medium",
-                base_state_token=base_state_token,
+                base_state_token=_field_set_base_token(
+                    authority,
+                    reader,
+                    canonical_service_request_id,
+                    changes,
+                ),
                 changes=changes,
             )
         )
@@ -524,42 +537,60 @@ def build_advanced_search_sr_source_projection_proposals(
         if len(terminal_entry) != 1:
             raise IntegrityFailure("Advanced Search source row contains more than one status field")
         field, current, candidate = terminal_entry[0]
+        changes = (_change(ordinal=0, field=field, current=current, candidate=candidate),)
         proposals.append(
             _proposal(
                 source=source,
                 service_request_id=canonical_service_request_id,
                 proposal_kind="sr_source_projection",
                 risk_class="high",
-                base_state_token=base_state_token,
-                changes=(_change(ordinal=0, field=field, current=current, candidate=candidate),),
+                base_state_token=_field_set_base_token(
+                    authority,
+                    reader,
+                    canonical_service_request_id,
+                    changes,
+                ),
+                changes=changes,
             )
         )
     if reviewed_terminal:
         if len(reviewed_terminal) != 1:
             raise IntegrityFailure("Advanced Search source row contains more than one status correction")
         field, current, candidate = reviewed_terminal[0]
+        changes = (_change(ordinal=0, field=field, current=current, candidate=candidate),)
         proposals.append(
             _proposal(
                 source=source,
                 service_request_id=canonical_service_request_id,
                 proposal_kind="sr_terminal_reversal_review",
                 risk_class="high",
-                base_state_token=base_state_token,
-                changes=(_change(ordinal=0, field=field, current=current, candidate=candidate),),
+                base_state_token=_field_set_base_token(
+                    authority,
+                    reader,
+                    canonical_service_request_id,
+                    changes,
+                ),
+                changes=changes,
             )
         )
     if reviewed_suspension:
         if len(reviewed_suspension) != 1:
             raise IntegrityFailure("Advanced Search source row contains more than one suspension regression")
         field, current, candidate = reviewed_suspension[0]
+        changes = (_change(ordinal=0, field=field, current=current, candidate=candidate),)
         proposals.append(
             _proposal(
                 source=source,
                 service_request_id=canonical_service_request_id,
                 proposal_kind="sr_suspension_regression_review",
                 risk_class="high",
-                base_state_token=base_state_token,
-                changes=(_change(ordinal=0, field=field, current=current, candidate=candidate),),
+                base_state_token=_field_set_base_token(
+                    authority,
+                    reader,
+                    canonical_service_request_id,
+                    changes,
+                ),
+                changes=changes,
             )
         )
 
