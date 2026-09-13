@@ -17,24 +17,27 @@ _MAX_FINDING_MESSAGE_UTF8_BYTES = 2_048
 _MAX_FIELD_KEY_UTF8_BYTES = 1_024
 _OBSERVATION_LOOKUP_BATCH = 500
 
-# Source/parser findings that may survive a completed source-family parse into
-# unpublished LLD-04 staging. Workbook-fatal/container failures are deliberately
-# excluded because those parses never produce publishable observations/findings.
-_RETAINABLE_SOURCE_FINDING_CODES = frozenset(
+_COMMON_SOURCE_FINDING_CODES = frozenset(
     {
         "SOURCE_HEADER_COVERAGE_MISSING",
-        "SR_ID_INVALID",
-        "RFC_ID_INVALID",
-        "RFC_SOURCE_BRANCH_ARTIFACT",
-        "WFM_TASK_ID_INVALID",
-        "WFM_PARENT_RFC_INVALID",
-        "WFM_PLAN_INCOMPLETE",
-        "WFM_PLAN_INVALID_INTERVAL",
         "SOURCE_CONTROLLED_VALUE_UNKNOWN",
         "SOURCE_EQUIVALENT_DUPLICATE",
         "SOURCE_IDENTITY_CONFLICT",
     }
 )
+_RETAINABLE_SOURCE_FINDING_CODES_BY_FAMILY = {
+    "advanced_search_sr": _COMMON_SOURCE_FINDING_CODES | frozenset({"SR_ID_INVALID"}),
+    "rfc_enhanced": _COMMON_SOURCE_FINDING_CODES | frozenset({"RFC_ID_INVALID", "RFC_SOURCE_BRANCH_ARTIFACT"}),
+    "wfm_service_provider": _COMMON_SOURCE_FINDING_CODES
+    | frozenset(
+        {
+            "WFM_TASK_ID_INVALID",
+            "WFM_PARENT_RFC_INVALID",
+            "WFM_PLAN_INCOMPLETE",
+            "WFM_PLAN_INVALID_INTERVAL",
+        }
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,12 +84,18 @@ class SourceFindingRepository:
         return canonical_run_id, source_family
 
     @staticmethod
-    def validate_finding(finding: NormalizedFindingEvidence) -> str | None:
+    def validate_finding(source_family: str, finding: NormalizedFindingEvidence) -> str | None:
+        allowed_codes = _RETAINABLE_SOURCE_FINDING_CODES_BY_FAMILY.get(source_family)
+        if allowed_codes is None:
+            raise SomaError("IMPORT_SOURCE_FAMILY_INVALID", "source family is outside the closed LLD-04 registry")
         observation_id = None
         if finding.source_observation_id is not None:
             observation_id = require_uuid4(finding.source_observation_id)
-        if finding.finding_code not in _RETAINABLE_SOURCE_FINDING_CODES:
-            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "finding code is outside the retainable source catalogue")
+        if finding.finding_code not in allowed_codes:
+            raise SomaError(
+                "IMPORT_SOURCE_PROFILE_MISMATCH",
+                "finding code is outside the retainable catalogue for this source family",
+            )
         if finding.severity not in _FINDING_SEVERITIES:
             raise ValidationError("finding severity is outside the closed LLD-04 vocabulary")
         if finding.scope_kind not in _FINDING_SCOPES:
@@ -119,7 +128,7 @@ class SourceFindingRepository:
         expected_run_revision: int,
         findings: tuple[NormalizedFindingEvidence, ...],
     ) -> tuple[str, ...]:
-        canonical_run_id, _source_family = cls._require_validating_run(
+        canonical_run_id, source_family = cls._require_validating_run(
             uow,
             import_run_id=import_run_id,
             expected_run_revision=expected_run_revision,
@@ -130,7 +139,7 @@ class SourceFindingRepository:
         normalized_observation_ids: list[str | None] = []
         referenced_ids: set[str] = set()
         for finding in findings:
-            observation_id = cls.validate_finding(finding)
+            observation_id = cls.validate_finding(source_family, finding)
             normalized_observation_ids.append(observation_id)
             if observation_id is not None:
                 referenced_ids.add(observation_id)
