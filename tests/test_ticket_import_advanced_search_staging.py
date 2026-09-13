@@ -10,7 +10,7 @@ from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.ticket_import.parsing.advanced_search import parse_advanced_search
-from soma.ticket_import.parsing.staging import stage_advanced_search_parse_result
+from soma.ticket_import.parsing.staging import stage_advanced_search_parse_batch
 from soma.ticket_import.parsing.xlsx_security import preflight_xlsx
 from soma.ticket_import.repositories.observations import SourceObservationRepository
 
@@ -68,13 +68,18 @@ def test_parser_staging_persists_row_and_global_findings_without_publication(
     parsed = _parse(path)
 
     with UnitOfWork(factory) as uow:
-        staged = stage_advanced_search_parse_result(
+        staged = stage_advanced_search_parse_batch(
             uow,
             import_run_id=run_id,
             expected_run_revision=1,
             parsed=parsed,
+            start_index=0,
+            include_global_findings=True,
         )
 
+    assert staged.start_index == 0
+    assert staged.next_index == 1
+    assert staged.complete is True
     assert len(staged.observations) == 1
     assert len(staged.finding_ids) == len(parsed.rows[0].findings) + len(parsed.global_findings)
 
@@ -119,11 +124,13 @@ def test_conflict_findings_bind_each_physical_row_to_its_exact_observation(
     parsed = _parse(path)
 
     with UnitOfWork(factory) as uow:
-        staged = stage_advanced_search_parse_result(
+        staged = stage_advanced_search_parse_batch(
             uow,
             import_run_id=run_id,
             expected_run_revision=1,
             parsed=parsed,
+            start_index=0,
+            include_global_findings=True,
         )
 
     assert len(staged.observations) == 3
@@ -150,63 +157,74 @@ def test_conflict_findings_bind_each_physical_row_to_its_exact_observation(
     }
 
 
-def test_reparse_replaces_only_unpublished_technical_staging(
+def test_large_parse_commits_as_bounded_2000_row_batches(
     initialized_database,
     tmp_path: Path,
 ) -> None:
     factory = _factory(initialized_database)
     run_id = _seed_validating_run(factory)
-    first = tmp_path / "first.xlsx"
-    second = tmp_path / "second.xlsx"
-    _write_workbook(first, ["SRNo", "Problem Summary"], [["12345678", "first"]])
-    _write_workbook(second, ["SRNo", "Problem Summary"], [["87654321", "second"]])
+    path = tmp_path / "large.xlsx"
+    rows = [[f"{number:08d}"] for number in range(1, 2_002)]
+    _write_workbook(path, ["SRNo"], rows)
+    parsed = _parse(path)
+    assert len(parsed.rows) == 2_001
 
-    with UnitOfWork(factory) as uow:
-        first_staged = stage_advanced_search_parse_result(
-            uow,
+    with UnitOfWork(factory) as first_uow:
+        first = stage_advanced_search_parse_batch(
+            first_uow,
             import_run_id=run_id,
             expected_run_revision=1,
-            parsed=_parse(first),
+            parsed=parsed,
+            start_index=0,
+            include_global_findings=True,
         )
-    with UnitOfWork(factory) as uow:
-        second_staged = stage_advanced_search_parse_result(
-            uow,
+    assert first.start_index == 0
+    assert first.next_index == 2_000
+    assert first.complete is False
+    assert len(first.observations) == 2_000
+
+    with UnitOfWork(factory) as second_uow:
+        second = stage_advanced_search_parse_batch(
+            second_uow,
             import_run_id=run_id,
             expected_run_revision=1,
-            parsed=_parse(second),
+            parsed=parsed,
+            start_index=first.next_index,
+            include_global_findings=False,
         )
+    assert second.start_index == 2_000
+    assert second.next_index == 2_001
+    assert second.complete is True
+    assert len(second.observations) == 1
 
-    assert first_staged.observations[0].source_observation_id != second_staged.observations[0].source_observation_id
     with ReadSnapshot(factory) as snapshot:
-        rows = snapshot.connection.execute(
-            "SELECT source_observation_id,canonical_primary_id FROM source_observations WHERE import_run_id=?",
+        observation_count = snapshot.connection.execute(
+            "SELECT COUNT(*) FROM source_observations WHERE import_run_id=?",
             (run_id,),
-        ).fetchall()
-        assert [tuple(row) for row in rows] == [
-            (second_staged.observations[0].source_observation_id, "87654321")
-        ]
+        ).fetchone()[0]
+        finding_count = snapshot.connection.execute(
+            "SELECT COUNT(*) FROM import_findings WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()[0]
+        state = snapshot.connection.execute(
+            "SELECT run_state,revision FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+    assert observation_count == 2_001
+    assert finding_count == len(parsed.global_findings)
+    assert tuple(state) == ("validating", 1)
 
 
-def test_invalid_finding_code_fails_before_existing_staging_is_replaced(
+def test_invalid_finding_code_fails_before_batch_rows_are_inserted(
     initialized_database,
     tmp_path: Path,
 ) -> None:
     factory = _factory(initialized_database)
     run_id = _seed_validating_run(factory)
-    first = tmp_path / "first.xlsx"
-    bad = tmp_path / "bad.xlsx"
-    _write_workbook(first, ["SRNo", "Problem Summary"], [["12345678", "first"]])
-    _write_workbook(bad, ["SRNo", "Status"], [["87654321", "unknown status"]])
+    path = tmp_path / "bad.xlsx"
+    _write_workbook(path, ["SRNo", "Status"], [["87654321", "unknown status"]])
 
-    with UnitOfWork(factory) as uow:
-        first_staged = stage_advanced_search_parse_result(
-            uow,
-            import_run_id=run_id,
-            expected_run_revision=1,
-            parsed=_parse(first),
-        )
-
-    parsed = _parse(bad)
+    parsed = _parse(path)
     row = parsed.rows[0]
     assert row.findings and row.findings[0].finding_code == "SOURCE_CONTROLLED_VALUE_UNKNOWN"
     poisoned_finding = replace(row.findings[0], finding_code="NOT_IN_LLD04_CATALOGUE")
@@ -215,19 +233,22 @@ def test_invalid_finding_code_fails_before_existing_staging_is_replaced(
 
     with pytest.raises(SomaError) as raised:
         with UnitOfWork(factory) as uow:
-            stage_advanced_search_parse_result(
+            stage_advanced_search_parse_batch(
                 uow,
                 import_run_id=run_id,
                 expected_run_revision=1,
                 parsed=poisoned,
+                start_index=0,
+                include_global_findings=True,
             )
     assert raised.value.code == "IMPORT_SOURCE_PROFILE_MISMATCH"
 
     with ReadSnapshot(factory) as snapshot:
-        rows = snapshot.connection.execute(
-            "SELECT source_observation_id,canonical_primary_id FROM source_observations WHERE import_run_id=?",
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM source_observations WHERE import_run_id=?",
             (run_id,),
-        ).fetchall()
-        assert [tuple(row) for row in rows] == [
-            (first_staged.observations[0].source_observation_id, "12345678")
-        ]
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM import_findings WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()[0] == 0
