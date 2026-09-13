@@ -173,7 +173,14 @@ def _resolve_relationship_target(relationship_part_name: str, target: str) -> st
     if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment:
         raise _unsafe("OOXML relationship target references an external or non-part URI")
     decoded = unquote(parsed.path)
-    if not decoded or decoded.startswith("/") or "\\" in decoded or _DRIVE_PREFIX.match(decoded):
+    if not decoded or "\\" in decoded:
+        raise _unsafe("OOXML relationship target uses an unsafe path form")
+    if decoded.startswith("/"):
+        package_absolute = decoded[1:]
+        if not package_absolute or package_absolute.startswith("/") or _DRIVE_PREFIX.match(package_absolute):
+            raise _unsafe("OOXML relationship target uses an unsafe package-root path")
+        return _normalize_part_name(package_absolute)
+    if _DRIVE_PREFIX.match(decoded):
         raise _unsafe("OOXML relationship target uses an unsafe path form")
     base_directory = _relationship_base_directory(relationship_part_name)
     resolved = posixpath.normpath(posixpath.join(base_directory, decoded))
