@@ -30,10 +30,26 @@
     "prohibitions": ["filesystem mtime is not substituted", "import time is not substituted", "row Last Update is not population chronology"]
   },
   "operational_time_semantics": {
-    "offset_present": "use explicit offset",
+    "text_grammar": "exact ASCII Gregorian YYYY-MM-DD followed by one literal 'T' or one ASCII space, HH:MM:SS, optional fractional seconds of 1..6 ASCII digits, then optional uppercase 'Z' or signed numeric offset +/-HH:MM; no locale dates, slash dates, timezone abbreviations, lowercase z, omitted seconds or offset without colon",
+    "calendar_validation": "year 0001..9999; month/day/hour/minute/second and explicit numeric offset must form a valid datetime; leap seconds are unsupported",
+    "offset_present": "uppercase Z means UTC; otherwise use the exact explicit signed numeric offset",
     "offset_absent_timezone": "America/Guayaquil",
-    "storage": "canonical UTC whole-second instant",
+    "fractional_second_rule": "fractional seconds are source precision only; resolve the instant first, normalize to UTC, then discard the fractional remainder without rounding or carry so persisted authority is the containing UTC whole second",
+    "excel_numeric_rule": "a numeric XLSX value is an instant only when openpyxl in the mandated semantic reader mode resolves that registered temporal cell through the workbook's supported 1900/1904 date system and date/time style to a Python datetime/date value; a bare numeric value that is not date-resolved is malformed temporal evidence, and formula cached values are never accepted",
+    "storage": "canonical UTC whole-second instant represented as nonnegative Unix seconds; pre-1970 resolved instants are malformed because the shared persisted instant contract is int64>=0",
+    "scope": "the same grammar applies to every Advanced Search registered instant field, active or deferred",
     "rule": "operational cell timestamps remain distinct from Asia/Shanghai filename chronology and from the selectable Objective timezone"
+  },
+  "duration_semantics": {
+    "field": "suspension_duration",
+    "source_unit": "decimal days",
+    "text_grammar": "after surrounding spreadsheet-whitespace trimming, an optional leading '+' followed by either ASCII digits with optional '.' and one or more fractional ASCII digits, or '.' followed by one or more ASCII digits; exponent notation, sign '-', commas, locale separators, unit suffixes, NaN and Infinity are unsupported",
+    "numeric_cells": "finite nonnegative XLSX numeric cells are interpreted as decimal days using their deterministic semantic numeric value; booleans and date/time-valued cells are not durations",
+    "conversion": "convert with Decimal arithmetic as source_days * exactly 86400 seconds, then quantize to exactly one whole second using IEEE decimal ROUND_HALF_EVEN",
+    "range": "the resulting integer duration must be between 0 and 9223372036854775807 inclusive; overflow/nonfinite/negative/malformed input is malformed field evidence and never clamps",
+    "blank": "a present blank Suspension Duration cell is usable source-reported exact integer zero seconds",
+    "missing_column": "an absent Suspension Duration semantic header is missing coverage and does not manufacture zero evidence",
+    "authority": "the integer whole-second result is the normalized logical value and accepted cumulative source-reported suspension authority; raw decimal days are provenance only and are never accumulated or inferred by SOMA"
   },
   "header_registry": {
     "registry_id": "ADVANCED_SEARCH_HEADERS_V1",
@@ -82,8 +98,8 @@
     "Current Handler and Customer Contact may seed reviewed Contact reconciliation but never silently create, merge, select or re-affiliate a Contact.",
     "Customer Account Code is preferred Customer Organization matching evidence; labels are descriptive candidate evidence only.",
     "Suspend Planned End Date represents active suspension context only when accepted status is Customer Agreed Suspend and the end is a valid future instant under the consuming as-of context.",
-    "Suspension Duration is cumulative source-reported duration and is never inferred between workbooks. Blank parses as source-reported exact zero; a new blank/zero contradicting accepted nonzero evidence requires review before erasure.",
+    "Suspension Duration is cumulative source-reported decimal days normalized once to whole duration_seconds under duration_semantics and is never inferred between workbooks. Blank parses as source-reported exact zero; a new blank/zero contradicting accepted nonzero evidence requires review before erasure.",
     "ResolveBy and Resolve By Suspend are retained as future-use provenance only and cannot drive Beta 1.0 SLA/risk/expiration/notification/workflow."
   ],
-  "evolution": "Any filename/header/timezone/vocabulary/field-authority grammar change creates a new immutable profile or registry version; historical ImportRuns preserve the exact versions used."
+  "evolution": "Any filename/header/timezone/vocabulary/field-authority/value-parsing grammar change creates a new immutable profile or registry version after this pre-implementation V1 closure; historical ImportRuns preserve the exact versions used."
 }
