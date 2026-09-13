@@ -4,8 +4,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from soma.foundation.errors import SomaError, ValidationError
-from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import UnitOfWork
 
 from ..profiles.registry import require_field_spec, require_profile_versions
@@ -17,6 +17,10 @@ _RFC_NO = re.compile(r"NC[0-9]{14}\Z")
 _WFM_NO = re.compile(r"TK[0-9]{14}\Z")
 _MAX_BATCH_OBSERVATIONS = 2_000
 _MAX_FIELDS_PER_OBSERVATION = 64
+_FINDING_SEVERITIES = frozenset({"info", "warning", "error", "high_risk"})
+_FINDING_SCOPES = frozenset(
+    {"workbook", "sheet", "row", "field", "identity", "chronology", "replay", "proposal", "population"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +53,91 @@ class NormalizedObservationEvidence:
 class StagedObservationResult:
     source_observation_id: str
     field_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class StagedFieldEvidence:
+    source_observation_field_id: str
+    field_key: str
+    field_class: str
+    value_state: str
+    value_kind: str
+    source_text: str | None
+    normalized_text: str | None
+    integer_value: int | None
+    vocabulary_id: str | None
+    field_logical_sha256: str
+
+    def normalized(self) -> NormalizedFieldEvidence:
+        return NormalizedFieldEvidence(
+            field_key=self.field_key,
+            field_class=self.field_class,
+            value_state=self.value_state,
+            value_kind=self.value_kind,
+            source_text=self.source_text,
+            normalized_text=self.normalized_text,
+            integer_value=self.integer_value,
+            vocabulary_id=self.vocabulary_id,
+            field_logical_sha256=self.field_logical_sha256,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class StagedFindingEvidence:
+    import_finding_id: str
+    source_observation_id: str | None
+    field_key: str | None
+    finding_code: str
+    severity: str
+    scope_kind: str
+    message_text: str
+    recorded_at_utc: int
+
+
+@dataclass(frozen=True, slots=True)
+class StagedObservationEvidence:
+    source_observation_id: str
+    source_family: str
+    entity_kind: str
+    identity_state: str
+    canonical_primary_id: str | None
+    canonical_parent_rfc_no: str | None
+    row_ordinal: int
+    sheet_ordinal: int
+    row_logical_sha256: str
+    source_row_chronology_utc: int | None
+    presence_state: str
+    recorded_at_utc: int
+    fields: tuple[StagedFieldEvidence, ...]
+    findings: tuple[StagedFindingEvidence, ...]
+
+    def normalized(self) -> NormalizedObservationEvidence:
+        return NormalizedObservationEvidence(
+            entity_kind=self.entity_kind,
+            identity_state=self.identity_state,
+            canonical_primary_id=self.canonical_primary_id,
+            canonical_parent_rfc_no=self.canonical_parent_rfc_no,
+            row_ordinal=self.row_ordinal,
+            sheet_ordinal=self.sheet_ordinal,
+            row_logical_sha256=self.row_logical_sha256,
+            source_row_chronology_utc=self.source_row_chronology_utc,
+            fields=tuple(field.normalized() for field in self.fields),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class StagedRunEvidence:
+    import_run_id: str
+    source_family: str
+    source_profile_id: str
+    header_registry_id: str
+    vocabulary_registry_id: str
+    parser_profile_id: str
+    candidate_chronology_kind: str
+    candidate_chronology_value: int
+    revision: int
+    observations: tuple[StagedObservationEvidence, ...]
+    global_findings: tuple[StagedFindingEvidence, ...]
 
 
 def _validate_sha256(value: str, label: str) -> None:
@@ -144,6 +233,28 @@ def _validate_field(source_family: str, field: NormalizedFieldEvidence) -> None:
         raise ValidationError("non-usable source fields cannot carry normalized authority")
 
 
+def _require_persisted_uuid(value: object, *, label: str) -> str:
+    try:
+        return require_uuid4(str(value))
+    except ValidationError as exc:
+        raise IntegrityFailure(f"persisted {label} is not a canonical UUID4") from exc
+
+
+def _validate_persisted_observation(source_family: str, observation: NormalizedObservationEvidence) -> None:
+    try:
+        _validate_sha256(observation.row_logical_sha256, "row_logical_sha256")
+        _validate_identity(source_family, observation)
+    except ValidationError as exc:
+        raise IntegrityFailure("persisted staged observation violates normalized evidence contract") from exc
+
+
+def _validate_persisted_field(source_family: str, field: NormalizedFieldEvidence) -> None:
+    try:
+        _validate_field(source_family, field)
+    except ValidationError as exc:
+        raise IntegrityFailure("persisted staged field violates normalized evidence contract") from exc
+
+
 class SourceObservationRepository:
     """LLD-04-only persistence for unpublished normalized parser evidence."""
 
@@ -173,6 +284,201 @@ class SourceObservationRepository:
         ):
             raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "import run profile registry versions are not accepted")
         return source_family, str(row[1])
+
+    @classmethod
+    def load_validating_evidence(
+        cls,
+        reader: Any,
+        *,
+        import_run_id: str,
+        expected_run_revision: int,
+    ) -> StagedRunEvidence:
+        canonical_run_id = require_uuid4(import_run_id)
+        if type(expected_run_revision) is not int or expected_run_revision < 1:
+            raise ValidationError("expected_run_revision must be a positive integer")
+        row = reader.execute(
+            "SELECT source_family,source_profile_id,header_registry_id,vocabulary_registry_id,parser_profile_id,"
+            "candidate_chronology_kind,candidate_chronology_value,run_state,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (canonical_run_id,),
+        ).fetchone()
+        if row is None:
+            raise SomaError("IMPORT_RUN_NOT_FOUND", "import run does not exist")
+        source_family = str(row[0])
+        if str(row[7]) != "validating" or int(row[8]) != expected_run_revision:
+            raise SomaError("IMPORT_RUN_STALE", "import run is no longer the expected validating evidence source")
+        expected = require_profile_versions(source_family)
+        profile_values = tuple(str(row[index]) for index in range(1, 5))
+        if profile_values != (
+            expected.source_profile_id,
+            expected.header_registry_id,
+            expected.vocabulary_registry_id,
+            expected.parser_profile_id,
+        ):
+            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "import run profile registry versions are not accepted")
+        chronology_kind = str(row[5])
+        chronology_value = int(row[6])
+        if chronology_kind not in {"filesystem_mtime_ns", "embedded_filename_timestamp_utc"} or chronology_value < 0:
+            raise IntegrityFailure("validating import run chronology authority is invalid")
+
+        observation_rows = reader.execute(
+            "SELECT source_observation_id,source_family,entity_kind,identity_state,canonical_primary_id,"
+            "canonical_parent_rfc_no,row_ordinal,sheet_ordinal,row_logical_sha256,source_row_chronology_utc,"
+            "presence_state,recorded_at_utc FROM source_observations WHERE import_run_id=? "
+            "ORDER BY sheet_ordinal ASC,row_ordinal ASC,source_observation_id ASC",
+            (canonical_run_id,),
+        ).fetchall()
+        observation_order: list[str] = []
+        observation_base: dict[str, tuple[object, ...]] = {}
+        seen_locators: set[tuple[int, int]] = set()
+        for persisted in observation_rows:
+            observation_id = _require_persisted_uuid(persisted[0], label="source_observation_id")
+            if observation_id in observation_base:
+                raise IntegrityFailure("validating import run repeats source observation identity")
+            persisted_family = str(persisted[1])
+            if persisted_family != source_family:
+                raise IntegrityFailure("staged observation source family disagrees with parent import run")
+            row_ordinal = int(persisted[6])
+            sheet_ordinal = int(persisted[7])
+            locator = (sheet_ordinal, row_ordinal)
+            if locator in seen_locators:
+                raise IntegrityFailure("validating import run repeats one physical worksheet row locator")
+            seen_locators.add(locator)
+            source_row_chronology = None if persisted[9] is None else int(persisted[9])
+            if row_ordinal < 1 or sheet_ordinal < 1 or (
+                source_row_chronology is not None and source_row_chronology < 0
+            ):
+                raise IntegrityFailure("staged observation physical or chronology provenance is invalid")
+            normalized = NormalizedObservationEvidence(
+                entity_kind=str(persisted[2]),
+                identity_state=str(persisted[3]),
+                canonical_primary_id=None if persisted[4] is None else str(persisted[4]),
+                canonical_parent_rfc_no=None if persisted[5] is None else str(persisted[5]),
+                row_ordinal=row_ordinal,
+                sheet_ordinal=sheet_ordinal,
+                row_logical_sha256=str(persisted[8]),
+                source_row_chronology_utc=source_row_chronology,
+            )
+            _validate_persisted_observation(source_family, normalized)
+            expected_presence = (
+                "observed_valid_identity" if normalized.identity_state == "valid" else "observed_invalid_identity"
+            )
+            if str(persisted[10]) != expected_presence or int(persisted[11]) < 0:
+                raise IntegrityFailure("staged observation presence or recorded-time authority is invalid")
+            observation_order.append(observation_id)
+            observation_base[observation_id] = tuple(persisted)
+
+        fields_by_observation: dict[str, list[StagedFieldEvidence]] = {
+            observation_id: [] for observation_id in observation_order
+        }
+        field_rows = reader.execute(
+            "SELECT f.source_observation_field_id,f.source_observation_id,f.field_key,f.field_class,f.value_state,"
+            "f.value_kind,f.source_text,f.normalized_text,f.integer_value,f.vocabulary_id,f.field_logical_sha256 "
+            "FROM source_observation_fields f JOIN source_observations o "
+            "ON o.source_observation_id=f.source_observation_id WHERE o.import_run_id=? "
+            "ORDER BY o.sheet_ordinal ASC,o.row_ordinal ASC,o.source_observation_id ASC,f.field_key ASC",
+            (canonical_run_id,),
+        ).fetchall()
+        for persisted in field_rows:
+            field_id = _require_persisted_uuid(persisted[0], label="source_observation_field_id")
+            observation_id = _require_persisted_uuid(persisted[1], label="field source_observation_id")
+            if observation_id not in fields_by_observation:
+                raise IntegrityFailure("staged field is not owned by the validating import run")
+            field = StagedFieldEvidence(
+                source_observation_field_id=field_id,
+                field_key=str(persisted[2]),
+                field_class=str(persisted[3]),
+                value_state=str(persisted[4]),
+                value_kind=str(persisted[5]),
+                source_text=None if persisted[6] is None else str(persisted[6]),
+                normalized_text=None if persisted[7] is None else str(persisted[7]),
+                integer_value=None if persisted[8] is None else int(persisted[8]),
+                vocabulary_id=None if persisted[9] is None else str(persisted[9]),
+                field_logical_sha256=str(persisted[10]),
+            )
+            _validate_persisted_field(source_family, field.normalized())
+            fields_by_observation[observation_id].append(field)
+        if any(len(fields) > _MAX_FIELDS_PER_OBSERVATION for fields in fields_by_observation.values()):
+            raise IntegrityFailure("staged observation exceeds the bounded semantic-field count")
+
+        findings_by_observation: dict[str, list[StagedFindingEvidence]] = {
+            observation_id: [] for observation_id in observation_order
+        }
+        global_findings: list[StagedFindingEvidence] = []
+        finding_rows = reader.execute(
+            "SELECT import_finding_id,source_observation_id,field_key,finding_code,severity,scope_kind,message_text,recorded_at_utc "
+            "FROM import_findings WHERE import_run_id=? ORDER BY import_finding_id ASC",
+            (canonical_run_id,),
+        ).fetchall()
+        for persisted in finding_rows:
+            finding_id = _require_persisted_uuid(persisted[0], label="import_finding_id")
+            observation_id = None if persisted[1] is None else _require_persisted_uuid(
+                persisted[1], label="finding source_observation_id"
+            )
+            severity = str(persisted[4])
+            scope_kind = str(persisted[5])
+            message_text = str(persisted[6])
+            recorded_at = int(persisted[7])
+            if severity not in _FINDING_SEVERITIES or scope_kind not in _FINDING_SCOPES:
+                raise IntegrityFailure("staged finding severity or scope is outside the closed LLD-04 vocabulary")
+            if not message_text or "\x00" in message_text or recorded_at < 0:
+                raise IntegrityFailure("staged finding message or recorded-time authority is invalid")
+            field_key = None if persisted[2] is None else str(persisted[2])
+            finding_code = str(persisted[3])
+            if not finding_code or "\x00" in finding_code or (field_key is not None and "\x00" in field_key):
+                raise IntegrityFailure("staged finding semantic identity is invalid")
+            finding = StagedFindingEvidence(
+                import_finding_id=finding_id,
+                source_observation_id=observation_id,
+                field_key=field_key,
+                finding_code=finding_code,
+                severity=severity,
+                scope_kind=scope_kind,
+                message_text=message_text,
+                recorded_at_utc=recorded_at,
+            )
+            if observation_id is None:
+                global_findings.append(finding)
+            else:
+                target = findings_by_observation.get(observation_id)
+                if target is None:
+                    raise IntegrityFailure("staged finding links an observation outside its import run")
+                target.append(finding)
+
+        observations: list[StagedObservationEvidence] = []
+        for observation_id in observation_order:
+            persisted = observation_base[observation_id]
+            observations.append(
+                StagedObservationEvidence(
+                    source_observation_id=observation_id,
+                    source_family=str(persisted[1]),
+                    entity_kind=str(persisted[2]),
+                    identity_state=str(persisted[3]),
+                    canonical_primary_id=None if persisted[4] is None else str(persisted[4]),
+                    canonical_parent_rfc_no=None if persisted[5] is None else str(persisted[5]),
+                    row_ordinal=int(persisted[6]),
+                    sheet_ordinal=int(persisted[7]),
+                    row_logical_sha256=str(persisted[8]),
+                    source_row_chronology_utc=None if persisted[9] is None else int(persisted[9]),
+                    presence_state=str(persisted[10]),
+                    recorded_at_utc=int(persisted[11]),
+                    fields=tuple(fields_by_observation[observation_id]),
+                    findings=tuple(findings_by_observation[observation_id]),
+                )
+            )
+        return StagedRunEvidence(
+            import_run_id=canonical_run_id,
+            source_family=source_family,
+            source_profile_id=profile_values[0],
+            header_registry_id=profile_values[1],
+            vocabulary_registry_id=profile_values[2],
+            parser_profile_id=profile_values[3],
+            candidate_chronology_kind=chronology_kind,
+            candidate_chronology_value=chronology_value,
+            revision=expected_run_revision,
+            observations=tuple(observations),
+            global_findings=tuple(global_findings),
+        )
 
     @classmethod
     def stage_observations(
