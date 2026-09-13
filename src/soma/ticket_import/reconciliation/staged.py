@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
-from soma.foundation.errors import IntegrityFailure
+from soma.foundation.errors import IntegrityFailure, ValidationError
+from soma.foundation.identifiers import require_uuid4
 from soma.ticket_import.repositories.observations import (
     SourceObservationRepository,
     StagedFindingEvidence,
@@ -22,6 +24,9 @@ from .engine import (
     field_logical_sha256,
     row_logical_sha256,
 )
+
+
+_HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +84,21 @@ def _verified_row(observation: StagedObservationEvidence) -> LogicalRow:
     return row
 
 
+def _validate_checkpoint(checkpoint: SourceCheckpointState, evidence: StagedRunEvidence) -> None:
+    if checkpoint.source_family != evidence.source_family:
+        raise IntegrityFailure("source checkpoint family disagrees with the validating import run")
+    if checkpoint.chronology_kind != evidence.candidate_chronology_kind:
+        raise IntegrityFailure("source checkpoint chronology kind disagrees with the validating source-profile chronology")
+    if _HEX64_RE.fullmatch(checkpoint.logical_fingerprint) is None:
+        raise IntegrityFailure("source checkpoint logical fingerprint is not lowercase SHA-256 hex")
+    if checkpoint.chronology_value < 0 or checkpoint.last_checked_at_utc < 0 or checkpoint.revision < 1:
+        raise IntegrityFailure("source checkpoint chronology or revision authority is invalid")
+    try:
+        require_uuid4(checkpoint.accepted_import_run_id)
+    except ValidationError as exc:
+        raise IntegrityFailure("source checkpoint accepted import-run identity is not canonical UUID4") from exc
+
+
 def verify_staged_logical_run(
     reader: Any,
     *,
@@ -109,8 +129,8 @@ def verify_staged_logical_run(
     )
 
     checkpoint = SourceCheckpointRepository.get(reader, evidence.source_family)
-    if checkpoint is not None and checkpoint.chronology_kind != evidence.candidate_chronology_kind:
-        raise IntegrityFailure("source checkpoint chronology kind disagrees with the validating source-profile chronology")
+    if checkpoint is not None:
+        _validate_checkpoint(checkpoint, evidence)
     replay_classification = classify_replay(
         candidate_chronology=evidence.candidate_chronology_value,
         logical_fingerprint_sha256=fingerprint.logical_fingerprint_sha256,
