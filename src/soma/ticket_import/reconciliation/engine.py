@@ -2,14 +2,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Iterable
+from typing import Any, Iterable
 
-from soma.foundation.errors import ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.identifiers import require_uuid4
+from soma.foundation.strict_json import sha256_canonical_json
+from soma.objectives_tasks.services.wfm_import import WfmImportReader
+from soma.ticket_import.providers.wfm_competing_attempt_evidence import (
+    TicketImportWfmCompetingAttemptEvidenceProvider,
+)
+from soma.tickets.rfc_import_reader import RfcImportReader
 
 
 _MAGIC = "SOMA_IMPORT_LOGICAL_V1"
 _CLASSIFICATION_FINDINGS = frozenset({"SOURCE_EQUIVALENT_DUPLICATE", "SOURCE_IDENTITY_CONFLICT"})
 _VALID_CLASSIFICATIONS = frozenset({"UNIQUE", "EQUIVALENT_DUPLICATE", "CONFLICT_MEMBER"})
+_PROPOSAL_FINGERPRINT_SCHEMA = "SOMA_IMPORT_PROPOSAL_FINGERPRINT_V1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +64,47 @@ class LogicalFingerprintResult:
     logical_fingerprint_sha256: str
     stream_bytes: int
     variants: tuple[LogicalRowVariant, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProposalChangeDraft:
+    ordinal: int
+    field_key: str
+    change_kind: str
+    value_kind: str
+    before_text: str | None
+    after_text: str | None
+    before_integer: int | None
+    after_integer: int | None
+    source_observation_field_id: str | None
+
+    def fingerprint_object(self) -> dict[str, object]:
+        return {
+            "ordinal": self.ordinal,
+            "field_key": self.field_key,
+            "change_kind": self.change_kind,
+            "value_kind": self.value_kind,
+            "before_text": self.before_text,
+            "after_text": self.after_text,
+            "before_integer": self.before_integer,
+            "after_integer": self.after_integer,
+            "source_observation_field_id": self.source_observation_field_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ReconciliationProposalDraft:
+    import_run_id: str
+    evidence_mode: str
+    source_observation_id: str
+    proposal_kind: str
+    target_kind: str
+    target_internal_id: str
+    target_business_id: str
+    risk_class: str
+    base_state_token_sha256: str
+    proposal_fingerprint_sha256: str
+    changes: tuple[ProposalChangeDraft, ...]
 
 
 def _frame_null() -> bytes:
@@ -332,3 +381,191 @@ def classify_replay(
     if logical_fingerprint_sha256 == checkpoint_logical_fingerprint_sha256:
         return "NEWER_IDENTICAL_NO_DOMAIN_CHANGE"
     return "NEW_SOURCE"
+
+
+def _proposal_source_authority(
+    reader: Any,
+    *,
+    import_run_id: str,
+    source_observation_id: str,
+    task_no: str,
+    parent_rfc_no: str,
+) -> dict[str, object]:
+    row = reader.execute(
+        "SELECT r.import_run_id,r.source_family,r.source_profile_id,r.header_registry_id,r.vocabulary_registry_id,"
+        "r.parser_profile_id,o.source_observation_id,o.source_family,o.entity_kind,o.identity_state,o.canonical_primary_id,"
+        "o.canonical_parent_rfc_no,o.row_logical_sha256 FROM import_runs r "
+        "JOIN source_observations o ON o.import_run_id=r.import_run_id "
+        "WHERE r.import_run_id=? AND o.source_observation_id=?",
+        (import_run_id, source_observation_id),
+    ).fetchone()
+    if row is None:
+        raise SomaError("IMPORT_RUN_STALE", "WFM proposal source authority disappeared")
+    if (
+        str(row[0]) != import_run_id
+        or str(row[1]) != "wfm_service_provider"
+        or str(row[7]) != "wfm_service_provider"
+        or str(row[8]) != "wfm"
+        or str(row[9]) != "valid"
+        or str(row[10]) != task_no
+        or str(row[11]) != parent_rfc_no
+    ):
+        raise IntegrityFailure("WFM proposal source authority disagrees with published evidence")
+    row_hash = str(row[12])
+    if len(row_hash) != 64 or any(character not in "0123456789abcdef" for character in row_hash):
+        raise IntegrityFailure("WFM proposal source row logical hash is invalid")
+    profile_values = tuple(str(row[index]) for index in range(2, 6))
+    if any(not value for value in profile_values):
+        raise IntegrityFailure("WFM proposal source profile authority is incomplete")
+    return {
+        "import_run_id": import_run_id,
+        "source_family": "wfm_service_provider",
+        "source_profile_id": profile_values[0],
+        "header_registry_id": profile_values[1],
+        "vocabulary_registry_id": profile_values[2],
+        "parser_profile_id": profile_values[3],
+        "source_observation_id": source_observation_id,
+        "canonical_primary_id": task_no,
+        "canonical_parent_rfc_no": parent_rfc_no,
+        "row_logical_sha256": row_hash,
+    }
+
+
+def build_wfm_competing_attempt_review_proposal(
+    reader: Any,
+    *,
+    import_run_id: str,
+    source_observation_id: str,
+    rfc_reader: RfcImportReader | None = None,
+    wfm_reader: WfmImportReader | None = None,
+    evidence_provider: TicketImportWfmCompetingAttemptEvidenceProvider | None = None,
+) -> ReconciliationProposalDraft | None:
+    canonical_run_id = require_uuid4(import_run_id)
+    canonical_observation_id = require_uuid4(source_observation_id)
+    rfc_authority = RfcImportReader() if rfc_reader is None else rfc_reader
+    wfm_authority = WfmImportReader() if wfm_reader is None else wfm_reader
+    evidence_authority = (
+        TicketImportWfmCompetingAttemptEvidenceProvider()
+        if evidence_provider is None
+        else evidence_provider
+    )
+    evidence = evidence_authority.load_exact(
+        reader,
+        expected_import_run_id=canonical_run_id,
+        source_observation_id=canonical_observation_id,
+    )
+
+    rfc = rfc_authority.get_by_number(reader, evidence.parent_rfc_no)
+    if rfc is None:
+        return None
+    rfc_id = rfc.get("rfc_id")
+    if not isinstance(rfc_id, str):
+        raise IntegrityFailure("RFC import reader returned invalid proposal-generation identity")
+    try:
+        canonical_rfc_id = require_uuid4(rfc_id)
+    except ValidationError as exc:
+        raise IntegrityFailure("RFC import reader returned noncanonical proposal-generation identity") from exc
+
+    try:
+        task_no_status = wfm_authority.task_no_status(reader, evidence.task_no)
+    except SomaError as exc:
+        if exc.code == "WFM_TASK_NO_INVALID":
+            raise IntegrityFailure("published WFM proposal source Task No is not canonical") from exc
+        raise
+    if task_no_status != "ACTIVE":
+        return None
+    identity = wfm_authority.get_by_task_no(reader, evidence.task_no)
+    if identity is None:
+        raise IntegrityFailure("ACTIVE WFM proposal target lacks current identity authority")
+    task_id = identity.get("task_id")
+    current_rfc_id = identity.get("current_rfc_id")
+    if not isinstance(task_id, str):
+        raise IntegrityFailure("WFM import reader returned invalid proposal-generation Task identity")
+    try:
+        canonical_task_id = require_uuid4(task_id)
+    except ValidationError as exc:
+        raise IntegrityFailure("WFM import reader returned noncanonical proposal-generation Task identity") from exc
+    if current_rfc_id != canonical_rfc_id:
+        return None
+
+    conflict = wfm_authority.activity_conflicts(
+        reader,
+        {
+            "task_no": evidence.task_no,
+            "current_rfc_id": canonical_rfc_id,
+            "task_id": canonical_task_id,
+        },
+        {"start_utc": evidence.planned_start_utc, "end_utc": evidence.planned_end_utc},
+        None,
+    )
+    if conflict.get("classification") != "SAME_REVIEWED_LINEAGE_OVERLAP":
+        return None
+    if conflict.get("subject_task_id") != canonical_task_id:
+        raise IntegrityFailure("WFM conflict reader returned a different proposal-generation subject")
+    exact_conflict_count = conflict.get("exact_conflict_count")
+    if type(exact_conflict_count) is not int or exact_conflict_count < 1:
+        raise IntegrityFailure("WFM conflict reader returned invalid competing-attempt count")
+    lineage_id = conflict.get("activity_lineage_id")
+    counterpart_id = conflict.get("suggested_counterpart_task_id")
+    conflict_fingerprint = conflict.get("conflict_fingerprint")
+    if not isinstance(lineage_id, str) or not isinstance(counterpart_id, str):
+        raise IntegrityFailure("WFM conflict reader omitted competing-attempt identities")
+    try:
+        canonical_lineage_id = require_uuid4(lineage_id)
+        canonical_counterpart_id = require_uuid4(counterpart_id)
+    except ValidationError as exc:
+        raise IntegrityFailure("WFM conflict reader returned noncanonical competing-attempt identity") from exc
+    if (
+        not isinstance(conflict_fingerprint, str)
+        or len(conflict_fingerprint) != 64
+        or any(character not in "0123456789abcdef" for character in conflict_fingerprint)
+    ):
+        raise IntegrityFailure("WFM conflict reader returned invalid conflict fingerprint")
+
+    change = ProposalChangeDraft(
+        ordinal=0,
+        field_key="competing_attempt_counterpart",
+        change_kind="conflict",
+        value_kind="identity",
+        before_text=None,
+        after_text=canonical_counterpart_id,
+        before_integer=None,
+        after_integer=None,
+        source_observation_field_id=None,
+    )
+    source = _proposal_source_authority(
+        reader,
+        import_run_id=canonical_run_id,
+        source_observation_id=canonical_observation_id,
+        task_no=evidence.task_no,
+        parent_rfc_no=evidence.parent_rfc_no,
+    )
+    proposal_identity = {
+        "proposal_kind": "wfm_competing_attempt_review",
+        "evidence_mode": "observed_row",
+        "risk_class": "high",
+        "target_kind": "activity_lineage",
+        "target_internal_id": canonical_lineage_id,
+        "target_business_id": evidence.task_no,
+    }
+    proposal_fingerprint = sha256_canonical_json(
+        {
+            "schema": _PROPOSAL_FINGERPRINT_SCHEMA,
+            "source": source,
+            "proposal": proposal_identity,
+            "changes": [change.fingerprint_object()],
+        }
+    )
+    return ReconciliationProposalDraft(
+        import_run_id=canonical_run_id,
+        evidence_mode="observed_row",
+        source_observation_id=canonical_observation_id,
+        proposal_kind="wfm_competing_attempt_review",
+        target_kind="activity_lineage",
+        target_internal_id=canonical_lineage_id,
+        target_business_id=evidence.task_no,
+        risk_class="high",
+        base_state_token_sha256=conflict_fingerprint,
+        proposal_fingerprint_sha256=proposal_fingerprint,
+        changes=(change,),
+    )
