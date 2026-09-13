@@ -415,14 +415,16 @@ def test_competing_attempt_conflict_drift_fails_before_receipt_and_leaves_propos
         assert snapshot.connection.execute(
             "SELECT 1 FROM command_receipts WHERE command_id=?", (command_id,)
         ).fetchone() is None
-        assert snapshot.connection.execute(
+        proposal = snapshot.connection.execute(
             "SELECT proposal_state,revision FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
             (scope["proposal_id"],),
-        ).fetchone() == ("pending", 1)
-        assert snapshot.connection.execute(
+        ).fetchone()
+        run = snapshot.connection.execute(
             "SELECT pending_proposal_count,accepted_proposal_count,revision FROM import_runs WHERE import_run_id=?",
             (scope["run_id"],),
-        ).fetchone() == (1, 0, 1)
+        ).fetchone()
+        assert tuple(proposal) == ("pending", 1)
+        assert tuple(run) == (1, 0, 1)
 
 
 def test_competing_attempt_participant_stale_failure_rolls_back_outer_receipt_and_disposition(
