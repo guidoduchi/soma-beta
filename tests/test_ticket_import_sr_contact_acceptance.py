@@ -34,9 +34,10 @@ def _contact(factory, name: str):
 
 def _source_base_token(factory, service_request_id: str) -> str:
     with ReadSnapshot(factory) as snapshot:
-        return ServiceRequestImportMutationService.source_acceptance_base_token(
+        return ServiceRequestImportMutationService.source_field_set_base_token(
             snapshot.connection,
             service_request_id,
+            ("current_handler_label",),
         )
 
 
