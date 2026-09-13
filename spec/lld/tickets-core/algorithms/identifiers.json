@@ -5,6 +5,7 @@
   "service_request":{
     "parse_official":"accept exactly eight ASCII decimal digits after presentation-only prefix/label removal performed by the explicitly owning source/UI adapter; canonical stored value is the eight digits only",
     "local":"allocate through sr_local_id_allocator and format LSR-%08d",
+    "source_identity_base_token":"SR_SOURCE_IDENTITY_BASE_V1 is lowercase SHA-256 over LLD-01 StrictVersionedJson canonical_json UTF-8 bytes for exactly {schema:'SR_SOURCE_IDENTITY_BASE_V1',official_sr_no:<canonical eight ASCII digits>,target:<null|object>}. target is null when no service_requests row currently owns official_sr_no; otherwise it is exactly {service_request_id:<canonical UUIDv4>,local_sr_no:<string|null>,revision:<positive integer>} from that unique current row. No source field, source projection, Customer/Contact relationship, workbook evidence or presentation label enters this token. The read is performed through the supplied reader/current UnitOfWork and never opens or commits a transaction. This token is the owner freshness authority for reviewed creation of a missing exact official SR identity; appearance or mutation of that exact identity changes the token and makes an older creation proposal stale.",
     "prohibitions":["never truncate/extract digits from malformed official input","never use presentation 'SR' or 'TT' label as canonical stored identity","never reuse committed LSR value"]
   },
   "rfc":{
