@@ -74,6 +74,13 @@ def _seed_create_proposal(
                 fingerprint,
             ),
         )
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposal_changes("
+            "reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,before_text,after_text,"
+            "before_integer,after_integer,source_observation_field_id) "
+            "VALUES (?,0,'official_sr_no','create','identity',NULL,?,NULL,NULL,NULL)",
+            (proposal_id, sr_no),
+        )
     return {
         "proposal_run_id": proposal_run_id,
         "observation_run_id": observation_run,
@@ -246,3 +253,62 @@ def test_pending_exact_existing_adoption_cannot_fabricate_owner_mutation(initial
             "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
             (command_id,),
         ).fetchone()[0] == 0
+
+
+def test_sr_identity_accept_rejects_non_medium_risk_before_receipt(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    seeded = _seed_create_proposal(factory, sr_no="33445570")
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE reconciliation_proposals SET risk_class='high' WHERE reconciliation_proposal_id=?",
+            (seeded["proposal_id"],),
+        )
+    command_id = new_uuid4()
+
+    with pytest.raises(SomaError) as excinfo:
+        ProposalDecisionService(factory).accept(
+            command_id=command_id,
+            proposal_id=seeded["proposal_id"],
+            proposal_revision=1,
+            proposal_fingerprint=seeded["fingerprint"],
+            base_state_token=seeded["base_token"],
+        )
+    assert excinfo.value.code == "IMPORT_PROPOSAL_STALE"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM service_requests WHERE official_sr_no='33445570'"
+        ).fetchone() is None
+
+
+def test_sr_identity_accept_rejects_tampered_identity_change_before_receipt(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    seeded = _seed_create_proposal(factory, sr_no="33445571")
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE reconciliation_proposal_changes SET after_text='33445572' "
+            "WHERE reconciliation_proposal_id=? AND ordinal=0",
+            (seeded["proposal_id"],),
+        )
+    command_id = new_uuid4()
+
+    with pytest.raises(SomaError) as excinfo:
+        ProposalDecisionService(factory).accept(
+            command_id=command_id,
+            proposal_id=seeded["proposal_id"],
+            proposal_revision=1,
+            proposal_fingerprint=seeded["fingerprint"],
+            base_state_token=seeded["base_token"],
+        )
+    assert excinfo.value.code == "IMPORT_PROPOSAL_STALE"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM service_requests WHERE official_sr_no IN ('33445571','33445572')"
+        ).fetchone() is None
