@@ -5,24 +5,52 @@
   "profile": "ADVANCED_SEARCH_SR_V1 + ADVANCED_SEARCH_HEADERS_V1",
   "preconditions": ["candidate passed shared path/reparse/stability/XLSX security boundary","source family is exactly advanced_search_sr","required SRNo semantic header resolves exactly once","all security/resource limits remain in force through complete EOF"],
   "row_identity": ["resolve SRNo by semantic header, trim only accepted spreadsheet whitespace, then require exactly eight ASCII digits","valid identity becomes entity_kind=service_request and canonical_primary_id is the exact eight digits","missing, blank, malformed, prefixed/suffixed or longer digit sequence becomes invalid_row with SR_ID_INVALID and fabricates no Service Request","similar summary/customer/contact/device evidence can never adopt or identify an SR"],
+  "instant_parser": {
+    "profile": "ADVANCED_SEARCH_SR_V1 operational_time_semantics",
+    "text_input": [
+      "after surrounding spreadsheet-whitespace trimming require exact ASCII YYYY-MM-DD[T|space]HH:MM:SS with optional . plus 1..6 fractional ASCII digits and optional uppercase Z or signed +/-HH:MM offset",
+      "validate the Gregorian calendar/time and explicit offset; lowercase z, timezone abbreviations, locale/slash dates, omitted seconds and offset forms without a colon are malformed",
+      "if explicit offset exists use it exactly; otherwise attach America/Guayaquil",
+      "normalize the resolved instant to UTC, then discard fractional remainder without rounding/carry and persist nonnegative whole Unix seconds",
+      "a resolved instant before Unix epoch is malformed because persisted instant authority is int64>=0"
+    ],
+    "xlsx_numeric_input": [
+      "accept only a registered temporal cell whose openpyxl semantic value, under the workbook's supported 1900/1904 epoch and date/time style, is a Python datetime/date value",
+      "a datetime carrying an explicit tzinfo uses it; a naive datetime/date uses America/Guayaquil; date-only semantic values use local 00:00:00",
+      "normalize to UTC whole seconds under the same fractional-discard rule",
+      "a bare int/float numeric value not resolved by openpyxl as date/time is malformed temporal evidence; formulas/cached formula results never qualify"
+    ],
+    "prohibitions": ["no filesystem/import/current time substitution","no Report Date substitution for Last Update","no filename chronology substitution for row chronology","no locale-dependent parser fallback"]
+  },
+  "duration_parser": {
+    "field": "suspension_duration",
+    "source_unit": "decimal days",
+    "blank": "when the semantic header is present, blank is usable integer_value=0 duration_seconds; absent header remains missing coverage and creates no zero field",
+    "text_input": "after surrounding spreadsheet-whitespace trimming require the ADVANCED_SEARCH_SR_V1 decimal-days grammar; parse with Decimal directly from that ASCII text",
+    "xlsx_numeric_input": "accept finite nonnegative int/float but not bool/date/time; obtain locale-independent decimal input as str(cell.value) and construct Decimal from that text so Python 3.13/3.14 and Windows/Linux produce the same semantic decimal",
+    "conversion": "seconds_decimal = source_days * Decimal(86400); quantize to Decimal(1) with ROUND_HALF_EVEN; convert to integer and require 0 <= integer <= 9223372036854775807",
+    "malformed": "negative, nonfinite, out-of-range, exponent/locale/unit-bearing text or unsupported semantic cell types produce value_state=malformed with bounded source evidence; never clamp, infer or preserve them as usable zero",
+    "logical_value": "usable nonblank/blank values fingerprint and stage only the resulting whole integer duration_seconds as integer_value; source decimal representation is provenance rather than an alternate authority"
+  },
   "active_field_parsing": [
     {"key":"problem_summary","kind":"text","blank":"blank evidence; preserve accepted source projection"},
-    {"key":"report_date","kind":"instant","blank":"missing; never substitute import/file/current time","time":"explicit offset else America/Guayaquil"},
+    {"key":"report_date","kind":"instant","blank":"missing; never substitute import/file/current time","time":"instant_parser"},
     {"key":"customer_contact_label","kind":"text","blank":"missing candidate evidence"},
-    {"key":"customer_severity","kind":"controlled","blank":"missing/preserve","unknown":"warning/preserve"},
-    {"key":"current_handler_label","kind":"text","blank":"usable explicit source-display clear candidate; does not mutate Contact"},
-    {"key":"status","kind":"controlled","blank":"preserve","unknown":"warning/preserve"},
+    {"key":"customer_severity","kind":"controlled","blank":"missing/preserve","unknown":"warning/preserve","vocabulary":"ADVANCED_SEARCH_SEVERITY_V1"},
+    {"key":"current_handler_label","kind":"text","blank":"usable explicit source-display clear candidate at acceptance; staged source value_state remains blank and does not mutate Contact by itself"},
+    {"key":"status","kind":"controlled","blank":"preserve","unknown":"warning/preserve","vocabulary":"ADVANCED_SEARCH_STATUS_V1"},
     {"key":"customer_org_label","kind":"text","blank":"missing candidate evidence"},
     {"key":"customer_account_code","kind":"text","blank":"missing candidate evidence"},
-    {"key":"suspend_planned_end","kind":"instant","blank":"missing/preserve","time":"explicit offset else America/Guayaquil"},
-    {"key":"suspension_duration","kind":"duration_seconds","blank":"usable exact zero source report; regression against prior nonzero is review-required"},
-    {"key":"last_update","kind":"instant","blank":"unknown chronology","time":"explicit offset else America/Guayaquil"}
+    {"key":"suspend_planned_end","kind":"instant","blank":"missing/preserve","time":"instant_parser"},
+    {"key":"suspension_duration","kind":"duration_seconds","blank":"duration_parser usable exact zero source report; regression against prior nonzero is review-required","nonblank":"duration_parser"},
+    {"key":"last_update","kind":"instant","blank":"unknown chronology","time":"instant_parser"}
   ],
   "deferred_fields": ["resolve_by","resolve_by_suspend","owner","l2_assignee","l3_assignee","related_sr","authorization_no","escalation_no","pr_number"],
+  "deferred_instant_rule": "resolve_by and resolve_by_suspend use instant_parser but remain provenance-only and cannot drive Beta 1.0 workflow/SLA authority",
   "discarded_fields": ["Product", "every unregistered header"],
-  "row_chronology": "usable Last Update is field/source row chronology. Missing/unusable Last Update remains NULL; filename chronology, filesystem mtime, import time and Report Date never substitute for row chronology. A changed field without chronology comparable to prior accepted field evidence becomes review-required rather than assumed newer.",
-  "duplicate_partition": ["group valid rows by canonical eight-digit SR identity after parsing","exact equivalent allowlisted logical rows may collapse to one effective logical observation plus deterministic duplicate-count warning while physical provenance remains bounded","different meaningful allowlisted logical content for the same SR identity is conflicting source evidence; retain observations/findings and block only that SR proposal scope until reviewed","conflict for one SR never rejects unrelated valid SR identities"],
+  "row_chronology": "only usable Last Update integer UTC seconds becomes source_row_chronology_utc. Missing/blank/malformed Last Update remains NULL; filename chronology, filesystem mtime, import time and Report Date never substitute for row chronology. A changed field without chronology comparable to prior accepted field evidence becomes review-required rather than assumed newer.",
+  "duplicate_partition": ["recompute the exact shared ROW_V1 hash from every parsed row before grouping","group valid rows by canonical eight-digit SR identity after parsing","exact equivalent allowlisted logical rows collapse to one effective logical observation variant with deterministic duplicate_count and SOURCE_EQUIVALENT_DUPLICATE classification finding while every physical row remains staged as bounded provenance","different meaningful allowlisted logical content for the same SR identity is conflicting source evidence; retain observations/findings and block only that SR proposal scope until reviewed","conflict for one SR never rejects unrelated valid SR identities","invalid rows have no canonical SR identity and may collapse only by equal ROW_V1 hash; they never create an SR identity conflict group"],
   "proposal_seeds": ["missing exact official SR -> sr_create_or_adopt seed","existing exact official SR -> in-place source adoption/projection seed preserving service_request_id and all SOMA-owned history","field-level recognized source delta -> sr_source_projection seed","Customer Account Code/Customer Org. label -> reviewed Customer Organization reconciliation candidate seed","Customer Contact label -> reviewed Contact reconciliation candidate seed","Current Handler -> separate reviewed Contact reconciliation candidate seed while source assignment remains text authority","recognized terminal-to-nonterminal reversal -> high-risk sr_terminal_reversal_review seed","new blank/zero Suspension Duration contradicting prior accepted nonzero -> high-risk sr_suspension_regression_review seed"],
   "population_postpass": ["after complete conflict classification, compute valid canonical SR identity set for the candidate population","compare only against the latest previously accepted Advanced Search population under exact source-family/checkpoint lineage","a previously observed SR omitted from the new population seeds a high-risk source-disappearance review/warning; omission never deletes, archives, finalizes or mutates the SR","later valid reappearance resolves to the same surviving SR and may clear current disappearance warning through governed acceptance"],
-  "prohibitions": ["no source omission deletion/archive/finalization","no overwrite of SOMA-owned relationships, Working Notes, Tasks, Objectives, Inventory, Infrastructure, review or audit history","no Product-derived classification/SLA/Infrastructure/Inventory behavior","no fuzzy Customer/Contact/SR identity selection","no source status to Task/Objective execution mutation"]
+  "prohibitions": ["no source omission deletion/archive/finalization","no overwrite of SOMA-owned relationships, Working Notes, Tasks, Objectives, Inventory, Infrastructure, review or audit history","no Product-derived classification/SLA/Infrastructure/Inventory behavior","no fuzzy Customer/Contact/SR identity selection","no source status to Task/Objective execution mutation","no alternate timestamp/duration grammar outside ADVANCED_SEARCH_SR_V1"]
 }
