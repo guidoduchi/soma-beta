@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.ticket_import.profiles.registry import require_profile_versions
 from soma.ticket_import.repositories.findings import NormalizedFindingEvidence, SourceFindingRepository
 from soma.ticket_import.repositories.observations import SourceObservationRepository, StagedObservationResult
 
-from .advanced_search import AdvancedSearchParseResult, ParsedFinding
+from .advanced_search import AdvancedSearchParseResult, ParsedAdvancedSearchRow, ParsedFinding
 
 
 _SOURCE_FAMILY = "advanced_search_sr"
@@ -16,7 +16,10 @@ _OBSERVATION_STAGE_BATCH = 2_000
 
 
 @dataclass(frozen=True, slots=True)
-class AdvancedSearchStagingResult:
+class AdvancedSearchStagingBatchResult:
+    start_index: int
+    next_index: int
+    complete: bool
     observations: tuple[StagedObservationResult, ...]
     finding_ids: tuple[str, ...]
 
@@ -52,71 +55,69 @@ def _to_finding(
     )
 
 
-def stage_advanced_search_parse_result(
+def _validate_row_findings(row: ParsedAdvancedSearchRow) -> None:
+    for finding in row.findings:
+        if finding.sheet_ordinal is not None and finding.sheet_ordinal != row.observation.sheet_ordinal:
+            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "row finding sheet provenance disagrees with observation")
+        if finding.row_ordinal is not None and finding.row_ordinal != row.observation.row_ordinal:
+            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "row finding row provenance disagrees with observation")
+        SourceFindingRepository._validate_finding(_to_finding(finding, source_observation_id=None))
+
+
+def stage_advanced_search_parse_batch(
     uow: UnitOfWork,
     *,
     import_run_id: str,
     expected_run_revision: int,
     parsed: AdvancedSearchParseResult,
-) -> AdvancedSearchStagingResult:
-    """Replace unpublished technical staging with one complete parsed workbook result.
+    start_index: int,
+    include_global_findings: bool = False,
+) -> AdvancedSearchStagingBatchResult:
+    """Stage one bounded parser batch while the import run remains unpublished.
 
-    The caller owns the outer UnitOfWork. Any raised exception must abort that UoW;
-    publication/fingerprinting remains a later LLD-04 step.
+    The durable-job caller owns the outer UnitOfWork and must advance its
+    `last_committed_batch` checkpoint in that same UoW before commit. Recovery
+    therefore resumes after the last committed batch instead of deleting and
+    rebuilding already-staged technical evidence.
     """
 
     _require_exact_parser_profile(parsed)
+    if type(start_index) is not int or start_index < 0 or start_index > len(parsed.rows):
+        raise ValidationError("start_index must address the parsed Advanced Search row sequence")
 
+    end_index = min(start_index + _OBSERVATION_STAGE_BATCH, len(parsed.rows))
+    selected_rows = parsed.rows[start_index:end_index]
     seen_locators: set[tuple[int, int]] = set()
-    for row in parsed.rows:
+    for row in selected_rows:
         locator = (row.observation.sheet_ordinal, row.observation.row_ordinal)
         if locator in seen_locators:
-            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "parsed result repeats one physical worksheet row")
+            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "staging batch repeats one physical worksheet row")
         seen_locators.add(locator)
-        for finding in row.findings:
-            if finding.sheet_ordinal is not None and finding.sheet_ordinal != row.observation.sheet_ordinal:
-                raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "row finding sheet provenance disagrees with observation")
-            if finding.row_ordinal is not None and finding.row_ordinal != row.observation.row_ordinal:
-                raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "row finding row provenance disagrees with observation")
-            # Validate the durable finding vocabulary/bounds before replacing any
-            # unpublished technical staging. Ownership is checked after IDs exist.
+        _validate_row_findings(row)
+    if include_global_findings:
+        for finding in parsed.global_findings:
             SourceFindingRepository._validate_finding(_to_finding(finding, source_observation_id=None))
-    for finding in parsed.global_findings:
-        SourceFindingRepository._validate_finding(_to_finding(finding, source_observation_id=None))
 
-    # Re-parsing an unpublished validating run replaces technical staging in the
-    # same transaction. Published rows are protected by cleanup_unpublished().
-    SourceObservationRepository.cleanup_unpublished(
-        uow,
-        import_run_id=import_run_id,
-        expected_run_revision=expected_run_revision,
-    )
-
-    staged_rows: list[StagedObservationResult] = []
-    observations = parsed.observations
-    for start in range(0, len(observations), _OBSERVATION_STAGE_BATCH):
-        staged_rows.extend(
-            SourceObservationRepository.stage_observations(
-                uow,
-                import_run_id=import_run_id,
-                expected_run_revision=expected_run_revision,
-                observations=observations[start : start + _OBSERVATION_STAGE_BATCH],
-            )
+    staged_rows: tuple[StagedObservationResult, ...] = ()
+    if selected_rows:
+        staged_rows = SourceObservationRepository.stage_observations(
+            uow,
+            import_run_id=import_run_id,
+            expected_run_revision=expected_run_revision,
+            observations=tuple(row.observation for row in selected_rows),
         )
 
-    if len(staged_rows) != len(parsed.rows):
-        raise RuntimeError("Advanced Search staging result count disagrees with parser output")
-
     findings: list[NormalizedFindingEvidence] = []
-    for row, staged in zip(parsed.rows, staged_rows, strict=True):
+    for row, staged in zip(selected_rows, staged_rows, strict=True):
         findings.extend(
             _to_finding(finding, source_observation_id=staged.source_observation_id)
             for finding in row.findings
         )
-    findings.extend(
-        _to_finding(finding, source_observation_id=None)
-        for finding in parsed.global_findings
-    )
+    if include_global_findings:
+        findings.extend(
+            _to_finding(finding, source_observation_id=None)
+            for finding in parsed.global_findings
+        )
 
     finding_ids = SourceFindingRepository.stage_findings(
         uow,
@@ -124,4 +125,10 @@ def stage_advanced_search_parse_result(
         expected_run_revision=expected_run_revision,
         findings=tuple(findings),
     )
-    return AdvancedSearchStagingResult(tuple(staged_rows), finding_ids)
+    return AdvancedSearchStagingBatchResult(
+        start_index=start_index,
+        next_index=end_index,
+        complete=end_index == len(parsed.rows),
+        observations=staged_rows,
+        finding_ids=finding_ids,
+    )
