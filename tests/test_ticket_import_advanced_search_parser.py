@@ -166,7 +166,7 @@ def test_present_blank_duration_is_zero_but_missing_header_creates_no_field(tmp_
     )
 
 
-@pytest.mark.parametrize("value", ["-1", "1e3", "1,5", "1 day", float("inf")])
+@pytest.mark.parametrize("value", ["-1", "1e3", "1,5", "1 day", "Infinity"])
 def test_malformed_duration_never_clamps_or_acquires_authority(tmp_path: Path, value: object) -> None:
     path = tmp_path / "bad-duration.xlsx"
     _write_workbook(path, ["SRNo", "Suspension Duration"], [["12345678", value]])
