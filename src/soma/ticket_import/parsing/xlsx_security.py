@@ -47,14 +47,16 @@ _FORBIDDEN_CONTENT_TYPE_MARKERS = (
     "activex",
     "oleobject",
 )
-_FORBIDDEN_RELATIONSHIP_TYPE_MARKERS = (
-    "externallink",
-    "attachedtemplate",
-    "oleobject",
-    "activex",
-    "/package",
-    "/connections",
-    "/querytable",
+_FORBIDDEN_RELATIONSHIP_TYPE_NAMES = frozenset(
+    {
+        "externallink",
+        "attachedtemplate",
+        "oleobject",
+        "activex",
+        "package",
+        "connections",
+        "querytable",
+    }
 )
 _SUPPORTED_WORKBOOK_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
@@ -180,6 +182,10 @@ def _resolve_relationship_target(relationship_part_name: str, target: str) -> st
     return _normalize_part_name(resolved)
 
 
+def _relationship_type_name(relationship_type: str) -> str:
+    return relationship_type.rstrip("/").rsplit("/", 1)[-1].lower()
+
+
 def _validate_relationships(
     data: bytes,
     *,
@@ -194,10 +200,9 @@ def _validate_relationships(
         target_mode = relation.attrib.get("TargetMode", "")
         target = relation.attrib.get("Target", "")
         relationship_type = relation.attrib.get("Type", "")
-        lowered_type = relationship_type.lower()
         if target_mode.lower() == "external":
             raise _unsafe("OOXML relationship requires an external resource")
-        if any(marker in lowered_type for marker in _FORBIDDEN_RELATIONSHIP_TYPE_MARKERS):
+        if _relationship_type_name(relationship_type) in _FORBIDDEN_RELATIONSHIP_TYPE_NAMES:
             raise _unsafe("OOXML relationship declares unsupported active/external content")
         target_part = _resolve_relationship_target(relationship_part_name, target)
         if target_part not in known_parts:
