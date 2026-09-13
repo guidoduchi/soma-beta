@@ -482,7 +482,7 @@ def build_advanced_search_sr_source_projection_proposals(
             and current.value_state == "usable"
             and current.value in _TERMINAL_SR_STATUSES
             and candidate.value_state == "usable"
-            and candidate.value != current.value
+            and candidate.value not in _TERMINAL_SR_STATUSES
         ):
             reviewed_terminal.append((field, current, candidate))
             continue
@@ -506,7 +506,12 @@ def build_advanced_search_sr_source_projection_proposals(
             chronology_blocked.add(field.field_key)
             continue
 
-        if field.field_key == "status" and candidate.value in _TERMINAL_SR_STATUSES:
+        current_is_terminal = (
+            current is not None
+            and current.value_state == "usable"
+            and current.value in _TERMINAL_SR_STATUSES
+        )
+        if field.field_key == "status" and candidate.value in _TERMINAL_SR_STATUSES and not current_is_terminal:
             terminal_entry.append((field, current, candidate))
         else:
             ordinary.append((field, current, candidate))
