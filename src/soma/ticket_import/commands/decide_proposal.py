@@ -18,7 +18,7 @@ from ._proposal_decision_core import (
 
 
 class ProposalDecisionService(_CoreProposalDecisionService):
-    """Public proposal-decision service with the certified SR field-set freshness repair."""
+    """Public proposal-decision service with certified SR freshness repairs."""
 
     @staticmethod
     def _current_status_is_terminal(connection: Any, service_request_id: str) -> bool:
@@ -33,6 +33,56 @@ class ProposalDecisionService(_CoreProposalDecisionService):
         if str(row[0]) != "usable" or str(row[1]) != "controlled" or row[2] is None:
             raise IntegrityFailure("current Service Request Status projection is invalid")
         return str(row[2]) in _TERMINAL_SR_STATUSES
+
+    def _prepare_sr_create_accept(
+        self,
+        uow: UnitOfWork,
+        *,
+        proposal: ProposalRecord,
+        run: Any,
+        base_token: str,
+        proposal_revision: int,
+        command_id: str,
+        reason: str | None,
+        actor_kind: str,
+        actor_id: str | None,
+    ) -> PreparedMutation:
+        if (
+            proposal.evidence_mode != "observed_row"
+            or proposal.source_observation_id is None
+            or proposal.target_kind != "service_request"
+            or proposal.target_internal_id is not None
+            or proposal.target_business_id is None
+            or proposal.risk_class != "medium"
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR identity creation proposal binding is invalid")
+        changes = self._repository.list_changes(uow.connection, proposal.proposal_id)
+        if len(changes) != 1:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR identity creation requires exactly one immutable change")
+        change = changes[0]
+        if (
+            change.ordinal != 0
+            or change.field_key != "official_sr_no"
+            or change.change_kind != "create"
+            or change.value_kind != "identity"
+            or change.before_text is not None
+            or change.after_text != proposal.target_business_id
+            or change.before_integer is not None
+            or change.after_integer is not None
+            or change.source_observation_field_id is not None
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR identity creation proposal encoding is invalid")
+        return super()._prepare_sr_create_accept(
+            uow,
+            proposal=proposal,
+            run=run,
+            base_token=base_token,
+            proposal_revision=proposal_revision,
+            command_id=command_id,
+            reason=reason,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+        )
 
     def _prepare_sr_source_projection_accept(
         self,
