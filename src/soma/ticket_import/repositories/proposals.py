@@ -1,11 +1,56 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
+
+
+_HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
+_PROPOSAL_KINDS = frozenset(
+    {
+        "sr_create_or_adopt",
+        "sr_source_projection",
+        "sr_customer_reconciliation",
+        "sr_contact_reconciliation",
+        "sr_current_handler_reconciliation",
+        "sr_source_disappearance_review",
+        "sr_terminal_reversal_review",
+        "sr_suspension_regression_review",
+        "rfc_create_or_adopt",
+        "rfc_source_projection",
+        "rfc_customer_reconciliation",
+        "sr_rfc_link_candidate",
+        "wfm_create_or_adopt",
+        "wfm_source_projection",
+        "wfm_provisional_rfc",
+        "wfm_provisional_eligibility",
+        "wfm_plan_reconciliation",
+        "wfm_competing_attempt_review",
+    }
+)
+_TARGET_KINDS = frozenset(
+    {
+        "service_request",
+        "rfc",
+        "wfm",
+        "customer_organization",
+        "contact",
+        "source_presence",
+        "sr_rfc_relationship",
+        "task_plan",
+        "activity_lineage",
+    }
+)
+_RISK_CLASSES = frozenset({"low", "medium", "high", "blocked"})
+_CHANGE_KINDS = frozenset({"create", "set", "clear", "link", "unlink", "adopt", "candidate", "conflict", "absent", "reappear"})
+_VALUE_KINDS = frozenset({"none", "text", "controlled", "instant", "duration_seconds", "identity"})
+_TEXT_VALUE_KINDS = frozenset({"none", "text", "controlled", "identity"})
+_NUMERIC_VALUE_KINDS = frozenset({"instant", "duration_seconds"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +84,28 @@ class ProposalChangeRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class PendingProposalWrite:
+    import_run_id: str
+    evidence_mode: str
+    source_observation_id: str | None
+    prior_source_observation_id: str | None
+    proposal_kind: str
+    target_kind: str
+    target_internal_id: str | None
+    target_business_id: str | None
+    risk_class: str
+    base_state_token: str
+    proposal_fingerprint: str
+    changes: tuple[ProposalChangeRecord, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProposalPersistenceResult:
+    proposal_id: str
+    reused: bool
+
+
+@dataclass(frozen=True, slots=True)
 class ImportRunDecisionState:
     import_run_id: str
     source_family: str
@@ -51,6 +118,129 @@ class ImportRunDecisionState:
     rejected_count: int
     deferred_count: int
     revision: int
+
+
+def _validate_sha256(value: str, *, label: str) -> str:
+    if not isinstance(value, str) or _HEX64_RE.fullmatch(value) is None:
+        raise ValidationError(f"{label} must be lowercase SHA-256 hex")
+    return value
+
+
+def _validate_optional_uuid(value: str | None, *, label: str) -> str | None:
+    if value is None:
+        return None
+    try:
+        return require_uuid4(value)
+    except ValidationError as exc:
+        raise ValidationError(f"{label} must be a canonical UUID4") from exc
+
+
+def _validate_optional_text(value: str | None, *, label: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or "\x00" in value:
+        raise ValidationError(f"{label} must be NUL-free text")
+    try:
+        value.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise ValidationError(f"{label} must be valid Unicode text") from exc
+    return value
+
+
+def _validate_change(change: ProposalChangeRecord, *, expected_ordinal: int) -> ProposalChangeRecord:
+    if not isinstance(change, ProposalChangeRecord):
+        raise ValidationError("proposal changes must use ProposalChangeRecord")
+    if type(change.ordinal) is not int or change.ordinal != expected_ordinal:
+        raise ValidationError("proposal change ordinals must be contiguous from zero")
+    if not isinstance(change.field_key, str) or not change.field_key or "\x00" in change.field_key:
+        raise ValidationError("proposal change field_key must be nonempty NUL-free text")
+    try:
+        change.field_key.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise ValidationError("proposal change field_key must be valid Unicode text") from exc
+    if change.change_kind not in _CHANGE_KINDS:
+        raise ValidationError("proposal change_kind is outside the closed LLD-04 vocabulary")
+    if change.value_kind not in _VALUE_KINDS:
+        raise ValidationError("proposal value_kind is outside the closed LLD-04 vocabulary")
+    before_text = _validate_optional_text(change.before_text, label="proposal before_text")
+    after_text = _validate_optional_text(change.after_text, label="proposal after_text")
+    before_integer = change.before_integer
+    after_integer = change.after_integer
+    if before_integer is not None and type(before_integer) is not int:
+        raise ValidationError("proposal before_integer must be an integer or null")
+    if after_integer is not None and type(after_integer) is not int:
+        raise ValidationError("proposal after_integer must be an integer or null")
+    if change.value_kind in _TEXT_VALUE_KINDS:
+        if before_integer is not None or after_integer is not None:
+            raise ValidationError("text/identity proposal changes cannot carry integer values")
+    elif change.value_kind in _NUMERIC_VALUE_KINDS:
+        if before_text is not None or after_text is not None:
+            raise ValidationError("instant/duration proposal changes cannot carry text values")
+        if (before_integer is not None and before_integer < 0) or (after_integer is not None and after_integer < 0):
+            raise ValidationError("instant/duration proposal values must be nonnegative")
+    source_field_id = _validate_optional_uuid(
+        change.source_observation_field_id,
+        label="source_observation_field_id",
+    )
+    return ProposalChangeRecord(
+        ordinal=change.ordinal,
+        field_key=change.field_key,
+        change_kind=change.change_kind,
+        value_kind=change.value_kind,
+        before_text=before_text,
+        after_text=after_text,
+        before_integer=before_integer,
+        after_integer=after_integer,
+        source_observation_field_id=source_field_id,
+    )
+
+
+def _validate_pending_write(write: PendingProposalWrite) -> PendingProposalWrite:
+    if not isinstance(write, PendingProposalWrite):
+        raise ValidationError("pending proposal write contract is invalid")
+    import_run_id = require_uuid4(write.import_run_id)
+    if write.evidence_mode not in {"observed_row", "population_absence"}:
+        raise ValidationError("proposal evidence_mode is invalid")
+    source_observation_id = _validate_optional_uuid(write.source_observation_id, label="source_observation_id")
+    prior_source_observation_id = _validate_optional_uuid(
+        write.prior_source_observation_id,
+        label="prior_source_observation_id",
+    )
+    if write.evidence_mode == "observed_row":
+        if source_observation_id is None or prior_source_observation_id is not None:
+            raise ValidationError("observed-row proposal requires current source observation only")
+    else:
+        if source_observation_id is not None or prior_source_observation_id is None:
+            raise ValidationError("population-absence proposal requires prior source observation only")
+    if write.proposal_kind not in _PROPOSAL_KINDS:
+        raise ValidationError("proposal_kind is outside the closed LLD-04 vocabulary")
+    if (write.proposal_kind == "sr_source_disappearance_review") != (write.evidence_mode == "population_absence"):
+        raise ValidationError("source-disappearance proposal evidence mode is invalid")
+    if write.target_kind not in _TARGET_KINDS:
+        raise ValidationError("target_kind is outside the closed LLD-04 vocabulary")
+    target_internal_id = _validate_optional_uuid(write.target_internal_id, label="target_internal_id")
+    target_business_id = _validate_optional_text(write.target_business_id, label="target_business_id")
+    if write.risk_class not in _RISK_CLASSES:
+        raise ValidationError("proposal risk_class is invalid")
+    base_state_token = _validate_sha256(write.base_state_token, label="base_state_token")
+    proposal_fingerprint = _validate_sha256(write.proposal_fingerprint, label="proposal_fingerprint")
+    if not write.changes:
+        raise ValidationError("pending proposal requires at least one immutable change")
+    changes = tuple(_validate_change(change, expected_ordinal=index) for index, change in enumerate(write.changes))
+    return PendingProposalWrite(
+        import_run_id=import_run_id,
+        evidence_mode=write.evidence_mode,
+        source_observation_id=source_observation_id,
+        prior_source_observation_id=prior_source_observation_id,
+        proposal_kind=write.proposal_kind,
+        target_kind=write.target_kind,
+        target_internal_id=target_internal_id,
+        target_business_id=target_business_id,
+        risk_class=write.risk_class,
+        base_state_token=base_state_token,
+        proposal_fingerprint=proposal_fingerprint,
+        changes=changes,
+    )
 
 
 class ProposalRepository:
@@ -105,6 +295,126 @@ class ProposalRepository:
         if any(change.ordinal != ordinal for ordinal, change in enumerate(changes)):
             raise SomaError("IMPORT_PROPOSAL_STALE", "proposal change ordinals are no longer contiguous")
         return changes
+
+    @classmethod
+    def insert_or_reuse_pending(
+        cls,
+        uow: UnitOfWork,
+        write: PendingProposalWrite,
+    ) -> ProposalPersistenceResult:
+        pending = _validate_pending_write(write)
+        run = uow.connection.execute(
+            "SELECT run_state FROM import_runs WHERE import_run_id=?",
+            (pending.import_run_id,),
+        ).fetchone()
+        if run is None:
+            raise SomaError("IMPORT_RUN_NOT_FOUND", "proposal parent import run does not exist")
+        if str(run[0]) != "validating":
+            raise SomaError("IMPORT_RUN_STALE", "new proposal evidence may only be appended during final validating publication")
+
+        if pending.evidence_mode == "observed_row":
+            source = uow.connection.execute(
+                "SELECT import_run_id FROM source_observations WHERE source_observation_id=?",
+                (pending.source_observation_id,),
+            ).fetchone()
+            if source is None or str(source[0]) != pending.import_run_id:
+                raise SomaError("IMPORT_RUN_STALE", "observed-row proposal evidence is not owned by the validating run")
+        else:
+            prior = uow.connection.execute(
+                "SELECT 1 FROM source_observations WHERE source_observation_id=?",
+                (pending.prior_source_observation_id,),
+            ).fetchone()
+            if prior is None:
+                raise SomaError("IMPORT_RUN_STALE", "population-absence proposal prior evidence disappeared")
+
+        support_ids = tuple(
+            sorted(
+                {
+                    change.source_observation_field_id
+                    for change in pending.changes
+                    if change.source_observation_field_id is not None
+                }
+            )
+        )
+        for support_id in support_ids:
+            if uow.connection.execute(
+                "SELECT 1 FROM source_observation_fields WHERE source_observation_field_id=?",
+                (support_id,),
+            ).fetchone() is None:
+                raise SomaError("IMPORT_RUN_STALE", "proposal support field evidence disappeared")
+
+        rows = uow.connection.execute(
+            "SELECT reconciliation_proposal_id FROM reconciliation_proposals "
+            "WHERE import_run_id=? AND proposal_state='pending' AND evidence_mode=? "
+            "AND source_observation_id IS ? AND prior_source_observation_id IS ? AND proposal_kind=? AND target_kind=? "
+            "AND target_internal_id IS ? AND target_business_id IS ? AND risk_class=? "
+            "AND base_state_token_sha256=? AND proposal_fingerprint_sha256=? "
+            "ORDER BY reconciliation_proposal_id ASC LIMIT 2",
+            (
+                pending.import_run_id,
+                pending.evidence_mode,
+                pending.source_observation_id,
+                pending.prior_source_observation_id,
+                pending.proposal_kind,
+                pending.target_kind,
+                pending.target_internal_id,
+                pending.target_business_id,
+                pending.risk_class,
+                pending.base_state_token,
+                pending.proposal_fingerprint,
+            ),
+        ).fetchall()
+        if len(rows) > 1:
+            raise IntegrityFailure("multiple exact pending reconciliation proposals exist for one material input")
+        if rows:
+            proposal_id = require_uuid4(str(rows[0][0]))
+            if cls.list_changes(uow.connection, proposal_id) != pending.changes:
+                raise IntegrityFailure("exact pending reconciliation proposal change evidence disagrees with material input")
+            return ProposalPersistenceResult(proposal_id=proposal_id, reused=True)
+
+        proposal_id = new_uuid4()
+        created_at_utc = utc_epoch_seconds()
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposals("
+            "reconciliation_proposal_id,import_run_id,evidence_mode,source_observation_id,prior_source_observation_id,"
+            "proposal_kind,target_kind,target_internal_id,target_business_id,risk_class,base_state_token_sha256,"
+            "proposal_fingerprint_sha256,proposal_state,created_at_utc,revision,decided_at_utc"
+            ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'pending',?,1,NULL)",
+            (
+                proposal_id,
+                pending.import_run_id,
+                pending.evidence_mode,
+                pending.source_observation_id,
+                pending.prior_source_observation_id,
+                pending.proposal_kind,
+                pending.target_kind,
+                pending.target_internal_id,
+                pending.target_business_id,
+                pending.risk_class,
+                pending.base_state_token,
+                pending.proposal_fingerprint,
+                created_at_utc,
+            ),
+        )
+        for change in pending.changes:
+            uow.connection.execute(
+                "INSERT INTO reconciliation_proposal_changes("
+                "reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,before_text,after_text,"
+                "before_integer,after_integer,source_observation_field_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    proposal_id,
+                    change.ordinal,
+                    change.field_key,
+                    change.change_kind,
+                    change.value_kind,
+                    change.before_text,
+                    change.after_text,
+                    change.before_integer,
+                    change.after_integer,
+                    change.source_observation_field_id,
+                ),
+            )
+        return ProposalPersistenceResult(proposal_id=proposal_id, reused=False)
 
     @staticmethod
     def require_pending(reader: Any, proposal_id: str) -> ProposalRecord:
