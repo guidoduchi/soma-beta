@@ -61,7 +61,10 @@ def _validate_row_findings(row: ParsedAdvancedSearchRow) -> None:
             raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "row finding sheet provenance disagrees with observation")
         if finding.row_ordinal is not None and finding.row_ordinal != row.observation.row_ordinal:
             raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "row finding row provenance disagrees with observation")
-        SourceFindingRepository.validate_finding(_to_finding(finding, source_observation_id=None))
+        SourceFindingRepository.validate_finding(
+            _SOURCE_FAMILY,
+            _to_finding(finding, source_observation_id=None),
+        )
 
 
 def stage_advanced_search_parse_batch(
@@ -98,7 +101,10 @@ def stage_advanced_search_parse_batch(
         _validate_row_findings(row)
     if include_global_findings:
         for finding in parsed.global_findings:
-            SourceFindingRepository.validate_finding(_to_finding(finding, source_observation_id=None))
+            SourceFindingRepository.validate_finding(
+                _SOURCE_FAMILY,
+                _to_finding(finding, source_observation_id=None),
+            )
 
     staged_rows: tuple[StagedObservationResult, ...] = ()
     if selected_rows:
