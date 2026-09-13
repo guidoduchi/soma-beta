@@ -24,11 +24,27 @@
       ],
       "unlisted_nonblank_rule":"preserve as warning-bearing source evidence with class 'unrecognized_nonterminal'; it cannot by status text alone prove execution, outcome, cancellation, terminality or RFC eligibility; other validated WFM facts may still be staged",
       "blank_rule":"blank status is unknown and cannot erase recognized prior provider status"
+    },
+    {
+      "id":"ADVANCED_SEARCH_SEVERITY_V1",
+      "source_family":"advanced_search_sr",
+      "field":"customer_severity",
+      "values":[
+        {"canonical":"Critical","resolved_severity":"critical"},
+        {"canonical":"Major","resolved_severity":"major"},
+        {"canonical":"Minor","resolved_severity":"minor"},
+        {"canonical":"Non-fault inquiry","resolved_severity":"non_fault_inquiry"}
+      ],
+      "consumer_contract":"resolved_severity is the exact accepted severity token exposed through the LLD-03/LLD-04 ServiceRequestSlaInputReader boundary consumed by LLD-06; canonical remains the preserved source-controlled display spelling",
+      "unknown_rule":"unknown nonblank severity is warning-only unresolved source evidence; it cannot overwrite a previously recognized severity, acquire SLA authority, or be guessed/fuzzy-mapped to a recognized value",
+      "blank_rule":"blank severity remains missing/unresolved source evidence and preserves any previously recognized accepted severity; it never supplies a default",
+      "mapping_rule":"lookup uses the registry normalization only. The four canonical source values map exactly and only to critical, major, minor and non_fault_inquiry respectively; no other source spelling acquires severity authority"
     }
   ],
   "cross_field_rules":[
     "WFM Dispatch Progress blank is permitted without a missing-field warning when accepted Task Status is Plan Cancel; otherwise blank remains an explicit coverage/value finding according to the profile",
     "RFC Status from WFM is provisional fallback evidence only and is classified using RFC_STATUS_V1, but accepted Enhanced RFC status has precedence and cannot be overwritten by WFM evidence",
+    "Advanced Search Customer Severity is classified only through ADVANCED_SEARCH_SEVERITY_V1; source canonical display text and resolved LLD-06 severity token remain distinct representations of the same accepted controlled value",
     "an unrecognized controlled value is never normalized into the nearest known value"
   ],
   "evolution":"Adding/renaming/reclassifying a controlled value creates a new vocabulary ID/version. Historical source observations retain the vocabulary version used and are never reinterpreted silently."
