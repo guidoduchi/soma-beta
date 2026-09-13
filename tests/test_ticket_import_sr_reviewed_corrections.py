@@ -22,11 +22,12 @@ def _official_sr(factory, sr_no: str):
     )
 
 
-def _base_token(factory, service_request_id: str) -> str:
+def _base_token(factory, service_request_id: str, field_key: str) -> str:
     with ReadSnapshot(factory) as snapshot:
-        return ServiceRequestImportMutationService.source_acceptance_base_token(
+        return ServiceRequestImportMutationService.source_field_set_base_token(
             snapshot.connection,
             service_request_id,
+            (field_key,),
         )
 
 
@@ -52,7 +53,7 @@ def _seed_proposal(
     proposal_id = new_uuid4()
     fingerprint = new_uuid4().replace("-", "") + new_uuid4().replace("-", "")
     fingerprint = fingerprint[:64]
-    base_token = _base_token(factory, service_request_id)
+    base_token = _base_token(factory, service_request_id, field_key)
     normalized_text = after_text if value_kind in {"text", "controlled"} else None
     integer_value = after_integer if value_kind in {"instant", "duration_seconds"} else None
     source_text = after_text if after_text is not None else str(after_integer)
