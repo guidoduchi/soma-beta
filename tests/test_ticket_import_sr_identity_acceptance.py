@@ -45,12 +45,15 @@ def _seed_create_proposal(
     sr_no: str,
     observation_run_id: str | None = None,
     target_internal_id: str | None = None,
+    risk_class: str = "medium",
+    change_after_text: str | None = None,
 ):
     proposal_run_id = new_uuid4()
     observation_run = proposal_run_id if observation_run_id is None else observation_run_id
     observation_id = new_uuid4()
     proposal_id = new_uuid4()
     fingerprint = "7" * 64
+    encoded_after_text = sr_no if change_after_text is None else change_after_text
     with UnitOfWork(factory) as uow:
         if observation_run == proposal_run_id:
             _seed_run(uow, proposal_run_id)
@@ -63,13 +66,14 @@ def _seed_create_proposal(
             "INSERT INTO reconciliation_proposals(reconciliation_proposal_id,import_run_id,evidence_mode,source_observation_id,"
             "prior_source_observation_id,proposal_kind,target_kind,target_internal_id,target_business_id,risk_class,"
             "base_state_token_sha256,proposal_fingerprint_sha256,proposal_state,created_at_utc,revision,decided_at_utc) "
-            "VALUES (?,?,'observed_row',?,NULL,'sr_create_or_adopt','service_request',?,?,'medium',?,?,'pending',1,1,NULL)",
+            "VALUES (?,?,'observed_row',?,NULL,'sr_create_or_adopt','service_request',?,?,?,?,?,'pending',1,1,NULL)",
             (
                 proposal_id,
                 proposal_run_id,
                 observation_id,
                 target_internal_id,
                 sr_no,
+                risk_class,
                 base_token,
                 fingerprint,
             ),
@@ -79,7 +83,7 @@ def _seed_create_proposal(
             "reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,before_text,after_text,"
             "before_integer,after_integer,source_observation_field_id) "
             "VALUES (?,0,'official_sr_no','create','identity',NULL,?,NULL,NULL,NULL)",
-            (proposal_id, sr_no),
+            (proposal_id, encoded_after_text),
         )
     return {
         "proposal_run_id": proposal_run_id,
@@ -257,12 +261,7 @@ def test_pending_exact_existing_adoption_cannot_fabricate_owner_mutation(initial
 
 def test_sr_identity_accept_rejects_non_medium_risk_before_receipt(initialized_database) -> None:
     factory = _factory(initialized_database)
-    seeded = _seed_create_proposal(factory, sr_no="33445570")
-    with UnitOfWork(factory) as uow:
-        uow.connection.execute(
-            "UPDATE reconciliation_proposals SET risk_class='high' WHERE reconciliation_proposal_id=?",
-            (seeded["proposal_id"],),
-        )
+    seeded = _seed_create_proposal(factory, sr_no="33445570", risk_class="high")
     command_id = new_uuid4()
 
     with pytest.raises(SomaError) as excinfo:
@@ -286,13 +285,11 @@ def test_sr_identity_accept_rejects_non_medium_risk_before_receipt(initialized_d
 
 def test_sr_identity_accept_rejects_tampered_identity_change_before_receipt(initialized_database) -> None:
     factory = _factory(initialized_database)
-    seeded = _seed_create_proposal(factory, sr_no="33445571")
-    with UnitOfWork(factory) as uow:
-        uow.connection.execute(
-            "UPDATE reconciliation_proposal_changes SET after_text='33445572' "
-            "WHERE reconciliation_proposal_id=? AND ordinal=0",
-            (seeded["proposal_id"],),
-        )
+    seeded = _seed_create_proposal(
+        factory,
+        sr_no="33445571",
+        change_after_text="33445572",
+    )
     command_id = new_uuid4()
 
     with pytest.raises(SomaError) as excinfo:
