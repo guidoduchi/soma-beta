@@ -102,11 +102,17 @@ def build_advanced_search_sr_customer_reconciliation_proposals(
         or len(match.candidate_ids) != 1
         or match.explanation != "ACCOUNT_CODE_MATCH"
     ):
+        resolution_state = (
+            "non_authoritative_name_candidate"
+            if match.state == "UNIQUE_CANDIDATE"
+            and match.explanation == "ACCOUNT_CODE_UNRESOLVED_NAME_CANDIDATE"
+            else match.state.lower()
+        )
         return AdvancedSearchSrCustomerProposalBuildResult(
             canonical_sr_no=source.canonical_sr_no,
             service_request_id=canonical_service_request_id,
             scope_status=scope_status,
-            resolution_state=match.state.lower(),
+            resolution_state=resolution_state,
             matcher_explanation=match.explanation,
             proposals=(),
         )
