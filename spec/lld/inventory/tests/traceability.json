@@ -29,28 +29,10 @@
     "BETA-REQ-0100":["schema/fault-tag-warehouse-lineage.json","commands/fault-tags.json","commands/corrections-bulk.json","queries/inventory.json","routes/fault-corrections.json","tests/acceptance.json"],
     "BETA-REQ-0101":["schema/fault-tag-submission.json","commands/fault-tags.json","queries/fault-tags.json","routes/fault-corrections.json","tests/acceptance.json","tests/resubmission-regression.json"]
   },
-  "supporting_requirement_edges":{
-    "BETA-REQ-0032":["schema/spare-request-submission.json","commands/requests-rma.json","queries/inventory.json","types/transport.json","interfaces/cross-packet-v2.json","audit/actions.json","ui/workspace-state.json","tests/requester-acceptance.json","tests/traceability/commands-requests-rma.json"]
-  },
-  "normative_paths":[
-    "tests/traceability/commands-needs-stock.json",
-    "tests/traceability/commands-requests-rma.json",
-    "tests/traceability/commands-consequences-logistics.json",
-    "tests/traceability/commands-fault-tags.json",
-    "tests/traceability/commands-corrections-bulk.json",
-    "tests/traceability/queries-inventory.json",
-    "tests/traceability/queries-fault-tags.json"
-  ],
-  "fragments":[
-    "tests/traceability/commands-needs-stock.json",
-    "tests/traceability/commands-requests-rma.json",
-    "tests/traceability/commands-consequences-logistics.json",
-    "tests/traceability/commands-fault-tags.json",
-    "tests/traceability/commands-corrections-bulk.json",
-    "tests/traceability/queries-inventory.json",
-    "tests/traceability/queries-fault-tags.json"
-  ],
-  "migration":{"sequence":9,"path":"migrations/0009-inventory.json","objects":"all LLD-07 Need/Device Part/Spare Request/RMA/Spare Part Unit/allocation/logistics/physical-consequence/Fault Tag/proposal/projection/history objects including Spare Request requester Contact/context fields and indexes"},
+  "supporting_requirement_edges":{"BETA-REQ-0032":["schema/spare-request-submission.json","commands/requests-rma.json","queries/inventory.json","types/transport.json","interfaces/cross-packet-v2.json","audit/actions.json","ui/workspace-state.json","tests/requester-acceptance.json","tests/traceability/commands-requests-rma.json"]},
+  "normative_paths":["tests/traceability/commands-needs-stock.json","tests/traceability/commands-requests-rma.json","tests/traceability/commands-consequences-logistics.json","tests/traceability/commands-fault-tags.json","tests/traceability/commands-corrections-bulk.json","tests/traceability/queries-inventory.json","tests/traceability/queries-fault-tags.json"],
+  "fragments":["tests/traceability/commands-needs-stock.json","tests/traceability/commands-requests-rma.json","tests/traceability/commands-consequences-logistics.json","tests/traceability/commands-fault-tags.json","tests/traceability/commands-corrections-bulk.json","tests/traceability/queries-inventory.json","tests/traceability/queries-fault-tags.json"],
+  "migration":{"sequence":10,"path":"migrations/0010-inventory.json","objects":"all LLD-07 Need/Device Part/Spare Request/RMA/Spare Part Unit/allocation/logistics/physical-consequence/Fault Tag/proposal/projection/history objects including Spare Request requester Contact/context fields and indexes"},
   "cross_packet":[
     {"interface":"Snapshot/UnitOfWork/CommandReceiptStore/AuditWriter/STRICT schema conventions","provider":"LLD-01","consumer":"LLD-07"},
     {"interface":"Contact and Dispatch Location master identity","provider":"LLD-02","consumer":"LLD-07"},
