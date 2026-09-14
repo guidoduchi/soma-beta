@@ -26,3 +26,19 @@ class ServiceRequestImportReader(_ServiceRequestImportReader):
             service_request_id,
             target_customer_org_id,
         )
+
+    @staticmethod
+    def contact_reconciliation_base_token(
+        reader: Any,
+        service_request_id: str,
+        reference_role: str,
+        target_contact_id: str,
+        source_observation_field_id: str,
+    ) -> str:
+        return ServiceRequestImportMutationService.contact_reconciliation_base_token(
+            reader,
+            service_request_id,
+            reference_role,
+            target_contact_id,
+            source_observation_field_id,
+        )
