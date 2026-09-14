@@ -30,17 +30,19 @@
   "execute":"run job-specific handler outside authoritative write transaction in background executor; handler may persist bounded checkpoints using short explicit transactions and must invoke owning-domain commands for accepted domain mutations",
   "assert_claim_current": {
     "transaction":"caller-owned UnitOfWork; read-only participant with no nested BEGIN/COMMIT, no Foundation command receipt and no durable-job mutation",
-    "input":"DurableJobClaimV1 carrying exact job_id/job_type/contract_version/run_id/attempt_ordinal/claim_started_at_utc plus the immutable claimed payload/checkpoint/dedupe snapshot",
+    "input":"DurableJobClaimV1 carrying exact job_id/job_type/contract_version/run_id/attempt_ordinal/claim_started_at_utc plus immutable claimed payload/dedupe identity and the checkpoint snapshot that existed when the claim was issued",
     "steps":[
       "reload the exact durable_jobs row through the caller UnitOfWork before the owning command inserts its receipt",
       "resolve the exact registered job_type + contract_version and fail closed if absent",
       "require state=running and exact job_id/run_id/attempt_ordinal/claim_started_at_utc equality so cancelled, recovered, completed, failed or subsequently re-claimed work cannot retain authority",
-      "validate persisted payload_json and checkpoint_json against the registered packet contracts and Foundation canonical JSON bounds, and require equality with the claim snapshot",
-      "require non-null lowercase dedupe_sha256, re-derive the packet semantic key from the validated payload and require the canonical SOMA_DURABLE_JOB_DEDUPE_V1 hash to equal both persisted and claimed dedupe identity"
+      "validate persisted payload_json against the registered packet contract and Foundation canonical JSON bounds and require exact equality with the immutable claim payload snapshot",
+      "validate the current persisted checkpoint_json against the registered packet checkpoint contract and Foundation canonical JSON bounds; do not require equality with claim.checkpoint_json because checkpoint(claim, ...) may legitimately advance checkpoint state while the same exact claim remains current",
+      "require non-null lowercase dedupe_sha256, require equality with the immutable claim dedupe identity, re-derive the packet semantic key from the validated payload and require the canonical SOMA_DURABLE_JOB_DEDUPE_V1 hash to equal the persisted/claimed dedupe identity"
     ],
     "success":"return without mutation; the caller continues inside the same UnitOfWork and remains the sole transaction authority",
-    "stale_claim":"missing row, state/claim tuple mismatch or claimed snapshot mismatch returns JOB_CLAIM_CONFLICT and changes nothing",
-    "integrity":"unknown contract, malformed/noncanonical persisted payload/checkpoint or semantic-key/dedupe disagreement fails INTEGRITY_FAILURE rather than granting owning-domain authority",
+    "stale_claim":"missing row or state/claim tuple mismatch returns JOB_CLAIM_CONFLICT and changes nothing",
+    "integrity":"unknown contract, immutable payload/dedupe disagreement, malformed/noncanonical persisted payload/current checkpoint or semantic-key/dedupe disagreement fails INTEGRITY_FAILURE rather than granting owning-domain authority",
+    "checkpoint_semantics":"claim.checkpoint_json is the validated checkpoint snapshot at claim issuance for handler startup/resume only; it is not part of the persisted ABA claim token and may differ from the later current checkpoint after a successful checkpoint(claim, ...) call",
     "race_rule":"owning-domain command authority is decided by this same-UoW guard immediately before its receipt/state revalidation path; a separate earlier checkpoint/read is insufficient because cancellation/recovery could commit between transactions"
   },
   "checkpoint": {
