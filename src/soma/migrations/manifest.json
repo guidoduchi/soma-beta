@@ -42,6 +42,12 @@
       "migration_id": "beta_0007_sr_source_presence",
       "filename": "0007_sr_source_presence.sql",
       "sha256": "f1e3723eaeee67936c0b7f531b42d0d6e4e690c4e297078b07e2f63bbfd8097b"
+    },
+    {
+      "sequence": 8,
+      "migration_id": "beta_0008_durable_job_coalescing",
+      "filename": "0008_durable_job_coalescing.sql",
+      "sha256": "aab4126fbc9b1e29af3e6246798f837bfe681d3bde8fbe7b26962bd06b12c3e4"
     }
   ]
 }
