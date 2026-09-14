@@ -38,6 +38,11 @@ class IntegrityFailure(SomaError):
         super().__init__("INTEGRITY_FAILURE", message)
 
 
+class JobClaimConflict(SomaError):
+    def __init__(self, message: str = "durable job claim no longer matches current attempt") -> None:
+        super().__init__("JOB_CLAIM_CONFLICT", message, retryable=True)
+
+
 class PersistenceBusy(SomaError):
     def __init__(self, message: str = "authoritative writer is busy") -> None:
         super().__init__("PERSISTENCE_BUSY", message, retryable=True)
