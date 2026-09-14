@@ -61,11 +61,12 @@ def _schema(path: Path) -> list[tuple[str, str, str]]:
         connection.close()
 
 
-def test_runtime_prefix_bytes_are_unchanged_and_manifest_accepts_exact_sequence_seven(migration_directory) -> None:
+def test_runtime_prefix_bytes_are_unchanged_and_sequence_seven_remains_exact(migration_directory) -> None:
     manifest = MigrationManifest.load(migration_directory)
-    assert [entry.sequence for entry in manifest.entries] == list(range(1, 8))
-    assert manifest.entries[-1].migration_id == "beta_0007_sr_source_presence"
-    assert manifest.entries[-1].filename == "0007_sr_source_presence.sql"
+    assert [entry.sequence for entry in manifest.entries] == list(range(1, 9))
+    sequence_seven = manifest.entries[6]
+    assert sequence_seven.migration_id == "beta_0007_sr_source_presence"
+    assert sequence_seven.filename == "0007_sr_source_presence.sql"
     for filename, expected in _PREFIX_HASHES.items():
         assert hashlib.sha256((migration_directory / filename).read_bytes()).hexdigest() == expected
 
@@ -74,12 +75,14 @@ def test_exact_prefix_six_upgrade_matches_fresh_sequence_seven_schema(
     tmp_path, migration_directory, security_provider
 ) -> None:
     prefix = tmp_path / "prefix"
+    release_seven = tmp_path / "release-seven"
     _stage_prefix(migration_directory, prefix, 6)
+    _stage_prefix(migration_directory, release_seven, 7)
     upgraded = tmp_path / "upgraded.db"
     fresh = tmp_path / "fresh.db"
     assert _runner(upgraded, prefix, security_provider).initialize_or_migrate() == 6
-    assert _runner(upgraded, migration_directory, security_provider).initialize_or_migrate() == 7
-    assert _runner(fresh, migration_directory, security_provider).initialize_or_migrate() == 7
+    assert _runner(upgraded, release_seven, security_provider).initialize_or_migrate() == 7
+    assert _runner(fresh, release_seven, security_provider).initialize_or_migrate() == 7
     assert _schema(upgraded) == _schema(fresh)
     connection = sqlite3.connect(upgraded)
     try:
@@ -97,7 +100,7 @@ def test_failed_sequence_seven_upgrade_leaves_exact_prefix_six(
     prefix = tmp_path / "prefix"
     broken = tmp_path / "broken"
     _stage_prefix(migration_directory, prefix, 6)
-    shutil.copytree(migration_directory, broken)
+    _stage_prefix(migration_directory, broken, 7)
     migration = broken / "0007_sr_source_presence.sql"
     migration.write_text(
         migration.read_text(encoding="utf-8") + "INSERT INTO table_that_does_not_exist VALUES (1);\n",
