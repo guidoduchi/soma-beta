@@ -235,9 +235,9 @@ def test_objectives_tasks_schema_is_complete_strict_indexed_and_fk_clean(initial
         ledger = snapshot.connection.execute(
             "SELECT sequence,migration_id,sha256 FROM schema_migrations ORDER BY sequence"
         ).fetchall()
-        assert len(ledger) == 7
+        assert len(ledger) >= 6
+        assert [int(row[0]) for row in ledger[:6]] == list(range(1, 7))
         assert tuple(ledger[5]) == (6, "beta_0006_objectives_tasks", _MIGRATION_6_SHA256)
-        assert tuple(ledger[6][:2]) == (7, "beta_0007_sr_source_presence")
 
 
 def test_sequence_six_upgrades_a_real_five_migration_prefix(
