@@ -97,7 +97,7 @@ class ProposalDecisionService(_CoreProposalDecisionService):
         )
         contacts = reference_context.get("contacts")
         if not isinstance(contacts, dict):
-            raise IntegrityFailure("Service Request import reader returned invalid Contact relationship context")
+            raise IntegrityFailure("Service Request import reference context Contact map is invalid")
         current_ref = contacts.get(reference_role)
         if current_ref is None:
             current_contact_id = None
