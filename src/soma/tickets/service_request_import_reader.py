@@ -19,6 +19,14 @@ class ServiceRequestImportReader(_ServiceRequestImportReader):
         return ServiceRequestImportMutationService.source_identity_base_token(reader, official_sr_no)
 
     @staticmethod
+    def current_source_presence(reader: Any, service_request_id: str, source_family: str = "advanced_search_sr"):
+        return _ServiceRequestImportReader.current_source_presence(reader, service_request_id, source_family)
+
+    @staticmethod
+    def source_presence_base_token(reader: Any, service_request_id: str, source_family: str = "advanced_search_sr") -> str:
+        return _ServiceRequestImportReader.source_presence_base_token(reader, service_request_id, source_family)
+
+    @staticmethod
     def customer_reconciliation_base_token(
         reader: Any,
         service_request_id: str,

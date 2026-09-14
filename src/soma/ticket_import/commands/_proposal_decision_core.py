@@ -21,6 +21,7 @@ from soma.ticket_import.providers.sr_contact_reconciliation import TicketImportS
 from soma.ticket_import.providers.sr_customer_reconciliation import TicketImportSrCustomerReconciliationProvider
 from soma.ticket_import.providers.sr_identity_evidence import TicketImportSrIdentityEvidenceProvider
 from soma.ticket_import.providers.sr_source_evidence import TicketImportSrSourceEvidenceProvider
+from soma.ticket_import.providers.sr_source_presence import TicketImportSrSourcePresenceEvidenceProvider
 from soma.tickets.audit_registry import build_tickets_audit_registry
 from soma.tickets.import_mutations import (
     ServiceRequestContactReviewMutation,
@@ -33,6 +34,7 @@ from soma.tickets.import_mutations import (
     ServiceRequestImportMutationService,
     ServiceRequestImportReader,
     ServiceRequestSourceProjectionMutation,
+    SrSourceDisappearanceMutation,
 )
 from soma.tickets.sr_references import ServiceRequestCustomerClassificationParticipant
 from soma.tickets.sr_source_projection import AcceptedSrFieldDeltaSet
@@ -104,6 +106,10 @@ class ServiceRequestImportMutationParticipant(Protocol):
         mutation: ServiceRequestContactReviewMutation,
     ) -> ServiceRequestContactReviewResult: ...
 
+    def apply_source_disappearance_review(
+        self, uow: UnitOfWork, mutation: SrSourceDisappearanceMutation
+    ): ...
+
 
 @dataclass(frozen=True, slots=True)
 class ProposalDecisionResult:
@@ -155,6 +161,7 @@ class ProposalDecisionService:
         self._sr_identity_provider = TicketImportSrIdentityEvidenceProvider()
         self._sr_customer_provider = TicketImportSrCustomerReconciliationProvider()
         self._sr_contact_provider = TicketImportSrContactReconciliationProvider()
+        self._sr_presence_provider = TicketImportSrSourcePresenceEvidenceProvider()
         self._sr_import_reader = ServiceRequestImportReader()
         self._sr_import_mutations = (
             ServiceRequestImportMutationService(
@@ -162,6 +169,7 @@ class ProposalDecisionService:
                 customer_proposal_provider=self._sr_customer_provider,
                 contact_proposal_provider=self._sr_contact_provider,
                 classification_participant=sr_customer_classification_participant,
+                source_presence_evidence_provider=self._sr_presence_provider,
             )
             if sr_import_mutation_service is None
             else sr_import_mutation_service
@@ -171,6 +179,97 @@ class ProposalDecisionService:
             AuditWriter(_build_acceptance_audit_registry()),
         )
 
+    def _prepare_sr_disappearance_accept(
+        self,
+        uow: UnitOfWork,
+        *,
+        proposal: ProposalRecord,
+        run: Any,
+        base_token: str,
+        proposal_revision: int,
+        command_id: str,
+        reason: str | None,
+        actor_kind: str,
+        actor_id: str | None,
+    ) -> PreparedMutation:
+        if (
+            proposal.evidence_mode != "population_absence"
+            or proposal.source_observation_id is not None
+            or proposal.target_kind != "source_presence"
+            or proposal.target_internal_id is None
+            or proposal.target_business_id is None
+            or proposal.risk_class != "high"
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR disappearance proposal binding is invalid")
+        target = uow.connection.execute(
+            "SELECT official_sr_no FROM service_requests WHERE service_request_id=?",
+            (proposal.target_internal_id,),
+        ).fetchone()
+        if target is None or target[0] is None or str(target[0]) != proposal.target_business_id:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR disappearance target identity changed")
+        evidence = uow.connection.execute(
+            "SELECT prior_source_observation_id FROM reconciliation_proposals "
+            "WHERE reconciliation_proposal_id=?",
+            (proposal.proposal_id,),
+        ).fetchone()
+        if evidence is None or evidence[0] is None:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR disappearance prior evidence is missing")
+        prior_source_observation_id = str(evidence[0])
+        current_base = self._sr_import_reader.source_presence_base_token(
+            uow.connection, proposal.target_internal_id, "advanced_search_sr"
+        )
+        if not hmac.compare_digest(current_base, base_token):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request source-presence base state changed")
+        disposition_id = new_uuid4()
+        orchestration_audit_id = new_uuid4()
+        decided_at = utc_epoch_seconds()
+        mutation = SrSourceDisappearanceMutation(
+            service_request_id=proposal.target_internal_id,
+            base_state_token=base_token,
+            reconciliation_proposal_id=proposal.proposal_id,
+            import_run_id=proposal.import_run_id,
+            prior_source_observation_id=prior_source_observation_id,
+            accepted_command_id=command_id,
+            proposal_revision=proposal_revision,
+            proposal_fingerprint=proposal.proposal_fingerprint,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+        )
+
+        def apply(inner: UnitOfWork):
+            owner_result = self._sr_import_mutations.apply_source_disappearance_review(inner, mutation)
+            self._repository.transition_accept(
+                inner,
+                proposal=proposal,
+                run=run,
+                decided_at_utc=decided_at,
+                disposition_id=disposition_id,
+                reason_category=reason,
+                command_id=command_id,
+            )
+            orchestration = self._orchestration_audit(
+                audit_event_id=orchestration_audit_id,
+                command_id=command_id,
+                proposal=proposal,
+                proposal_revision=proposal_revision,
+                reason=reason,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                disposition_id=disposition_id,
+                owner_result_refs=owner_result.result_refs,
+            )
+            return (*owner_result.audit_events, orchestration)
+
+        return PreparedMutation(
+            False,
+            "reconciliation_proposal",
+            proposal.proposal_id,
+            apply,
+            response_schema="ProposalDecisionResultV1",
+            response_factory=lambda inner: self._decision_response(
+                inner, proposal_id=proposal.proposal_id, command_id=command_id
+            ),
+        )
     def _decision_response(
         self,
         uow: UnitOfWork,
@@ -933,6 +1032,18 @@ class ProposalDecisionService:
                 )
             if proposal.proposal_kind in _SR_CONTACT_PROPOSAL_ROLES:
                 return self._prepare_sr_contact_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "sr_source_disappearance_review":
+                return self._prepare_sr_disappearance_accept(
                     uow,
                     proposal=proposal,
                     run=run,

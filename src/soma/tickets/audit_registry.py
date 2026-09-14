@@ -213,6 +213,13 @@ def build_tickets_audit_registry() -> AuditRegistry:
             None,
         ),
         (
+            "ticket.service_request.source_presence_changed",
+            "ServiceRequestSourcePresenceAuditV1",
+            {"service_request_id", "source_family", "presence_event_id", "event_kind", "prior_presence_event_id", "import_run_id", "source_observation_id", "prior_source_observation_id", "reconciliation_proposal_id", "warning_active"},
+            _DEFAULT_AUDIT_MAX_UTF8_BYTES,
+            None,
+        ),
+        (
             "ticket.rfc.identity_created_or_adopted",
             "RfcIdentityAuditV1",
             {"rfc_id", "rfc_no", "creation_context", "customer_org_id", "resulting_revision"},

@@ -36,6 +36,12 @@
       "migration_id": "beta_0006_objectives_tasks",
       "filename": "0006_objectives_tasks.sql",
       "sha256": "af73f2551a5022e91a5b37f9cdb4b41e6ac79a85dde9c99480b1eff506cd361d"
+    },
+    {
+      "sequence": 7,
+      "migration_id": "beta_0007_sr_source_presence",
+      "filename": "0007_sr_source_presence.sql",
+      "sha256": "f1e3723eaeee67936c0b7f531b42d0d6e4e690c4e297078b07e2f63bbfd8097b"
     }
   ]
 }

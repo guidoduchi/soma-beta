@@ -27,6 +27,16 @@ from .sr_source_projection import (
     SrSourceProjectionApplyResult,
     SrSourceProjectionService,
 )
+from .sr_source_presence import (
+    SOURCE_FAMILY,
+    ServiceRequestSourcePresenceRepository,
+    ServiceRequestSourcePresenceService,
+    SrSourceDisappearanceMutation,
+    SrSourcePresenceApplyResult,
+    SrSourcePresenceEvidenceProvider,
+    SrSourcePresenceState,
+    SrSourceReappearanceMutation,
+)
 from .validation import validate_official_sr_no
 
 
@@ -217,6 +227,22 @@ class ServiceRequestImportReader:
             field_keys,
         )
 
+    @staticmethod
+    def current_source_presence(
+        reader: Any,
+        service_request_id: str,
+        source_family: str = SOURCE_FAMILY,
+    ) -> SrSourcePresenceState:
+        return ServiceRequestSourcePresenceRepository.current(reader, service_request_id, source_family)
+
+    @staticmethod
+    def source_presence_base_token(
+        reader: Any,
+        service_request_id: str,
+        source_family: str = SOURCE_FAMILY,
+    ) -> str:
+        return ServiceRequestSourcePresenceRepository.base_token(reader, service_request_id, source_family)
+
 
 class ServiceRequestImportMutationService:
     """LLD-03 owner boundary used by LLD-04's already-open UnitOfWork."""
@@ -228,12 +254,36 @@ class ServiceRequestImportMutationService:
         customer_proposal_provider: AcceptedSrCustomerProposalProvider | None = None,
         contact_proposal_provider: AcceptedSrContactProposalProvider | None = None,
         classification_participant: ServiceRequestCustomerClassificationParticipant | None = None,
+        source_presence_evidence_provider: SrSourcePresenceEvidenceProvider | None = None,
     ) -> None:
         self._projection_service = SrSourceProjectionService(evidence_provider)
         self._customer_proposal_provider = customer_proposal_provider
         self._contact_proposal_provider = contact_proposal_provider
         self._classification_participant = classification_participant
         self._reference_repository = ServiceRequestReferenceRepository()
+        self._source_presence_service = (
+            None
+            if source_presence_evidence_provider is None
+            else ServiceRequestSourcePresenceService(source_presence_evidence_provider)
+        )
+
+    def apply_source_disappearance_review(
+        self,
+        uow: UnitOfWork,
+        mutation: SrSourceDisappearanceMutation,
+    ) -> SrSourcePresenceApplyResult:
+        if self._source_presence_service is None:
+            raise SomaError("IMPORT_PROPOSAL_BLOCKED", "source-presence evidence provider is not configured")
+        return self._source_presence_service.apply_disappearance(uow, mutation)
+
+    def apply_source_reappearance(
+        self,
+        uow: UnitOfWork,
+        mutation: SrSourceReappearanceMutation,
+    ) -> SrSourcePresenceApplyResult:
+        if self._source_presence_service is None:
+            raise SomaError("IMPORT_PROPOSAL_BLOCKED", "source-presence evidence provider is not configured")
+        return self._source_presence_service.apply_reappearance(uow, mutation)
 
     @staticmethod
     def source_identity_base_token(reader: Any, official_sr_no: str) -> str:

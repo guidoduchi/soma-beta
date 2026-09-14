@@ -8,6 +8,12 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
 
+from soma.tickets.sr_source_presence import (
+    SOURCE_FAMILY,
+    WARNING_CODE,
+    ServiceRequestSourcePresenceRepository,
+)
+
 
 _SR_POINTERS: tuple[tuple[str, str], ...] = (
     ("problem_summary", "problem_summary_observation_id"),
@@ -235,6 +241,7 @@ class ServiceRequestQueryService:
         revision = int(row[3])
         source_projection = self._source_projection(connection, sr_id)
         reference_context, reference_warnings = self._reference_context(connection, sr_id, revision)
+        presence = ServiceRequestSourcePresenceRepository.current(connection, sr_id, SOURCE_FAMILY)
         linked_root_rfc_count = int(
             connection.execute(
                 "SELECT COUNT(*) FROM sr_rfc_links WHERE service_request_id=? AND link_state='active'",
@@ -258,7 +265,7 @@ class ServiceRequestQueryService:
             reference_context=reference_context,
             linked_root_rfc_count=linked_root_rfc_count,
             device_reference_count=device_reference_count,
-            warnings=reference_warnings,
+            warnings=tuple(sorted((*reference_warnings, *((WARNING_CODE,) if presence.warning_active else ())))),
         )
 
     def get(

@@ -235,8 +235,9 @@ def test_objectives_tasks_schema_is_complete_strict_indexed_and_fk_clean(initial
         ledger = snapshot.connection.execute(
             "SELECT sequence,migration_id,sha256 FROM schema_migrations ORDER BY sequence"
         ).fetchall()
-        assert len(ledger) == 6
-        assert tuple(ledger[-1]) == (6, "beta_0006_objectives_tasks", _MIGRATION_6_SHA256)
+        assert len(ledger) == 7
+        assert tuple(ledger[5]) == (6, "beta_0006_objectives_tasks", _MIGRATION_6_SHA256)
+        assert tuple(ledger[6][:2]) == (7, "beta_0007_sr_source_presence")
 
 
 def test_sequence_six_upgrades_a_real_five_migration_prefix(
@@ -276,7 +277,12 @@ def test_sequence_six_upgrades_a_real_five_migration_prefix(
         _receipt(uow, sentinel, command_type="ExistingCommand", target_type="test", target_id=None)
 
     shutil.copyfile(migration_directory / "0006_objectives_tasks.sql", staged / "0006_objectives_tasks.sql")
-    shutil.copyfile(migration_directory / "manifest.json", staged / "manifest.json")
+    six_manifest = {"schema": full_manifest["schema"], "migrations": full_manifest["migrations"][:6]}
+    (staged / "manifest.json").write_text(
+        json.dumps(six_manifest, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     second = MigrationRunner(
         canonical_database_path=database_path,
         manifest=MigrationManifest.load(staged),
