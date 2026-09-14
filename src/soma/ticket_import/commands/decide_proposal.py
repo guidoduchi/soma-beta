@@ -4,37 +4,21 @@ import hmac
 from typing import Any
 
 from soma.foundation.application.command_boundary import PreparedMutation
-from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import UnitOfWork
-from soma.tickets.import_mutations import ServiceRequestSourceProjectionMutation
-from soma.tickets.sr_source_projection import AcceptedSrFieldDeltaSet
+from soma.tickets.import_mutations import ServiceRequestContactReviewMutation
+from soma.tickets.service_request_import_reader import ServiceRequestImportReader
 
-from ._proposal_decision_core import *  # noqa: F401,F403
-from ._proposal_decision_core import (
-    _TERMINAL_SR_STATUSES,
-    ProposalDecisionService as _CoreProposalDecisionService,
-)
+from ._proposal_decision_public_core import *  # noqa: F401,F403
+from ._proposal_decision_public_core import ProposalDecisionService as _CoreProposalDecisionService
+from ..repositories.proposals import ProposalRecord
 
 
 class ProposalDecisionService(_CoreProposalDecisionService):
-    """Public proposal-decision service with certified SR freshness repairs."""
+    """Public proposal-decision service with certified Current Handler evidence-rebind support."""
 
-    @staticmethod
-    def _current_status_is_terminal(connection: Any, service_request_id: str) -> bool:
-        row = connection.execute(
-            "SELECT o.value_state,o.value_kind,o.text_value FROM sr_current_source_projection p "
-            "JOIN sr_source_field_observations o ON o.sr_source_field_observation_id=p.status_observation_id "
-            "WHERE p.service_request_id=?",
-            (service_request_id,),
-        ).fetchone()
-        if row is None:
-            return False
-        if str(row[0]) != "usable" or str(row[1]) != "controlled" or row[2] is None:
-            raise IntegrityFailure("current Service Request Status projection is invalid")
-        return str(row[2]) in _TERMINAL_SR_STATUSES
-
-    def _prepare_sr_create_accept(
+    def _prepare_sr_contact_accept(
         self,
         uow: UnitOfWork,
         *,
@@ -47,65 +31,29 @@ class ProposalDecisionService(_CoreProposalDecisionService):
         actor_kind: str,
         actor_id: str | None,
     ) -> PreparedMutation:
-        if (
-            proposal.evidence_mode != "observed_row"
-            or proposal.source_observation_id is None
-            or proposal.target_kind != "service_request"
-            or proposal.target_internal_id is not None
-            or proposal.target_business_id is None
-            or proposal.risk_class != "medium"
-        ):
-            raise SomaError("IMPORT_PROPOSAL_STALE", "SR identity creation proposal binding is invalid")
-        changes = self._repository.list_changes(uow.connection, proposal.proposal_id)
-        if len(changes) != 1:
-            raise SomaError("IMPORT_PROPOSAL_STALE", "SR identity creation requires exactly one immutable change")
-        change = changes[0]
-        if (
-            change.ordinal != 0
-            or change.field_key != "official_sr_no"
-            or change.change_kind != "create"
-            or change.value_kind != "identity"
-            or change.before_text is not None
-            or change.after_text != proposal.target_business_id
-            or change.before_integer is not None
-            or change.after_integer is not None
-            or change.source_observation_field_id is not None
-        ):
-            raise SomaError("IMPORT_PROPOSAL_STALE", "SR identity creation proposal encoding is invalid")
-        return super()._prepare_sr_create_accept(
-            uow,
-            proposal=proposal,
-            run=run,
-            base_token=base_token,
-            proposal_revision=proposal_revision,
-            command_id=command_id,
-            reason=reason,
-            actor_kind=actor_kind,
-            actor_id=actor_id,
-        )
+        if proposal.proposal_kind != "sr_current_handler_reconciliation":
+            return super()._prepare_sr_contact_accept(
+                uow,
+                proposal=proposal,
+                run=run,
+                base_token=base_token,
+                proposal_revision=proposal_revision,
+                command_id=command_id,
+                reason=reason,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+            )
 
-    def _prepare_sr_source_projection_accept(
-        self,
-        uow: UnitOfWork,
-        *,
-        proposal: ProposalRecord,
-        run: Any,
-        base_token: str,
-        proposal_revision: int,
-        command_id: str,
-        reason: str | None,
-        actor_kind: str,
-        actor_id: str | None,
-        precedence_basis: str = "source_chronology",
-    ) -> PreparedMutation:
+        reference_role = "current_handler_reference"
         if (
             proposal.evidence_mode != "observed_row"
             or proposal.source_observation_id is None
             or proposal.target_kind != "service_request"
             or proposal.target_internal_id is None
             or proposal.target_business_id is None
+            or proposal.risk_class != "high"
         ):
-            raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection proposal binding is incomplete")
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact reconciliation proposal binding is incomplete")
         target_identity = uow.connection.execute(
             "SELECT official_sr_no FROM service_requests WHERE service_request_id=?",
             (proposal.target_internal_id,),
@@ -116,97 +64,106 @@ class ProposalDecisionService(_CoreProposalDecisionService):
             or str(target_identity[0]) != proposal.target_business_id
         ):
             raise SomaError("IMPORT_PROPOSAL_STALE", "proposal target identity no longer matches the Service Request")
-
         changes = self._repository.list_changes(uow.connection, proposal.proposal_id)
-        if not changes or len(changes) > 11:
-            raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection change set is empty or exceeds field registry")
-        if len({change.field_key for change in changes}) != len(changes):
-            raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection proposal repeats a field")
-        field_keys = tuple(change.field_key for change in changes)
-        try:
-            current_base = self._sr_import_mutations.source_field_set_base_token(
-                uow.connection,
-                proposal.target_internal_id,
-                field_keys,
-            )
-        except ValidationError as exc:
-            raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection field-set scope is invalid") from exc
-        except SomaError as exc:
-            if exc.code == "NOT_FOUND":
-                raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request target no longer exists") from exc
-            raise
-        if not hmac.compare_digest(current_base, base_token):
-            raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request source field-set base state changed")
+        if len(changes) != 1:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact reconciliation requires exactly one identity change")
+        change = changes[0]
+        if change.after_text is None or change.source_observation_field_id is None:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "SR Contact reconciliation target/source identity is missing")
 
-        if precedence_basis == "reviewed_correction":
-            self._require_reviewed_source_correction_shape(
-                uow.connection,
-                proposal=proposal,
-                changes=changes,
-            )
-            if (
-                proposal.proposal_kind == "sr_terminal_reversal_review"
-                and changes[0].after_text in _TERMINAL_SR_STATUSES
-            ):
-                raise SomaError(
-                    "IMPORT_PROPOSAL_STALE",
-                    "terminal SR source reversal must end in a nonterminal Status",
-                )
-        elif precedence_basis == "source_chronology":
-            terminal_target = next(
-                (
-                    change
-                    for change in changes
-                    if change.field_key == "status" and change.after_text in _TERMINAL_SR_STATUSES
-                ),
-                None,
-            )
-            if (
-                terminal_target is not None
-                and not self._current_status_is_terminal(uow.connection, proposal.target_internal_id)
-                and (proposal.risk_class != "high" or len(changes) != 1)
-            ):
-                raise SomaError(
-                    "IMPORT_PROPOSAL_STALE",
-                    "terminal SR source entry must remain one high-risk Status proposal",
-                )
+        reference_context = self._sr_import_reader.current_reference_context(
+            uow.connection,
+            proposal.target_internal_id,
+        )
+        current_customer_org_id = reference_context.get("customer_org_id")
+        if current_customer_org_id is not None and not isinstance(current_customer_org_id, str):
+            raise IntegrityFailure("Service Request import reference context Customer identity is invalid")
+        candidate = self._sr_contact_provider.revalidate_reviewed_candidate(
+            uow.connection,
+            expected_import_run_id=proposal.import_run_id,
+            source_observation_id=proposal.source_observation_id,
+            service_request_id=proposal.target_internal_id,
+            canonical_sr_no=proposal.target_business_id,
+            reference_role=reference_role,
+            current_customer_org_id=current_customer_org_id,
+            field_key=change.field_key,
+            change_kind=change.change_kind,
+            value_kind=change.value_kind,
+            before_text=change.before_text,
+            after_text=change.after_text,
+            before_integer=change.before_integer,
+            after_integer=change.after_integer,
+            source_observation_field_id=change.source_observation_field_id,
+        )
+        contacts = reference_context.get("contacts")
+        if not isinstance(contacts, dict):
+            raise IntegrityFailure("Service Request import reference context Contact map is invalid")
+        current_ref = contacts.get(reference_role)
+        if current_ref is None:
+            current_contact_id = None
+            current_supporting_observation_id = None
+        elif isinstance(current_ref, dict) and isinstance(current_ref.get("contact_id"), str):
+            current_contact_id = str(current_ref["contact_id"])
+            raw_support = current_ref.get("supporting_source_observation_id")
+            if raw_support is not None and not isinstance(raw_support, str):
+                raise IntegrityFailure("Service Request Current Handler support identity is invalid")
+            current_supporting_observation_id = None if raw_support is None else str(raw_support)
         else:
-            raise IntegrityFailure("unsupported SR source projection precedence basis")
+            raise IntegrityFailure("Service Request import reference context Contact identity is invalid")
+        if current_contact_id != candidate.prior_contact_id:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request Contact no longer matches proposal before-state")
 
-        deltas = []
-        for change in changes:
-            if change.source_observation_field_id is None:
-                raise SomaError("IMPORT_PROPOSAL_STALE", "SR source projection change lacks source field evidence")
-            deltas.append(
-                self._sr_source_provider.build_source_projection_delta(
-                    uow.connection,
-                    service_request_id=proposal.target_internal_id,
-                    expected_import_run_id=proposal.import_run_id,
-                    expected_source_observation_id=proposal.source_observation_id,
-                    source_observation_field_id=change.source_observation_field_id,
-                    field_key=change.field_key,
-                    change_kind=change.change_kind,
-                    change_value_kind=change.value_kind,
-                    after_text=change.after_text,
-                    after_integer=change.after_integer,
-                    precedence_basis=precedence_basis,
-                )
-            )
+        projection = ServiceRequestImportReader.current_source_projection(
+            uow.connection,
+            proposal.target_internal_id,
+        )
+        if projection is None:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Current Handler source projection disappeared")
+        handler_authority = projection.get("current_handler_authority")
+        if not isinstance(handler_authority, dict) or handler_authority.get("value_state") != "usable":
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Current Handler accepted source authority is no longer usable")
+        accepted_handler_observation_id = handler_authority.get("sr_source_field_observation_id")
+        accepted_source_field_id = handler_authority.get("source_observation_field_id")
+        if not isinstance(accepted_handler_observation_id, str) or not isinstance(accepted_source_field_id, str):
+            raise IntegrityFailure("Current Handler accepted source authority identity is invalid")
+        if accepted_source_field_id != candidate.source_observation_field_id:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Current Handler supporting source field changed")
+        if current_contact_id == candidate.contact_id and current_supporting_observation_id == accepted_handler_observation_id:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Contact reconciliation no longer represents a material relationship change")
+
+        current_base = self._sr_import_mutations.contact_reconciliation_base_token(
+            uow.connection,
+            proposal.target_internal_id,
+            reference_role,
+            candidate.contact_id,
+            candidate.source_observation_field_id,
+        )
+        if not hmac.compare_digest(current_base, base_token):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request Contact reconciliation base state changed")
 
         disposition_id = new_uuid4()
-        audit_event_id = new_uuid4()
+        orchestration_audit_id = new_uuid4()
         decided_at = utc_epoch_seconds()
-        mutation = ServiceRequestSourceProjectionMutation(
+        mutation = ServiceRequestContactReviewMutation(
             service_request_id=proposal.target_internal_id,
+            reference_role=reference_role,
+            target_contact_id=candidate.contact_id,
+            expected_prior_contact_id=candidate.prior_contact_id,
             base_state_token=base_token,
-            accepted_delta_set=AcceptedSrFieldDeltaSet(
-                accepted_command_id=command_id,
-                deltas=tuple(deltas),
-            ),
+            reconciliation_proposal_id=proposal.proposal_id,
+            source_observation_id=candidate.source_observation_id,
+            source_observation_field_id=candidate.source_observation_field_id,
+            accepted_command_id=command_id,
+            proposal_revision=proposal_revision,
+            proposal_fingerprint=proposal.proposal_fingerprint,
+            reason_category=reason,
+            review_fingerprint=proposal.proposal_fingerprint,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
         )
 
         def apply(inner: UnitOfWork):
-            owner_result = self._sr_import_mutations.apply_accepted_source_projection(inner, mutation)
+            owner_result = self._sr_import_mutations.set_current_handler_contact_reference_from_review(inner, mutation)
             self._repository.transition_accept(
                 inner,
                 proposal=proposal,
@@ -216,8 +173,8 @@ class ProposalDecisionService(_CoreProposalDecisionService):
                 reason_category=reason,
                 command_id=command_id,
             )
-            return self._orchestration_audit(
-                audit_event_id=audit_event_id,
+            orchestration = self._orchestration_audit(
+                audit_event_id=orchestration_audit_id,
                 command_id=command_id,
                 proposal=proposal,
                 proposal_revision=proposal_revision,
@@ -227,6 +184,7 @@ class ProposalDecisionService(_CoreProposalDecisionService):
                 disposition_id=disposition_id,
                 owner_result_refs=owner_result.result_refs,
             )
+            return (*owner_result.audit_events, orchestration)
 
         return PreparedMutation(
             False,
