@@ -8,11 +8,11 @@ from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.tickets.import_mutations import ServiceRequestContactReviewMutation
-from soma.tickets.service_request_import_reader import ServiceRequestImportReader
 
 from ._proposal_decision_public_core import *  # noqa: F401,F403
 from ._proposal_decision_public_core import ProposalDecisionService as _CoreProposalDecisionService
 from ..repositories.proposals import ProposalRecord
+from soma.tickets.service_request_import_reader import ServiceRequestImportReader as _CurrentHandlerImportReader
 
 
 class ProposalDecisionService(_CoreProposalDecisionService):
@@ -97,7 +97,7 @@ class ProposalDecisionService(_CoreProposalDecisionService):
         )
         contacts = reference_context.get("contacts")
         if not isinstance(contacts, dict):
-            raise IntegrityFailure("Service Request import reference context Contact map is invalid")
+            raise IntegrityFailure("Service Request import reader returned invalid Contact relationship context")
         current_ref = contacts.get(reference_role)
         if current_ref is None:
             current_contact_id = None
@@ -113,7 +113,7 @@ class ProposalDecisionService(_CoreProposalDecisionService):
         if current_contact_id != candidate.prior_contact_id:
             raise SomaError("IMPORT_PROPOSAL_STALE", "Service Request Contact no longer matches proposal before-state")
 
-        projection = ServiceRequestImportReader.current_source_projection(
+        projection = _CurrentHandlerImportReader.current_source_projection(
             uow.connection,
             proposal.target_internal_id,
         )
