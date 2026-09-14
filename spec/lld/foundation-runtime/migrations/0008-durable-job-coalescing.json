@@ -12,9 +12,12 @@
   ],
   "upgrade_origin":"accepted/applied migration prefix 1..7; sequences 1..7 are never renumbered or rewritten",
   "legacy_row_policy":[
-    "existing durable_jobs rows are preserved exactly except for the new nullable dedupe_sha256 column whose value is NULL for pre-sequence-8 rows",
+    "existing durable_jobs rows are preserved exactly by migration 8 except for the new nullable dedupe_sha256 column whose value is NULL for pre-sequence-8 rows",
     "migration 8 never derives or backfills semantic dedupe identity from historical payload_json because packet-owned coalescing semantics may not be safely reconstructable by Foundation alone",
-    "a nonterminal legacy row with dedupe_sha256 NULL is never treated as proof of a semantic coalescing match; coordinator recovery remains fail-closed and packet-contract driven"
+    "after migration application and before READY/ordinary claims, DurableJobCoordinator startup recovery deterministically reconciles every nonterminal legacy row whose dedupe_sha256 remains NULL",
+    "a legacy-NULL running row records at most one interrupted job_attempts row for its exact current ordinal before terminalization; queued/retry_wait/waiting_review legacy-NULL rows fabricate no attempt history",
+    "every legacy-NULL nonterminal row is terminalized as failed with last_error_code=LEGACY_JOB_DEDUPE_UNAVAILABLE, claim/due fields cleared, and bounded payload/checkpoint retained only as historical technical evidence",
+    "legacy terminal completed/failed/cancelled rows remain unchanged with dedupe_sha256=NULL; no legacy-NULL row is ever claimed, coalesced or treated as proof of a semantic key"
   ],
   "new_job_policy":[
     "after migration 8 every newly enqueued durable job has non-null lowercase dedupe_sha256 computed by Foundation from the exact registered job_type, contract_version and caller-supplied packet semantic dedupe key",
@@ -28,7 +31,8 @@
     "durable_jobs.dedupe_sha256 is nullable only for legacy compatibility and rejects non-lowercase/non-64-hex non-null values",
     "idx_jobs_dedupe_state has exact leading columns job_type, contract_version, dedupe_sha256, state",
     "uq_jobs_active_dedupe is a unique partial index over job_type, contract_version, dedupe_sha256 for non-null dedupe values in queued/running/waiting_review/retry_wait states",
-    "upgrade from exact accepted sequence 7 preserves every preexisting durable_jobs and job_attempts row",
-    "clean initialization and 1..7 upgrade reach the same exact release schema after sequence 8"
+    "the migration transaction itself preserves every preexisting durable_jobs and job_attempts value; legacy nonterminal terminalization is a separate restart-safe coordinator recovery step before READY",
+    "clean initialization and exact 1..7 upgrade reach the same exact release schema after sequence 8",
+    "post-upgrade startup proves no nonterminal durable job with dedupe_sha256=NULL remains claimable before the host becomes READY"
   ]
 }
