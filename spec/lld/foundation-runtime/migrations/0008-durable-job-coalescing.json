@@ -1,0 +1,34 @@
+{
+  "schema":"SOMA-LLD-MIGRATION-OBJECT-ALLOCATION-V2",
+  "lld_id":"LLD-01",
+  "sequence":8,
+  "migration_id":"beta_0008_durable_job_coalescing",
+  "runtime_filename":"0008_durable_job_coalescing.sql",
+  "schema_sources":["schema/core.json","algorithms/job-coordinator.json"],
+  "objects":[
+    "column:durable_jobs.dedupe_sha256",
+    "index:idx_jobs_dedupe_state",
+    "index:uq_jobs_active_dedupe"
+  ],
+  "upgrade_origin":"accepted/applied migration prefix 1..7; sequences 1..7 are never renumbered or rewritten",
+  "legacy_row_policy":[
+    "existing durable_jobs rows are preserved exactly except for the new nullable dedupe_sha256 column whose value is NULL for pre-sequence-8 rows",
+    "migration 8 never derives or backfills semantic dedupe identity from historical payload_json because packet-owned coalescing semantics may not be safely reconstructable by Foundation alone",
+    "a nonterminal legacy row with dedupe_sha256 NULL is never treated as proof of a semantic coalescing match; coordinator recovery remains fail-closed and packet-contract driven"
+  ],
+  "new_job_policy":[
+    "after migration 8 every newly enqueued durable job has non-null lowercase dedupe_sha256 computed by Foundation from the exact registered job_type, contract_version and caller-supplied packet semantic dedupe key",
+    "the caller-supplied dedupe key is bounded and ephemeral; raw dedupe material is not persisted in the Foundation schema unless it is independently required by the owning packet payload contract",
+    "before coalescing a hash match Foundation revalidates the persisted payload with the exact static packet contract and re-derives the semantic dedupe key; a SHA-256 collision or payload/key disagreement fails closed instead of returning the wrong job",
+    "uq_jobs_active_dedupe prevents more than one queued/running/waiting_review/retry_wait row for one job_type + contract_version + dedupe_sha256",
+    "idx_jobs_dedupe_state supports bounded exact lookup for contract-specific coalescing states including a completed state when the owning packet explicitly requires completed-result coalescing"
+  ],
+  "verification":[
+    "accepted migrations 1..7 remain byte/hash/identity/sequence stable",
+    "durable_jobs.dedupe_sha256 is nullable only for legacy compatibility and rejects non-lowercase/non-64-hex non-null values",
+    "idx_jobs_dedupe_state has exact leading columns job_type, contract_version, dedupe_sha256, state",
+    "uq_jobs_active_dedupe is a unique partial index over job_type, contract_version, dedupe_sha256 for non-null dedupe values in queued/running/waiting_review/retry_wait states",
+    "upgrade from exact accepted sequence 7 preserves every preexisting durable_jobs and job_attempts row",
+    "clean initialization and 1..7 upgrade reach the same exact release schema after sequence 8"
+  ]
+}
