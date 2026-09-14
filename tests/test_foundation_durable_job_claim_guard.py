@@ -41,6 +41,13 @@ def _validate_checkpoint(value) -> None:
         raise ValidationError("claim-guard checkpoint shape")
 
 
+def _validate_cancellation(context, state: str) -> None:
+    if state not in {"queued", "running", "waiting_review", "retry_wait"}:
+        raise ValidationError("claim-guard cancellation state")
+    if context != {"allow": True}:
+        raise ValidationError("claim-guard cancellation denied")
+
+
 def _contract() -> JobTypeContract:
     return JobTypeContract(
         job_type="test.claim_guard",
@@ -52,11 +59,7 @@ def _contract() -> JobTypeContract:
             {"queued", "running", "waiting_review", "retry_wait", "completed"}
         ),
         validate_failure=lambda error_code, attempt_ordinal, now, retry_at: None,
-        validate_cancellation=lambda context, state: (
-            None
-            if context == {"allow": True}
-            else (_ for _ in ()).throw(ValidationError("claim-guard cancellation denied"))
-        ),
+        validate_cancellation=_validate_cancellation,
         recover_stale=lambda payload, checkpoint, attempt_ordinal, now: StaleRecoveryDisposition(
             state="retry_wait",
             next_attempt_at_utc=now + 10,
