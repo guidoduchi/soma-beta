@@ -2,22 +2,47 @@
   "schema":"SOMA-LLD-ALGORITHM-V1",
   "lld_id":"LLD-01",
   "name":"DurableJobCoordinator",
+  "enqueue_or_coalesce": {
+    "transaction":"caller-owned LLD-01 UnitOfWork; no nested BEGIN/COMMIT and no Foundation command receipt",
+    "steps":[
+      "resolve exact static job_type + contract_version registration and fail closed when absent",
+      "validate payload against the registered packet schema, sensitivity policy and Foundation canonical JSON bounds before persistence",
+      "require caller dedupe_key to be a bounded non-empty UTF-8 string and require the registered packet coalescing contract to derive the exact same semantic key from the validated payload",
+      "compute dedupe_sha256 as lowercase SHA-256 of strict canonical JSON {schema:'SOMA_DURABLE_JOB_DEDUPE_V1',job_type,contract_version,dedupe_key}; raw dedupe_key is not persisted by Foundation",
+      "using idx_jobs_dedupe_state load at most two rows for exact job_type + contract_version + dedupe_sha256 whose state is in the registered coalesce_states",
+      "for every candidate validate canonical persisted payload against the exact registered contract and re-derive the semantic dedupe key; hash collision, payload/key disagreement, unsupported contract or more than one matching row fails INTEGRITY_FAILURE rather than guessing",
+      "if exactly one valid matching row exists return its job_id without mutation",
+      "otherwise INSERT one queued durable_jobs row with canonical payload_json, dedupe_sha256, attempt_count=0, null checkpoint/claim/error and server timestamps; plain INSERT only"
+    ],
+    "concurrency":"BEGIN IMMEDIATE serialization plus uq_jobs_active_dedupe guarantees at most one active queued/running/waiting_review/retry_wait job for one job_type + contract_version + semantic dedupe identity; contract-specific coalescing may additionally include completed and is checked through the indexed exact lookup",
+    "legacy":"pre-migration-8 rows with dedupe_sha256=NULL are never silently treated as a coalescing match or backfilled from payload by Foundation"
+  },
   "claim": {
     "precondition":"host owns canonical data instance and is READY or explicitly allowed background-start state",
     "transaction":"BEGIN IMMEDIATE",
     "selection":"select due queued/retry_wait job by deterministic ordering (next_attempt_at_utc NULL/earliest, created_at_utc, job_id)",
+    "guards":["job_type + contract_version is present in the static registry before claim","payload_json is exact canonical registered payload and dedupe_sha256 is non-null/valid for post-migration-8 jobs","retry_wait is claimable only when next_attempt_at_utc <= now; queued with NULL next_attempt_at_utc is immediately due"],
     "mutation":"set state=running, claimed_run_id=current run_id, claim_started_at_utc=now, attempt_count=attempt_count+1, updated_at_utc=now",
+    "claim_token":"JobClaim binds job_id, job_type, contract_version, run_id, attempt_ordinal=post-increment attempt_count and claim_started_at_utc; later handler writes must match the complete tuple so a stale handler in the same process cannot act on a newer attempt",
+    "unknown_contract":"unknown/unsupported due job is never executed; coordinator fails it safe with bounded technical error evidence or returns an integrity-safe diagnostic disposition according to the static registry policy, then later claim calls may progress",
     "commit":"commit claim before external/file work begins"
   },
   "execute":"run job-specific handler outside authoritative write transaction in background executor; handler may persist bounded checkpoints using short explicit transactions and must invoke owning-domain commands for accepted domain mutations",
+  "checkpoint": {
+    "transaction":"short coordinator-owned BEGIN IMMEDIATE",
+    "steps":["reload exact job","verify state=running and exact job_id/run_id/attempt_ordinal/claim_started_at_utc claim tuple","validate checkpoint against exact registered checkpoint schema and Foundation canonical JSON bounds","write canonical checkpoint_json and updated_at_utc only","COMMIT"],
+    "stale_claim":"any tuple mismatch returns JOB_CLAIM_CONFLICT and changes nothing"
+  },
   "complete": {
     "transaction":"BEGIN IMMEDIATE",
-    "steps":["reload exact job and verify claimed_run_id=current run_id and state=running","insert one job_attempts terminal row with ordinal=attempt_count","set durable_jobs state=completed, clear claim fields, update checkpoint/result technical state as contract permits","COMMIT"]
+    "steps":["reload exact job and verify state=running plus complete exact claim tuple","verify job_attempts has no row for this job_id + attempt_ordinal","insert one job_attempts terminal row with ordinal=attempt_ordinal, run_id from exact claim, started_at_utc=claim_started_at_utc, finished_at_utc=server-now and outcome=completed","set durable_jobs state=completed, clear claim fields and next_attempt_at_utc, update technical checkpoint state only as contract permits, set updated_at_utc=server-now","COMMIT"],
+    "stale_claim":"any tuple mismatch or duplicate attempt ordinal fails closed and never rewrites the newer attempt"
   },
   "fail_or_retry": {
     "transaction":"BEGIN IMMEDIATE",
-    "steps":["verify current claim","insert job_attempts row outcome=failed/cancelled","job-type retry policy classifies terminal failed vs retry_wait with explicit next_attempt_at_utc","clear claim fields and store bounded last_error_code","COMMIT"],
-    "rule":"retry schedule is technical workflow policy; it never fabricates domain lifecycle state"
+    "steps":["verify complete exact current claim tuple","validate bounded stable error_code; raw exception/secret/path/provider content is forbidden","insert exactly one job_attempts row outcome=failed for the exact current attempt ordinal","job-type retry policy classifies terminal failed vs retry_wait with explicit next_attempt_at_utc","clear claim fields, store bounded last_error_code and update updated_at_utc","COMMIT"],
+    "rule":"retry schedule is technical workflow policy; it never fabricates domain lifecycle state",
+    "stale_claim":"any tuple mismatch returns JOB_CLAIM_CONFLICT with no state/attempt mutation"
   },
   "cancel": {
     "transaction":"caller-owned UnitOfWork; no nested BEGIN/COMMIT and no Foundation command receipt",
@@ -26,12 +51,12 @@
       "load the exact durable_jobs row inside the caller UnitOfWork and require job_type/contract_version equal the caller expectation; mismatch or missing identity fails closed",
       "if state=cancelled return ALREADY_CANCELLED without mutation",
       "if state=completed or failed return TERMINAL_UNCHANGED without rewriting technical history",
-      "if state=running capture claimed_run_id, claim_started_at_utc and attempt_count, insert exactly one job_attempts row outcome=cancelled for that current ordinal, then set durable_jobs state=cancelled and clear claimed_run_id/claim_started_at_utc/next_attempt_at_utc",
+      "if state=running capture claimed_run_id, claim_started_at_utc and attempt_count, require that job_attempts lacks that exact ordinal, insert exactly one job_attempts row outcome=cancelled for that current ordinal, then set durable_jobs state=cancelled and clear claimed_run_id/claim_started_at_utc/next_attempt_at_utc",
       "if state=queued, retry_wait or waiting_review set durable_jobs state=cancelled and clear next_attempt_at_utc/claim fields without inventing a job_attempts row for work that never held a running claim",
       "set updated_at_utc=server-now and return DurableJobCancellationResultV1 to the owning-domain caller; caller decides whether to commit or roll the entire shared UnitOfWork back"
     ],
     "rules":[
-      "a revoked running handler loses coordinator authority immediately at commit; checkpoint/complete/fail must revalidate state+claim and reject the stale worker",
+      "a revoked running handler loses coordinator authority immediately at commit; checkpoint/complete/fail must revalidate the complete exact claim tuple and reject the stale worker",
       "an already-running handler may physically finish in-flight external CPU/file work, but that work cannot regain coordinator or owning-domain authority merely because it finishes",
       "an optional in-process cancellation signal may be delivered only after commit as a latency optimization; correctness depends on persisted state/claim validation, never on that signal",
       "the same owning-domain rollback that rejects cancellation also restores the prior durable job state/job-attempt history atomically"
@@ -39,18 +64,21 @@
   },
   "startup_recovery": {
     "precondition":"new host already owns canonical data instance exclusively",
-    "steps":["find state=running jobs whose claimed_run_id differs from current run","for each, in bounded transaction insert job_attempts outcome=interrupted using stored claim_started_at_utc and new recovery time","apply job-type recovery policy: queued, retry_wait, failed, or waiting_review","clear stale claim fields","never resume arbitrary in-memory code position; restart from durable checkpoint/contract"]
+    "steps":["find state=running jobs whose claimed_run_id differs from current run in deterministic job_id order","for each stale row use its own short BEGIN IMMEDIATE transaction and revalidate the exact stale claim tuple before mutation","validate exact job contract/version; unknown contract fails safe and never executes","insert job_attempts outcome=interrupted using stored claim_started_at_utc, stale claimed_run_id and attempt_count ordinal only when that ordinal has not already been represented","apply exact registered job-type crash recovery policy: queued, retry_wait, failed, or waiting_review","clear stale claim fields and persist bounded stable technical error/disposition","never resume arbitrary in-memory code position; restart only from durable checkpoint/contract"],
+    "concurrency":"revalidation under the writer transaction makes recovery idempotent; a row already recovered or otherwise changed is skipped/handled from current persisted state rather than receiving duplicate attempt history"
   },
   "restore_reconciliation": {
     "precondition":"a cryptographically and structurally verified historical database has replaced the live database, host remains QUIESCING, restored DB is open through the verified LLD-12 SQLCipher provider, and no coordinator claims are permitted yet",
     "transaction":"one LLD-01 recovery-finalization UnitOfWork before runtime may become READY",
-    "steps":["enumerate all restored durable_jobs in deterministic job_id order whose state is queued, running, waiting_review, or retry_wait","for a restored running row with a valid prior claimed_run_id/claim_started_at_utc, insert exactly one job_attempts row outcome=interrupted using that prior run identity and attempt_count ordinal if that ordinal is not already represented","set every restored nonterminal durable_jobs row to cancelled, clear claimed_run_id/claim_started_at_utc/next_attempt_at_utc, set last_error_code=RESTORE_SNAPSHOT_JOB_INVALIDATED, and preserve bounded payload/checkpoint only as historical technical evidence","leave completed, failed, and already-cancelled rows unchanged","commit this reconciliation in the same recovery-finalization boundary that records required restore receipt/audit evidence, before enabling ordinary job claims"],
+    "steps":["enumerate all restored durable_jobs in deterministic job_id order whose state is queued, running, waiting_review, or retry_wait","for a restored running row with a valid prior claimed_run_id/claim_started_at_utc, insert exactly one job_attempts row outcome=interrupted using that prior run identity and attempt_count ordinal if that ordinal is not already represented","set every restored nonterminal durable_jobs row to cancelled, clear claimed_run_id/claim_started_at_utc/next_attempt_at_utc, set last_error_code=RESTORE_SNAPSHOT_JOB_INVALIDATED, and preserve bounded payload/checkpoint/dedupe identity only as historical technical evidence","leave completed, failed, and already-cancelled rows unchanged","commit this reconciliation in the same recovery-finalization boundary that records required restore receipt/audit evidence, before enabling ordinary job claims"],
     "rules":["restoring a historical snapshot never silently replays queued/retry/waiting external work","no job-type opt-in restore-resume exists in Beta 1.0; an operator or owning-domain workflow must explicitly start genuinely desired new work after readiness","restored job cancellation is technical workflow reconciliation and does not reverse or fabricate owning-domain lifecycle state","unknown job type/version remains fail-closed and cannot become executable during restore"]
   },
   "job_type_contract": {
-    "required_fields":["job_type","contract_version","payload_schema","checkpoint_schema","retry_policy","crash_recovery_policy","cancellation_policy","sensitive_field_policy"],
-    "registration":"static application registry; unknown persisted job type/version is quarantined/failed-safe and not guessed"
+    "required_fields":["job_type","contract_version","payload_schema","checkpoint_schema","retry_policy","crash_recovery_policy","cancellation_policy","sensitive_field_policy","coalescing_policy"],
+    "coalescing_policy_required_fields":["dedupe_key_from_payload","coalesce_states"],
+    "registration":"static application registry; unknown persisted job type/version is quarantined/failed-safe and not guessed",
+    "rule":"Foundation may hash/compare a packet semantic dedupe key but never invents its meaning; the owning packet contract deterministically derives the exact key from validated payload and declares which technical states are coalescing matches"
   },
-  "concurrency":"one coordinator in one authoritative host; at most two background executor workers; a job may define a stronger per-source/per-type coalescing key in its owning LLD",
+  "concurrency":"one coordinator in one authoritative host; at most two background executor workers; migration-8 indexed semantic coalescing plus the packet contract provides stronger per-source/per-type identity without unbounded payload scans",
   "shutdown":"QUIESCING stops new claims; running handlers receive cooperative cancellation signal and either finish a safe checkpoint/terminal result or remain recoverable as prior-run interruption after process exit"
 }
