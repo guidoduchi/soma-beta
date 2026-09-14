@@ -421,7 +421,6 @@ class DurableJobCoordinator:
         prior_state = str(state)
         if prior_state not in {*_NONTERMINAL_STATES, "completed", "failed", "cancelled"}:
             raise IntegrityFailure("durable job has unknown persisted state")
-        self._validate_cancellation_policy(contract, command_context, prior_state)
         if prior_state == "cancelled":
             return DurableJobCancellationResult(
                 outcome="ALREADY_CANCELLED",
@@ -438,6 +437,7 @@ class DurableJobCoordinator:
                 resulting_state=prior_state,  # type: ignore[arg-type]
                 claim_revoked=False,
             )
+        self._validate_cancellation_policy(contract, command_context, prior_state)
         now = self._now()
         if now < int(created_at_utc) or now < int(updated_at_utc):
             raise IntegrityFailure("durable job cancellation clock regressed")
