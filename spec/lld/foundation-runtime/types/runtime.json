@@ -105,6 +105,54 @@
         "value is immutable after insertion and is never reconstructed from mutable current domain state"
       ]
     },
+    "DurableJobClaimV1": {
+      "kind": "internal_value",
+      "additionalProperties": false,
+      "required": ["job_id", "job_type", "contract_version", "run_id", "attempt_ordinal", "claim_started_at_utc", "dedupe_sha256", "payload_json", "checkpoint_json"],
+      "fields": {
+        "job_id": "uuid",
+        "job_type": "registered nonempty bounded string",
+        "contract_version": "int>=1",
+        "run_id": "uuid",
+        "attempt_ordinal": "int>=1",
+        "claim_started_at_utc": "utc_epoch_seconds",
+        "dedupe_sha256": "lowercase sha256 hex",
+        "payload_json": "exact strict canonical registered packet payload JSON <= foundation jobs.max_payload_json_bytes",
+        "checkpoint_json": "exact strict canonical registered packet checkpoint JSON|null <= foundation jobs.max_checkpoint_json_bytes"
+      },
+      "rules": [
+        "job_id + run_id + attempt_ordinal + claim_started_at_utc is the complete persisted claim token revalidated by checkpoint/complete/fail; matching only job_id/run_id is insufficient",
+        "payload/checkpoint are validated against the exact registered job_type + contract_version before the claim is returned",
+        "the claim is an in-process technical capability only and is never persisted outside the existing durable job tables or exposed as domain authority"
+      ]
+    },
+    "DurableJobRecoverySummaryV1": {
+      "kind": "internal_value",
+      "additionalProperties": false,
+      "required": ["examined_count", "interrupted_count", "queued_count", "retry_wait_count", "waiting_review_count", "failed_count", "skipped_count"],
+      "fields": {
+        "examined_count": "int>=0",
+        "interrupted_count": "int>=0",
+        "queued_count": "int>=0",
+        "retry_wait_count": "int>=0",
+        "waiting_review_count": "int>=0",
+        "failed_count": "int>=0",
+        "skipped_count": "int>=0"
+      },
+      "rule": "counts are technical recovery evidence only; they never imply owning-domain completion or lifecycle state"
+    },
+    "RestoreJobReconciliationV1": {
+      "kind": "internal_value",
+      "additionalProperties": false,
+      "required": ["examined_nonterminal_count", "cancelled_count", "interrupted_attempt_count", "unchanged_terminal_count"],
+      "fields": {
+        "examined_nonterminal_count": "int>=0",
+        "cancelled_count": "int>=0",
+        "interrupted_attempt_count": "int>=0",
+        "unchanged_terminal_count": "int>=0"
+      },
+      "rule": "returned only from the restore-finalization boundary before READY; it records technical invalidation of restored work and never reverses/fabricates domain history"
+    },
     "DurableJobCancellationResultV1": {
       "kind": "object",
       "additionalProperties": false,
