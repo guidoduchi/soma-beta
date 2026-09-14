@@ -1,0 +1,46 @@
+{
+  "schema":"SOMA-LLD-ALGORITHM-V1",
+  "lld_id":"LLD-01",
+  "name":"DurableJobRecovery",
+  "startup_recovery": {
+    "precondition":"new host already owns canonical data instance exclusively; recovery finishes before READY and before ordinary claims are enabled",
+    "steps":[
+      "first enumerate every nonterminal queued/running/waiting_review/retry_wait job with dedupe_sha256=NULL in deterministic job_id order; these are legacy pre-migration-8 jobs whose semantic dedupe identity cannot be proven",
+      "for each legacy-NULL row use its own short BEGIN IMMEDIATE transaction and revalidate state plus dedupe_sha256 IS NULL before mutation",
+      "for a legacy-NULL running row with valid claimed_run_id/claim_started_at_utc/attempt_count, insert exactly one job_attempts outcome=interrupted for that ordinal when it is not already represented",
+      "set every legacy-NULL nonterminal row to failed, clear claimed_run_id/claim_started_at_utc/next_attempt_at_utc, preserve bounded payload/checkpoint as historical technical evidence, and set last_error_code=LEGACY_JOB_DEDUPE_UNAVAILABLE; never derive/backfill a semantic key from historical payload",
+      "then find remaining state=running jobs whose claimed_run_id differs from current run in deterministic job_id order",
+      "for each stale row use its own short BEGIN IMMEDIATE transaction and revalidate the exact stale claim tuple before mutation",
+      "validate exact job contract/version; unknown contract fails safe and never executes",
+      "insert job_attempts outcome=interrupted using stored claim_started_at_utc, stale claimed_run_id and attempt_count ordinal only when that ordinal has not already been represented",
+      "apply exact registered job-type crash recovery policy: queued, retry_wait, failed, or waiting_review",
+      "clear stale claim fields and persist bounded stable technical error/disposition",
+      "never resume arbitrary in-memory code position; restart only from durable checkpoint/contract"
+    ],
+    "concurrency":"revalidation under each writer transaction makes both legacy reconciliation and stale-claim recovery idempotent; a row already reconciled/recovered or otherwise changed is skipped/handled from current persisted state rather than receiving duplicate attempt history",
+    "readiness_rule":"any unreconciled legacy-NULL nonterminal row, recovery integrity failure or recovery transaction failure blocks READY and ordinary claims until a later startup recovery pass succeeds"
+  },
+  "restore_reconciliation": {
+    "precondition":"a cryptographically and structurally verified historical database has replaced the live database, host remains QUIESCING, restored DB is open through the verified LLD-12 SQLCipher provider, and no coordinator claims are permitted yet",
+    "transaction":"one LLD-01 recovery-finalization UnitOfWork before runtime may become READY",
+    "steps":[
+      "enumerate all restored durable_jobs in deterministic job_id order whose state is queued, running, waiting_review, or retry_wait",
+      "for a restored running row with a valid prior claimed_run_id/claim_started_at_utc, insert exactly one job_attempts row outcome=interrupted using that prior run identity and attempt_count ordinal if that ordinal is not already represented",
+      "set every restored nonterminal durable_jobs row to cancelled, clear claimed_run_id/claim_started_at_utc/next_attempt_at_utc, set last_error_code=RESTORE_SNAPSHOT_JOB_INVALIDATED, and preserve bounded payload/checkpoint/dedupe identity only as historical technical evidence",
+      "leave completed, failed, and already-cancelled rows unchanged",
+      "commit this reconciliation in the same recovery-finalization boundary that records required restore receipt/audit evidence, before enabling ordinary job claims"
+    ],
+    "rules":[
+      "restoring a historical snapshot never silently replays queued/retry/waiting external work",
+      "no job-type opt-in restore-resume exists in Beta 1.0; an operator or owning-domain workflow must explicitly start genuinely desired new work after readiness",
+      "restored job cancellation is technical workflow reconciliation and does not reverse or fabricate owning-domain lifecycle state",
+      "unknown job type/version remains fail-closed and cannot become executable during restore"
+    ]
+  },
+  "shared_rules":[
+    "recovery never fabricates packet/domain lifecycle state",
+    "job_attempts uniqueness on job_id + ordinal is revalidated before inserting interrupted history",
+    "payload/checkpoint content is never used to reconstruct a missing migration-8 semantic dedupe identity",
+    "all error evidence is bounded stable technical code; raw exception, secret, provider content and unrestricted path data are forbidden"
+  ]
+}
