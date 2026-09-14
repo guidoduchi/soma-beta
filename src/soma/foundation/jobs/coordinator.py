@@ -304,6 +304,13 @@ class DurableJobCoordinator:
                 checkpoint_json=canonical_checkpoint,
             )
 
+    def assert_claim_current(self, uow: UnitOfWork, claim: DurableJobClaim) -> None:
+        try:
+            self._require_claim_contract(claim)
+        except ValidationError as exc:
+            raise IntegrityFailure("durable job claim contract is unavailable or invalid") from exc
+        self._verify_claim(uow, claim)
+
     def checkpoint(self, claim: DurableJobClaim, checkpoint: Any) -> None:
         contract = self._require_claim_contract(claim)
         now = self._now()
@@ -769,9 +776,27 @@ class DurableJobCoordinator:
         ).fetchone()
         if row is None:
             raise JobClaimConflict()
-        if str(row[2]) != claim.dedupe_sha256 or str(row[3]) != claim.payload_json:
-            raise IntegrityFailure("durable job claim identity payload changed")
-        contract = self._registry.require(claim.job_type, claim.contract_version)
+        persisted_hash = row[2]
+        persisted_payload_json = str(row[3])
+        if persisted_hash is None or not _is_sha256(str(persisted_hash)):
+            raise IntegrityFailure("durable job claim has invalid persisted dedupe identity")
+        if str(persisted_hash) != claim.dedupe_sha256 or persisted_payload_json != claim.payload_json:
+            raise IntegrityFailure("durable job claim immutable identity changed")
+        contract = self._registry.get(claim.job_type, claim.contract_version)
+        if contract is None:
+            raise IntegrityFailure("durable job claim contract is unavailable")
+        payload_value = self._load_registered_payload(contract, persisted_payload_json)
+        semantic_key = self._derive_dedupe_key(contract, payload_value, persisted=True)
+        self._require_callback_did_not_mutate(
+            payload_value,
+            persisted_payload_json,
+            label="claim dedupe key derivation",
+        )
+        expected_hash = _dedupe_sha256(
+            claim.job_type, claim.contract_version, semantic_key
+        )
+        if expected_hash != str(persisted_hash):
+            raise IntegrityFailure("durable job claim payload disagrees with dedupe identity")
         self._validate_persisted_checkpoint(contract, row[4])
         return row
 
