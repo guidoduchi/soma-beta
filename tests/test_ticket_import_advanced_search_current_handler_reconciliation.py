@@ -434,19 +434,20 @@ def test_same_contact_new_handler_support_is_material_and_rebinds_history(initia
     with ReadSnapshot(factory) as snapshot:
         rows = snapshot.connection.execute(
             "SELECT contact_id,relationship_state,supporting_sr_source_field_observation_id,opened_command_id,closed_command_id "
-            "FROM sr_contact_relationships WHERE service_request_id=? AND reference_role='current_handler_reference' "
-            "ORDER BY opened_at_utc,sr_contact_relationship_id",
+            "FROM sr_contact_relationships WHERE service_request_id=? AND reference_role='current_handler_reference'",
             (sr.service_request_id,),
         ).fetchall()
         assert len(rows) == 2
-        assert str(rows[0][0]) == target.contact_id
-        assert str(rows[0][1]) == "superseded"
-        assert str(rows[0][2]) == h1["owner_observation_id"]
-        assert rows[0][4] is not None
-        assert str(rows[1][0]) == target.contact_id
-        assert str(rows[1][1]) == "active"
-        assert str(rows[1][2]) == h2["owner_observation_id"]
-        assert str(rows[1][3]) == command_id
+        by_support = {str(row[2]): row for row in rows}
+        assert set(by_support) == {h1["owner_observation_id"], h2["owner_observation_id"]}
+        previous = by_support[h1["owner_observation_id"]]
+        current_row = by_support[h2["owner_observation_id"]]
+        assert str(previous[0]) == target.contact_id
+        assert str(previous[1]) == "superseded"
+        assert previous[4] is not None
+        assert str(current_row[0]) == target.contact_id
+        assert str(current_row[1]) == "active"
+        assert str(current_row[3]) == command_id
 
     replay = ProposalDecisionService(factory).accept(
         command_id=command_id,
