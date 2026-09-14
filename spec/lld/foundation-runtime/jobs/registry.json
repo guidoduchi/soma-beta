@@ -4,13 +4,16 @@
   "jobs":[],
   "coordination_contract":{
     "owner":"LLD-01 DurableJobCoordinator",
-    "authority":"Foundation owns durable job coordination/storage/claim/recovery mechanics only; each concrete job_type is registered by the packet that owns that workflow.",
+    "authority":"Foundation owns durable job coordination/storage/claim/recovery mechanics and opaque indexed dedupe hashing only; each concrete job_type is registered by the packet that owns that workflow.",
+    "registration_required_fields":["job_type","contract_version","payload_schema","checkpoint_schema","retry_policy","crash_recovery_policy","cancellation_policy","sensitive_field_policy","coalescing_policy"],
+    "coalescing_policy_required_fields":["dedupe_key_from_payload","coalesce_states"],
     "unknown_job_type_or_version":"fail closed; quarantine/fail-safe according to DurableJobCoordinator and never guess a handler",
-    "domain_authority":"job state never substitutes for owning-domain acceptance/lifecycle evidence"
+    "domain_authority":"job state and dedupe identity never substitute for owning-domain acceptance/lifecycle evidence"
   },
   "rules":[
     "LLD-01 deliberately registers no concrete Beta business job type in this packet.",
     "Concrete job registries in LLD-04/06/08/09/12 supply payload/checkpoint/retry/crash/cancellation/sensitivity/coalescing contracts consumed by the Foundation coordinator.",
+    "Each packet coalescing contract deterministically derives its semantic dedupe key from the exact validated payload and declares the technical states that count as a coalescing match; Foundation hashes/looks up that identity but never invents its meaning.",
     "A future Foundation-owned concrete job requires an explicit versioned entry here before implementation."
   ]
 }
