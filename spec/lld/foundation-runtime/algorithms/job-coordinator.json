@@ -28,6 +28,21 @@
     "commit":"commit claim before external/file work begins"
   },
   "execute":"run job-specific handler outside authoritative write transaction in background executor; handler may persist bounded checkpoints using short explicit transactions and must invoke owning-domain commands for accepted domain mutations",
+  "assert_claim_current": {
+    "transaction":"caller-owned UnitOfWork; read-only participant with no nested BEGIN/COMMIT, no Foundation command receipt and no durable-job mutation",
+    "input":"DurableJobClaimV1 carrying exact job_id/job_type/contract_version/run_id/attempt_ordinal/claim_started_at_utc plus the immutable claimed payload/checkpoint/dedupe snapshot",
+    "steps":[
+      "reload the exact durable_jobs row through the caller UnitOfWork before the owning command inserts its receipt",
+      "resolve the exact registered job_type + contract_version and fail closed if absent",
+      "require state=running and exact job_id/run_id/attempt_ordinal/claim_started_at_utc equality so cancelled, recovered, completed, failed or subsequently re-claimed work cannot retain authority",
+      "validate persisted payload_json and checkpoint_json against the registered packet contracts and Foundation canonical JSON bounds, and require equality with the claim snapshot",
+      "require non-null lowercase dedupe_sha256, re-derive the packet semantic key from the validated payload and require the canonical SOMA_DURABLE_JOB_DEDUPE_V1 hash to equal both persisted and claimed dedupe identity"
+    ],
+    "success":"return without mutation; the caller continues inside the same UnitOfWork and remains the sole transaction authority",
+    "stale_claim":"missing row, state/claim tuple mismatch or claimed snapshot mismatch returns JOB_CLAIM_CONFLICT and changes nothing",
+    "integrity":"unknown contract, malformed/noncanonical persisted payload/checkpoint or semantic-key/dedupe disagreement fails INTEGRITY_FAILURE rather than granting owning-domain authority",
+    "race_rule":"owning-domain command authority is decided by this same-UoW guard immediately before its receipt/state revalidation path; a separate earlier checkpoint/read is insufficient because cancellation/recovery could commit between transactions"
+  },
   "checkpoint": {
     "transaction":"short coordinator-owned BEGIN IMMEDIATE",
     "steps":["reload exact job","verify state=running and exact job_id/run_id/attempt_ordinal/claim_started_at_utc claim tuple","validate checkpoint against exact registered checkpoint schema and Foundation canonical JSON bounds","write canonical checkpoint_json and updated_at_utc only","COMMIT"],
@@ -56,7 +71,7 @@
       "set updated_at_utc=server-now and return DurableJobCancellationResultV1 to the owning-domain caller; caller decides whether to commit or roll the entire shared UnitOfWork back"
     ],
     "rules":[
-      "a revoked running handler loses coordinator authority immediately at commit; checkpoint/complete/fail must revalidate the complete exact claim tuple and reject the stale worker",
+      "a revoked running handler loses coordinator authority immediately at commit; checkpoint/complete/fail and assert_claim_current must revalidate the complete exact claim tuple and reject the stale worker",
       "an already-running handler may physically finish in-flight external CPU/file work, but that work cannot regain coordinator or owning-domain authority merely because it finishes",
       "an optional in-process cancellation signal may be delivered only after commit as a latency optimization; correctness depends on persisted state/claim validation, never on that signal",
       "the same owning-domain rollback that rejects cancellation also restores the prior durable job state/job-attempt history atomically"
