@@ -41,6 +41,37 @@ def _validate_checkpoint(value) -> None:
         raise ValidationError("test checkpoint shape")
 
 
+def _validate_failure(
+    error_code: str,
+    attempt_ordinal: int,
+    now: int,
+    retry_at: int | None,
+) -> None:
+    if retry_at is None:
+        return
+    if error_code != "TRANSIENT_TEST":
+        raise ValidationError("test contract only retries transient errors")
+    if attempt_ordinal >= 3:
+        raise ValidationError("test contract permits at most two automatic retries")
+    if retry_at < now + 5:
+        raise ValidationError("test contract requires at least five seconds of backoff")
+
+
+def _validate_cancellation(command_context, state: str) -> None:
+    if state not in {
+        "queued",
+        "running",
+        "waiting_review",
+        "retry_wait",
+        "completed",
+        "failed",
+        "cancelled",
+    }:
+        raise ValidationError("test cancellation state")
+    if command_context != {"allow": True}:
+        raise ValidationError("test cancellation is not authorized")
+
+
 def _contract() -> JobTypeContract:
     return JobTypeContract(
         job_type="test.job",
@@ -51,9 +82,12 @@ def _contract() -> JobTypeContract:
         coalesce_states=frozenset(
             {"queued", "running", "waiting_review", "retry_wait", "completed"}
         ),
-        retryable_error=lambda error_code: error_code == "TRANSIENT_TEST",
-        recover_stale=lambda payload, checkpoint, now: StaleRecoveryDisposition(
-            state="retry_wait", next_attempt_at_utc=now + 10, error_code="JOB_INTERRUPTED"
+        validate_failure=_validate_failure,
+        validate_cancellation=_validate_cancellation,
+        recover_stale=lambda payload, checkpoint, attempt_ordinal, now: StaleRecoveryDisposition(
+            state="retry_wait" if attempt_ordinal < 3 else "failed",
+            next_attempt_at_utc=now + 10 if attempt_ordinal < 3 else None,
+            error_code="JOB_INTERRUPTED",
         ),
     )
 
@@ -220,6 +254,59 @@ def test_retry_wait_due_time_and_full_claim_token_reject_stale_attempt(
         connection.close()
 
 
+def test_failure_policy_enforces_backoff_and_retry_limit_without_partial_history(
+    initialized_database,
+) -> None:
+    database_path, factory, clock, coordinator = _coordinator(initialized_database)
+    job_id = _enqueue(coordinator, factory)
+    first = coordinator.claim_next(_uuid(), 101)
+    assert first is not None
+
+    clock.value = 102
+    with pytest.raises(ValidationError):
+        coordinator.fail(first, "PERMANENT_TEST", 110)
+    with pytest.raises(ValidationError):
+        coordinator.fail(first, "TRANSIENT_TEST", 106)
+    assert _job_row(database_path, job_id)[:2] == ("running", 1)
+    connection = sqlite3.connect(database_path)
+    try:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM job_attempts WHERE job_id=?", (job_id,)
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+    coordinator.fail(first, "TRANSIENT_TEST", 107)
+    second = coordinator.claim_next(_uuid(), 107)
+    assert second is not None and second.attempt_ordinal == 2
+    clock.value = 108
+    coordinator.fail(second, "TRANSIENT_TEST", 113)
+    third = coordinator.claim_next(_uuid(), 113)
+    assert third is not None and third.attempt_ordinal == 3
+    clock.value = 114
+    with pytest.raises(ValidationError):
+        coordinator.fail(third, "TRANSIENT_TEST", 119)
+    assert _job_row(database_path, job_id)[:2] == ("running", 3)
+    coordinator.fail(third, "TRANSIENT_TEST", None)
+    assert _job_row(database_path, job_id)[:3] == ("failed", 3, None)
+
+
+def test_claim_rejects_clock_regression_without_mutating_job(initialized_database) -> None:
+    database_path, factory, _clock, coordinator = _coordinator(initialized_database)
+    job_id = _enqueue(coordinator, factory)
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE durable_jobs SET updated_at_utc=105 WHERE job_id=?",
+            (job_id,),
+        )
+    with pytest.raises(IntegrityFailure):
+        coordinator.claim_next(_uuid(), 104)
+    assert _job_row(database_path, job_id)[:5] == ("queued", 0, None, None, None)
+    claim = coordinator.claim_next(_uuid(), 105)
+    assert claim is not None
+    assert claim.claim_started_at_utc == 105
+
+
 def test_cancellation_is_same_uow_atomic_and_revokes_running_claim(initialized_database) -> None:
     database_path, factory, clock, coordinator = _coordinator(initialized_database)
     job_id = _enqueue(coordinator, factory)
@@ -228,7 +315,7 @@ def test_cancellation_is_same_uow_atomic_and_revokes_running_claim(initialized_d
     clock.value = 102
     with pytest.raises(RuntimeError):
         with UnitOfWork(factory) as uow:
-            result = coordinator.cancel(uow, job_id, "test.job", 1, object())
+            result = coordinator.cancel(uow, job_id, "test.job", 1, {"allow": True})
             assert result.claim_revoked is True
             raise RuntimeError("owning domain rejected cancellation")
     assert _job_row(database_path, job_id)[0] == "running"
@@ -242,7 +329,7 @@ def test_cancellation_is_same_uow_atomic_and_revokes_running_claim(initialized_d
 
     clock.value = 103
     with UnitOfWork(factory) as uow:
-        result = coordinator.cancel(uow, job_id, "test.job", 1, object())
+        result = coordinator.cancel(uow, job_id, "test.job", 1, {"allow": True})
     assert result.outcome == "CANCELLED"
     assert result.cancelled_attempt_ordinal == 1
     assert _job_row(database_path, job_id)[0] == "cancelled"
@@ -250,7 +337,27 @@ def test_cancellation_is_same_uow_atomic_and_revokes_running_claim(initialized_d
     with pytest.raises(JobClaimConflict):
         coordinator.complete(claim)
     with UnitOfWork(factory) as uow:
-        assert coordinator.cancel(uow, job_id, "test.job", 1, object()).outcome == "ALREADY_CANCELLED"
+        assert coordinator.cancel(
+            uow, job_id, "test.job", 1, {"allow": True}
+        ).outcome == "ALREADY_CANCELLED"
+
+
+def test_cancellation_policy_denial_leaves_job_and_attempt_history_unchanged(
+    initialized_database,
+) -> None:
+    database_path, factory, _clock, coordinator = _coordinator(initialized_database)
+    job_id = _enqueue(coordinator, factory)
+    with pytest.raises(ValidationError):
+        with UnitOfWork(factory) as uow:
+            coordinator.cancel(uow, job_id, "test.job", 1, {"allow": False})
+    assert _job_row(database_path, job_id)[:2] == ("queued", 0)
+    connection = sqlite3.connect(database_path)
+    try:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM job_attempts WHERE job_id=?", (job_id,)
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
 
 
 def test_unknown_contract_due_job_is_failed_safe_without_execution(initialized_database) -> None:
