@@ -77,6 +77,12 @@ class TicketImportSrCustomerReconciliationProvider:
         after_integer: int | None,
         source_observation_field_id: str | None,
     ) -> ReviewedCustomerCandidate:
+        proposal = reader.execute(
+            "SELECT proposal_kind,risk_class FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()
+        if proposal is None or str(proposal[0]) != "sr_customer_reconciliation" or str(proposal[1]) != "high":
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Customer reconciliation proposal risk binding is invalid")
         if field_key != "customer_org_id" or change_kind != "set" or value_kind != "identity":
             raise SomaError("IMPORT_PROPOSAL_STALE", "Customer reconciliation proposal change encoding is invalid")
         if before_integer is not None or after_integer is not None or after_text is None or source_observation_field_id is None:
@@ -93,20 +99,27 @@ class TicketImportSrCustomerReconciliationProvider:
         )
         account = fields.get("customer_account_code")
         label = fields.get("customer_org_label")
-        if account is None and label is None:
-            raise SomaError("IMPORT_PROPOSAL_STALE", "Customer reconciliation no longer has usable matching evidence")
-        strongest_field_id = account[0] if account is not None else label[0]  # type: ignore[index]
-        if source_observation_field_id != strongest_field_id:
+        if account is None:
+            raise SomaError(
+                "IMPORT_PROPOSAL_STALE",
+                "Customer reconciliation requires usable Account Code identity evidence",
+            )
+        if source_observation_field_id != account[0]:
             raise SomaError("IMPORT_PROPOSAL_STALE", "Customer reconciliation evidence pointer is no longer strongest exact evidence")
 
         match = ReferenceMatcher.match_customer_org(
             reader,
-            raw_account_code=None if account is None else account[1],
+            raw_account_code=account[1],
             raw_name=None if label is None else label[1],
             limit=2,
         )
-        if match.state != "UNIQUE_CANDIDATE" or match.candidate_count != 1 or match.candidate_ids != (after_text,):
-            raise SomaError("IMPORT_PROPOSAL_STALE", "Customer reconciliation candidate is no longer uniquely resolved")
+        if (
+            match.state != "UNIQUE_CANDIDATE"
+            or match.candidate_count != 1
+            or match.candidate_ids != (after_text,)
+            or match.explanation != "ACCOUNT_CODE_MATCH"
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "Customer reconciliation candidate is no longer uniquely Account Code resolved")
         return ReviewedCustomerCandidate(
             customer_org_id=after_text,
             prior_customer_org_id=before_text,
@@ -124,7 +137,7 @@ class TicketImportSrCustomerReconciliationProvider:
         customer_org_id: str,
     ) -> str:
         row = reader.execute(
-            "SELECT p.proposal_kind,p.target_kind,p.target_internal_id,p.proposal_state,p.source_observation_id,"
+            "SELECT p.proposal_kind,p.target_kind,p.target_internal_id,p.proposal_state,p.source_observation_id,p.risk_class,"
             "c.field_key,c.change_kind,c.value_kind,c.after_text "
             "FROM reconciliation_proposals p JOIN reconciliation_proposal_changes c "
             "ON c.reconciliation_proposal_id=p.reconciliation_proposal_id "
@@ -146,10 +159,11 @@ class TicketImportSrCustomerReconciliationProvider:
             or str(row[2]) != service_request_id
             or str(row[3]) != "pending"
             or row[4] is None
-            or str(row[5]) != "customer_org_id"
-            or str(row[6]) != "set"
-            or str(row[7]) != "identity"
-            or str(row[8]) != customer_org_id
+            or str(row[5]) != "high"
+            or str(row[6]) != "customer_org_id"
+            or str(row[7]) != "set"
+            or str(row[8]) != "identity"
+            or str(row[9]) != customer_org_id
             or receipt_count is None
             or int(receipt_count[0]) != 1
         ):
