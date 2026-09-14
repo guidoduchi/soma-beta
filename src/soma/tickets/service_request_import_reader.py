@@ -52,14 +52,20 @@ class ServiceRequestImportReader(_ServiceRequestImportReader):
         if projection is None:
             return None
         result = dict(projection)
-        pointer = result.get("current_handler_observation_id")
+        canonical_sr_id = require_uuid4(service_request_id)
+        pointer_row = reader.execute(
+            "SELECT current_handler_observation_id FROM sr_current_source_projection WHERE service_request_id=?",
+            (canonical_sr_id,),
+        ).fetchone()
+        if pointer_row is None:
+            raise IntegrityFailure("Service Request source projection disappeared while resolving Current Handler authority")
+        pointer = pointer_row[0]
         if pointer is None:
             result["current_handler_authority"] = None
             return result
         if not isinstance(pointer, str):
             raise IntegrityFailure("Service Request Current Handler projection pointer is not a canonical identity")
         canonical_pointer = require_uuid4(pointer)
-        canonical_sr_id = require_uuid4(service_request_id)
         row = reader.execute(
             "SELECT sr_source_field_observation_id,source_observation_field_id,field_key,value_state,value_kind,"
             "text_value,integer_value,source_chronology_utc,precedence_basis "
