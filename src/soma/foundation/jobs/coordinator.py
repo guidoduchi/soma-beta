@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,9 +19,6 @@ from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import canonical_json_bytes_bounded, loads_canonical_json
 
 
-_ALLOWED_STATES = frozenset(
-    {"queued", "running", "waiting_review", "retry_wait", "completed", "failed", "cancelled"}
-)
 _NONTERMINAL_STATES = frozenset({"queued", "running", "waiting_review", "retry_wait"})
 _COALESCIBLE_STATES = frozenset({*_NONTERMINAL_STATES, "completed"})
 _RECOVERY_STATES = frozenset({"queued", "retry_wait", "waiting_review", "failed"})
@@ -31,6 +28,7 @@ _MAX_DEDUPE_KEY_BYTES = 65536
 _MAX_JOB_JSON_BYTES = 65536
 _MAX_JSON_DEPTH = 8
 _MAX_COLLECTION_ITEMS = 512
+_MAX_DEDUPE_ENVELOPE_BYTES = (_MAX_DEDUPE_KEY_BYTES * 6) + 2048
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,44 +40,71 @@ class StaleRecoveryDisposition:
 
 @dataclass(frozen=True, slots=True)
 class JobTypeContract:
+    """Static packet-owned durable-job policy consumed by Foundation.
+
+    The callbacks are validation/policy functions only. They must be bounded and
+    deterministic and must not open transactions or perform external work.
+    """
+
     job_type: str
     contract_version: int
     validate_payload: Callable[[Any], None]
     validate_checkpoint: Callable[[Any], None]
     derive_dedupe_key: Callable[[Any], str]
     coalesce_states: frozenset[str]
-    retryable_error: Callable[[str], bool]
-    recover_stale: Callable[[Any, Any | None, int], StaleRecoveryDisposition]
+    validate_failure: Callable[[str, int, int, int | None], None]
+    validate_cancellation: Callable[[Any, str], None]
+    recover_stale: Callable[[Any, Any | None, int, int], StaleRecoveryDisposition]
 
 
 class JobTypeRegistry:
-    def __init__(self, contracts: tuple[JobTypeContract, ...] | list[JobTypeContract] = ()) -> None:
-        self._contracts: dict[tuple[str, int], JobTypeContract] = {}
-        for contract in contracts:
-            self.register(contract)
+    """Immutable application registry of exact job type/version contracts."""
 
-    def register(self, contract: JobTypeContract) -> None:
+    def __init__(self, contracts: Iterable[JobTypeContract] = ()) -> None:
+        resolved: dict[tuple[str, int], JobTypeContract] = {}
+        for contract in tuple(contracts):
+            normalized = self._validated_contract(contract)
+            key = (normalized.job_type, normalized.contract_version)
+            if key in resolved:
+                raise ValidationError("duplicate durable job type/version registration")
+            resolved[key] = normalized
+        self._contracts = resolved
+
+    @staticmethod
+    def _validated_contract(contract: JobTypeContract) -> JobTypeContract:
         _validate_job_type(contract.job_type)
-        if not isinstance(contract.contract_version, int) or isinstance(contract.contract_version, bool):
-            raise ValidationError("durable job contract_version must be int>=1")
-        if contract.contract_version < 1:
+        if (
+            not isinstance(contract.contract_version, int)
+            or isinstance(contract.contract_version, bool)
+            or contract.contract_version < 1
+        ):
             raise ValidationError("durable job contract_version must be int>=1")
         states = frozenset(contract.coalesce_states)
-        if not states or not states.issubset(_COALESCIBLE_STATES):
+        if not _NONTERMINAL_STATES.issubset(states) or not states.issubset(
+            _COALESCIBLE_STATES
+        ):
             raise ValidationError(
-                "durable job coalesce_states must be a nonempty active/completed state set"
+                "durable job coalesce_states must include every active state and may additionally include completed"
             )
-        key = (contract.job_type, contract.contract_version)
-        if key in self._contracts:
-            raise ValidationError("duplicate durable job type/version registration")
-        self._contracts[key] = JobTypeContract(
+        for callback_name in (
+            "validate_payload",
+            "validate_checkpoint",
+            "derive_dedupe_key",
+            "validate_failure",
+            "validate_cancellation",
+            "recover_stale",
+        ):
+            if not callable(getattr(contract, callback_name)):
+                raise ValidationError(f"durable job contract {callback_name} must be callable")
+        return JobTypeContract(
             job_type=contract.job_type,
             contract_version=contract.contract_version,
             validate_payload=contract.validate_payload,
             validate_checkpoint=contract.validate_checkpoint,
             derive_dedupe_key=contract.derive_dedupe_key,
             coalesce_states=states,
-            retryable_error=contract.retryable_error,
+            validate_failure=contract.validate_failure,
+            validate_cancellation=contract.validate_cancellation,
             recover_stale=contract.recover_stale,
         )
 
@@ -115,7 +140,13 @@ class DurableJobCoordinator:
     ) -> str:
         contract = self._registry.require(job_type, contract_version)
         payload_json = self._canonical_payload(contract, payload, persisted=False)
-        semantic_key = self._derive_dedupe_key(contract, payload, persisted=False)
+        # Derive from a fresh parse of the exact bytes that will be persisted,
+        # never from a caller-owned mutable object.
+        exact_payload = self._parse_canonical_json(payload_json, label="payload")
+        semantic_key = self._derive_dedupe_key(contract, exact_payload, persisted=False)
+        self._require_callback_did_not_mutate(
+            exact_payload, payload_json, label="dedupe key derivation"
+        )
         _validate_dedupe_key(dedupe_key)
         if semantic_key != dedupe_key:
             raise ValidationError("durable job dedupe_key disagrees with registered payload contract")
@@ -143,6 +174,11 @@ class DurableJobCoordinator:
                 raise IntegrityFailure("durable job dedupe identity changed during indexed lookup")
             persisted_payload = self._load_registered_payload(contract, str(persisted_payload_json))
             persisted_key = self._derive_dedupe_key(contract, persisted_payload, persisted=True)
+            self._require_callback_did_not_mutate(
+                persisted_payload,
+                str(persisted_payload_json),
+                label="persisted dedupe key derivation",
+            )
             if persisted_key != dedupe_key:
                 raise IntegrityFailure("durable job dedupe hash collision or payload/key disagreement")
             _require_uuid_persisted(str(job_id), "durable job_id")
@@ -172,8 +208,8 @@ class DurableJobCoordinator:
         with UnitOfWork(self._factory) as uow:
             row = uow.connection.execute(
                 """
-                SELECT job_id,job_type,contract_version,state,created_at_utc,attempt_count,
-                       next_attempt_at_utc,payload_json,checkpoint_json,dedupe_sha256
+                SELECT job_id,job_type,contract_version,state,created_at_utc,updated_at_utc,
+                       attempt_count,next_attempt_at_utc,payload_json,checkpoint_json,dedupe_sha256
                 FROM durable_jobs
                 WHERE state='queued'
                    OR (state='retry_wait' AND next_attempt_at_utc IS NOT NULL AND next_attempt_at_utc<=?)
@@ -194,24 +230,32 @@ class DurableJobCoordinator:
                 contract_version,
                 state,
                 created_at_utc,
+                updated_at_utc,
                 attempt_count,
                 next_attempt_at_utc,
                 payload_json,
                 checkpoint_json,
                 dedupe_sha256,
             ) = row
-            if state == "retry_wait" and (
+            if str(state) == "queued" and next_attempt_at_utc is not None:
+                raise IntegrityFailure("queued durable job carries unexpected retry timestamp")
+            if str(state) == "retry_wait" and (
                 next_attempt_at_utc is None or int(next_attempt_at_utc) > now
             ):
                 raise IntegrityFailure("durable retry_wait job was selected before it became due")
+            if now < int(created_at_utc) or now < int(updated_at_utc):
+                raise IntegrityFailure("durable job claim clock regressed")
             contract = self._registry.get(str(job_type), int(contract_version))
             if contract is None:
                 self._fail_unclaimable(uow, str(job_id), now, "JOB_CONTRACT_UNAVAILABLE")
                 return None
             if dedupe_sha256 is None or not _is_sha256(str(dedupe_sha256)):
                 raise IntegrityFailure("claimable durable job lacks valid migration-8 dedupe identity")
-            payload = self._load_registered_payload(contract, str(payload_json))
-            expected_key = self._derive_dedupe_key(contract, payload, persisted=True)
+            payload_value = self._load_registered_payload(contract, str(payload_json))
+            expected_key = self._derive_dedupe_key(contract, payload_value, persisted=True)
+            self._require_callback_did_not_mutate(
+                payload_value, str(payload_json), label="claim dedupe key derivation"
+            )
             expected_hash = _dedupe_sha256(str(job_type), int(contract_version), expected_key)
             if expected_hash != str(dedupe_sha256):
                 raise IntegrityFailure("claimable durable job payload disagrees with dedupe identity")
@@ -220,8 +264,6 @@ class DurableJobCoordinator:
             if not isinstance(attempt_count, int) or int(attempt_count) < 0:
                 raise IntegrityFailure("durable job attempt_count is invalid")
             attempt_ordinal = int(attempt_count) + 1
-            if now < int(created_at_utc):
-                raise IntegrityFailure("durable job claim timestamp precedes creation")
             uow.connection.execute(
                 """
                 UPDATE durable_jobs
@@ -233,6 +275,7 @@ class DurableJobCoordinator:
                     updated_at_utc=?
                 WHERE job_id=? AND state=?
                   AND attempt_count=?
+                  AND updated_at_utc=?
                   AND claimed_run_id IS NULL
                   AND claim_started_at_utc IS NULL
                 """,
@@ -244,6 +287,7 @@ class DurableJobCoordinator:
                     str(job_id),
                     str(state),
                     int(attempt_count),
+                    int(updated_at_utc),
                 ),
             )
             if _changes(uow.connection) != 1:
@@ -262,11 +306,13 @@ class DurableJobCoordinator:
 
     def checkpoint(self, claim: DurableJobClaim, checkpoint: Any) -> None:
         contract = self._require_claim_contract(claim)
-        checkpoint_json = self._canonical_checkpoint(contract, checkpoint, persisted=False)
         now = self._now()
         with UnitOfWork(self._factory) as uow:
             row = self._verify_claim(uow, claim)
             self._require_nonregressing_now(now, int(row[1]), claim)
+            # Exact claim revalidation intentionally precedes caller checkpoint
+            # validation so stale workers always receive JOB_CLAIM_CONFLICT.
+            checkpoint_json = self._canonical_checkpoint(contract, checkpoint, persisted=False)
             uow.connection.execute(
                 "UPDATE durable_jobs SET checkpoint_json=?,updated_at_utc=? WHERE job_id=?",
                 (checkpoint_json, now, claim.job_id),
@@ -301,21 +347,23 @@ class DurableJobCoordinator:
 
     def fail(self, claim: DurableJobClaim, error_code: str, retry_at: int | None) -> None:
         contract = self._require_claim_contract(claim)
-        _validate_error_code(error_code)
         now = self._now()
-        if retry_at is not None:
-            _validate_time(retry_at, "retry_at")
-            if retry_at < now:
-                raise ValidationError("durable job retry_at must not precede failure time")
-            try:
-                retryable = bool(contract.retryable_error(error_code))
-            except Exception as exc:
-                raise ValidationError("durable job retry policy rejected error classification") from exc
-            if not retryable:
-                raise ValidationError("durable job contract does not permit retry for error_code")
         with UnitOfWork(self._factory) as uow:
             row = self._verify_claim(uow, claim)
             self._require_nonregressing_now(now, int(row[1]), claim)
+            # The claim must win error precedence over caller policy errors.
+            _validate_error_code(error_code)
+            if retry_at is not None:
+                _validate_time(retry_at, "retry_at")
+                if retry_at < now:
+                    raise ValidationError("durable job retry_at must not precede failure time")
+            self._validate_failure_policy(
+                contract,
+                error_code=error_code,
+                attempt_ordinal=claim.attempt_ordinal,
+                now=now,
+                retry_at=retry_at,
+            )
             self._require_attempt_absent(uow, claim.job_id, claim.attempt_ordinal)
             self._insert_attempt(
                 uow,
@@ -346,7 +394,6 @@ class DurableJobCoordinator:
         expected_contract_version: int,
         command_context: Any,
     ) -> DurableJobCancellationResult:
-        del command_context
         require_uuid4(job_id)
         contract = self._registry.require(expected_job_type, expected_contract_version)
         row = uow.connection.execute(
@@ -372,6 +419,9 @@ class DurableJobCoordinator:
         if str(job_type) != contract.job_type or int(contract_version) != contract.contract_version:
             raise IntegrityFailure("durable job identity disagrees with cancellation expectation")
         prior_state = str(state)
+        if prior_state not in {*_NONTERMINAL_STATES, "completed", "failed", "cancelled"}:
+            raise IntegrityFailure("durable job has unknown persisted state")
+        self._validate_cancellation_policy(contract, command_context, prior_state)
         if prior_state == "cancelled":
             return DurableJobCancellationResult(
                 outcome="ALREADY_CANCELLED",
@@ -388,8 +438,6 @@ class DurableJobCoordinator:
                 resulting_state=prior_state,  # type: ignore[arg-type]
                 claim_revoked=False,
             )
-        if prior_state not in _NONTERMINAL_STATES:
-            raise IntegrityFailure("durable job has unknown persisted state")
         now = self._now()
         if now < int(created_at_utc) or now < int(updated_at_utc):
             raise IntegrityFailure("durable job cancellation clock regressed")
@@ -576,15 +624,31 @@ class DurableJobCoordinator:
                     continue
                 if dedupe_sha256 is None or not _is_sha256(str(dedupe_sha256)):
                     raise IntegrityFailure("stale durable job has invalid dedupe identity")
-                payload = self._load_registered_payload(contract, str(payload_json))
-                checkpoint = self._load_registered_checkpoint(contract, checkpoint_json)
-                key = self._derive_dedupe_key(contract, payload, persisted=True)
+                payload_value = self._load_registered_payload(contract, str(payload_json))
+                checkpoint_value = self._load_registered_checkpoint(contract, checkpoint_json)
+                key = self._derive_dedupe_key(contract, payload_value, persisted=True)
+                self._require_callback_did_not_mutate(
+                    payload_value, str(payload_json), label="recovery dedupe key derivation"
+                )
                 if _dedupe_sha256(str(job_type), int(contract_version), key) != str(dedupe_sha256):
                     raise IntegrityFailure("stale durable job payload disagrees with dedupe identity")
                 try:
-                    disposition = contract.recover_stale(payload, checkpoint, now)
+                    disposition = contract.recover_stale(
+                        payload_value, checkpoint_value, ordinal, now
+                    )
+                except SomaError as exc:
+                    raise IntegrityFailure("registered durable job crash policy failed") from exc
                 except Exception as exc:
                     raise IntegrityFailure("registered durable job crash policy failed") from exc
+                self._require_callback_did_not_mutate(
+                    payload_value, str(payload_json), label="crash recovery policy"
+                )
+                if checkpoint_json is not None:
+                    self._require_callback_did_not_mutate(
+                        checkpoint_value,
+                        str(checkpoint_json),
+                        label="crash recovery checkpoint policy",
+                    )
                 self._validate_recovery_disposition(disposition, now)
                 error_code = disposition.error_code or "JOB_INTERRUPTED"
                 _validate_error_code(error_code)
@@ -746,13 +810,8 @@ class DurableJobCoordinator:
         return encoded.decode("utf-8")
 
     def _load_registered_payload(self, contract: JobTypeContract, payload_json: str) -> Any:
+        payload = self._parse_canonical_json(payload_json, label="payload")
         try:
-            payload = loads_canonical_json(
-                payload_json,
-                max_bytes=_MAX_JOB_JSON_BYTES,
-                max_depth=_MAX_JSON_DEPTH,
-                max_collection_items=_MAX_COLLECTION_ITEMS,
-            )
             canonical = self._canonical_payload(contract, payload, persisted=True)
         except Exception as exc:
             if isinstance(exc, IntegrityFailure):
@@ -770,13 +829,8 @@ class DurableJobCoordinator:
         if checkpoint_json is None:
             return None
         text = str(checkpoint_json)
+        checkpoint = self._parse_canonical_json(text, label="checkpoint")
         try:
-            checkpoint = loads_canonical_json(
-                text,
-                max_bytes=_MAX_JOB_JSON_BYTES,
-                max_depth=_MAX_JSON_DEPTH,
-                max_collection_items=_MAX_COLLECTION_ITEMS,
-            )
             canonical = self._canonical_checkpoint(contract, checkpoint, persisted=True)
         except Exception as exc:
             if isinstance(exc, IntegrityFailure):
@@ -794,6 +848,27 @@ class DurableJobCoordinator:
         self._load_registered_checkpoint(contract, checkpoint_json)
         return str(checkpoint_json)
 
+    @staticmethod
+    def _parse_canonical_json(text: str, *, label: str) -> Any:
+        try:
+            value = loads_canonical_json(
+                text,
+                max_bytes=_MAX_JOB_JSON_BYTES,
+                max_depth=_MAX_JSON_DEPTH,
+                max_collection_items=_MAX_COLLECTION_ITEMS,
+            )
+            encoded = canonical_json_bytes_bounded(
+                value,
+                max_bytes=_MAX_JOB_JSON_BYTES,
+                max_depth=_MAX_JSON_DEPTH,
+                max_collection_items=_MAX_COLLECTION_ITEMS,
+            ).decode("utf-8")
+        except Exception as exc:
+            raise IntegrityFailure(f"persisted durable job {label} is invalid canonical JSON") from exc
+        if encoded != text:
+            raise IntegrityFailure(f"persisted durable job {label} is noncanonical")
+        return value
+
     def _derive_dedupe_key(
         self, contract: JobTypeContract, payload: Any, *, persisted: bool
     ) -> str:
@@ -810,6 +885,47 @@ class DurableJobCoordinator:
             error = IntegrityFailure if persisted else ValidationError
             raise error("durable job semantic dedupe key derivation failed") from exc
         return key
+
+    @staticmethod
+    def _require_callback_did_not_mutate(value: Any, canonical_text: str, *, label: str) -> None:
+        try:
+            after = canonical_json_bytes_bounded(
+                value,
+                max_bytes=_MAX_JOB_JSON_BYTES,
+                max_depth=_MAX_JSON_DEPTH,
+                max_collection_items=_MAX_COLLECTION_ITEMS,
+            ).decode("utf-8")
+        except Exception as exc:
+            raise IntegrityFailure(f"durable job {label} mutated contract data unsafely") from exc
+        if after != canonical_text:
+            raise IntegrityFailure(f"durable job {label} mutated contract data")
+
+    @staticmethod
+    def _validate_failure_policy(
+        contract: JobTypeContract,
+        *,
+        error_code: str,
+        attempt_ordinal: int,
+        now: int,
+        retry_at: int | None,
+    ) -> None:
+        try:
+            contract.validate_failure(error_code, attempt_ordinal, now, retry_at)
+        except SomaError:
+            raise
+        except Exception as exc:
+            raise ValidationError("durable job failure request violates registered retry policy") from exc
+
+    @staticmethod
+    def _validate_cancellation_policy(
+        contract: JobTypeContract, command_context: Any, state: str
+    ) -> None:
+        try:
+            contract.validate_cancellation(command_context, state)
+        except SomaError:
+            raise
+        except Exception as exc:
+            raise ValidationError("durable job cancellation violates registered packet policy") from exc
 
     def _fail_unclaimable(
         self,
@@ -983,7 +1099,7 @@ def _dedupe_sha256(job_type: str, contract_version: int, dedupe_key: str) -> str
     }
     encoded = canonical_json_bytes_bounded(
         payload,
-        max_bytes=_MAX_DEDUPE_KEY_BYTES + 1024,
+        max_bytes=_MAX_DEDUPE_ENVELOPE_BYTES,
         max_depth=4,
         max_collection_items=16,
     )
