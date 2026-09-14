@@ -9,7 +9,7 @@
       "validate payload against the registered packet schema, sensitivity policy and Foundation canonical JSON bounds before persistence",
       "require caller dedupe_key to be a bounded non-empty UTF-8 string and require the registered packet coalescing contract to derive the exact same semantic key from the validated payload",
       "compute dedupe_sha256 as lowercase SHA-256 of strict canonical JSON {schema:'SOMA_DURABLE_JOB_DEDUPE_V1',job_type,contract_version,dedupe_key}; raw dedupe_key is not persisted by Foundation",
-      "using idx_jobs_dedupe_state load at most two rows for exact job_type + contract_version + dedupe_sha256 whose state is in the registered coalesce_states",
+      "using idx_jobs_dedupe_state load at most two rows for exact job_type + contract_version + dedupe_sha256 whose state is in the registered coalescing states",
       "for every candidate validate canonical persisted payload against the exact registered contract and re-derive the semantic dedupe key; hash collision, payload/key disagreement, unsupported contract or more than one matching row fails INTEGRITY_FAILURE rather than guessing",
       "if exactly one valid matching row exists return its job_id without mutation",
       "otherwise INSERT one queued durable_jobs row with canonical payload_json, dedupe_sha256, attempt_count=0, null checkpoint/claim/error and server timestamps; plain INSERT only"
@@ -18,10 +18,10 @@
     "legacy":"pre-migration-8 rows with dedupe_sha256=NULL are never silently treated as a coalescing match or backfilled from payload by Foundation"
   },
   "claim": {
-    "precondition":"host owns canonical data instance and is READY or explicitly allowed background-start state",
+    "precondition":"host owns canonical data instance and is READY or explicitly allowed background-start state; startup legacy/stale recovery has completed successfully",
     "transaction":"BEGIN IMMEDIATE",
     "selection":"select due queued/retry_wait job by deterministic ordering (next_attempt_at_utc NULL/earliest, created_at_utc, job_id)",
-    "guards":["job_type + contract_version is present in the static registry before claim","payload_json is exact canonical registered payload and dedupe_sha256 is non-null/valid for post-migration-8 jobs","retry_wait is claimable only when next_attempt_at_utc <= now; queued with NULL next_attempt_at_utc is immediately due"],
+    "guards":["job_type + contract_version is present in the static registry before claim","payload_json is exact canonical registered payload and dedupe_sha256 is non-null lowercase SHA-256","retry_wait is claimable only when next_attempt_at_utc <= now; queued with NULL next_attempt_at_utc is immediately due"],
     "mutation":"set state=running, claimed_run_id=current run_id, claim_started_at_utc=now, attempt_count=attempt_count+1, updated_at_utc=now",
     "claim_token":"JobClaim binds job_id, job_type, contract_version, run_id, attempt_ordinal=post-increment attempt_count and claim_started_at_utc; later handler writes must match the complete tuple so a stale handler in the same process cannot act on a newer attempt",
     "unknown_contract":"unknown/unsupported due job is never executed; coordinator fails it safe with bounded technical error evidence or returns an integrity-safe diagnostic disposition according to the static registry policy, then later claim calls may progress",
@@ -63,9 +63,21 @@
     ]
   },
   "startup_recovery": {
-    "precondition":"new host already owns canonical data instance exclusively",
-    "steps":["find state=running jobs whose claimed_run_id differs from current run in deterministic job_id order","for each stale row use its own short BEGIN IMMEDIATE transaction and revalidate the exact stale claim tuple before mutation","validate exact job contract/version; unknown contract fails safe and never executes","insert job_attempts outcome=interrupted using stored claim_started_at_utc, stale claimed_run_id and attempt_count ordinal only when that ordinal has not already been represented","apply exact registered job-type crash recovery policy: queued, retry_wait, failed, or waiting_review","clear stale claim fields and persist bounded stable technical error/disposition","never resume arbitrary in-memory code position; restart only from durable checkpoint/contract"],
-    "concurrency":"revalidation under the writer transaction makes recovery idempotent; a row already recovered or otherwise changed is skipped/handled from current persisted state rather than receiving duplicate attempt history"
+    "precondition":"new host already owns canonical data instance exclusively; recovery finishes before READY and before ordinary claims are enabled",
+    "steps":[
+      "first enumerate every nonterminal queued/running/waiting_review/retry_wait job with dedupe_sha256=NULL in deterministic job_id order; these are legacy pre-migration-8 jobs whose semantic dedupe identity cannot be proven",
+      "for each legacy-NULL row use its own short BEGIN IMMEDIATE transaction and revalidate state plus dedupe_sha256 IS NULL before mutation",
+      "for a legacy-NULL running row with valid claimed_run_id/claim_started_at_utc/attempt_count, insert exactly one job_attempts outcome=interrupted for that ordinal when it is not already represented",
+      "set every legacy-NULL nonterminal row to failed, clear claimed_run_id/claim_started_at_utc/next_attempt_at_utc, preserve bounded payload/checkpoint as historical technical evidence, and set last_error_code=LEGACY_JOB_DEDUPE_UNAVAILABLE; never derive/backfill a semantic key from historical payload",
+      "then find remaining state=running jobs whose claimed_run_id differs from current run in deterministic job_id order",
+      "for each stale row use its own short BEGIN IMMEDIATE transaction and revalidate the exact stale claim tuple before mutation",
+      "validate exact job contract/version; unknown contract fails safe and never executes",
+      "insert job_attempts outcome=interrupted using stored claim_started_at_utc, stale claimed_run_id and attempt_count ordinal only when that ordinal has not already been represented",
+      "apply exact registered job-type crash recovery policy: queued, retry_wait, failed, or waiting_review",
+      "clear stale claim fields and persist bounded stable technical error/disposition",
+      "never resume arbitrary in-memory code position; restart only from durable checkpoint/contract"
+    ],
+    "concurrency":"revalidation under each writer transaction makes both legacy reconciliation and stale-claim recovery idempotent; a row already reconciled/recovered or otherwise changed is skipped/handled from current persisted state rather than receiving duplicate attempt history"
   },
   "restore_reconciliation": {
     "precondition":"a cryptographically and structurally verified historical database has replaced the live database, host remains QUIESCING, restored DB is open through the verified LLD-12 SQLCipher provider, and no coordinator claims are permitted yet",
@@ -74,10 +86,9 @@
     "rules":["restoring a historical snapshot never silently replays queued/retry/waiting external work","no job-type opt-in restore-resume exists in Beta 1.0; an operator or owning-domain workflow must explicitly start genuinely desired new work after readiness","restored job cancellation is technical workflow reconciliation and does not reverse or fabricate owning-domain lifecycle state","unknown job type/version remains fail-closed and cannot become executable during restore"]
   },
   "job_type_contract": {
-    "required_fields":["job_type","contract_version","payload_schema","checkpoint_schema","retry_policy","crash_recovery_policy","cancellation_policy","sensitive_field_policy","coalescing_policy"],
-    "coalescing_policy_required_fields":["dedupe_key_from_payload","coalesce_states"],
+    "required_fields":["job_type","contract_version","payload_schema","checkpoint_schema","retry_policy","crash_recovery_policy","cancellation_policy","sensitive_field_policy","coalescing"],
     "registration":"static application registry; unknown persisted job type/version is quarantined/failed-safe and not guessed",
-    "rule":"Foundation may hash/compare a packet semantic dedupe key but never invents its meaning; the owning packet contract deterministically derives the exact key from validated payload and declares which technical states are coalescing matches"
+    "rule":"Foundation may hash/compare a packet semantic dedupe key but never invents its meaning; the owning packet's required nonempty coalescing contract is normative and the implementation registry must encode a deterministic key derivation from validated packet payload plus the exact technical states that count as coalescing matches"
   },
   "concurrency":"one coordinator in one authoritative host; at most two background executor workers; migration-8 indexed semantic coalescing plus the packet contract provides stronger per-source/per-type identity without unbounded payload scans",
   "shutdown":"QUIESCING stops new claims; running handlers receive cooperative cancellation signal and either finish a safe checkpoint/terminal result or remain recoverable as prior-run interruption after process exit"
