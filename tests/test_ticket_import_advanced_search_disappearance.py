@@ -115,6 +115,38 @@ def test_disappearance_uses_valid_identity_population_even_when_current_rows_con
     assert proposal.changes[0].after_text is None
 
 
+def test_row_bearing_checkpoint_run_is_exact_prior_population_authority(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    fingerprint = "9" * 64
+    sibling_run = "00000000-0000-4000-8000-000000000001"
+    checkpoint_run = "00000000-0000-4000-8000-000000000002"
+    current_run = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _insert_run(uow, run_id=sibling_run, chronology=10, state="accepted", fingerprint=fingerprint)
+        sibling_observation = _insert_observation(
+            uow, run_id=sibling_run, sr_no="55667788", row_ordinal=1, row_hash="8" * 64
+        )
+        _insert_run(uow, run_id=checkpoint_run, chronology=10, state="accepted", fingerprint=fingerprint)
+        checkpoint_observation = _insert_observation(
+            uow, run_id=checkpoint_run, sr_no="55667788", row_ordinal=1, row_hash="8" * 64
+        )
+        _checkpoint(uow, accepted_run_id=checkpoint_run, chronology=10, fingerprint=fingerprint)
+        _insert_sr(uow, "55667788")
+        _insert_run(uow, run_id=current_run, chronology=11, state="validating")
+
+        proposals = build_advanced_search_sr_disappearance_proposals(
+            uow.connection,
+            import_run_id=current_run,
+            logical_fingerprint_sha256="7" * 64,
+        )
+
+    assert len(proposals) == 1
+    assert sibling_observation != checkpoint_observation
+    assert proposals[0].prior_source_observation_id == checkpoint_observation
+
+
 def test_disappearance_resolves_row_bearing_population_behind_newer_identical_noop(
     initialized_database,
 ) -> None:
