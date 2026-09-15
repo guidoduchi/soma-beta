@@ -23,7 +23,7 @@ from soma.foundation.errors import (
 from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import UnitOfWork
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import canonical_json_bytes_bounded, loads_canonical_json
 
 from ..audit_registry import build_ticket_import_audit_registry
@@ -57,7 +57,11 @@ from ..repositories.proposals import (
     ProposalChangeRecord,
     ProposalRepository,
 )
-from ..repositories.runs import ImportRunPublicationResult, ImportRunRepository
+from ..repositories.runs import (
+    ImportRunPublicationResult,
+    ImportRunRepository,
+    SourceCheckpointState,
+)
 
 
 _HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
@@ -110,6 +114,14 @@ class _RunAuthority:
             "vocabulary_registry_id": self.vocabulary_registry_id,
             "parser_profile_id": self.parser_profile_id,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class _PublicationPreflight:
+    replay_classification: str
+    checkpoint: SourceCheckpointState | None
+    proposal_writes: tuple[PendingProposalWrite, ...]
+    target_state: str
 
 
 class PublishStagedImportRunService:
@@ -449,6 +461,74 @@ class PublishStagedImportRunService:
             resulting_event_refs=(AuditResultRef("import_run", run.import_run_id),),
         )
 
+    def _committed_receipt_exists(self, command_id: str) -> bool:
+        with ReadSnapshot(self._factory) as snapshot:
+            return (
+                snapshot.connection.execute(
+                    "SELECT 1 FROM command_receipts WHERE command_id=? LIMIT 1",
+                    (command_id,),
+                ).fetchone()
+                is not None
+            )
+
+    @staticmethod
+    def _target_state(
+        classification: str,
+        proposal_writes: tuple[PendingProposalWrite, ...],
+    ) -> str:
+        if classification == "EXACT_REPLAY_NOOP":
+            return "noop"
+        if classification == "NEWER_IDENTICAL_NO_DOMAIN_CHANGE":
+            return "noop_pending_checkpoint"
+        if classification == "NEW_SOURCE":
+            return "waiting_review" if proposal_writes else "staged"
+        if classification in {"CHRONOLOGY_CONTENT_CONFLICT", "OLDER_SOURCE_RECOVERY_REQUIRED"}:
+            return "recovery_required"
+        raise IntegrityFailure("staged replay classification is outside the closed publication vocabulary")
+
+    def _preflight_publication(
+        self,
+        *,
+        import_run_id: str,
+        expected_run_revision: int,
+        expected_fingerprint: str,
+    ) -> _PublicationPreflight:
+        with ReadSnapshot(self._factory) as snapshot:
+            verified = verify_staged_logical_run(
+                snapshot.connection,
+                import_run_id=import_run_id,
+                expected_run_revision=expected_run_revision,
+            )
+            if not hmac.compare_digest(
+                verified.fingerprint.logical_fingerprint_sha256,
+                expected_fingerprint,
+            ):
+                raise SomaError("IMPORT_RUN_STALE", "recomputed staged logical fingerprint changed")
+            classification = verified.replay_classification
+            if classification not in _NON_NOOP_CLASSIFICATIONS | _NOOP_CLASSIFICATIONS:
+                raise IntegrityFailure("staged replay classification is outside the closed publication vocabulary")
+            if classification in _NOOP_CLASSIFICATIONS:
+                existing = snapshot.connection.execute(
+                    "SELECT COUNT(*) FROM reconciliation_proposals WHERE import_run_id=?",
+                    (import_run_id,),
+                ).fetchone()
+                if existing is None or int(existing[0]) != 0:
+                    raise IntegrityFailure("replay/noop classification found pre-existing proposal authority")
+                proposal_writes: tuple[PendingProposalWrite, ...] = ()
+            else:
+                if verified.evidence.source_family != "advanced_search_sr":
+                    raise SomaError(
+                        "IMPORT_RUN_STALE",
+                        "changed-source publication orchestration is not yet implemented for this source family",
+                    )
+                proposal_writes = self._advanced_search_proposal_writes(snapshot.connection, verified)
+            return _PublicationPreflight(
+                replay_classification=classification,
+                checkpoint=verified.checkpoint,
+                proposal_writes=proposal_writes,
+                target_state=self._target_state(classification, proposal_writes),
+            )
+
     def publish(
         self,
         *,
@@ -500,9 +580,24 @@ class PublishStagedImportRunService:
             base_revisions={"import_run": expected_run_revision},
             authorizing_fingerprints={"logical_fingerprint": expected_fingerprint},
         )
+        envelope.request_hash()
 
         def response_factory(inner: UnitOfWork) -> dict[str, object]:
             return self._response(inner, canonical_run_id)
+
+        if self._committed_receipt_exists(command_id):
+            def replay_only_prepare(_uow: UnitOfWork) -> PreparedMutation:
+                raise PersistenceFailure("committed publication receipt disappeared after replay probe")
+
+            return self._result_from_execution(
+                self._boundary.execute(envelope, replay_only_prepare)
+            )
+
+        preflight = self._preflight_publication(
+            import_run_id=canonical_run_id,
+            expected_run_revision=expected_run_revision,
+            expected_fingerprint=expected_fingerprint,
+        )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
             current_checkpoint_json = self._jobs.assert_claim_current(uow, claim)
@@ -559,6 +654,10 @@ class PublishStagedImportRunService:
             ):
                 raise SomaError("IMPORT_RUN_STALE", "recomputed staged logical fingerprint changed")
             classification = verified.replay_classification
+            if classification != preflight.replay_classification:
+                raise SomaError("IMPORT_RUN_STALE", "source replay classification changed after publication preflight")
+            if verified.checkpoint != preflight.checkpoint:
+                raise SomaError("IMPORT_RUN_STALE", "source checkpoint changed after publication preflight")
             if classification not in _NON_NOOP_CLASSIFICATIONS | _NOOP_CLASSIFICATIONS:
                 raise IntegrityFailure("staged replay classification is outside the closed publication vocabulary")
 
@@ -576,16 +675,11 @@ class PublishStagedImportRunService:
                         "IMPORT_RUN_STALE",
                         "changed-source publication orchestration is not yet implemented for this source family",
                     )
-                proposal_writes = self._advanced_search_proposal_writes(uow.connection, verified)
+                proposal_writes = preflight.proposal_writes
 
-            if classification == "EXACT_REPLAY_NOOP":
-                target_state = "noop"
-            elif classification == "NEWER_IDENTICAL_NO_DOMAIN_CHANGE":
-                target_state = "noop_pending_checkpoint"
-            elif classification == "NEW_SOURCE":
-                target_state = "waiting_review" if proposal_writes else "staged"
-            else:
-                target_state = "recovery_required"
+            target_state = self._target_state(classification, proposal_writes)
+            if target_state != preflight.target_state:
+                raise IntegrityFailure("publication target state disagrees with preflight classification")
 
             def apply(inner: UnitOfWork) -> AuditEventInput:
                 now = utc_epoch_seconds()
