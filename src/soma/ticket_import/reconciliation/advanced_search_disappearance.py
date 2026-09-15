@@ -16,6 +16,7 @@ from .engine import ProposalChangeDraft
 _SOURCE_FAMILY = "advanced_search_sr"
 _PROPOSAL_FINGERPRINT_SCHEMA = "SOMA_IMPORT_PROPOSAL_FINGERPRINT_V1"
 _FINAL_ROW_BEARING_STATES = ("accepted", "partially_accepted", "rejected")
+_CHECKPOINT_RUN_STATES = frozenset({*_FINAL_ROW_BEARING_STATES, "noop"})
 _HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 
 
@@ -122,6 +123,7 @@ def _resolve_prior_population_run(reader: Any) -> str | None:
         or int(checkpoint_run[6]) != chronology_value
         or checkpoint_run[7] is None
         or str(checkpoint_run[7]) != fingerprint
+        or str(checkpoint_run[8]) not in _CHECKPOINT_RUN_STATES
     ):
         raise IntegrityFailure("Advanced Search checkpoint authority disagrees with its accepted run")
     if chronology_value < 0:
@@ -129,15 +131,18 @@ def _resolve_prior_population_run(reader: Any) -> str | None:
 
     profile_ids = tuple(str(checkpoint_run[index]) for index in range(1, 5))
     placeholders = ",".join("?" for _ in _FINAL_ROW_BEARING_STATES)
-    rows = reader.execute(
-        f"SELECT r.import_run_id,r.candidate_chronology_value FROM import_runs r "
+    sql = (
+        "SELECT r.import_run_id,r.candidate_chronology_value FROM import_runs r "
         "WHERE r.source_family='advanced_search_sr' AND r.source_profile_id=? "
         "AND r.header_registry_id=? AND r.vocabulary_registry_id=? AND r.parser_profile_id=? "
         "AND r.candidate_chronology_kind=? AND r.candidate_chronology_value<=? "
         "AND r.logical_fingerprint_sha256=? AND r.run_state IN ("
         + placeholders
         + ") AND EXISTS (SELECT 1 FROM source_observations o WHERE o.import_run_id=r.import_run_id) "
-        "ORDER BY r.candidate_chronology_value DESC,r.import_run_id ASC LIMIT 1",
+        "ORDER BY r.candidate_chronology_value DESC,r.import_run_id ASC LIMIT 1"
+    )
+    rows = reader.execute(
+        sql,
         (
             *profile_ids,
             chronology_kind,
@@ -172,7 +177,7 @@ def build_advanced_search_sr_disappearance_proposals(
         return ()
 
     prior_rows = reader.execute(
-        "SELECT canonical_primary_id,MIN(source_observation_id),MIN(row_logical_sha256) "
+        "SELECT canonical_primary_id,MIN(source_observation_id) "
         "FROM source_observations WHERE import_run_id=? AND source_family='advanced_search_sr' "
         "AND entity_kind='service_request' AND identity_state='valid' "
         "GROUP BY canonical_primary_id ORDER BY canonical_primary_id ASC",
@@ -181,13 +186,24 @@ def build_advanced_search_sr_disappearance_proposals(
     authority = ServiceRequestImportReader() if sr_reader is None else sr_reader
     proposals: list[PopulationAbsenceProposalDraft] = []
     for row in prior_rows:
-        if row[0] is None or row[1] is None or row[2] is None:
+        if row[0] is None or row[1] is None:
             raise IntegrityFailure("prior Advanced Search population contains incomplete SR evidence")
         sr_no = validate_official_sr_no(str(row[0]))
         if sr_no in current_identities:
             continue
         prior_observation_id = require_uuid4(str(row[1]))
-        prior_row_hash = _require_sha256(str(row[2]), label="prior Advanced Search row fingerprint")
+        prior_evidence = reader.execute(
+            "SELECT canonical_primary_id,row_logical_sha256 FROM source_observations "
+            "WHERE source_observation_id=? AND import_run_id=? AND source_family='advanced_search_sr' "
+            "AND entity_kind='service_request' AND identity_state='valid'",
+            (prior_observation_id, prior_run_id),
+        ).fetchone()
+        if prior_evidence is None or prior_evidence[0] is None or str(prior_evidence[0]) != sr_no:
+            raise IntegrityFailure("prior Advanced Search population representative disagrees with SR identity")
+        prior_row_hash = _require_sha256(
+            str(prior_evidence[1]),
+            label="prior Advanced Search row fingerprint",
+        )
         target = authority.get_by_official(reader, sr_no)
         if target is None:
             continue
