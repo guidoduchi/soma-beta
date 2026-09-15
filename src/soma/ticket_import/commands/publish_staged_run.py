@@ -13,7 +13,13 @@ from soma.foundation.application.command_boundary import (
 )
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.contracts.foundation import DurableJobClaim
-from soma.foundation.errors import IntegrityFailure, PersistenceFailure, SomaError, ValidationError
+from soma.foundation.errors import (
+    IntegrityFailure,
+    JobClaimConflict,
+    PersistenceFailure,
+    SomaError,
+    ValidationError,
+)
 from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
@@ -470,8 +476,6 @@ class PublishStagedImportRunService:
         candidate_identity = publishing_checkpoint.get("candidate_identity")
         if not isinstance(candidate_identity, dict):
             raise ValidationError("publication checkpoint requires candidate_identity")
-        # Force a bounded semantic request before entering CommandBoundary. The exact
-        # current checkpoint remains a same-UoW authorization witness in prepare().
         canonical_json_bytes_bounded(
             candidate_identity,
             max_bytes=_JOB_JSON_BYTES,
@@ -494,10 +498,7 @@ class PublishStagedImportRunService:
                 "logical_fingerprint": expected_fingerprint,
             },
             base_revisions={"import_run": expected_run_revision},
-            authorizing_fingerprints={
-                "logical_fingerprint": expected_fingerprint,
-                "job_dedupe": claim.dedupe_sha256,
-            },
+            authorizing_fingerprints={"logical_fingerprint": expected_fingerprint},
         )
 
         def response_factory(inner: UnitOfWork) -> dict[str, object]:
@@ -516,7 +517,7 @@ class PublishStagedImportRunService:
             except ValidationError as exc:
                 raise IntegrityFailure("persisted source-check checkpoint violates its registered contract") from exc
             if current_checkpoint != publishing_checkpoint:
-                raise SomaError("JOB_CLAIM_CONFLICT", "source-check publication checkpoint changed")
+                raise JobClaimConflict("source-check publication checkpoint changed")
             if (
                 current_checkpoint.get("phase") != "publishing"
                 or current_checkpoint.get("import_run_id") != canonical_run_id
@@ -524,7 +525,7 @@ class PublishStagedImportRunService:
                 or current_checkpoint.get("parser_profile_id") != expected_profiles["parser_profile_id"]
                 or current_checkpoint.get("candidate_identity") != candidate_identity
             ):
-                raise SomaError("JOB_CLAIM_CONFLICT", "source-check publication checkpoint does not authorize this run")
+                raise JobClaimConflict("source-check publication checkpoint does not authorize this run")
 
             claim_payload = self._load_job_json(claim.payload_json, label="source-check claim payload")
             try:
