@@ -116,12 +116,15 @@ def _attempt_count(database_path, job_id: str) -> int:
         connection.close()
 
 
-def test_owner_guard_accepts_current_claim_after_checkpoint_advances(initialized_database) -> None:
+def test_owner_guard_returns_current_checkpoint_after_checkpoint_advances(initialized_database) -> None:
     database_path, factory, clock, coordinator = _coordinator(initialized_database)
     job_id = _enqueue(coordinator, factory)
     claim = coordinator.claim_next(_uuid(), 101)
     assert claim is not None
     assert claim.checkpoint_json is None
+
+    with UnitOfWork(factory) as uow:
+        assert coordinator.assert_claim_current(uow, claim) is None
 
     clock.value = 102
     coordinator.checkpoint(claim, {"n": 1})
@@ -130,8 +133,10 @@ def test_owner_guard_accepts_current_claim_after_checkpoint_advances(initialized
     assert before[5] == '{"n":1}'
 
     with UnitOfWork(factory) as uow:
-        coordinator.assert_claim_current(uow, claim)
+        current_checkpoint = coordinator.assert_claim_current(uow, claim)
 
+    assert current_checkpoint == '{"n":1}'
+    assert current_checkpoint != claim.checkpoint_json
     assert _job_row(database_path, job_id) == before
     assert _attempt_count(database_path, job_id) == 0
 
@@ -185,7 +190,7 @@ def test_owner_guard_rejects_recovered_attempt_and_accepts_reclaim(initialized_d
             coordinator.assert_claim_current(uow, stale_claim)
 
     with UnitOfWork(factory) as uow:
-        coordinator.assert_claim_current(uow, current_claim)
+        assert coordinator.assert_claim_current(uow, current_claim) is None
 
     assert _job_row(database_path, job_id)[0:2] == ("running", 2)
     assert _attempt_count(database_path, job_id) == 1
@@ -214,7 +219,7 @@ def test_owner_guard_fails_closed_on_current_checkpoint_payload_or_dedupe_corrup
             ('{"n":1}', job_id),
         )
     with UnitOfWork(factory) as uow:
-        coordinator.assert_claim_current(uow, claim)
+        assert coordinator.assert_claim_current(uow, claim) == '{"n":1}'
 
     with UnitOfWork(factory) as uow:
         uow.connection.execute(
