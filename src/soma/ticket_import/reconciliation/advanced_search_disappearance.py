@@ -129,6 +129,22 @@ def _resolve_prior_population_run(reader: Any) -> str | None:
     if chronology_value < 0:
         raise IntegrityFailure("Advanced Search checkpoint chronology is invalid")
 
+    checkpoint_state = str(checkpoint_run[8])
+    checkpoint_has_rows = reader.execute(
+        "SELECT 1 FROM source_observations WHERE import_run_id=? LIMIT 1",
+        (checkpoint_run_id,),
+    ).fetchone() is not None
+    if checkpoint_state in _FINAL_ROW_BEARING_STATES:
+        if not checkpoint_has_rows:
+            raise IntegrityFailure(
+                "Advanced Search finalized checkpoint run has no row-bearing published population"
+            )
+        return checkpoint_run_id
+    if checkpoint_state != "noop" or checkpoint_has_rows:
+        raise IntegrityFailure(
+            "Advanced Search rowless lineage fallback requires a rowless noop checkpoint run"
+        )
+
     profile_ids = tuple(str(checkpoint_run[index]) for index in range(1, 5))
     placeholders = ",".join("?" for _ in _FINAL_ROW_BEARING_STATES)
     sql = (
