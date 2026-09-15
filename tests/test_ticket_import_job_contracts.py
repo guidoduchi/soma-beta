@@ -116,8 +116,8 @@ def test_registry_exposes_exact_packet_owned_job_contracts() -> None:
     source = registry.require(SOURCE_CHECK_JOB_TYPE, 1)
     reappearance = registry.require(SR_REAPPEARANCE_JOB_TYPE, 1)
 
-    assert source is SOURCE_CHECK_JOB_CONTRACT
-    assert reappearance is SR_REAPPEARANCE_JOB_CONTRACT
+    assert source == SOURCE_CHECK_JOB_CONTRACT
+    assert reappearance == SR_REAPPEARANCE_JOB_CONTRACT
     assert source.coalesce_states == frozenset(
         {"queued", "running", "waiting_review", "retry_wait"}
     )
