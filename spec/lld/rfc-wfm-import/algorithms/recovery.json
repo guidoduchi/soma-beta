@@ -20,14 +20,18 @@
     "ordinary acceptance is blocked until authorized recovery review",
     "review may reject the conflicting run, defer it, or authorize source-correction processing against the same chronology",
     "authorized correction keeps prior observations immutable and applies individually accepted target proposals through normal owning-domain commands",
+    "publication alone does not make this conflicting run automatic SR source-presence freshness authority and does not enqueue ticket_import.sr_reappearance_reconcile",
     "after all proposals have terminal dispositions, finalization appends import_recovery_event and may replace checkpoint fingerprint/run at the same chronology so future replay is compared against the explicitly processed corrected source set",
-    "rejected/deferred recovery review leaves checkpoint unchanged"
+    "when advanced_search_sr finalization actually replaces that checkpoint with the corrected run, the same finalization UnitOfWork enqueue_or_coalesces the run-keyed ticket_import.sr_reappearance_reconcile job; rollback leaves neither replacement checkpoint authority nor runnable reappearance work",
+    "rejected/deferred recovery review leaves checkpoint unchanged and creates no reappearance job"
   ],
   "older_source":[
     "ordinary acceptance is blocked until authorized recovery review",
     "review may use the run only as explicit historical/correction evidence and process individual target proposals through normal stale-safe owning-domain commands",
+    "OLDER_SOURCE_RECOVERY_REQUIRED never generates population-absence proposals because historical evidence cannot infer a new disappearance",
     "accepted older recovery finalization appends import_recovery_event and run/disposition evidence but never decrements or replaces the higher source-family checkpoint chronology",
     "older recovery therefore cannot cause automatic discovery to treat even older files as new or cause omission inference",
+    "older recovery publication/finalization never enqueue ticket_import.sr_reappearance_reconcile and its observations cannot automatically clear a current disappearance warning",
     "a later genuinely newer source still compares against the monotonic highest accepted checkpoint"
   ],
   "rejection":[
@@ -40,7 +44,8 @@
     "proposal acceptance rechecks both domain base-state token and recovery authorization fingerprint inside its UnitOfWork",
     "recovery-event/checkpoint/final-run mutation is committed only after the run reaches a consistent reviewed terminal disposition; crash before that leaves current checkpoint unchanged",
     "command receipt precedes recovery review/event rows that reference it",
-    "no recovery path bypasses terminal/hierarchy/customer/timeframe/competing-attempt review requirements"
+    "no recovery path bypasses terminal/hierarchy/customer/timeframe/competing-attempt review requirements",
+    "SR source-presence freshness follows governed candidate chronology and finalized checkpoint authority, never publication wall-clock order"
   ],
   "idempotency":"Replaying the same recovery-review/finalization command_id/request hash returns the committed result. A later distinct review appends a new ordinal; it never overwrites prior review or recovery evidence."
 }
