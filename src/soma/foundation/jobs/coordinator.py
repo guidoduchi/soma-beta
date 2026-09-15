@@ -304,12 +304,13 @@ class DurableJobCoordinator:
                 checkpoint_json=canonical_checkpoint,
             )
 
-    def assert_claim_current(self, uow: UnitOfWork, claim: DurableJobClaim) -> None:
+    def assert_claim_current(self, uow: UnitOfWork, claim: DurableJobClaim) -> str | None:
         try:
             self._require_claim_contract(claim)
         except ValidationError as exc:
             raise IntegrityFailure("durable job claim contract is unavailable or invalid") from exc
-        self._verify_claim(uow, claim)
+        row = self._verify_claim(uow, claim)
+        return None if row[4] is None else str(row[4])
 
     def checkpoint(self, claim: DurableJobClaim, checkpoint: Any) -> None:
         contract = self._require_claim_contract(claim)
