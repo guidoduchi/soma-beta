@@ -56,12 +56,28 @@ class TicketImportSrSourcePresenceEvidenceProvider:
             is not None
         )
 
+    @staticmethod
+    def _has_recovery_lineage(reader: Any, import_run_id: str) -> bool:
+        run_id = require_uuid4(import_run_id)
+        review = reader.execute(
+            "SELECT 1 FROM import_recovery_reviews WHERE import_run_id=? LIMIT 1",
+            (run_id,),
+        ).fetchone()
+        if review is not None:
+            return True
+        event = reader.execute(
+            "SELECT 1 FROM import_recovery_events WHERE import_run_id=? LIMIT 1",
+            (run_id,),
+        ).fetchone()
+        return event is not None
+
     @classmethod
     def _later_authoritative_presence_exists(
         cls,
         reader: Any,
         *,
         absence_run_id: str,
+        prior_population_run_id: str,
         official: str,
     ) -> bool:
         absence = cls._run_chronology(reader, absence_run_id)
@@ -74,7 +90,9 @@ class TicketImportSrSourcePresenceEvidenceProvider:
             "AND r.candidate_chronology_kind=? AND r.candidate_chronology_value>? "
             "AND r.run_state IN ("
             + placeholders
-            + ") AND EXISTS (SELECT 1 FROM source_observations o WHERE o.import_run_id=r.import_run_id "
+            + ") AND NOT EXISTS (SELECT 1 FROM import_recovery_reviews rr WHERE rr.import_run_id=r.import_run_id) "
+            "AND NOT EXISTS (SELECT 1 FROM import_recovery_events re WHERE re.import_run_id=r.import_run_id) "
+            "AND EXISTS (SELECT 1 FROM source_observations o WHERE o.import_run_id=r.import_run_id "
             "AND o.source_family='advanced_search_sr' AND o.entity_kind='service_request' "
             "AND o.identity_state='valid' AND o.presence_state='observed_valid_identity' "
             "AND o.canonical_primary_id=?) LIMIT 1",
@@ -94,12 +112,16 @@ class TicketImportSrSourcePresenceEvidenceProvider:
         ).fetchone()
         if checkpoint is None:
             return False
-        if str(checkpoint[0]) != chronology_kind or int(checkpoint[1]) < chronology_value:
+        checkpoint_kind = str(checkpoint[0])
+        checkpoint_value = int(checkpoint[1])
+        if checkpoint_kind != chronology_kind or checkpoint_value < chronology_value:
             return False
         representative = _resolve_prior_population_run(reader)
-        return representative is not None and cls._run_contains_identity(
-            reader, representative, official
-        )
+        if representative is None or not cls._run_contains_identity(reader, representative, official):
+            return False
+        if checkpoint_value > chronology_value:
+            return True
+        return representative != require_uuid4(prior_population_run_id)
 
     @staticmethod
     def _is_representative_conflict_free_observation(
@@ -180,7 +202,7 @@ class TicketImportSrSourcePresenceEvidenceProvider:
         ):
             return "INVALID"
         prior = reader.execute(
-            "SELECT o.canonical_primary_id,o.source_family,o.entity_kind,o.identity_state,r.run_state "
+            "SELECT o.canonical_primary_id,o.source_family,o.entity_kind,o.identity_state,o.import_run_id,r.run_state "
             "FROM source_observations o JOIN import_runs r ON r.import_run_id=o.import_run_id "
             "WHERE o.source_observation_id=?",
             (require_uuid4(prior_source_observation_id),),
@@ -190,9 +212,10 @@ class TicketImportSrSourcePresenceEvidenceProvider:
             or str(prior[1]) != source_family
             or str(prior[2]) != "service_request"
             or str(prior[3]) != "valid"
-            or str(prior[4]) not in _PUBLISHED_STATES
+            or str(prior[5]) not in _PUBLISHED_STATES
         ):
             return "INVALID"
+        prior_population_run_id = require_uuid4(str(prior[4]))
         present = reader.execute(
             "SELECT 1 FROM source_observations WHERE import_run_id=? AND source_family=? "
             "AND entity_kind='service_request' AND identity_state='valid' AND canonical_primary_id=? LIMIT 1",
@@ -203,6 +226,7 @@ class TicketImportSrSourcePresenceEvidenceProvider:
         if self._later_authoritative_presence_exists(
             reader,
             absence_run_id=import_run_id,
+            prior_population_run_id=prior_population_run_id,
             official=official,
         ):
             return "INVALID"
@@ -269,7 +293,9 @@ class TicketImportSrSourcePresenceEvidenceProvider:
         if candidate_kind != absence_kind or candidate_value < absence_value:
             return "INVALID"
         if candidate_value > absence_value:
-            return "VALID" if candidate_state in _ORDINARY_PRESENCE_STATES else "INVALID"
+            if candidate_state not in _ORDINARY_PRESENCE_STATES:
+                return "INVALID"
+            return "INVALID" if self._has_recovery_lineage(reader, import_run_id) else "VALID"
 
         representative = _resolve_prior_population_run(reader)
         return "VALID" if representative == import_run_id else "INVALID"
