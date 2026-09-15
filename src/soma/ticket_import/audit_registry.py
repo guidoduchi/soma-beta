@@ -21,6 +21,36 @@ def build_ticket_import_audit_registry() -> AuditRegistry:
     registry = AuditRegistry()
     definitions = (
         (
+            "ticket_import.run_published",
+            "ImportRunPublishedAuditV1",
+            {
+                "import_run_id",
+                "source_family",
+                "run_state",
+                "profile_ids",
+                "candidate_filename",
+                "candidate_chronology_kind",
+                "candidate_chronology_value",
+                "logical_fingerprint",
+                "counts",
+                "revision",
+            },
+        ),
+        (
+            "ticket_import.run_noop_classified",
+            "ImportRunNoopClassifiedAuditV1",
+            {
+                "import_run_id",
+                "source_family",
+                "replay_classification",
+                "run_state",
+                "candidate_chronology_kind",
+                "candidate_chronology_value",
+                "logical_fingerprint",
+                "revision",
+            },
+        ),
+        (
             "ticket_import.proposal_decided",
             "ImportProposalDecisionAuditV1",
             {
