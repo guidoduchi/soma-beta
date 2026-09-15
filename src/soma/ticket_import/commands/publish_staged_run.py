@@ -291,12 +291,13 @@ class PublishStagedImportRunService:
                 result = builder(reader, **kwargs)
                 writes.extend(cls._observed_pending_write(draft) for draft in result.proposals)
 
-        disappearance = build_advanced_search_sr_disappearance_proposals(
-            reader,
-            import_run_id=verified.evidence.import_run_id,
-            logical_fingerprint_sha256=verified.fingerprint.logical_fingerprint_sha256,
-        )
-        writes.extend(cls._absence_pending_write(draft) for draft in disappearance)
+        if verified.replay_classification != "OLDER_SOURCE_RECOVERY_REQUIRED":
+            disappearance = build_advanced_search_sr_disappearance_proposals(
+                reader,
+                import_run_id=verified.evidence.import_run_id,
+                logical_fingerprint_sha256=verified.fingerprint.logical_fingerprint_sha256,
+            )
+            writes.extend(cls._absence_pending_write(draft) for draft in disappearance)
         return tuple(writes)
 
     @staticmethod
@@ -724,7 +725,7 @@ class PublishStagedImportRunService:
                 )
                 if published.counters.proposal_count != proposal_count:
                     raise IntegrityFailure("publication proposal count disagrees with exact generated set")
-                if run.source_family == "advanced_search_sr":
+                if run.source_family == "advanced_search_sr" and classification == "NEW_SOURCE":
                     payload = {
                         "import_run_id": canonical_run_id,
                         "source_family": "advanced_search_sr",
