@@ -39,11 +39,11 @@
       "validate the current persisted checkpoint_json against the registered packet checkpoint contract and Foundation canonical JSON bounds; do not require equality with claim.checkpoint_json because checkpoint(claim, ...) may legitimately advance checkpoint state while the same exact claim remains current",
       "require non-null lowercase dedupe_sha256, require equality with the immutable claim dedupe identity, re-derive the packet semantic key from the validated payload and require the canonical SOMA_DURABLE_JOB_DEDUPE_V1 hash to equal the persisted/claimed dedupe identity"
     ],
-    "success":"return without mutation; the caller continues inside the same UnitOfWork and remains the sole transaction authority",
+    "success":"return the exact validated current persisted checkpoint_json string, or null when no checkpoint is currently persisted, without mutation; the returned value is the current checkpoint witness from this same caller transaction and the caller continues inside the same UnitOfWork as sole transaction authority",
     "stale_claim":"missing row or state/claim tuple mismatch returns JOB_CLAIM_CONFLICT and changes nothing",
     "integrity":"unknown contract, immutable payload/dedupe disagreement, malformed/noncanonical persisted payload/current checkpoint or semantic-key/dedupe disagreement fails INTEGRITY_FAILURE rather than granting owning-domain authority",
-    "checkpoint_semantics":"claim.checkpoint_json is the validated checkpoint snapshot at claim issuance for handler startup/resume only; it is not part of the persisted ABA claim token and may differ from the later current checkpoint after a successful checkpoint(claim, ...) call",
-    "race_rule":"owning-domain command authority is decided by this same-UoW guard immediately before its receipt/state revalidation path; a separate earlier checkpoint/read is insufficient because cancellation/recovery could commit between transactions"
+    "checkpoint_semantics":"claim.checkpoint_json is the validated checkpoint snapshot at claim issuance for handler startup/resume only; it is not part of the persisted ABA claim token and may differ from the later current checkpoint after a successful checkpoint(claim, ...) call. Owning-domain commands that depend on current progress must consume the checkpoint returned by assert_claim_current from their own UnitOfWork and must never substitute claim.checkpoint_json.",
+    "race_rule":"owning-domain command authority is decided by this same-UoW guard immediately before its receipt/state revalidation path; a separate earlier checkpoint/read is insufficient because cancellation/recovery or checkpoint advancement could commit between transactions"
   },
   "checkpoint": {
     "transaction":"short coordinator-owned BEGIN IMMEDIATE",
