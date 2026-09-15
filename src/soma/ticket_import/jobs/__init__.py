@@ -352,8 +352,10 @@ def _validate_failure_policy(
         raise ValidationError("terminal Ticket Import job failure requires retry_at=null")
 
 
-def _reject_packet_cancellation(_command_context: Any, _state: str) -> None:
-    raise ValidationError("Ticket Import durable job is not packet-cancellable in Beta 1.0")
+def _reject_nonterminal_packet_cancellation(_command_context: Any, _state: str) -> None:
+    raise ValidationError(
+        "nonterminal Ticket Import durable job is not packet-cancellable in Beta 1.0"
+    )
 
 
 def _recover_stale(
@@ -414,7 +416,7 @@ SOURCE_CHECK_JOB_CONTRACT = JobTypeContract(
     derive_dedupe_key=derive_source_check_dedupe_key,
     coalesce_states=_ACTIVE_COALESCE_STATES,
     validate_failure=_validate_source_check_failure,
-    validate_cancellation=_reject_packet_cancellation,
+    validate_cancellation=_reject_nonterminal_packet_cancellation,
     recover_stale=_recover_stale,
 )
 
@@ -426,7 +428,7 @@ SR_REAPPEARANCE_JOB_CONTRACT = JobTypeContract(
     derive_dedupe_key=derive_reappearance_dedupe_key,
     coalesce_states=frozenset({*_ACTIVE_COALESCE_STATES, "completed"}),
     validate_failure=_validate_reappearance_failure,
-    validate_cancellation=_reject_packet_cancellation,
+    validate_cancellation=_reject_nonterminal_packet_cancellation,
     recover_stale=_recover_stale,
 )
 
