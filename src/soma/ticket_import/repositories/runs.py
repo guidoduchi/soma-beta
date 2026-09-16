@@ -447,3 +447,105 @@ class SourceCheckpointRepository:
         )
         if changed.rowcount != 1:
             raise SomaError("IMPORT_CHECKPOINT_STALE", "source checkpoint changed before advancement")
+
+    @staticmethod
+    def establish_or_advance_finalized(
+        uow: UnitOfWork,
+        *,
+        run: ImportRunCheckpointState,
+        expected_checkpoint_revision: int | None,
+        checked_at_utc: int,
+    ) -> int:
+        checked_at = _validate_nonnegative_integer(checked_at_utc, label="checked_at_utc")
+        current = SourceCheckpointRepository.get(uow.connection, run.source_family)
+        if current is None:
+            if expected_checkpoint_revision is not None:
+                raise SomaError("IMPORT_CHECKPOINT_STALE", "source checkpoint no longer matches ABSENT")
+            uow.connection.execute(
+                "INSERT INTO import_source_checkpoints(source_family,source_profile_id,"
+                "accepted_candidate_chronology_kind,accepted_candidate_chronology_value,"
+                "accepted_logical_fingerprint_sha256,accepted_import_run_id,last_checked_at_utc,revision) "
+                "VALUES (?,?,?,?,?,?,?,1)",
+                (
+                    run.source_family,
+                    run.source_profile_id,
+                    run.chronology_kind,
+                    run.chronology_value,
+                    run.logical_fingerprint,
+                    run.import_run_id,
+                    checked_at,
+                ),
+            )
+            return 1
+        if expected_checkpoint_revision != current.revision:
+            raise SomaError("IMPORT_CHECKPOINT_STALE", "source checkpoint revision changed")
+        if run.source_profile_id != current.source_profile_id:
+            raise SomaError("IMPORT_CHECKPOINT_STALE", "source profile differs from current checkpoint")
+        if run.chronology_kind != current.chronology_kind:
+            raise SomaError("IMPORT_CHECKPOINT_STALE", "source chronology kind differs from current checkpoint")
+        if run.chronology_value <= current.chronology_value:
+            raise SomaError("IMPORT_CHECKPOINT_STALE", "ordinary finalized run is not newer than checkpoint")
+        changed = uow.connection.execute(
+            "UPDATE import_source_checkpoints SET source_profile_id=?,"
+            "accepted_candidate_chronology_kind=?,accepted_candidate_chronology_value=?,"
+            "accepted_logical_fingerprint_sha256=?,accepted_import_run_id=?,last_checked_at_utc=?,"
+            "revision=revision+1 WHERE source_family=? AND revision=?",
+            (
+                run.source_profile_id,
+                run.chronology_kind,
+                run.chronology_value,
+                run.logical_fingerprint,
+                run.import_run_id,
+                checked_at,
+                run.source_family,
+                current.revision,
+            ),
+        )
+        if changed.rowcount != 1:
+            raise SomaError("IMPORT_CHECKPOINT_STALE", "source checkpoint changed before finalization")
+        return current.revision + 1
+
+    @staticmethod
+    def finalize_authorized_recovery(
+        uow: UnitOfWork,
+        *,
+        run: ImportRunCheckpointState,
+        expected_checkpoint_revision: int,
+        checked_at_utc: int,
+    ) -> tuple[SourceCheckpointState, int, bool]:
+        checked_at = _validate_nonnegative_integer(checked_at_utc, label="checked_at_utc")
+        current = SourceCheckpointRepository.get(uow.connection, run.source_family)
+        if current is None or current.revision != expected_checkpoint_revision:
+            raise SomaError("IMPORT_CHECKPOINT_STALE", "source checkpoint revision changed")
+        if run.source_profile_id != current.source_profile_id:
+            raise SomaError("IMPORT_CHECKPOINT_STALE", "source profile differs from current checkpoint")
+        if run.chronology_kind != current.chronology_kind:
+            raise SomaError("IMPORT_CHECKPOINT_STALE", "source chronology kind differs from current checkpoint")
+        if run.chronology_value > current.chronology_value:
+            raise SomaError(
+                "IMPORT_RECOVERY_REVIEW_STALE",
+                "newer source evidence must use ordinary finalization",
+            )
+        if run.chronology_value < current.chronology_value:
+            return current, current.revision, False
+        if run.logical_fingerprint == current.logical_fingerprint:
+            raise SomaError(
+                "IMPORT_RECOVERY_REVIEW_STALE",
+                "equal-chronology recovery no longer conflicts with the checkpoint",
+            )
+        changed = uow.connection.execute(
+            "UPDATE import_source_checkpoints SET accepted_logical_fingerprint_sha256=?,"
+            "accepted_import_run_id=?,last_checked_at_utc=?,revision=revision+1 "
+            "WHERE source_family=? AND revision=? AND accepted_import_run_id=?",
+            (
+                run.logical_fingerprint,
+                run.import_run_id,
+                checked_at,
+                run.source_family,
+                current.revision,
+                current.accepted_import_run_id,
+            ),
+        )
+        if changed.rowcount != 1:
+            raise SomaError("IMPORT_CHECKPOINT_STALE", "source checkpoint changed before recovery finalization")
+        return current, current.revision + 1, True
