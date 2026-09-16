@@ -21,7 +21,7 @@ def _run(
     run_id: str,
     state: str,
     chronology: int,
-    fingerprint: str,
+    fingerprint: str | None,
     started: int,
     invocation: str = "manual",
 ) -> None:
@@ -42,7 +42,7 @@ def _run(
             fingerprint,
             state,
             started,
-            started,
+            started if state != "validating" else None,
             started if terminal else None,
         ),
     )
@@ -101,9 +101,41 @@ def test_source_status_and_run_detail_use_one_read_projection(initialized_databa
     assert status.checkpoint["chronology_value"] == 20
 
     detail = ImportRunQueryService(factory).get_run(staged_run_id)
+    assert detail.checkpoint_comparison is not None
     assert detail.checkpoint_comparison["classification"] == "newer_changed"
     assert detail.review_state["can_finalize"] is True
     assert detail.run.to_response()["counts"]["pending"] == 0
+
+
+def test_get_run_keeps_unpublished_run_visible_without_checkpoint_authority(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    checkpoint_run_id, _staged_run_id, _recovery_run_id = _seed_query_runs(factory)
+    validating_run_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _run(
+            uow,
+            run_id=validating_run_id,
+            state="validating",
+            chronology=40,
+            fingerprint=None,
+            started=4,
+        )
+
+    detail = ImportRunQueryService(factory).get_run(validating_run_id)
+    assert detail.run.import_run_id == validating_run_id
+    assert detail.run.logical_fingerprint is None
+    assert detail.checkpoint_comparison is None
+    assert detail.review_state == {
+        "pending": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "deferred": 0,
+        "can_finalize": False,
+        "recovery_authorized": False,
+    }
+
+    checkpoint = ImportRunQueryService(factory).get_run(checkpoint_run_id)
+    assert checkpoint.checkpoint_comparison is not None
 
 
 def test_run_list_cursor_is_descending_and_filter_bound(initialized_database) -> None:
@@ -137,6 +169,7 @@ def test_recovery_preview_exposes_exact_fingerprint_and_allowed_actions(initiali
     assert len(str(response["review_fingerprint"])) == 64
 
     detail = ImportRunQueryService(factory).get_run(recovery_run_id)
+    assert detail.checkpoint_comparison is not None
     assert detail.checkpoint_comparison["classification"] == "equal_chronology_changed"
     assert detail.review_state == {
         "pending": 0,
