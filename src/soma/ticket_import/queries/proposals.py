@@ -800,6 +800,9 @@ class ImportRecoveryQueryService:
                 "logical_fingerprint": checkpoint.logical_fingerprint,
                 "import_run_id": checkpoint.accepted_import_run_id,
             }
+            actions = ["defer", "authorize_correction"]
+            if run.accepted_count == 0:
+                actions.insert(0, "reject")
             return ImportRecoveryPreview(
                 import_run_id=run_id,
                 review_fingerprint=review_fingerprint,
@@ -808,7 +811,7 @@ class ImportRecoveryQueryService:
                 checkpoint=checkpoint_side,
                 proposal_count=int(proposal[0]),
                 finding_count=int(finding[0]),
-                allowed_actions=("reject", "defer", "authorize_correction"),
+                allowed_actions=tuple(actions),
             )
 
 
