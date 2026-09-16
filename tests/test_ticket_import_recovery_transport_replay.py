@@ -86,10 +86,11 @@ def test_public_recovery_request_replays_before_later_run_state_reads(initialize
 
     connection = factory.open_authoritative(read_only=True, require_wal=True)
     try:
-        assert connection.execute(
+        state = connection.execute(
             "SELECT run_state,revision FROM import_runs WHERE import_run_id=?",
             (recovery_run_id,),
-        ).fetchone() == ("rejected", 3)
+        ).fetchone()
+        assert tuple(state) == ("rejected", 3)
         assert connection.execute(
             "SELECT COUNT(*) FROM import_recovery_reviews WHERE import_run_id=?",
             (recovery_run_id,),
