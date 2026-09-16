@@ -12,7 +12,7 @@ from soma.objectives_tasks.services.wfm_import import (
     WfmImportReader,
     WfmSourceProjectionAcceptanceMutation,
 )
-from soma.ticket_import.queries.wfm_plan import WfmPlanReviewQueryService
+from soma.ticket_import.queries.proposals import WfmPlanReviewQueryService
 from soma.tickets.rfcs import RfcService
 
 
