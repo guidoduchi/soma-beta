@@ -65,6 +65,9 @@ _GENERIC_SR_ACCEPT_KINDS = frozenset(
         "sr_suspension_regression_review",
     }
 )
+_SR_SOURCE_PROJECTION_KINDS = frozenset(
+    {"sr_source_projection", "sr_terminal_reversal_review", "sr_suspension_regression_review"}
+)
 _TERMINAL_SR_STATUSES = frozenset({"Closed", "Resolved", "Cancelled"})
 _PROPOSAL_QUERY_ID = "ListReconciliationProposals"
 _PROPOSAL_SORT_ID = "IMPORT_PROPOSAL_STATE_RISK_ID_V1"
@@ -273,6 +276,20 @@ def _run_review_authorized(reader: Any, import_run_id: str) -> bool:
     return bool(review is not None and str(review[0]) == fingerprint and str(review[1]) == "authorized")
 
 
+def _current_sr_status_is_terminal(reader: Any, service_request_id: str) -> bool:
+    row = reader.execute(
+        "SELECT o.value_state,o.value_kind,o.text_value FROM sr_current_source_projection p "
+        "JOIN sr_source_field_observations o ON o.sr_source_field_observation_id=p.status_observation_id "
+        "WHERE p.service_request_id=?",
+        (service_request_id,),
+    ).fetchone()
+    if row is None:
+        return False
+    if str(row[0]) != "usable" or str(row[1]) != "controlled" or row[2] is None:
+        raise IntegrityFailure("current Service Request Status projection is invalid")
+    return str(row[2]) in _TERMINAL_SR_STATUSES
+
+
 def _reviewed_sr_correction_materiality_current(
     reader: Any,
     proposal: ProposalRecord,
@@ -293,6 +310,7 @@ def _reviewed_sr_correction_materiality_current(
             or change.before_integer is not None
             or change.after_integer is not None
             or change.source_observation_field_id is None
+            or change.after_text in _TERMINAL_SR_STATUSES
         ):
             return False
         row = reader.execute(
@@ -308,7 +326,6 @@ def _reviewed_sr_correction_materiality_current(
             and row[2] is not None
             and str(row[2]) in _TERMINAL_SR_STATUSES
             and str(row[2]) == change.before_text
-            and change.after_text != change.before_text
         )
 
     if (
@@ -334,10 +351,36 @@ def _reviewed_sr_correction_materiality_current(
         row is not None
         and str(row[0]) == "usable"
         and str(row[1]) == "duration_seconds"
-        and row[2] is not None
+        and type(row[2]) is int
         and int(row[2]) > 0
         and int(row[2]) == change.before_integer
     )
+
+
+def _source_projection_shape_current(
+    reader: Any,
+    proposal: ProposalRecord,
+    changes: tuple[ProposalChangeRecord, ...],
+) -> bool:
+    if not changes or len(changes) > 11:
+        return False
+    if len({change.field_key for change in changes}) != len(changes):
+        return False
+    if proposal.proposal_kind in {"sr_terminal_reversal_review", "sr_suspension_regression_review"}:
+        return _reviewed_sr_correction_materiality_current(reader, proposal, changes)
+    terminal_target = next(
+        (
+            change
+            for change in changes
+            if change.field_key == "status" and change.after_text in _TERMINAL_SR_STATUSES
+        ),
+        None,
+    )
+    if terminal_target is None or proposal.target_internal_id is None:
+        return True
+    if _current_sr_status_is_terminal(reader, proposal.target_internal_id):
+        return True
+    return proposal.risk_class == "high" and len(changes) == 1
 
 
 def _sr_target_preview(
@@ -381,14 +424,15 @@ def _sr_target_preview(
     current = sr_reader.get_by_official(reader, business_id)
     binding_current = bool(current and current["service_request_id"] == internal_id)
 
-    if kind in {"sr_source_projection", "sr_terminal_reversal_review", "sr_suspension_regression_review"}:
+    if kind in _SR_SOURCE_PROJECTION_KINDS:
         try:
             projection = sr_reader.current_source_projection(reader, internal_id)
-            token = sr_reader.source_acceptance_base_token(reader, internal_id)
-        except SomaError:
+            field_keys = tuple(change.field_key for change in changes)
+            token = sr_reader.source_field_set_base_token(reader, internal_id, field_keys)
+        except (SomaError, ValidationError):
             projection = None
             token = None
-        materiality_current = _reviewed_sr_correction_materiality_current(reader, proposal, changes)
+        shape_current = _source_projection_shape_current(reader, proposal, changes)
         return (
             {
                 "owner": "LLD-03",
@@ -397,7 +441,7 @@ def _sr_target_preview(
                 "current_source_projection": projection,
             },
             token,
-            binding_current and materiality_current,
+            binding_current and shape_current,
         )
 
     if kind == "sr_customer_reconciliation":
