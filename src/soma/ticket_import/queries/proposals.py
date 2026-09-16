@@ -65,6 +65,7 @@ _GENERIC_SR_ACCEPT_KINDS = frozenset(
         "sr_suspension_regression_review",
     }
 )
+_TERMINAL_SR_STATUSES = frozenset({"Closed", "Resolved", "Cancelled"})
 _PROPOSAL_QUERY_ID = "ListReconciliationProposals"
 _PROPOSAL_SORT_ID = "IMPORT_PROPOSAL_STATE_RISK_ID_V1"
 _PROPOSAL_FILTER_SCHEMA = "SOMA_IMPORT_PROPOSAL_LIST_FILTER_V1"
@@ -272,6 +273,73 @@ def _run_review_authorized(reader: Any, import_run_id: str) -> bool:
     return bool(review is not None and str(review[0]) == fingerprint and str(review[1]) == "authorized")
 
 
+def _reviewed_sr_correction_materiality_current(
+    reader: Any,
+    proposal: ProposalRecord,
+    changes: tuple[ProposalChangeRecord, ...],
+) -> bool:
+    if proposal.proposal_kind not in {"sr_terminal_reversal_review", "sr_suspension_regression_review"}:
+        return True
+    if proposal.risk_class != "high" or proposal.target_internal_id is None or len(changes) != 1:
+        return False
+    change = changes[0]
+    if proposal.proposal_kind == "sr_terminal_reversal_review":
+        if (
+            change.field_key != "status"
+            or change.change_kind != "set"
+            or change.value_kind != "controlled"
+            or change.before_text is None
+            or change.after_text is None
+            or change.before_integer is not None
+            or change.after_integer is not None
+            or change.source_observation_field_id is None
+        ):
+            return False
+        row = reader.execute(
+            "SELECT o.value_state,o.value_kind,o.text_value FROM sr_current_source_projection p "
+            "JOIN sr_source_field_observations o ON o.sr_source_field_observation_id=p.status_observation_id "
+            "WHERE p.service_request_id=?",
+            (proposal.target_internal_id,),
+        ).fetchone()
+        return bool(
+            row is not None
+            and str(row[0]) == "usable"
+            and str(row[1]) == "controlled"
+            and row[2] is not None
+            and str(row[2]) in _TERMINAL_SR_STATUSES
+            and str(row[2]) == change.before_text
+            and change.after_text != change.before_text
+        )
+
+    if (
+        change.field_key != "suspension_duration"
+        or change.change_kind != "set"
+        or change.value_kind != "duration_seconds"
+        or change.before_text is not None
+        or change.after_text is not None
+        or type(change.before_integer) is not int
+        or change.before_integer <= 0
+        or change.after_integer != 0
+        or change.source_observation_field_id is None
+    ):
+        return False
+    row = reader.execute(
+        "SELECT o.value_state,o.value_kind,o.integer_value FROM sr_current_source_projection p "
+        "JOIN sr_source_field_observations o "
+        "ON o.sr_source_field_observation_id=p.suspension_duration_observation_id "
+        "WHERE p.service_request_id=?",
+        (proposal.target_internal_id,),
+    ).fetchone()
+    return bool(
+        row is not None
+        and str(row[0]) == "usable"
+        and str(row[1]) == "duration_seconds"
+        and row[2] is not None
+        and int(row[2]) > 0
+        and int(row[2]) == change.before_integer
+    )
+
+
 def _sr_target_preview(
     reader: Any,
     proposal: ProposalRecord,
@@ -320,6 +388,7 @@ def _sr_target_preview(
         except SomaError:
             projection = None
             token = None
+        materiality_current = _reviewed_sr_correction_materiality_current(reader, proposal, changes)
         return (
             {
                 "owner": "LLD-03",
@@ -328,7 +397,7 @@ def _sr_target_preview(
                 "current_source_projection": projection,
             },
             token,
-            binding_current,
+            binding_current and materiality_current,
         )
 
     if kind == "sr_customer_reconciliation":
@@ -618,30 +687,28 @@ class ImportRecoveryQueryService:
                 "SELECT COUNT(*) FROM reconciliation_proposals WHERE import_run_id=?",
                 (run_id,),
             ).fetchone()
-            if finding is None or proposal is None:
-                raise IntegrityFailure("recovery evidence count query returned no aggregate row")
-            actions = ["defer", "authorize_correction"]
-            if run.accepted_count == 0:
-                actions.insert(0, "reject")
+            review_fingerprint = ProposalRepository.recovery_review_fingerprint(snapshot.connection, run)
+            candidate = {
+                "chronology_kind": run.candidate_chronology_kind,
+                "chronology_value": run.candidate_chronology_value,
+                "logical_fingerprint": run.logical_fingerprint,
+                "import_run_id": run.import_run_id,
+            }
+            checkpoint_side = {
+                "chronology_kind": checkpoint.chronology_kind,
+                "chronology_value": checkpoint.chronology_value,
+                "logical_fingerprint": checkpoint.logical_fingerprint,
+                "import_run_id": checkpoint.accepted_import_run_id,
+            }
             return ImportRecoveryPreview(
                 import_run_id=run_id,
-                review_fingerprint=ProposalRepository.recovery_review_fingerprint(snapshot.connection, run),
+                review_fingerprint=review_fingerprint,
                 classification=classification,
-                candidate={
-                    "chronology_kind": run.candidate_chronology_kind,
-                    "chronology_value": run.candidate_chronology_value,
-                    "logical_fingerprint": run.logical_fingerprint,
-                    "import_run_id": run_id,
-                },
-                checkpoint={
-                    "chronology_kind": checkpoint.chronology_kind,
-                    "chronology_value": checkpoint.chronology_value,
-                    "logical_fingerprint": checkpoint.logical_fingerprint,
-                    "import_run_id": checkpoint.accepted_import_run_id,
-                },
+                candidate=candidate,
+                checkpoint=checkpoint_side,
                 proposal_count=int(proposal[0]),
                 finding_count=int(finding[0]),
-                allowed_actions=tuple(actions),
+                allowed_actions=("reject", "defer", "authorize_correction"),
             )
 
 
