@@ -321,3 +321,48 @@ def discover_advanced_search_automatic(
         discovery_provenance="automatic",
         preflight=preflight,
     )
+
+
+def discover_advanced_search_manual(
+    selected_path: str | os.PathLike[str],
+    *,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> CandidateDescriptor:
+    """Stabilize and preflight one explicitly selected Advanced Search workbook."""
+
+    requested = Path(selected_path)
+    _reject_unsupported_windows_namespace(requested)
+    if not requested.is_absolute():
+        raise _source_unavailable("selected Advanced Search workbook path is not absolute")
+    _assert_no_reparse_chain(requested)
+    try:
+        resolved = requested.resolve(strict=True)
+    except OSError as exc:
+        raise _source_unavailable("selected Advanced Search workbook is unavailable") from exc
+    chronology = _parse_advanced_search_filename(resolved.name)
+    if chronology is None:
+        raise SomaError(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "selected workbook filename does not match the Advanced Search source profile",
+        )
+    stable = _probe_stability(resolved, sleep_fn=sleep_fn)
+    try:
+        preflight = preflight_xlsx(resolved)
+    except SomaError:
+        if _probe_stat(resolved) != stable:
+            raise _unstable()
+        raise
+    if _probe_stat(resolved) != stable:
+        raise _unstable()
+    return CandidateDescriptor(
+        source_family=_ADVANCED_SEARCH_FAMILY,
+        profile_id=_ADVANCED_SEARCH_PROFILE_ID,
+        path=resolved,
+        filename=resolved.name,
+        stable_size_bytes=stable.size_bytes,
+        stable_mtime_ns=stable.mtime_ns,
+        chronology_kind=_CHRONOLOGY_KIND,
+        chronology_value=chronology,
+        discovery_provenance="manual",
+        preflight=preflight,
+    )
