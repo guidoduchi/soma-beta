@@ -21,6 +21,11 @@ def build_ticket_import_audit_registry() -> AuditRegistry:
     registry = AuditRegistry()
     definitions = (
         (
+            "ticket_import.check_started",
+            "ImportCheckStartedAuditV1",
+            {"source_family", "invocation_kind", "job_id"},
+        ),
+        (
             "ticket_import.run_published",
             "ImportRunPublishedAuditV1",
             {
@@ -72,6 +77,32 @@ def build_ticket_import_audit_registry() -> AuditRegistry:
                 "chronology_value",
                 "logical_fingerprint",
                 "checkpoint_revision",
+            },
+        ),
+        (
+            "ticket_import.run_finalized",
+            "ImportRunFinalizedAuditV1",
+            {
+                "import_run_id",
+                "final_state",
+                "revision",
+                "checkpoint_revision",
+                "accepted_count",
+                "rejected_count",
+                "deferred_count",
+            },
+        ),
+        (
+            "ticket_import.recovery_reviewed",
+            "ImportRecoveryReviewedAuditV1",
+            {
+                "import_run_id",
+                "review_ordinal",
+                "decision",
+                "reason_category",
+                "review_fingerprint",
+                "run_state",
+                "run_revision",
             },
         ),
     )
