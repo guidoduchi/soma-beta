@@ -63,7 +63,7 @@ def _stage_wfm_observation(
             "logical_fingerprint_sha256,run_state,started_at_utc,staged_at_utc,observed_row_count,"
             "valid_identity_count,proposal_count,pending_proposal_count,revision) "
             "VALUES (?,'wfm_service_provider','manual','WFM_SERVICE_PROVIDER_V1','WFM_HEADERS_V1',"
-            "'WFM_VOCAB_V1','WFM_PARSER_V1','wfm.xlsx',1,1,'filesystem_mtime_ns',1,?,'staged',1,1,1,1,0,0,1)",
+            "'WFM_VOCAB_V1','WFM_PARSER_V1','wfm.xlsx',1,1,'filesystem_mtime_ns',1,?,'staged',1,1,1,1,1,1,1)",
             (run_id, "f" * 64),
         )
         uow.connection.execute(
@@ -140,10 +140,6 @@ def _insert_plan_proposal(
                 (proposal_id, 0, "plan_start_utc", start_utc),
                 (proposal_id, 1, "plan_end_utc", end_utc),
             ),
-        )
-        uow.connection.execute(
-            "UPDATE import_runs SET proposal_count=1,pending_proposal_count=1 WHERE import_run_id=?",
-            (run_id,),
         )
     return proposal_id
 
