@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 from types import MappingProxyType
 from typing import Mapping
@@ -28,7 +28,7 @@ class TicketImportRouteSpec:
     max_request_bytes: int
     auth_policy: str
     error_codes: tuple[str, ...]
-    constants: Mapping[str, str] = MappingProxyType({})
+    constants: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
         if self.method not in _ALLOWED_METHODS:
