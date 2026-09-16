@@ -57,31 +57,32 @@ class StartTicketSourceImportCheckService:
         }
 
     @staticmethod
-    def _locator(
+    def _automatic_setting_key(source_family: str) -> str:
+        return (
+            "advanced_search_import_directory"
+            if source_family == "advanced_search_sr"
+            else "rfc_wfm_import_directory"
+        )
+
+    @staticmethod
+    def _manual_locator(*, selected_path: str | None, setting_revision: int | None) -> dict[str, object]:
+        if not isinstance(selected_path, str) or setting_revision is not None:
+            raise ValidationError("manual import requires selected_path and no setting_revision")
+        return {"kind": "manual_path", "selected_path": selected_path}
+
+    @staticmethod
+    def _automatic_locator(
         *,
         source_family: str,
-        invocation_kind: str,
         selected_path: str | None,
         setting_revision: int | None,
-    ) -> dict[str, object]:
-        if invocation_kind == "manual":
-            if not isinstance(selected_path, str) or setting_revision is not None:
-                raise ValidationError("manual import requires selected_path and no setting_revision")
-            return {"kind": "manual_path", "selected_path": selected_path}
-        if invocation_kind == "automatic":
-            if selected_path is not None or type(setting_revision) is not int or setting_revision < 1:
-                raise ValidationError("automatic import requires setting_revision and no selected_path")
-            setting_key = (
-                "advanced_search_import_directory"
-                if source_family == "advanced_search_sr"
-                else "rfc_wfm_import_directory"
-            )
-            return {
-                "kind": "setting_revision",
-                "setting_key": setting_key,
-                "setting_revision": setting_revision,
-            }
-        raise ValidationError("invocation_kind must be automatic or manual")
+    ) -> tuple[str, dict[str, object]]:
+        if selected_path is not None:
+            raise ValidationError("automatic import does not accept selected_path")
+        if setting_revision is not None and (type(setting_revision) is not int or setting_revision < 1):
+            raise ValidationError("setting_revision must be a positive integer when supplied")
+        setting_key = StartTicketSourceImportCheckService._automatic_setting_key(source_family)
+        return setting_key, {"kind": "configured_setting", "setting_key": setting_key}
 
     @staticmethod
     def _from_execution(execution: CommandExecutionResult) -> ImportJobAccepted:
@@ -115,21 +116,21 @@ class StartTicketSourceImportCheckService:
         actor_id: str | None = None,
     ) -> ImportJobAccepted:
         profiles = self._profiles(source_family)
-        source_locator = self._locator(
-            source_family=source_family,
-            invocation_kind=invocation_kind,
-            selected_path=selected_path,
-            setting_revision=setting_revision,
-        )
-        payload = {
-            "source_family": source_family,
-            "invocation_kind": invocation_kind,
-            "profile_ids": profiles,
-            "source_locator": source_locator,
-            "requested_by_command_id": command_id,
-        }
-        validate_source_check_payload(payload)
-        dedupe_key = derive_source_check_dedupe_key(payload)
+        automatic_setting_key: str | None = None
+        if invocation_kind == "manual":
+            request_locator = self._manual_locator(
+                selected_path=selected_path,
+                setting_revision=setting_revision,
+            )
+        elif invocation_kind == "automatic":
+            automatic_setting_key, request_locator = self._automatic_locator(
+                source_family=source_family,
+                selected_path=selected_path,
+                setting_revision=setting_revision,
+            )
+        else:
+            raise ValidationError("invocation_kind must be automatic or manual")
+
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="StartTicketSourceImportCheck",
@@ -138,21 +139,39 @@ class StartTicketSourceImportCheckService:
             semantic_payload={
                 "source_family": source_family,
                 "invocation_kind": invocation_kind,
-                "source_locator": source_locator,
+                "source_locator": request_locator,
             },
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
             if invocation_kind == "automatic":
+                assert automatic_setting_key is not None
                 row = uow.connection.execute(
                     "SELECT revision FROM setting_values WHERE setting_key=?",
-                    (source_locator["setting_key"],),
+                    (automatic_setting_key,),
                 ).fetchone()
                 if row is None:
                     raise SomaError("IMPORT_SOURCE_NOT_CONFIGURED", "automatic import directory is not configured")
-                if int(row[0]) != setting_revision:
+                current_setting_revision = int(row[0])
+                if setting_revision is not None and current_setting_revision != setting_revision:
                     raise SomaError("STALE_REVISION", "automatic import directory setting changed")
+                source_locator: dict[str, object] = {
+                    "kind": "setting_revision",
+                    "setting_key": automatic_setting_key,
+                    "setting_revision": current_setting_revision,
+                }
+            else:
+                source_locator = request_locator
 
+            payload = {
+                "source_family": source_family,
+                "invocation_kind": invocation_kind,
+                "profile_ids": profiles,
+                "source_locator": source_locator,
+                "requested_by_command_id": command_id,
+            }
+            validate_source_check_payload(payload)
+            dedupe_key = derive_source_check_dedupe_key(payload)
             holder: dict[str, str] = {}
 
             def apply(inner: UnitOfWork) -> AuditEventInput:
