@@ -8,6 +8,7 @@ from soma.foundation.persistence.uow import UnitOfWork
 from soma.ticket_import.queries.proposals import ProposalQueryService
 from soma.ticket_import.queries.runs import ImportRunQueryService
 from soma.tickets.service_request_import_reader import ServiceRequestImportReader
+from soma.tickets.service_requests import ServiceRequestService
 
 
 def _factory(initialized_database):
@@ -244,3 +245,48 @@ def test_proposal_review_marks_owner_drift_stale_without_losing_decision_history
     assert drifted.stale is True
     assert drifted.allowed_dispositions == ("reject", "defer")
     assert drifted.target_preview["identity"] is not None
+
+
+def test_proposal_review_uses_certified_sr_source_field_set_token(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    sr_no = "87654322"
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no=sr_no,
+    )
+    run_id = new_uuid4()
+    proposal_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _run(uow, run_id=run_id)
+        observation_id, field_id = _observation(
+            uow,
+            run_id=run_id,
+            row=1,
+            identity=sr_no,
+            normalized_text="new source summary",
+        )
+        base_token = ServiceRequestImportReader.source_field_set_base_token(
+            uow.connection,
+            sr.service_request_id,
+            ("problem_summary",),
+        )
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposals(reconciliation_proposal_id,import_run_id,evidence_mode,"
+            "source_observation_id,prior_source_observation_id,proposal_kind,target_kind,target_internal_id,"
+            "target_business_id,risk_class,base_state_token_sha256,proposal_fingerprint_sha256,proposal_state,"
+            "created_at_utc,revision,decided_at_utc) "
+            "VALUES (?,?,'observed_row',?,NULL,'sr_source_projection','service_request',?,?, 'low',?,?,"
+            "'pending',1,1,NULL)",
+            (proposal_id, run_id, observation_id, sr.service_request_id, sr_no, base_token, "d" * 64),
+        )
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposal_changes(reconciliation_proposal_id,ordinal,field_key,change_kind,"
+            "value_kind,before_text,after_text,before_integer,after_integer,source_observation_field_id) "
+            "VALUES (?,0,'problem_summary','set','text',NULL,'new source summary',NULL,NULL,?)",
+            (proposal_id, field_id),
+        )
+
+    review = ProposalQueryService(factory).get_review(proposal_id)
+    assert review.stale is False
+    assert review.allowed_dispositions == ("accept", "reject", "defer")
+    assert review.proposal.base_state_token == base_token
