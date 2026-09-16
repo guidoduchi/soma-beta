@@ -313,18 +313,29 @@ class DurableJobCoordinator:
         return None if row[4] is None else str(row[4])
 
     def checkpoint(self, claim: DurableJobClaim, checkpoint: Any) -> None:
+        with UnitOfWork(self._factory) as uow:
+            self.checkpoint_in_uow(uow, claim, checkpoint)
+
+    def checkpoint_in_uow(
+        self,
+        uow: UnitOfWork,
+        claim: DurableJobClaim,
+        checkpoint: Any,
+    ) -> str:
+        """Advance a claim cursor atomically with caller-owned bounded work."""
+
         contract = self._require_claim_contract(claim)
         now = self._now()
-        with UnitOfWork(self._factory) as uow:
-            row = self._verify_claim(uow, claim)
-            self._require_nonregressing_now(now, int(row[1]), claim)
-            # Exact claim revalidation intentionally precedes caller checkpoint
-            # validation so stale workers always receive JOB_CLAIM_CONFLICT.
-            checkpoint_json = self._canonical_checkpoint(contract, checkpoint, persisted=False)
-            uow.connection.execute(
-                "UPDATE durable_jobs SET checkpoint_json=?,updated_at_utc=? WHERE job_id=?",
-                (checkpoint_json, now, claim.job_id),
-            )
+        row = self._verify_claim(uow, claim)
+        self._require_nonregressing_now(now, int(row[1]), claim)
+        # Exact claim revalidation intentionally precedes caller checkpoint
+        # validation so stale workers always receive JOB_CLAIM_CONFLICT.
+        checkpoint_json = self._canonical_checkpoint(contract, checkpoint, persisted=False)
+        uow.connection.execute(
+            "UPDATE durable_jobs SET checkpoint_json=?,updated_at_utc=? WHERE job_id=?",
+            (checkpoint_json, now, claim.job_id),
+        )
+        return checkpoint_json
 
     def complete(self, claim: DurableJobClaim) -> None:
         self._require_claim_contract(claim)

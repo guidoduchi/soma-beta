@@ -21,6 +21,11 @@ def build_ticket_import_audit_registry() -> AuditRegistry:
     registry = AuditRegistry()
     definitions = (
         (
+            "ticket_import.check_started",
+            "ImportCheckStartedAuditV1",
+            {"source_family", "invocation_kind", "job_id"},
+        ),
+        (
             "ticket_import.run_published",
             "ImportRunPublishedAuditV1",
             {

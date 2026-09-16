@@ -76,6 +76,80 @@ def _validate_nonnegative_integer(value: int, *, label: str) -> int:
 
 class ImportRunRepository:
     @staticmethod
+    def start_validating_run(
+        uow: UnitOfWork,
+        *,
+        import_run_id: str,
+        source_family: str,
+        invocation_kind: str,
+        profile_ids: dict[str, str],
+        candidate_filename: str,
+        candidate_file_size_bytes: int,
+        candidate_stable_mtime_ns: int,
+        candidate_chronology_kind: str,
+        candidate_chronology_value: int,
+        started_at_utc: int,
+    ) -> None:
+        canonical_run_id = require_uuid4(import_run_id)
+        if source_family not in {"advanced_search_sr", "rfc_enhanced", "wfm_service_provider"}:
+            raise ValidationError("source_family is outside the import-run vocabulary")
+        if invocation_kind not in {"automatic", "manual", "recovery"}:
+            raise ValidationError("invocation_kind is outside the import-run vocabulary")
+        expected_profile_keys = {
+            "source_profile_id",
+            "header_registry_id",
+            "vocabulary_registry_id",
+            "parser_profile_id",
+        }
+        if not isinstance(profile_ids, dict) or set(profile_ids) != expected_profile_keys:
+            raise ValidationError("profile_ids must contain the exact import profile keys")
+        if any(not isinstance(value, str) or not value for value in profile_ids.values()):
+            raise ValidationError("profile_ids values must be nonempty strings")
+        if (
+            not isinstance(candidate_filename, str)
+            or not candidate_filename
+            or len(candidate_filename.encode("utf-8")) > 4096
+            or "/" in candidate_filename
+            or "\\" in candidate_filename
+        ):
+            raise ValidationError("candidate_filename is invalid")
+        for label, value in (
+            ("candidate_file_size_bytes", candidate_file_size_bytes),
+            ("candidate_stable_mtime_ns", candidate_stable_mtime_ns),
+            ("candidate_chronology_value", candidate_chronology_value),
+            ("started_at_utc", started_at_utc),
+        ):
+            if type(value) is not int or value < 0:
+                raise ValidationError(f"{label} must be a nonnegative integer")
+        if candidate_chronology_kind not in {
+            "filesystem_mtime_ns",
+            "embedded_filename_timestamp_utc",
+        }:
+            raise ValidationError("candidate_chronology_kind is invalid")
+        uow.connection.execute(
+            "INSERT INTO import_runs(import_run_id,source_family,invocation_kind,source_profile_id,"
+            "header_registry_id,vocabulary_registry_id,parser_profile_id,candidate_filename,"
+            "candidate_file_size_bytes,candidate_stable_mtime_ns,candidate_chronology_kind,"
+            "candidate_chronology_value,run_state,started_at_utc,revision) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'validating',?,1)",
+            (
+                canonical_run_id,
+                source_family,
+                invocation_kind,
+                profile_ids["source_profile_id"],
+                profile_ids["header_registry_id"],
+                profile_ids["vocabulary_registry_id"],
+                profile_ids["parser_profile_id"],
+                candidate_filename,
+                candidate_file_size_bytes,
+                candidate_stable_mtime_ns,
+                candidate_chronology_kind,
+                candidate_chronology_value,
+                started_at_utc,
+            ),
+        )
+
+    @staticmethod
     def get_checkpoint_transition_run(reader: Any, import_run_id: str) -> ImportRunCheckpointState | None:
         row = reader.execute(
             "SELECT import_run_id,source_family,source_profile_id,candidate_chronology_kind,"
