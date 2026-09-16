@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.ticket_import.commands.finalize_run import ImportRunFinalizationService
@@ -87,31 +90,37 @@ def test_finalize_regular_runs_establishes_and_advances_checkpoint(initialized_d
 
     service = ImportRunFinalizationService(factory)
     first_command_id = new_uuid4()
-    first = service.finalize_reviewed_run(
+    first = service.finalize_run(
         command_id=first_command_id,
         import_run_id=first_run_id,
         expected_run_revision=2,
-        expected_checkpoint_revision=None,
     )
-    replay = service.finalize_reviewed_run(
+    replay = service.finalize_run(
         command_id=first_command_id,
         import_run_id=first_run_id,
         expected_run_revision=2,
-        expected_checkpoint_revision=None,
     )
-    assert first.final_state == "accepted"
+    assert first.state == "accepted"
     assert first.revision == 3
-    assert first.checkpoint_revision == 1
+    assert first.checkpoint == {
+        "source_family": "advanced_search_sr",
+        "chronology_kind": "embedded_filename_timestamp_utc",
+        "chronology_value": 10,
+        "logical_fingerprint": f"{10:064x}",
+        "import_run_id": first_run_id,
+        "revision": 1,
+    }
     assert replay.replayed is True
+    assert replay.checkpoint == first.checkpoint
 
-    second = service.finalize_reviewed_run(
+    second = service.finalize_run(
         command_id=new_uuid4(),
         import_run_id=second_run_id,
         expected_run_revision=2,
-        expected_checkpoint_revision=1,
     )
-    assert second.final_state == "accepted"
-    assert second.checkpoint_revision == 2
+    assert second.state == "accepted"
+    assert second.checkpoint["revision"] == 2
+    assert second.checkpoint["import_run_id"] == second_run_id
 
     connection = factory.open_authoritative(read_only=True, require_wal=True)
     try:
@@ -139,17 +148,17 @@ def test_older_authorized_recovery_finalizes_without_replacing_checkpoint(initia
             checkpoint_chronology=20,
             recovery_chronology=10,
         )
-    fingerprint = _authorize_recovery(factory, recovery_run_id)
+    _authorize_recovery(factory, recovery_run_id)
 
-    result = ImportRunFinalizationService(factory).finalize_recovery_run(
+    result = ImportRunFinalizationService(factory).finalize_run(
         command_id=new_uuid4(),
         import_run_id=recovery_run_id,
         expected_run_revision=2,
-        expected_checkpoint_revision=1,
-        review_fingerprint=fingerprint,
     )
-    assert result.final_state == "accepted"
-    assert result.checkpoint_revision == 1
+    assert result.state == "accepted"
+    assert result.checkpoint["revision"] == 1
+    assert result.checkpoint["import_run_id"] == checkpoint_run_id
+    assert result.checkpoint["chronology_value"] == 20
 
     connection = factory.open_authoritative(read_only=True, require_wal=True)
     try:
@@ -178,25 +187,23 @@ def test_equal_chronology_recovery_replaces_checkpoint_and_enqueues_reappearance
             checkpoint_chronology=20,
             recovery_chronology=20,
         )
-    fingerprint = _authorize_recovery(factory, recovery_run_id)
+    _authorize_recovery(factory, recovery_run_id)
     command_id = new_uuid4()
     service = ImportRunFinalizationService(factory)
-    result = service.finalize_recovery_run(
+    result = service.finalize_run(
         command_id=command_id,
         import_run_id=recovery_run_id,
         expected_run_revision=2,
-        expected_checkpoint_revision=1,
-        review_fingerprint=fingerprint,
     )
-    replay = service.finalize_recovery_run(
+    replay = service.finalize_run(
         command_id=command_id,
         import_run_id=recovery_run_id,
         expected_run_revision=2,
-        expected_checkpoint_revision=1,
-        review_fingerprint=fingerprint,
     )
-    assert result.checkpoint_revision == 2
+    assert result.checkpoint["revision"] == 2
+    assert result.checkpoint["import_run_id"] == recovery_run_id
     assert replay.replayed is True
+    assert replay.checkpoint == result.checkpoint
 
     connection = factory.open_authoritative(read_only=True, require_wal=True)
     try:
@@ -209,6 +216,54 @@ def test_equal_chronology_recovery_replaces_checkpoint_and_enqueues_reappearance
             "SELECT state FROM durable_jobs WHERE job_type='ticket_import.sr_reappearance_reconcile'",
         ).fetchone()
         assert tuple(job) == ("queued",)
+    finally:
+        connection.close()
+
+
+def test_recovery_finalization_revalidates_current_checkpoint_authority(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    checkpoint_run_id = new_uuid4()
+    recovery_run_id = new_uuid4()
+    newer_run_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _checkpoint_and_recovery(
+            uow,
+            checkpoint_run_id=checkpoint_run_id,
+            recovery_run_id=recovery_run_id,
+            checkpoint_chronology=20,
+            recovery_chronology=10,
+        )
+    _authorize_recovery(factory, recovery_run_id)
+
+    with UnitOfWork(factory) as uow:
+        _staged_run(uow, newer_run_id, 30)
+    ImportRunFinalizationService(factory).finalize_run(
+        command_id=new_uuid4(),
+        import_run_id=newer_run_id,
+        expected_run_revision=2,
+    )
+
+    with pytest.raises(SomaError) as excinfo:
+        ImportRunFinalizationService(factory).finalize_run(
+            command_id=new_uuid4(),
+            import_run_id=recovery_run_id,
+            expected_run_revision=2,
+        )
+    assert excinfo.value.code == "IMPORT_RECOVERY_AUTHORIZATION_REQUIRED"
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        state = connection.execute(
+            "SELECT run_state,revision FROM import_runs WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone()
+        assert tuple(state) == ("recovery_required", 2)
+        checkpoint = connection.execute(
+            "SELECT accepted_import_run_id,revision FROM import_source_checkpoints "
+            "WHERE source_family='advanced_search_sr'",
+        ).fetchone()
+        assert tuple(checkpoint) == (newer_run_id, 2)
+        assert connection.execute("SELECT COUNT(*) FROM import_recovery_events").fetchone()[0] == 0
     finally:
         connection.close()
 
