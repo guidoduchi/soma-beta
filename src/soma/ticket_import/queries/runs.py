@@ -87,7 +87,7 @@ class ImportRunPage:
 @dataclass(frozen=True, slots=True)
 class ImportRunDetail:
     run: ImportRunSummary
-    checkpoint_comparison: dict[str, object]
+    checkpoint_comparison: dict[str, object] | None
     review_state: dict[str, object]
 
     def to_response(self) -> dict[str, object]:
@@ -146,9 +146,12 @@ def checkpoint_summary(checkpoint: SourceCheckpointState | None) -> dict[str, ob
     }
 
 
-def checkpoint_comparison(run: ImportRunSummary, checkpoint: SourceCheckpointState | None) -> dict[str, object]:
+def checkpoint_comparison(
+    run: ImportRunSummary,
+    checkpoint: SourceCheckpointState | None,
+) -> dict[str, object] | None:
     if run.logical_fingerprint is None or run.run_state not in _PUBLISHED_STATES:
-        raise SomaError("IMPORT_RUN_UNPUBLISHED", "import run has no published checkpoint comparison")
+        return None
     candidate = {
         "chronology_kind": run.candidate_chronology_kind,
         "chronology_value": run.candidate_chronology_value,
