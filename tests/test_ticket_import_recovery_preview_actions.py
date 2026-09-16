@@ -20,16 +20,17 @@ def _insert_run(
     proposal_count: int = 0,
     accepted_count: int = 0,
 ) -> None:
+    completed_at_utc = 1 if state in {"accepted", "rejected", "partially_accepted", "noop", "failed"} else None
     uow.connection.execute(
         "INSERT INTO import_runs(import_run_id,source_family,invocation_kind,source_profile_id,"
         "header_registry_id,vocabulary_registry_id,parser_profile_id,candidate_filename,"
         "candidate_file_size_bytes,candidate_stable_mtime_ns,candidate_chronology_kind,"
         "candidate_chronology_value,logical_fingerprint_sha256,run_state,started_at_utc,staged_at_utc,"
-        "proposal_count,pending_proposal_count,accepted_proposal_count,rejected_proposal_count,"
+        "completed_at_utc,proposal_count,pending_proposal_count,accepted_proposal_count,rejected_proposal_count,"
         "deferred_proposal_count,revision) VALUES (?,'advanced_search_sr','manual','ADVANCED_SEARCH_SR_V1',"
         "'ADVANCED_SEARCH_HEADERS_V1','ADVANCED_SEARCH_VOCAB_V1','ADVANCED_SEARCH_PARSER_V1','source.xlsx',"
-        "1,1,'embedded_filename_timestamp_utc',?,?,?,1,1,?,0,?,0,0,1)",
-        (run_id, chronology, fingerprint, state, proposal_count, accepted_count),
+        "1,1,'embedded_filename_timestamp_utc',?,?,?,1,1,?,?,0,?,0,0,1)",
+        (run_id, chronology, fingerprint, state, completed_at_utc, proposal_count, accepted_count),
     )
 
 
