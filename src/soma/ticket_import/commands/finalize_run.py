@@ -13,10 +13,17 @@ from soma.foundation.application.command_boundary import (
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.errors import IntegrityFailure, PersistenceFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
+from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
 
 from ..audit_registry import build_ticket_import_audit_registry
+from ..jobs import (
+    SR_REAPPEARANCE_JOB_TYPE,
+    TICKET_IMPORT_JOB_CONTRACTS,
+    derive_reappearance_dedupe_key,
+)
+from ..repositories.proposals import ProposalRepository
 from ..repositories.runs import ImportRunRepository, SourceCheckpointRepository
 
 
@@ -35,11 +42,28 @@ class CheckpointAdvanceResult:
     no_change: bool
 
 
+@dataclass(frozen=True, slots=True)
+class ImportRunFinalizeResult:
+    import_run_id: str
+    final_state: str
+    revision: int
+    checkpoint_revision: int
+    accepted_count: int
+    rejected_count: int
+    deferred_count: int
+    replayed: bool
+
+
 class ImportRunFinalizationService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
         self._runs = ImportRunRepository()
+        self._proposals = ProposalRepository()
         self._checkpoints = SourceCheckpointRepository()
+        self._jobs = DurableJobCoordinator(
+            connection_factory,
+            JobTypeRegistry(TICKET_IMPORT_JOB_CONTRACTS),
+        )
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_ticket_import_audit_registry()),
@@ -59,6 +83,385 @@ class ImportRunFinalizationService:
             "run_revision": run.revision,
             "checkpoint_revision": checkpoint.revision,
         }
+
+    @staticmethod
+    def _finalize_result(execution: CommandExecutionResult) -> ImportRunFinalizeResult:
+        if execution.response_schema != "ImportRunFinalizeResultV1" or execution.response_version != 1:
+            raise IntegrityFailure("import run finalization result schema/version is invalid")
+        value = execution.response
+        required = {
+            "import_run_id",
+            "final_state",
+            "revision",
+            "checkpoint_revision",
+            "accepted_count",
+            "rejected_count",
+            "deferred_count",
+        }
+        if not isinstance(value, dict) or set(value) != required:
+            raise IntegrityFailure("import run finalization result shape is invalid")
+        if value["final_state"] not in {"accepted", "rejected", "partially_accepted"}:
+            raise IntegrityFailure("import run finalization result state is invalid")
+        for key in ("revision", "checkpoint_revision"):
+            if type(value[key]) is not int or value[key] < 1:
+                raise IntegrityFailure("import run finalization result revision is invalid")
+        for key in ("accepted_count", "rejected_count", "deferred_count"):
+            if type(value[key]) is not int or value[key] < 0:
+                raise IntegrityFailure("import run finalization result counter is invalid")
+        return ImportRunFinalizeResult(
+            import_run_id=require_uuid4(str(value["import_run_id"])),
+            final_state=str(value["final_state"]),
+            revision=int(value["revision"]),
+            checkpoint_revision=int(value["checkpoint_revision"]),
+            accepted_count=int(value["accepted_count"]),
+            rejected_count=int(value["rejected_count"]),
+            deferred_count=int(value["deferred_count"]),
+            replayed=execution.replayed,
+        )
+
+    def finalize_reviewed_run(
+        self,
+        *,
+        command_id: str,
+        import_run_id: str,
+        expected_run_revision: int,
+        expected_checkpoint_revision: int | None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ImportRunFinalizeResult:
+        canonical_run_id = require_uuid4(import_run_id)
+        if type(expected_run_revision) is not int or expected_run_revision < 1:
+            raise ValidationError("expected_run_revision must be a positive integer")
+        if expected_checkpoint_revision is not None and (
+            type(expected_checkpoint_revision) is not int or expected_checkpoint_revision < 1
+        ):
+            raise ValidationError("expected_checkpoint_revision must be null or a positive integer")
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="FinalizeImportRunReview",
+            target_type="import_run",
+            target_id=canonical_run_id,
+            semantic_payload={
+                "import_run_id": canonical_run_id,
+                "expected_checkpoint_revision": expected_checkpoint_revision,
+            },
+            base_revisions={"import_run": expected_run_revision},
+        )
+
+        def response_factory(uow: UnitOfWork) -> dict[str, object]:
+            row = uow.connection.execute(
+                "SELECT run_state,revision,accepted_proposal_count,rejected_proposal_count,"
+                "deferred_proposal_count FROM import_runs WHERE import_run_id=?",
+                (canonical_run_id,),
+            ).fetchone()
+            checkpoint = uow.connection.execute(
+                "SELECT revision FROM import_source_checkpoints WHERE accepted_import_run_id=?",
+                (canonical_run_id,),
+            ).fetchone()
+            if row is None or checkpoint is None:
+                raise PersistenceFailure("finalized import run response authority disappeared")
+            return {
+                "import_run_id": canonical_run_id,
+                "final_state": str(row[0]),
+                "revision": int(row[1]),
+                "checkpoint_revision": int(checkpoint[0]),
+                "accepted_count": int(row[2]),
+                "rejected_count": int(row[3]),
+                "deferred_count": int(row[4]),
+            }
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            run = self._runs.get_checkpoint_transition_run(uow.connection, canonical_run_id)
+            if run is None:
+                raise SomaError("IMPORT_RUN_NOT_FOUND", "import run does not exist")
+            if run.revision != expected_run_revision:
+                raise SomaError("IMPORT_RUN_STALE", "import run revision changed")
+            if run.run_state == "recovery_required":
+                raise SomaError(
+                    "IMPORT_RECOVERY_AUTHORIZATION_REQUIRED",
+                    "recovery finalization requires the reviewed recovery path",
+                )
+            if run.run_state not in {"staged", "waiting_review"}:
+                raise SomaError("IMPORT_RUN_STALE", "import run is not review-finalizable")
+            counters = self._runs.derive_publication_counters(uow.connection, canonical_run_id)
+            stored = uow.connection.execute(
+                "SELECT observed_row_count,valid_identity_count,invalid_row_count,warning_count,"
+                "proposal_count,pending_proposal_count,accepted_proposal_count,rejected_proposal_count,"
+                "deferred_proposal_count FROM import_runs WHERE import_run_id=?",
+                (canonical_run_id,),
+            ).fetchone()
+            if stored is None or tuple(int(item) for item in stored) != (
+                counters.observed_row_count,
+                counters.valid_identity_count,
+                counters.invalid_row_count,
+                counters.warning_count,
+                counters.proposal_count,
+                counters.pending_proposal_count,
+                counters.accepted_proposal_count,
+                counters.rejected_proposal_count,
+                counters.deferred_proposal_count,
+            ):
+                raise IntegrityFailure("import run stored counters disagree with exact evidence")
+            if counters.pending_proposal_count != 0:
+                raise SomaError("IMPORT_PENDING_PROPOSALS", "import run still has pending proposals")
+            if counters.accepted_proposal_count == 0 and counters.proposal_count > 0:
+                final_state = "rejected"
+            elif counters.rejected_proposal_count or counters.deferred_proposal_count:
+                final_state = "partially_accepted"
+            else:
+                final_state = "accepted"
+            now = utc_epoch_seconds()
+            audit_event_id = new_uuid4()
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                checkpoint_revision = self._checkpoints.establish_or_advance_finalized(
+                    inner,
+                    run=run,
+                    expected_checkpoint_revision=expected_checkpoint_revision,
+                    checked_at_utc=now,
+                )
+                changed = inner.connection.execute(
+                    "UPDATE import_runs SET run_state=?,completed_at_utc=?,revision=revision+1 "
+                    "WHERE import_run_id=? AND revision=? AND run_state IN ('staged','waiting_review') "
+                    "AND pending_proposal_count=0",
+                    (final_state, now, canonical_run_id, expected_run_revision),
+                )
+                if changed.rowcount != 1:
+                    raise SomaError("IMPORT_RUN_STALE", "import run changed before finalization")
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="ticket_import.run_finalized",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="import_run",
+                    target_id=canonical_run_id,
+                    command_id=command_id,
+                    import_run_id=canonical_run_id,
+                    payload_schema="ImportRunFinalizedAuditV1",
+                    payload_version=1,
+                    payload={
+                        "import_run_id": canonical_run_id,
+                        "final_state": final_state,
+                        "revision": expected_run_revision + 1,
+                        "checkpoint_revision": checkpoint_revision,
+                        "accepted_count": counters.accepted_proposal_count,
+                        "rejected_count": counters.rejected_proposal_count,
+                        "deferred_count": counters.deferred_proposal_count,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("import_run", canonical_run_id),
+                        AuditResultRef("import_source_checkpoint", run.source_family),
+                    ),
+                )
+
+            return PreparedMutation(
+                False,
+                "import_run",
+                canonical_run_id,
+                apply,
+                response_schema="ImportRunFinalizeResultV1",
+                response_factory=response_factory,
+            )
+
+        return self._finalize_result(self._boundary.execute(envelope, prepare))
+
+    def finalize_recovery_run(
+        self,
+        *,
+        command_id: str,
+        import_run_id: str,
+        expected_run_revision: int,
+        expected_checkpoint_revision: int,
+        review_fingerprint: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ImportRunFinalizeResult:
+        canonical_run_id = require_uuid4(import_run_id)
+        if type(expected_run_revision) is not int or expected_run_revision < 1:
+            raise ValidationError("expected_run_revision must be a positive integer")
+        if type(expected_checkpoint_revision) is not int or expected_checkpoint_revision < 1:
+            raise ValidationError("expected_checkpoint_revision must be a positive integer")
+        if not isinstance(review_fingerprint, str) or _HEX64_RE.fullmatch(review_fingerprint) is None:
+            raise ValidationError("review_fingerprint must be lowercase SHA-256 hex")
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="FinalizeImportRunReview",
+            target_type="import_run",
+            target_id=canonical_run_id,
+            semantic_payload={
+                "import_run_id": canonical_run_id,
+                "expected_checkpoint_revision": expected_checkpoint_revision,
+                "recovery": True,
+            },
+            base_revisions={"import_run": expected_run_revision},
+            authorizing_fingerprints={"recovery_review": review_fingerprint},
+        )
+
+        def response_factory(uow: UnitOfWork) -> dict[str, object]:
+            row = uow.connection.execute(
+                "SELECT source_family,run_state,revision,accepted_proposal_count,"
+                "rejected_proposal_count,deferred_proposal_count FROM import_runs WHERE import_run_id=?",
+                (canonical_run_id,),
+            ).fetchone()
+            if row is None:
+                raise PersistenceFailure("finalized recovery run response authority disappeared")
+            checkpoint = uow.connection.execute(
+                "SELECT revision FROM import_source_checkpoints WHERE source_family=?",
+                (str(row[0]),),
+            ).fetchone()
+            if checkpoint is None:
+                raise PersistenceFailure("finalized recovery checkpoint response authority disappeared")
+            return {
+                "import_run_id": canonical_run_id,
+                "final_state": str(row[1]),
+                "revision": int(row[2]),
+                "checkpoint_revision": int(checkpoint[0]),
+                "accepted_count": int(row[3]),
+                "rejected_count": int(row[4]),
+                "deferred_count": int(row[5]),
+            }
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            run = self._runs.get_checkpoint_transition_run(uow.connection, canonical_run_id)
+            if run is None:
+                raise SomaError("IMPORT_RUN_NOT_FOUND", "import run does not exist")
+            if run.run_state != "recovery_required" or run.revision != expected_run_revision:
+                raise SomaError("IMPORT_RECOVERY_REVIEW_STALE", "recovery run state or revision changed")
+            decision_run = self._proposals.get_run(uow.connection, canonical_run_id)
+            exact_fingerprint = self._proposals.recovery_review_fingerprint(uow.connection, decision_run)
+            if exact_fingerprint != review_fingerprint:
+                raise SomaError("IMPORT_RECOVERY_REVIEW_STALE", "recovery review fingerprint changed")
+            review = uow.connection.execute(
+                "SELECT decision,reason_category,checkpoint_revision,review_fingerprint_sha256 "
+                "FROM import_recovery_reviews WHERE import_run_id=? ORDER BY review_ordinal DESC LIMIT 1",
+                (canonical_run_id,),
+            ).fetchone()
+            if (
+                review is None
+                or str(review[0]) != "authorized"
+                or str(review[3]) != review_fingerprint
+                or int(review[2]) != expected_checkpoint_revision
+            ):
+                raise SomaError(
+                    "IMPORT_RECOVERY_AUTHORIZATION_REQUIRED",
+                    "recovery finalization requires the latest exact authorization",
+                )
+            counters = self._runs.derive_publication_counters(uow.connection, canonical_run_id)
+            stored = uow.connection.execute(
+                "SELECT observed_row_count,valid_identity_count,invalid_row_count,warning_count,"
+                "proposal_count,pending_proposal_count,accepted_proposal_count,rejected_proposal_count,"
+                "deferred_proposal_count FROM import_runs WHERE import_run_id=?",
+                (canonical_run_id,),
+            ).fetchone()
+            if stored is None or tuple(int(item) for item in stored) != (
+                counters.observed_row_count,
+                counters.valid_identity_count,
+                counters.invalid_row_count,
+                counters.warning_count,
+                counters.proposal_count,
+                counters.pending_proposal_count,
+                counters.accepted_proposal_count,
+                counters.rejected_proposal_count,
+                counters.deferred_proposal_count,
+            ):
+                raise IntegrityFailure("recovery run stored counters disagree with exact evidence")
+            if counters.pending_proposal_count != 0:
+                raise SomaError("IMPORT_PENDING_PROPOSALS", "recovery run still has pending proposals")
+            if counters.accepted_proposal_count == 0 and counters.proposal_count > 0:
+                final_state = "rejected"
+            elif counters.rejected_proposal_count or counters.deferred_proposal_count:
+                final_state = "partially_accepted"
+            else:
+                final_state = "accepted"
+            now = utc_epoch_seconds()
+            audit_event_id = new_uuid4()
+            recovery_event_id = new_uuid4()
+
+            def apply(inner: UnitOfWork) -> AuditEventInput:
+                prior, checkpoint_revision, replaced = self._checkpoints.finalize_authorized_recovery(
+                    inner,
+                    run=run,
+                    expected_checkpoint_revision=expected_checkpoint_revision,
+                    checked_at_utc=now,
+                )
+                changed = inner.connection.execute(
+                    "UPDATE import_runs SET run_state=?,completed_at_utc=?,revision=revision+1 "
+                    "WHERE import_run_id=? AND revision=? AND run_state='recovery_required' "
+                    "AND pending_proposal_count=0",
+                    (final_state, now, canonical_run_id, expected_run_revision),
+                )
+                if changed.rowcount != 1:
+                    raise SomaError("IMPORT_RECOVERY_REVIEW_STALE", "recovery run changed before finalization")
+                inner.connection.execute(
+                    "INSERT INTO import_recovery_events(import_recovery_event_id,source_family,import_run_id,"
+                    "prior_checkpoint_run_id,recovery_reason_category,review_fingerprint_sha256,"
+                    "occurred_at_utc,command_id) VALUES (?,?,?,?,?,?,?,?)",
+                    (
+                        recovery_event_id,
+                        run.source_family,
+                        canonical_run_id,
+                        prior.accepted_import_run_id,
+                        str(review[1]),
+                        review_fingerprint,
+                        now,
+                        command_id,
+                    ),
+                )
+                refs = [
+                    AuditResultRef("import_run", canonical_run_id),
+                    AuditResultRef("import_recovery_event", recovery_event_id),
+                    AuditResultRef("import_source_checkpoint", run.source_family),
+                ]
+                if replaced and run.source_family == "advanced_search_sr":
+                    payload = {
+                        "import_run_id": canonical_run_id,
+                        "source_family": "advanced_search_sr",
+                        "published_run_revision": expected_run_revision + 1,
+                        "requested_by_command_id": command_id,
+                    }
+                    job_id = self._jobs.enqueue_or_coalesce(
+                        inner,
+                        SR_REAPPEARANCE_JOB_TYPE,
+                        1,
+                        payload,
+                        derive_reappearance_dedupe_key(payload),
+                    )
+                    refs.append(AuditResultRef("durable_job", job_id))
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="ticket_import.run_finalized",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="import_run",
+                    target_id=canonical_run_id,
+                    command_id=command_id,
+                    import_run_id=canonical_run_id,
+                    payload_schema="ImportRunFinalizedAuditV1",
+                    payload_version=1,
+                    payload={
+                        "import_run_id": canonical_run_id,
+                        "final_state": final_state,
+                        "revision": expected_run_revision + 1,
+                        "checkpoint_revision": checkpoint_revision,
+                        "accepted_count": counters.accepted_proposal_count,
+                        "rejected_count": counters.rejected_proposal_count,
+                        "deferred_count": counters.deferred_proposal_count,
+                    },
+                    resulting_event_refs=tuple(refs),
+                )
+
+            return PreparedMutation(
+                False,
+                "import_run",
+                canonical_run_id,
+                apply,
+                response_schema="ImportRunFinalizeResultV1",
+                response_factory=response_factory,
+            )
+
+        return self._finalize_result(self._boundary.execute(envelope, prepare))
 
     @staticmethod
     def _result_from_execution(execution: CommandExecutionResult) -> CheckpointAdvanceResult:
