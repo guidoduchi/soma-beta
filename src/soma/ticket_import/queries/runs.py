@@ -30,8 +30,25 @@ _RUN_STATES = frozenset(
     }
 )
 _PUBLISHED_STATES = frozenset(
-    {"staged", "waiting_review", "partially_accepted", "accepted", "rejected", "noop_pending_checkpoint", "noop", "recovery_required"}
+    {
+        "staged",
+        "waiting_review",
+        "partially_accepted",
+        "accepted",
+        "rejected",
+        "noop_pending_checkpoint",
+        "noop",
+        "recovery_required",
+    }
 )
+_IDENTITY_STATES = frozenset({"valid", "invalid"})
+_FIELD_CLASSES = frozenset({"active", "deferred"})
+_VALUE_STATES = frozenset({"usable", "blank", "unknown", "malformed"})
+_VALUE_KINDS = frozenset({"text", "controlled", "instant", "duration_seconds"})
+_FINDING_SCOPES = frozenset(
+    {"workbook", "sheet", "row", "field", "identity", "chronology", "replay", "proposal", "population"}
+)
+_FINDING_SEVERITY_RANK = {"high_risk": 0, "error": 1, "warning": 2, "info": 3}
 _RUN_SELECT = (
     "import_run_id,source_family,invocation_kind,source_profile_id,header_registry_id,"
     "vocabulary_registry_id,parser_profile_id,candidate_filename,candidate_chronology_kind,"
@@ -42,6 +59,16 @@ _RUN_SELECT = (
 _QUERY_ID = "ListImportRuns"
 _SORT_ID = "IMPORT_RUN_STARTED_ID_DESC_V1"
 _FILTER_SCHEMA = "SOMA_IMPORT_RUN_LIST_FILTER_V1"
+_OBSERVATION_QUERY_ID = "ListPublishedSourceObservations"
+_OBSERVATION_SORT_ID = "IMPORT_OBSERVATION_SHEET_ROW_ID_ASC_V1"
+_OBSERVATION_FILTER_SCHEMA = "SOMA_IMPORT_OBSERVATION_LIST_FILTER_V1"
+_FINDING_QUERY_ID = "ListImportFindings"
+_FINDING_SORT_ID = "IMPORT_FINDING_SEVERITY_ID_ASC_V1"
+_FINDING_FILTER_SCHEMA = "SOMA_IMPORT_FINDING_LIST_FILTER_V1"
+_FINDING_RANK_SQL = (
+    "CASE severity WHEN 'high_risk' THEN 0 WHEN 'error' THEN 1 "
+    "WHEN 'warning' THEN 2 WHEN 'info' THEN 3 ELSE 4 END"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +123,92 @@ class ImportRunDetail:
             "checkpoint_comparison": self.checkpoint_comparison,
             "review_state": self.review_state,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class PublishedObservationField:
+    source_observation_field_id: str
+    field_key: str
+    field_class: str
+    value_state: str
+    value_kind: str
+    display_value: str | int | None
+
+    def to_response(self) -> dict[str, object]:
+        return {
+            "source_observation_field_id": self.source_observation_field_id,
+            "field_key": self.field_key,
+            "field_class": self.field_class,
+            "value_state": self.value_state,
+            "value_kind": self.value_kind,
+            "display_value": self.display_value,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PublishedObservation:
+    source_observation_id: str
+    source_family: str
+    entity_kind: str
+    identity_state: str
+    canonical_primary_id: str | None
+    canonical_parent_rfc_no: str | None
+    row_locator: dict[str, int]
+    source_row_chronology_utc: int | None
+    fields: tuple[PublishedObservationField, ...]
+
+    def to_response(self) -> dict[str, object]:
+        return {
+            "source_observation_id": self.source_observation_id,
+            "source_family": self.source_family,
+            "entity_kind": self.entity_kind,
+            "identity_state": self.identity_state,
+            "canonical_primary_id": self.canonical_primary_id,
+            "canonical_parent_rfc_no": self.canonical_parent_rfc_no,
+            "row_locator": dict(self.row_locator),
+            "source_row_chronology_utc": self.source_row_chronology_utc,
+            "fields": [field.to_response() for field in self.fields],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationPage:
+    items: tuple[PublishedObservation, ...]
+    next_cursor: dict[str, object] | None
+
+    def to_response(self) -> dict[str, object]:
+        return {"items": [item.to_response() for item in self.items], "next_cursor": self.next_cursor}
+
+
+@dataclass(frozen=True, slots=True)
+class ImportFinding:
+    import_finding_id: str
+    finding_code: str
+    severity: str
+    scope_kind: str
+    message_text: str
+    source_observation_id: str | None
+    field_key: str | None
+
+    def to_response(self) -> dict[str, object]:
+        return {
+            "import_finding_id": self.import_finding_id,
+            "finding_code": self.finding_code,
+            "severity": self.severity,
+            "scope_kind": self.scope_kind,
+            "message_text": self.message_text,
+            "source_observation_id": self.source_observation_id,
+            "field_key": self.field_key,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class FindingPage:
+    items: tuple[ImportFinding, ...]
+    next_cursor: dict[str, object] | None
+
+    def to_response(self) -> dict[str, object]:
+        return {"items": [item.to_response() for item in self.items], "next_cursor": self.next_cursor}
 
 
 def run_summary_from_row(row: Any) -> ImportRunSummary:
@@ -181,6 +294,86 @@ def checkpoint_comparison(
     return {"classification": classification, "candidate": candidate, "checkpoint": checkpoint_side}
 
 
+def _field_from_row(row: Any) -> PublishedObservationField:
+    field_class = str(row[2])
+    value_state = str(row[3])
+    value_kind = str(row[4])
+    if field_class not in _FIELD_CLASSES or value_state not in _VALUE_STATES or value_kind not in _VALUE_KINDS:
+        raise IntegrityFailure("published observation field vocabulary is invalid")
+    source_text = None if row[5] is None else str(row[5])
+    normalized_text = None if row[6] is None else str(row[6])
+    integer_value = None if row[7] is None else int(row[7])
+    if value_state == "usable":
+        if value_kind in {"text", "controlled"}:
+            if normalized_text is None or integer_value is not None:
+                raise IntegrityFailure("usable text observation field has invalid typed storage")
+            display_value: str | int | None = normalized_text
+        else:
+            if integer_value is None or integer_value < 0 or normalized_text is not None:
+                raise IntegrityFailure("usable numeric observation field has invalid typed storage")
+            display_value = integer_value
+    else:
+        if normalized_text is not None or integer_value is not None:
+            raise IntegrityFailure("nonusable observation field carries authoritative typed value")
+        display_value = source_text
+    return PublishedObservationField(
+        source_observation_field_id=require_uuid4(str(row[0])),
+        field_key=str(row[1]),
+        field_class=field_class,
+        value_state=value_state,
+        value_kind=value_kind,
+        display_value=display_value,
+    )
+
+
+def _observation_from_row(row: Any, fields: tuple[PublishedObservationField, ...]) -> PublishedObservation:
+    source_family = str(row[1])
+    entity_kind = str(row[2])
+    identity_state = str(row[3])
+    if source_family not in _SOURCE_FAMILIES or identity_state not in _IDENTITY_STATES:
+        raise IntegrityFailure("published observation vocabulary is invalid")
+    if entity_kind not in {"service_request", "rfc", "wfm", "invalid_row"}:
+        raise IntegrityFailure("published observation entity kind is invalid")
+    sheet_ordinal = int(row[6])
+    row_ordinal = int(row[7])
+    if sheet_ordinal < 1 or row_ordinal < 1:
+        raise IntegrityFailure("published observation row locator is invalid")
+    chronology = None if row[8] is None else int(row[8])
+    if chronology is not None and chronology < 0:
+        raise IntegrityFailure("published observation chronology is invalid")
+    return PublishedObservation(
+        source_observation_id=require_uuid4(str(row[0])),
+        source_family=source_family,
+        entity_kind=entity_kind,
+        identity_state=identity_state,
+        canonical_primary_id=None if row[4] is None else str(row[4]),
+        canonical_parent_rfc_no=None if row[5] is None else str(row[5]),
+        row_locator={"sheet_ordinal": sheet_ordinal, "row_ordinal": row_ordinal},
+        source_row_chronology_utc=chronology,
+        fields=fields,
+    )
+
+
+def _finding_from_row(row: Any) -> ImportFinding:
+    severity = str(row[2])
+    scope_kind = str(row[3])
+    expected_rank = _FINDING_SEVERITY_RANK.get(severity)
+    if expected_rank is None or int(row[7]) != expected_rank:
+        raise IntegrityFailure("import finding severity rank is invalid")
+    if scope_kind not in _FINDING_SCOPES:
+        raise IntegrityFailure("import finding scope kind is invalid")
+    source_observation_id = None if row[5] is None else require_uuid4(str(row[5]))
+    return ImportFinding(
+        import_finding_id=require_uuid4(str(row[0])),
+        finding_code=str(row[1]),
+        severity=severity,
+        scope_kind=scope_kind,
+        message_text=str(row[4]),
+        source_observation_id=source_observation_id,
+        field_key=None if row[6] is None else str(row[6]),
+    )
+
+
 class ImportRunQueryService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
@@ -197,6 +390,12 @@ class ImportRunQueryService:
     def _limit(limit: int) -> int:
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValidationError("import run page size must be an integer from 1 through 100")
+        return limit
+
+    @staticmethod
+    def _page_limit(limit: int, *, label: str) -> int:
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValidationError(f"{label} page size must be an integer from 1 through 100")
         return limit
 
     @staticmethod
@@ -227,6 +426,106 @@ class ImportRunQueryService:
         except ValidationError as exc:
             raise SomaError("IMPORT_CURSOR_INVALID", "import run cursor key is invalid") from exc
         return int(key[0]), run_id
+
+    @staticmethod
+    def _observation_cursor(
+        cursor: dict[str, object] | None,
+        *,
+        filter_fingerprint: str,
+    ) -> tuple[int, int, str] | None:
+        if cursor is None:
+            return None
+        if not isinstance(cursor, dict) or set(cursor) != {
+            "version", "query_id", "sort_registry_id", "last_key_tuple", "filter_fingerprint", "null_order"
+        }:
+            raise SomaError("IMPORT_CURSOR_INVALID", "observation cursor fields are invalid")
+        if (
+            cursor["version"] != 1
+            or cursor["query_id"] != _OBSERVATION_QUERY_ID
+            or cursor["sort_registry_id"] != _OBSERVATION_SORT_ID
+            or cursor["null_order"] != "none"
+            or cursor["filter_fingerprint"] != filter_fingerprint
+        ):
+            raise SomaError("IMPORT_CURSOR_INVALID", "observation cursor contract is invalid")
+        key = cursor["last_key_tuple"]
+        if (
+            not isinstance(key, list)
+            or len(key) != 3
+            or type(key[0]) is not int
+            or key[0] < 1
+            or type(key[1]) is not int
+            or key[1] < 1
+        ):
+            raise SomaError("IMPORT_CURSOR_INVALID", "observation cursor key is invalid")
+        try:
+            observation_id = require_uuid4(str(key[2]))
+        except ValidationError as exc:
+            raise SomaError("IMPORT_CURSOR_INVALID", "observation cursor key is invalid") from exc
+        return int(key[0]), int(key[1]), observation_id
+
+    @staticmethod
+    def _finding_cursor(
+        cursor: dict[str, object] | None,
+        *,
+        filter_fingerprint: str,
+    ) -> tuple[int, str] | None:
+        if cursor is None:
+            return None
+        if not isinstance(cursor, dict) or set(cursor) != {
+            "version", "query_id", "sort_registry_id", "last_key_tuple", "filter_fingerprint", "null_order"
+        }:
+            raise SomaError("IMPORT_CURSOR_INVALID", "finding cursor fields are invalid")
+        if (
+            cursor["version"] != 1
+            or cursor["query_id"] != _FINDING_QUERY_ID
+            or cursor["sort_registry_id"] != _FINDING_SORT_ID
+            or cursor["null_order"] != "none"
+            or cursor["filter_fingerprint"] != filter_fingerprint
+        ):
+            raise SomaError("IMPORT_CURSOR_INVALID", "finding cursor contract is invalid")
+        key = cursor["last_key_tuple"]
+        if (
+            not isinstance(key, list)
+            or len(key) != 2
+            or type(key[0]) is not int
+            or key[0] not in _FINDING_SEVERITY_RANK.values()
+        ):
+            raise SomaError("IMPORT_CURSOR_INVALID", "finding cursor key is invalid")
+        try:
+            finding_id = require_uuid4(str(key[1]))
+        except ValidationError as exc:
+            raise SomaError("IMPORT_CURSOR_INVALID", "finding cursor key is invalid") from exc
+        return int(key[0]), finding_id
+
+    @staticmethod
+    def _run_state(reader: Any, run_id: str) -> str:
+        row = reader.execute("SELECT run_state FROM import_runs WHERE import_run_id=?", (run_id,)).fetchone()
+        if row is None:
+            raise SomaError("IMPORT_RUN_NOT_FOUND", "import run does not exist")
+        state = str(row[0])
+        if state not in _RUN_STATES:
+            raise IntegrityFailure("import run state is outside the closed vocabulary")
+        return state
+
+    @staticmethod
+    def _observation_fields(reader: Any, observation_ids: tuple[str, ...]) -> dict[str, tuple[PublishedObservationField, ...]]:
+        if not observation_ids:
+            return {}
+        placeholders = ",".join("?" for _ in observation_ids)
+        rows = reader.execute(
+            "SELECT source_observation_field_id,field_key,field_class,value_state,value_kind,"
+            "source_text,normalized_text,integer_value,source_observation_id "
+            f"FROM source_observation_fields WHERE source_observation_id IN ({placeholders}) "
+            "ORDER BY source_observation_id ASC,field_key ASC",
+            observation_ids,
+        ).fetchall()
+        grouped: dict[str, list[PublishedObservationField]] = {observation_id: [] for observation_id in observation_ids}
+        for row in rows:
+            observation_id = require_uuid4(str(row[8]))
+            if observation_id not in grouped:
+                raise IntegrityFailure("observation field escaped the requested evidence page")
+            grouped[observation_id].append(_field_from_row(row))
+        return {key: tuple(value) for key, value in grouped.items()}
 
     def list_runs(
         self,
@@ -317,12 +616,151 @@ class ImportRunQueryService:
                 },
             )
 
+    def list_published_observations(
+        self,
+        import_run_id: str,
+        *,
+        identity_state: str | None = None,
+        cursor: dict[str, object] | None = None,
+        limit: int = 100,
+    ) -> ObservationPage:
+        run_id = require_uuid4(import_run_id)
+        if identity_state is not None and identity_state not in _IDENTITY_STATES:
+            raise ValidationError("identity_state is outside the source-observation vocabulary")
+        page_limit = self._page_limit(limit, label="observation")
+        filter_fingerprint = sha256_canonical_json(
+            {
+                "schema": _OBSERVATION_FILTER_SCHEMA,
+                "import_run_id": run_id,
+                "identity_state": identity_state,
+            }
+        )
+        after = self._observation_cursor(cursor, filter_fingerprint=filter_fingerprint)
+        with ReadSnapshot(self._factory) as snapshot:
+            if self._run_state(snapshot.connection, run_id) not in _PUBLISHED_STATES:
+                raise SomaError("IMPORT_RUN_UNPUBLISHED", "import run has no published observation authority")
+            predicates = ["import_run_id=?"]
+            parameters: list[object] = [run_id]
+            if identity_state is not None:
+                predicates.append("identity_state=?")
+                parameters.append(identity_state)
+            if after is not None:
+                predicates.append(
+                    "(sheet_ordinal>? OR (sheet_ordinal=? AND row_ordinal>?) "
+                    "OR (sheet_ordinal=? AND row_ordinal=? AND source_observation_id>?))"
+                )
+                parameters.extend((after[0], after[0], after[1], after[0], after[1], after[2]))
+            rows = snapshot.connection.execute(
+                "SELECT source_observation_id,source_family,entity_kind,identity_state,canonical_primary_id,"
+                "canonical_parent_rfc_no,sheet_ordinal,row_ordinal,source_row_chronology_utc "
+                "FROM source_observations WHERE "
+                + " AND ".join(predicates)
+                + " ORDER BY sheet_ordinal ASC,row_ordinal ASC,source_observation_id ASC LIMIT ?",
+                (*parameters, page_limit + 1),
+            ).fetchall()
+            has_more = len(rows) > page_limit
+            page_rows = rows[:page_limit]
+            observation_ids = tuple(require_uuid4(str(row[0])) for row in page_rows)
+            fields = self._observation_fields(snapshot.connection, observation_ids)
+            items = tuple(
+                _observation_from_row(row, fields.get(require_uuid4(str(row[0])), ())) for row in page_rows
+            )
+        next_cursor = None
+        if has_more and items:
+            last = items[-1]
+            next_cursor = {
+                "version": 1,
+                "query_id": _OBSERVATION_QUERY_ID,
+                "sort_registry_id": _OBSERVATION_SORT_ID,
+                "last_key_tuple": [
+                    last.row_locator["sheet_ordinal"],
+                    last.row_locator["row_ordinal"],
+                    last.source_observation_id,
+                ],
+                "filter_fingerprint": filter_fingerprint,
+                "null_order": "none",
+            }
+        return ObservationPage(items=items, next_cursor=next_cursor)
+
+    def list_findings(
+        self,
+        import_run_id: str,
+        *,
+        severity: str | None = None,
+        scope_kind: str | None = None,
+        cursor: dict[str, object] | None = None,
+        limit: int = 100,
+    ) -> FindingPage:
+        run_id = require_uuid4(import_run_id)
+        if severity is not None and severity not in _FINDING_SEVERITY_RANK:
+            raise ValidationError("severity is outside the import-finding vocabulary")
+        if scope_kind is not None and scope_kind not in _FINDING_SCOPES:
+            raise ValidationError("scope_kind is outside the import-finding vocabulary")
+        page_limit = self._page_limit(limit, label="finding")
+        filter_fingerprint = sha256_canonical_json(
+            {
+                "schema": _FINDING_FILTER_SCHEMA,
+                "import_run_id": run_id,
+                "severity": severity,
+                "scope_kind": scope_kind,
+            }
+        )
+        after = self._finding_cursor(cursor, filter_fingerprint=filter_fingerprint)
+        with ReadSnapshot(self._factory) as snapshot:
+            if self._run_state(snapshot.connection, run_id) not in _PUBLISHED_STATES:
+                return FindingPage(items=(), next_cursor=None)
+            predicates = ["import_run_id=?"]
+            parameters: list[object] = [run_id]
+            if severity is not None:
+                predicates.append("severity=?")
+                parameters.append(severity)
+            if scope_kind is not None:
+                predicates.append("scope_kind=?")
+                parameters.append(scope_kind)
+            if after is not None:
+                predicates.append(
+                    f"({_FINDING_RANK_SQL}>? OR ({_FINDING_RANK_SQL}=? AND import_finding_id>?))"
+                )
+                parameters.extend((after[0], after[0], after[1]))
+            rows = snapshot.connection.execute(
+                "SELECT import_finding_id,finding_code,severity,scope_kind,message_text,"
+                "source_observation_id,field_key,"
+                + _FINDING_RANK_SQL
+                + " FROM import_findings WHERE "
+                + " AND ".join(predicates)
+                + " ORDER BY "
+                + _FINDING_RANK_SQL
+                + " ASC,import_finding_id ASC LIMIT ?",
+                (*parameters, page_limit + 1),
+            ).fetchall()
+        has_more = len(rows) > page_limit
+        page_rows = rows[:page_limit]
+        items = tuple(_finding_from_row(row) for row in page_rows)
+        next_cursor = None
+        if has_more and items:
+            last = items[-1]
+            rank = _FINDING_SEVERITY_RANK[last.severity]
+            next_cursor = {
+                "version": 1,
+                "query_id": _FINDING_QUERY_ID,
+                "sort_registry_id": _FINDING_SORT_ID,
+                "last_key_tuple": [rank, last.import_finding_id],
+                "filter_fingerprint": filter_fingerprint,
+                "null_order": "none",
+            }
+        return FindingPage(items=items, next_cursor=next_cursor)
+
 
 __all__ = [
+    "FindingPage",
+    "ImportFinding",
     "ImportRunDetail",
     "ImportRunPage",
     "ImportRunQueryService",
     "ImportRunSummary",
+    "ObservationPage",
+    "PublishedObservation",
+    "PublishedObservationField",
     "checkpoint_comparison",
     "checkpoint_summary",
     "run_summary_from_row",
