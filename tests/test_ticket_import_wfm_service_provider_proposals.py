@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
-from soma.objectives_tasks import TaskPlanningService
+from soma.objectives_tasks import TaskHardDeleteQueryService, TaskHardDeleteService, TaskPlanningService
 from soma.objectives_tasks.services.wfm_import import (
     WfmImportBaseTarget,
     WfmImportMutationParticipant,
@@ -12,6 +12,12 @@ from soma.objectives_tasks.services.wfm_import import (
 from soma.ticket_import.profiles import require_profile_versions
 from soma.ticket_import.reconciliation.wfm_service_provider import build_wfm_service_provider_proposals
 from soma.tickets.rfcs import RfcService
+
+
+class _ClearInventoryDependencyProvider:
+    def classify_task_hard_delete_dependency(self, reader, task_id):
+        assert reader.connection.in_transaction
+        return "CLEAR"
 
 
 def _factory(initialized_database):
@@ -167,20 +173,29 @@ def test_absent_task_with_existing_rfc_emits_create_only(initialized_database) -
 
 def test_retired_task_no_emits_blocking_finding_and_no_mutation_proposal(initialized_database) -> None:
     factory = _factory(initialized_database)
-    _rfc, rfc_no = _create_rfc(factory, 402)
+    rfc, rfc_no = _create_rfc(factory, 402)
     task_no = "TK00000000000402"
-    hard_delete_command_id = new_uuid4()
-    with UnitOfWork(factory) as uow:
-        uow.connection.execute(
-            "INSERT INTO command_receipts(command_id,command_type,request_hash,target_type,target_id,committed_at_utc,result_type,result_id) "
-            "VALUES (?,'HardDeleteTask',?,'task',?,0,NULL,NULL)",
-            (hard_delete_command_id, "b" * 64, new_uuid4()),
-        )
-        uow.connection.execute(
-            "INSERT INTO wfm_task_no_retirements(retirement_id,task_no,retired_task_id,retired_at_utc,hard_delete_command_id) "
-            "VALUES (?,?,?,?,?)",
-            (new_uuid4(), task_no, new_uuid4(), 1, hard_delete_command_id),
-        )
+    registered = TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=task_no,
+        rfc_id=rfc.rfc_id,
+    )
+    inventory = _ClearInventoryDependencyProvider()
+    queries = TaskHardDeleteQueryService(factory, inventory)
+    service = TaskHardDeleteService(factory, inventory)
+    preview = queries.preview(task_id=registered.task_id, base_revision=1)
+    assert preview.eligible
+    result = service.hard_delete(
+        command_id=new_uuid4(),
+        task_id=registered.task_id,
+        base_revision=preview.task_revision,
+        eligibility_fingerprint=preview.eligibility_fingerprint,
+        confirmation_context_id="ticket-import-wfm-retirement-fixture",
+    )
+    assert result.outcome == "APPLIED"
+    with ReadSnapshot(factory) as snapshot:
+        assert WfmImportReader.task_no_status(snapshot.connection, task_no) == "RETIRED"
+
     run_id, observation_id, _ = _seed_observation(
         factory,
         task_no=task_no,
@@ -188,11 +203,11 @@ def test_retired_task_no_emits_blocking_finding_and_no_mutation_proposal(initial
         fields=(_unknown_status(),),
     )
 
-    result = _build(factory, run_id=run_id, observation_id=observation_id)
-    assert result.task_no_status == "RETIRED"
-    assert result.resolution_state == "retired_blocked"
-    assert result.blocked_finding_code == "WFM_TASK_ID_RETIRED"
-    assert result.proposals == ()
+    proposal_result = _build(factory, run_id=run_id, observation_id=observation_id)
+    assert proposal_result.task_no_status == "RETIRED"
+    assert proposal_result.resolution_state == "retired_blocked"
+    assert proposal_result.blocked_finding_code == "WFM_TASK_ID_RETIRED"
+    assert proposal_result.proposals == ()
 
 
 def test_missing_parent_rfc_emits_no_lld05_mutation_proposal(initialized_database) -> None:
