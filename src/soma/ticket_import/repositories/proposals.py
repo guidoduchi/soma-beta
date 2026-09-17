@@ -416,6 +416,152 @@ class ProposalRepository:
             )
         return ProposalPersistenceResult(proposal_id=proposal_id, reused=False)
 
+    @classmethod
+    def insert_follow_on_pending_set(
+        cls,
+        uow: UnitOfWork,
+        *,
+        import_run_id: str,
+        expected_run_revision: int,
+        writes: tuple[PendingProposalWrite, ...],
+    ) -> tuple[str, ...]:
+        """Append post-acceptance WFM review proposals under the already published source run."""
+        run_id = require_uuid4(import_run_id)
+        if type(expected_run_revision) is not int or expected_run_revision <= 0:
+            raise ValidationError("expected_run_revision must be a positive integer")
+        if not writes:
+            return ()
+        pending = tuple(_validate_pending_write(write) for write in writes)
+        if any(write.import_run_id != run_id for write in pending):
+            raise ValidationError("follow-on proposal must belong to the accepted source run")
+        if any(write.evidence_mode != "observed_row" or write.source_observation_id is None for write in pending):
+            raise ValidationError("follow-on proposal requires observed-row evidence")
+
+        run = uow.connection.execute(
+            "SELECT run_state,revision,logical_fingerprint_sha256 FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        if run is None:
+            raise SomaError("IMPORT_RUN_NOT_FOUND", "follow-on proposal parent import run does not exist")
+        if (
+            str(run[0]) not in {"waiting_review", "recovery_required"}
+            or int(run[1]) != expected_run_revision
+            or run[2] is None
+        ):
+            raise SomaError("IMPORT_RUN_STALE", "follow-on proposal parent run is not the expected published review state")
+
+        material_keys: set[tuple[object, ...]] = set()
+        for write in pending:
+            key = (
+                write.source_observation_id,
+                write.proposal_kind,
+                write.target_kind,
+                write.target_internal_id,
+                write.target_business_id,
+                write.base_state_token,
+                write.proposal_fingerprint,
+            )
+            if key in material_keys:
+                raise IntegrityFailure("follow-on proposal set contains duplicate material proposals")
+            material_keys.add(key)
+            source = uow.connection.execute(
+                "SELECT import_run_id FROM source_observations WHERE source_observation_id=?",
+                (write.source_observation_id,),
+            ).fetchone()
+            if source is None or str(source[0]) != run_id:
+                raise SomaError("IMPORT_RUN_STALE", "follow-on proposal source evidence is not owned by the published run")
+            support_ids = tuple(
+                sorted(
+                    {
+                        change.source_observation_field_id
+                        for change in write.changes
+                        if change.source_observation_field_id is not None
+                    }
+                )
+            )
+            for support_id in support_ids:
+                owned = uow.connection.execute(
+                    "SELECT 1 FROM source_observation_fields WHERE source_observation_field_id=? "
+                    "AND source_observation_id=?",
+                    (support_id, write.source_observation_id),
+                ).fetchone()
+                if owned is None:
+                    raise SomaError("IMPORT_RUN_STALE", "follow-on proposal support field escaped its source observation")
+            existing = uow.connection.execute(
+                "SELECT 1 FROM reconciliation_proposals WHERE import_run_id=? AND proposal_state='pending' "
+                "AND source_observation_id=? AND proposal_kind=? AND target_kind=? AND target_internal_id IS ? "
+                "AND target_business_id IS ? AND base_state_token_sha256=? AND proposal_fingerprint_sha256=? LIMIT 1",
+                (
+                    run_id,
+                    write.source_observation_id,
+                    write.proposal_kind,
+                    write.target_kind,
+                    write.target_internal_id,
+                    write.target_business_id,
+                    write.base_state_token,
+                    write.proposal_fingerprint,
+                ),
+            ).fetchone()
+            if existing is not None:
+                raise IntegrityFailure("follow-on proposal already exists before source acceptance completes")
+
+        created_at = utc_epoch_seconds()
+        proposal_ids: list[str] = []
+        for write in pending:
+            proposal_id = new_uuid4()
+            uow.connection.execute(
+                "INSERT INTO reconciliation_proposals("
+                "reconciliation_proposal_id,import_run_id,evidence_mode,source_observation_id,prior_source_observation_id,"
+                "proposal_kind,target_kind,target_internal_id,target_business_id,risk_class,base_state_token_sha256,"
+                "proposal_fingerprint_sha256,proposal_state,created_at_utc,revision,decided_at_utc"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'pending',?,1,NULL)",
+                (
+                    proposal_id,
+                    run_id,
+                    write.evidence_mode,
+                    write.source_observation_id,
+                    write.prior_source_observation_id,
+                    write.proposal_kind,
+                    write.target_kind,
+                    write.target_internal_id,
+                    write.target_business_id,
+                    write.risk_class,
+                    write.base_state_token,
+                    write.proposal_fingerprint,
+                    created_at,
+                ),
+            )
+            for change in write.changes:
+                uow.connection.execute(
+                    "INSERT INTO reconciliation_proposal_changes("
+                    "reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,before_text,after_text,"
+                    "before_integer,after_integer,source_observation_field_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        proposal_id,
+                        change.ordinal,
+                        change.field_key,
+                        change.change_kind,
+                        change.value_kind,
+                        change.before_text,
+                        change.after_text,
+                        change.before_integer,
+                        change.after_integer,
+                        change.source_observation_field_id,
+                    ),
+                )
+            proposal_ids.append(proposal_id)
+
+        target_state = "recovery_required" if str(run[0]) == "recovery_required" else "waiting_review"
+        updated = uow.connection.execute(
+            "UPDATE import_runs SET run_state=?,proposal_count=proposal_count+?,pending_proposal_count=pending_proposal_count+?,"
+            "revision=revision+1 WHERE import_run_id=? AND revision=? "
+            "AND run_state IN ('waiting_review','recovery_required')",
+            (target_state, len(proposal_ids), len(proposal_ids), run_id, expected_run_revision),
+        )
+        if updated.rowcount != 1:
+            raise SomaError("IMPORT_RUN_STALE", "parent run changed before follow-on proposal publication")
+        return tuple(proposal_ids)
+
     @staticmethod
     def require_pending(reader: Any, proposal_id: str) -> ProposalRecord:
         proposal = ProposalRepository.get(reader, proposal_id)
