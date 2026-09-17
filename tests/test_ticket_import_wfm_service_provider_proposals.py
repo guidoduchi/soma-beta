@@ -210,7 +210,7 @@ def test_retired_task_no_emits_blocking_finding_and_no_mutation_proposal(initial
     assert proposal_result.proposals == ()
 
 
-def test_missing_parent_rfc_emits_no_lld05_mutation_proposal(initialized_database) -> None:
+def test_missing_parent_rfc_emits_high_risk_provisional_identity_review(initialized_database) -> None:
     factory = _factory(initialized_database)
     task_no = "TK00000000000403"
     missing_rfc_no = "NC00000000000403"
@@ -223,9 +223,18 @@ def test_missing_parent_rfc_emits_no_lld05_mutation_proposal(initialized_databas
 
     result = _build(factory, run_id=run_id, observation_id=observation_id)
     assert result.task_no_status == "ABSENT"
-    assert result.resolution_state == "parent_rfc_missing"
+    assert result.resolution_state == "parent_rfc_review"
     assert result.rfc_id is None
-    assert result.proposals == ()
+    assert len(result.proposals) == 1
+    proposal = result.proposals[0]
+    assert proposal.proposal_kind == "wfm_provisional_rfc"
+    assert proposal.target_kind == "rfc"
+    assert proposal.target_internal_id is None
+    assert proposal.target_business_id == missing_rfc_no
+    assert proposal.risk_class == "high"
+    assert [(change.field_key, change.change_kind, change.after_text) for change in proposal.changes] == [
+        ("rfc_no", "create", missing_rfc_no),
+    ]
 
 
 def test_active_task_emits_source_projection_for_unrecognized_nonterminal_status_and_plan(initialized_database) -> None:
