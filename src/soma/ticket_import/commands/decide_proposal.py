@@ -18,7 +18,11 @@ from ._proposal_decision_core import (
     _validate_fingerprint,
     _validate_optional_reason,
 )
-from ._wfm_proposal_acceptance import prepare_wfm_create_accept, prepare_wfm_source_projection_accept
+from ._wfm_proposal_acceptance import (
+    prepare_wfm_create_accept,
+    prepare_wfm_provisional_rfc_accept,
+    prepare_wfm_source_projection_accept,
+)
 
 
 class ProposalDecisionService(_RfcSrProposalDecisionService):
@@ -116,6 +120,19 @@ class ProposalDecisionService(_RfcSrProposalDecisionService):
                 )
             if proposal.proposal_kind == "sr_rfc_link_candidate":
                 return self._prepare_rfc_sr_link_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "wfm_provisional_rfc":
+                return prepare_wfm_provisional_rfc_accept(
+                    self,
                     uow,
                     proposal=proposal,
                     run=run,
