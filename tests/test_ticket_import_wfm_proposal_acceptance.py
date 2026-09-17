@@ -6,6 +6,8 @@ from soma.objectives_tasks import TaskPlanningService
 from soma.objectives_tasks.services.wfm_import import WfmImportBaseTarget, WfmImportReader
 from soma.ticket_import.commands.decide_proposal import ProposalDecisionService
 from soma.ticket_import.profiles import require_profile_versions
+from soma.tickets.rfc_import_mutations import RfcImportMutationService
+from soma.tickets.rfc_import_reader import RfcImportReader
 from soma.tickets.rfcs import RfcService
 
 
@@ -105,6 +107,33 @@ def _usable_instant(field_key: str, value: int) -> dict[str, object]:
     }
 
 
+def _seed_provisional_rfc_proposal(
+    factory,
+    *,
+    run_id: str,
+    observation_id: str,
+    rfc_no: str,
+    base_token: str,
+    fingerprint: str,
+) -> str:
+    proposal_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposals(reconciliation_proposal_id,import_run_id,evidence_mode,source_observation_id,"
+            "prior_source_observation_id,proposal_kind,target_kind,target_internal_id,target_business_id,risk_class,"
+            "base_state_token_sha256,proposal_fingerprint_sha256,proposal_state,created_at_utc,revision,decided_at_utc) "
+            "VALUES (?,?,'observed_row',?,NULL,'wfm_provisional_rfc','rfc',NULL,?,'high',?,?,'pending',1,1,NULL)",
+            (proposal_id, run_id, observation_id, rfc_no, base_token, fingerprint),
+        )
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposal_changes(reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,"
+            "before_text,after_text,before_integer,after_integer,source_observation_field_id) "
+            "VALUES (?,0,'rfc_no','create','identity',NULL,?,NULL,NULL,NULL)",
+            (proposal_id, rfc_no),
+        )
+    return proposal_id
+
+
 def _seed_create_proposal(
     factory,
     *,
@@ -182,6 +211,67 @@ def _seed_source_projection_proposal(
             (proposal_id, end, end_field_id),
         )
     return proposal_id
+
+
+def test_accept_wfm_provisional_rfc_commits_identity_disposition_and_replays(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    task_no = "TK00000000000600"
+    rfc_no = "NC00000000000600"
+    run_id, observation_id, _ = _seed_run_and_observation(
+        factory,
+        task_no=task_no,
+        rfc_no=rfc_no,
+        fields=(_unknown_status(),),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        base_token = RfcImportMutationService.source_identity_base_token(snapshot.connection, rfc_no)
+    fingerprint = "2" * 64
+    proposal_id = _seed_provisional_rfc_proposal(
+        factory,
+        run_id=run_id,
+        observation_id=observation_id,
+        rfc_no=rfc_no,
+        base_token=base_token,
+        fingerprint=fingerprint,
+    )
+    command_id = new_uuid4()
+    service = ProposalDecisionService(factory)
+    first = service.accept(
+        command_id=command_id,
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=fingerprint,
+        base_state_token=base_token,
+    )
+    assert first.decision == "accepted"
+    assert first.replayed is False
+    rfc_refs = [ref for ref in first.owner_result_refs if ref[0] == "rfc"]
+    assert len(rfc_refs) == 1
+
+    replay = service.accept(
+        command_id=command_id,
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=fingerprint,
+        base_state_token=base_token,
+    )
+    assert replay.replayed is True
+    assert replay.owner_result_refs == first.owner_result_refs
+
+    with ReadSnapshot(factory) as snapshot:
+        identity = RfcImportReader().get_by_number(snapshot.connection, rfc_no)
+        assert identity is not None
+        assert identity["rfc_id"] == rfc_refs[0][1]
+        proposal = snapshot.connection.execute(
+            "SELECT proposal_state,revision FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()
+        assert tuple(proposal) == ("accepted", 2)
+        run = snapshot.connection.execute(
+            "SELECT pending_proposal_count,accepted_proposal_count,revision FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (0, 1, 2)
 
 
 def test_accept_wfm_create_commits_owner_disposition_and_replays(initialized_database) -> None:
