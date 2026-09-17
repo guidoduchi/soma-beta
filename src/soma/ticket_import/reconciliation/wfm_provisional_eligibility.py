@@ -4,7 +4,7 @@ from dataclasses import replace
 from typing import Any
 
 from soma.foundation.errors import IntegrityFailure
-from soma.objectives_tasks.services.wfm_import import WfmImportReader
+from soma.objectives_tasks.services.wfm_import import WfmImportBaseTarget, WfmImportReader
 from soma.objectives_tasks.services.wfm_import_reassignment import WfmImportParentReassignmentParticipant
 from soma.tickets.rfc_wfm_provisional import RfcWfmProvisionalEligibilityService
 
@@ -20,6 +20,66 @@ from .wfm_service_provider import (
 
 _RFC_STATUS_VOCABULARY = "RFC_STATUS_V1"
 _TERMINAL_RFC_STATUS_CLASSES = frozenset({"terminal_closed", "terminal_cancelled"})
+
+
+def _deferred_wfm_create_proposal(reader: Any, *, source) -> ReconciliationProposalDraft:
+    _status_token, lifecycle, _status_field = _lifecycle_from_source(source)
+    changes = (
+        ProposalChangeDraft(
+            ordinal=0,
+            field_key="task_no",
+            change_kind="create",
+            value_kind="identity",
+            before_text=None,
+            after_text=source.canonical_task_no,
+            before_integer=None,
+            after_integer=None,
+            source_observation_field_id=None,
+        ),
+        ProposalChangeDraft(
+            ordinal=1,
+            field_key="rfc_no",
+            change_kind="link",
+            value_kind="identity",
+            before_text=None,
+            after_text=source.canonical_parent_rfc_no,
+            before_integer=None,
+            after_integer=None,
+            source_observation_field_id=None,
+        ),
+    )
+    base_token = WfmImportReader.source_acceptance_base_token(
+        reader,
+        WfmImportBaseTarget("wfm_create_or_adopt", source.canonical_task_no, None),
+    )
+    identity = {
+        "proposal_kind": "wfm_create_or_adopt",
+        "evidence_mode": "observed_row",
+        "risk_class": "medium",
+        "target_kind": "wfm",
+        "target_internal_id": None,
+        "target_business_id": source.canonical_task_no,
+        "parent_rfc_no": source.canonical_parent_rfc_no,
+        "source_lifecycle_class": lifecycle,
+        "parent_identity_deferred": True,
+    }
+    return ReconciliationProposalDraft(
+        import_run_id=source.import_run_id,
+        evidence_mode="observed_row",
+        source_observation_id=source.source_observation_id,
+        proposal_kind="wfm_create_or_adopt",
+        target_kind="wfm",
+        target_internal_id=None,  # type: ignore[arg-type]
+        target_business_id=source.canonical_task_no,
+        risk_class="medium",
+        base_state_token_sha256=base_token,
+        proposal_fingerprint_sha256=_proposal_fingerprint(
+            source=source,
+            proposal_identity=identity,
+            changes=changes,
+        ),
+        changes=changes,
+    )
 
 
 def _parent_reassignment_proposal(
@@ -219,7 +279,12 @@ def build_wfm_service_provider_proposals(
 
     proposals = list(base.proposals)
     state = base.resolution_state
-    if base.resolution_state == "parent_rfc_review_required":
+    if base.resolution_state == "parent_rfc_review":
+        if base.task_no_status != "ABSENT":
+            raise IntegrityFailure("missing-parent WFM create review requires absent Task No authority")
+        proposals.append(_deferred_wfm_create_proposal(reader, source=source))
+        state = "parent_rfc_and_wfm_create_review"
+    elif base.resolution_state == "parent_rfc_review_required":
         if base.task_id is None or base.rfc_id is None:
             raise IntegrityFailure("WFM parent reassignment review is missing exact Task/RFC targets")
         proposals.append(
@@ -239,8 +304,8 @@ def build_wfm_service_provider_proposals(
     )
     if eligibility is not None:
         proposals.append(eligibility)
-        if state == "parent_rfc_review":
-            state = "parent_rfc_and_eligibility_review"
+        if state == "parent_rfc_and_wfm_create_review":
+            state = "parent_rfc_wfm_create_and_eligibility_review"
         elif state == "parent_rfc_adoption_review":
             state = "parent_rfc_adoption_and_eligibility_review"
         elif state == "create_review":
