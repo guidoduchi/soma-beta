@@ -9,14 +9,20 @@ from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.objectives_tasks.services.wfm_import import (
     WfmCreateOrAdoptFromSourceMutation,
+    WfmImportBaseTarget,
     WfmImportMutationParticipant,
+    WfmImportReader,
+    WfmReviewedOperationalPlanMutation,
     WfmSourceProjectionAcceptanceMutation,
 )
+from soma.ticket_import.providers.wfm_competing_attempt_evidence import TicketImportWfmCompetingAttemptEvidenceProvider
 from soma.ticket_import.providers.wfm_review_evidence import TicketImportWfmReviewEvidenceProvider
 from soma.tickets.rfc_import_mutations import RfcCreateFromSourceMutation
+from soma.tickets.rfc_import_reader import RfcImportReader
 
-from ..repositories.proposals import ProposalChangeRecord, ProposalRecord
-from ..reconciliation.engine import ProposalChangeDraft
+from ..repositories.proposals import PendingProposalWrite, ProposalChangeRecord, ProposalRecord
+from ..reconciliation.engine import ProposalChangeDraft, ReconciliationProposalDraft
+from ..reconciliation.wfm_follow_on import build_wfm_follow_on_proposals
 
 
 def _same_change(persisted: ProposalChangeRecord, recomputed: ProposalChangeDraft) -> bool:
@@ -30,6 +36,36 @@ def _same_change(persisted: ProposalChangeRecord, recomputed: ProposalChangeDraf
         and persisted.before_integer == recomputed.before_integer
         and persisted.after_integer == recomputed.after_integer
         and persisted.source_observation_field_id == recomputed.source_observation_field_id
+    )
+
+
+def _pending_write(draft: ReconciliationProposalDraft) -> PendingProposalWrite:
+    return PendingProposalWrite(
+        import_run_id=draft.import_run_id,
+        evidence_mode=draft.evidence_mode,
+        source_observation_id=draft.source_observation_id,
+        prior_source_observation_id=None,
+        proposal_kind=draft.proposal_kind,
+        target_kind=draft.target_kind,
+        target_internal_id=draft.target_internal_id,
+        target_business_id=draft.target_business_id,
+        risk_class=draft.risk_class,
+        base_state_token=draft.base_state_token_sha256,
+        proposal_fingerprint=draft.proposal_fingerprint_sha256,
+        changes=tuple(
+            ProposalChangeRecord(
+                ordinal=change.ordinal,
+                field_key=change.field_key,
+                change_kind=change.change_kind,
+                value_kind=change.value_kind,
+                before_text=change.before_text,
+                after_text=change.after_text,
+                before_integer=change.before_integer,
+                after_integer=change.after_integer,
+                source_observation_field_id=change.source_observation_field_id,
+            )
+            for change in draft.changes
+        ),
     )
 
 
@@ -297,6 +333,169 @@ def prepare_wfm_source_projection_accept(
 
     def apply(inner: UnitOfWork):
         owner_result = WfmImportMutationParticipant.apply_wfm_source_projection(inner, mutation)
+        follow_on_drafts = build_wfm_follow_on_proposals(
+            inner.connection,
+            import_run_id=proposal.import_run_id,
+            source_observation_id=candidate.source_observation_id,
+        )
+        follow_on_writes = tuple(_pending_write(draft) for draft in follow_on_drafts)
+        service._repository.transition_accept(
+            inner,
+            proposal=proposal,
+            run=run,
+            decided_at_utc=decided_at,
+            disposition_id=disposition_id,
+            reason_category=reason,
+            command_id=command_id,
+        )
+        service._repository.insert_follow_on_pending_set(
+            inner,
+            import_run_id=proposal.import_run_id,
+            expected_run_revision=run.revision + 1,
+            writes=follow_on_writes,
+        )
+        orchestration = service._orchestration_audit(
+            audit_event_id=orchestration_audit_id,
+            command_id=command_id,
+            proposal=proposal,
+            proposal_revision=proposal_revision,
+            reason=reason,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+            disposition_id=disposition_id,
+            owner_result_refs=owner_result.result_refs,
+        )
+        return (*owner_result.audit_events, orchestration)
+
+    return _prepared_result(service, proposal, command_id, apply)
+
+
+def prepare_wfm_plan_reconciliation_accept(
+    service: Any,
+    uow: UnitOfWork,
+    *,
+    proposal: ProposalRecord,
+    run: Any,
+    base_token: str,
+    proposal_revision: int,
+    command_id: str,
+    reason: str | None,
+    actor_kind: str,
+    actor_id: str | None,
+) -> PreparedMutation:
+    if (
+        proposal.evidence_mode != "observed_row"
+        or proposal.source_observation_id is None
+        or proposal.target_kind != "task_plan"
+        or proposal.target_internal_id is None
+        or proposal.target_business_id is None
+        or proposal.risk_class != "high"
+    ):
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan-reconciliation proposal binding is invalid")
+
+    evidence = TicketImportWfmCompetingAttemptEvidenceProvider().load_exact(
+        uow.connection,
+        expected_import_run_id=proposal.import_run_id,
+        source_observation_id=proposal.source_observation_id,
+    )
+    if evidence.task_no != proposal.target_business_id:
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan target Task No changed")
+    if WfmImportReader.task_no_status(uow.connection, evidence.task_no) != "ACTIVE":
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan target is no longer ACTIVE")
+    identity = WfmImportReader.get_by_task_no(uow.connection, evidence.task_no)
+    if identity is None or identity.get("task_id") != proposal.target_internal_id:
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan target identity changed")
+    task_revision = identity.get("task_revision")
+    current_rfc_id = identity.get("current_rfc_id")
+    if type(task_revision) is not int or task_revision <= 0 or not isinstance(current_rfc_id, str):
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan target owner authority is invalid")
+    parent = RfcImportReader().get_by_number(uow.connection, evidence.parent_rfc_no)
+    if parent is None or parent.get("rfc_id") != current_rfc_id:
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan parent RFC authority changed")
+
+    source = WfmImportReader.source_projection(uow.connection, proposal.target_internal_id)
+    if (
+        source is None
+        or source.get("accepted_source_observation_id") != evidence.source_observation_id
+        or source.get("source_plan_start_utc") != evidence.planned_start_utc
+        or source.get("source_plan_end_utc") != evidence.planned_end_utc
+    ):
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan proposal is not bound to the current accepted source plan")
+    source_revision = source.get("source_projection_revision")
+    if type(source_revision) is not int or source_revision <= 0:
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM source-plan revision authority is invalid")
+
+    operational = WfmImportReader.operational_plan_context(uow.connection, proposal.target_internal_id)
+    if operational is None:
+        expected_plan_revision = 0
+        before_start = None
+        before_end = None
+    else:
+        expected_plan_revision = operational.get("revision")
+        before_start = operational.get("start_utc")
+        before_end = operational.get("end_utc")
+        if (
+            type(expected_plan_revision) is not int
+            or expected_plan_revision <= 0
+            or type(before_start) is not int
+            or type(before_end) is not int
+            or before_start < 0
+            or before_end <= before_start
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "WFM operational-plan authority is invalid")
+    if before_start == evidence.planned_start_utc and before_end == evidence.planned_end_utc:
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan proposal no longer represents a material change")
+
+    current_token = WfmImportReader.source_acceptance_base_token(
+        uow.connection,
+        WfmImportBaseTarget("wfm_plan_reconciliation", evidence.task_no, proposal.target_internal_id),
+    )
+    if not hmac.compare_digest(current_token, base_token):
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan-reconciliation base state changed")
+
+    changes = service._repository.list_changes(uow.connection, proposal.proposal_id)
+    if len(changes) != 2:
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan reconciliation requires exactly two plan changes")
+    start_change, end_change = changes
+    expected = (
+        (start_change, 0, "planned_start", before_start, evidence.planned_start_utc, evidence.planned_start_field_id),
+        (end_change, 1, "planned_end", before_end, evidence.planned_end_utc, evidence.planned_end_field_id),
+    )
+    for change, ordinal, field_key, before_value, after_value, field_id in expected:
+        if (
+            change.ordinal != ordinal
+            or change.field_key != field_key
+            or change.change_kind != "set"
+            or change.value_kind != "instant"
+            or change.before_text is not None
+            or change.after_text is not None
+            or change.before_integer != before_value
+            or change.after_integer != after_value
+            or change.source_observation_field_id != field_id
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "WFM plan proposal changes no longer match owner/source authority")
+
+    disposition_id = new_uuid4()
+    orchestration_audit_id = new_uuid4()
+    decided_at = utc_epoch_seconds()
+    mutation = WfmReviewedOperationalPlanMutation(
+        task_id=proposal.target_internal_id,
+        task_no=evidence.task_no,
+        expected_task_revision=task_revision,
+        expected_current_plan_revision=expected_plan_revision,
+        expected_source_projection_revision=source_revision,
+        accepted_source_observation_id=evidence.source_observation_id,
+        start_utc=evidence.planned_start_utc,
+        end_utc=evidence.planned_end_utc,
+        base_state_token=base_token,
+        accepted_command_id=command_id,
+        reason_category=reason,
+        actor_kind=actor_kind,
+        actor_id=actor_id,
+    )
+
+    def apply(inner: UnitOfWork):
+        owner_result = WfmImportMutationParticipant.apply_reviewed_operational_plan_from_source(inner, mutation)
         service._repository.transition_accept(
             inner,
             proposal=proposal,
