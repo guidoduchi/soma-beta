@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from soma.foundation.errors import IntegrityFailure, SomaError
+from soma.foundation.errors import IntegrityFailure
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.strict_json import sha256_canonical_json
 from soma.objectives_tasks.services.wfm_import import WfmImportBaseTarget, WfmImportReader
@@ -166,6 +166,23 @@ def build_wfm_follow_on_proposals(
     import_run_id: str,
     source_observation_id: str,
 ) -> tuple[ReconciliationProposalDraft, ...]:
+    rows = reader.execute(
+        "SELECT field_key,field_class,value_state,value_kind,integer_value FROM source_observation_fields "
+        "WHERE source_observation_id=? AND field_key IN ('planned_start','planned_end') ORDER BY field_key",
+        (require_uuid4(source_observation_id),),
+    ).fetchall()
+    if len(rows) != 2:
+        return ()
+    by_key = {str(row[0]): row for row in rows}
+    if set(by_key) != {"planned_start", "planned_end"}:
+        return ()
+    for key in ("planned_start", "planned_end"):
+        row = by_key[key]
+        if str(row[1]) != "active" or str(row[2]) != "usable" or str(row[3]) != "instant" or type(row[4]) is not int:
+            return ()
+    if int(by_key["planned_end"][4]) <= int(by_key["planned_start"][4]):
+        return ()
+
     plan = build_wfm_plan_reconciliation_proposal(
         reader,
         import_run_id=import_run_id,
