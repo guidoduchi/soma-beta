@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import hmac
+from typing import Any
 
-from soma.foundation.application.command_boundary import CommandEnvelope, PreparedMutation
+from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
+from soma.foundation.audit.writer import AuditWriter
 from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.persistence.uow import UnitOfWork
+from soma.objectives_tasks.audit_registry import build_objectives_tasks_audit_registry
 
 from ._proposal_decision_rfc_sr import *  # noqa: F401,F403
 from ._proposal_decision_rfc_sr import ProposalDecisionService as _RfcSrProposalDecisionService
 from ._proposal_decision_core import (
     _REVIEWED_SR_SOURCE_CORRECTION_KINDS,
     _SR_CONTACT_PROPOSAL_ROLES,
+    _build_acceptance_audit_registry,
     _validate_fingerprint,
     _validate_optional_reason,
 )
@@ -19,6 +23,12 @@ from ._wfm_proposal_acceptance import prepare_wfm_create_accept, prepare_wfm_sou
 
 class ProposalDecisionService(_RfcSrProposalDecisionService):
     """Single LLD-04 proposal-decision authority extended with reviewed WFM owners."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        registry = _build_acceptance_audit_registry()
+        registry.extend(build_objectives_tasks_audit_registry())
+        self._boundary = CommandBoundary(self._factory, AuditWriter(registry))
 
     def accept(
         self,
@@ -82,6 +92,30 @@ class ProposalDecisionService(_RfcSrProposalDecisionService):
                 )
             if proposal.proposal_kind == "rfc_source_projection":
                 return self._prepare_rfc_source_projection_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "rfc_customer_reconciliation":
+                return self._prepare_rfc_customer_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "sr_rfc_link_candidate":
+                return self._prepare_rfc_sr_link_accept(
                     uow,
                     proposal=proposal,
                     run=run,
