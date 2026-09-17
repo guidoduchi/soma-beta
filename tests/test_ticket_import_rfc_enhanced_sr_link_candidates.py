@@ -6,6 +6,7 @@ from soma.ticket_import.reconciliation.rfc_enhanced_sr_link import (
     build_rfc_enhanced_sr_link_candidate_proposals,
     extract_sr_candidates,
 )
+from soma.tickets.relationships import ServiceRequestRfcRelationshipService
 from soma.tickets.service_requests import ServiceRequestService
 
 
@@ -144,12 +145,13 @@ def test_existing_active_link_is_not_reproposed(initialized_database) -> None:
     sr = _official_sr(factory, "34567890")
     rfc_no = "NC20260917000013"
     rfc_id = _seed_rfc(factory, rfc_no)
-    with UnitOfWork(factory) as uow:
-        uow.connection.execute(
-            "INSERT INTO sr_rfc_links(sr_rfc_link_id,service_request_id,rfc_id,link_state,opened_at_utc,opened_command_id) "
-            "VALUES (?, ?, ?, 'active', 1, ?)",
-            (new_uuid4(), sr.service_request_id, rfc_id, new_uuid4()),
-        )
+    ServiceRequestRfcRelationshipService(factory).link(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        rfc_id=rfc_id,
+        sr_base_revision=1,
+        rfc_base_revision=1,
+    )
     run_id = _seed_validating_run(factory)
     observation_id, _ = _seed_summary(
         factory,
