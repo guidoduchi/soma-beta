@@ -35,8 +35,9 @@ def _seed_rfc(factory, rfc_no: str) -> str:
 
 def test_import_owner_links_exact_sr_to_current_governing_rfc_in_same_uow(initialized_database) -> None:
     factory = _factory(initialized_database)
+    receipt_command_id = new_uuid4()
     sr = ServiceRequestService(factory).create_manual_service_request(
-        command_id=new_uuid4(),
+        command_id=receipt_command_id,
         official_sr_no="45678901",
     )
     rfc_id = _seed_rfc(factory, "NC20260917000021")
@@ -53,7 +54,7 @@ def test_import_owner_links_exact_sr_to_current_governing_rfc_in_same_uow(initia
                 service_request_id=sr.service_request_id,
                 requested_rfc_id=rfc_id,
                 base_state_token=context.base_state_token,
-                accepted_command_id=new_uuid4(),
+                accepted_command_id=receipt_command_id,
                 reason_category="test_reviewed_import_link",
             ),
         )
