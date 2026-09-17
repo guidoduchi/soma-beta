@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-from datetime import date
 from typing import Any
 
 from soma.foundation.errors import IntegrityFailure
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.strict_json import sha256_canonical_json
+from soma.ticket_import.parsing.sr_candidates import SrCandidateMention, extract_sr_candidates
 from soma.tickets.rfc_import_mutations import RfcImportMutationService
 from soma.tickets.rfc_import_reader import RfcImportReader
 from soma.tickets.service_request_import_reader import ServiceRequestImportReader
@@ -16,15 +15,6 @@ from .engine import ProposalChangeDraft, ReconciliationProposalDraft
 from .rfc_enhanced import _SourceField, _load_source_observation, _scope_status
 
 _PROPOSAL_FINGERPRINT_SCHEMA = "SOMA_IMPORT_PROPOSAL_FINGERPRINT_V1"
-_STRONG_RE = re.compile(r"(?<![A-Za-z0-9])(?:SR|TT)[ \t]*([0-9]{8})(?![A-Za-z0-9])", re.IGNORECASE)
-_WEAK_RE = re.compile(r"(?<![A-Za-z0-9])([0-9]{8})(?![A-Za-z0-9])")
-
-
-@dataclass(frozen=True, slots=True)
-class SrCandidateMention:
-    official_sr_no: str
-    strength: str
-    mention_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,53 +36,6 @@ def _summary_field(fields: tuple[_SourceField, ...]) -> _SourceField | None:
     if field.integer_value is not None:
         raise IntegrityFailure("Enhanced RFC Summary unexpectedly carries integer authority")
     return field
-
-
-def _valid_date_token(token: str) -> bool:
-    if len(token) != 8 or not token.isascii() or not token.isdigit():
-        return False
-    candidates = (
-        (int(token[0:4]), int(token[4:6]), int(token[6:8])),
-        (int(token[4:8]), int(token[2:4]), int(token[0:2])),
-        (int(token[4:8]), int(token[0:2]), int(token[2:4])),
-    )
-    for year, month, day in candidates:
-        try:
-            date(year, month, day)
-        except ValueError:
-            continue
-        return True
-    return False
-
-
-def extract_sr_candidates(text: str) -> tuple[SrCandidateMention, ...]:
-    if not isinstance(text, str) or "\x00" in text:
-        raise IntegrityFailure("Enhanced RFC Summary candidate source is invalid text")
-    counts: dict[str, int] = {}
-    strengths: dict[str, str] = {}
-    strong_digit_spans: list[tuple[int, int]] = []
-    for match in _STRONG_RE.finditer(text):
-        token = match.group(1)
-        strong_digit_spans.append(match.span(1))
-        counts[token] = counts.get(token, 0) + 1
-        strengths[token] = "strong"
-    for match in _WEAK_RE.finditer(text):
-        span = match.span(1)
-        if any(span[0] < strong_end and strong_start < span[1] for strong_start, strong_end in strong_digit_spans):
-            continue
-        token = match.group(1)
-        if _valid_date_token(token):
-            continue
-        counts[token] = counts.get(token, 0) + 1
-        strengths.setdefault(token, "weak")
-    return tuple(
-        SrCandidateMention(
-            official_sr_no=token,
-            strength=strengths[token],
-            mention_count=counts[token],
-        )
-        for token in sorted(counts)
-    )
 
 
 def _proposal(
