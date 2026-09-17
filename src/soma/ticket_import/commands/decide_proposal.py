@@ -3,20 +3,466 @@ from __future__ import annotations
 import hmac
 from typing import Any
 
-from soma.foundation.application.command_boundary import PreparedMutation
-from soma.foundation.errors import IntegrityFailure, SomaError
+from soma.foundation.application.command_boundary import CommandEnvelope, PreparedMutation
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import UnitOfWork
+from soma.ticket_import.providers.rfc_identity_evidence import TicketImportRfcIdentityEvidenceProvider
+from soma.ticket_import.providers.rfc_source_evidence import TicketImportRfcSourceEvidenceProvider
 from soma.tickets.import_mutations import ServiceRequestContactReviewMutation
+from soma.tickets.rfc_import_mutations import (
+    RfcCreateFromSourceMutation,
+    RfcImportMutationService,
+    RfcSourceProjectionMutation,
+)
+from soma.tickets.rfc_import_reader import RfcImportReader
+from soma.tickets.rfc_source_projection import RfcTerminalCascadeCaptureParticipant
+from soma.tickets.service_request_import_reader import ServiceRequestImportReader as _CurrentHandlerImportReader
 
 from ._proposal_decision_public_core import *  # noqa: F401,F403
 from ._proposal_decision_public_core import ProposalDecisionService as _CoreProposalDecisionService
+from ._proposal_decision_core import (
+    _REVIEWED_SR_SOURCE_CORRECTION_KINDS,
+    _SR_CONTACT_PROPOSAL_ROLES,
+    _validate_fingerprint,
+    _validate_optional_reason,
+)
 from ..repositories.proposals import ProposalRecord
-from soma.tickets.service_request_import_reader import ServiceRequestImportReader as _CurrentHandlerImportReader
+
+
+_RFC_CURRENT_VALUE_COLUMNS = {
+    "summary": "summary_text",
+    "external_created_at": "external_created_at_utc",
+    "creator": "creator_text",
+    "customer_account_number": "customer_account_number_text",
+    "customer_account_name": "customer_account_name_text",
+    "severity": "severity_text",
+    "status": "status_text",
+    "owner_external_id": "owner_external_id_text",
+    "owner_name": "owner_name_text",
+    "l1_handler_name": "l1_handler_name_text",
+    "l2_handler_name": "l2_handler_name_text",
+    "last_update": "last_update_utc",
+}
+_RFC_TERMINAL_CLASSES = frozenset({"terminal_closed", "terminal_cancelled"})
 
 
 class ProposalDecisionService(_CoreProposalDecisionService):
-    """Public proposal-decision service with certified Current Handler evidence-rebind support."""
+    """Public proposal-decision service with SR evidence-rebind and RFC import owner support."""
+
+    def __init__(
+        self,
+        *args: Any,
+        rfc_import_mutation_service: RfcImportMutationService | None = None,
+        rfc_terminal_capture_participant: RfcTerminalCascadeCaptureParticipant | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._rfc_identity_provider = TicketImportRfcIdentityEvidenceProvider()
+        self._rfc_source_provider = TicketImportRfcSourceEvidenceProvider()
+        self._rfc_import_reader = RfcImportReader()
+        self._rfc_import_mutations = (
+            RfcImportMutationService(
+                self._rfc_source_provider,
+                terminal_capture_participant=rfc_terminal_capture_participant,
+            )
+            if rfc_import_mutation_service is None
+            else rfc_import_mutation_service
+        )
+
+    def _prepare_rfc_create_accept(
+        self,
+        uow: UnitOfWork,
+        *,
+        proposal: ProposalRecord,
+        run: Any,
+        base_token: str,
+        proposal_revision: int,
+        command_id: str,
+        reason: str | None,
+        actor_kind: str,
+        actor_id: str | None,
+    ) -> PreparedMutation:
+        if (
+            proposal.evidence_mode != "observed_row"
+            or proposal.source_observation_id is None
+            or proposal.target_kind != "rfc"
+            or proposal.target_internal_id is not None
+            or proposal.target_business_id is None
+            or proposal.risk_class != "medium"
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "RFC identity creation proposal binding is invalid")
+        changes = self._repository.list_changes(uow.connection, proposal.proposal_id)
+        if len(changes) != 1:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "RFC identity creation requires exactly one immutable change")
+        change = changes[0]
+        if (
+            change.ordinal != 0
+            or change.field_key != "rfc_no"
+            or change.change_kind != "create"
+            or change.value_kind != "identity"
+            or change.before_text is not None
+            or change.after_text != proposal.target_business_id
+            or change.before_integer is not None
+            or change.after_integer is not None
+            or change.source_observation_field_id is not None
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "RFC identity creation proposal encoding is invalid")
+        self._rfc_identity_provider.validate_observed_identity(
+            uow.connection,
+            expected_import_run_id=proposal.import_run_id,
+            source_observation_id=proposal.source_observation_id,
+            canonical_rfc_no=proposal.target_business_id,
+        )
+        current_base = self._rfc_import_mutations.source_identity_base_token(
+            uow.connection,
+            proposal.target_business_id,
+        )
+        if not hmac.compare_digest(current_base, base_token):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "RFC identity base state changed")
+
+        disposition_id = new_uuid4()
+        orchestration_audit_id = new_uuid4()
+        decided_at = utc_epoch_seconds()
+        mutation = RfcCreateFromSourceMutation(
+            rfc_no=proposal.target_business_id,
+            base_state_token=base_token,
+            accepted_command_id=command_id,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+        )
+
+        def apply(inner: UnitOfWork):
+            owner_result = self._rfc_import_mutations.create_or_adopt_from_source(inner, mutation)
+            self._repository.transition_accept(
+                inner,
+                proposal=proposal,
+                run=run,
+                decided_at_utc=decided_at,
+                disposition_id=disposition_id,
+                reason_category=reason,
+                command_id=command_id,
+            )
+            orchestration = self._orchestration_audit(
+                audit_event_id=orchestration_audit_id,
+                command_id=command_id,
+                proposal=proposal,
+                proposal_revision=proposal_revision,
+                reason=reason,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                disposition_id=disposition_id,
+                owner_result_refs=owner_result.result_refs,
+            )
+            return (*owner_result.audit_events, orchestration)
+
+        return PreparedMutation(
+            False,
+            "reconciliation_proposal",
+            proposal.proposal_id,
+            apply,
+            response_schema="ProposalDecisionResultV1",
+            response_factory=lambda inner: self._decision_response(
+                inner,
+                proposal_id=proposal.proposal_id,
+                command_id=command_id,
+            ),
+        )
+
+    def _prepare_rfc_source_projection_accept(
+        self,
+        uow: UnitOfWork,
+        *,
+        proposal: ProposalRecord,
+        run: Any,
+        base_token: str,
+        proposal_revision: int,
+        command_id: str,
+        reason: str | None,
+        actor_kind: str,
+        actor_id: str | None,
+    ) -> PreparedMutation:
+        if (
+            proposal.evidence_mode != "observed_row"
+            or proposal.source_observation_id is None
+            or proposal.target_kind != "rfc"
+            or proposal.target_internal_id is None
+            or proposal.target_business_id is None
+            or proposal.risk_class not in {"medium", "high"}
+        ):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection proposal binding is invalid")
+        target = self._rfc_import_reader.get_by_number(uow.connection, proposal.target_business_id)
+        if target is None or target.get("rfc_id") != proposal.target_internal_id:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "proposal target identity no longer matches the RFC")
+        current_base = self._rfc_import_mutations.source_acceptance_base_token(
+            uow.connection,
+            proposal.target_internal_id,
+        )
+        if not hmac.compare_digest(current_base, base_token):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection base state changed")
+
+        changes = self._repository.list_changes(uow.connection, proposal.proposal_id)
+        if not changes or len(changes) > len(_RFC_CURRENT_VALUE_COLUMNS):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection change set is empty or exceeds field registry")
+        if len({change.field_key for change in changes}) != len(changes):
+            raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection proposal repeats a field")
+        current = self._rfc_import_reader.current_source_projection(uow.connection, proposal.target_internal_id)
+        deltas = []
+        terminal_sensitive = False
+        for change in changes:
+            column = _RFC_CURRENT_VALUE_COLUMNS.get(change.field_key)
+            if column is None:
+                raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection contains an unallowlisted field")
+            if (
+                change.change_kind != "set"
+                or change.source_observation_field_id is None
+                or change.value_kind not in {"text", "controlled", "instant"}
+            ):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection change encoding is invalid")
+            delta = self._rfc_source_provider.build_source_projection_delta(
+                uow.connection,
+                rfc_id=proposal.target_internal_id,
+                expected_import_run_id=proposal.import_run_id,
+                expected_source_observation_id=proposal.source_observation_id,
+                source_observation_field_id=change.source_observation_field_id,
+                expected_field_key=change.field_key,
+            )
+            if delta.value_kind != change.value_kind:
+                raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection value kind changed")
+            if delta.value_kind in {"text", "controlled"}:
+                if (
+                    change.after_text != delta.value
+                    or change.after_integer is not None
+                    or change.before_integer is not None
+                ):
+                    raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection text evidence changed")
+                current_value = None if current is None else current.get(column)
+                expected_before = None if current_value is None else str(current_value)
+                if change.before_text != expected_before:
+                    raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection before-state changed")
+            else:
+                if (
+                    change.after_integer != delta.value
+                    or change.after_text is not None
+                    or change.before_text is not None
+                ):
+                    raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection instant evidence changed")
+                current_value = None if current is None else current.get(column)
+                expected_before = None if current_value is None else int(current_value)
+                if change.before_integer != expected_before:
+                    raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection before-state changed")
+            if change.field_key == "status":
+                current_class = None if current is None else current.get("status_class")
+                if delta.status_class in _RFC_TERMINAL_CLASSES or current_class in _RFC_TERMINAL_CLASSES:
+                    terminal_sensitive = True
+            deltas.append(delta)
+
+        expected_risk = "high" if terminal_sensitive else "medium"
+        if proposal.risk_class != expected_risk:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection risk classification changed")
+
+        disposition_id = new_uuid4()
+        orchestration_audit_id = new_uuid4()
+        decided_at = utc_epoch_seconds()
+        mutation = RfcSourceProjectionMutation(
+            rfc_id=proposal.target_internal_id,
+            base_state_token=base_token,
+            deltas=tuple(deltas),
+            accepted_command_id=command_id,
+            review_fingerprint=proposal.proposal_fingerprint,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+        )
+
+        def apply(inner: UnitOfWork):
+            owner_result = self._rfc_import_mutations.apply_accepted_source_projection(inner, mutation)
+            if owner_result.projection_result.no_change:
+                raise SomaError("IMPORT_PROPOSAL_STALE", "RFC source projection no longer represents a material change")
+            self._repository.transition_accept(
+                inner,
+                proposal=proposal,
+                run=run,
+                decided_at_utc=decided_at,
+                disposition_id=disposition_id,
+                reason_category=reason,
+                command_id=command_id,
+            )
+            orchestration = self._orchestration_audit(
+                audit_event_id=orchestration_audit_id,
+                command_id=command_id,
+                proposal=proposal,
+                proposal_revision=proposal_revision,
+                reason=reason,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                disposition_id=disposition_id,
+                owner_result_refs=owner_result.result_refs,
+            )
+            return (*owner_result.audit_events, orchestration)
+
+        return PreparedMutation(
+            False,
+            "reconciliation_proposal",
+            proposal.proposal_id,
+            apply,
+            response_schema="ProposalDecisionResultV1",
+            response_factory=lambda inner: self._decision_response(
+                inner,
+                proposal_id=proposal.proposal_id,
+                command_id=command_id,
+            ),
+        )
+
+    def accept(
+        self,
+        *,
+        command_id: str,
+        proposal_id: str,
+        proposal_revision: int,
+        proposal_fingerprint: str,
+        base_state_token: str,
+        reason_category: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ProposalDecisionResult:
+        if type(proposal_revision) is not int or proposal_revision <= 0:
+            raise ValidationError("proposal_revision must be a positive integer")
+        fingerprint = _validate_fingerprint(proposal_fingerprint)
+        base_token = _validate_fingerprint(base_state_token, field_name="base_state_token")
+        reason = _validate_optional_reason(reason_category)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="AcceptReconciliationProposal",
+            target_type="reconciliation_proposal",
+            target_id=proposal_id,
+            semantic_payload={
+                "decision": "accepted",
+                "proposal_revision": proposal_revision,
+                "proposal_fingerprint": fingerprint,
+                "base_state_token": base_token,
+                "reason_category": reason,
+            },
+            base_revisions={"proposal": proposal_revision},
+            authorizing_fingerprints={"proposal": fingerprint, "base_state": base_token},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            proposal = self._repository.require_pending(uow.connection, proposal_id)
+            if (
+                proposal.revision != proposal_revision
+                or not hmac.compare_digest(proposal.proposal_fingerprint, fingerprint)
+                or not hmac.compare_digest(proposal.base_state_token, base_token)
+            ):
+                raise SomaError("IMPORT_PROPOSAL_STALE", "proposal revision/fingerprint/base state changed")
+            if proposal.risk_class == "blocked":
+                raise SomaError("IMPORT_PROPOSAL_BLOCKED", "blocked reconciliation proposal cannot be accepted")
+            run = self._repository.get_run(uow.connection, proposal.import_run_id)
+            if run.run_state not in {"staged", "waiting_review", "recovery_required"}:
+                raise SomaError("IMPORT_PROPOSAL_STALE", "parent import run no longer permits proposal acceptance")
+            self._repository.require_current_recovery_authorization(uow.connection, run)
+            if proposal.proposal_kind == "rfc_create_or_adopt":
+                return self._prepare_rfc_create_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "rfc_source_projection":
+                return self._prepare_rfc_source_projection_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "sr_create_or_adopt":
+                return self._prepare_sr_create_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "sr_source_projection":
+                return self._prepare_sr_source_projection_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind in _REVIEWED_SR_SOURCE_CORRECTION_KINDS:
+                return self._prepare_sr_source_projection_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    precedence_basis="reviewed_correction",
+                )
+            if proposal.proposal_kind == "sr_customer_reconciliation":
+                return self._prepare_sr_customer_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind in _SR_CONTACT_PROPOSAL_ROLES:
+                return self._prepare_sr_contact_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "sr_source_disappearance_review":
+                return self._prepare_sr_disappearance_accept(
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            raise SomaError(
+                "IMPORT_PROPOSAL_BLOCKED",
+                "proposal kind has no implemented owning-domain acceptance participant",
+            )
+
+        return self._result_from_execution(self._boundary.execute(envelope, prepare))
 
     def _prepare_sr_contact_accept(
         self,
