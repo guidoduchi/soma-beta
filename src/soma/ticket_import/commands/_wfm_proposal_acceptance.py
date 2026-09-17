@@ -13,6 +13,7 @@ from soma.objectives_tasks.services.wfm_import import (
     WfmSourceProjectionAcceptanceMutation,
 )
 from soma.ticket_import.providers.wfm_review_evidence import TicketImportWfmReviewEvidenceProvider
+from soma.tickets.rfc_import_mutations import RfcCreateFromSourceMutation
 
 from ..repositories.proposals import ProposalChangeRecord, ProposalRecord
 from ..reconciliation.engine import ProposalChangeDraft
@@ -45,6 +46,92 @@ def _prepared_result(service: Any, proposal: ProposalRecord, command_id: str, ap
             command_id=command_id,
         ),
     )
+
+
+def prepare_wfm_provisional_rfc_accept(
+    service: Any,
+    uow: UnitOfWork,
+    *,
+    proposal: ProposalRecord,
+    run: Any,
+    base_token: str,
+    proposal_revision: int,
+    command_id: str,
+    reason: str | None,
+    actor_kind: str,
+    actor_id: str | None,
+) -> PreparedMutation:
+    if (
+        proposal.evidence_mode != "observed_row"
+        or proposal.source_observation_id is None
+        or proposal.target_kind != "rfc"
+        or proposal.target_internal_id is not None
+        or proposal.target_business_id is None
+        or proposal.risk_class != "high"
+    ):
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM provisional RFC proposal binding is invalid")
+    changes = service._repository.list_changes(uow.connection, proposal.proposal_id)
+    if len(changes) != 1:
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM provisional RFC proposal requires exactly one identity change")
+    change = changes[0]
+    if (
+        change.ordinal != 0
+        or change.field_key != "rfc_no"
+        or change.change_kind != "create"
+        or change.value_kind != "identity"
+        or change.before_text is not None
+        or change.after_text != proposal.target_business_id
+        or change.before_integer is not None
+        or change.after_integer is not None
+        or change.source_observation_field_id is not None
+    ):
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM provisional RFC proposal encoding is invalid")
+
+    candidate = TicketImportWfmReviewEvidenceProvider().revalidate_provisional_rfc_candidate(
+        uow.connection,
+        expected_import_run_id=proposal.import_run_id,
+        expected_source_observation_id=proposal.source_observation_id,
+        expected_parent_rfc_no=proposal.target_business_id,
+    )
+    if not hmac.compare_digest(candidate.base_state_token, base_token):
+        raise SomaError("IMPORT_PROPOSAL_STALE", "WFM provisional RFC identity base state changed")
+
+    disposition_id = new_uuid4()
+    orchestration_audit_id = new_uuid4()
+    decided_at = utc_epoch_seconds()
+    mutation = RfcCreateFromSourceMutation(
+        rfc_no=candidate.rfc_no,
+        base_state_token=base_token,
+        accepted_command_id=command_id,
+        actor_kind=actor_kind,
+        actor_id=actor_id,
+    )
+
+    def apply(inner: UnitOfWork):
+        owner_result = service._rfc_import_mutations.create_or_adopt_from_source(inner, mutation)
+        service._repository.transition_accept(
+            inner,
+            proposal=proposal,
+            run=run,
+            decided_at_utc=decided_at,
+            disposition_id=disposition_id,
+            reason_category=reason,
+            command_id=command_id,
+        )
+        orchestration = service._orchestration_audit(
+            audit_event_id=orchestration_audit_id,
+            command_id=command_id,
+            proposal=proposal,
+            proposal_revision=proposal_revision,
+            reason=reason,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+            disposition_id=disposition_id,
+            owner_result_refs=owner_result.result_refs,
+        )
+        return (*owner_result.audit_events, orchestration)
+
+    return _prepared_result(service, proposal, command_id, apply)
 
 
 def prepare_wfm_create_accept(
