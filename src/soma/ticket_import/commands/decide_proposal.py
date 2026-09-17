@@ -18,8 +18,8 @@ from ._proposal_decision_core import (
     _validate_fingerprint,
     _validate_optional_reason,
 )
+from ._wfm_create_or_adopt_acceptance import prepare_wfm_create_or_adopt_accept
 from ._wfm_proposal_acceptance import (
-    prepare_wfm_create_accept,
     prepare_wfm_provisional_rfc_accept,
     prepare_wfm_source_projection_accept,
 )
@@ -85,176 +85,87 @@ class ProposalDecisionService(_RfcSrProposalDecisionService):
 
             if proposal.proposal_kind == "rfc_create_or_adopt":
                 return self._prepare_rfc_create_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "rfc_source_projection":
                 return self._prepare_rfc_source_projection_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "rfc_customer_reconciliation":
                 return self._prepare_rfc_customer_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "sr_rfc_link_candidate":
                 return self._prepare_rfc_sr_link_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "wfm_provisional_rfc":
                 return prepare_wfm_provisional_rfc_accept(
-                    self,
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    self, uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "wfm_provisional_eligibility":
                 return prepare_wfm_provisional_eligibility_accept(
-                    self,
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    self, uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "wfm_create_or_adopt":
-                return prepare_wfm_create_accept(
-                    self,
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                return prepare_wfm_create_or_adopt_accept(
+                    self, uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "wfm_source_projection":
                 return prepare_wfm_source_projection_accept(
-                    self,
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    self, uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "sr_create_or_adopt":
                 return self._prepare_sr_create_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "sr_source_projection":
                 return self._prepare_sr_source_projection_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind in _REVIEWED_SR_SOURCE_CORRECTION_KINDS:
                 return self._prepare_sr_source_projection_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
-                    precedence_basis="reviewed_correction",
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id, precedence_basis="reviewed_correction",
                 )
             if proposal.proposal_kind == "sr_customer_reconciliation":
                 return self._prepare_sr_customer_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind in _SR_CONTACT_PROPOSAL_ROLES:
                 return self._prepare_sr_contact_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             if proposal.proposal_kind == "sr_source_disappearance_review":
                 return self._prepare_sr_disappearance_accept(
-                    uow,
-                    proposal=proposal,
-                    run=run,
-                    base_token=base_token,
-                    proposal_revision=proposal_revision,
-                    command_id=command_id,
-                    reason=reason,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
+                    uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
                 )
             raise SomaError(
                 "IMPORT_PROPOSAL_BLOCKED",
