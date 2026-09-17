@@ -4,6 +4,8 @@ from dataclasses import replace
 from typing import Any
 
 from soma.foundation.errors import IntegrityFailure
+from soma.objectives_tasks.services.wfm_import import WfmImportReader
+from soma.objectives_tasks.services.wfm_import_reassignment import WfmImportParentReassignmentParticipant
 from soma.tickets.rfc_wfm_provisional import RfcWfmProvisionalEligibilityService
 
 from .engine import ProposalChangeDraft, ReconciliationProposalDraft
@@ -18,6 +20,87 @@ from .wfm_service_provider import (
 
 _RFC_STATUS_VOCABULARY = "RFC_STATUS_V1"
 _TERMINAL_RFC_STATUS_CLASSES = frozenset({"terminal_closed", "terminal_cancelled"})
+
+
+def _parent_reassignment_proposal(
+    reader: Any,
+    *,
+    source,
+    task_id: str,
+    new_rfc_id: str,
+) -> ReconciliationProposalDraft:
+    identity = WfmImportReader.get_by_task_no(reader, source.canonical_task_no)
+    if identity is None or identity.get("task_id") != task_id:
+        raise IntegrityFailure("WFM parent reassignment target identity changed during proposal composition")
+    prior_rfc_id = identity.get("current_rfc_id")
+    if not isinstance(prior_rfc_id, str) or prior_rfc_id == new_rfc_id:
+        raise IntegrityFailure("WFM parent reassignment proposal lacks a distinct current parent")
+    prior = reader.execute("SELECT rfc_no FROM rfcs WHERE rfc_id=?", (prior_rfc_id,)).fetchone()
+    target = reader.execute("SELECT rfc_no FROM rfcs WHERE rfc_id=?", (new_rfc_id,)).fetchone()
+    if prior is None or target is None:
+        raise IntegrityFailure("WFM parent reassignment RFC identity authority disappeared")
+    prior_rfc_no = str(prior[0])
+    new_rfc_no = str(target[0])
+    if new_rfc_no != source.canonical_parent_rfc_no:
+        raise IntegrityFailure("WFM parent reassignment target RFC does not match source evidence")
+
+    changes = (
+        ProposalChangeDraft(
+            ordinal=0,
+            field_key="task_no",
+            change_kind="adopt",
+            value_kind="identity",
+            before_text=source.canonical_task_no,
+            after_text=source.canonical_task_no,
+            before_integer=None,
+            after_integer=None,
+            source_observation_field_id=None,
+        ),
+        ProposalChangeDraft(
+            ordinal=1,
+            field_key="rfc_no",
+            change_kind="set",
+            value_kind="identity",
+            before_text=prior_rfc_no,
+            after_text=new_rfc_no,
+            before_integer=None,
+            after_integer=None,
+            source_observation_field_id=None,
+        ),
+    )
+    base_token = WfmImportParentReassignmentParticipant.base_state_token(
+        reader,
+        task_no=source.canonical_task_no,
+        task_id=task_id,
+        new_rfc_id=new_rfc_id,
+    )
+    proposal_identity = {
+        "proposal_kind": "wfm_create_or_adopt",
+        "evidence_mode": "observed_row",
+        "risk_class": "high",
+        "target_kind": "wfm",
+        "target_internal_id": task_id,
+        "target_business_id": source.canonical_task_no,
+        "prior_rfc_no": prior_rfc_no,
+        "new_rfc_no": new_rfc_no,
+    }
+    return ReconciliationProposalDraft(
+        import_run_id=source.import_run_id,
+        evidence_mode="observed_row",
+        source_observation_id=source.source_observation_id,
+        proposal_kind="wfm_create_or_adopt",
+        target_kind="wfm",
+        target_internal_id=task_id,
+        target_business_id=source.canonical_task_no,
+        risk_class="high",
+        base_state_token_sha256=base_token,
+        proposal_fingerprint_sha256=_proposal_fingerprint(
+            source=source,
+            proposal_identity=proposal_identity,
+            changes=changes,
+        ),
+        changes=changes,
+    )
 
 
 def _provisional_eligibility_proposal(
@@ -123,9 +206,7 @@ def build_wfm_service_provider_proposals(
         kwargs["rfc_reader"] = rfc_reader
     base = _build_base_wfm_proposals(reader, **kwargs)
 
-    if base.scope_status in {"conflict", "equivalent_duplicate_suppressed"}:
-        return base
-    if base.task_no_status == "RETIRED" or base.resolution_state == "parent_rfc_review_required":
+    if base.scope_status in {"conflict", "equivalent_duplicate_suppressed"} or base.task_no_status == "RETIRED":
         return base
 
     source = _load_source_observation(
@@ -134,25 +215,41 @@ def build_wfm_service_provider_proposals(
         source_observation_id=source_observation_id,
     )
     if source.canonical_task_no != base.canonical_task_no or source.canonical_parent_rfc_no != base.canonical_parent_rfc_no:
-        raise IntegrityFailure("WFM provisional eligibility source identity changed during proposal composition")
+        raise IntegrityFailure("WFM reconciliation source identity changed during proposal composition")
+
+    proposals = list(base.proposals)
+    state = base.resolution_state
+    if base.resolution_state == "parent_rfc_review_required":
+        if base.task_id is None or base.rfc_id is None:
+            raise IntegrityFailure("WFM parent reassignment review is missing exact Task/RFC targets")
+        proposals.append(
+            _parent_reassignment_proposal(
+                reader,
+                source=source,
+                task_id=base.task_id,
+                new_rfc_id=base.rfc_id,
+            )
+        )
+        state = "parent_rfc_adoption_review"
 
     eligibility = _provisional_eligibility_proposal(
         reader,
         source=source,
         rfc_id=base.rfc_id,
     )
-    if eligibility is None:
-        return base
+    if eligibility is not None:
+        proposals.append(eligibility)
+        if state == "parent_rfc_review":
+            state = "parent_rfc_and_eligibility_review"
+        elif state == "parent_rfc_adoption_review":
+            state = "parent_rfc_adoption_and_eligibility_review"
+        elif state == "create_review":
+            state = "create_and_eligibility_review"
+        elif state == "source_review":
+            state = "source_and_eligibility_review"
+        elif state == "no_source_change":
+            state = "eligibility_review"
 
-    proposals = (*base.proposals, eligibility)
-    if base.resolution_state == "parent_rfc_review":
-        state = "parent_rfc_and_eligibility_review"
-    elif base.resolution_state == "create_review":
-        state = "create_and_eligibility_review"
-    elif base.resolution_state == "source_review":
-        state = "source_and_eligibility_review"
-    elif base.resolution_state == "no_source_change":
-        state = "eligibility_review"
-    else:
-        state = base.resolution_state
-    return replace(base, resolution_state=state, proposals=proposals)
+    if tuple(proposals) == base.proposals and state == base.resolution_state:
+        return base
+    return replace(base, resolution_state=state, proposals=tuple(proposals))
