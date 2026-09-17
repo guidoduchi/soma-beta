@@ -23,6 +23,7 @@ from ._wfm_proposal_acceptance import (
     prepare_wfm_provisional_rfc_accept,
     prepare_wfm_source_projection_accept,
 )
+from ._wfm_provisional_eligibility_acceptance import prepare_wfm_provisional_eligibility_accept
 
 
 class ProposalDecisionService(_RfcSrProposalDecisionService):
@@ -132,6 +133,19 @@ class ProposalDecisionService(_RfcSrProposalDecisionService):
                 )
             if proposal.proposal_kind == "wfm_provisional_rfc":
                 return prepare_wfm_provisional_rfc_accept(
+                    self,
+                    uow,
+                    proposal=proposal,
+                    run=run,
+                    base_token=base_token,
+                    proposal_revision=proposal_revision,
+                    command_id=command_id,
+                    reason=reason,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "wfm_provisional_eligibility":
+                return prepare_wfm_provisional_eligibility_accept(
                     self,
                     uow,
                     proposal=proposal,
