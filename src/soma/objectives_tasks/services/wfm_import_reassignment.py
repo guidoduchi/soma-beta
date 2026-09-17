@@ -88,6 +88,22 @@ class WfmImportParentReassignmentParticipant:
         )
 
     @staticmethod
+    def require_import_eligible_rfc(reader: Any, *, rfc_id: str, source_lifecycle_class: str) -> None:
+        if source_lifecycle_class not in _SOURCE_CLASSES:
+            raise SomaError("VALIDATION_ERROR", "provider lifecycle class is invalid")
+        authority = TaskPlanningService._load_rfc_parent_authority(reader, require_uuid4(rfc_id))
+        if authority is None:
+            raise SomaError("WFM_RFC_NOT_ELIGIBLE", "reviewed WFM parent RFC disappeared")
+        if source_lifecycle_class in _TERMINAL_SOURCE_CLASSES:
+            return
+        _rfc_revision, _source_revision, archive_state, status_class = authority
+        if archive_state != "active" or status_class != "implement_eligible":
+            raise SomaError(
+                "WFM_RFC_NOT_ELIGIBLE",
+                "active/nonterminal WFM requires an active Implement-eligible owning RFC",
+            )
+
+    @staticmethod
     def reassign_parent_from_source(
         uow: UnitOfWork,
         mutation: WfmParentReassignmentFromSourceMutation,
@@ -120,11 +136,11 @@ class WfmImportParentReassignmentParticipant:
         prior_rfc_id = identity.current_rfc_id
         if prior_rfc_id == new_rfc_id:
             raise SomaError("TASK_STALE", "reviewed WFM parent correction no longer represents a change")
-        candidate_authority = TaskPlanningService._load_rfc_parent_authority(uow.connection, new_rfc_id)
-        if candidate_authority is None:
-            raise SomaError("WFM_RFC_NOT_ELIGIBLE", "reviewed WFM parent RFC disappeared")
-        if mutation.source_lifecycle_class not in _TERMINAL_SOURCE_CLASSES:
-            TaskPlanningService._assert_eligible_rfc_authority(candidate_authority)
+        WfmImportParentReassignmentParticipant.require_import_eligible_rfc(
+            uow.connection,
+            rfc_id=new_rfc_id,
+            source_lifecycle_class=mutation.source_lifecycle_class,
+        )
 
         review_risk = TaskPlanningService._classify_wfm_parent_history_risk(uow.connection, task_id)
         assignment_event_id = new_uuid4()
