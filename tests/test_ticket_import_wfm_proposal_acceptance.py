@@ -4,6 +4,7 @@ from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import TaskPlanningService
 from soma.objectives_tasks.services.wfm_import import WfmImportBaseTarget, WfmImportReader
+from soma.objectives_tasks.services.wfm_import_reassignment import WfmImportParentReassignmentParticipant
 from soma.ticket_import.commands.decide_proposal import ProposalDecisionService
 from soma.ticket_import.profiles import require_profile_versions
 from soma.tickets.rfc_import_mutations import RfcImportMutationService
@@ -107,6 +108,16 @@ def _usable_instant(field_key: str, value: int) -> dict[str, object]:
     }
 
 
+def _mark_rfc_implement_eligible(factory, rfc_id: str) -> None:
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO rfc_current_source_projection("
+            "rfc_id,status_text,status_class,status_authority,status_evidence_id,terminal_epoch_id,revision"
+            ") VALUES (?,'Implement','implement_eligible','wfm_provisional',?,NULL,1)",
+            (rfc_id, new_uuid4()),
+        )
+
+
 def _seed_provisional_rfc_proposal(
     factory,
     *,
@@ -164,6 +175,42 @@ def _seed_create_proposal(
             "before_text,after_text,before_integer,after_integer,source_observation_field_id) "
             "VALUES (?,1,'rfc_no','link','identity',NULL,?,NULL,NULL,NULL)",
             (proposal_id, rfc_no),
+        )
+    return proposal_id
+
+
+def _seed_adoption_proposal(
+    factory,
+    *,
+    run_id: str,
+    observation_id: str,
+    task_id: str,
+    task_no: str,
+    current_rfc_no: str,
+    new_rfc_no: str,
+    base_token: str,
+    fingerprint: str,
+) -> str:
+    proposal_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposals(reconciliation_proposal_id,import_run_id,evidence_mode,source_observation_id,"
+            "prior_source_observation_id,proposal_kind,target_kind,target_internal_id,target_business_id,risk_class,"
+            "base_state_token_sha256,proposal_fingerprint_sha256,proposal_state,created_at_utc,revision,decided_at_utc) "
+            "VALUES (?,?,'observed_row',?,NULL,'wfm_create_or_adopt','wfm',?,?,'high',?,?,'pending',1,1,NULL)",
+            (proposal_id, run_id, observation_id, task_id, task_no, base_token, fingerprint),
+        )
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposal_changes(reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,"
+            "before_text,after_text,before_integer,after_integer,source_observation_field_id) "
+            "VALUES (?,0,'task_no','adopt','identity',?,?,NULL,NULL,NULL)",
+            (proposal_id, task_no, task_no),
+        )
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposal_changes(reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,"
+            "before_text,after_text,before_integer,after_integer,source_observation_field_id) "
+            "VALUES (?,1,'rfc_no','set','identity',?,?,NULL,NULL,NULL)",
+            (proposal_id, current_rfc_no, new_rfc_no),
         )
     return proposal_id
 
@@ -277,6 +324,7 @@ def test_accept_wfm_provisional_rfc_commits_identity_disposition_and_replays(ini
 def test_accept_wfm_create_commits_owner_disposition_and_replays(initialized_database) -> None:
     factory = _factory(initialized_database)
     rfc, rfc_no = _create_rfc(factory, 601)
+    _mark_rfc_implement_eligible(factory, rfc.rfc_id)
     task_no = "TK00000000000601"
     run_id, observation_id, _ = _seed_run_and_observation(
         factory,
@@ -343,6 +391,97 @@ def test_accept_wfm_create_commits_owner_disposition_and_replays(initialized_dat
             "SELECT COUNT(*) FROM proposal_dispositions WHERE reconciliation_proposal_id=?",
             (proposal_id,),
         ).fetchone()[0] == 1
+
+
+def test_accept_wfm_existing_identity_reassigns_parent_with_audit_and_replays(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    current, current_no = _create_rfc(factory, 603)
+    target, target_no = _create_rfc(factory, 604)
+    _mark_rfc_implement_eligible(factory, target.rfc_id)
+    task_no = "TK00000000000603"
+    registered = TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=task_no,
+        rfc_id=current.rfc_id,
+    )
+    run_id, observation_id, _ = _seed_run_and_observation(
+        factory,
+        task_no=task_no,
+        rfc_no=target_no,
+        fields=(_unknown_status(),),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        base_token = WfmImportParentReassignmentParticipant.base_state_token(
+            snapshot.connection,
+            task_no=task_no,
+            task_id=registered.task_id,
+            new_rfc_id=target.rfc_id,
+        )
+    fingerprint = "6" * 64
+    proposal_id = _seed_adoption_proposal(
+        factory,
+        run_id=run_id,
+        observation_id=observation_id,
+        task_id=registered.task_id,
+        task_no=task_no,
+        current_rfc_no=current_no,
+        new_rfc_no=target_no,
+        base_token=base_token,
+        fingerprint=fingerprint,
+    )
+    command_id = new_uuid4()
+    service = ProposalDecisionService(factory)
+    first = service.accept(
+        command_id=command_id,
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=fingerprint,
+        base_state_token=base_token,
+    )
+    assert first.decision == "accepted"
+    assert first.replayed is False
+    assert ("task", registered.task_id) in first.owner_result_refs
+    assignment_refs = [ref for ref in first.owner_result_refs if ref[0] == "wfm_assignment"]
+    assert len(assignment_refs) == 1
+
+    replay = service.accept(
+        command_id=command_id,
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=fingerprint,
+        base_state_token=base_token,
+    )
+    assert replay.replayed is True
+    assert replay.owner_result_refs == first.owner_result_refs
+
+    with ReadSnapshot(factory) as snapshot:
+        identity = WfmImportReader.get_by_task_no(snapshot.connection, task_no)
+        assert identity is not None
+        assert identity["task_id"] == registered.task_id
+        assert identity["current_rfc_id"] == target.rfc_id
+        assert identity["assignment_revision"] == 2
+        task_revision = snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone()
+        assert task_revision is not None and int(task_revision[0]) == 2
+        assignment = snapshot.connection.execute(
+            "SELECT prior_rfc_id,new_rfc_id,reason_code,review_risk FROM wfm_rfc_assignment_events "
+            "WHERE assignment_event_id=?",
+            (assignment_refs[0][1],),
+        ).fetchone()
+        assert assignment is not None
+        assert tuple(assignment) == (current.rfc_id, target.rfc_id, "wfm_source_parent_correction", "low")
+        audit_count = snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=? AND action_type='task.wfm_parent_reassigned'",
+            (command_id,),
+        ).fetchone()
+        assert audit_count is not None and int(audit_count[0]) == 1
+        proposal = snapshot.connection.execute(
+            "SELECT proposal_state,revision FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()
+        assert tuple(proposal) == ("accepted", 2)
 
 
 def test_accept_wfm_source_projection_applies_exact_reviewed_source_and_replays(initialized_database) -> None:
