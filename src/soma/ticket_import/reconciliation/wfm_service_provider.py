@@ -7,6 +7,7 @@ from soma.foundation.errors import IntegrityFailure
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.strict_json import sha256_canonical_json
 from soma.objectives_tasks.services.wfm_import import WfmImportBaseTarget, WfmImportReader
+from soma.tickets.rfc_import_mutations import RfcImportMutationService
 from soma.tickets.rfc_import_reader import RfcImportReader
 
 from ..profiles import require_profile_versions
@@ -294,6 +295,55 @@ def _desired_source_projection(
     return desired_status_token, str(desired_lifecycle), desired_start, desired_end
 
 
+def _provisional_rfc_proposal(
+    *,
+    reader: Any,
+    source: _SourceObservation,
+) -> ReconciliationProposalDraft:
+    change = ProposalChangeDraft(
+        ordinal=0,
+        field_key="rfc_no",
+        change_kind="create",
+        value_kind="identity",
+        before_text=None,
+        after_text=source.canonical_parent_rfc_no,
+        before_integer=None,
+        after_integer=None,
+        source_observation_field_id=None,
+    )
+    base_state_token = RfcImportMutationService.source_identity_base_token(
+        reader,
+        source.canonical_parent_rfc_no,
+    )
+    identity = {
+        "proposal_kind": "wfm_provisional_rfc",
+        "evidence_mode": "observed_row",
+        "risk_class": "high",
+        "target_kind": "rfc",
+        "target_internal_id": None,
+        "target_business_id": source.canonical_parent_rfc_no,
+        "wfm_task_no": source.canonical_task_no,
+    }
+    changes = (change,)
+    return ReconciliationProposalDraft(
+        import_run_id=source.import_run_id,
+        evidence_mode="observed_row",
+        source_observation_id=source.source_observation_id,
+        proposal_kind="wfm_provisional_rfc",
+        target_kind="rfc",
+        target_internal_id=None,
+        target_business_id=source.canonical_parent_rfc_no,
+        risk_class="high",
+        base_state_token_sha256=base_state_token,
+        proposal_fingerprint_sha256=_proposal_fingerprint(
+            source=source,
+            proposal_identity=identity,
+            changes=changes,
+        ),
+        changes=changes,
+    )
+
+
 def _create_proposal(
     *,
     source: _SourceObservation,
@@ -503,6 +553,7 @@ def build_wfm_service_provider_proposals(
     rfc_authority = RfcImportReader() if rfc_reader is None else rfc_reader
     rfc = rfc_authority.get_by_number(reader, source.canonical_parent_rfc_no)
     if rfc is None:
+        provisional = _provisional_rfc_proposal(reader=reader, source=source)
         return WfmServiceProviderProposalBuildResult(
             canonical_task_no=source.canonical_task_no,
             canonical_parent_rfc_no=source.canonical_parent_rfc_no,
@@ -510,9 +561,9 @@ def build_wfm_service_provider_proposals(
             task_id=None,
             rfc_id=None,
             scope_status=scope_status,
-            resolution_state="parent_rfc_missing",
+            resolution_state="parent_rfc_review",
             blocked_finding_code=None,
-            proposals=(),
+            proposals=(provisional,),
         )
     rfc_id = rfc.get("rfc_id")
     if not isinstance(rfc_id, str):
