@@ -38,7 +38,7 @@ def test_rfc_automatic_ranks_by_mtime_not_collision_suffix(tmp_path) -> None:
     assert candidate.profile_id == "RFC_ENHANCED_V1"
     assert candidate.filename == newer.name
     assert candidate.chronology_kind == "filesystem_mtime_ns"
-    assert candidate.chronology_value == 1_800_000_000_000_000_000
+    assert candidate.chronology_value == newer.stat().st_mtime_ns
     assert candidate.discovery_provenance == "automatic"
 
 
@@ -46,11 +46,12 @@ def test_rfc_manual_allows_nonautomatic_xlsx_filename_and_uses_mtime(tmp_path) -
     selected = tmp_path / "operator-selected-rfc.xlsx"
     _workbook(selected)
     os.utime(selected, ns=(1_800_000_000_000_000_123, 1_800_000_000_000_000_123))
+    filesystem_mtime_ns = selected.stat().st_mtime_ns
 
     candidate = discover_rfc_enhanced_manual(selected, sleep_fn=lambda _seconds: None)
 
     assert candidate.filename == selected.name
-    assert candidate.chronology_value == 1_800_000_000_000_000_123
+    assert candidate.chronology_value == filesystem_mtime_ns
     assert candidate.discovery_provenance == "manual"
 
 
