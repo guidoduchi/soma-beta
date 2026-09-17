@@ -41,10 +41,10 @@ def _seed_published_field(
             "INSERT INTO import_runs("
             "import_run_id,source_family,invocation_kind,source_profile_id,header_registry_id,vocabulary_registry_id,parser_profile_id,"
             "candidate_filename,candidate_file_size_bytes,candidate_stable_mtime_ns,candidate_chronology_kind,candidate_chronology_value,"
-            "logical_fingerprint_sha256,run_state,started_at_utc,staged_at_utc,published_at_utc,observed_row_count,valid_identity_count,"
+            "logical_fingerprint_sha256,run_state,started_at_utc,staged_at_utc,observed_row_count,valid_identity_count,"
             "proposal_count,pending_proposal_count,revision"
             ") VALUES (?, 'rfc_enhanced','manual','RFC_ENHANCED_V1','RFC_HEADERS_V1','RFC_VOCAB_V1','RFC_PARSER_V1',"
-            "'operator-rfc.xlsx',100,1,'filesystem_mtime_ns',200,?,'waiting_review',0,1,2,1,1,0,0,1)",
+            "'operator-rfc.xlsx',100,1,'filesystem_mtime_ns',200,?,'waiting_review',0,1,1,1,0,0,1)",
             (run_id, "1" * 64),
         )
         uow.connection.execute(
