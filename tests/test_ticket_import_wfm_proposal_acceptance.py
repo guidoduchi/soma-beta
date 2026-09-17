@@ -314,11 +314,78 @@ def test_accept_wfm_provisional_rfc_commits_identity_disposition_and_replays(ini
             (proposal_id,),
         ).fetchone()
         assert tuple(proposal) == ("accepted", 2)
-        run = snapshot.connection.execute(
-            "SELECT pending_proposal_count,accepted_proposal_count,revision FROM import_runs WHERE import_run_id=?",
+        follow_on = snapshot.connection.execute(
+            "SELECT reconciliation_proposal_id,base_state_token_sha256,proposal_fingerprint_sha256,proposal_state,revision "
+            "FROM reconciliation_proposals WHERE import_run_id=? AND proposal_kind='wfm_plan_reconciliation'",
             (run_id,),
         ).fetchone()
-        assert tuple(run) == (0, 1, 2)
+        assert follow_on is not None
+        plan_proposal_id = str(follow_on[0])
+        plan_base_token = str(follow_on[1])
+        plan_fingerprint = str(follow_on[2])
+        assert tuple(follow_on[3:]) == ("pending", 1)
+        plan_changes = snapshot.connection.execute(
+            "SELECT ordinal,field_key,change_kind,value_kind,before_integer,after_integer,source_observation_field_id "
+            "FROM reconciliation_proposal_changes WHERE reconciliation_proposal_id=? ORDER BY ordinal",
+            (plan_proposal_id,),
+        ).fetchall()
+        assert [tuple(row) for row in plan_changes] == [
+            (0, "planned_start", "set", "instant", None, start, field_ids["planned_start"]),
+            (1, "planned_end", "set", "instant", None, end, field_ids["planned_end"]),
+        ]
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM reconciliation_proposals WHERE import_run_id=? "
+            "AND proposal_kind='wfm_competing_attempt_review'",
+            (run_id,),
+        ).fetchone()[0] == 0
+        run = snapshot.connection.execute(
+            "SELECT proposal_count,pending_proposal_count,accepted_proposal_count,revision FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (2, 1, 1, 3)
+
+    plan_command_id = new_uuid4()
+    plan_first = service.accept(
+        command_id=plan_command_id,
+        proposal_id=plan_proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=plan_fingerprint,
+        base_state_token=plan_base_token,
+        reason_category="adopt_provider_plan",
+    )
+    assert plan_first.decision == "accepted"
+    assert plan_first.replayed is False
+    plan_replay = service.accept(
+        command_id=plan_command_id,
+        proposal_id=plan_proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=plan_fingerprint,
+        base_state_token=plan_base_token,
+        reason_category="adopt_provider_plan",
+    )
+    assert plan_replay.replayed is True
+    assert plan_replay.owner_result_refs == plan_first.owner_result_refs
+
+    with ReadSnapshot(factory) as snapshot:
+        operational = WfmImportReader.operational_plan_context(snapshot.connection, registered.task_id)
+        assert operational is not None
+        assert operational["start_utc"] == start
+        assert operational["end_utc"] == end
+        assert operational["origin"] == "wfm_source_adoption"
+        assert operational["source_observation_id"] == observation_id
+        assert operational["revision"] == 1
+        assert snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?", (registered.task_id,)
+        ).fetchone()[0] == 2
+        run = snapshot.connection.execute(
+            "SELECT proposal_count,pending_proposal_count,accepted_proposal_count,revision FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (2, 0, 2, 4)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=? AND action_type='task.plan_changed'",
+            (plan_command_id,),
+        ).fetchone()[0] == 1
 
 
 def test_accept_wfm_create_commits_owner_disposition_and_replays(initialized_database) -> None:
@@ -487,6 +554,7 @@ def test_accept_wfm_existing_identity_reassigns_parent_with_audit_and_replays(in
 def test_accept_wfm_source_projection_applies_exact_reviewed_source_and_replays(initialized_database) -> None:
     factory = _factory(initialized_database)
     rfc, rfc_no = _create_rfc(factory, 602)
+    _mark_rfc_implement_eligible(factory, rfc.rfc_id)
     task_no = "TK00000000000602"
     registered = TaskPlanningService(factory).register_manual_wfm_task(
         command_id=new_uuid4(),
