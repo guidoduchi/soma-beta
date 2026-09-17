@@ -3,6 +3,9 @@ from __future__ import annotations
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import TaskPlanningService
+from soma.objectives_tasks.contracts.objectives_tasks import AcceptedTaskSchedule
+from soma.objectives_tasks.queries.task_activity_review import WfmActivityRelationshipReviewQueryService
+from soma.objectives_tasks.services.task_activity_review import WfmActivityRelationshipReviewService
 from soma.objectives_tasks.services.wfm_import import WfmImportBaseTarget, WfmImportReader
 from soma.objectives_tasks.services.wfm_import_reassignment import WfmImportParentReassignmentParticipant
 from soma.ticket_import.commands.decide_proposal import ProposalDecisionService
@@ -549,6 +552,130 @@ def test_accept_wfm_existing_identity_reassigns_parent_with_audit_and_replays(in
             (proposal_id,),
         ).fetchone()
         assert tuple(proposal) == ("accepted", 2)
+
+
+def test_source_projection_acceptance_appends_plan_and_competing_attempt_follow_ons(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    rfc, rfc_no = _create_rfc(factory, 605)
+    _mark_rfc_implement_eligible(factory, rfc.rfc_id)
+    subject_no = "TK00000000000605"
+    counterpart_no = "TK00000000000606"
+    source_start = 2_065_000_000
+    source_end = source_start + 3_600
+    subject = TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=subject_no,
+        rfc_id=rfc.rfc_id,
+        schedule=AcceptedTaskSchedule(
+            start_utc=source_start + 120,
+            end_utc=source_end + 120,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    counterpart = TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=counterpart_no,
+        rfc_id=rfc.rfc_id,
+        schedule=AcceptedTaskSchedule(
+            start_utc=source_start + 600,
+            end_utc=source_end + 600,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    seed_ids = tuple(sorted((subject.task_id, counterpart.task_id)))
+    preview = WfmActivityRelationshipReviewQueryService(factory).preview(
+        seed_task_ids=seed_ids,
+        decision="same_activity",
+    )
+    reviewed = WfmActivityRelationshipReviewService(factory).review_wfm_activity_relationship(
+        command_id=new_uuid4(),
+        seed_tasks=((subject.task_id, 1), (counterpart.task_id, 1)),
+        decision="same_activity",
+        review_fingerprint=preview.review_fingerprint,
+        reason_category="same_provider_activity",
+    )
+    assert reviewed.outcome == "APPLIED"
+    with ReadSnapshot(factory) as snapshot:
+        lineage_rows = snapshot.connection.execute(
+            "SELECT task_id,activity_lineage_id FROM task_activity_lineage_current "
+            "WHERE task_id IN (?,?) ORDER BY task_id",
+            (subject.task_id, counterpart.task_id),
+        ).fetchall()
+        assert len(lineage_rows) == 2
+        assert len({str(row[1]) for row in lineage_rows}) == 1
+        lineage_id = str(lineage_rows[0][1])
+
+    run_id, observation_id, field_ids = _seed_run_and_observation(
+        factory,
+        task_no=subject_no,
+        rfc_no=rfc_no,
+        fields=(
+            _unknown_status("Implementation"),
+            _usable_instant("planned_start", source_start),
+            _usable_instant("planned_end", source_end),
+        ),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        base_token = WfmImportReader.source_acceptance_base_token(
+            snapshot.connection,
+            WfmImportBaseTarget("wfm_source_projection", subject_no, subject.task_id),
+        )
+    fingerprint = "8" * 64
+    proposal_id = _seed_source_projection_proposal(
+        factory,
+        run_id=run_id,
+        observation_id=observation_id,
+        task_id=subject.task_id,
+        task_no=subject_no,
+        base_token=base_token,
+        fingerprint=fingerprint,
+        status_field_id=field_ids["task_status"],
+        start_field_id=field_ids["planned_start"],
+        end_field_id=field_ids["planned_end"],
+        start=source_start,
+        end=source_end,
+    )
+    result = ProposalDecisionService(factory).accept(
+        command_id=new_uuid4(),
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=fingerprint,
+        base_state_token=base_token,
+    )
+    assert result.decision == "accepted"
+
+    with ReadSnapshot(factory) as snapshot:
+        rows = snapshot.connection.execute(
+            "SELECT proposal_kind,target_kind,target_internal_id,target_business_id,risk_class,base_state_token_sha256 "
+            "FROM reconciliation_proposals WHERE import_run_id=? AND proposal_state='pending' ORDER BY proposal_kind",
+            (run_id,),
+        ).fetchall()
+        assert [str(row[0]) for row in rows] == [
+            "wfm_competing_attempt_review",
+            "wfm_plan_reconciliation",
+        ]
+        competing = rows[0]
+        assert tuple(competing[1:5]) == ("activity_lineage", lineage_id, subject_no, "high")
+        assert isinstance(competing[5], str) and len(str(competing[5])) == 64
+        conflict_change = snapshot.connection.execute(
+            "SELECT field_key,change_kind,value_kind,before_text,after_text "
+            "FROM reconciliation_proposal_changes c JOIN reconciliation_proposals p "
+            "ON p.reconciliation_proposal_id=c.reconciliation_proposal_id "
+            "WHERE p.import_run_id=? AND p.proposal_kind='wfm_competing_attempt_review'",
+            (run_id,),
+        ).fetchone()
+        assert tuple(conflict_change) == (
+            "competing_attempt_counterpart",
+            "conflict",
+            "identity",
+            None,
+            counterpart.task_id,
+        )
+        run = snapshot.connection.execute(
+            "SELECT proposal_count,pending_proposal_count,accepted_proposal_count,revision FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (3, 2, 1, 3)
 
 
 def test_accept_wfm_source_projection_applies_exact_reviewed_source_and_replays(initialized_database) -> None:
