@@ -20,6 +20,7 @@ from ._proposal_decision_core import (
 )
 from ._wfm_create_or_adopt_acceptance import prepare_wfm_create_or_adopt_accept
 from ._wfm_proposal_acceptance import (
+    prepare_wfm_plan_reconciliation_accept,
     prepare_wfm_provisional_rfc_accept,
     prepare_wfm_source_projection_accept,
 )
@@ -127,6 +128,12 @@ class ProposalDecisionService(_RfcSrProposalDecisionService):
                 )
             if proposal.proposal_kind == "wfm_source_projection":
                 return prepare_wfm_source_projection_accept(
+                    self, uow, proposal=proposal, run=run, base_token=base_token,
+                    proposal_revision=proposal_revision, command_id=command_id, reason=reason,
+                    actor_kind=actor_kind, actor_id=actor_id,
+                )
+            if proposal.proposal_kind == "wfm_plan_reconciliation":
+                return prepare_wfm_plan_reconciliation_accept(
                     self, uow, proposal=proposal, run=run, base_token=base_token,
                     proposal_revision=proposal_revision, command_id=command_id, reason=reason,
                     actor_kind=actor_kind, actor_id=actor_id,
