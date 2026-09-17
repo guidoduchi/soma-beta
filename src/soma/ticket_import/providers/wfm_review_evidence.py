@@ -14,11 +14,19 @@ from soma.ticket_import.reconciliation.wfm_service_provider import (
     _lifecycle_from_source,
     _source_projection_changes,
 )
+from soma.tickets.rfc_import_mutations import RfcImportMutationService
 from soma.tickets.rfc_import_reader import RfcImportReader
 
 _PUBLISHED_RUN_STATES = frozenset(
     {"staged", "waiting_review", "recovery_required", "partially_accepted", "accepted", "rejected"}
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ReviewedWfmProvisionalRfcCandidate:
+    task_no: str
+    rfc_no: str
+    base_state_token: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,7 +145,7 @@ def _load_published_source(
 
 
 class TicketImportWfmReviewEvidenceProvider:
-    """Writer-side revalidation of reviewed WFM identity and source-projection proposals."""
+    """Writer-side revalidation of reviewed WFM import proposals."""
 
     def __init__(self) -> None:
         self._rfc_reader = RfcImportReader()
@@ -150,6 +158,30 @@ class TicketImportWfmReviewEvidenceProvider:
         if rfc.get("rfc_no") != source.canonical_parent_rfc_no:
             raise IntegrityFailure("RFC import reader returned mismatched WFM parent identity")
         return rfc_id
+
+    def revalidate_provisional_rfc_candidate(
+        self,
+        reader: Any,
+        *,
+        expected_import_run_id: str,
+        expected_source_observation_id: str,
+        expected_parent_rfc_no: str,
+    ) -> ReviewedWfmProvisionalRfcCandidate:
+        source = _load_published_source(
+            reader,
+            expected_import_run_id=expected_import_run_id,
+            expected_source_observation_id=expected_source_observation_id,
+        )
+        if source.canonical_parent_rfc_no != expected_parent_rfc_no:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "reviewed provisional RFC identity changed")
+        if self._rfc_reader.get_by_number(reader, expected_parent_rfc_no) is not None:
+            raise SomaError("IMPORT_PROPOSAL_STALE", "reviewed provisional RFC is no longer missing")
+        base = RfcImportMutationService.source_identity_base_token(reader, expected_parent_rfc_no)
+        return ReviewedWfmProvisionalRfcCandidate(
+            task_no=source.canonical_task_no,
+            rfc_no=expected_parent_rfc_no,
+            base_state_token=base,
+        )
 
     def revalidate_create_candidate(
         self,
