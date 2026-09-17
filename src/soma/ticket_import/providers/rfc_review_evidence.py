@@ -1,20 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
-import re
 from typing import Any
 
 from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import require_uuid4
 from soma.reference.queries.matching import ReferenceMatcher
+from soma.ticket_import.parsing.sr_candidates import extract_sr_candidates
 from soma.tickets.rfc_import_reader import RfcImportReader
 from soma.tickets.service_request_import_reader import ServiceRequestImportReader
 
 from .rfc_source_evidence import TicketImportRfcSourceEvidenceProvider
-
-_STRONG_RE = re.compile(r"(?<![A-Za-z0-9])(?:SR|TT)[ \t]*([0-9]{8})(?![A-Za-z0-9])", re.IGNORECASE)
-_WEAK_RE = re.compile(r"(?<![A-Za-z0-9])([0-9]{8})(?![A-Za-z0-9])")
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,38 +30,6 @@ class ReviewedRfcSrLinkCandidate:
     service_request_id: str
     official_sr_no: str
     source_observation_field_id: str
-
-
-def _valid_date_token(token: str) -> bool:
-    candidates = (
-        (int(token[0:4]), int(token[4:6]), int(token[6:8])),
-        (int(token[4:8]), int(token[2:4]), int(token[0:2])),
-        (int(token[4:8]), int(token[0:2]), int(token[2:4])),
-    )
-    for year, month, day in candidates:
-        try:
-            date(year, month, day)
-        except ValueError:
-            continue
-        return True
-    return False
-
-
-def _summary_candidates(text: str) -> frozenset[str]:
-    strong_spans: list[tuple[int, int]] = []
-    candidates: set[str] = set()
-    for match in _STRONG_RE.finditer(text):
-        strong_spans.append(match.span(1))
-        candidates.add(match.group(1))
-    for match in _WEAK_RE.finditer(text):
-        span = match.span(1)
-        if any(span[0] < strong_end and strong_start < span[1] for strong_start, strong_end in strong_spans):
-            continue
-        token = match.group(1)
-        if _valid_date_token(token):
-            continue
-        candidates.add(token)
-    return frozenset(candidates)
 
 
 class TicketImportRfcReviewEvidenceProvider:
@@ -166,7 +130,7 @@ class TicketImportRfcReviewEvidenceProvider:
         exact = self._sr_reader.get_by_official(reader, official_sr_no)
         if exact is None or exact.get("service_request_id") != canonical_sr_id:
             raise SomaError("IMPORT_PROPOSAL_STALE", "candidate Service Request identity changed")
-        if official_sr_no not in _summary_candidates(delta.value):
+        if official_sr_no not in {candidate.official_sr_no for candidate in extract_sr_candidates(delta.value)}:
             raise SomaError("IMPORT_PROPOSAL_STALE", "RFC Summary no longer contains the reviewed Service Request candidate")
         return ReviewedRfcSrLinkCandidate(
             requested_rfc_id=canonical_rfc_id,
