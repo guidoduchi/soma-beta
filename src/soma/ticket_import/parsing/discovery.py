@@ -546,6 +546,44 @@ def discover_wfm_service_provider_automatic(
     )
 
 
+def discover_wfm_service_provider_manual(
+    selected_path: str | os.PathLike[str],
+    *,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> CandidateDescriptor:
+    """Stabilize one explicitly selected WFM workbook with supported embedded chronology."""
+
+    requested = Path(selected_path)
+    _reject_unsupported_windows_namespace(requested)
+    if not requested.is_absolute():
+        raise _source_unavailable("selected Service Provider WFM workbook path is not absolute")
+    _assert_no_reparse_chain(requested)
+    try:
+        resolved = requested.resolve(strict=True)
+    except OSError as exc:
+        raise _source_unavailable("selected Service Provider WFM workbook is unavailable") from exc
+    chronology = _parse_wfm_service_provider_filename(resolved.name)
+    if chronology is None:
+        raise SomaError(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "selected WFM workbook filename does not contain supported embedded source chronology",
+        )
+    stable = _probe_stability(resolved, sleep_fn=sleep_fn)
+    preflight = _preflight_stable(resolved, stable)
+    return CandidateDescriptor(
+        source_family=_WFM_SERVICE_PROVIDER_FAMILY,
+        profile_id=_WFM_SERVICE_PROVIDER_PROFILE_ID,
+        path=resolved,
+        filename=resolved.name,
+        stable_size_bytes=stable.size_bytes,
+        stable_mtime_ns=stable.mtime_ns,
+        chronology_kind=_EMBEDDED_CHRONOLOGY_KIND,
+        chronology_value=chronology,
+        discovery_provenance="manual",
+        preflight=preflight,
+    )
+
+
 __all__ = [
     "CandidateDescriptor",
     "discover_advanced_search_automatic",
@@ -553,4 +591,5 @@ __all__ = [
     "discover_rfc_enhanced_automatic",
     "discover_rfc_enhanced_manual",
     "discover_wfm_service_provider_automatic",
+    "discover_wfm_service_provider_manual",
 ]
