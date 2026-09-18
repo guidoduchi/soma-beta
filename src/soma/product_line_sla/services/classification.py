@@ -543,6 +543,202 @@ class ProductLineSlaClassificationService:
 
         return classification_result_from_execution(self._boundary.execute(envelope, prepare))
 
+    def supersede_mapping(
+        self,
+        *,
+        command_id: str,
+        mapping_id: str,
+        base_revision: int,
+        reason_category: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> CatalogMutationResult:
+        identity = require_uuid4(mapping_id)
+        if type(base_revision) is not int or base_revision <= 0:
+            raise ValidationError("base_revision must be a positive integer")
+        reason = validate_reason_code(reason_category)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="SupersedeClassificationMapping",
+            target_type="classification_mapping",
+            target_id=identity,
+            semantic_payload={
+                "reason_category": reason,
+            },
+            base_revisions={"classification_mapping": base_revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            current = ClassificationMappingRepository.get(uow.connection, identity)
+            if current is None:
+                raise SomaError("SLA_CATALOG_NOT_FOUND", "classification mapping does not exist")
+            if current.revision != base_revision or not current.active:
+                raise SomaError("SLA_STALE", "classification mapping is stale or already superseded")
+            resulting_revision = base_revision + 1
+            normalized_fingerprint = hashlib.sha256(
+                current.normalized_key.encode("utf-8", errors="strict")
+            ).hexdigest()
+
+            def apply(inner: UnitOfWork):
+                updated = inner.connection.execute(
+                    "UPDATE sla_classification_mappings SET active=0,revision=?,closed_command_id=? "
+                    "WHERE mapping_id=? AND revision=? AND active=1",
+                    (resulting_revision, command_id, identity, base_revision),
+                )
+                if updated.rowcount != 1:
+                    raise SomaError("SLA_STALE", "classification mapping changed")
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="sla.classification_mapping.created_or_superseded",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="classification_mapping",
+                    target_id=identity,
+                    reason_category=reason,
+                    command_id=command_id,
+                    payload_schema="ClassificationMappingAuditV1",
+                    payload_version=1,
+                    payload={
+                        "mapping_id": identity,
+                        "customer_org_id": current.customer_org_id,
+                        "mapping_key_type": current.mapping_key_type,
+                        "normalized_key_fingerprint": normalized_fingerprint,
+                        "contract_product_line_id": current.contract_product_line_id,
+                        "action": "SUPERSEDE",
+                        "resulting_revision": resulting_revision,
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(AuditResultRef("classification_mapping", identity),),
+                )
+
+            return PreparedMutation(
+                False,
+                "classification_mapping",
+                identity,
+                apply,
+                response_schema="SlaCatalogMutationResultV1",
+                response={
+                    "target_type": "classification_mapping",
+                    "target_id": identity,
+                    "revision": resulting_revision,
+                    "policy_revision_id": None,
+                },
+            )
+
+        return catalog_result_from_execution(self._boundary.execute(envelope, prepare))
+
+    def clear_service_request_classification(
+        self,
+        *,
+        command_id: str,
+        service_request_id: str,
+        classification_revision: int,
+        reason_category: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ClassificationMutationResult:
+        sr_id = require_uuid4(service_request_id)
+        if type(classification_revision) is not int or classification_revision <= 0:
+            raise ValidationError("classification_revision must be a positive integer")
+        reason = validate_reason_code(reason_category)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="ClearSrClassification",
+            target_type="service_request",
+            target_id=sr_id,
+            semantic_payload={
+                "classification_revision": classification_revision,
+                "reason_category": reason,
+            },
+            base_revisions={"classification": classification_revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            current = SrClassificationRepository.current(uow.connection, sr_id)
+            if current is None or current.revision != classification_revision:
+                raise SomaError("SLA_CLASSIFICATION_STALE", "current classification changed")
+            sr = self._sr_input(uow.connection, sr_id)
+            target = self._target(uow.connection, current.contract_product_line_id)
+            if target is None:
+                raise SomaError(
+                    "SLA_DEPENDENCY_INDETERMINATE",
+                    "current classification target no longer resolves",
+                )
+            event_id = new_uuid4()
+            resulting_revision = classification_revision + 1
+            fingerprint = sha256_canonical_json(
+                {
+                    "schema": "SOMA_SLA_CLASSIFICATION_CLEAR_V1",
+                    "service_request_id": sr_id,
+                    "classification_event_id": current.classification_event_id,
+                    "classification_revision": classification_revision,
+                    "contract_product_line_id": current.contract_product_line_id,
+                    "customer_org_id": sr.customer_org_id,
+                    "current_policy_revision_id": target.current_policy_revision_id,
+                }
+            )
+            now = utc_epoch_seconds()
+
+            def apply(inner: UnitOfWork):
+                SrClassificationRepository.append_event(
+                    inner,
+                    classification_event_id=event_id,
+                    service_request_id=sr_id,
+                    event_kind="clear",
+                    prior_contract_product_line_id=current.contract_product_line_id,
+                    new_contract_product_line_id=None,
+                    origin="manual_review",
+                    mapping_id=None,
+                    reason_code=reason,
+                    recorded_at_utc=now,
+                    command_id=command_id,
+                )
+                SrClassificationRepository.clear_current(inner, sr_id)
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="sla.service_request.classification_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="service_request",
+                    target_id=sr_id,
+                    reason_category=reason,
+                    command_id=command_id,
+                    payload_schema="ServiceRequestClassificationAuditV1",
+                    payload_version=1,
+                    payload={
+                        "service_request_id": sr_id,
+                        "classification_event_id": event_id,
+                        "event_kind": "CLEAR",
+                        "prior_contract_product_line_id": current.contract_product_line_id,
+                        "new_contract_product_line_id": None,
+                        "policy_revision_id": target.current_policy_revision_id,
+                        "customer_org_id": sr.customer_org_id,
+                        "input_fingerprint": fingerprint,
+                        "origin": "clear",
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(AuditResultRef("sr_classification_event", event_id),),
+                )
+
+            return PreparedMutation(
+                False,
+                "sr_classification_event",
+                event_id,
+                apply,
+                response_schema="SlaClassificationMutationResultV1",
+                response={
+                    "service_request_id": sr_id,
+                    "contract_product_line_id": None,
+                    "classification_event_id": event_id,
+                    "revision": resulting_revision,
+                    "outcome": "CLEARED",
+                },
+            )
+
+        return classification_result_from_execution(self._boundary.execute(envelope, prepare))
+
     def preview_customer_change(self, reader, sr_id: str, new_customer_org_id: str | None) -> object:
         current = SrClassificationRepository.current(reader, sr_id)
         if current is None:
