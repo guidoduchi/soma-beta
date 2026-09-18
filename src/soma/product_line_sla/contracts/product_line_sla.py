@@ -54,6 +54,60 @@ def catalog_result_from_execution(result: CommandExecutionResult) -> CatalogMuta
     )
 
 
+
+
+@dataclass(frozen=True, slots=True)
+class ClassificationPreview:
+    service_request_id: str
+    state: str
+    customer_org_id: str | None
+    target_contract_product_line_id: str | None
+    mapping_id: str | None
+    current_contract_product_line_id: str | None
+    current_revision: int
+    input_fingerprint: str
+
+
+@dataclass(frozen=True, slots=True)
+class ClassificationMutationResult:
+    service_request_id: str
+    contract_product_line_id: str | None
+    classification_event_id: str | None
+    revision: int
+    outcome: str
+    replayed: bool
+
+
+def classification_result_from_execution(result: CommandExecutionResult) -> ClassificationMutationResult:
+    if result.response_schema != "SlaClassificationMutationResultV1" or result.response_version != 1:
+        raise IntegrityFailure("SLA classification response contract is invalid")
+    value = result.response
+    if not isinstance(value, dict) or set(value) != {
+        "service_request_id",
+        "contract_product_line_id",
+        "classification_event_id",
+        "revision",
+        "outcome",
+    }:
+        raise IntegrityFailure("SLA classification response shape is invalid")
+    if not isinstance(value["service_request_id"], str) or not value["service_request_id"]:
+        raise IntegrityFailure("SLA classification Service Request identity is invalid")
+    for key in ("contract_product_line_id", "classification_event_id"):
+        if value[key] is not None and not isinstance(value[key], str):
+            raise IntegrityFailure("SLA classification optional identity is invalid")
+    if type(value["revision"]) is not int or value["revision"] < 0:
+        raise IntegrityFailure("SLA classification revision is invalid")
+    if value["outcome"] not in {"APPLIED", "NO_CHANGE", "CLEARED", "INVALIDATED"}:
+        raise IntegrityFailure("SLA classification outcome is invalid")
+    return ClassificationMutationResult(
+        service_request_id=value["service_request_id"],
+        contract_product_line_id=value["contract_product_line_id"],
+        classification_event_id=value["classification_event_id"],
+        revision=value["revision"],
+        outcome=value["outcome"],
+        replayed=result.replayed,
+    )
+
 def policy_result_from_execution(result: CommandExecutionResult) -> PolicyRevisionResult:
     if result.response_schema != "SlaPolicyRevisionResultV1" or result.response_version != 1:
         raise IntegrityFailure("SLA policy response contract is invalid")
@@ -86,7 +140,10 @@ def policy_result_from_execution(result: CommandExecutionResult) -> PolicyRevisi
 
 __all__ = [
     "CatalogMutationResult",
+    "ClassificationMutationResult",
+    "ClassificationPreview",
     "PolicyRevisionResult",
     "catalog_result_from_execution",
+    "classification_result_from_execution",
     "policy_result_from_execution",
 ]
