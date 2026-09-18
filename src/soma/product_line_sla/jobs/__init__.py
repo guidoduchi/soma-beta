@@ -270,18 +270,13 @@ def _recover_report_stale(
     _positive(attempt_ordinal, "attempt_ordinal")
     if type(now) is not int or now < 0:
         raise ValidationError("recovery time is invalid")
-    if checkpoint is None:
-        return StaleRecoveryDisposition(
-            state="failed",
-            error_code="JOB_INTERRUPTED",
-        )
-    validate_report_job_checkpoint(checkpoint)
-    phase = str(checkpoint["phase"])
-    if phase in {"snapshotting", "terminal"} or attempt_ordinal > 3:
-        return StaleRecoveryDisposition(
-            state="failed",
-            error_code="JOB_INTERRUPTED",
-        )
+    if checkpoint is not None:
+        validate_report_job_checkpoint(checkpoint)
+
+    # Foundation cannot safely terminalize this job by itself because LLD-06 owns
+    # report-attempt state and staging cleanup. Every stale report claim therefore
+    # receives one reconciliation claim. A snapshotting reconciliation is cleanup
+    # only; it never resumes mutable live-domain reads.
     return StaleRecoveryDisposition(
         state="retry_wait",
         next_attempt_at_utc=now,
