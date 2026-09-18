@@ -235,6 +235,78 @@ class SlaReportXlsxArtifact:
         self._factory = connection_factory
         self._destinations = destination_resolver
 
+    def candidate_exists(
+        self,
+        *,
+        destination_request_token: str,
+        candidate_filename: str,
+    ) -> bool:
+        directory = self._destinations.resolve_directory(destination_request_token)
+        candidate = _filename(candidate_filename)
+        path = directory / candidate
+        if path.parent != directory:
+            raise SomaError(
+                "SLA_REPORT_ARTIFACT_WRITE_FAILED",
+                "candidate escaped validated destination",
+            )
+        return path.is_file()
+
+    def recover_candidate(
+        self,
+        *,
+        report_attempt_id: str,
+        snapshot_hash: str,
+        destination_request_token: str,
+        candidate_filename: str | None = None,
+    ) -> str:
+        attempt, _semantic = _require_sealed_snapshot(
+            self._factory,
+            report_attempt_id=report_attempt_id,
+            snapshot_hash=snapshot_hash,
+            allowed_states=_WRITE_ARTIFACT_STATES,
+        )
+        candidate = _filename(
+            candidate_filename or default_candidate_filename(attempt, snapshot_hash)
+        )
+        if attempt.state == "verifying":
+            if attempt.artifact_filename != candidate:
+                raise SomaError(
+                    "SLA_REPORT_ATTEMPT_STATE",
+                    "recovery candidate does not match persisted verifying identity",
+                )
+        elif candidate != default_candidate_filename(attempt, snapshot_hash):
+            raise SomaError(
+                "SLA_REPORT_ATTEMPT_STATE",
+                "generating recovery candidate is not the deterministic attempt identity",
+            )
+
+        directory = self._destinations.resolve_directory(destination_request_token)
+        target = directory / candidate
+        if target.parent != directory:
+            raise SomaError(
+                "SLA_REPORT_ARTIFACT_WRITE_FAILED",
+                "candidate escaped validated destination",
+            )
+        if target.exists():
+            if not target.is_file():
+                raise SomaError(
+                    "SLA_REPORT_ARTIFACT_WRITE_FAILED",
+                    "attempt-owned candidate path is not a regular file",
+                )
+            try:
+                target.unlink()
+            except OSError as exc:
+                raise SomaError(
+                    "SLA_REPORT_ARTIFACT_WRITE_FAILED",
+                    "attempt-owned candidate could not be replaced for recovery",
+                ) from exc
+        return self.write_candidate(
+            report_attempt_id=report_attempt_id,
+            snapshot_hash=snapshot_hash,
+            destination_request_token=destination_request_token,
+            candidate_filename=candidate,
+        )
+
     @staticmethod
     def _append_table(sheet, columns: tuple[str, ...], rows: list[dict[str, object]]) -> None:
         sheet.append(columns)
