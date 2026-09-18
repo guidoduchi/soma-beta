@@ -10,6 +10,10 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
 from soma.objectives_tasks.services.wfm_import import WfmImportBaseTarget, WfmImportReader
+from soma.objectives_tasks.services.wfm_import_reassignment import WfmImportParentReassignmentParticipant
+from soma.tickets.rfc_import_mutations import RfcImportMutationService
+from soma.tickets.rfc_import_reader import RfcImportReader
+from soma.tickets.rfc_wfm_provisional import RfcWfmProvisionalEligibilityService
 from soma.tickets.service_request_import_reader import ServiceRequestImportReader
 
 from ..repositories.proposals import ProposalChangeRecord, ProposalRecord, ProposalRepository
@@ -66,6 +70,24 @@ _GENERIC_SR_ACCEPT_KINDS = frozenset(
         "sr_suspension_regression_review",
     }
 )
+_GENERIC_RFC_ACCEPT_KINDS = frozenset(
+    {
+        "rfc_create_or_adopt",
+        "rfc_source_projection",
+        "rfc_customer_reconciliation",
+        "sr_rfc_link_candidate",
+    }
+)
+_GENERIC_WFM_ACCEPT_KINDS = frozenset(
+    {
+        "wfm_create_or_adopt",
+        "wfm_source_projection",
+        "wfm_provisional_rfc",
+        "wfm_provisional_eligibility",
+        "wfm_plan_reconciliation",
+    }
+)
+_GENERIC_ACCEPT_KINDS = _GENERIC_SR_ACCEPT_KINDS | _GENERIC_RFC_ACCEPT_KINDS | _GENERIC_WFM_ACCEPT_KINDS
 _SR_SOURCE_PROJECTION_KINDS = frozenset(
     {"sr_source_projection", "sr_terminal_reversal_review", "sr_suspension_regression_review"}
 )
@@ -559,6 +581,264 @@ def _sr_target_preview(
     )
 
 
+def _rfc_target_preview(
+    reader: Any,
+    proposal: ProposalRecord,
+    changes: tuple[ProposalChangeRecord, ...],
+) -> tuple[dict[str, object], str | None, bool]:
+    authority = RfcImportReader()
+    kind = proposal.proposal_kind
+    business_id = proposal.target_business_id
+    internal_id = proposal.target_internal_id
+    if business_id is None:
+        return ({"owner": "LLD-03", "preview_available": False}, None, False)
+
+    if kind == "rfc_create_or_adopt":
+        current = authority.get_by_number(reader, business_id)
+        token = RfcImportMutationService.source_identity_base_token(reader, business_id)
+        binding = current is None if internal_id is None else bool(current and current.get("rfc_id") == internal_id)
+        return (
+            {
+                "owner": "LLD-03",
+                "target_kind": "rfc",
+                "rfc_no": business_id,
+                "identity": current,
+            },
+            token,
+            binding,
+        )
+
+    current = authority.get_by_number(reader, business_id)
+    binding = bool(current and internal_id is not None and current.get("rfc_id") == internal_id)
+    if not binding or internal_id is None:
+        return (
+            {
+                "owner": "LLD-03",
+                "target_kind": proposal.target_kind,
+                "rfc_no": business_id,
+                "identity": current,
+            },
+            None,
+            False,
+        )
+
+    if kind == "rfc_source_projection":
+        token = authority.source_acceptance_base_token(reader, internal_id)
+        return (
+            {
+                "owner": "LLD-03",
+                "target_kind": "rfc",
+                "identity": current,
+                "current_source_projection": authority.current_source_projection(reader, internal_id),
+            },
+            token,
+            True,
+        )
+
+    if kind == "rfc_customer_reconciliation":
+        change = changes[0] if len(changes) == 1 else None
+        if (
+            change is None
+            or change.field_key != "customer_org_id"
+            or change.after_text is None
+        ):
+            return ({"owner": "LLD-03", "identity": current}, None, False)
+        token = RfcImportMutationService.customer_reconciliation_base_token(
+            reader,
+            internal_id,
+            change.after_text,
+        )
+        return (
+            {
+                "owner": "LLD-03",
+                "target_kind": "rfc",
+                "identity": current,
+                "candidate_customer_org_id": change.after_text,
+            },
+            token,
+            True,
+        )
+
+    if kind == "sr_rfc_link_candidate":
+        change = changes[0] if len(changes) == 1 else None
+        if (
+            change is None
+            or change.field_key != "service_request_id"
+            or change.after_text is None
+        ):
+            return ({"owner": "LLD-03", "identity": current}, None, False)
+        sr = ServiceRequestImportReader().get_by_internal_id(reader, change.after_text)
+        if sr is None:
+            return (
+                {
+                    "owner": "LLD-03",
+                    "target_kind": "sr_rfc_relationship",
+                    "identity": current,
+                    "candidate_service_request_id": change.after_text,
+                },
+                None,
+                False,
+            )
+        context = RfcImportMutationService.sr_link_candidate_context(
+            reader,
+            change.after_text,
+            internal_id,
+        )
+        return (
+            {
+                "owner": "LLD-03",
+                "target_kind": "sr_rfc_relationship",
+                "identity": current,
+                "candidate_service_request": sr,
+                "duplicate_active": context.duplicate_active,
+                "risk_class": context.risk_class,
+            },
+            context.base_state_token,
+            not context.duplicate_active,
+        )
+
+    return ({"owner": "LLD-03", "identity": current}, None, False)
+
+
+def _wfm_target_preview(
+    reader: Any,
+    proposal: ProposalRecord,
+    changes: tuple[ProposalChangeRecord, ...],
+) -> tuple[dict[str, object], str | None, bool]:
+    kind = proposal.proposal_kind
+    task_no = proposal.target_business_id
+    task_id = proposal.target_internal_id
+
+    if kind == "wfm_provisional_rfc":
+        if task_no is None:
+            return ({"owner": "LLD-03", "preview_available": False}, None, False)
+        current = RfcImportReader().get_by_number(reader, task_no)
+        token = RfcImportMutationService.source_identity_base_token(reader, task_no)
+        return (
+            {
+                "owner": "LLD-03",
+                "target_kind": "rfc",
+                "rfc_no": task_no,
+                "identity": current,
+            },
+            token,
+            current is None,
+        )
+
+    if kind == "wfm_provisional_eligibility":
+        if task_no is None:
+            return ({"owner": "LLD-03", "preview_available": False}, None, False)
+        current = RfcImportReader().get_by_number(reader, task_no)
+        token = RfcWfmProvisionalEligibilityService.base_state_token(reader, task_no)
+        binding = current is not None and (task_id is None or current.get("rfc_id") == task_id)
+        projection = None
+        if current is not None and isinstance(current.get("rfc_id"), str):
+            projection = RfcImportReader().current_source_projection(reader, str(current["rfc_id"]))
+        return (
+            {
+                "owner": "LLD-03",
+                "target_kind": "rfc",
+                "rfc_no": task_no,
+                "identity": current,
+                "current_source_projection": projection,
+            },
+            token,
+            binding,
+        )
+
+    if task_no is None:
+        return ({"owner": "LLD-05", "preview_available": False}, None, False)
+
+    identity = WfmImportReader.get_by_task_no(reader, task_no)
+    status = WfmImportReader.task_no_status(reader, task_no)
+
+    if kind == "wfm_create_or_adopt":
+        if task_id is None:
+            token = WfmImportReader.source_acceptance_base_token(
+                reader,
+                WfmImportBaseTarget(kind, task_no, None),
+            )
+            return (
+                {
+                    "owner": "LLD-05",
+                    "target_kind": "wfm",
+                    "task_no": task_no,
+                    "task_no_status": status,
+                    "identity": identity,
+                },
+                token,
+                status == "ABSENT" and identity is None,
+            )
+
+        source = reader.execute(
+            "SELECT canonical_parent_rfc_no FROM source_observations "
+            "WHERE source_observation_id=? AND import_run_id=?",
+            (proposal.source_observation_id, proposal.import_run_id),
+        ).fetchone()
+        if source is None or source[0] is None:
+            return ({"owner": "LLD-05", "identity": identity}, None, False)
+        parent = RfcImportReader().get_by_number(reader, str(source[0]))
+        if parent is None or not isinstance(parent.get("rfc_id"), str):
+            return ({"owner": "LLD-05", "identity": identity}, None, False)
+        token = WfmImportParentReassignmentParticipant.base_state_token(
+            reader,
+            task_no=task_no,
+            task_id=task_id,
+            new_rfc_id=str(parent["rfc_id"]),
+        )
+        return (
+            {
+                "owner": "LLD-05",
+                "target_kind": "wfm",
+                "task_no_status": status,
+                "identity": identity,
+                "reviewed_parent_rfc": parent,
+            },
+            token,
+            bool(identity is not None and identity.get("task_id") == task_id and status == "ACTIVE"),
+        )
+
+    if task_id is None or identity is None or identity.get("task_id") != task_id or status != "ACTIVE":
+        return (
+            {
+                "owner": "LLD-05",
+                "target_kind": proposal.target_kind,
+                "task_no_status": status,
+                "identity": identity,
+            },
+            None,
+            False,
+        )
+
+    if kind in {"wfm_source_projection", "wfm_plan_reconciliation"}:
+        token = WfmImportReader.source_acceptance_base_token(
+            reader,
+            WfmImportBaseTarget(kind, task_no, task_id),
+        )
+        preview = {
+            "owner": "LLD-05",
+            "target_kind": proposal.target_kind,
+            "task_no_status": status,
+            "identity": identity,
+            "current_source_projection": WfmImportReader.source_projection(reader, task_id),
+        }
+        if kind == "wfm_plan_reconciliation":
+            preview["source_plan"] = WfmImportReader.source_plan(reader, task_id)
+            preview["operational_plan"] = WfmImportReader.operational_plan_context(reader, task_id)
+        return (preview, token, True)
+
+    return (
+        {
+            "owner": "LLD-05",
+            "target_kind": proposal.target_kind,
+            "task_no_status": status,
+            "identity": identity,
+        },
+        None,
+        False,
+    )
+
+
 def _plan_diff(
     source_plan: dict[str, int],
     operational_plan: dict[str, object] | None,
@@ -719,16 +999,28 @@ class ProposalQueryService:
                     proposal,
                     changes,
                 )
+            elif proposal.proposal_kind in _GENERIC_RFC_ACCEPT_KINDS:
+                target_preview, current_token, binding_current = _rfc_target_preview(
+                    snapshot.connection,
+                    proposal,
+                    changes,
+                )
+            elif proposal.proposal_kind in _GENERIC_WFM_ACCEPT_KINDS:
+                target_preview, current_token, binding_current = _wfm_target_preview(
+                    snapshot.connection,
+                    proposal,
+                    changes,
+                )
             else:
                 target_preview = {
-                    "owner": "pending_owner_integration",
+                    "owner": "dedicated_review_command",
                     "target_kind": proposal.target_kind,
                     "target_internal_id": proposal.target_internal_id,
                     "target_business_id": proposal.target_business_id,
                     "preview_available": False,
                 }
-                current_token = None
-                binding_current = False
+                current_token = proposal.base_state_token
+                binding_current = proposal.proposal_kind == "wfm_competing_attempt_review"
             stale = (
                 current_token is None
                 or not binding_current
@@ -737,7 +1029,7 @@ class ProposalQueryService:
             review_authorized = _run_review_authorized(snapshot.connection, proposal.import_run_id)
             allowed: list[str] = []
             if proposal.proposal_state == "pending" and review_authorized:
-                if proposal.risk_class != "blocked" and not stale and proposal.proposal_kind in _GENERIC_SR_ACCEPT_KINDS:
+                if proposal.risk_class != "blocked" and not stale and proposal.proposal_kind in _GENERIC_ACCEPT_KINDS:
                     allowed.append("accept")
                 allowed.extend(("reject", "defer"))
             return ProposalReview(
