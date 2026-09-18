@@ -9,6 +9,7 @@ from soma.objectives_tasks.services.wfm_import_reassignment import WfmImportPare
 from soma.tickets.rfc_wfm_provisional import RfcWfmProvisionalEligibilityService
 
 from .engine import ProposalChangeDraft, ReconciliationProposalDraft
+from .wfm_sr_link import build_wfm_task_name_sr_link_proposals
 from .wfm_service_provider import (
     WfmServiceProviderProposalBuildResult,
     _field,
@@ -296,6 +297,14 @@ def build_wfm_service_provider_proposals(
             )
         )
         state = "parent_rfc_adoption_review"
+
+    sr_links = build_wfm_task_name_sr_link_proposals(reader, source=source)
+    proposals.extend(sr_links)
+    if sr_links:
+        if state == "no_source_change":
+            state = "sr_link_review"
+        else:
+            state = f"{state}_and_sr_link_review"
 
     eligibility = _provisional_eligibility_proposal(
         reader,
