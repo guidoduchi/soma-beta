@@ -63,7 +63,7 @@ def _schema(path: Path) -> list[tuple[str, str, str]]:
 
 def test_runtime_prefix_bytes_are_unchanged_and_sequence_seven_remains_exact(migration_directory) -> None:
     manifest = MigrationManifest.load(migration_directory)
-    assert [entry.sequence for entry in manifest.entries] == list(range(1, 9))
+    assert [entry.sequence for entry in manifest.entries] == list(range(1, 10))
     sequence_seven = manifest.entries[6]
     assert sequence_seven.migration_id == "beta_0007_sr_source_presence"
     assert sequence_seven.filename == "0007_sr_source_presence.sql"
