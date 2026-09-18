@@ -11,6 +11,7 @@ from soma.ticket_import.parsing.discovery import (
     discover_rfc_enhanced_automatic,
     discover_rfc_enhanced_manual,
     discover_wfm_service_provider_automatic,
+    discover_wfm_service_provider_manual,
 )
 
 
@@ -102,3 +103,23 @@ def test_rfc_and_wfm_automatic_ties_use_utf8_filename_bytes(tmp_path) -> None:
     os.utime(wfm_a, ns=(1_600_000_000_000_000_000, 1_600_000_000_000_000_000))
     os.utime(wfm_b, ns=(1_900_000_000_000_000_000, 1_900_000_000_000_000_000))
     assert discover_wfm_service_provider_automatic(tmp_path, sleep_fn=lambda _seconds: None).filename == wfm_a.name
+
+
+def test_wfm_manual_requires_supported_embedded_chronology(tmp_path) -> None:
+    selected = tmp_path / "Service Provider Plan Creation20260916120000.xlsx"
+    _workbook(selected)
+
+    candidate = discover_wfm_service_provider_manual(selected, sleep_fn=lambda _seconds: None)
+
+    assert candidate.source_family == "wfm_service_provider"
+    assert candidate.profile_id == "WFM_SERVICE_PROVIDER_V1"
+    assert candidate.filename == selected.name
+    assert candidate.chronology_kind == "embedded_filename_timestamp_utc"
+    assert candidate.chronology_value == int(datetime(2026, 9, 16, 17, 0, tzinfo=UTC).timestamp())
+    assert candidate.discovery_provenance == "manual"
+
+    invalid = tmp_path / "operator-selected-wfm.xlsx"
+    _workbook(invalid)
+    with pytest.raises(SomaError) as excinfo:
+        discover_wfm_service_provider_manual(invalid, sleep_fn=lambda _seconds: None)
+    assert excinfo.value.code == "IMPORT_SOURCE_PROFILE_MISMATCH"
