@@ -421,7 +421,7 @@ def test_final_met_requires_closed_month_and_zero_active_members_t028(
         factory,
         env,
         ordinal=51,
-        report_date=month_start + 20 * DAY,
+        report_date=month_start + 27 * DAY,
         severity="Critical",
     )
     closed_with_active = _cohort(
