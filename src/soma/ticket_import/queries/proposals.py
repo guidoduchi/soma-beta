@@ -16,6 +16,7 @@ from soma.tickets.rfc_import_reader import RfcImportReader
 from soma.tickets.rfc_wfm_provisional import RfcWfmProvisionalEligibilityService
 from soma.tickets.service_request_import_reader import ServiceRequestImportReader
 
+from ..providers.wfm_review_evidence import TicketImportWfmReviewEvidenceProvider
 from ..repositories.proposals import ProposalChangeRecord, ProposalRecord, ProposalRepository
 from ..repositories.runs import SourceCheckpointRepository
 
@@ -760,9 +761,25 @@ def _wfm_target_preview(
 
     if kind == "wfm_create_or_adopt":
         if task_id is None:
-            token = WfmImportReader.source_acceptance_base_token(
+            if proposal.source_observation_id is None or len(changes) != 2:
+                return ({"owner": "LLD-05", "identity": identity}, None, False)
+            parent_change = changes[1]
+            if (
+                parent_change.field_key != "rfc_no"
+                or parent_change.after_text is None
+            ):
+                return ({"owner": "LLD-05", "identity": identity}, None, False)
+            candidate = TicketImportWfmReviewEvidenceProvider().revalidate_create_candidate(
                 reader,
-                WfmImportBaseTarget(kind, task_no, None),
+                expected_import_run_id=proposal.import_run_id,
+                expected_source_observation_id=proposal.source_observation_id,
+                expected_task_no=task_no,
+                expected_parent_rfc_no=parent_change.after_text,
+            )
+            WfmImportParentReassignmentParticipant.require_import_eligible_rfc(
+                reader,
+                rfc_id=candidate.rfc_id,
+                source_lifecycle_class=candidate.source_lifecycle_class,
             )
             return (
                 {
@@ -771,8 +788,10 @@ def _wfm_target_preview(
                     "task_no": task_no,
                     "task_no_status": status,
                     "identity": identity,
+                    "reviewed_parent_rfc_id": candidate.rfc_id,
+                    "source_lifecycle_class": candidate.source_lifecycle_class,
                 },
-                token,
+                candidate.base_state_token,
                 status == "ABSENT" and identity is None,
             )
 
@@ -816,22 +835,58 @@ def _wfm_target_preview(
             False,
         )
 
-    if kind in {"wfm_source_projection", "wfm_plan_reconciliation"}:
-        token = WfmImportReader.source_acceptance_base_token(
+    if kind == "wfm_source_projection":
+        if proposal.source_observation_id is None:
+            return ({"owner": "LLD-05", "identity": identity}, None, False)
+        source_row = reader.execute(
+            "SELECT canonical_parent_rfc_no FROM source_observations WHERE source_observation_id=? AND import_run_id=?",
+            (proposal.source_observation_id, proposal.import_run_id),
+        ).fetchone()
+        if source_row is None or source_row[0] is None:
+            return ({"owner": "LLD-05", "identity": identity}, None, False)
+        candidate = TicketImportWfmReviewEvidenceProvider().revalidate_source_projection_candidate(
             reader,
-            WfmImportBaseTarget(kind, task_no, task_id),
+            expected_import_run_id=proposal.import_run_id,
+            expected_source_observation_id=proposal.source_observation_id,
+            expected_task_id=task_id,
+            expected_task_no=task_no,
+            expected_parent_rfc_no=str(source_row[0]),
         )
+        if len(changes) != len(candidate.changes):
+            return ({"owner": "LLD-05", "identity": identity}, None, False)
         preview = {
             "owner": "LLD-05",
             "target_kind": proposal.target_kind,
             "task_no_status": status,
             "identity": identity,
             "current_source_projection": WfmImportReader.source_projection(reader, task_id),
+            "reviewed_source_projection": {
+                "provider_status_token": candidate.provider_status_token,
+                "provider_lifecycle_class": candidate.provider_lifecycle_class,
+                "source_plan_start_utc": candidate.source_plan_start_utc,
+                "source_plan_end_utc": candidate.source_plan_end_utc,
+            },
         }
-        if kind == "wfm_plan_reconciliation":
-            preview["source_plan"] = WfmImportReader.source_plan(reader, task_id)
-            preview["operational_plan"] = WfmImportReader.operational_plan_context(reader, task_id)
-        return (preview, token, True)
+        return (preview, candidate.base_state_token, True)
+
+    if kind == "wfm_plan_reconciliation":
+        token = WfmImportReader.source_acceptance_base_token(
+            reader,
+            WfmImportBaseTarget(kind, task_no, task_id),
+        )
+        return (
+            {
+                "owner": "LLD-05",
+                "target_kind": proposal.target_kind,
+                "task_no_status": status,
+                "identity": identity,
+                "current_source_projection": WfmImportReader.source_projection(reader, task_id),
+                "source_plan": WfmImportReader.source_plan(reader, task_id),
+                "operational_plan": WfmImportReader.operational_plan_context(reader, task_id),
+            },
+            token,
+            True,
+        )
 
     return (
         {
