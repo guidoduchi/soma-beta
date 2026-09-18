@@ -87,6 +87,7 @@ def _load_source_observation(
     *,
     import_run_id: str,
     source_observation_id: str,
+    allowed_run_states: frozenset[str] = frozenset({"validating"}),
 ) -> _SourceObservation:
     run = reader.execute(
         "SELECT source_family,source_profile_id,header_registry_id,vocabulary_registry_id,parser_profile_id,run_state "
@@ -107,8 +108,8 @@ def _load_source_observation(
         )
     ):
         raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "Enhanced RFC proposal run uses stale source profiles")
-    if str(run[5]) != "validating":
-        raise SomaError("IMPORT_RUN_STALE", "Enhanced RFC proposals may only be built during validating publication")
+    if not allowed_run_states or str(run[5]) not in allowed_run_states:
+        raise SomaError("IMPORT_RUN_STALE", "Enhanced RFC proposal source run is outside the allowed build states")
 
     observation = reader.execute(
         "SELECT import_run_id,source_family,entity_kind,identity_state,canonical_primary_id,canonical_parent_rfc_no,"
@@ -326,6 +327,7 @@ def build_rfc_enhanced_source_projection_proposals(
     import_run_id: str,
     source_observation_id: str,
     rfc_reader: RfcImportReader | None = None,
+    allowed_run_states: frozenset[str] = frozenset({"validating"}),
 ) -> RfcEnhancedProjectionProposalBuildResult:
     canonical_run_id = require_uuid4(import_run_id)
     canonical_observation_id = require_uuid4(source_observation_id)
@@ -333,6 +335,7 @@ def build_rfc_enhanced_source_projection_proposals(
         reader,
         import_run_id=canonical_run_id,
         source_observation_id=canonical_observation_id,
+        allowed_run_states=allowed_run_states,
     )
     scope_status = _scope_status(reader, source)
     if scope_status in {"conflict", "equivalent_duplicate_suppressed"}:
