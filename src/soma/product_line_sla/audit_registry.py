@@ -74,6 +74,29 @@ def _validate_cpl(payload: dict[str, object]) -> None:
 
 
 
+
+def _validate_catalog_lifecycle(payload: dict[str, object]) -> None:
+    if payload.get("target_type") not in {"product_line", "contract", "contract_product_line"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "catalog lifecycle target type is invalid")
+    _uuid(payload.get("target_id"), "target_id")
+    if payload.get("prior_state") not in {"active", "archived"} or payload.get("new_state") not in {
+        "active",
+        "archived",
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "catalog lifecycle state is invalid")
+    if payload.get("prior_state") == payload.get("new_state"):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "catalog lifecycle audit requires a state change")
+    prior = payload.get("prior_revision")
+    resulting = payload.get("resulting_revision")
+    _positive_int(prior, "prior_revision")
+    _positive_int(resulting, "resulting_revision")
+    if resulting != prior + 1:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "catalog lifecycle revision must advance exactly once")
+    _sha(payload.get("dependency_fingerprint"), "dependency_fingerprint")
+    reason = payload.get("reason_category")
+    if not isinstance(reason, str) or not reason:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "catalog lifecycle reason category is required")
+
 def _validate_mapping(payload: dict[str, object]) -> None:
     _uuid(payload.get("mapping_id"), "mapping_id")
     _uuid(payload.get("customer_org_id"), "customer_org_id")
@@ -216,6 +239,20 @@ _CPL_FIELDS = frozenset(
     {"contract_product_line_id", "contract_id", "product_line_id", "customer_org_id", "resulting_revision", "initial_policy_revision_id"}
 )
 
+
+_CATALOG_LIFECYCLE_FIELDS = frozenset(
+    {
+        "target_type",
+        "target_id",
+        "prior_state",
+        "new_state",
+        "prior_revision",
+        "resulting_revision",
+        "dependency_fingerprint",
+        "reason_category",
+    }
+)
+
 _MAPPING_FIELDS = frozenset(
     {
         "mapping_id",
@@ -264,6 +301,12 @@ def build_product_line_sla_audit_registry() -> AuditRegistry:
         ("sla.contract.created", "ContractAuditV1", _CONTRACT_FIELDS, _validate_contract),
         ("sla.contract_product_line.created", "ContractProductLineAuditV1", _CPL_FIELDS, _validate_cpl),
         ("sla.policy.revised", "SlaPolicyAuditV1", _POLICY_FIELDS, _validate_policy),
+        (
+            "sla.catalog_lifecycle.changed",
+            "CatalogLifecycleAuditV1",
+            _CATALOG_LIFECYCLE_FIELDS,
+            _validate_catalog_lifecycle,
+        ),
         (
             "sla.classification_mapping.created_or_superseded",
             "ClassificationMappingAuditV1",
