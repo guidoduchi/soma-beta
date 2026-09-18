@@ -37,6 +37,7 @@ from ..jobs import (
     SLA_REPORT_JOB_TYPE,
     validate_report_job_checkpoint,
 )
+from ..report_sections import ReportSectionContributorRegistry
 from ..repositories.reports import ReportAttemptRecord, ReportRepository
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -300,7 +301,7 @@ def _validate_cohort(row: dict[str, object]) -> None:
     _require_sha(row["input_fingerprint"], "input_fingerprint")
 
 
-def _validate_section(row: dict[str, object]) -> None:
+def _validate_section_shape(row: dict[str, object]) -> None:
     if set(row) != _SECTION_FIELDS:
         raise ValidationError("report section row shape is invalid")
     require_uuid4(str(row["report_section_snapshot_id"]))
@@ -324,8 +325,13 @@ def _validate_section(row: dict[str, object]) -> None:
 
 
 class SlaReportWorkerService:
-    def __init__(self, connection_factory: ConnectionFactory) -> None:
+    def __init__(
+        self,
+        connection_factory: ConnectionFactory,
+        section_registry: ReportSectionContributorRegistry | None = None,
+    ) -> None:
         self._factory = connection_factory
+        self._sections = section_registry or ReportSectionContributorRegistry()
         self._receipts = CommandReceiptStore()
         self._boundary = CommandBoundary(
             connection_factory,
@@ -350,8 +356,8 @@ class SlaReportWorkerService:
             }
         )
 
-    @staticmethod
     def _validate_batch(
+        self,
         *,
         member_rows: tuple[dict[str, object], ...],
         tier_rows: tuple[dict[str, object], ...],
@@ -369,7 +375,16 @@ class SlaReportWorkerService:
         for row in cohort_rows:
             _validate_cohort(row)
         for row in section_rows:
-            _validate_section(row)
+            _validate_section_shape(row)
+            self._sections.validate_staged_row(
+                section_kind=str(row["section_kind"]),
+                schema_name=str(row["schema_name"]),
+                schema_version=int(row["schema_version"]),
+                section_ordinal=int(row["section_ordinal"]),
+                canonical_row_key=str(row["canonical_row_key"]),
+                payload_json=str(row["payload_json"]),
+                payload_sha256=str(row["payload_sha256"]),
+            )
         if tuple(
             (int(row["member_ordinal"]), str(row["service_request_id"]))
             for row in member_rows
