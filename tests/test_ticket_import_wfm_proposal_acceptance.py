@@ -13,6 +13,7 @@ from soma.ticket_import.profiles import require_profile_versions
 from soma.tickets.rfc_import_mutations import RfcImportMutationService
 from soma.tickets.rfc_import_reader import RfcImportReader
 from soma.tickets.rfcs import RfcService
+from soma.tickets.service_requests import ServiceRequestService
 
 
 def _factory(initialized_database):
@@ -327,6 +328,140 @@ def test_accept_wfm_provisional_rfc_commits_identity_disposition_and_replays(ini
             (run_id,),
         ).fetchone()
         assert tuple(run) == (0, 1, 2)
+
+def test_accept_wfm_provisional_rfc_appends_task_name_sr_link_follow_on(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    task_no = "TK00000000000610"
+    rfc_no = "NC00000000000610"
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="86123457",
+    )
+    run_id, observation_id, field_ids = _seed_run_and_observation(
+        factory,
+        task_no=task_no,
+        rfc_no=rfc_no,
+        fields=(
+            _unknown_status(),
+            {
+                "field_key": "task_name",
+                "value_state": "usable",
+                "value_kind": "text",
+                "source_text": "Implement work for SR86123457",
+                "normalized_text": "Implement work for SR86123457",
+            },
+        ),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        base_token = RfcImportMutationService.source_identity_base_token(snapshot.connection, rfc_no)
+    fingerprint = "a" * 64
+    proposal_id = _seed_provisional_rfc_proposal(
+        factory,
+        run_id=run_id,
+        observation_id=observation_id,
+        rfc_no=rfc_no,
+        base_token=base_token,
+        fingerprint=fingerprint,
+    )
+
+    service = ProposalDecisionService(factory)
+    identity_command_id = new_uuid4()
+    first = service.accept(
+        command_id=identity_command_id,
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=fingerprint,
+        base_state_token=base_token,
+    )
+    assert first.decision == "accepted"
+    assert first.replayed is False
+    rfc_refs = [ref for ref in first.owner_result_refs if ref[0] == "rfc"]
+    assert len(rfc_refs) == 1
+    rfc_id = rfc_refs[0][1]
+
+    replay = service.accept(
+        command_id=identity_command_id,
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=fingerprint,
+        base_state_token=base_token,
+    )
+    assert replay.replayed is True
+    assert replay.owner_result_refs == first.owner_result_refs
+
+    with ReadSnapshot(factory) as snapshot:
+        follow_on = snapshot.connection.execute(
+            "SELECT reconciliation_proposal_id,target_kind,target_internal_id,target_business_id,risk_class,"
+            "base_state_token_sha256,proposal_fingerprint_sha256,proposal_state,revision "
+            "FROM reconciliation_proposals WHERE import_run_id=? AND proposal_kind='sr_rfc_link_candidate'",
+            (run_id,),
+        ).fetchone()
+        assert follow_on is not None
+        link_proposal_id = str(follow_on[0])
+        assert tuple(follow_on[1:5]) == ("sr_rfc_relationship", rfc_id, rfc_no, "medium")
+        link_base_token = str(follow_on[5])
+        link_fingerprint = str(follow_on[6])
+        assert tuple(follow_on[7:]) == ("pending", 1)
+        change = snapshot.connection.execute(
+            "SELECT ordinal,field_key,change_kind,value_kind,before_text,after_text,before_integer,after_integer,"
+            "source_observation_field_id FROM reconciliation_proposal_changes "
+            "WHERE reconciliation_proposal_id=?",
+            (link_proposal_id,),
+        ).fetchone()
+        assert tuple(change) == (
+            0,
+            "service_request_id",
+            "candidate",
+            "identity",
+            None,
+            sr.service_request_id,
+            None,
+            None,
+            field_ids["task_name"],
+        )
+        run = snapshot.connection.execute(
+            "SELECT proposal_count,pending_proposal_count,accepted_proposal_count,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (2, 1, 1, 3)
+
+    link_command_id = new_uuid4()
+    linked = service.accept(
+        command_id=link_command_id,
+        proposal_id=link_proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=link_fingerprint,
+        base_state_token=link_base_token,
+        reason_category="reviewed_wfm_task_name_sr_candidate",
+    )
+    assert linked.decision == "accepted"
+    assert linked.replayed is False
+    linked_replay = service.accept(
+        command_id=link_command_id,
+        proposal_id=link_proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=link_fingerprint,
+        base_state_token=link_base_token,
+        reason_category="reviewed_wfm_task_name_sr_candidate",
+    )
+    assert linked_replay.replayed is True
+    assert linked_replay.owner_result_refs == linked.owner_result_refs
+
+    with ReadSnapshot(factory) as snapshot:
+        active = snapshot.connection.execute(
+            "SELECT service_request_id,rfc_id,link_state FROM sr_rfc_links "
+            "WHERE service_request_id=? AND rfc_id=?",
+            (sr.service_request_id, rfc_id),
+        ).fetchone()
+        assert tuple(active) == (sr.service_request_id, rfc_id, "active")
+        run = snapshot.connection.execute(
+            "SELECT proposal_count,pending_proposal_count,accepted_proposal_count,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (2, 0, 2, 4)
+
 
 def test_accept_wfm_create_commits_owner_disposition_and_replays(initialized_database) -> None:
     factory = _factory(initialized_database)
