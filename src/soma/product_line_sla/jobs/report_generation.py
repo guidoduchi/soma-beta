@@ -645,16 +645,263 @@ class SlaReportGenerationWorker:
         self._jobs.complete(claim)
         return report_attempt_id
 
+    def _report_attempt(self, report_attempt_id: str):
+        with ReadSnapshot(self._factory) as snapshot:
+            attempt = ReportRepository.get_attempt(
+                snapshot.connection,
+                report_attempt_id,
+            )
+        if attempt is None:
+            raise IntegrityFailure("SLA report durable job owner disappeared")
+        return attempt
+
+    def _checkpoint_terminal(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any] | None,
+        *,
+        attempt_revision: int,
+    ) -> None:
+        terminal = {
+            "phase": "terminal",
+            "attempt_revision": attempt_revision,
+            "snapshot_generation_token": (
+                None
+                if checkpoint is None
+                else checkpoint["snapshot_generation_token"]
+            ),
+            "next_batch_ordinal": None,
+            "pending_command": None,
+            "candidate_filename": (
+                None if checkpoint is None else checkpoint["candidate_filename"]
+            ),
+            "published_artifact": (
+                None if checkpoint is None else checkpoint["published_artifact"]
+            ),
+        }
+        self._jobs.checkpoint(claim, terminal)
+
+    def _fail_interrupted_snapshot(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any] | None,
+        *,
+        report_attempt_id: str,
+        expected_revision: int,
+    ) -> str:
+        command_id = new_uuid4()
+        generation_token = (
+            new_uuid4()
+            if checkpoint is None
+            else str(checkpoint["snapshot_generation_token"])
+        )
+        failure_code = "SLA_REPORT_SNAPSHOT_INTERRUPTED"
+        request_fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_REPORT_INTERRUPTED_SNAPSHOT_FAIL_V1",
+                "report_attempt_id": report_attempt_id,
+                "expected_attempt_revision": expected_revision,
+                "failure_code": failure_code,
+            }
+        )
+        recovery_checkpoint = {
+            "phase": "snapshotting",
+            "attempt_revision": expected_revision,
+            "snapshot_generation_token": generation_token,
+            "next_batch_ordinal": (
+                1 if checkpoint is None else checkpoint["next_batch_ordinal"]
+            ),
+            "pending_command": self._pending(
+                kind="fail",
+                command_id=command_id,
+                expected_revision=expected_revision,
+                request_fingerprint=request_fingerprint,
+            ),
+            "candidate_filename": None,
+            "published_artifact": None,
+        }
+        self._jobs.checkpoint(claim, recovery_checkpoint)
+        failed = self._worker.fail(
+            command_id=command_id,
+            report_attempt_id=report_attempt_id,
+            expected_attempt_revision=expected_revision,
+            failure_code=failure_code,
+        )
+        self._checkpoint_terminal(
+            claim,
+            recovery_checkpoint,
+            attempt_revision=int(failed["revision"]),
+        )
+        self._jobs.fail(claim, failure_code, None)
+        return report_attempt_id
+
+    def _resume_committed_seal(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any],
+        *,
+        report_attempt_id: str,
+    ) -> bool:
+        pending = checkpoint["pending_command"]
+        attempt = self._report_attempt(report_attempt_id)
+        if (
+            attempt.state != "ready_to_generate"
+            or attempt.snapshot_hash is None
+            or not isinstance(pending, dict)
+            or pending.get("kind") != "seal"
+            or pending.get("snapshot_hash") != attempt.snapshot_hash
+        ):
+            return False
+        sealed_checkpoint = {
+            **checkpoint,
+            "phase": "sealed",
+            "attempt_revision": attempt.revision,
+            "next_batch_ordinal": None,
+            "pending_command": None,
+            "candidate_filename": None,
+            "published_artifact": None,
+        }
+        self._jobs.checkpoint(claim, sealed_checkpoint)
+        return True
+
+    def _resume_published_completion(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any],
+        *,
+        report_attempt_id: str,
+    ) -> str:
+        attempt = self._report_attempt(report_attempt_id)
+        pending = checkpoint["pending_command"]
+        published = checkpoint["published_artifact"]
+        if (
+            attempt.state != "verifying"
+            or attempt.snapshot_hash is None
+            or not isinstance(pending, dict)
+            or pending.get("kind") != "complete"
+            or not isinstance(published, dict)
+            or pending.get("command_id") != published.get("completion_command_id")
+            or pending.get("snapshot_hash") != attempt.snapshot_hash
+            or published.get("snapshot_hash") != attempt.snapshot_hash
+            or int(pending.get("expected_attempt_revision", -1)) != attempt.revision
+        ):
+            raise IntegrityFailure(
+                "published report completion checkpoint disagrees with authoritative attempt"
+            )
+        proof = {
+            "report_attempt_id": report_attempt_id,
+            "snapshot_hash": attempt.snapshot_hash,
+            "candidate_filename": str(published["candidate_filename"]),
+            "artifact_filename": str(published["final_filename"]),
+            "artifact_sha256": str(published["artifact_sha256"]),
+            "artifact_size_bytes": int(published["artifact_size_bytes"]),
+            "verified_at_utc": int(published["verified_at_utc"]),
+        }
+        if (
+            pending.get("completion_proof_fingerprint")
+            != sha256_canonical_json(proof)
+        ):
+            raise IntegrityFailure(
+                "published report completion proof fingerprint changed"
+            )
+        completed = self._worker.complete(
+            command_id=str(pending["command_id"]),
+            report_attempt_id=report_attempt_id,
+            expected_attempt_revision=attempt.revision,
+            snapshot_hash=attempt.snapshot_hash,
+            artifact_completion=proof,
+        )
+        self._checkpoint_terminal(
+            claim,
+            checkpoint,
+            attempt_revision=int(completed["revision"]),
+        )
+        self._jobs.complete(claim)
+        return report_attempt_id
+
     def run_to_completion(self, claim: DurableJobClaim) -> str:
+        payload = self._payload(claim)
+        report_attempt_id = str(payload["report_attempt_id"])
         checkpoint = self._existing_checkpoint(claim)
+        attempt = self._report_attempt(report_attempt_id)
+
+        # Domain authority wins over an interrupted technical checkpoint.
+        if attempt.state == "completed":
+            self._checkpoint_terminal(
+                claim,
+                checkpoint,
+                attempt_revision=attempt.revision,
+            )
+            self._jobs.complete(claim)
+            return report_attempt_id
+        if attempt.state == "failed":
+            if attempt.failure_code is None:
+                raise IntegrityFailure("failed report attempt lacks failure code")
+            self._checkpoint_terminal(
+                claim,
+                checkpoint,
+                attempt_revision=attempt.revision,
+            )
+            self._jobs.fail(claim, attempt.failure_code, None)
+            return report_attempt_id
+        if attempt.state == "cancelled":
+            raise IntegrityFailure(
+                "cancelled report unexpectedly retained an active durable claim"
+            )
+
         if checkpoint is None:
-            self.snapshot_and_seal(claim)
-        else:
-            if checkpoint["phase"] != "sealed":
-                raise IntegrityFailure(
-                    "normal report execution can resume only from an exact sealed checkpoint"
+            if claim.attempt_ordinal == 1:
+                self.snapshot_and_seal(claim)
+                return self.artifact_and_complete(claim)
+            if attempt.state == "staging":
+                return self._fail_interrupted_snapshot(
+                    claim,
+                    None,
+                    report_attempt_id=report_attempt_id,
+                    expected_revision=attempt.revision,
                 )
-        return self.artifact_and_complete(claim)
+            raise IntegrityFailure(
+                "recovered report without checkpoint has incompatible domain state"
+            )
+
+        phase = str(checkpoint["phase"])
+        if phase == "snapshotting":
+            if self._resume_committed_seal(
+                claim,
+                checkpoint,
+                report_attempt_id=report_attempt_id,
+            ):
+                return self.artifact_and_complete(claim)
+            attempt = self._report_attempt(report_attempt_id)
+            if attempt.state == "staging":
+                return self._fail_interrupted_snapshot(
+                    claim,
+                    checkpoint,
+                    report_attempt_id=report_attempt_id,
+                    expected_revision=attempt.revision,
+                )
+            raise IntegrityFailure(
+                "interrupted report snapshot checkpoint has incompatible domain state"
+            )
+        if phase == "sealed":
+            if attempt.state != "ready_to_generate":
+                raise IntegrityFailure(
+                    "sealed report checkpoint disagrees with authoritative attempt"
+                )
+            return self.artifact_and_complete(claim)
+        if phase == "completing":
+            return self._resume_published_completion(
+                claim,
+                checkpoint,
+                report_attempt_id=report_attempt_id,
+            )
+        if phase == "terminal":
+            raise IntegrityFailure(
+                "terminal report checkpoint disagrees with nonterminal domain state"
+            )
+        raise IntegrityFailure(
+            f"report recovery for phase {phase!r} is not yet safely implemented"
+        )
 
 
 
