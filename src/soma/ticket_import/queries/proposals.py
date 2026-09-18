@@ -667,8 +667,11 @@ def _rfc_target_preview(
             or change.after_text is None
         ):
             return ({"owner": "LLD-03", "identity": current}, None, False)
-        sr = ServiceRequestImportReader().get_by_internal_id(reader, change.after_text)
-        if sr is None:
+        sr_row = reader.execute(
+            "SELECT official_sr_no FROM service_requests WHERE service_request_id=?",
+            (change.after_text,),
+        ).fetchone()
+        if sr_row is None:
             return (
                 {
                     "owner": "LLD-03",
@@ -679,6 +682,9 @@ def _rfc_target_preview(
                 None,
                 False,
             )
+        sr = ServiceRequestImportReader().get_by_official(reader, str(sr_row[0]))
+        if sr is None or sr.get("service_request_id") != change.after_text:
+            raise IntegrityFailure("SR-link review preview resolved mismatched Service Request authority")
         context = RfcImportMutationService.sr_link_candidate_context(
             reader,
             change.after_text,
