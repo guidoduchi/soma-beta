@@ -13,3 +13,7 @@ __all__ = [
     "ValidatedPolicyTier",
     "validate_sla_policy",
 ]
+
+from .individual_sla import IndividualSlaCalculator, IndividualSlaResult, IndividualTierResult
+
+__all__ += ["IndividualSlaCalculator", "IndividualSlaResult", "IndividualTierResult"]
