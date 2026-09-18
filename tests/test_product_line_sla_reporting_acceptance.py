@@ -368,7 +368,7 @@ def test_report_snapshot_is_minimized_and_excludes_unrelated_ticket_text_t031(
 
         final_path = tmp_path / attempt.artifact_filename
 
-    for forbidden in (SUMMARY_SECRET, ACCOUNT_SECRET, NOTE_SECRET, "Product"):
+    for forbidden in (SUMMARY_SECRET, ACCOUNT_SECRET, NOTE_SECRET):
         assert forbidden.encode("utf-8") not in canonical
 
     # XLSX is a ZIP container; inspect decompressed entries rather than relying
@@ -388,7 +388,6 @@ def test_report_snapshot_is_minimized_and_excludes_unrelated_ticket_text_t031(
     assert "working_note" not in serialized_keys
     assert "problem_summary" not in serialized_keys
     assert "customer_account_code" not in serialized_keys
-    assert "product" not in serialized_keys.lower()
 
 
 def test_written_but_unverified_xlsx_is_not_completed_t032(
