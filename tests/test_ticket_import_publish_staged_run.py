@@ -172,6 +172,62 @@ def _stage_identity_row(
     return staged[0].source_observation_id
 
 
+def _stage_rfc_status_row(
+    uow: UnitOfWork,
+    *,
+    run_id: str,
+    rfc_no: str,
+    status: str = "Implement",
+) -> str:
+    field = LogicalField(
+        field_key="status",
+        field_class="active",
+        value_state="usable",
+        value_kind="controlled",
+        vocabulary_id="RFC_STATUS_V1",
+        source_text=status,
+        normalized_text=status,
+    )
+    logical = LogicalRow(
+        identity_state="valid",
+        entity_kind="rfc",
+        canonical_primary_id=rfc_no,
+        canonical_parent_rfc_no=None,
+        fields=(field,),
+    )
+    staged = SourceObservationRepository.stage_observations(
+        uow,
+        import_run_id=run_id,
+        expected_run_revision=1,
+        observations=(
+            NormalizedObservationEvidence(
+                entity_kind="rfc",
+                identity_state="valid",
+                canonical_primary_id=rfc_no,
+                canonical_parent_rfc_no=None,
+                row_ordinal=1,
+                sheet_ordinal=1,
+                row_logical_sha256=row_logical_sha256(logical),
+                source_row_chronology_utc=10,
+                fields=(
+                    NormalizedFieldEvidence(
+                        field_key="status",
+                        field_class="active",
+                        value_state="usable",
+                        value_kind="controlled",
+                        source_text=status,
+                        normalized_text=status,
+                        integer_value=None,
+                        vocabulary_id="RFC_STATUS_V1",
+                        field_logical_sha256=field_logical_sha256(field),
+                    ),
+                ),
+            ),
+        ),
+    )
+    return staged[0].source_observation_id
+
+
 def _stage_wfm_row(
     uow: UnitOfWork,
     *,
@@ -966,6 +1022,94 @@ def test_wfm_retired_task_publication_keeps_blocking_finding_without_mutation_pr
             (run_id,),
         ).fetchone()
         assert tuple(run) == (fingerprint, 0, 0, 0)
+
+
+def test_changed_rfc_publication_persists_source_projection_review_for_existing_rfc(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc_no = "NC20260914000002"
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no=rfc_no,
+        creation_context="provisional",
+    )
+    profiles = _profiles("rfc_enhanced")
+    candidate = _candidate(
+        chronology_kind="filesystem_mtime_ns",
+        chronology_value=10,
+    )
+    run_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _seed_validating_run(
+            uow,
+            run_id=run_id,
+            source_family="rfc_enhanced",
+            profiles=profiles,
+            candidate=candidate,
+        )
+        observation_id = _stage_rfc_status_row(
+            uow,
+            run_id=run_id,
+            rfc_no=rfc_no,
+            status="Implement",
+        )
+    fingerprint = _fingerprint(factory, run_id)
+    _coordinator, claim, checkpoint = _claim_with_publishing_checkpoint(
+        factory,
+        run_id=run_id,
+        source_family="rfc_enhanced",
+        profiles=profiles,
+        candidate=candidate,
+    )
+    result = _publish(
+        PublishStagedImportRunService(factory),
+        command_id=new_uuid4(),
+        claim=claim,
+        run_id=run_id,
+        profiles=profiles,
+        checkpoint=checkpoint,
+        fingerprint=fingerprint,
+    )
+    assert result.run_state == "waiting_review"
+    assert result.proposal_count == 1
+
+    with ReadSnapshot(factory) as snapshot:
+        proposal = snapshot.connection.execute(
+            "SELECT reconciliation_proposal_id,proposal_kind,target_kind,target_internal_id,target_business_id,"
+            "risk_class,proposal_state FROM reconciliation_proposals WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert proposal is not None
+        proposal_id = str(proposal[0])
+        assert tuple(proposal[1:]) == (
+            "rfc_source_projection",
+            "rfc",
+            rfc.rfc_id,
+            rfc_no,
+            "medium",
+            "pending",
+        )
+        change = snapshot.connection.execute(
+            "SELECT ordinal,field_key,change_kind,value_kind,before_text,after_text,source_observation_field_id "
+            "FROM reconciliation_proposal_changes WHERE reconciliation_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()
+        assert change is not None
+        assert tuple(change[:6]) == (0, "status", "set", "controlled", None, "Implement")
+        assert change[6] is not None
+        support = snapshot.connection.execute(
+            "SELECT field_key,normalized_text,vocabulary_id FROM source_observation_fields "
+            "WHERE source_observation_field_id=? AND source_observation_id=?",
+            (change[6], observation_id),
+        ).fetchone()
+        assert tuple(support) == ("status", "Implement", "RFC_STATUS_V1")
+        run = snapshot.connection.execute(
+            "SELECT logical_fingerprint_sha256,proposal_count,pending_proposal_count,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (fingerprint, 1, 1, 2)
 
 
 def test_changed_rfc_publication_persists_identity_review_for_missing_rfc(
