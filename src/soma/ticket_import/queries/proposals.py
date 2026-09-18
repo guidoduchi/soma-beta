@@ -999,34 +999,46 @@ class ProposalQueryService:
             if proposal is None:
                 raise IntegrityFailure("proposal disappeared inside stable review snapshot")
             changes = self._repository.list_changes(snapshot.connection, canonical_id)
-            if proposal.proposal_kind in _GENERIC_SR_ACCEPT_KINDS:
-                target_preview, current_token, binding_current = _sr_target_preview(
-                    snapshot.connection,
-                    proposal,
-                    changes,
-                )
-            elif proposal.proposal_kind in _GENERIC_RFC_ACCEPT_KINDS:
-                target_preview, current_token, binding_current = _rfc_target_preview(
-                    snapshot.connection,
-                    proposal,
-                    changes,
-                )
-            elif proposal.proposal_kind in _GENERIC_WFM_ACCEPT_KINDS:
-                target_preview, current_token, binding_current = _wfm_target_preview(
-                    snapshot.connection,
-                    proposal,
-                    changes,
-                )
-            else:
+            try:
+                if proposal.proposal_kind in _GENERIC_SR_ACCEPT_KINDS:
+                    target_preview, current_token, binding_current = _sr_target_preview(
+                        snapshot.connection,
+                        proposal,
+                        changes,
+                    )
+                elif proposal.proposal_kind in _GENERIC_RFC_ACCEPT_KINDS:
+                    target_preview, current_token, binding_current = _rfc_target_preview(
+                        snapshot.connection,
+                        proposal,
+                        changes,
+                    )
+                elif proposal.proposal_kind in _GENERIC_WFM_ACCEPT_KINDS:
+                    target_preview, current_token, binding_current = _wfm_target_preview(
+                        snapshot.connection,
+                        proposal,
+                        changes,
+                    )
+                else:
+                    target_preview = {
+                        "owner": "dedicated_review_command",
+                        "target_kind": proposal.target_kind,
+                        "target_internal_id": proposal.target_internal_id,
+                        "target_business_id": proposal.target_business_id,
+                        "preview_available": False,
+                    }
+                    current_token = proposal.base_state_token
+                    binding_current = proposal.proposal_kind == "wfm_competing_attempt_review"
+            except (SomaError, ValidationError) as exc:
                 target_preview = {
-                    "owner": "dedicated_review_command",
+                    "owner": "stale_owner_authority",
                     "target_kind": proposal.target_kind,
                     "target_internal_id": proposal.target_internal_id,
                     "target_business_id": proposal.target_business_id,
                     "preview_available": False,
+                    "stale_code": getattr(exc, "code", "VALIDATION_FAILED"),
                 }
-                current_token = proposal.base_state_token
-                binding_current = proposal.proposal_kind == "wfm_competing_attempt_review"
+                current_token = None
+                binding_current = False
             stale = (
                 current_token is None
                 or not binding_current
