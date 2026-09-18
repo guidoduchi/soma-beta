@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import pytest
 from openpyxl import load_workbook
 
+from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.uow import ReadSnapshot
@@ -164,3 +166,67 @@ def test_sealed_snapshot_regeneration_produces_identical_candidate_bytes(
     )
     assert second == candidate
     assert (tmp_path / second).read_bytes() == first_bytes
+
+
+def test_completed_report_rejects_cancellation_and_preserves_published_artifact_t039(
+    initialized_database,
+    tmp_path,
+) -> None:
+    factory = _factory(initialized_database)
+    month_start, _month_end = canonical_month_bounds(MONTH)
+    started = SlaReportOrchestrationService(factory).start_monthly(
+        command_id=new_uuid4(),
+        calendar_month=MONTH,
+        as_of_utc=month_start + 1,
+        customer_org_id=None,
+        destination_request_token=DESTINATION_TOKEN,
+    )
+    report_id = str(started["report_attempt_id"])
+
+    jobs = DurableJobCoordinator(
+        factory,
+        JobTypeRegistry(PRODUCT_LINE_SLA_JOB_CONTRACTS),
+    )
+    claim = jobs.claim_next(new_uuid4(), utc_epoch_seconds())
+    assert claim is not None
+    artifact = SlaReportXlsxArtifact(
+        factory,
+        BoundReportDestination(DESTINATION_TOKEN, tmp_path),
+    )
+    SlaReportGenerationWorker(factory, artifact=artifact).run_to_completion(claim)
+
+    with ReadSnapshot(factory) as snapshot:
+        attempt = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert attempt is not None
+        assert attempt.state == "completed"
+        assert attempt.artifact_filename is not None
+        final_path = tmp_path / attempt.artifact_filename
+        original_bytes = final_path.read_bytes()
+        original_revision = attempt.revision
+        job = snapshot.connection.execute(
+            "SELECT state,claimed_run_id,claim_started_at_utc FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("completed", None, None)
+
+    with pytest.raises(SomaError) as excinfo:
+        SlaReportOrchestrationService(factory).cancel(
+            command_id=new_uuid4(),
+            report_attempt_id=report_id,
+            expected_attempt_revision=original_revision,
+        )
+    assert excinfo.value.code == "SLA_REPORT_ATTEMPT_STATE"
+
+    with ReadSnapshot(factory) as snapshot:
+        after = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert after is not None
+        assert after.state == "completed"
+        assert after.revision == original_revision
+        job = snapshot.connection.execute(
+            "SELECT state,claimed_run_id,claim_started_at_utc FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("completed", None, None)
+
+    assert final_path.is_file()
+    assert final_path.read_bytes() == original_bytes
