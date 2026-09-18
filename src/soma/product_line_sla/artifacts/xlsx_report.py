@@ -21,7 +21,8 @@ from soma.foundation.strict_json import canonical_json_bytes, sha256_canonical_j
 from ..repositories.reports import ReportAttemptRecord, ReportRepository
 
 _FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
-_ALLOWED_ARTIFACT_STATES = {"ready_to_generate", "generating", "verifying", "completed"}
+_WRITE_ARTIFACT_STATES = frozenset({"ready_to_generate", "generating", "verifying"})
+_VERIFY_ARTIFACT_STATES = frozenset({"verifying"})
 _SHEET_NAMES = ("_SOMA_Metadata", "Members", "Tiers", "Cohorts", "Sections")
 _MEMBER_COLUMNS = (
     "member_ordinal",
@@ -185,6 +186,7 @@ def _require_sealed_snapshot(
     *,
     report_attempt_id: str,
     snapshot_hash: str,
+    allowed_states: frozenset[str],
 ) -> tuple[ReportAttemptRecord, dict[str, object]]:
     report_id = require_uuid4(report_attempt_id)
     if not isinstance(snapshot_hash, str) or len(snapshot_hash) != 64:
@@ -194,7 +196,7 @@ def _require_sealed_snapshot(
         if attempt is None:
             raise SomaError("SLA_REPORT_ATTEMPT_STATE", "report attempt does not exist")
         if (
-            attempt.state not in _ALLOWED_ARTIFACT_STATES
+            attempt.state not in allowed_states
             or attempt.snapshot_hash != snapshot_hash
         ):
             raise SomaError("SLA_REPORT_ATTEMPT_STATE", "report attempt is not sealed for artifact use")
@@ -258,6 +260,7 @@ class SlaReportXlsxArtifact:
             self._factory,
             report_attempt_id=report_attempt_id,
             snapshot_hash=snapshot_hash,
+            allowed_states=_WRITE_ARTIFACT_STATES,
         )
         candidate = _filename(
             candidate_filename or default_candidate_filename(attempt, snapshot_hash)
@@ -391,6 +394,7 @@ class SlaReportXlsxArtifact:
             self._factory,
             report_attempt_id=report_attempt_id,
             snapshot_hash=snapshot_hash,
+            allowed_states=_VERIFY_ARTIFACT_STATES,
         )
         candidate = _filename(candidate_filename)
         directory = self._destinations.resolve_directory(destination_request_token)
@@ -490,8 +494,16 @@ class SlaReportXlsxArtifact:
         candidate = directory / _filename(verification.candidate_filename)
         with ReadSnapshot(self._factory) as snapshot:
             attempt = ReportRepository.get_attempt(snapshot.connection, verification.report_attempt_id)
-            if attempt is None or attempt.snapshot_hash != verification.snapshot_hash:
-                raise SomaError("SLA_REPORT_ATTEMPT_STATE", "report attempt changed before publication")
+            if (
+                attempt is None
+                or attempt.state != "verifying"
+                or attempt.snapshot_hash != verification.snapshot_hash
+                or attempt.artifact_filename != verification.candidate_filename
+            ):
+                raise SomaError(
+                    "SLA_REPORT_ATTEMPT_STATE",
+                    "report attempt is not the exact verifying candidate",
+                )
             final = _filename(final_filename or default_final_filename(attempt))
         destination = directory / final
         if destination.exists():
