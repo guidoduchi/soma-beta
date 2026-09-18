@@ -16,13 +16,17 @@ from soma.objectives_tasks.services.wfm_import import (
     WfmSourceProjectionAcceptanceMutation,
 )
 from soma.ticket_import.providers.wfm_competing_attempt_evidence import TicketImportWfmCompetingAttemptEvidenceProvider
-from soma.ticket_import.providers.wfm_review_evidence import TicketImportWfmReviewEvidenceProvider
+from soma.ticket_import.providers.wfm_review_evidence import (
+    TicketImportWfmReviewEvidenceProvider,
+    _load_published_source,
+)
 from soma.tickets.rfc_import_mutations import RfcCreateFromSourceMutation
 from soma.tickets.rfc_import_reader import RfcImportReader
 
 from ..repositories.proposals import PendingProposalWrite, ProposalChangeRecord, ProposalRecord
 from ..reconciliation.engine import ProposalChangeDraft, ReconciliationProposalDraft
 from ..reconciliation.wfm_follow_on import build_wfm_follow_on_proposals
+from ..reconciliation.wfm_sr_link import build_wfm_task_name_sr_link_proposals
 
 
 def _same_change(persisted: ProposalChangeRecord, recomputed: ProposalChangeDraft) -> bool:
@@ -145,6 +149,13 @@ def prepare_wfm_provisional_rfc_accept(
 
     def apply(inner: UnitOfWork):
         owner_result = service._rfc_import_mutations.create_or_adopt_from_source(inner, mutation)
+        source = _load_published_source(
+            inner.connection,
+            expected_import_run_id=proposal.import_run_id,
+            expected_source_observation_id=proposal.source_observation_id,
+        )
+        sr_link_drafts = build_wfm_task_name_sr_link_proposals(inner.connection, source=source)
+        sr_link_writes = tuple(_pending_write(draft) for draft in sr_link_drafts)
         service._repository.transition_accept(
             inner,
             proposal=proposal,
@@ -153,6 +164,12 @@ def prepare_wfm_provisional_rfc_accept(
             disposition_id=disposition_id,
             reason_category=reason,
             command_id=command_id,
+        )
+        service._repository.insert_follow_on_pending_set(
+            inner,
+            import_run_id=proposal.import_run_id,
+            expected_run_revision=run.revision + 1,
+            writes=sr_link_writes,
         )
         orchestration = service._orchestration_audit(
             audit_event_id=orchestration_audit_id,
