@@ -24,20 +24,27 @@ class _MaterializedPolicy:
     tier_ids: tuple[str, ...]
 
 
+def _allocate_policy_ids(validated: ValidatedPolicy) -> tuple[str, tuple[str, ...]]:
+    return new_uuid4(), tuple(new_uuid4() for _ in validated.tiers)
+
+
 def _materialize_validated_policy(
     uow: UnitOfWork,
     *,
     contract_product_line_id: str,
+    policy_revision_id: str,
+    tier_ids: tuple[str, ...],
     policy_revision_ordinal: int,
     policy_name: str,
     validated: ValidatedPolicy,
     command_id: str,
     created_at_utc: int,
 ) -> _MaterializedPolicy:
-    policy_revision_id = new_uuid4()
+    if len(tier_ids) != len(validated.tiers):
+        raise ValidationError("SLA policy tier identity allocation is incomplete")
     ids_by_key = {
-        (tier.severity, tier.tier_ordinal): new_uuid4()
-        for tier in validated.tiers
+        (tier.severity, tier.tier_ordinal): tier_ids[index]
+        for index, tier in enumerate(validated.tiers)
     }
     tiers: list[SlaPolicyTierRecord] = []
     for tier in validated.tiers:
@@ -141,19 +148,25 @@ class ProductLineSlaPolicyService:
             prior_policy_id = None if row[3] is None else str(row[3])
             ordinal = SlaPolicyRepository.next_ordinal(uow.connection, cpl_id)
             now = utc_epoch_seconds()
-            materialized_holder: dict[str, _MaterializedPolicy] = {}
+            policy_revision_id, tier_ids = _allocate_policy_ids(validated)
+            materialized = _MaterializedPolicy(
+                policy_revision_id=policy_revision_id,
+                policy_revision_ordinal=ordinal,
+                tier_ids=tier_ids,
+            )
 
             def apply(inner: UnitOfWork):
-                materialized = _materialize_validated_policy(
+                _materialize_validated_policy(
                     inner,
                     contract_product_line_id=cpl_id,
+                    policy_revision_id=policy_revision_id,
+                    tier_ids=tier_ids,
                     policy_revision_ordinal=ordinal,
                     policy_name=stored_name,
                     validated=validated,
                     command_id=command_id,
                     created_at_utc=now,
                 )
-                materialized_holder["value"] = materialized
                 inner.connection.execute(
                     "UPDATE contract_product_lines SET current_policy_revision_id=?,revision=revision+1,last_command_id=? "
                     "WHERE contract_product_line_id=?",
@@ -189,26 +202,20 @@ class ProductLineSlaPolicyService:
                     resulting_event_refs=refs,
                 )
 
-            def response_factory(_inner: UnitOfWork) -> dict[str, object]:
-                materialized = materialized_holder.get("value")
-                if materialized is None:
-                    raise SomaError("PERSISTENCE_FAILURE", "SLA policy result disappeared before response capture")
-                return {
-                    "contract_product_line_id": cpl_id,
-                    "policy_revision_id": materialized.policy_revision_id,
-                    "policy_revision_ordinal": ordinal,
-                    "cpl_revision": base_revision + 1,
-                    "tier_count": len(materialized.tier_ids),
-                    "content_fingerprint": validated.content_fingerprint,
-                }
-
             return PreparedMutation(
                 False,
                 "sla_policy_revision",
-                None,
+                policy_revision_id,
                 apply,
                 response_schema="SlaPolicyRevisionResultV1",
-                response_factory=response_factory,
+                response={
+                    "contract_product_line_id": cpl_id,
+                    "policy_revision_id": policy_revision_id,
+                    "policy_revision_ordinal": ordinal,
+                    "cpl_revision": base_revision + 1,
+                    "tier_count": len(tier_ids),
+                    "content_fingerprint": validated.content_fingerprint,
+                },
             )
 
         return policy_result_from_execution(self._boundary.execute(envelope, prepare))
@@ -217,5 +224,6 @@ class ProductLineSlaPolicyService:
 __all__ = [
     "ProductLineSlaPolicyService",
     "_MaterializedPolicy",
+    "_allocate_policy_ids",
     "_materialize_validated_policy",
 ]
