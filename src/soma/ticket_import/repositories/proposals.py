@@ -425,7 +425,7 @@ class ProposalRepository:
         expected_run_revision: int,
         writes: tuple[PendingProposalWrite, ...],
     ) -> tuple[str, ...]:
-        """Append post-acceptance WFM review proposals under the already published source run."""
+        """Append post-acceptance source review proposals under the already published import run."""
         run_id = require_uuid4(import_run_id)
         if type(expected_run_revision) is not int or expected_run_revision <= 0:
             raise ValidationError("expected_run_revision must be a positive integer")
@@ -503,7 +503,7 @@ class ProposalRepository:
                 ),
             ).fetchone()
             if existing is not None:
-                raise IntegrityFailure("follow-on proposal already exists before source acceptance completes")
+                raise IntegrityFailure("follow-on proposal already exists before prerequisite acceptance completes")
 
         created_at = utc_epoch_seconds()
         proposal_ids: list[str] = []
