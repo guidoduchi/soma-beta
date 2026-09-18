@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
+
+from soma.foundation.errors import ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.product_line_sla.algorithms.cohort_state import (
     CanonicalCohortCalculator,
     CohortProjection,
     canonical_month_bounds,
+    decode_cohort_key,
 )
+from soma.product_line_sla.queries.cohorts import CohortQueryService
 from soma.product_line_sla.services.catalog import ProductLineSlaCatalogService
 from soma.product_line_sla.services.classification import ProductLineSlaClassificationService
 from soma.reference.application.customer_service import CustomerReferenceService
@@ -472,3 +477,117 @@ def test_daily_or_weekly_position_does_not_redefine_monthly_cohort_t029(
     assert cohort.calendar_month == MONTH
     assert cohort.timezone == "America/Guayaquil"
     assert cohort.denominator == 2
+
+
+def test_cohort_query_key_roundtrip_and_member_paging(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    env = _environment(factory)
+    month_start, _month_end = canonical_month_bounds(MONTH)
+    report_date = month_start + 12 * DAY
+    as_of = report_date + 2 * DAY
+
+    first = _seed_member(
+        factory,
+        env,
+        ordinal=70,
+        report_date=report_date,
+        severity="Critical",
+    )
+    second = _seed_member(
+        factory,
+        env,
+        ordinal=71,
+        report_date=report_date,
+        severity="Critical",
+    )
+
+    query = CohortQueryService(factory)
+    page = query.list_canonical(
+        calendar_month=MONTH,
+        as_of_utc=as_of,
+        limit=1,
+    )
+    assert page.exact_count == 1
+    assert page.next_cursor is None
+    assert len(page.items) == 1
+
+    key = page.items[0].cohort_key
+    parts = decode_cohort_key(key)
+    assert parts.calendar_month == MONTH
+    assert parts.customer_org_id == env.customer_id
+    assert parts.contract_product_line_id == env.cpl_id
+
+    member_page_1 = query.get_members(
+        cohort_key=key,
+        as_of_utc=as_of,
+        limit=1,
+    )
+    assert member_page_1.member_exact_count == 2
+    assert len(member_page_1.members) == 1
+    assert member_page_1.next_cursor is not None
+
+    member_page_2 = query.get_members(
+        cohort_key=key,
+        as_of_utc=as_of,
+        cursor=member_page_1.next_cursor,
+        limit=1,
+    )
+    assert member_page_2.member_exact_count == 2
+    assert len(member_page_2.members) == 1
+    assert member_page_2.next_cursor is None
+    assert {
+        member_page_1.members[0].service_request_id,
+        member_page_2.members[0].service_request_id,
+    } == {first, second}
+
+    replacement = "A" if key[-1] != "A" else "B"
+    with pytest.raises(ValidationError):
+        decode_cohort_key(key[:-1] + replacement)
+
+
+def test_cohort_list_cursor_is_filter_bound(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    env = _environment(factory)
+    month_start, _month_end = canonical_month_bounds(MONTH)
+    report_date = month_start + 10 * DAY
+    as_of = report_date + DAY
+
+    _seed_member(
+        factory,
+        env,
+        ordinal=80,
+        report_date=report_date,
+        severity="Major",
+    )
+
+    query = CohortQueryService(factory)
+    first = query.list_canonical(
+        calendar_month=MONTH,
+        as_of_utc=as_of,
+        severity="major",
+        limit=1,
+    )
+    assert first.exact_count == 2
+    assert len(first.items) == 1
+    assert first.next_cursor is not None
+
+    second = query.list_canonical(
+        calendar_month=MONTH,
+        as_of_utc=as_of,
+        severity="major",
+        cursor=first.next_cursor,
+        limit=1,
+    )
+    assert second.exact_count == 2
+    assert len(second.items) == 1
+    assert second.next_cursor is None
+    assert first.items[0].policy_tier_id != second.items[0].policy_tier_id
+
+    with pytest.raises(ValidationError):
+        query.list_canonical(
+            calendar_month=MONTH,
+            as_of_utc=as_of + 1,
+            severity="major",
+            cursor=first.next_cursor,
+            limit=1,
+        )
