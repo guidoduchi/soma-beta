@@ -526,7 +526,7 @@ def test_source_projection_acceptance_appends_plan_and_competing_attempt_follow_
     )
     reviewed = WfmActivityRelationshipReviewService(factory).review_wfm_activity_relationship(
         command_id=new_uuid4(),
-        seed_tasks=((subject.task_id, 1), (counterpart.task_id, 1)),
+        seed_tasks=tuple(sorted(((subject.task_id, 1), (counterpart.task_id, 1)), key=lambda item: item[0])),
         decision="same_activity",
         review_fingerprint=preview.review_fingerprint,
         reason_category="same_provider_activity",
