@@ -178,7 +178,7 @@ def test_wfm_task_name_fallback_proposes_and_accepts_existing_sr_link(initialize
             "SELECT pending_proposal_count,accepted_proposal_count,revision FROM import_runs WHERE import_run_id=?",
             (run_id,),
         ).fetchone()
-        assert tuple(run) == (0, 1, 2)
+        assert tuple(run) == (0, 1, 3)
         identity = snapshot.connection.execute(
             "SELECT task_id FROM wfm_task_identities WHERE task_no=?",
             (task_no,),
