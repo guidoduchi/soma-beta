@@ -8,7 +8,7 @@ from soma.foundation.errors import IntegrityFailure, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import (
     canonical_json_bytes,
     loads_canonical_json,
@@ -18,6 +18,7 @@ from soma.tickets.service_request_sla_input import ServiceRequestSlaInputReader
 
 from ..algorithms.cohort_state import CanonicalCohortCalculator, canonical_month_bounds
 from ..algorithms.individual_sla import IndividualSlaCalculator
+from ..artifacts.xlsx_report import SlaReportXlsxArtifact
 from ..report_sections import ReportSectionContributorRegistry
 from ..repositories.reports import ReportRepository
 from ..services.report_worker import SlaReportWorkerService
@@ -38,6 +39,7 @@ class SlaReportGenerationWorker:
         self,
         connection_factory: ConnectionFactory,
         section_registry: ReportSectionContributorRegistry | None = None,
+        artifact: SlaReportXlsxArtifact | None = None,
     ) -> None:
         self._factory = connection_factory
         self._sections = section_registry or ReportSectionContributorRegistry()
@@ -49,6 +51,7 @@ class SlaReportGenerationWorker:
             connection_factory,
             self._sections,
         )
+        self._artifact = artifact
 
     @staticmethod
     def _json_object(text: str, *, label: str) -> dict[str, Any]:
@@ -112,6 +115,8 @@ class SlaReportGenerationWorker:
         batch_ordinal: int | None = None,
         batch_payload_sha256: str | None = None,
         snapshot_hash: str | None = None,
+        candidate_filename: str | None = None,
+        completion_proof_fingerprint: str | None = None,
     ) -> dict[str, object]:
         return {
             "kind": kind,
@@ -121,8 +126,8 @@ class SlaReportGenerationWorker:
             "batch_ordinal": batch_ordinal,
             "batch_payload_sha256": batch_payload_sha256,
             "snapshot_hash": snapshot_hash,
-            "candidate_filename": None,
-            "completion_proof_fingerprint": None,
+            "candidate_filename": candidate_filename,
+            "completion_proof_fingerprint": completion_proof_fingerprint,
         }
 
     @staticmethod
@@ -237,6 +242,18 @@ class SlaReportGenerationWorker:
         }
         self._jobs.checkpoint(claim, committed)
         return committed, resulting_revision
+
+    def _current_checkpoint(self, claim: DurableJobClaim) -> dict[str, Any]:
+        with UnitOfWork(self._factory) as uow:
+            checkpoint_json = self._jobs.assert_claim_current(uow, claim)
+        if checkpoint_json is None:
+            raise IntegrityFailure("SLA report job has no persisted checkpoint")
+        checkpoint = self._json_object(
+            checkpoint_json,
+            label="report job checkpoint",
+        )
+        validate_report_job_checkpoint(checkpoint)
+        return checkpoint
 
     def snapshot_and_seal(self, claim: DurableJobClaim) -> str:
         payload = self._payload(claim)
@@ -460,6 +477,187 @@ class SlaReportGenerationWorker:
         return report_attempt_id
 
 
+    def artifact_and_complete(self, claim: DurableJobClaim) -> str:
+        if self._artifact is None:
+            raise ValidationError("SLA report artifact adapter is not configured")
+        payload = self._payload(claim)
+        report_attempt_id = str(payload["report_attempt_id"])
+        destination_token = str(payload["destination_request_token"])
+        checkpoint = self._current_checkpoint(claim)
+        if checkpoint["phase"] != "sealed" or checkpoint["pending_command"] is not None:
+            raise IntegrityFailure("normal artifact completion requires a sealed report checkpoint")
+
+        with ReadSnapshot(self._factory) as snapshot:
+            attempt = ReportRepository.get_attempt(snapshot.connection, report_attempt_id)
+            if (
+                attempt is None
+                or attempt.state != "ready_to_generate"
+                or attempt.snapshot_hash is None
+                or attempt.revision != int(checkpoint["attempt_revision"])
+            ):
+                raise IntegrityFailure("sealed report attempt is not ready for artifact generation")
+            snapshot_hash = attempt.snapshot_hash
+            expected_revision = attempt.revision
+
+        generating_command_id = new_uuid4()
+        generating_fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_REPORT_GENERATING_INTENT_V1",
+                "report_attempt_id": report_attempt_id,
+                "expected_attempt_revision": expected_revision,
+                "snapshot_hash": snapshot_hash,
+            }
+        )
+        pending_generating = {
+            **checkpoint,
+            "pending_command": self._pending(
+                kind="mark_generating",
+                command_id=generating_command_id,
+                expected_revision=expected_revision,
+                request_fingerprint=generating_fingerprint,
+                snapshot_hash=snapshot_hash,
+            ),
+        }
+        self._jobs.checkpoint(claim, pending_generating)
+        generating = self._worker.mark_generating(
+            command_id=generating_command_id,
+            report_attempt_id=report_attempt_id,
+            expected_attempt_revision=expected_revision,
+            snapshot_hash=snapshot_hash,
+        )
+        expected_revision = int(generating["resulting_attempt_revision"])
+        writing_checkpoint = {
+            **pending_generating,
+            "phase": "writing",
+            "attempt_revision": expected_revision,
+            "pending_command": None,
+        }
+        self._jobs.checkpoint(claim, writing_checkpoint)
+
+        candidate = self._artifact.write_candidate(
+            report_attempt_id=report_attempt_id,
+            snapshot_hash=snapshot_hash,
+            destination_request_token=destination_token,
+        )
+        verifying_command_id = new_uuid4()
+        verifying_fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_REPORT_VERIFYING_INTENT_V1",
+                "report_attempt_id": report_attempt_id,
+                "expected_attempt_revision": expected_revision,
+                "snapshot_hash": snapshot_hash,
+                "candidate_filename": candidate,
+            }
+        )
+        pending_verifying = {
+            **writing_checkpoint,
+            "candidate_filename": candidate,
+            "pending_command": self._pending(
+                kind="mark_verifying",
+                command_id=verifying_command_id,
+                expected_revision=expected_revision,
+                request_fingerprint=verifying_fingerprint,
+                snapshot_hash=snapshot_hash,
+                candidate_filename=candidate,
+            ),
+        }
+        self._jobs.checkpoint(claim, pending_verifying)
+        verifying = self._worker.mark_verifying(
+            command_id=verifying_command_id,
+            report_attempt_id=report_attempt_id,
+            expected_attempt_revision=expected_revision,
+            snapshot_hash=snapshot_hash,
+            candidate_filename=candidate,
+        )
+        expected_revision = int(verifying["resulting_attempt_revision"])
+        verifying_checkpoint = {
+            **pending_verifying,
+            "phase": "verifying",
+            "attempt_revision": expected_revision,
+            "pending_command": None,
+        }
+        self._jobs.checkpoint(claim, verifying_checkpoint)
+
+        verification = self._artifact.verify_candidate(
+            report_attempt_id=report_attempt_id,
+            snapshot_hash=snapshot_hash,
+            destination_request_token=destination_token,
+            candidate_filename=candidate,
+        )
+        publishing_checkpoint = {
+            **verifying_checkpoint,
+            "phase": "publishing",
+        }
+        self._jobs.checkpoint(claim, publishing_checkpoint)
+        proof = self._artifact.publish_verified(
+            verification=verification,
+            destination_request_token=destination_token,
+        )
+
+        completion_command_id = new_uuid4()
+        proof_fingerprint = sha256_canonical_json(proof)
+        published_artifact = {
+            "candidate_filename": str(proof["candidate_filename"]),
+            "final_filename": str(proof["artifact_filename"]),
+            "artifact_sha256": str(proof["artifact_sha256"]),
+            "artifact_size_bytes": int(proof["artifact_size_bytes"]),
+            "verified_at_utc": int(proof["verified_at_utc"]),
+            "snapshot_hash": snapshot_hash,
+            "completion_command_id": completion_command_id,
+        }
+        completion_fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_REPORT_COMPLETE_INTENT_V1",
+                "report_attempt_id": report_attempt_id,
+                "expected_attempt_revision": expected_revision,
+                "snapshot_hash": snapshot_hash,
+                "completion_proof_fingerprint": proof_fingerprint,
+            }
+        )
+        completing_checkpoint = {
+            **publishing_checkpoint,
+            "phase": "completing",
+            "published_artifact": published_artifact,
+            "pending_command": self._pending(
+                kind="complete",
+                command_id=completion_command_id,
+                expected_revision=expected_revision,
+                request_fingerprint=completion_fingerprint,
+                snapshot_hash=snapshot_hash,
+                completion_proof_fingerprint=proof_fingerprint,
+            ),
+        }
+        self._jobs.checkpoint(claim, completing_checkpoint)
+        completed = self._worker.complete(
+            command_id=completion_command_id,
+            report_attempt_id=report_attempt_id,
+            expected_attempt_revision=expected_revision,
+            snapshot_hash=snapshot_hash,
+            artifact_completion=proof,
+        )
+        terminal_checkpoint = {
+            **completing_checkpoint,
+            "phase": "terminal",
+            "attempt_revision": int(completed["revision"]),
+            "pending_command": None,
+        }
+        self._jobs.checkpoint(claim, terminal_checkpoint)
+        self._jobs.complete(claim)
+        return report_attempt_id
+
+    def run_to_completion(self, claim: DurableJobClaim) -> str:
+        checkpoint = self._existing_checkpoint(claim)
+        if checkpoint is None:
+            self.snapshot_and_seal(claim)
+        else:
+            if checkpoint["phase"] != "sealed":
+                raise IntegrityFailure(
+                    "normal report execution can resume only from an exact sealed checkpoint"
+                )
+        return self.artifact_and_complete(claim)
+
+
+
 def run_snapshot(
     claim: DurableJobClaim,
     connection_factory: ConnectionFactory,
@@ -471,4 +669,17 @@ def run_snapshot(
     ).snapshot_and_seal(claim)
 
 
-__all__ = ["SlaReportGenerationWorker", "run_snapshot"]
+def run_to_completion(
+    claim: DurableJobClaim,
+    connection_factory: ConnectionFactory,
+    artifact: SlaReportXlsxArtifact,
+    section_registry: ReportSectionContributorRegistry | None = None,
+) -> str:
+    return SlaReportGenerationWorker(
+        connection_factory,
+        section_registry,
+        artifact,
+    ).run_to_completion(claim)
+
+
+__all__ = ["SlaReportGenerationWorker", "run_snapshot", "run_to_completion"]
