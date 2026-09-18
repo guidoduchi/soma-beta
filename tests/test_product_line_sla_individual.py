@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.product_line_sla.algorithms.individual_sla import IndividualSlaCalculator
+from soma.product_line_sla.algorithms.warnings import SlaWarningCalculator
 from soma.product_line_sla.services.catalog import ProductLineSlaCatalogService
 from soma.product_line_sla.services.classification import ProductLineSlaClassificationService
 from soma.product_line_sla.services.policy import ProductLineSlaPolicyService
@@ -329,3 +330,60 @@ def test_new_current_policy_recalculates_without_rewriting_service_request(initi
     assert after.policy_revision_id != before.policy_revision_id
     assert after.tier_results[0].individual_state == "active_exceeded"
     assert after.service_request_id == before.service_request_id
+
+
+def test_suspension_warning_is_separate_from_sla_state_t037(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    setup = _classified(factory, suffix="8")
+    report_date = 1_000_000
+    planned_end = report_date + 20_000
+    _apply_source(
+        factory,
+        setup.service_request_id,
+        _delta("report_date", value=report_date, chronology=100),
+        _delta("customer_severity", value="Critical", chronology=100),
+        _delta("suspension_duration", value=500, chronology=100),
+        _delta("status", value="Customer Agreed Suspend", chronology=100),
+        _delta("suspend_planned_end", value=planned_end, chronology=100),
+    )
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        as_of = planned_end - 100
+        individual = IndividualSlaCalculator.calculate(
+            connection,
+            setup.service_request_id,
+            as_of,
+        )
+        warnings = SlaWarningCalculator.individual(
+            connection,
+            service_request_id=setup.service_request_id,
+            as_of_utc=as_of,
+            suspension_ending_soon_threshold_seconds=300,
+        )
+        assert individual.suspension_numerator_seconds == 500
+        assert individual.suspension_denominator == 1
+        assert individual.tier_results[0].individual_state == "active_within"
+        assert [warning.warning_kind for warning in warnings] == [
+            "suspension_ending_soon"
+        ]
+
+        expired_as_of = planned_end + 1
+        expired = SlaWarningCalculator.individual(
+            connection,
+            service_request_id=setup.service_request_id,
+            as_of_utc=expired_as_of,
+            suspension_ending_soon_threshold_seconds=300,
+        )
+        assert [warning.warning_kind for warning in expired] == [
+            "suspension_end_missing_or_expired"
+        ]
+        after = IndividualSlaCalculator.calculate(
+            connection,
+            setup.service_request_id,
+            expired_as_of,
+        )
+        assert after.suspension_numerator_seconds == 500
+        assert after.suspension_denominator == 1
+    finally:
+        connection.close()
