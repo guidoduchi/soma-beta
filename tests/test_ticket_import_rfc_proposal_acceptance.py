@@ -131,6 +131,144 @@ def test_accept_rfc_create_uses_exact_published_identity_and_replays_without_own
         ).fetchone()[0] == 1
 
 
+def test_accept_rfc_identity_appends_source_projection_follow_on_and_replays(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    run_id = new_uuid4()
+    observation_id = new_uuid4()
+    status_field_id = new_uuid4()
+    proposal_id = new_uuid4()
+    identity_command_id = new_uuid4()
+    rfc_no = "NC00000000000011"
+    owner = RfcImportMutationService(TicketImportRfcSourceEvidenceProvider())
+
+    with UnitOfWork(factory) as uow:
+        _seed_rfc_run(uow, run_id=run_id)
+        _seed_rfc_observation(
+            uow,
+            run_id=run_id,
+            observation_id=observation_id,
+            rfc_no=rfc_no,
+            chronology=100,
+        )
+        uow.connection.execute(
+            "INSERT INTO source_observation_fields(source_observation_field_id,source_observation_id,field_key,field_class,"
+            "value_state,value_kind,source_text,normalized_text,integer_value,vocabulary_id,field_logical_sha256) "
+            "VALUES (?,?,'status','active','usable','controlled','Implement','Implement',NULL,'RFC_STATUS_V1',?)",
+            (status_field_id, observation_id, "a" * 64),
+        )
+        base_token = owner.source_identity_base_token(uow.connection, rfc_no)
+        _seed_identity_proposal(
+            uow,
+            run_id=run_id,
+            observation_id=observation_id,
+            proposal_id=proposal_id,
+            rfc_no=rfc_no,
+            base_token=base_token,
+            fingerprint="b" * 64,
+        )
+
+    service = ProposalDecisionService(factory)
+    first = service.accept(
+        command_id=identity_command_id,
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint="b" * 64,
+        base_state_token=base_token,
+    )
+    assert first.decision == "accepted"
+    assert first.replayed is False
+    rfc_refs = [ref for ref in first.owner_result_refs if ref[0] == "rfc"]
+    assert len(rfc_refs) == 1
+    rfc_id = rfc_refs[0][1]
+
+    replay = service.accept(
+        command_id=identity_command_id,
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint="b" * 64,
+        base_state_token=base_token,
+    )
+    assert replay.replayed is True
+    assert replay.owner_result_refs == first.owner_result_refs
+
+    with ReadSnapshot(factory) as snapshot:
+        follow_on = snapshot.connection.execute(
+            "SELECT reconciliation_proposal_id,target_internal_id,target_business_id,risk_class,"
+            "base_state_token_sha256,proposal_fingerprint_sha256,proposal_state,revision "
+            "FROM reconciliation_proposals WHERE import_run_id=? AND proposal_kind='rfc_source_projection'",
+            (run_id,),
+        ).fetchone()
+        assert follow_on is not None
+        projection_proposal_id = str(follow_on[0])
+        assert tuple(follow_on[1:4]) == (rfc_id, rfc_no, "medium")
+        projection_base_token = str(follow_on[4])
+        projection_fingerprint = str(follow_on[5])
+        assert tuple(follow_on[6:]) == ("pending", 1)
+        change = snapshot.connection.execute(
+            "SELECT ordinal,field_key,change_kind,value_kind,before_text,after_text,before_integer,after_integer,"
+            "source_observation_field_id FROM reconciliation_proposal_changes "
+            "WHERE reconciliation_proposal_id=?",
+            (projection_proposal_id,),
+        ).fetchone()
+        assert tuple(change) == (
+            0,
+            "status",
+            "set",
+            "controlled",
+            None,
+            "Implement",
+            None,
+            None,
+            status_field_id,
+        )
+        run = snapshot.connection.execute(
+            "SELECT proposal_count,pending_proposal_count,accepted_proposal_count,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (2, 1, 1, 3)
+
+    projection_command_id = new_uuid4()
+    projection = service.accept(
+        command_id=projection_command_id,
+        proposal_id=projection_proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=projection_fingerprint,
+        base_state_token=projection_base_token,
+    )
+    assert projection.decision == "accepted"
+    assert projection.replayed is False
+    projection_replay = service.accept(
+        command_id=projection_command_id,
+        proposal_id=projection_proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=projection_fingerprint,
+        base_state_token=projection_base_token,
+    )
+    assert projection_replay.replayed is True
+    assert projection_replay.owner_result_refs == projection.owner_result_refs
+
+    with ReadSnapshot(factory) as snapshot:
+        current = snapshot.connection.execute(
+            "SELECT status_text,status_class,status_authority,status_evidence_id,revision "
+            "FROM rfc_current_source_projection WHERE rfc_id=?",
+            (rfc_id,),
+        ).fetchone()
+        assert tuple(current) == (
+            "Implement",
+            "implement_eligible",
+            "enhanced_rfc",
+            status_field_id,
+            1,
+        )
+        run = snapshot.connection.execute(
+            "SELECT proposal_count,pending_proposal_count,accepted_proposal_count,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (2, 0, 2, 4)
+
+
 def test_accept_rfc_source_projection_applies_exact_published_field(initialized_database) -> None:
     factory = _factory(initialized_database)
     rfc = RfcService(factory).create_or_adopt_identity(
