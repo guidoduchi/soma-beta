@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import TaskPlanningService
@@ -220,3 +223,69 @@ def test_accepted_rfc_summary_suppresses_wfm_task_name_sr_fallback(initialized_d
             source_observation_id=observation_id,
         )
     assert [proposal for proposal in built.proposals if proposal.proposal_kind == "sr_rfc_link_candidate"] == []
+
+
+def test_rfc_summary_candidate_makes_pending_wfm_task_name_fallback_stale(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    rfc = _eligible_rfc(factory, rfc_no="NC00000000008103")
+    task_no = "TK00000000008103"
+    TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=task_no,
+        rfc_id=rfc.rfc_id,
+    )
+    fallback_sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="81234570",
+    )
+    ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="81234571",
+    )
+    run_id, observation_id, _field_id = _seed_wfm_task_name_run(
+        factory,
+        task_no=task_no,
+        rfc_no=rfc.rfc_no,
+        task_name="Fallback work for SR81234570",
+    )
+    with ReadSnapshot(factory) as snapshot:
+        built = build_wfm_service_provider_proposals(
+            snapshot.connection,
+            import_run_id=run_id,
+            source_observation_id=observation_id,
+        )
+    draft = next(proposal for proposal in built.proposals if proposal.proposal_kind == "sr_rfc_link_candidate")
+    proposal_id = _persist_single_pending(factory, draft)
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE rfc_current_source_projection SET summary_text=?,summary_evidence_id=?,revision=revision+1 "
+            "WHERE rfc_id=?",
+            ("Higher precedence SR81234571", new_uuid4(), rfc.rfc_id),
+        )
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as caught:
+        ProposalDecisionService(factory).accept(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            proposal_fingerprint=draft.proposal_fingerprint_sha256,
+            base_state_token=draft.base_state_token_sha256,
+            reason_category="stale_wfm_fallback",
+        )
+    assert caught.value.code == "IMPORT_PROPOSAL_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_rfc_links WHERE service_request_id=? AND rfc_id=? AND link_state='active'",
+            (fallback_sr.service_request_id, rfc.rfc_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT proposal_state,revision FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("pending", 1)
