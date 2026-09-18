@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
@@ -8,7 +10,8 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from soma.foundation.errors import IntegrityFailure, ValidationError
-from soma.foundation.strict_json import sha256_canonical_json
+from soma.foundation.identifiers import require_uuid4
+from soma.foundation.strict_json import canonical_json_bytes, loads_strict_bytes, sha256_canonical_json
 from soma.tickets.service_request_sla_input import ServiceRequestSlaInputReader
 
 from .individual_sla import IndividualSlaCalculator, IndividualSlaResult, IndividualTierResult
@@ -29,17 +32,7 @@ class CohortKeyParts:
 
     @property
     def opaque_key(self) -> str:
-        return sha256_canonical_json(
-            {
-                "schema": "SOMA_SLA_COHORT_KEY_V1",
-                "calendar_month": self.calendar_month,
-                "customer_org_id": self.customer_org_id,
-                "contract_id": self.contract_id,
-                "contract_product_line_id": self.contract_product_line_id,
-                "severity": self.severity,
-                "policy_tier_id": self.policy_tier_id,
-            }
-        )
+        return encode_cohort_key(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +97,78 @@ def _guayaquil_timezone(local: datetime):
                 "America/Guayaquil historical timezone data is unavailable"
             )
         return timezone(timedelta(hours=-5), name=_SLA_TIMEZONE)
+
+
+def encode_cohort_key(parts: CohortKeyParts) -> str:
+    payload = {
+        "schema": "SOMA_SLA_COHORT_KEY_V1",
+        "calendar_month": parts.calendar_month,
+        "customer_org_id": require_uuid4(parts.customer_org_id),
+        "contract_id": require_uuid4(parts.contract_id),
+        "contract_product_line_id": require_uuid4(parts.contract_product_line_id),
+        "severity": parts.severity,
+        "policy_tier_id": require_uuid4(parts.policy_tier_id),
+    }
+    if parts.severity not in {"critical", "major", "minor", "non_fault_inquiry"}:
+        raise ValidationError("cohort key severity is invalid")
+    canonical_month_bounds(parts.calendar_month)
+    token = base64.urlsafe_b64encode(canonical_json_bytes(payload)).decode("ascii").rstrip("=")
+    return "v1." + token
+
+
+def decode_cohort_key(value: str) -> CohortKeyParts:
+    if not isinstance(value, str) or not value.startswith("v1.") or len(value) > 2048:
+        raise ValidationError("cohort key is invalid")
+    encoded = value[3:]
+    if not encoded:
+        raise ValidationError("cohort key is invalid")
+    padding = "=" * ((4 - len(encoded) % 4) % 4)
+    try:
+        raw = base64.b64decode(
+            (encoded + padding).encode("ascii"),
+            altchars=b"-_",
+            validate=True,
+        )
+    except (UnicodeEncodeError, binascii.Error, ValueError) as exc:
+        raise ValidationError("cohort key is invalid") from exc
+    payload = loads_strict_bytes(raw, max_bytes=1536)
+    expected = {
+        "schema",
+        "calendar_month",
+        "customer_org_id",
+        "contract_id",
+        "contract_product_line_id",
+        "severity",
+        "policy_tier_id",
+    }
+    if not isinstance(payload, dict) or set(payload) != expected:
+        raise ValidationError("cohort key shape is invalid")
+    if payload["schema"] != "SOMA_SLA_COHORT_KEY_V1":
+        raise ValidationError("cohort key schema is invalid")
+    for key in (
+        "calendar_month",
+        "customer_org_id",
+        "contract_id",
+        "contract_product_line_id",
+        "severity",
+        "policy_tier_id",
+    ):
+        if not isinstance(payload[key], str):
+            raise ValidationError("cohort key field type is invalid")
+    parts = CohortKeyParts(
+        calendar_month=payload["calendar_month"],
+        customer_org_id=require_uuid4(payload["customer_org_id"]),
+        contract_id=require_uuid4(payload["contract_id"]),
+        contract_product_line_id=require_uuid4(payload["contract_product_line_id"]),
+        severity=payload["severity"],
+        policy_tier_id=require_uuid4(payload["policy_tier_id"]),
+    )
+    if parts.severity not in {"critical", "major", "minor", "non_fault_inquiry"}:
+        raise ValidationError("cohort key severity is invalid")
+    canonical_month_bounds(parts.calendar_month)
+    if encode_cohort_key(parts) != value:
+        raise ValidationError("cohort key is not canonical")
+    return parts
 
 
 def canonical_month_bounds(calendar_month: str) -> tuple[int, int]:
@@ -372,4 +437,6 @@ __all__ = [
     "CohortMonthProjection",
     "CohortProjection",
     "canonical_month_bounds",
+    "decode_cohort_key",
+    "encode_cohort_key",
 ]
