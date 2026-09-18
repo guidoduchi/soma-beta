@@ -113,7 +113,7 @@ def _persist_single_pending(factory, draft) -> str:
             )
         uow.connection.execute(
             "UPDATE import_runs SET logical_fingerprint_sha256=?,run_state='waiting_review',"
-            "proposal_count=1,pending_proposal_count=1 WHERE import_run_id=?",
+            "proposal_count=1,pending_proposal_count=1,revision=revision+1 WHERE import_run_id=?",
             ("c" * 64, draft.import_run_id),
         )
     return proposal_id
