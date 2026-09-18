@@ -209,6 +209,15 @@ def test_completed_report_rejects_cancellation_and_preserves_published_artifact_
         ).fetchone()
         assert tuple(job) == ("completed", None, None)
 
+    assert attempt.snapshot_hash is not None
+    with pytest.raises(SomaError) as artifact_exc:
+        artifact.write_candidate(
+            report_attempt_id=report_id,
+            snapshot_hash=attempt.snapshot_hash,
+            destination_request_token=DESTINATION_TOKEN,
+        )
+    assert artifact_exc.value.code == "SLA_REPORT_ATTEMPT_STATE"
+
     with pytest.raises(SomaError) as excinfo:
         SlaReportOrchestrationService(factory).cancel(
             command_id=new_uuid4(),
