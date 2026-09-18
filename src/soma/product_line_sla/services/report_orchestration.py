@@ -255,6 +255,162 @@ class SlaReportOrchestrationService:
 
         return dict(self._boundary.execute(envelope, prepare).response)
 
+    def cancel(
+        self,
+        *,
+        command_id: str,
+        report_attempt_id: str,
+        expected_attempt_revision: int,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        """Cancel one nonterminal report and revoke its exact durable job atomically."""
+
+        report_id = require_uuid4(report_attempt_id)
+        if type(expected_attempt_revision) is not int or expected_attempt_revision <= 0:
+            raise ValidationError("expected_attempt_revision must be a positive integer")
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CancelSlaReportAttempt",
+            target_type="report_attempt",
+            target_id=report_id,
+            semantic_payload={
+                "report_attempt_id": report_id,
+                "expected_attempt_revision": expected_attempt_revision,
+            },
+            base_revisions={"report_attempt": expected_attempt_revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            attempt = ReportRepository.get_attempt(uow.connection, report_id)
+            if attempt is None:
+                raise SomaError(
+                    "SLA_REPORT_ATTEMPT_STATE",
+                    "report attempt does not exist",
+                )
+            if (
+                attempt.state
+                not in {"staging", "ready_to_generate", "generating", "verifying"}
+                or attempt.revision != expected_attempt_revision
+            ):
+                raise SomaError(
+                    "SLA_REPORT_ATTEMPT_STATE",
+                    "report cancellation target is stale or terminal",
+                )
+
+            job_row = uow.connection.execute(
+                "SELECT r.job_id,j.job_type,j.contract_version "
+                "FROM sla_report_job_refs r "
+                "JOIN durable_jobs j ON j.job_id=r.job_id "
+                "WHERE r.report_attempt_id=?",
+                (report_id,),
+            ).fetchone()
+            if job_row is None:
+                raise SomaError(
+                    "SLA_REPORT_CANCEL_UNSAFE",
+                    "report attempt has no linked durable job",
+                )
+            job_id = require_uuid4(str(job_row[0]))
+            if (
+                str(job_row[1]) != SLA_REPORT_JOB_TYPE
+                or int(job_row[2]) != SLA_REPORT_JOB_CONTRACT_VERSION
+            ):
+                raise SomaError(
+                    "SLA_REPORT_CANCEL_UNSAFE",
+                    "report attempt links an incompatible durable job",
+                )
+
+            prior_state = attempt.state
+            scope_fingerprint = ReportRepository.scope_fingerprint(attempt)
+            prior_snapshot_hash = attempt.snapshot_hash
+            resulting_revision = expected_attempt_revision + 1
+            completed_at = utc_epoch_seconds()
+
+            def apply(inner: UnitOfWork):
+                cancellation = self._jobs.cancel(
+                    inner,
+                    job_id,
+                    SLA_REPORT_JOB_TYPE,
+                    SLA_REPORT_JOB_CONTRACT_VERSION,
+                    {
+                        "report_attempt_id": report_id,
+                        "command_id": command_id,
+                    },
+                )
+                if (
+                    cancellation.outcome == "TERMINAL_UNCHANGED"
+                    and cancellation.prior_state == "completed"
+                ):
+                    raise SomaError(
+                        "SLA_REPORT_CANCEL_UNSAFE",
+                        "completed durable report job cannot be cancelled",
+                    )
+
+                # Only non-authoritative attempt-owned staging is removable.
+                ReportRepository.cleanup_staging(inner.connection, report_id)
+                updated = inner.connection.execute(
+                    "UPDATE sla_report_attempts SET "
+                    "state='cancelled',snapshot_hash=NULL,"
+                    "snapshot_member_count=0,snapshot_cohort_count=0,"
+                    "snapshot_section_row_count=0,artifact_filename=NULL,"
+                    "artifact_sha256=NULL,artifact_size_bytes=NULL,"
+                    "verified_at_utc=NULL,failure_code=NULL,completed_at_utc=?,"
+                    "revision=?,last_command_id=? "
+                    "WHERE report_attempt_id=? AND state=? AND revision=?",
+                    (
+                        completed_at,
+                        resulting_revision,
+                        command_id,
+                        report_id,
+                        prior_state,
+                        expected_attempt_revision,
+                    ),
+                )
+                if updated.rowcount != 1:
+                    raise SomaError(
+                        "SLA_REPORT_ATTEMPT_STATE",
+                        "report cancellation lost authoritative revalidation",
+                    )
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="sla.report.cancelled_or_failed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="report_attempt",
+                    target_id=report_id,
+                    command_id=command_id,
+                    payload_schema="ReportAttemptAuditV1",
+                    payload_version=1,
+                    payload={
+                        "report_attempt_id": report_id,
+                        "event": "CANCELLED",
+                        "state_before": prior_state,
+                        "state_after": "cancelled",
+                        "attempt_revision": resulting_revision,
+                        "scope_fingerprint": scope_fingerprint,
+                        "snapshot_hash": prior_snapshot_hash,
+                        "failure_code": None,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("report_attempt", report_id),
+                    ),
+                )
+
+            return PreparedMutation(
+                no_change=False,
+                result_type="report_attempt",
+                result_id=report_id,
+                apply=apply,
+                response_schema="ReportAttemptV1",
+                response_factory=lambda inner: self._attempt_response(
+                    inner.connection,
+                    report_id,
+                ),
+            )
+
+        return dict(self._boundary.execute(envelope, prepare).response)
+
     def start_monthly(
         self,
         *,
