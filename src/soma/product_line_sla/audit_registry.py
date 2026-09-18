@@ -11,14 +11,15 @@ _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
+    batch = name == "BatchClassificationAuditV1"
     return ObjectContract(
         name=name,
         version=1,
         required_fields=fields,
         allowed_fields=fields,
         max_depth=4,
-        max_collection_items=32,
-        max_utf8_bytes=16_384,
+        max_collection_items=512 if batch else 32,
+        max_utf8_bytes=65_536 if batch else 16_384,
     )
 
 
@@ -127,6 +128,57 @@ def _validate_classification(payload: dict[str, object]) -> None:
     reason = payload.get("reason_category")
     if reason is not None and (not isinstance(reason, str) or not reason):
         raise SomaError("AUDIT_PAYLOAD_INVALID", "classification reason category is invalid")
+
+def _validate_batch_classification(payload: dict[str, object]) -> None:
+    correlation = payload.get("batch_correlation_id")
+    if (
+        not isinstance(correlation, str)
+        or not correlation
+        or correlation != correlation.strip()
+        or len(correlation.encode("utf-8", errors="strict")) > 256
+        or "\x00" in correlation
+        or "\r" in correlation
+        or "\n" in correlation
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "batch correlation identity is invalid")
+
+    requested = payload.get("requested_count")
+    eligible = payload.get("eligible_count")
+    applied = payload.get("applied_count")
+    unchanged = payload.get("unchanged_count")
+    rejected = payload.get("rejected_count")
+    for value, field, allow_zero in (
+        (requested, "requested_count", False),
+        (eligible, "eligible_count", True),
+        (applied, "applied_count", True),
+        (unchanged, "unchanged_count", True),
+        (rejected, "rejected_count", True),
+    ):
+        _positive_int(value, field, allow_zero=allow_zero)
+    assert isinstance(requested, int)
+    assert isinstance(eligible, int)
+    assert isinstance(applied, int)
+    assert isinstance(unchanged, int)
+    assert isinstance(rejected, int)
+    if requested > 500 or eligible > requested:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "batch classification count bound is invalid")
+    if applied + unchanged > eligible:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "batch classification eligible totals are invalid")
+    if applied + unchanged + rejected != requested:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "batch classification final totals are not exact")
+
+    _sha(payload.get("preview_fingerprint"), "preview_fingerprint")
+    refs = payload.get("result_refs")
+    if not isinstance(refs, list) or len(refs) != applied or len(refs) > 500:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "batch classification result refs are invalid")
+    seen: set[str] = set()
+    for value in refs:
+        _uuid(value, "batch classification result ref")
+        assert isinstance(value, str)
+        if value in seen:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "batch classification result refs duplicate")
+        seen.add(value)
+
 
 def _validate_policy(payload: dict[str, object]) -> None:
     _uuid(payload.get("contract_product_line_id"), "contract_product_line_id")
@@ -280,6 +332,20 @@ _CLASSIFICATION_FIELDS = frozenset(
     }
 )
 
+_BATCH_CLASSIFICATION_FIELDS = frozenset(
+    {
+        "batch_correlation_id",
+        "requested_count",
+        "eligible_count",
+        "applied_count",
+        "unchanged_count",
+        "rejected_count",
+        "preview_fingerprint",
+        "result_refs",
+    }
+)
+
+
 _POLICY_FIELDS = frozenset(
     {
         "contract_product_line_id",
@@ -318,6 +384,12 @@ def build_product_line_sla_audit_registry() -> AuditRegistry:
             "ServiceRequestClassificationAuditV1",
             _CLASSIFICATION_FIELDS,
             _validate_classification,
+        ),
+        (
+            "sla.service_request.batch_classification_applied",
+            "BatchClassificationAuditV1",
+            _BATCH_CLASSIFICATION_FIELDS,
+            _validate_batch_classification,
         ),
         (
             "sla.report.started",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from soma.foundation.application.command_boundary import CommandExecutionResult
 from soma.foundation.errors import IntegrityFailure
@@ -108,6 +109,91 @@ def classification_result_from_execution(result: CommandExecutionResult) -> Clas
         replayed=result.replayed,
     )
 
+@dataclass(frozen=True, slots=True)
+class BatchClassificationResult:
+    applied: tuple[str, ...]
+    unchanged: tuple[str, ...]
+    rejected: tuple[dict[str, str], ...]
+    replayed: bool
+
+
+def batch_classification_result_from_value(
+    value: object,
+    *,
+    replayed: bool,
+) -> BatchClassificationResult:
+    if not isinstance(value, dict) or set(value) != {"applied", "unchanged", "rejected"}:
+        raise IntegrityFailure("SLA batch classification response shape is invalid")
+
+    def identities(raw: object, label: str) -> tuple[str, ...]:
+        if not isinstance(raw, list) or len(raw) > 500:
+            raise IntegrityFailure(f"SLA batch classification {label} list is invalid")
+        output: list[str] = []
+        seen: set[str] = set()
+        for item in raw:
+            if not isinstance(item, str) or not item or item in seen:
+                raise IntegrityFailure(f"SLA batch classification {label} identity is invalid")
+            seen.add(item)
+            output.append(item)
+        return tuple(output)
+
+    applied = identities(value["applied"], "applied")
+    unchanged = identities(value["unchanged"], "unchanged")
+    if set(applied) & set(unchanged):
+        raise IntegrityFailure("SLA batch classification response overlaps applied/unchanged")
+
+    raw_rejected = value["rejected"]
+    if not isinstance(raw_rejected, list) or len(raw_rejected) > 500:
+        raise IntegrityFailure("SLA batch classification rejected list is invalid")
+    rejected: list[dict[str, str]] = []
+    rejected_ids: set[str] = set()
+    for item in raw_rejected:
+        if not isinstance(item, dict) or set(item) != {"service_request_id", "error_code"}:
+            raise IntegrityFailure("SLA batch classification rejected item is invalid")
+        service_request_id = item["service_request_id"]
+        error_code = item["error_code"]
+        if (
+            not isinstance(service_request_id, str)
+            or not service_request_id
+            or service_request_id in rejected_ids
+            or service_request_id in set(applied)
+            or service_request_id in set(unchanged)
+        ):
+            raise IntegrityFailure("SLA batch classification rejected identity is invalid")
+        if (
+            not isinstance(error_code, str)
+            or re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", error_code) is None
+        ):
+            raise IntegrityFailure("SLA batch classification rejected error code is invalid")
+        rejected_ids.add(service_request_id)
+        rejected.append(
+            {
+                "service_request_id": service_request_id,
+                "error_code": error_code,
+            }
+        )
+
+    if len(applied) + len(unchanged) + len(rejected) > 500:
+        raise IntegrityFailure("SLA batch classification response exceeds target bound")
+    return BatchClassificationResult(
+        applied=applied,
+        unchanged=unchanged,
+        rejected=tuple(rejected),
+        replayed=replayed,
+    )
+
+
+def batch_classification_result_from_execution(
+    result: CommandExecutionResult,
+) -> BatchClassificationResult:
+    if result.response_schema != "BatchClassificationResultV1" or result.response_version != 1:
+        raise IntegrityFailure("SLA batch classification response contract is invalid")
+    return batch_classification_result_from_value(
+        result.response,
+        replayed=result.replayed,
+    )
+
+
 def policy_result_from_execution(result: CommandExecutionResult) -> PolicyRevisionResult:
     if result.response_schema != "SlaPolicyRevisionResultV1" or result.response_version != 1:
         raise IntegrityFailure("SLA policy response contract is invalid")
@@ -139,10 +225,13 @@ def policy_result_from_execution(result: CommandExecutionResult) -> PolicyRevisi
 
 
 __all__ = [
+    "BatchClassificationResult",
     "CatalogMutationResult",
     "ClassificationMutationResult",
     "ClassificationPreview",
     "PolicyRevisionResult",
+    "batch_classification_result_from_execution",
+    "batch_classification_result_from_value",
     "catalog_result_from_execution",
     "classification_result_from_execution",
     "policy_result_from_execution",
