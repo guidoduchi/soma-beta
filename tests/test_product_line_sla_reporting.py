@@ -307,3 +307,82 @@ def test_report_failure_cleans_all_staging_atomically_t032(initialized_database)
         assert counts == (0, 0, 0, 0)
 
     jobs.fail(claim, "SLA_REPORT_CONTRIBUTOR_FAILED", None)
+
+
+def test_report_cancel_revokes_running_job_and_cleans_staging_atomically_t039(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="99000003",
+    )
+    attempt, claim, _jobs, token = _start_and_claim(factory)
+    report_id = str(attempt["report_attempt_id"])
+    worker = SlaReportWorkerService(factory)
+
+    member = _member_row(sr.service_request_id)
+    batch_hash = worker.batch_payload_hash(
+        member_rows=(member,),
+        tier_rows=(),
+        cohort_rows=(),
+        section_rows=(),
+    )
+    worker.stage_batch(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        snapshot_generation_token=token,
+        batch_ordinal=1,
+        batch_payload_sha256=batch_hash,
+        expected_attempt_revision=1,
+        member_rows=(member,),
+    )
+
+    cancel_command = new_uuid4()
+    cancelled = SlaReportOrchestrationService(factory).cancel(
+        command_id=cancel_command,
+        report_attempt_id=report_id,
+        expected_attempt_revision=2,
+    )
+    assert cancelled["state"] == "cancelled"
+    assert cancelled["revision"] == 3
+    assert cancelled["snapshot_hash"] is None
+    assert cancelled["snapshot_member_count"] == 0
+    assert cancelled["snapshot_cohort_count"] == 0
+    assert cancelled["snapshot_section_row_count"] == 0
+    assert cancelled["artifact_filename"] is None
+    assert cancelled["artifact_sha256"] is None
+    assert cancelled["failure_code"] is None
+
+    replay = SlaReportOrchestrationService(factory).cancel(
+        command_id=cancel_command,
+        report_attempt_id=report_id,
+        expected_attempt_revision=2,
+    )
+    assert replay == cancelled
+
+    with ReadSnapshot(factory) as snapshot:
+        assert ReportRepository.counts(snapshot.connection, report_id) == (0, 0, 0, 0)
+        job = snapshot.connection.execute(
+            "SELECT state,claimed_run_id,claim_started_at_utc "
+            "FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("cancelled", None, None)
+
+        attempt_row = snapshot.connection.execute(
+            "SELECT outcome,error_code FROM job_attempts "
+            "WHERE job_id=? AND ordinal=?",
+            (claim.job_id, claim.attempt_ordinal),
+        ).fetchone()
+        assert tuple(attempt_row) == ("cancelled", None)
+
+        audit = snapshot.connection.execute(
+            "SELECT action_type,command_id FROM audit_events "
+            "WHERE target_type='report_attempt' AND target_id=? "
+            "ORDER BY recorded_at_utc,audit_event_id",
+            (report_id,),
+        ).fetchall()
+        assert ("sla.report.cancelled_or_failed", cancel_command) in {
+            tuple(row) for row in audit
+        }
