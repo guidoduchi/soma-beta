@@ -281,7 +281,7 @@ class SlaReportXlsxArtifact:
             workbook.properties.creator = "SOMA"
             workbook.properties.title = "SOMA SLA Report"
             workbook.properties.created = datetime(1980, 1, 1)
-            workbook.properties.modified = datetime(1980, 1, 1, tzinfo=timezone.utc)
+            workbook.properties.modified = datetime(1980, 1, 1)
 
             metadata = workbook.create_sheet("_SOMA_Metadata")
             request = semantic["report_request"]
