@@ -269,6 +269,168 @@ def test_accept_rfc_identity_appends_source_projection_follow_on_and_replays(ini
         assert tuple(run) == (2, 0, 2, 4)
 
 
+def test_accept_rfc_identity_appends_projection_customer_and_sr_link_reviews(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    customer = CustomerReferenceService(factory).create_customer_organization(
+        command_id=new_uuid4(),
+        name="Follow-on RFC Customer",
+        account_code="RFC-ACC-511",
+    )
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="78901235",
+    )
+    run_id = new_uuid4()
+    observation_id = new_uuid4()
+    summary_field_id = new_uuid4()
+    account_field_id = new_uuid4()
+    proposal_id = new_uuid4()
+    rfc_no = "NC00000000000012"
+    owner = RfcImportMutationService(TicketImportRfcSourceEvidenceProvider())
+
+    with UnitOfWork(factory) as uow:
+        _seed_rfc_run(uow, run_id=run_id)
+        _seed_rfc_observation(
+            uow,
+            run_id=run_id,
+            observation_id=observation_id,
+            rfc_no=rfc_no,
+            chronology=100,
+        )
+        uow.connection.execute(
+            "INSERT INTO source_observation_fields(source_observation_field_id,source_observation_id,field_key,field_class,"
+            "value_state,value_kind,source_text,normalized_text,integer_value,vocabulary_id,field_logical_sha256) "
+            "VALUES (?,?,'summary','active','usable','text',?,?,NULL,NULL,?)",
+            (
+                summary_field_id,
+                observation_id,
+                "Impact to SR78901235",
+                "Impact to SR78901235",
+                "c" * 64,
+            ),
+        )
+        uow.connection.execute(
+            "INSERT INTO source_observation_fields(source_observation_field_id,source_observation_id,field_key,field_class,"
+            "value_state,value_kind,source_text,normalized_text,integer_value,vocabulary_id,field_logical_sha256) "
+            "VALUES (?,?,'customer_account_number','active','usable','text',?,?,NULL,NULL,?)",
+            (
+                account_field_id,
+                observation_id,
+                "RFC-ACC-511",
+                "RFC-ACC-511",
+                "d" * 64,
+            ),
+        )
+        base_token = owner.source_identity_base_token(uow.connection, rfc_no)
+        _seed_identity_proposal(
+            uow,
+            run_id=run_id,
+            observation_id=observation_id,
+            proposal_id=proposal_id,
+            rfc_no=rfc_no,
+            base_token=base_token,
+            fingerprint="e" * 64,
+        )
+
+    result = ProposalDecisionService(factory).accept(
+        command_id=new_uuid4(),
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint="e" * 64,
+        base_state_token=base_token,
+    )
+    assert result.decision == "accepted"
+    rfc_refs = [ref for ref in result.owner_result_refs if ref[0] == "rfc"]
+    assert len(rfc_refs) == 1
+    rfc_id = rfc_refs[0][1]
+
+    with ReadSnapshot(factory) as snapshot:
+        rows = snapshot.connection.execute(
+            "SELECT reconciliation_proposal_id,proposal_kind,target_kind,target_internal_id,target_business_id,"
+            "risk_class,proposal_state FROM reconciliation_proposals "
+            "WHERE import_run_id=? AND proposal_state='pending' ORDER BY proposal_kind",
+            (run_id,),
+        ).fetchall()
+        assert [str(row[1]) for row in rows] == [
+            "rfc_customer_reconciliation",
+            "rfc_source_projection",
+            "sr_rfc_link_candidate",
+        ]
+        by_kind = {str(row[1]): row for row in rows}
+
+        customer_proposal = by_kind["rfc_customer_reconciliation"]
+        assert tuple(customer_proposal[2:]) == (
+            "rfc",
+            rfc_id,
+            rfc_no,
+            "high",
+            "pending",
+        )
+        customer_change = snapshot.connection.execute(
+            "SELECT field_key,change_kind,value_kind,before_text,after_text,source_observation_field_id "
+            "FROM reconciliation_proposal_changes WHERE reconciliation_proposal_id=?",
+            (customer_proposal[0],),
+        ).fetchone()
+        assert tuple(customer_change) == (
+            "customer_org_id",
+            "set",
+            "identity",
+            None,
+            customer.customer_org_id,
+            account_field_id,
+        )
+
+        projection_proposal = by_kind["rfc_source_projection"]
+        assert tuple(projection_proposal[2:]) == (
+            "rfc",
+            rfc_id,
+            rfc_no,
+            "medium",
+            "pending",
+        )
+        projection_changes = snapshot.connection.execute(
+            "SELECT field_key,after_text,source_observation_field_id "
+            "FROM reconciliation_proposal_changes WHERE reconciliation_proposal_id=? ORDER BY ordinal",
+            (projection_proposal[0],),
+        ).fetchall()
+        assert [tuple(row) for row in projection_changes] == [
+            ("customer_account_number", "RFC-ACC-511", account_field_id),
+            ("summary", "Impact to SR78901235", summary_field_id),
+        ]
+
+        link_proposal = by_kind["sr_rfc_link_candidate"]
+        assert tuple(link_proposal[2:5]) == ("sr_rfc_relationship", rfc_id, rfc_no)
+        assert str(link_proposal[5]) in {"medium", "high"}
+        assert str(link_proposal[6]) == "pending"
+        link_change = snapshot.connection.execute(
+            "SELECT field_key,change_kind,value_kind,before_text,after_text,source_observation_field_id "
+            "FROM reconciliation_proposal_changes WHERE reconciliation_proposal_id=?",
+            (link_proposal[0],),
+        ).fetchone()
+        assert tuple(link_change) == (
+            "service_request_id",
+            "candidate",
+            "identity",
+            None,
+            sr.service_request_id,
+            summary_field_id,
+        )
+
+        run = snapshot.connection.execute(
+            "SELECT proposal_count,pending_proposal_count,accepted_proposal_count,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (4, 3, 1, 3)
+        assert snapshot.connection.execute(
+            "SELECT customer_org_id FROM rfcs WHERE rfc_id=?", (rfc_id,)
+        ).fetchone()[0] is None
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_rfc_links WHERE rfc_id=? AND link_state='active'",
+            (rfc_id,),
+        ).fetchone()[0] == 0
+
+
 def test_accept_rfc_source_projection_applies_exact_published_field(initialized_database) -> None:
     factory = _factory(initialized_database)
     rfc = RfcService(factory).create_or_adopt_identity(
