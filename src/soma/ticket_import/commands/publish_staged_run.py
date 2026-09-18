@@ -51,6 +51,10 @@ from ..reconciliation.advanced_search_disappearance import (
 )
 from ..reconciliation.advanced_search_identity import build_advanced_search_sr_identity_proposals
 from ..reconciliation.engine import ProposalChangeDraft, ReconciliationProposalDraft, row_logical_sha256
+from ..reconciliation.rfc_enhanced import build_rfc_enhanced_source_projection_proposals
+from ..reconciliation.rfc_enhanced_customer import build_rfc_enhanced_customer_reconciliation_proposals
+from ..reconciliation.rfc_enhanced_identity import build_rfc_enhanced_identity_proposals
+from ..reconciliation.rfc_enhanced_sr_link import build_rfc_enhanced_sr_link_candidate_proposals
 from ..reconciliation.staged import VerifiedStagedRun, verify_staged_logical_run
 from ..reconciliation.wfm_provisional_eligibility import build_wfm_service_provider_proposals
 from ..repositories.findings import NormalizedFindingEvidence, SourceFindingRepository
@@ -302,6 +306,34 @@ class PublishStagedImportRunService:
                 logical_fingerprint_sha256=verified.fingerprint.logical_fingerprint_sha256,
             )
             writes.extend(cls._absence_pending_write(draft) for draft in disappearance)
+        return tuple(writes)
+
+    @classmethod
+    def _rfc_enhanced_proposal_writes(
+        cls,
+        reader: Any,
+        verified: VerifiedStagedRun,
+    ) -> tuple[PendingProposalWrite, ...]:
+        if verified.evidence.source_family != "rfc_enhanced":
+            raise ValidationError("Enhanced RFC proposal builder received another source family")
+        writes: list[PendingProposalWrite] = []
+        for observation in verified.observations:
+            row = observation.row
+            if row.identity_state != "valid" or row.entity_kind != "rfc":
+                continue
+            kwargs = {
+                "import_run_id": verified.evidence.import_run_id,
+                "source_observation_id": observation.source_observation_id,
+            }
+            builders = (
+                build_rfc_enhanced_identity_proposals,
+                build_rfc_enhanced_source_projection_proposals,
+                build_rfc_enhanced_customer_reconciliation_proposals,
+                build_rfc_enhanced_sr_link_candidate_proposals,
+            )
+            for builder in builders:
+                result = builder(reader, **kwargs)
+                writes.extend(cls._observed_pending_write(draft) for draft in result.proposals)
         return tuple(writes)
 
     @staticmethod
@@ -584,6 +616,9 @@ class PublishStagedImportRunService:
             elif verified.evidence.source_family == "advanced_search_sr":
                 proposal_writes = self._advanced_search_proposal_writes(snapshot.connection, verified)
                 reconciliation_findings = ()
+            elif verified.evidence.source_family == "rfc_enhanced":
+                proposal_writes = self._rfc_enhanced_proposal_writes(snapshot.connection, verified)
+                reconciliation_findings = ()
             elif verified.evidence.source_family == "wfm_service_provider":
                 proposal_writes = self._wfm_proposal_writes(snapshot.connection, verified)
                 reconciliation_findings = self._wfm_reconciliation_findings(snapshot.connection, verified)
@@ -742,6 +777,9 @@ class PublishStagedImportRunService:
                 proposal_writes: tuple[PendingProposalWrite, ...] = ()
                 reconciliation_findings: tuple[NormalizedFindingEvidence, ...] = ()
             elif run.source_family == "advanced_search_sr":
+                proposal_writes = preflight.proposal_writes
+                reconciliation_findings = ()
+            elif run.source_family == "rfc_enhanced":
                 proposal_writes = preflight.proposal_writes
                 reconciliation_findings = ()
             elif run.source_family == "wfm_service_provider":
