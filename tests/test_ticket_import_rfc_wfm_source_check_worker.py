@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+
+import pytest
 from openpyxl import Workbook
 
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
@@ -34,6 +37,7 @@ def _claim(factory, job_id: str):
     return claim
 
 
+@pytest.mark.skipif(os.name != "nt", reason="manual import transport requires a drive-absolute local Windows path")
 def test_manual_rfc_source_check_runs_through_durable_worker(
     initialized_database,
     tmp_path,
@@ -87,6 +91,7 @@ def test_manual_rfc_source_check_runs_through_durable_worker(
         connection.close()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="manual import transport requires a drive-absolute local Windows path")
 def test_manual_wfm_source_check_runs_through_durable_worker(
     initialized_database,
     tmp_path,
