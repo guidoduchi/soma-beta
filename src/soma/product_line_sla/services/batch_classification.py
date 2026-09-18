@@ -10,6 +10,11 @@ from soma.foundation.application.command_boundary import (
     CommandEnvelope,
     PreparedMutation,
 )
+from soma.foundation.application.command_receipts import (
+    CommandReceipt,
+    CommandReceiptStore,
+    CommittedCommandResult,
+)
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.errors import (
     IdempotencyConflict,
@@ -18,10 +23,14 @@ from soma.foundation.errors import (
     SomaError,
     ValidationError,
 )
-from soma.foundation.identifiers import new_uuid4, require_uuid4
+from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot
-from soma.foundation.strict_json import loads_canonical_json, sha256_canonical_json
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.strict_json import (
+    canonical_json_bytes_bounded,
+    loads_canonical_json,
+    sha256_canonical_json,
+)
 
 from ..audit_registry import build_product_line_sla_audit_registry
 from ..contracts.product_line_sla import (
@@ -80,9 +89,12 @@ class ProductLineSlaBatchClassificationService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
         self._single = ProductLineSlaClassificationService(connection_factory)
+        self._audit_writer = AuditWriter(build_product_line_sla_audit_registry())
+        self._receipts = CommandReceiptStore()
         self._boundary = CommandBoundary(
             connection_factory,
-            AuditWriter(build_product_line_sla_audit_registry()),
+            self._audit_writer,
+            self._receipts,
         )
 
     @staticmethod
@@ -220,6 +232,42 @@ class ProductLineSlaBatchClassificationService:
             correlation_id=batch_correlation_id,
         )
 
+    @staticmethod
+    def _assert_receipt_match(
+        receipt: CommandReceipt,
+        envelope: CommandEnvelope,
+        request_hash: str,
+    ) -> None:
+        if (
+            receipt.command_type != envelope.command_type
+            or receipt.request_hash != request_hash
+            or receipt.target_type != envelope.target_type
+            or receipt.target_id != envelope.target_id
+        ):
+            raise IdempotencyConflict()
+
+    @staticmethod
+    def _decode_batch_exact(
+        exact: CommittedCommandResult,
+        *,
+        replayed: bool,
+    ) -> BatchClassificationResult:
+        if exact.response_schema != "BatchClassificationResultV1" or exact.response_version != 1:
+            raise IntegrityFailure("batch classification replay result schema is invalid")
+        try:
+            encoded = exact.response_json.encode("utf-8", errors="strict")
+        except UnicodeError as exc:
+            raise IntegrityFailure("batch classification replay JSON is invalid") from exc
+        if hashlib.sha256(encoded).hexdigest() != exact.response_sha256:
+            raise IntegrityFailure("batch classification replay result hash is invalid")
+        value = loads_canonical_json(
+            exact.response_json,
+            max_bytes=524_288,
+            max_depth=8,
+            max_collection_items=2_048,
+        )
+        return batch_classification_result_from_value(value, replayed=replayed)
+
     def _completed_replay(
         self,
         envelope: CommandEnvelope,
@@ -236,32 +284,29 @@ class ProductLineSlaBatchClassificationService:
             ).fetchone()
         if row is None:
             return None
-        target_id = None if row[3] is None else str(row[3])
-        if (
-            str(row[0]) != envelope.command_type
-            or str(row[1]) != request_hash
-            or str(row[2]) != envelope.target_type
-            or target_id != envelope.target_id
-        ):
-            raise IdempotencyConflict()
+        receipt = CommandReceipt(
+            command_id=envelope.command_id,
+            command_type=str(row[0]),
+            request_hash=str(row[1]),
+            target_type=str(row[2]),
+            target_id=None if row[3] is None else str(row[3]),
+            committed_at_utc=0,
+            result_type=None,
+            result_id=None,
+        )
+        self._assert_receipt_match(receipt, envelope, request_hash)
         if row[4] is None or row[5] is None or row[6] is None or row[7] is None:
             raise IdempotencyResultUnavailable()
-        if str(row[4]) != "BatchClassificationResultV1" or int(row[5]) != 1:
-            raise IntegrityFailure("batch classification replay result schema is invalid")
-        response_json = str(row[6])
-        try:
-            encoded = response_json.encode("utf-8", errors="strict")
-        except UnicodeError as exc:
-            raise IntegrityFailure("batch classification replay JSON is invalid") from exc
-        if hashlib.sha256(encoded).hexdigest() != str(row[7]):
-            raise IntegrityFailure("batch classification replay result hash is invalid")
-        value = loads_canonical_json(
-            response_json,
-            max_bytes=524_288,
-            max_depth=8,
-            max_collection_items=512,
+        return self._decode_batch_exact(
+            CommittedCommandResult(
+                command_id=envelope.command_id,
+                response_schema=str(row[4]),
+                response_version=int(row[5]),
+                response_json=str(row[6]),
+                response_sha256=str(row[7]),
+            ),
+            replayed=True,
         )
-        return batch_classification_result_from_value(value, replayed=True)
 
     def _bind_intent(
         self,
@@ -304,6 +349,110 @@ class ProductLineSlaBatchClassificationService:
             )
 
         self._boundary.execute(anchor, prepare)
+
+    def _commit_summary(
+        self,
+        *,
+        envelope: CommandEnvelope,
+        correlation: str,
+        reason: str,
+        preview_fingerprint: str,
+        requested_count: int,
+        eligible_count: int,
+        applied: list[str],
+        unchanged: list[str],
+        rejected: list[dict[str, str]],
+        applied_event_ids: list[str],
+        actor_kind: str,
+        actor_id: str | None,
+    ) -> BatchClassificationResult:
+        response = {
+            "applied": list(applied),
+            "unchanged": list(unchanged),
+            "rejected": [dict(item) for item in rejected],
+        }
+        request_hash = envelope.request_hash()
+        with UnitOfWork(self._factory) as uow:
+            existing = self._receipts.get(uow, envelope.command_id)
+            if existing is not None:
+                self._assert_receipt_match(existing, envelope, request_hash)
+                exact = self._receipts.get_exact_result(uow, envelope.command_id)
+                if exact is None:
+                    raise IdempotencyResultUnavailable()
+                return self._decode_batch_exact(exact, replayed=True)
+
+            self._receipts.insert(
+                uow,
+                CommandReceipt(
+                    command_id=envelope.command_id,
+                    command_type=envelope.command_type,
+                    request_hash=request_hash,
+                    target_type=envelope.target_type,
+                    target_id=envelope.target_id,
+                    committed_at_utc=utc_epoch_seconds(),
+                    result_type="service_request_batch",
+                    result_id=correlation,
+                ),
+            )
+            refs = tuple(
+                AuditResultRef("sr_classification_event", event_id)
+                for event_id in applied_event_ids
+            )
+            self._audit_writer.write(
+                uow,
+                AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="sla.service_request.batch_classification_applied",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="service_request_batch",
+                    target_id=correlation,
+                    reason_category=reason,
+                    command_id=envelope.command_id,
+                    correlation_id=correlation,
+                    batch_id=correlation,
+                    payload_schema="BatchClassificationAuditV1",
+                    payload_version=1,
+                    payload={
+                        "batch_correlation_id": correlation,
+                        "requested_count": requested_count,
+                        "eligible_count": eligible_count,
+                        "applied_count": len(applied),
+                        "unchanged_count": len(unchanged),
+                        "rejected_count": len(rejected),
+                        "preview_fingerprint": preview_fingerprint,
+                        "result_refs": list(applied_event_ids),
+                    },
+                    resulting_event_refs=refs,
+                ),
+            )
+            encoded = canonical_json_bytes_bounded(
+                response,
+                max_bytes=524_288,
+                max_depth=8,
+                max_collection_items=2_048,
+            )
+            normalized = loads_canonical_json(
+                encoded.decode("utf-8", errors="strict"),
+                max_bytes=524_288,
+                max_depth=8,
+                max_collection_items=2_048,
+            )
+            self._receipts.insert_exact_result(
+                uow,
+                CommittedCommandResult(
+                    command_id=envelope.command_id,
+                    response_schema="BatchClassificationResultV1",
+                    response_version=1,
+                    response_json=encoded.decode("utf-8", errors="strict"),
+                    response_sha256=hashlib.sha256(encoded).hexdigest(),
+                ),
+            )
+            return batch_classification_result_from_value(
+                normalized,
+                replayed=False,
+            )
 
     @staticmethod
     def _initial_rejection(item: ClassificationPreview) -> str | None:
@@ -416,60 +565,19 @@ class ProductLineSlaBatchClassificationService:
             else:
                 raise IntegrityFailure("batch classification child returned invalid outcome")
 
-        response = {
-            "applied": applied,
-            "unchanged": unchanged,
-            "rejected": rejected,
-        }
-
-        def prepare_summary(_uow) -> PreparedMutation:
-            def apply(_inner):
-                refs = tuple(
-                    AuditResultRef("sr_classification_event", event_id)
-                    for event_id in applied_event_ids
-                )
-                return AuditEventInput(
-                    audit_event_id=new_uuid4(),
-                    action_type="sla.service_request.batch_classification_applied",
-                    action_version=1,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
-                    target_type="service_request_batch",
-                    target_id=correlation,
-                    reason_category=reason,
-                    command_id=envelope.command_id,
-                    correlation_id=correlation,
-                    batch_id=correlation,
-                    payload_schema="BatchClassificationAuditV1",
-                    payload_version=1,
-                    payload={
-                        "batch_correlation_id": correlation,
-                        "requested_count": len(preview_items),
-                        "eligible_count": eligible_count,
-                        "applied_count": len(applied),
-                        "unchanged_count": len(unchanged),
-                        "rejected_count": len(rejected),
-                        "preview_fingerprint": preview_fingerprint,
-                        "result_refs": list(applied_event_ids),
-                    },
-                    resulting_event_refs=refs,
-                )
-
-            return PreparedMutation(
-                no_change=False,
-                result_type="service_request_batch",
-                result_id=correlation,
-                apply=apply,
-                response_schema="BatchClassificationResultV1",
-                response=response,
-            )
-
-        execution = self._boundary.execute(envelope, prepare_summary)
-        if execution.response_schema != "BatchClassificationResultV1" or execution.response_version != 1:
-            raise IntegrityFailure("batch classification response contract is invalid")
-        return batch_classification_result_from_value(
-            execution.response,
-            replayed=execution.replayed,
+        return self._commit_summary(
+            envelope=envelope,
+            correlation=correlation,
+            reason=reason,
+            preview_fingerprint=preview_fingerprint,
+            requested_count=len(preview_items),
+            eligible_count=eligible_count,
+            applied=applied,
+            unchanged=unchanged,
+            rejected=rejected,
+            applied_event_ids=applied_event_ids,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
         )
 
 
