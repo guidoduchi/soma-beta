@@ -5,8 +5,10 @@ import pytest
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.strict_json import sha256_canonical_json
 from soma.product_line_sla.algorithms.cohort_state import canonical_month_bounds
 from soma.product_line_sla.jobs import PRODUCT_LINE_SLA_JOB_CONTRACTS
+from soma.product_line_sla.jobs.report_generation import SlaReportGenerationWorker
 from soma.product_line_sla.repositories.reports import ReportRepository
 from soma.product_line_sla.services.report_orchestration import (
     SlaReportOrchestrationService,
@@ -386,3 +388,239 @@ def test_report_cancel_revokes_running_job_and_cleans_staging_atomically_t039(
         assert ("sla.report.cancelled_or_failed", cancel_command) in {
             tuple(row) for row in audit
         }
+
+
+def test_interrupted_snapshot_recovery_fails_and_cleans_owner_state(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="99000007",
+    )
+    attempt, claim, jobs, token = _start_and_claim(factory)
+    report_id = str(attempt["report_attempt_id"])
+    worker = SlaReportWorkerService(factory)
+
+    # Commit one batch but deliberately do not advance the durable checkpoint:
+    # this models a crash after the authoritative batch commit and before the
+    # worker records the next cursor/revision.
+    member = _member_row(sr.service_request_id)
+    batch_hash = worker.batch_payload_hash(
+        member_rows=(member,),
+        tier_rows=(),
+        cohort_rows=(),
+        section_rows=(),
+    )
+    worker.stage_batch(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        snapshot_generation_token=token,
+        batch_ordinal=1,
+        batch_payload_sha256=batch_hash,
+        expected_attempt_revision=1,
+        member_rows=(member,),
+    )
+
+    recovery_run_id = new_uuid4()
+    recovery_now = utc_epoch_seconds()
+    summary = jobs.recover_stale_claims(recovery_run_id, recovery_now)
+    assert summary.retry_wait_count == 1
+    recovered_claim = jobs.claim_next(recovery_run_id, recovery_now)
+    assert recovered_claim is not None
+    assert recovered_claim.job_id == claim.job_id
+    assert recovered_claim.attempt_ordinal == claim.attempt_ordinal + 1
+
+    recovered_report_id = SlaReportGenerationWorker(factory).run_to_completion(
+        recovered_claim
+    )
+    assert recovered_report_id == report_id
+
+    with ReadSnapshot(factory) as snapshot:
+        recovered = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert recovered is not None
+        assert recovered.state == "failed"
+        assert recovered.failure_code == "SLA_REPORT_SNAPSHOT_INTERRUPTED"
+        assert recovered.snapshot_hash is None
+        assert recovered.snapshot_member_count == 0
+        assert recovered.snapshot_cohort_count == 0
+        assert recovered.snapshot_section_row_count == 0
+        assert ReportRepository.counts(snapshot.connection, report_id) == (0, 0, 0, 0)
+
+        job = snapshot.connection.execute(
+            "SELECT state,claimed_run_id,claim_started_at_utc,last_error_code "
+            "FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == (
+            "failed",
+            None,
+            None,
+            "SLA_REPORT_SNAPSHOT_INTERRUPTED",
+        )
+        attempts = snapshot.connection.execute(
+            "SELECT ordinal,outcome,error_code FROM job_attempts "
+            "WHERE job_id=? ORDER BY ordinal",
+            (claim.job_id,),
+        ).fetchall()
+        assert [tuple(row) for row in attempts] == [
+            (claim.attempt_ordinal, "interrupted", "JOB_INTERRUPTED"),
+            (
+                recovered_claim.attempt_ordinal,
+                "failed",
+                "SLA_REPORT_SNAPSHOT_INTERRUPTED",
+            ),
+        ]
+
+
+def test_published_completion_checkpoint_recovers_without_live_domain_reread(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    attempt, claim, jobs, token = _start_and_claim(factory)
+    report_id = str(attempt["report_attempt_id"])
+    worker = SlaReportWorkerService(factory)
+
+    with ReadSnapshot(factory) as snapshot:
+        snapshot_hash = ReportRepository.snapshot_hash(
+            snapshot.connection,
+            report_id,
+        )
+
+    sealed = worker.seal(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        snapshot_generation_token=token,
+        expected_attempt_revision=1,
+        final_member_count=0,
+        final_cohort_count=0,
+        final_section_row_count=0,
+        snapshot_hash=snapshot_hash,
+    )
+    assert sealed["resulting_attempt_revision"] == 2
+    jobs.checkpoint(
+        claim,
+        {
+            "phase": "sealed",
+            "attempt_revision": 2,
+            "snapshot_generation_token": token,
+            "next_batch_ordinal": None,
+            "pending_command": None,
+            "candidate_filename": None,
+            "published_artifact": None,
+        },
+    )
+
+    generating = worker.mark_generating(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        expected_attempt_revision=2,
+        snapshot_hash=snapshot_hash,
+    )
+    assert generating["resulting_attempt_revision"] == 3
+    jobs.checkpoint(
+        claim,
+        {
+            "phase": "writing",
+            "attempt_revision": 3,
+            "snapshot_generation_token": token,
+            "next_batch_ordinal": None,
+            "pending_command": None,
+            "candidate_filename": None,
+            "published_artifact": None,
+        },
+    )
+
+    candidate = f".{report_id}.recovery.xlsx"
+    verifying = worker.mark_verifying(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        expected_attempt_revision=3,
+        snapshot_hash=snapshot_hash,
+        candidate_filename=candidate,
+    )
+    assert verifying["resulting_attempt_revision"] == 4
+
+    completion_command = new_uuid4()
+    proof = {
+        "report_attempt_id": report_id,
+        "snapshot_hash": snapshot_hash,
+        "candidate_filename": candidate,
+        "artifact_filename": f"SOMA-SLA-{report_id[:8]}.xlsx",
+        "artifact_sha256": "f" * 64,
+        "artifact_size_bytes": 4321,
+        "verified_at_utc": utc_epoch_seconds(),
+    }
+    proof_fingerprint = sha256_canonical_json(proof)
+    jobs.checkpoint(
+        claim,
+        {
+            "phase": "completing",
+            "attempt_revision": 4,
+            "snapshot_generation_token": token,
+            "next_batch_ordinal": None,
+            "pending_command": {
+                "kind": "complete",
+                "command_id": completion_command,
+                "expected_attempt_revision": 4,
+                "request_fingerprint": sha256_canonical_json(
+                    {
+                        "schema": "TEST_REPORT_COMPLETE_RECOVERY_V1",
+                        "report_attempt_id": report_id,
+                        "snapshot_hash": snapshot_hash,
+                        "proof_fingerprint": proof_fingerprint,
+                    }
+                ),
+                "batch_ordinal": None,
+                "batch_payload_sha256": None,
+                "snapshot_hash": snapshot_hash,
+                "candidate_filename": None,
+                "completion_proof_fingerprint": proof_fingerprint,
+            },
+            "candidate_filename": candidate,
+            "published_artifact": {
+                "candidate_filename": candidate,
+                "final_filename": proof["artifact_filename"],
+                "artifact_sha256": proof["artifact_sha256"],
+                "artifact_size_bytes": proof["artifact_size_bytes"],
+                "verified_at_utc": proof["verified_at_utc"],
+                "snapshot_hash": snapshot_hash,
+                "completion_command_id": completion_command,
+            },
+        },
+    )
+
+    # Crash before CompleteSlaReport. Foundation recovers only the claim; LLD-06
+    # must consume the immutable published proof rather than touching live truth.
+    recovery_run_id = new_uuid4()
+    recovery_now = utc_epoch_seconds()
+    summary = jobs.recover_stale_claims(recovery_run_id, recovery_now)
+    assert summary.retry_wait_count == 1
+    recovered_claim = jobs.claim_next(recovery_run_id, recovery_now)
+    assert recovered_claim is not None
+
+    assert (
+        SlaReportGenerationWorker(factory).run_to_completion(recovered_claim)
+        == report_id
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        completed = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert completed is not None
+        assert completed.state == "completed"
+        assert completed.snapshot_hash == snapshot_hash
+        assert completed.artifact_filename == proof["artifact_filename"]
+        assert completed.artifact_sha256 == proof["artifact_sha256"]
+        assert completed.artifact_size_bytes == proof["artifact_size_bytes"]
+
+        job = snapshot.connection.execute(
+            "SELECT state,claimed_run_id,claim_started_at_utc "
+            "FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("completed", None, None)
+        receipts = snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (completion_command,),
+        ).fetchone()[0]
+        assert receipts == 1
