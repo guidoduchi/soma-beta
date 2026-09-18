@@ -874,6 +874,32 @@ def _wfm_target_preview(
             reader,
             WfmImportBaseTarget(kind, task_no, task_id),
         )
+        source_plan = WfmImportReader.source_plan(reader, task_id)
+        if source_plan is None:
+            return (
+                {
+                    "owner": "LLD-05",
+                    "target_kind": proposal.target_kind,
+                    "task_no_status": status,
+                    "identity": identity,
+                    "current_source_projection": WfmImportReader.source_projection(reader, task_id),
+                },
+                None,
+                False,
+            )
+        operational_plan = WfmImportReader.operational_plan_context(reader, task_id)
+        source_chronology: int | None = None
+        if proposal.source_observation_id is not None:
+            chronology_row = reader.execute(
+                "SELECT source_row_chronology_utc FROM source_observations "
+                "WHERE source_observation_id=? AND import_run_id=?",
+                (proposal.source_observation_id, proposal.import_run_id),
+            ).fetchone()
+            if chronology_row is None:
+                return ({"owner": "LLD-05", "identity": identity}, None, False)
+            source_chronology = None if chronology_row[0] is None else int(chronology_row[0])
+            if source_chronology is not None and source_chronology < 0:
+                raise IntegrityFailure("WFM plan review source chronology is invalid")
         return (
             {
                 "owner": "LLD-05",
@@ -881,8 +907,11 @@ def _wfm_target_preview(
                 "task_no_status": status,
                 "identity": identity,
                 "current_source_projection": WfmImportReader.source_projection(reader, task_id),
-                "source_plan": WfmImportReader.source_plan(reader, task_id),
-                "operational_plan": WfmImportReader.operational_plan_context(reader, task_id),
+                "source_plan": source_plan,
+                "operational_plan": operational_plan,
+                "plan_diff": _plan_diff(source_plan, operational_plan),
+                "source_chronology": source_chronology,
+                "objective_regrouping_consequence": "INDETERMINATE",
             },
             token,
             True,
