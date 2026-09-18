@@ -116,6 +116,7 @@ def build_rfc_enhanced_customer_reconciliation_proposals(
     import_run_id: str,
     source_observation_id: str,
     rfc_reader: RfcImportReader | None = None,
+    allowed_run_states: frozenset[str] = frozenset({"validating"}),
 ) -> RfcEnhancedCustomerProposalBuildResult:
     canonical_run_id = require_uuid4(import_run_id)
     canonical_observation_id = require_uuid4(source_observation_id)
@@ -123,6 +124,7 @@ def build_rfc_enhanced_customer_reconciliation_proposals(
         reader,
         import_run_id=canonical_run_id,
         source_observation_id=canonical_observation_id,
+        allowed_run_states=allowed_run_states,
     )
     scope_status = _scope_status(reader, source)
     if scope_status in {"conflict", "equivalent_duplicate_suppressed"}:
