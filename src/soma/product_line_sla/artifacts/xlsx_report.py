@@ -6,7 +6,7 @@ import os
 import tempfile
 import zipfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -280,7 +280,7 @@ class SlaReportXlsxArtifact:
             workbook = Workbook(write_only=True)
             workbook.properties.creator = "SOMA"
             workbook.properties.title = "SOMA SLA Report"
-            workbook.properties.created = datetime(1980, 1, 1, tzinfo=timezone.utc)
+            workbook.properties.created = datetime(1980, 1, 1)
             workbook.properties.modified = datetime(1980, 1, 1, tzinfo=timezone.utc)
 
             metadata = workbook.create_sheet("_SOMA_Metadata")
