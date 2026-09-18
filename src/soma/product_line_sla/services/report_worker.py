@@ -415,6 +415,7 @@ class SlaReportWorkerService:
         *,
         report_attempt_id: str,
         snapshot_generation_token: str,
+        expected_batch_ordinal: int | None = None,
     ) -> str:
         row = connection.execute(
             "SELECT r.job_id,j.job_type,j.contract_version,j.state,j.checkpoint_json "
@@ -442,6 +443,14 @@ class SlaReportWorkerService:
             or checkpoint["snapshot_generation_token"] != snapshot_generation_token
         ):
             raise SomaError("SLA_REPORT_SNAPSHOT_MISMATCH", "snapshot generation token is stale")
+        if (
+            expected_batch_ordinal is not None
+            and checkpoint["next_batch_ordinal"] != expected_batch_ordinal
+        ):
+            raise SomaError(
+                "SLA_REPORT_SNAPSHOT_MISMATCH",
+                "report batch ordinal disagrees with durable checkpoint",
+            )
         return require_uuid4(str(row[0]))
 
     @staticmethod
@@ -565,6 +574,7 @@ class SlaReportWorkerService:
                 uow.connection,
                 report_attempt_id=report_id,
                 snapshot_generation_token=snapshot_generation_token,
+                expected_batch_ordinal=batch_ordinal,
             )
 
             self._receipts.insert(
