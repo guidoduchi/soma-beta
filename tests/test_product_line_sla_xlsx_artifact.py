@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from openpyxl import load_workbook
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.uow import ReadSnapshot
@@ -466,3 +466,201 @@ def test_publishing_recovery_without_durable_proof_fails_closed(
     # Atomic publication bytes may exist, but without durable proof they are
     # external housekeeping only and cancellation/failure never deletes them.
     assert final_path.is_file()
+
+
+
+def test_f021_partial_candidate_is_never_verified_and_can_regenerate_from_sealed_snapshot(
+    initialized_database,
+    tmp_path,
+) -> None:
+    factory = _factory(initialized_database)
+    report_id, _jobs, _claim, artifact, attempt, _checkpoint = _start_sealed_report(
+        factory,
+        tmp_path,
+    )
+    assert attempt.snapshot_hash is not None
+    snapshot_hash = attempt.snapshot_hash
+    worker = SlaReportWorkerService(factory)
+
+    generating = worker.mark_generating(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        expected_attempt_revision=attempt.revision,
+        snapshot_hash=snapshot_hash,
+    )
+    candidate = artifact.write_candidate(
+        report_attempt_id=report_id,
+        snapshot_hash=snapshot_hash,
+        destination_request_token=DESTINATION_TOKEN,
+    )
+    verifying = worker.mark_verifying(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        expected_attempt_revision=int(generating["resulting_attempt_revision"]),
+        snapshot_hash=snapshot_hash,
+        candidate_filename=candidate,
+    )
+
+    candidate_path = tmp_path / candidate
+    original = candidate_path.read_bytes()
+    assert len(original) > 128
+    candidate_path.write_bytes(original[:64])
+
+    with pytest.raises(SomaError) as failure:
+        artifact.verify_candidate(
+            report_attempt_id=report_id,
+            snapshot_hash=snapshot_hash,
+            destination_request_token=DESTINATION_TOKEN,
+            candidate_filename=candidate,
+        )
+    assert failure.value.code == "SLA_REPORT_ARTIFACT_VERIFY_FAILED"
+
+    with ReadSnapshot(factory) as snapshot:
+        current = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert current is not None
+        assert current.state == "verifying"
+        assert current.revision == int(verifying["resulting_attempt_revision"])
+        assert current.artifact_filename == candidate
+        assert current.artifact_sha256 is None
+        assert current.verified_at_utc is None
+        assert current.completed_at_utc is None
+
+    regenerated = artifact.recover_candidate(
+        report_attempt_id=report_id,
+        snapshot_hash=snapshot_hash,
+        destination_request_token=DESTINATION_TOKEN,
+        candidate_filename=candidate,
+    )
+    assert regenerated == candidate
+    verification = artifact.verify_candidate(
+        report_attempt_id=report_id,
+        snapshot_hash=snapshot_hash,
+        destination_request_token=DESTINATION_TOKEN,
+        candidate_filename=candidate,
+    )
+    assert verification.report_attempt_id == report_id
+    assert verification.snapshot_hash == snapshot_hash
+
+
+def test_f022_reopenable_workbook_with_wrong_shape_cannot_verify_or_complete(
+    initialized_database,
+    tmp_path,
+) -> None:
+    factory = _factory(initialized_database)
+    report_id, _jobs, _claim, artifact, attempt, _checkpoint = _start_sealed_report(
+        factory,
+        tmp_path,
+    )
+    assert attempt.snapshot_hash is not None
+    snapshot_hash = attempt.snapshot_hash
+    worker = SlaReportWorkerService(factory)
+
+    generating = worker.mark_generating(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        expected_attempt_revision=attempt.revision,
+        snapshot_hash=snapshot_hash,
+    )
+    candidate = artifact.write_candidate(
+        report_attempt_id=report_id,
+        snapshot_hash=snapshot_hash,
+        destination_request_token=DESTINATION_TOKEN,
+    )
+    verifying = worker.mark_verifying(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        expected_attempt_revision=int(generating["resulting_attempt_revision"]),
+        snapshot_hash=snapshot_hash,
+        candidate_filename=candidate,
+    )
+
+    path = tmp_path / candidate
+    workbook = load_workbook(path)
+    try:
+        workbook["Members"]["A1"] = "corrupted_member_header"
+        workbook.save(path)
+    finally:
+        workbook.close()
+
+    with pytest.raises(IntegrityFailure, match="Members header is invalid"):
+        artifact.verify_candidate(
+            report_attempt_id=report_id,
+            snapshot_hash=snapshot_hash,
+            destination_request_token=DESTINATION_TOKEN,
+            candidate_filename=candidate,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        current = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert current is not None
+        assert current.state == "verifying"
+        assert current.revision == int(verifying["resulting_attempt_revision"])
+        assert current.artifact_filename == candidate
+        assert current.artifact_sha256 is None
+        assert current.artifact_size_bytes is None
+        assert current.verified_at_utc is None
+        assert current.completed_at_utc is None
+
+
+def test_f028_missing_external_artifact_does_not_mutate_completed_database_evidence(
+    initialized_database,
+    tmp_path,
+) -> None:
+    factory = _factory(initialized_database)
+    month_start, _month_end = canonical_month_bounds(MONTH)
+    started = SlaReportOrchestrationService(factory).start_monthly(
+        command_id=new_uuid4(),
+        calendar_month=MONTH,
+        as_of_utc=month_start + 1,
+        customer_org_id=None,
+        destination_request_token=DESTINATION_TOKEN,
+    )
+    report_id = str(started["report_attempt_id"])
+    jobs = DurableJobCoordinator(
+        factory,
+        JobTypeRegistry(PRODUCT_LINE_SLA_JOB_CONTRACTS),
+    )
+    claim = jobs.claim_next(new_uuid4(), utc_epoch_seconds())
+    assert claim is not None
+    artifact = SlaReportXlsxArtifact(
+        factory,
+        BoundReportDestination(DESTINATION_TOKEN, tmp_path),
+    )
+    SlaReportGenerationWorker(factory, artifact=artifact).run_to_completion(claim)
+
+    with ReadSnapshot(factory) as snapshot:
+        before = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert before is not None
+        assert before.state == "completed"
+        assert before.artifact_filename is not None
+        snapshot_hash = ReportRepository.snapshot_hash(
+            snapshot.connection,
+            report_id,
+        )
+        semantic = ReportRepository.snapshot_semantic_value(
+            snapshot.connection,
+            report_id,
+        )
+        final_path = tmp_path / before.artifact_filename
+        assert final_path.is_file()
+
+    final_path.unlink()
+    assert not final_path.exists()
+
+    with ReadSnapshot(factory) as snapshot:
+        after = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert after == before
+        assert after.state == "completed"
+        assert ReportRepository.snapshot_hash(
+            snapshot.connection,
+            report_id,
+        ) == snapshot_hash
+        assert ReportRepository.snapshot_semantic_value(
+            snapshot.connection,
+            report_id,
+        ) == semantic
+        job = snapshot.connection.execute(
+            "SELECT state FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("completed",)
