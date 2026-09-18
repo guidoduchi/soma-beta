@@ -968,7 +968,7 @@ def test_wfm_retired_task_publication_keeps_blocking_finding_without_mutation_pr
         assert tuple(run) == (fingerprint, 0, 0, 0)
 
 
-def test_changed_rfc_publication_fails_closed_until_rfc_orchestration_slice_exists(
+def test_changed_rfc_publication_persists_identity_review_for_missing_rfc(
     initialized_database,
 ) -> None:
     factory = _factory(initialized_database)
@@ -978,6 +978,7 @@ def test_changed_rfc_publication_fails_closed_until_rfc_orchestration_slice_exis
         chronology_value=10,
     )
     run_id = new_uuid4()
+    rfc_no = "NC20260914000001"
     with UnitOfWork(factory) as uow:
         _seed_validating_run(
             uow,
@@ -990,7 +991,7 @@ def test_changed_rfc_publication_fails_closed_until_rfc_orchestration_slice_exis
             uow,
             run_id=run_id,
             source_family="rfc_enhanced",
-            canonical_primary_id="NC20260914000001",
+            canonical_primary_id=rfc_no,
         )
     fingerprint = _fingerprint(factory, run_id)
     _coordinator, claim, checkpoint = _claim_with_publishing_checkpoint(
@@ -1001,21 +1002,53 @@ def test_changed_rfc_publication_fails_closed_until_rfc_orchestration_slice_exis
         candidate=candidate,
     )
     command_id = new_uuid4()
-    with pytest.raises(SomaError) as exc:
-        _publish(
-            PublishStagedImportRunService(factory),
-            command_id=command_id,
-            claim=claim,
-            run_id=run_id,
-            profiles=profiles,
-            checkpoint=checkpoint,
-            fingerprint=fingerprint,
-        )
-    assert exc.value.code == "IMPORT_RUN_STALE"
+    result = _publish(
+        PublishStagedImportRunService(factory),
+        command_id=command_id,
+        claim=claim,
+        run_id=run_id,
+        profiles=profiles,
+        checkpoint=checkpoint,
+        fingerprint=fingerprint,
+    )
+    assert result.run_state == "waiting_review"
+    assert result.revision == 2
+    assert result.proposal_count == 1
+
     with ReadSnapshot(factory) as snapshot:
-        assert tuple(snapshot.connection.execute(
-            "SELECT run_state,revision FROM import_runs WHERE import_run_id=?", (run_id,)
-        ).fetchone()) == ("validating", 1)
+        proposal = snapshot.connection.execute(
+            "SELECT proposal_kind,target_kind,target_internal_id,target_business_id,risk_class,proposal_state,revision "
+            "FROM reconciliation_proposals WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert proposal is not None
+        assert tuple(proposal) == (
+            "rfc_create_or_adopt",
+            "rfc",
+            None,
+            rfc_no,
+            "medium",
+            "pending",
+            1,
+        )
+        change = snapshot.connection.execute(
+            "SELECT ordinal,field_key,change_kind,value_kind,before_text,after_text,source_observation_field_id "
+            "FROM reconciliation_proposal_changes WHERE reconciliation_proposal_id=("
+            "SELECT reconciliation_proposal_id FROM reconciliation_proposals WHERE import_run_id=?)",
+            (run_id,),
+        ).fetchone()
+        assert tuple(change) == (0, "rfc_no", "create", "identity", None, rfc_no, None)
+        run = snapshot.connection.execute(
+            "SELECT logical_fingerprint_sha256,proposal_count,pending_proposal_count,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == (fingerprint, 1, 1, 2)
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM command_receipts WHERE command_id=?", (command_id,)
-        ).fetchone()[0] == 0
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=? AND action_type='ticket_import.run_published'",
+            (command_id,),
+        ).fetchone()[0] == 1
+
