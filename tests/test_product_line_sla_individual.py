@@ -387,3 +387,119 @@ def test_suspension_warning_is_separate_from_sla_state_t037(initialized_database
         assert after.suspension_denominator == 1
     finally:
         connection.close()
+
+
+
+def test_policy_revision_recalculates_terminal_current_classification_t014(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    setup = _classified(factory, suffix="9")
+    report_date = 1_000_000
+    resolved_at = report_date + 5 * 86_400
+    as_of = resolved_at + 123
+    _apply_source(
+        factory,
+        setup.service_request_id,
+        _delta("report_date", value=report_date, chronology=100),
+        _delta("customer_severity", value="Critical", chronology=100),
+        _delta("status", value="Resolved", chronology=resolved_at),
+    )
+
+    before = _calculate(factory, setup.service_request_id, as_of)
+    assert before.status_class == "resolved"
+    assert before.endpoint_kind == "first_resolved_closed"
+    assert before.endpoint_utc == resolved_at
+    assert before.tier_results[0].individual_state == "terminal_met"
+    source_token = before.sla_input_token
+    classification_event = before.classification_event_id
+
+    revised = ProductLineSlaPolicyService(factory).revise_policy(
+        command_id=new_uuid4(),
+        contract_product_line_id=setup.cpl_id,
+        base_revision=1,
+        policy_name="Retroactive Terminal NFV",
+        template_source="NFV_DEFAULT_V1",
+        reason_category="terminal_retroactive_policy_revision",
+    )
+    after = _calculate(factory, setup.service_request_id, as_of)
+
+    assert after.policy_revision_id == revised.policy_revision_id
+    assert after.policy_revision_id != before.policy_revision_id
+    assert after.status_class == "resolved"
+    assert after.endpoint_kind == "first_resolved_closed"
+    assert after.endpoint_utc == resolved_at
+    assert after.effective_elapsed_numerator_seconds == 5 * 86_400
+    assert after.tier_results[0].individual_state == "terminal_exceeded"
+    assert after.sla_input_token == source_token
+    assert after.classification_event_id == classification_event
+    assert after.service_request_id == before.service_request_id
+
+
+def test_repeated_explicit_as_of_is_bit_for_bit_deterministic_t016(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    setup = _classified(factory, suffix="10")
+    report_date = 2_000_000
+    as_of = report_date + 2 * 86_400 + 37
+    _apply_source(
+        factory,
+        setup.service_request_id,
+        _delta("report_date", value=report_date, chronology=100),
+        _delta("customer_severity", value="Major", chronology=100),
+    )
+
+    first = _calculate(factory, setup.service_request_id, as_of)
+    second = _calculate(factory, setup.service_request_id, as_of)
+
+    assert first == second
+    assert first.as_of_utc == as_of
+    assert first.endpoint_kind == "current"
+    assert first.endpoint_utc == as_of
+    assert first.effective_elapsed_numerator_seconds == as_of - report_date
+    assert first.input_fingerprint == second.input_fingerprint
+    assert first.sla_input_token == second.sla_input_token
+
+
+def test_missing_suspension_planned_end_warns_without_inferred_pause_t037(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    setup = _classified(factory, suffix="11")
+    report_date = 3_000_000
+    as_of = report_date + 1_000
+    _apply_source(
+        factory,
+        setup.service_request_id,
+        _delta("report_date", value=report_date, chronology=100),
+        _delta("customer_severity", value="Critical", chronology=100),
+        _delta("suspension_duration", value=400, chronology=100),
+        _delta("status", value="Customer Agreed Suspend", chronology=100),
+    )
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        individual = IndividualSlaCalculator.calculate(
+            connection,
+            setup.service_request_id,
+            as_of,
+        )
+        warnings = SlaWarningCalculator.individual(
+            connection,
+            service_request_id=setup.service_request_id,
+            as_of_utc=as_of,
+            suspension_ending_soon_threshold_seconds=300,
+        )
+    finally:
+        connection.close()
+
+    assert individual.status_class == "active"
+    assert individual.suspension_numerator_seconds == 400
+    assert individual.suspension_denominator == 1
+    assert individual.effective_elapsed_numerator_seconds == 600
+    assert individual.effective_elapsed_denominator == 1
+    assert individual.tier_results[0].individual_state == "active_within"
+    assert [warning.warning_kind for warning in warnings] == [
+        "suspension_end_missing_or_expired"
+    ]

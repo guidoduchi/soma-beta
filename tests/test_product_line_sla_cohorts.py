@@ -591,3 +591,45 @@ def test_cohort_list_cursor_is_filter_bound(initialized_database) -> None:
             cursor=first.next_cursor,
             limit=1,
         )
+
+
+
+def test_cancelled_member_is_excluded_from_canonical_cohort_denominator_t018(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    env = _environment(factory)
+    month_start, _month_end = canonical_month_bounds(MONTH)
+    report_date = month_start + 3 * DAY
+    as_of = report_date + 2 * DAY
+
+    included = _seed_member(
+        factory,
+        env,
+        ordinal=70,
+        report_date=report_date,
+        severity="Critical",
+    )
+    cancelled = _classified_sr(factory, env, 71)
+    _apply_source(
+        factory,
+        cancelled,
+        _delta("report_date", value=report_date, chronology=report_date),
+        _delta("customer_severity", value="Critical", chronology=report_date),
+        _delta("status", value="Cancelled", chronology=report_date + 100),
+    )
+
+    result = _calculate(factory, as_of=as_of)
+    cohort = _cohort(
+        result,
+        severity="critical",
+        required_percentage=100_000_000,
+    )
+
+    assert cohort.denominator == 1
+    assert cohort.member_exact_count == 1
+    assert cohort.active_within_count == 1
+    assert {member.service_request_id for member in result.members} == {included}
+    assert cancelled not in {
+        member.service_request_id for member in result.members
+    }
