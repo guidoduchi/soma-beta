@@ -445,6 +445,25 @@ class SlaReportWorkerService:
         return require_uuid4(str(row[0]))
 
     @staticmethod
+    def _require_worker_job_running(connection, report_attempt_id: str) -> str:
+        row = connection.execute(
+            "SELECT r.job_id,j.job_type,j.contract_version,j.state "
+            "FROM sla_report_job_refs r JOIN durable_jobs j ON j.job_id=r.job_id "
+            "WHERE r.report_attempt_id=?",
+            (require_uuid4(report_attempt_id),),
+        ).fetchone()
+        if row is None:
+            raise IntegrityFailure("report attempt lacks linked durable job")
+        if str(row[1]) != SLA_REPORT_JOB_TYPE or int(row[2]) != SLA_REPORT_JOB_CONTRACT_VERSION:
+            raise IntegrityFailure("report attempt links the wrong durable job contract")
+        if str(row[3]) != "running":
+            raise SomaError(
+                "SLA_REPORT_ATTEMPT_STATE",
+                "report worker no longer owns an active durable job",
+            )
+        return require_uuid4(str(row[0]))
+
+    @staticmethod
     def _decode_receipt_result(exact: CommittedCommandResult) -> dict[str, object]:
         if exact.response_schema != "ReportSnapshotBatchResultV1" or exact.response_version != 1:
             raise IntegrityFailure("report batch replay result schema is invalid")
@@ -770,6 +789,7 @@ class SlaReportWorkerService:
                 raise SomaError("SLA_REPORT_ATTEMPT_STATE", "report transition state is stale")
             if expected_state != "ready_to_generate" and attempt.snapshot_hash is None:
                 raise IntegrityFailure("report transition lacks sealed snapshot")
+            self._require_worker_job_running(uow.connection, report_id)
             resulting_revision = expected_attempt_revision + 1
             scope_fingerprint = ReportRepository.scope_fingerprint(attempt)
 
@@ -1067,6 +1087,7 @@ class SlaReportWorkerService:
                 or attempt.verified_at_utc is not None
             ):
                 raise SomaError("SLA_REPORT_ATTEMPT_STATE", "report completion state is stale")
+            self._require_worker_job_running(uow.connection, report_id)
             members, _tiers, cohorts, sections = ReportRepository.counts(
                 uow.connection,
                 report_id,
