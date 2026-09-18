@@ -118,6 +118,94 @@ def _validate_policy(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "SLA policy reason category is required")
 
 
+
+_REPORT_STATES = {
+    "staging",
+    "ready_to_generate",
+    "generating",
+    "verifying",
+    "completed",
+    "failed",
+    "cancelled",
+}
+
+
+def _validate_report_attempt(payload: dict[str, object]) -> None:
+    _uuid(payload.get("report_attempt_id"), "report_attempt_id")
+    if payload.get("event") not in {
+        "START",
+        "SEAL",
+        "GENERATING",
+        "VERIFYING",
+        "FAILED",
+        "CANCELLED",
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "report event is invalid")
+    before = payload.get("state_before")
+    if before is not None and before not in _REPORT_STATES:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "report prior state is invalid")
+    if payload.get("state_after") not in _REPORT_STATES:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "report resulting state is invalid")
+    _positive_int(payload.get("attempt_revision"), "attempt_revision")
+    _sha(payload.get("scope_fingerprint"), "scope_fingerprint")
+    snapshot_hash = payload.get("snapshot_hash")
+    if snapshot_hash is not None:
+        _sha(snapshot_hash, "snapshot_hash")
+    failure_code = payload.get("failure_code")
+    if failure_code is not None and (
+        not isinstance(failure_code, str)
+        or re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", failure_code) is None
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "report failure code is invalid")
+
+
+def _validate_completed_report(payload: dict[str, object]) -> None:
+    _uuid(payload.get("report_attempt_id"), "report_attempt_id")
+    _sha(payload.get("snapshot_hash"), "snapshot_hash")
+    filename = payload.get("artifact_filename")
+    if (
+        not isinstance(filename, str)
+        or not filename
+        or len(filename.encode("utf-8")) > 4096
+        or any(ch in filename for ch in ("/", "\\", "\x00"))
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "report artifact filename is invalid")
+    _sha(payload.get("artifact_sha256"), "artifact_sha256")
+    _positive_int(payload.get("artifact_size_bytes"), "artifact_size_bytes")
+    _positive_int(payload.get("verified_at_utc"), "verified_at_utc", allow_zero=True)
+    _positive_int(payload.get("completed_at_utc"), "completed_at_utc", allow_zero=True)
+    for field in ("member_count", "cohort_count", "section_count"):
+        _positive_int(payload.get(field), field, allow_zero=True)
+
+
+_REPORT_ATTEMPT_FIELDS = frozenset(
+    {
+        "report_attempt_id",
+        "event",
+        "state_before",
+        "state_after",
+        "attempt_revision",
+        "scope_fingerprint",
+        "snapshot_hash",
+        "failure_code",
+    }
+)
+_COMPLETED_REPORT_FIELDS = frozenset(
+    {
+        "report_attempt_id",
+        "snapshot_hash",
+        "artifact_filename",
+        "artifact_sha256",
+        "artifact_size_bytes",
+        "verified_at_utc",
+        "completed_at_utc",
+        "member_count",
+        "cohort_count",
+        "section_count",
+    }
+)
+
+
 _PRODUCT_LINE_FIELDS = frozenset(
     {"product_line_id", "change_kind", "prior_revision", "resulting_revision", "name_fingerprint", "reason_category"}
 )
@@ -187,6 +275,30 @@ def build_product_line_sla_audit_registry() -> AuditRegistry:
             "ServiceRequestClassificationAuditV1",
             _CLASSIFICATION_FIELDS,
             _validate_classification,
+        ),
+        (
+            "sla.report.started",
+            "ReportAttemptAuditV1",
+            _REPORT_ATTEMPT_FIELDS,
+            _validate_report_attempt,
+        ),
+        (
+            "sla.report.progressed",
+            "ReportAttemptAuditV1",
+            _REPORT_ATTEMPT_FIELDS,
+            _validate_report_attempt,
+        ),
+        (
+            "sla.report.completed",
+            "CompletedReportAuditV1",
+            _COMPLETED_REPORT_FIELDS,
+            _validate_completed_report,
+        ),
+        (
+            "sla.report.cancelled_or_failed",
+            "ReportAttemptAuditV1",
+            _REPORT_ATTEMPT_FIELDS,
+            _validate_report_attempt,
         ),
     ):
         registry.register(
