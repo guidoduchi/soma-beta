@@ -113,3 +113,47 @@ def test_policy_rejects_duplicate_tiers_and_explicit_non_fault() -> None:
                 "non_fault_inquiry": (PolicyTierInput("100", "1.5", "days"),),
             }
         )
+
+
+
+def test_f009_policy_rejects_duration_above_exact_rational_bound() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="duration numerator exceeds the accepted bound",
+    ):
+        validate_sla_policy(
+            explicit_tiers={
+                "critical": (PolicyTierInput("100", "1", "seconds"),),
+                "major": (PolicyTierInput("100", "1", "seconds"),),
+                "minor": (
+                    PolicyTierInput(
+                        "100",
+                        "9223372036854775808",
+                        "seconds",
+                    ),
+                ),
+            }
+        )
+
+
+def test_f010_non_fault_exact_derivation_overflow_rejects_whole_policy() -> None:
+    # The Minor duration itself is within the accepted signed-64-bit numerator
+    # bound. Its exact Non-fault derivation is 6_148_914_691_236_517_206 * 3/2
+    # = 9_223_372_036_854_775_809 seconds, which is two seconds above the cap.
+    with pytest.raises(
+        ValidationError,
+        match="duration numerator exceeds the accepted bound",
+    ):
+        validate_sla_policy(
+            explicit_tiers={
+                "critical": (PolicyTierInput("100", "1", "seconds"),),
+                "major": (PolicyTierInput("100", "1", "seconds"),),
+                "minor": (
+                    PolicyTierInput(
+                        "100",
+                        "6148914691236517206",
+                        "seconds",
+                    ),
+                ),
+            }
+        )
