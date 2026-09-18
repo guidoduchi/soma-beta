@@ -38,6 +38,9 @@ _RETAINABLE_SOURCE_FINDING_CODES_BY_FAMILY = {
         }
     ),
 }
+_RECONCILIATION_FINDING_CODES_BY_FAMILY = {
+    "wfm_service_provider": frozenset({"WFM_TASK_ID_RETIRED"}),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,18 +87,17 @@ class SourceFindingRepository:
         return canonical_run_id, source_family
 
     @staticmethod
-    def validate_finding(source_family: str, finding: NormalizedFindingEvidence) -> str | None:
-        allowed_codes = _RETAINABLE_SOURCE_FINDING_CODES_BY_FAMILY.get(source_family)
-        if allowed_codes is None:
-            raise SomaError("IMPORT_SOURCE_FAMILY_INVALID", "source family is outside the closed LLD-04 registry")
+    def _validate_finding_shape(
+        finding: NormalizedFindingEvidence,
+        *,
+        allowed_codes: frozenset[str],
+        catalogue_error: str,
+    ) -> str | None:
         observation_id = None
         if finding.source_observation_id is not None:
             observation_id = require_uuid4(finding.source_observation_id)
         if finding.finding_code not in allowed_codes:
-            raise SomaError(
-                "IMPORT_SOURCE_PROFILE_MISMATCH",
-                "finding code is outside the retainable catalogue for this source family",
-            )
+            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", catalogue_error)
         if finding.severity not in _FINDING_SEVERITIES:
             raise ValidationError("finding severity is outside the closed LLD-04 vocabulary")
         if finding.scope_kind not in _FINDING_SCOPES:
@@ -117,6 +119,41 @@ class SourceFindingRepository:
                 raise ValidationError("finding field_key must be valid Unicode text") from exc
             if len(encoded_field_key) > _MAX_FIELD_KEY_UTF8_BYTES:
                 raise ValidationError("finding field_key exceeds the bounded semantic-key ceiling")
+        return observation_id
+
+    @classmethod
+    def validate_finding(cls, source_family: str, finding: NormalizedFindingEvidence) -> str | None:
+        allowed_codes = _RETAINABLE_SOURCE_FINDING_CODES_BY_FAMILY.get(source_family)
+        if allowed_codes is None:
+            raise SomaError("IMPORT_SOURCE_FAMILY_INVALID", "source family is outside the closed LLD-04 registry")
+        return cls._validate_finding_shape(
+            finding,
+            allowed_codes=allowed_codes,
+            catalogue_error="finding code is outside the retainable catalogue for this source family",
+        )
+
+    @classmethod
+    def _validate_reconciliation_finding(
+        cls,
+        source_family: str,
+        finding: NormalizedFindingEvidence,
+    ) -> str:
+        allowed_codes = _RECONCILIATION_FINDING_CODES_BY_FAMILY.get(source_family)
+        if allowed_codes is None:
+            raise SomaError("IMPORT_SOURCE_FAMILY_INVALID", "source family has no post-verification reconciliation findings")
+        observation_id = cls._validate_finding_shape(
+            finding,
+            allowed_codes=allowed_codes,
+            catalogue_error="finding code is outside the post-verification reconciliation catalogue",
+        )
+        if observation_id is None:
+            raise ValidationError("reconciliation finding requires an owning source observation")
+        if finding.finding_code == "WFM_TASK_ID_RETIRED" and (
+            finding.severity != "error"
+            or finding.scope_kind != "identity"
+            or finding.field_key != "task_no"
+        ):
+            raise ValidationError("retired WFM finding must be error/identity/task_no")
         return observation_id
 
     @classmethod
@@ -161,6 +198,81 @@ class SourceFindingRepository:
         recorded_at = utc_epoch_seconds()
         finding_ids: list[str] = []
         for finding, observation_id in zip(findings, normalized_observation_ids, strict=True):
+            finding_id = new_uuid4()
+            uow.connection.execute(
+                "INSERT INTO import_findings("
+                "import_finding_id,import_run_id,source_observation_id,field_key,finding_code,severity,scope_kind,"
+                "message_text,recorded_at_utc) VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    finding_id,
+                    canonical_run_id,
+                    observation_id,
+                    finding.field_key,
+                    finding.finding_code,
+                    finding.severity,
+                    finding.scope_kind,
+                    finding.message_text,
+                    recorded_at,
+                ),
+            )
+            finding_ids.append(finding_id)
+        return tuple(finding_ids)
+
+
+    @classmethod
+    def append_reconciliation_findings_after_source_verification(
+        cls,
+        uow: UnitOfWork,
+        *,
+        import_run_id: str,
+        expected_run_revision: int,
+        findings: tuple[NormalizedFindingEvidence, ...],
+    ) -> tuple[str, ...]:
+        """Append domain-state reconciliation findings only after source fingerprint verification."""
+        canonical_run_id, source_family = cls._require_validating_run(
+            uow,
+            import_run_id=import_run_id,
+            expected_run_revision=expected_run_revision,
+        )
+        if not findings:
+            return ()
+
+        normalized: list[tuple[NormalizedFindingEvidence, str]] = []
+        seen: set[tuple[str, str, str | None]] = set()
+        for finding in findings:
+            observation_id = cls._validate_reconciliation_finding(source_family, finding)
+            key = (observation_id, finding.finding_code, finding.field_key)
+            if key in seen:
+                raise ValidationError("post-verification reconciliation findings must be unique per observation/code/field")
+            seen.add(key)
+            normalized.append((finding, observation_id))
+
+        ordered_ids = sorted({observation_id for _, observation_id in normalized})
+        owned_ids: set[str] = set()
+        for start in range(0, len(ordered_ids), _OBSERVATION_LOOKUP_BATCH):
+            batch = ordered_ids[start : start + _OBSERVATION_LOOKUP_BATCH]
+            placeholders = ",".join("?" for _ in batch)
+            rows = uow.connection.execute(
+                "SELECT source_observation_id FROM source_observations WHERE import_run_id=? "
+                f"AND source_observation_id IN ({placeholders})",
+                (canonical_run_id, *batch),
+            ).fetchall()
+            owned_ids.update(str(row[0]) for row in rows)
+        if owned_ids != set(ordered_ids):
+            raise ValidationError("reconciliation finding observation must belong to the same validating import run")
+
+        for finding, observation_id in normalized:
+            existing = uow.connection.execute(
+                "SELECT 1 FROM import_findings WHERE import_run_id=? AND source_observation_id=? "
+                "AND finding_code=? AND field_key IS ? LIMIT 1",
+                (canonical_run_id, observation_id, finding.finding_code, finding.field_key),
+            ).fetchone()
+            if existing is not None:
+                raise SomaError("IMPORT_RUN_STALE", "post-verification reconciliation finding already exists")
+
+        recorded_at = utc_epoch_seconds()
+        finding_ids: list[str] = []
+        for finding, observation_id in normalized:
             finding_id = new_uuid4()
             uow.connection.execute(
                 "INSERT INTO import_findings("

@@ -33,11 +33,15 @@ def test_proposal_calculation_is_confined_to_read_snapshot_preflight() -> None:
             if (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "_advanced_search_proposal_writes"
+                and node.func.attr in {"_advanced_search_proposal_writes", "_rfc_enhanced_proposal_writes", "_wfm_proposal_writes"}
             ):
-                proposal_calls.append(method.name)
+                proposal_calls.append((method.name, node.func.attr))
 
-    assert proposal_calls == ["_preflight_publication"]
+    assert proposal_calls == [
+        ("_preflight_publication", "_advanced_search_proposal_writes"),
+        ("_preflight_publication", "_rfc_enhanced_proposal_writes"),
+        ("_preflight_publication", "_wfm_proposal_writes"),
+    ]
     assert any(
         isinstance(node, ast.With)
         and any(
@@ -73,3 +77,6 @@ def test_writer_keeps_authoritative_fingerprint_reverification_without_proposal_
     assert "verify_staged_logical_run" in calls
     assert "assert_claim_current" in attribute_calls
     assert "_advanced_search_proposal_writes" not in attribute_calls
+    assert "_rfc_enhanced_proposal_writes" not in attribute_calls
+    assert "_wfm_proposal_writes" not in attribute_calls
+    assert "_wfm_reconciliation_findings" in attribute_calls

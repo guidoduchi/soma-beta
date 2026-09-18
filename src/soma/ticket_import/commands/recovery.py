@@ -74,19 +74,23 @@ class ResolveImportRecoveryService:
         *,
         command_id: str,
         import_run_id: str,
-        expected_run_revision: int,
-        expected_checkpoint_revision: int,
         review_fingerprint: str,
         decision: str,
         reason_category: str,
+        expected_run_revision: int | None = None,
+        expected_checkpoint_revision: int | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
     ) -> ImportRecoveryDecisionResult:
         canonical_run_id = require_uuid4(import_run_id)
-        if type(expected_run_revision) is not int or expected_run_revision < 1:
-            raise ValidationError("expected_run_revision must be a positive integer")
-        if type(expected_checkpoint_revision) is not int or expected_checkpoint_revision < 1:
-            raise ValidationError("expected_checkpoint_revision must be a positive integer")
+        if expected_run_revision is not None and (
+            type(expected_run_revision) is not int or expected_run_revision < 1
+        ):
+            raise ValidationError("expected_run_revision must be a positive integer when supplied")
+        if expected_checkpoint_revision is not None and (
+            type(expected_checkpoint_revision) is not int or expected_checkpoint_revision < 1
+        ):
+            raise ValidationError("expected_checkpoint_revision must be a positive integer when supplied")
         if not isinstance(review_fingerprint, str) or _HEX64_RE.fullmatch(review_fingerprint) is None:
             raise ValidationError("review_fingerprint must be lowercase SHA-256 hex")
         persisted_decision = _DECISIONS.get(decision)
@@ -103,6 +107,11 @@ class ResolveImportRecoveryService:
             or "\n" in reason_category
         ):
             raise ValidationError("reason_category violates the LLD-04 1..120 UTF-8 byte one-line contract")
+
+        # Browser transport authority is exactly ResolveRecoveryRequestV1. Run/checkpoint
+        # revisions are authoritative state reads, not request semantics. Optional legacy
+        # revision arguments remain supported only as stale-state assertions for internal
+        # callers and are intentionally absent from the command envelope hash.
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="ResolveImportRecovery",
@@ -112,27 +121,40 @@ class ResolveImportRecoveryService:
                 "import_run_id": canonical_run_id,
                 "decision": decision,
                 "reason_category": reason_category,
-                "expected_checkpoint_revision": expected_checkpoint_revision,
             },
-            base_revisions={"import_run": expected_run_revision},
             authorizing_fingerprints={"recovery_review": review_fingerprint},
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
             run = self._proposals.get_run(uow.connection, canonical_run_id)
-            if run.run_state != "recovery_required" or run.revision != expected_run_revision:
-                raise SomaError("IMPORT_RECOVERY_REVIEW_STALE", "recovery run state or revision changed")
+            if run.run_state != "recovery_required":
+                raise SomaError("IMPORT_RUN_NOT_RECOVERY_REQUIRED", "import run is not recovery-required")
+            current_run_revision = run.revision
+            if expected_run_revision is not None and current_run_revision != expected_run_revision:
+                raise SomaError("IMPORT_RECOVERY_REVIEW_STALE", "recovery run revision changed")
+
             checkpoint = uow.connection.execute(
                 "SELECT accepted_import_run_id,revision FROM import_source_checkpoints WHERE source_family=?",
                 (run.source_family,),
             ).fetchone()
-            if checkpoint is None or int(checkpoint[1]) != expected_checkpoint_revision:
+            if checkpoint is None:
+                raise SomaError("IMPORT_RECOVERY_REVIEW_STALE", "recovery checkpoint disappeared")
+            current_checkpoint_revision = int(checkpoint[1])
+            if (
+                expected_checkpoint_revision is not None
+                and current_checkpoint_revision != expected_checkpoint_revision
+            ):
                 raise SomaError("IMPORT_RECOVERY_REVIEW_STALE", "recovery checkpoint revision changed")
+
             exact_fingerprint = self._proposals.recovery_review_fingerprint(uow.connection, run)
             if exact_fingerprint != review_fingerprint:
                 raise SomaError("IMPORT_RECOVERY_REVIEW_STALE", "recovery review fingerprint changed")
             if persisted_decision == "rejected" and run.accepted_count != 0:
-                raise SomaError("IMPORT_RECOVERY_REJECT_CONFLICT", "recovery with accepted proposals cannot be rejected")
+                raise SomaError(
+                    "IMPORT_RECOVERY_REJECT_AFTER_ACCEPTANCE",
+                    "recovery with accepted proposals cannot be rejected",
+                )
+
             ordinal_row = uow.connection.execute(
                 "SELECT COALESCE(MAX(review_ordinal),0)+1 FROM import_recovery_reviews WHERE import_run_id=?",
                 (canonical_run_id,),
@@ -144,7 +166,7 @@ class ResolveImportRecoveryService:
             review_id = new_uuid4()
             audit_id = new_uuid4()
             response_state = "rejected" if persisted_decision == "rejected" else "recovery_required"
-            response_revision = expected_run_revision + (1 if persisted_decision == "rejected" else 0)
+            response_revision = current_run_revision + (1 if persisted_decision == "rejected" else 0)
 
             def apply(inner: UnitOfWork) -> AuditEventInput:
                 inner.connection.execute(
@@ -157,8 +179,8 @@ class ResolveImportRecoveryService:
                         canonical_run_id,
                         str(checkpoint[0]),
                         review_ordinal,
-                        expected_run_revision,
-                        expected_checkpoint_revision,
+                        current_run_revision,
+                        current_checkpoint_revision,
                         review_fingerprint,
                         persisted_decision,
                         reason_category,
@@ -205,7 +227,7 @@ class ResolveImportRecoveryService:
                         "UPDATE import_runs SET run_state='rejected',pending_proposal_count=0,"
                         "completed_at_utc=?,revision=revision+1 WHERE import_run_id=? AND revision=? "
                         "AND run_state='recovery_required' AND accepted_proposal_count=0",
-                        (now, canonical_run_id, expected_run_revision),
+                        (now, canonical_run_id, current_run_revision),
                     )
                     if changed_run.rowcount != 1:
                         raise SomaError("IMPORT_RECOVERY_REVIEW_STALE", "recovery run changed before rejection")
