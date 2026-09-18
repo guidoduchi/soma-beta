@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 from soma.foundation.contracts.foundation import DurableJobClaim
-from soma.foundation.errors import IntegrityFailure, ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
@@ -819,6 +819,383 @@ class SlaReportGenerationWorker:
         self._jobs.complete(claim)
         return report_attempt_id
 
+    def _require_artifact(self) -> SlaReportXlsxArtifact:
+        if self._artifact is None:
+            raise ValidationError("SLA report artifact adapter is not configured")
+        return self._artifact
+
+    def _fail_artifact_recovery(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any],
+        *,
+        report_attempt_id: str,
+        failure_code: str,
+    ) -> str:
+        attempt = self._report_attempt(report_attempt_id)
+        command_id = new_uuid4()
+        fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_REPORT_ARTIFACT_RECOVERY_FAIL_V1",
+                "report_attempt_id": report_attempt_id,
+                "expected_attempt_revision": attempt.revision,
+                "failure_code": failure_code,
+            }
+        )
+        pending = {
+            **checkpoint,
+            "attempt_revision": attempt.revision,
+            "pending_command": self._pending(
+                kind="fail",
+                command_id=command_id,
+                expected_revision=attempt.revision,
+                request_fingerprint=fingerprint,
+            ),
+        }
+        self._jobs.checkpoint(claim, pending)
+        failed = self._worker.fail(
+            command_id=command_id,
+            report_attempt_id=report_attempt_id,
+            expected_attempt_revision=attempt.revision,
+            failure_code=failure_code,
+        )
+        self._checkpoint_terminal(
+            claim,
+            pending,
+            attempt_revision=int(failed["revision"]),
+        )
+        self._jobs.fail(claim, failure_code, None)
+        return report_attempt_id
+
+    def _resume_sealed_phase(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any],
+        *,
+        report_attempt_id: str,
+    ) -> str:
+        attempt = self._report_attempt(report_attempt_id)
+        pending = checkpoint["pending_command"]
+        if pending is None:
+            if attempt.state != "ready_to_generate":
+                raise IntegrityFailure(
+                    "sealed report checkpoint disagrees with authoritative attempt"
+                )
+            return self.artifact_and_complete(claim)
+        if not isinstance(pending, dict) or pending.get("kind") != "mark_generating":
+            raise IntegrityFailure("sealed report has unsupported pending worker command")
+        if (
+            attempt.state not in {"ready_to_generate", "generating"}
+            or attempt.snapshot_hash is None
+            or pending.get("snapshot_hash") != attempt.snapshot_hash
+        ):
+            raise IntegrityFailure("pending generating transition disagrees with report state")
+        generating = self._worker.mark_generating(
+            command_id=str(pending["command_id"]),
+            report_attempt_id=report_attempt_id,
+            expected_attempt_revision=int(pending["expected_attempt_revision"]),
+            snapshot_hash=attempt.snapshot_hash,
+        )
+        writing = {
+            **checkpoint,
+            "phase": "writing",
+            "attempt_revision": int(generating["resulting_attempt_revision"]),
+            "pending_command": None,
+        }
+        self._jobs.checkpoint(claim, writing)
+        return self._resume_writing_phase(
+            claim,
+            writing,
+            report_attempt_id=report_attempt_id,
+        )
+
+    def _resume_writing_phase(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any],
+        *,
+        report_attempt_id: str,
+    ) -> str:
+        artifact = self._require_artifact()
+        payload = self._payload(claim)
+        destination_token = str(payload["destination_request_token"])
+        attempt = self._report_attempt(report_attempt_id)
+        if attempt.snapshot_hash is None:
+            raise IntegrityFailure("writing report lost sealed snapshot identity")
+        snapshot_hash = attempt.snapshot_hash
+        pending = checkpoint["pending_command"]
+
+        if isinstance(pending, dict):
+            if pending.get("kind") != "mark_verifying":
+                raise IntegrityFailure("writing report has unsupported pending command")
+            candidate = str(pending["candidate_filename"])
+            if attempt.state == "generating":
+                if not artifact.candidate_exists(
+                    destination_request_token=destination_token,
+                    candidate_filename=candidate,
+                ):
+                    artifact.recover_candidate(
+                        report_attempt_id=report_attempt_id,
+                        snapshot_hash=snapshot_hash,
+                        destination_request_token=destination_token,
+                        candidate_filename=candidate,
+                    )
+            elif attempt.state != "verifying":
+                raise IntegrityFailure(
+                    "pending verifying transition disagrees with report state"
+                )
+            verifying = self._worker.mark_verifying(
+                command_id=str(pending["command_id"]),
+                report_attempt_id=report_attempt_id,
+                expected_attempt_revision=int(pending["expected_attempt_revision"]),
+                snapshot_hash=str(pending["snapshot_hash"]),
+                candidate_filename=candidate,
+            )
+        else:
+            if attempt.state != "generating":
+                raise IntegrityFailure(
+                    "writing checkpoint disagrees with authoritative report state"
+                )
+            candidate = artifact.recover_candidate(
+                report_attempt_id=report_attempt_id,
+                snapshot_hash=snapshot_hash,
+                destination_request_token=destination_token,
+            )
+            command_id = new_uuid4()
+            request_fingerprint = sha256_canonical_json(
+                {
+                    "schema": "SOMA_REPORT_VERIFYING_RECOVERY_INTENT_V1",
+                    "report_attempt_id": report_attempt_id,
+                    "expected_attempt_revision": attempt.revision,
+                    "snapshot_hash": snapshot_hash,
+                    "candidate_filename": candidate,
+                }
+            )
+            pending_checkpoint = {
+                **checkpoint,
+                "candidate_filename": candidate,
+                "pending_command": self._pending(
+                    kind="mark_verifying",
+                    command_id=command_id,
+                    expected_revision=attempt.revision,
+                    request_fingerprint=request_fingerprint,
+                    snapshot_hash=snapshot_hash,
+                    candidate_filename=candidate,
+                ),
+            }
+            self._jobs.checkpoint(claim, pending_checkpoint)
+            verifying = self._worker.mark_verifying(
+                command_id=command_id,
+                report_attempt_id=report_attempt_id,
+                expected_attempt_revision=attempt.revision,
+                snapshot_hash=snapshot_hash,
+                candidate_filename=candidate,
+            )
+            checkpoint = pending_checkpoint
+
+        verifying_checkpoint = {
+            **checkpoint,
+            "phase": "verifying",
+            "attempt_revision": int(verifying["resulting_attempt_revision"]),
+            "candidate_filename": candidate,
+            "pending_command": None,
+        }
+        self._jobs.checkpoint(claim, verifying_checkpoint)
+        return self._resume_verifying_phase(
+            claim,
+            verifying_checkpoint,
+            report_attempt_id=report_attempt_id,
+        )
+
+    def _publish_verified_recovery(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any],
+        *,
+        report_attempt_id: str,
+        verification: Any,
+    ) -> str:
+        artifact = self._require_artifact()
+        destination_token = str(self._payload(claim)["destination_request_token"])
+        attempt = self._report_attempt(report_attempt_id)
+        if attempt.state != "verifying" or attempt.snapshot_hash is None:
+            raise IntegrityFailure(
+                "verified recovery result no longer matches report state"
+            )
+        snapshot_hash = attempt.snapshot_hash
+        publishing_checkpoint = {
+            **checkpoint,
+            "phase": "publishing",
+            "attempt_revision": attempt.revision,
+            "candidate_filename": verification.candidate_filename,
+            "pending_command": None,
+        }
+        self._jobs.checkpoint(claim, publishing_checkpoint)
+        proof = artifact.publish_verified(
+            verification=verification,
+            destination_request_token=destination_token,
+        )
+
+        completion_command_id = new_uuid4()
+        proof_fingerprint = sha256_canonical_json(proof)
+        published_artifact = {
+            "candidate_filename": str(proof["candidate_filename"]),
+            "final_filename": str(proof["artifact_filename"]),
+            "artifact_sha256": str(proof["artifact_sha256"]),
+            "artifact_size_bytes": int(proof["artifact_size_bytes"]),
+            "verified_at_utc": int(proof["verified_at_utc"]),
+            "snapshot_hash": snapshot_hash,
+            "completion_command_id": completion_command_id,
+        }
+        completion_fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_REPORT_COMPLETE_RECOVERY_INTENT_V1",
+                "report_attempt_id": report_attempt_id,
+                "expected_attempt_revision": attempt.revision,
+                "snapshot_hash": snapshot_hash,
+                "completion_proof_fingerprint": proof_fingerprint,
+            }
+        )
+        completing_checkpoint = {
+            **publishing_checkpoint,
+            "phase": "completing",
+            "published_artifact": published_artifact,
+            "pending_command": self._pending(
+                kind="complete",
+                command_id=completion_command_id,
+                expected_revision=attempt.revision,
+                request_fingerprint=completion_fingerprint,
+                snapshot_hash=snapshot_hash,
+                completion_proof_fingerprint=proof_fingerprint,
+            ),
+        }
+        self._jobs.checkpoint(claim, completing_checkpoint)
+        completed = self._worker.complete(
+            command_id=completion_command_id,
+            report_attempt_id=report_attempt_id,
+            expected_attempt_revision=attempt.revision,
+            snapshot_hash=snapshot_hash,
+            artifact_completion=proof,
+        )
+        self._checkpoint_terminal(
+            claim,
+            completing_checkpoint,
+            attempt_revision=int(completed["revision"]),
+        )
+        self._jobs.complete(claim)
+        return report_attempt_id
+
+    def _resume_verifying_phase(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any],
+        *,
+        report_attempt_id: str,
+    ) -> str:
+        artifact = self._require_artifact()
+        payload = self._payload(claim)
+        destination_token = str(payload["destination_request_token"])
+        attempt = self._report_attempt(report_attempt_id)
+        candidate = checkpoint["candidate_filename"]
+        if (
+            attempt.state != "verifying"
+            or attempt.snapshot_hash is None
+            or not isinstance(candidate, str)
+            or attempt.artifact_filename != candidate
+        ):
+            raise IntegrityFailure(
+                "verifying checkpoint disagrees with authoritative report candidate"
+            )
+        try:
+            verification = artifact.verify_candidate(
+                report_attempt_id=report_attempt_id,
+                snapshot_hash=attempt.snapshot_hash,
+                destination_request_token=destination_token,
+                candidate_filename=candidate,
+            )
+        except SomaError:
+            artifact.recover_candidate(
+                report_attempt_id=report_attempt_id,
+                snapshot_hash=attempt.snapshot_hash,
+                destination_request_token=destination_token,
+                candidate_filename=candidate,
+            )
+            verification = artifact.verify_candidate(
+                report_attempt_id=report_attempt_id,
+                snapshot_hash=attempt.snapshot_hash,
+                destination_request_token=destination_token,
+                candidate_filename=candidate,
+            )
+        return self._publish_verified_recovery(
+            claim,
+            checkpoint,
+            report_attempt_id=report_attempt_id,
+            verification=verification,
+        )
+
+    def _resume_publishing_phase(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict[str, Any],
+        *,
+        report_attempt_id: str,
+    ) -> str:
+        artifact = self._require_artifact()
+        destination_token = str(self._payload(claim)["destination_request_token"])
+        attempt = self._report_attempt(report_attempt_id)
+        candidate = checkpoint["candidate_filename"]
+        if (
+            attempt.state != "verifying"
+            or attempt.snapshot_hash is None
+            or not isinstance(candidate, str)
+            or attempt.artifact_filename != candidate
+        ):
+            raise IntegrityFailure(
+                "publishing checkpoint disagrees with authoritative report candidate"
+            )
+        if isinstance(checkpoint["published_artifact"], dict):
+            return self._resume_published_completion(
+                claim,
+                checkpoint,
+                report_attempt_id=report_attempt_id,
+            )
+        if not artifact.candidate_exists(
+            destination_request_token=destination_token,
+            candidate_filename=candidate,
+        ):
+            return self._fail_artifact_recovery(
+                claim,
+                checkpoint,
+                report_attempt_id=report_attempt_id,
+                failure_code="SLA_REPORT_PUBLICATION_PROOF_LOST",
+            )
+        try:
+            verification = artifact.verify_candidate(
+                report_attempt_id=report_attempt_id,
+                snapshot_hash=attempt.snapshot_hash,
+                destination_request_token=destination_token,
+                candidate_filename=candidate,
+            )
+        except SomaError:
+            artifact.recover_candidate(
+                report_attempt_id=report_attempt_id,
+                snapshot_hash=attempt.snapshot_hash,
+                destination_request_token=destination_token,
+                candidate_filename=candidate,
+            )
+            verification = artifact.verify_candidate(
+                report_attempt_id=report_attempt_id,
+                snapshot_hash=attempt.snapshot_hash,
+                destination_request_token=destination_token,
+                candidate_filename=candidate,
+            )
+        return self._publish_verified_recovery(
+            claim,
+            checkpoint,
+            report_attempt_id=report_attempt_id,
+            verification=verification,
+        )
+
     def run_to_completion(self, claim: DurableJobClaim) -> str:
         payload = self._payload(claim)
         report_attempt_id = str(payload["report_attempt_id"])
@@ -842,7 +1219,7 @@ class SlaReportGenerationWorker:
                 checkpoint,
                 attempt_revision=attempt.revision,
             )
-            self._jobs.fail(claim, attempt.failure_code, None)
+            self._jobs.fail(claim, "SLA_REPORT_DOMAIN_FAILED", None)
             return report_attempt_id
         if attempt.state == "cancelled":
             raise IntegrityFailure(
@@ -884,11 +1261,29 @@ class SlaReportGenerationWorker:
                 "interrupted report snapshot checkpoint has incompatible domain state"
             )
         if phase == "sealed":
-            if attempt.state != "ready_to_generate":
-                raise IntegrityFailure(
-                    "sealed report checkpoint disagrees with authoritative attempt"
-                )
-            return self.artifact_and_complete(claim)
+            return self._resume_sealed_phase(
+                claim,
+                checkpoint,
+                report_attempt_id=report_attempt_id,
+            )
+        if phase == "writing":
+            return self._resume_writing_phase(
+                claim,
+                checkpoint,
+                report_attempt_id=report_attempt_id,
+            )
+        if phase == "verifying":
+            return self._resume_verifying_phase(
+                claim,
+                checkpoint,
+                report_attempt_id=report_attempt_id,
+            )
+        if phase == "publishing":
+            return self._resume_publishing_phase(
+                claim,
+                checkpoint,
+                report_attempt_id=report_attempt_id,
+            )
         if phase == "completing":
             return self._resume_published_completion(
                 claim,
