@@ -269,8 +269,6 @@ class InventoryNeedsQueryService:
                     local_tracking,
                     unit_id,
                 )
-                if after_key is not None and sort_key <= after_key:
-                    continue
 
                 blockers = tuple(
                     self._units.stock_blockers(
@@ -302,7 +300,12 @@ class InventoryNeedsQueryService:
 
             projected.sort(key=lambda item: item[0])
             exact_total = len(projected)
-            selected = projected[: page_limit + 1]
+            remaining = (
+                projected
+                if after_key is None
+                else [item for item in projected if item[0] > after_key]
+            )
+            selected = remaining[: page_limit + 1]
             has_more = len(selected) > page_limit
             page_rows = selected[:page_limit]
             next_cursor: dict[str, object] | None = None
