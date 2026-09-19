@@ -50,7 +50,7 @@ def _device(factory, sr_id: str, name: str):
         )
         uow.connection.execute(
             "INSERT INTO sr_device_reference_links("
-            "link_id,service_request_id,device_reference_id,link_state,"
+            "sr_device_reference_link_id,service_request_id,device_reference_id,link_state,"
             "opened_at_utc,closed_at_utc,opened_command_id,closed_command_id"
             ") VALUES (?,?,?,'active',?,NULL,?,NULL)",
             (

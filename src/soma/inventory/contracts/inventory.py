@@ -9,9 +9,14 @@ from soma.foundation.identifiers import require_uuid4
 _ALLOWED_REF_TYPES = frozenset(
     {
         "device_part_unit",
+        "local_need_fulfillment",
         "spare_need",
         "spare_need_contributor",
         "spare_need_event",
+        "spare_part_unit",
+        "spare_part_unit_event",
+        "task_unit_allocation",
+        "task_unit_allocation_event",
     }
 )
 
