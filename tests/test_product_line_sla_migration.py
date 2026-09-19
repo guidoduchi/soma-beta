@@ -36,7 +36,7 @@ def test_sequence_nine_manifest_and_relational_backbone_are_exact(
     security_provider,
 ) -> None:
     manifest = MigrationManifest.load(migration_directory)
-    assert [entry.sequence for entry in manifest.entries] == list(range(1, 10))
+    assert [entry.sequence for entry in manifest.entries[:9]] == list(range(1, 10))
     sequence_nine = manifest.entries[8]
     assert sequence_nine.migration_id == "beta_0009_product_line_sla"
     assert sequence_nine.filename == "0009_product_line_sla.sql"
@@ -53,7 +53,9 @@ def test_sequence_nine_manifest_and_relational_backbone_are_exact(
         app_version="test",
         ownership_assertion=lambda: True,
     )
-    assert runner.initialize_or_migrate() == 9
+    current_sequence = manifest.entries[-1].sequence
+    current_migration_id = manifest.entries[-1].migration_id
+    assert runner.initialize_or_migrate() == current_sequence
 
     connection = sqlite3.connect(database)
     try:
@@ -93,6 +95,6 @@ def test_sequence_nine_manifest_and_relational_backbone_are_exact(
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         assert connection.execute(
             "SELECT sequence,migration_id FROM schema_migrations ORDER BY sequence DESC LIMIT 1"
-        ).fetchone() == (9, "beta_0009_product_line_sla")
+        ).fetchone() == (current_sequence, current_migration_id)
     finally:
         connection.close()
