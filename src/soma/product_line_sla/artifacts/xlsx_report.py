@@ -449,9 +449,10 @@ class SlaReportXlsxArtifact:
             raise IntegrityFailure(f"{name} header is invalid")
         output: list[dict[str, object]] = []
         for raw in rows:
-            if len(raw) != len(columns):
+            if len(raw) > len(columns):
                 raise IntegrityFailure(f"{name} row width is invalid")
-            output.append(dict(zip(columns, raw, strict=True)))
+            normalized = tuple(raw) + (None,) * (len(columns) - len(raw))
+            output.append(dict(zip(columns, normalized, strict=True)))
         return output
 
     def verify_candidate(
