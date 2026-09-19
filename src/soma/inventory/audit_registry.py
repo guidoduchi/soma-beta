@@ -17,6 +17,7 @@ _NEED_EVENTS = frozenset(
         "CANCEL",
         "REACTIVATE",
         "HISTORY_REMOVE",
+        "LOCAL_SELECTION",
     }
 )
 
