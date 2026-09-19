@@ -65,7 +65,7 @@ def _schema(path: Path) -> list[tuple[str, str, str]]:
 
 def test_sequence_eight_manifest_prefix_remains_exact_after_later_migrations(migration_directory) -> None:
     manifest = MigrationManifest.load(migration_directory)
-    assert [entry.sequence for entry in manifest.entries] == list(range(1, 10))
+    assert [entry.sequence for entry in manifest.entries[:8]] == list(range(1, 9))
     sequence_eight = manifest.entries[7]
     assert sequence_eight.migration_id == "beta_0008_durable_job_coalescing"
     assert sequence_eight.filename == "0008_durable_job_coalescing.sql"
@@ -110,8 +110,11 @@ def test_exact_prefix_seven_upgrade_matches_fresh_current_schema_and_preserves_l
     finally:
         connection.close()
 
-    assert _runner(upgraded, migration_directory, security_provider).initialize_or_migrate() == 9
-    assert _runner(fresh, migration_directory, security_provider).initialize_or_migrate() == 9
+    current_manifest = MigrationManifest.load(migration_directory)
+    current_sequence = current_manifest.entries[-1].sequence
+    current_migration_id = current_manifest.entries[-1].migration_id
+    assert _runner(upgraded, migration_directory, security_provider).initialize_or_migrate() == current_sequence
+    assert _runner(fresh, migration_directory, security_provider).initialize_or_migrate() == current_sequence
     assert _schema(upgraded) == _schema(fresh)
 
     connection = sqlite3.connect(upgraded)
@@ -128,14 +131,15 @@ def test_exact_prefix_seven_upgrade_matches_fresh_current_schema_and_preserves_l
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         assert connection.execute(
             "SELECT sequence,migration_id FROM schema_migrations ORDER BY sequence"
-        ).fetchall()[-1] == (9, "beta_0009_product_line_sla")
+        ).fetchall()[-1] == (current_sequence, current_migration_id)
     finally:
         connection.close()
 
 
 def test_sequence_eight_constraints_and_indexes_remain_exact_in_current_schema(tmp_path, migration_directory, security_provider) -> None:
     database = tmp_path / "constraints.db"
-    assert _runner(database, migration_directory, security_provider).initialize_or_migrate() == 9
+    current_sequence = MigrationManifest.load(migration_directory).entries[-1].sequence
+    assert _runner(database, migration_directory, security_provider).initialize_or_migrate() == current_sequence
     connection = sqlite3.connect(database)
     try:
         columns = [str(row[1]) for row in connection.execute("PRAGMA table_info(durable_jobs)")]
