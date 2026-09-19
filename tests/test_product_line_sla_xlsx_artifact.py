@@ -803,3 +803,112 @@ def test_f026_cancellation_wins_before_complete_and_published_bytes_stay_non_aut
     # The filesystem is outside SQLite authority. These already-published bytes
     # remain housekeeping only; they do not resurrect completed report evidence.
     assert final_path.is_file()
+
+
+
+def test_f033_recovered_exact_candidate_reconstruction_keeps_verifying_authority_unchanged(
+    initialized_database,
+    tmp_path,
+) -> None:
+    factory = _factory(initialized_database)
+    report_id, jobs, claim, artifact, attempt, checkpoint = _start_sealed_report(
+        factory,
+        tmp_path,
+    )
+    assert attempt.snapshot_hash is not None
+    snapshot_hash = attempt.snapshot_hash
+    worker = SlaReportWorkerService(factory)
+
+    generating = worker.mark_generating(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        expected_attempt_revision=attempt.revision,
+        snapshot_hash=snapshot_hash,
+    )
+    candidate = artifact.write_candidate(
+        report_attempt_id=report_id,
+        snapshot_hash=snapshot_hash,
+        destination_request_token=DESTINATION_TOKEN,
+    )
+    verify_command = new_uuid4()
+    verifying = worker.mark_verifying(
+        command_id=verify_command,
+        report_attempt_id=report_id,
+        expected_attempt_revision=int(generating["resulting_attempt_revision"]),
+        snapshot_hash=snapshot_hash,
+        candidate_filename=candidate,
+    )
+    verifying_revision = int(verifying["resulting_attempt_revision"])
+    jobs.checkpoint(
+        claim,
+        {
+            **checkpoint,
+            "phase": "verifying",
+            "attempt_revision": verifying_revision,
+            "pending_command": None,
+            "candidate_filename": candidate,
+        },
+    )
+    candidate_path = tmp_path / candidate
+    assert candidate_path.is_file()
+    candidate_path.unlink()
+
+    recovered = _recover_claim(jobs, claim)
+
+    rebuilt = artifact.recover_candidate(
+        report_attempt_id=report_id,
+        snapshot_hash=snapshot_hash,
+        destination_request_token=DESTINATION_TOKEN,
+        candidate_filename=candidate,
+    )
+    assert rebuilt == candidate
+    assert candidate_path.is_file()
+
+    with ReadSnapshot(factory) as snapshot:
+        unchanged = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert unchanged is not None
+        assert unchanged.state == "verifying"
+        assert unchanged.revision == verifying_revision
+        assert unchanged.snapshot_hash == snapshot_hash
+        assert unchanged.artifact_filename == candidate
+        assert unchanged.artifact_sha256 is None
+        assert unchanged.artifact_size_bytes is None
+        assert unchanged.verified_at_utc is None
+        assert unchanged.completed_at_utc is None
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (verify_command,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipt_results WHERE command_id=?",
+            (verify_command,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events "
+            "WHERE command_id=? AND action_type='sla.report.progressed'",
+            (verify_command,),
+        ).fetchone()[0] == 1
+
+    temp_candidates = sorted(
+        path.name
+        for path in tmp_path.iterdir()
+        if path.is_file() and path.name.startswith(".") and path.suffix == ".xlsx"
+    )
+    assert temp_candidates == [candidate]
+
+    assert (
+        SlaReportGenerationWorker(factory, artifact=artifact).run_to_completion(
+            recovered
+        )
+        == report_id
+    )
+    with ReadSnapshot(factory) as snapshot:
+        completed = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert completed is not None
+        assert completed.state == "completed"
+        assert completed.snapshot_hash == snapshot_hash
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events "
+            "WHERE command_id=? AND action_type='sla.report.progressed'",
+            (verify_command,),
+        ).fetchone()[0] == 1
