@@ -140,33 +140,6 @@ class InventoryNeedsStockService:
                 audits: list[AuditEventInput] = []
                 need_ref: str | None = None
 
-                audits.append(
-                    AuditEventInput(
-                        audit_event_id=new_uuid4(),
-                        action_type="inventory.device_part.registered",
-                        action_version=1,
-                        actor_kind=actor_kind,
-                        actor_id=actor_id,
-                        target_type="device_part_unit",
-                        target_id=device_part_unit_id,
-                        command_id=command_id,
-                        payload_schema="InventoryIdentityAuditV1",
-                        payload_version=1,
-                        payload={
-                            "entity_type": "device_part_unit",
-                            "entity_id": device_part_unit_id,
-                            "tracking_id": None,
-                            "origin": creation_origin,
-                            "resulting_revision": unit_revision,
-                            "bom_fingerprint": self._fingerprint(bom_key),
-                            "serial_fingerprint": self._fingerprint(serial_key),
-                        },
-                        resulting_event_refs=(
-                            AuditResultRef("device_part_unit", device_part_unit_id),
-                        ),
-                    )
-                )
-
                 if condition == "faulty":
                     active = self._repository.active_need_for(
                         inner.connection,
@@ -244,27 +217,36 @@ class InventoryNeedsStockService:
                             ),
                         )
                     )
-                # Bind Need identity into Device-Part audit results without duplicating authority.
+
+                identity_refs = [AuditResultRef("device_part_unit", device_part_unit_id)]
                 if need_ref is not None:
-                    first = audits[0]
-                    audits[0] = AuditEventInput(
-                        audit_event_id=first.audit_event_id,
-                        action_type=first.action_type,
-                        action_version=first.action_version,
-                        actor_kind=first.actor_kind,
-                        actor_id=first.actor_id,
-                        target_type=first.target_type,
-                        target_id=first.target_id,
-                        command_id=first.command_id,
-                        payload_schema=first.payload_schema,
-                        payload_version=first.payload_version,
-                        payload=first.payload,
-                        reason_category=first.reason_category,
-                        correlation_id=first.correlation_id,
-                        batch_id=first.batch_id,
-                        resulting_event_refs=first.resulting_event_refs
-                        + (AuditResultRef("spare_need", need_ref),),
-                    )
+                    identity_refs.append(AuditResultRef("spare_need", need_ref))
+                audits.insert(
+                    0,
+                    AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="inventory.device_part.registered",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="device_part_unit",
+                        target_id=device_part_unit_id,
+                        command_id=command_id,
+                        payload_schema="InventoryIdentityAuditV1",
+                        payload_version=1,
+                        payload={
+                            "entity_type": "device_part_unit",
+                            "entity_id": device_part_unit_id,
+                            "tracking_id": None,
+                            "origin": creation_origin,
+                            "resulting_revision": unit_revision,
+                            "bom_fingerprint": self._fingerprint(bom_key),
+                            "serial_fingerprint": self._fingerprint(serial_key),
+                        },
+                        resulting_event_refs=tuple(identity_refs),
+                    ),
+                )
+
                 apply.refs = refs
                 apply.revisions = revisions
                 return tuple(audits)

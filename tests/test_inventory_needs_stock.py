@@ -4,6 +4,7 @@ from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.inventory.queries.stock_needs import InventoryNeedsQueryService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
+from soma.reference.application.contact_service import ContactReferenceService
 from soma.tickets.device_references import DeviceReferenceService
 from soma.tickets.service_requests import ServiceRequestService
 
@@ -338,3 +339,103 @@ def test_register_device_part_replay_returns_original_identity_without_duplicate
             "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
             (command_id,),
         ).fetchone()[0] == 2
+
+
+
+def test_t005_history_remove_blocked_by_nonterminal_spare_request(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97000008")
+    dev = _device(factory, sr.service_request_id, "NE-T005")
+    service = InventoryNeedsStockService(factory)
+    created = service.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        device_reference_id=dev.device_reference_id,
+        bom_code="BOM-T005",
+        condition_token="faulty",
+    )
+    need_id = next(
+        ref.result_id for ref in created.target_refs if ref.result_type == "spare_need"
+    )
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="T005 Requester",
+    )
+
+    setup_command = new_uuid4()
+    request_id = new_uuid4()
+    allocation_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO command_receipts("
+            "command_id,command_type,request_hash,target_type,target_id,committed_at_utc,"
+            "result_type,result_id"
+            ") VALUES (?,?,?,?,?,?,?,?)",
+            (
+                setup_command,
+                "TestCreateSpareRequestDependency",
+                "b" * 64,
+                "spare_request",
+                request_id,
+                1,
+                None,
+                None,
+            ),
+        )
+        uow.connection.execute(
+            "INSERT INTO spare_requests("
+            "spare_request_id,tracking_sequence,tracking_id,service_request_id,"
+            "requester_contact_id,requester_context_json,creation_origin,created_at_utc,"
+            "created_command_id"
+            ") VALUES (?,?,?,?,?,'{}','soma_draft',1,?)",
+            (
+                request_id,
+                99999999,
+                "SPR-99999999",
+                sr.service_request_id,
+                contact.contact_id,
+                setup_command,
+            ),
+        )
+        uow.connection.execute(
+            "INSERT INTO spare_request_need_allocations("
+            "request_need_allocation_id,spare_request_id,spare_need_id,quantity,revision,"
+            "active_draft,created_command_id,last_command_id"
+            ") VALUES (?,?,?,1,1,1,?,?)",
+            (allocation_id, request_id, need_id, setup_command, setup_command),
+        )
+        uow.connection.execute(
+            "INSERT INTO spare_request_current_projection("
+            "spare_request_id,lifecycle_state,current_sr7,current_submission_snapshot_id,"
+            "submitted_quantity,authorized_rma_count,response_warning_start_utc,revision,"
+            "input_fingerprint,last_command_id"
+            ") VALUES (?,'draft',NULL,NULL,0,0,NULL,1,?,?)",
+            (request_id, "c" * 64, setup_command),
+        )
+
+    try:
+        service.change_spare_need_lifecycle(
+            command_id=new_uuid4(),
+            spare_need_id=need_id,
+            base_revision=1,
+            action="history_remove",
+            reason_code="operator requested removal",
+        )
+    except Exception as exc:
+        assert getattr(exc, "code", None) == "NEED_DELETE_BLOCKED"
+    else:
+        raise AssertionError("history_remove unexpectedly accepted a nonterminal request dependency")
+
+    with ReadSnapshot(factory) as snapshot:
+        projection = snapshot.connection.execute(
+            "SELECT lifecycle_state,revision FROM spare_need_current_projection "
+            "WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()
+        assert tuple(projection) == ("active", 1)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_need_active_keys WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()[0] == 1
