@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from soma.foundation.errors import SomaError
+import soma.product_line_sla.services.classification as classification_module
+from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.product_line_sla.algorithms.cohort_state import (
@@ -621,3 +622,318 @@ def test_f013_terminal_correction_is_isolated_by_cohort_read_snapshot(
     assert individual_after.calculation_state == "cancelled_excluded"
     assert after.members == ()
     assert after.cohorts == ()
+
+
+
+def test_f003_policy_revision_after_preview_blocks_stale_classification(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    customer, _product, _contract, cpl = _catalog_environment(factory, "F003")
+    classification = ProductLineSlaClassificationService(factory)
+    references = ServiceRequestReferenceService(factory, classification)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="98300003",
+    )
+    references.set_customer(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=1,
+        customer_org_id=customer.customer_org_id,
+        reason_category="f003_customer",
+    )
+    preview = classification.preview_manual(
+        service_request_id=sr.service_request_id,
+        contract_product_line_id=cpl.target_id,
+    )
+    assert preview.state == "eligible"
+
+    ProductLineSlaPolicyService(factory).revise_policy(
+        command_id=new_uuid4(),
+        contract_product_line_id=cpl.target_id,
+        base_revision=1,
+        policy_name="F003 Revised Policy",
+        template_source="NFV_DEFAULT_V1",
+        reason_category="f003_policy_race",
+    )
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as stale:
+        classification.classify_service_request(
+            command_id=command_id,
+            service_request_id=sr.service_request_id,
+            target_contract_product_line_id=cpl.target_id,
+            preview_fingerprint=preview.input_fingerprint,
+            origin="manual_review",
+            reason_category="f003_stale_preview",
+        )
+    assert stale.value.code == "SLA_CLASSIFICATION_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_classification_events WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_classification_current WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_f004_customer_change_after_preview_blocks_old_customer_cpl(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    customer_a, _product, _contract, cpl = _catalog_environment(factory, "F004-A")
+    customer_b = CustomerReferenceService(factory).create_customer_organization(
+        command_id=new_uuid4(),
+        name="Failure Customer F004-B",
+    )
+    classification = ProductLineSlaClassificationService(factory)
+    references = ServiceRequestReferenceService(factory, classification)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="98400004",
+    )
+    references.set_customer(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=1,
+        customer_org_id=customer_a.customer_org_id,
+        reason_category="f004_initial_customer",
+    )
+    preview = classification.preview_manual(
+        service_request_id=sr.service_request_id,
+        contract_product_line_id=cpl.target_id,
+    )
+    assert preview.state == "eligible"
+
+    changed = references.set_customer(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=2,
+        customer_org_id=customer_b.customer_org_id,
+        reason_category="f004_customer_race",
+    )
+    assert changed.revision == 3
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as blocked:
+        classification.classify_service_request(
+            command_id=command_id,
+            service_request_id=sr.service_request_id,
+            target_contract_product_line_id=cpl.target_id,
+            preview_fingerprint=preview.input_fingerprint,
+            origin="manual_review",
+            reason_category="f004_old_customer_attempt",
+        )
+    assert blocked.value.code in {
+        "SLA_CLASSIFICATION_STALE",
+        "SLA_CLASSIFICATION_CROSS_CUSTOMER",
+    }
+
+    with ReadSnapshot(factory) as snapshot:
+        active_customer = snapshot.connection.execute(
+            "SELECT customer_org_id FROM sr_customer_relationships "
+            "WHERE service_request_id=? AND relationship_state='active'",
+            (sr.service_request_id,),
+        ).fetchone()
+        assert active_customer is not None
+        assert str(active_customer[0]) == customer_b.customer_org_id
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_classification_events WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_classification_current WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_f007_real_customer_invalidation_rolls_back_when_caller_audit_fails(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    customer_a, cpl, sr = _classified_sr(factory, 7)
+    customer_b = CustomerReferenceService(factory).create_customer_organization(
+        command_id=new_uuid4(),
+        name="Failure Customer F007-B",
+    )
+    classification = ProductLineSlaClassificationService(factory)
+    references = ServiceRequestReferenceService(factory, classification)
+    command_id = new_uuid4()
+
+    def fail_caller_audit(*_args, **_kwargs):
+        raise RuntimeError("injected F007 caller audit failure")
+
+    monkeypatch.setattr(
+        references._boundary._audit_writer,
+        "write",
+        fail_caller_audit,
+    )
+
+    with pytest.raises(RuntimeError, match="injected F007"):
+        references.set_customer(
+            command_id=command_id,
+            service_request_id=sr.service_request_id,
+            base_revision=2,
+            customer_org_id=customer_b.customer_org_id,
+            reason_category="f007_customer_change",
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        sr_revision = snapshot.connection.execute(
+            "SELECT revision FROM service_requests WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()
+        assert tuple(sr_revision) == (2,)
+
+        active_customer = snapshot.connection.execute(
+            "SELECT customer_org_id FROM sr_customer_relationships "
+            "WHERE service_request_id=? AND relationship_state='active'",
+            (sr.service_request_id,),
+        ).fetchone()
+        assert active_customer is not None
+        assert str(active_customer[0]) == customer_a.customer_org_id
+
+        current = snapshot.connection.execute(
+            "SELECT contract_product_line_id,revision FROM sr_classification_current "
+            "WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()
+        assert tuple(current) == (cpl.target_id, 1)
+
+        events = snapshot.connection.execute(
+            "SELECT event_kind,new_contract_product_line_id "
+            "FROM sr_classification_events WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchall()
+        assert [tuple(row) for row in events] == [("assign", cpl.target_id)]
+
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_f030_indeterminate_source_and_dependency_fail_closed_before_mutation(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    customer, _product, _contract, cpl = _catalog_environment(factory, "F030")
+    classification = ProductLineSlaClassificationService(factory)
+    references = ServiceRequestReferenceService(factory, classification)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="98000030",
+    )
+    references.set_customer(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=1,
+        customer_org_id=customer.customer_org_id,
+        reason_category="f030_customer",
+    )
+    _apply_source(
+        factory,
+        sr.service_request_id,
+        _delta(
+            "customer_account_code",
+            value="F030-ACCOUNT",
+            chronology=100,
+        ),
+    )
+    mapping = classification.create_mapping(
+        command_id=new_uuid4(),
+        customer_org_id=customer.customer_org_id,
+        customer_account_code="F030-ACCOUNT",
+        contract_product_line_id=cpl.target_id,
+    )
+    preview = classification.preview_automatic(
+        service_request_id=sr.service_request_id,
+    )
+    assert preview.state == "eligible"
+    assert preview.mapping_id == mapping.target_id
+
+    def indeterminate_account_code(_value):
+        raise ValidationError("injected F030 source indeterminate")
+
+    monkeypatch.setattr(
+        classification_module,
+        "validate_account_code",
+        indeterminate_account_code,
+    )
+    source_command = new_uuid4()
+    with pytest.raises(SomaError) as source_failure:
+        classification.classify_service_request(
+            command_id=source_command,
+            service_request_id=sr.service_request_id,
+            target_contract_product_line_id=cpl.target_id,
+            preview_fingerprint=preview.input_fingerprint,
+            origin="automatic_mapping",
+            mapping_id=mapping.target_id,
+            reason_category="f030_source_indeterminate",
+        )
+    assert source_failure.value.code == "SLA_INPUT_INDETERMINATE"
+
+    monkeypatch.undo()
+
+    manual_preview = classification.preview_manual(
+        service_request_id=sr.service_request_id,
+        contract_product_line_id=cpl.target_id,
+    )
+    applied = classification.classify_service_request(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        target_contract_product_line_id=cpl.target_id,
+        preview_fingerprint=manual_preview.input_fingerprint,
+        origin="manual_review",
+        reason_category="f030_seed_classification",
+    )
+    assert applied.outcome == "APPLIED"
+
+    monkeypatch.setattr(
+        classification,
+        "_target",
+        lambda _reader, _target_id: None,
+    )
+    dependency_command = new_uuid4()
+    with pytest.raises(SomaError) as dependency_failure:
+        classification.clear_service_request_classification(
+            command_id=dependency_command,
+            service_request_id=sr.service_request_id,
+            classification_revision=1,
+            reason_category="f030_dependency_indeterminate",
+        )
+    assert dependency_failure.value.code == "SLA_DEPENDENCY_INDETERMINATE"
+
+    with ReadSnapshot(factory) as snapshot:
+        current = snapshot.connection.execute(
+            "SELECT contract_product_line_id,revision FROM sr_classification_current "
+            "WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()
+        assert tuple(current) == (cpl.target_id, 1)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_classification_events WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id IN (?,?)",
+            (source_command, dependency_command),
+        ).fetchone()[0] == 0

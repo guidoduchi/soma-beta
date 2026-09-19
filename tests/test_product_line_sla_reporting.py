@@ -958,3 +958,63 @@ def test_f025_partial_failure_cleanup_rolls_back_every_delete_and_terminalizatio
             "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
             (fail_command,),
         ).fetchone()[0] == 0
+
+
+
+def test_f014_committed_staging_attempt_and_job_resume_when_worker_starts_later(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    month_start, _month_end = canonical_month_bounds(MONTH)
+    started = SlaReportOrchestrationService(factory).start_monthly(
+        command_id=new_uuid4(),
+        calendar_month=MONTH,
+        as_of_utc=month_start + 1,
+        customer_org_id=None,
+        destination_request_token="d" * 64,
+    )
+    report_id = str(started["report_attempt_id"])
+
+    with ReadSnapshot(factory) as snapshot:
+        attempt = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert attempt is not None
+        assert attempt.state == "staging"
+        assert attempt.revision == 1
+        assert attempt.snapshot_hash is None
+        assert attempt.completed_at_utc is None
+        assert ReportRepository.counts(snapshot.connection, report_id) == (0, 0, 0, 0)
+        job = snapshot.connection.execute(
+            "SELECT j.job_id,j.state,j.checkpoint_json "
+            "FROM sla_report_job_refs r JOIN durable_jobs j ON j.job_id=r.job_id "
+            "WHERE r.report_attempt_id=?",
+            (report_id,),
+        ).fetchone()
+        assert job is not None
+        job_id = str(job[0])
+        assert str(job[1]) == "queued"
+        assert job[2] is None
+
+    jobs = DurableJobCoordinator(
+        factory,
+        JobTypeRegistry(PRODUCT_LINE_SLA_JOB_CONTRACTS),
+    )
+    claim = jobs.claim_next(new_uuid4(), utc_epoch_seconds())
+    assert claim is not None
+    assert claim.job_id == job_id
+
+    sealed_report_id = SlaReportGenerationWorker(factory).snapshot_and_seal(claim)
+    assert sealed_report_id == report_id
+
+    with ReadSnapshot(factory) as snapshot:
+        sealed = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert sealed is not None
+        assert sealed.state == "ready_to_generate"
+        assert sealed.snapshot_hash is not None
+        assert sealed.completed_at_utc is None
+        assert sealed.artifact_sha256 is None
+        job = snapshot.connection.execute(
+            "SELECT state,checkpoint_json FROM durable_jobs WHERE job_id=?",
+            (job_id,),
+        ).fetchone()
+        assert str(job[0]) == "running"
+        assert '"phase":"sealed"' in str(job[1])

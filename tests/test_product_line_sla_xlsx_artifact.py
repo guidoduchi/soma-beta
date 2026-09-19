@@ -664,3 +664,142 @@ def test_f028_missing_external_artifact_does_not_mutate_completed_database_evide
             (claim.job_id,),
         ).fetchone()
         assert tuple(job) == ("completed",)
+
+
+
+def test_f020_recovery_from_exact_sealed_checkpoint_regenerates_without_live_requery(
+    initialized_database,
+    tmp_path,
+) -> None:
+    factory = _factory(initialized_database)
+    report_id, jobs, claim, artifact, attempt, _checkpoint = _start_sealed_report(
+        factory,
+        tmp_path,
+    )
+    assert attempt.state == "ready_to_generate"
+    assert attempt.snapshot_hash is not None
+    sealed_hash = attempt.snapshot_hash
+
+    recovered = _recover_claim(jobs, claim)
+    assert (
+        SlaReportGenerationWorker(factory, artifact=artifact).run_to_completion(
+            recovered
+        )
+        == report_id
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        completed = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert completed is not None
+        assert completed.state == "completed"
+        assert completed.snapshot_hash == sealed_hash
+        assert completed.artifact_filename is not None
+        assert (tmp_path / completed.artifact_filename).is_file()
+        job = snapshot.connection.execute(
+            "SELECT state FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("completed",)
+
+
+def test_f026_cancellation_wins_before_complete_and_published_bytes_stay_non_authoritative(
+    initialized_database,
+    tmp_path,
+) -> None:
+    factory = _factory(initialized_database)
+    report_id, jobs, claim, artifact, attempt, checkpoint = _start_sealed_report(
+        factory,
+        tmp_path,
+    )
+    assert attempt.snapshot_hash is not None
+    snapshot_hash = attempt.snapshot_hash
+    worker = SlaReportWorkerService(factory)
+
+    generating = worker.mark_generating(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        expected_attempt_revision=attempt.revision,
+        snapshot_hash=snapshot_hash,
+    )
+    candidate = artifact.write_candidate(
+        report_attempt_id=report_id,
+        snapshot_hash=snapshot_hash,
+        destination_request_token=DESTINATION_TOKEN,
+    )
+    verifying = worker.mark_verifying(
+        command_id=new_uuid4(),
+        report_attempt_id=report_id,
+        expected_attempt_revision=int(generating["resulting_attempt_revision"]),
+        snapshot_hash=snapshot_hash,
+        candidate_filename=candidate,
+    )
+    jobs.checkpoint(
+        claim,
+        {
+            **checkpoint,
+            "phase": "verifying",
+            "attempt_revision": int(verifying["resulting_attempt_revision"]),
+            "pending_command": None,
+            "candidate_filename": candidate,
+        },
+    )
+    verification = artifact.verify_candidate(
+        report_attempt_id=report_id,
+        snapshot_hash=snapshot_hash,
+        destination_request_token=DESTINATION_TOKEN,
+        candidate_filename=candidate,
+    )
+
+    # Model bytes physically landing while SQLite completion has not committed.
+    proof = artifact.publish_verified(
+        verification=verification,
+        destination_request_token=DESTINATION_TOKEN,
+    )
+    final_path = tmp_path / str(proof["artifact_filename"])
+    assert final_path.is_file()
+    assert not (tmp_path / candidate).exists()
+
+    cancel_command = new_uuid4()
+    cancelled = SlaReportOrchestrationService(factory).cancel(
+        command_id=cancel_command,
+        report_attempt_id=report_id,
+        expected_attempt_revision=int(verifying["resulting_attempt_revision"]),
+    )
+    assert cancelled["state"] == "cancelled"
+    assert cancelled["snapshot_hash"] is None
+    assert cancelled["artifact_filename"] is None
+
+    complete_command = new_uuid4()
+    with pytest.raises(SomaError) as completion_lost:
+        worker.complete(
+            command_id=complete_command,
+            report_attempt_id=report_id,
+            expected_attempt_revision=int(verifying["resulting_attempt_revision"]),
+            snapshot_hash=snapshot_hash,
+            artifact_completion=proof,
+        )
+    assert completion_lost.value.code == "SLA_REPORT_ATTEMPT_STATE"
+
+    with ReadSnapshot(factory) as snapshot:
+        final = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert final is not None
+        assert final.state == "cancelled"
+        assert final.snapshot_hash is None
+        assert final.artifact_filename is None
+        assert final.artifact_sha256 is None
+        assert final.completed_at_utc is not None
+        assert ReportRepository.counts(snapshot.connection, report_id) == (0, 0, 0, 0)
+        job = snapshot.connection.execute(
+            "SELECT state,claimed_run_id,claim_started_at_utc FROM durable_jobs "
+            "WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("cancelled", None, None)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (complete_command,),
+        ).fetchone()[0] == 0
+
+    # The filesystem is outside SQLite authority. These already-published bytes
+    # remain housekeeping only; they do not resurrect completed report evidence.
+    assert final_path.is_file()
