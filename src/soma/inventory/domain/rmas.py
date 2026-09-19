@@ -7,7 +7,7 @@ from soma.foundation.errors import ValidationError
 
 from .needs import normalize_part_code
 
-_C10 = re.compile(r"C[0-9]{10}\\Z")
+_C10 = re.compile(r"C[0-9]{10}\Z")
 _MAX_BATCH = 2000
 
 
