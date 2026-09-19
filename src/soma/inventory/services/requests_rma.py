@@ -24,7 +24,17 @@ from ..domain.requests import (
     validate_request_origin,
 )
 from ..repositories.requests import InventoryRequestsRepository
+from ..repositories.rmas import InventoryRmasRepository
 from ..domain.needs import validate_reason_code
+from ..domain.rmas import (
+    RmaAuthorizationIntent,
+    normalize_c10,
+    validate_authorization_intents,
+)
+from ..contracts.inventory import (
+    InventoryMutationResult,
+    inventory_mutation_result_from_execution,
+)
 
 
 def _requester_context(
@@ -52,6 +62,7 @@ class InventoryRequestsRmaService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
         self._repository = InventoryRequestsRepository()
+        self._rmas = InventoryRmasRepository()
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_inventory_audit_registry()),
@@ -864,6 +875,374 @@ class InventoryRequestsRmaService:
         if not isinstance(execution.response, dict):
             raise IntegrityFailure("Spare Request response is not an object")
         return dict(execution.response)
+
+
+    @staticmethod
+    def _inventory_result_response(
+        refs: list[tuple[str, str]],
+        revisions: dict[str, int],
+        *,
+        outcome: str = "APPLIED",
+    ) -> dict[str, object]:
+        return {
+            "outcome": outcome,
+            "target_refs": [{"type": kind, "id": identity} for kind, identity in refs],
+            "revisions": dict(revisions),
+        }
+
+    def accept_rma_authorization_batch(
+        self,
+        *,
+        command_id: str,
+        spare_request_id: str,
+        expected_request_revision: int,
+        rows: tuple[RmaAuthorizationIntent, ...],
+        accepted_at_utc: int,
+        evidence_kind: str | None = None,
+        evidence_id: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        request_id = require_uuid4(spare_request_id)
+        revision = validate_positive_revision(expected_request_revision, "expected_request_revision")
+        normalized_rows = validate_authorization_intents(rows)
+        if type(accepted_at_utc) is not int or accepted_at_utc < 0:
+            raise ValidationError("accepted_at_utc must be a non-negative integer")
+        if evidence_kind is None:
+            if evidence_id is not None:
+                raise ValidationError("evidence_id requires evidence_kind")
+        elif evidence_kind not in {"manual", "indexed_response"}:
+            raise ValidationError("RMA authorization evidence kind is invalid")
+        if evidence_kind == "indexed_response" and (
+            not isinstance(evidence_id, str) or not evidence_id.strip()
+        ):
+            raise ValidationError("indexed response evidence requires evidence_id")
+        normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="AcceptRmaAuthorizationBatch",
+            target_type="spare_request",
+            target_id=request_id,
+            semantic_payload={
+                "rows": [
+                    {"c10": c10, "promised_bom_code": bom, "promised_bom_key": key}
+                    for c10, bom, key in normalized_rows
+                ],
+                "accepted_at_utc": accepted_at_utc,
+                "evidence_kind": evidence_kind,
+                "evidence_id": normalized_evidence_id,
+            },
+            base_revisions={"spare_request": revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            self._rmas.require_batch_eligible(
+                uow.connection,
+                spare_request_id=request_id,
+                expected_request_revision=revision,
+                rows=normalized_rows,
+            )
+
+            def apply(inner: UnitOfWork):
+                batch_id, created, resulting_revision, remaining = (
+                    self._rmas.accept_authorization_batch(
+                        inner.connection,
+                        spare_request_id=request_id,
+                        expected_request_revision=revision,
+                        rows=normalized_rows,
+                        accepted_at_utc=accepted_at_utc,
+                        evidence_kind=evidence_kind,
+                        evidence_id=normalized_evidence_id,
+                        command_id=command_id,
+                    )
+                )
+                apply.batch_id = batch_id
+                apply.created = created
+                apply.request_revision = resulting_revision
+                apply.remaining = remaining
+                audits: list[AuditEventInput] = []
+                for item in created:
+                    refs = [AuditResultRef("rma", str(item["rma_id"]))]
+                    if item["assignment_event_id"] is not None:
+                        refs.append(
+                            AuditResultRef("rma_assignment", str(item["assignment_event_id"]))
+                        )
+                    audits.append(
+                        AuditEventInput(
+                            audit_event_id=new_uuid4(),
+                            action_type="inventory.rma.authorized_or_assigned",
+                            action_version=1,
+                            actor_kind=actor_kind,
+                            actor_id=actor_id,
+                            target_type="rma",
+                            target_id=str(item["rma_id"]),
+                            command_id=command_id,
+                            payload_schema="RmaAuditV1",
+                            payload_version=1,
+                            payload={
+                                "spare_request_id": request_id,
+                                "authorization_batch_id": batch_id,
+                                "rma_id": str(item["rma_id"]),
+                                "event_kind": "AUTHORIZE",
+                                "current_c10": str(item["current_c10"]),
+                                "target_device_part_unit_id": item[
+                                    "target_device_part_unit_id"
+                                ],
+                                "resulting_revision": int(item["revision"]),
+                            },
+                            resulting_event_refs=tuple(refs),
+                        )
+                    )
+                return tuple(audits)
+
+            apply.batch_id = ""
+            apply.created = ()
+            apply.request_revision = revision + 1
+            apply.remaining = 0
+            return PreparedMutation(
+                no_change=False,
+                result_type="spare_request",
+                result_id=request_id,
+                apply=apply,
+                response_schema="RmaBatchResultV1",
+                response_factory=lambda _inner: {
+                    "spare_request_id": request_id,
+                    "created_rmas": [
+                        {
+                            "rma_id": str(item["rma_id"]),
+                            "current_c10": str(item["current_c10"]),
+                            "state": str(item["state"]),
+                            "promised_bom": str(item["promised_bom"]),
+                            "direct_inbound_unit_id": item["direct_inbound_unit_id"],
+                        }
+                        for item in apply.created
+                    ],
+                    "remaining_unassigned_quantity": apply.remaining,
+                },
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("RMA batch response is not an object")
+        return dict(execution.response)
+
+    def correct_rma_official_id(
+        self,
+        *,
+        command_id: str,
+        rma_id: str,
+        current_c10: str,
+        new_c10: str,
+        reason_code: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        identity = require_uuid4(rma_id)
+        current = normalize_c10(current_c10)
+        replacement = normalize_c10(new_c10)
+        reason = validate_reason_code(reason_code)
+        if current == replacement:
+            raise ValidationError("RMA C10 correction requires a different identifier")
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CorrectRmaOfficialId",
+            target_type="rma",
+            target_id=identity,
+            semantic_payload={
+                "current_c10": current,
+                "new_c10": replacement,
+                "reason_code": reason,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            row = self._rmas.current_rma(uow.connection, identity)
+            if row is None or str(row[5]) != current:
+                raise SomaError("INV_STALE", "RMA current C10 changed")
+            if self._rmas.c10_owner(uow.connection, replacement) is not None:
+                raise SomaError("C10_CONFLICT", "C10 is already current or former authority")
+            request_id = str(row[1])
+
+            def apply(inner: UnitOfWork):
+                event_id, resulting_revision = self._rmas.correct_c10(
+                    inner.connection,
+                    rma_id=identity,
+                    current_c10=current,
+                    new_c10=replacement,
+                    reason_code=reason,
+                    command_id=command_id,
+                )
+                apply.event_id = event_id
+                apply.revision = resulting_revision
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.rma.authorized_or_assigned",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="rma",
+                    target_id=identity,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="RmaAuditV1",
+                    payload_version=1,
+                    payload={
+                        "spare_request_id": request_id,
+                        "authorization_batch_id": None,
+                        "rma_id": identity,
+                        "event_kind": "C10_CORRECT",
+                        "current_c10": replacement,
+                        "target_device_part_unit_id": (
+                            None if row[7] is None else str(row[7])
+                        ),
+                        "resulting_revision": resulting_revision,
+                    },
+                    resulting_event_refs=(AuditResultRef("rma", identity),),
+                )
+
+            apply.event_id = ""
+            apply.revision = int(row[9]) + 1
+            return PreparedMutation(
+                no_change=False,
+                result_type="rma",
+                result_id=identity,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: self._inventory_result_response(
+                    [("rma", identity)],
+                    {f"rma:{identity}": apply.revision},
+                ),
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
+
+    def set_rma_target_assignment(
+        self,
+        *,
+        command_id: str,
+        rma_id: str,
+        expected_assignment_revision: int | None,
+        new_target_device_part_unit_id: str | None,
+        reason_code: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        identity = require_uuid4(rma_id)
+        if expected_assignment_revision is not None:
+            validate_positive_revision(
+                expected_assignment_revision, "expected_assignment_revision"
+            )
+        target_id = (
+            None
+            if new_target_device_part_unit_id is None
+            else require_uuid4(new_target_device_part_unit_id)
+        )
+        reason = validate_reason_code(reason_code)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="SetRmaTargetAssignment",
+            target_type="rma",
+            target_id=identity,
+            semantic_payload={
+                "expected_assignment_revision": expected_assignment_revision,
+                "new_target_device_part_unit_id": target_id,
+                "reason_code": reason,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            row = self._rmas.current_rma(uow.connection, identity)
+            if row is None:
+                raise SomaError("INV_STALE", "RMA no longer exists")
+            current_assignment = uow.connection.execute(
+                "SELECT device_part_unit_id,revision FROM rma_current_assignment WHERE rma_id=?",
+                (identity,),
+            ).fetchone()
+            if expected_assignment_revision is None:
+                if current_assignment is not None:
+                    raise SomaError("INV_STALE", "RMA assignment appeared")
+            elif current_assignment is None or int(current_assignment[1]) != expected_assignment_revision:
+                raise SomaError("INV_STALE", "RMA assignment revision changed")
+            current_target = (
+                None if current_assignment is None else str(current_assignment[0])
+            )
+            if current_target == target_id:
+                return PreparedMutation(
+                    no_change=True,
+                    result_type=None,
+                    result_id=None,
+                    response_schema="InventoryMutationResultV1",
+                    response=self._inventory_result_response([], {}, outcome="NO_CHANGE"),
+                )
+            request_id = str(row[1])
+            current_c10_value = str(row[5])
+
+            def apply(inner: UnitOfWork):
+                event_id, lifecycle_revision, assignment_revision = (
+                    self._rmas.set_target_assignment(
+                        inner.connection,
+                        rma_id=identity,
+                        expected_assignment_revision=expected_assignment_revision,
+                        new_target_device_part_unit_id=target_id,
+                        reason_code=reason,
+                        command_id=command_id,
+                    )
+                )
+                apply.event_id = event_id
+                apply.lifecycle_revision = lifecycle_revision
+                apply.assignment_revision = assignment_revision
+                event_kind = (
+                    "CLEAR"
+                    if target_id is None
+                    else ("ASSIGN" if current_target is None else "REASSIGN")
+                )
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.rma.authorized_or_assigned",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="rma",
+                    target_id=identity,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="RmaAuditV1",
+                    payload_version=1,
+                    payload={
+                        "spare_request_id": request_id,
+                        "authorization_batch_id": None,
+                        "rma_id": identity,
+                        "event_kind": event_kind,
+                        "current_c10": current_c10_value,
+                        "target_device_part_unit_id": target_id,
+                        "resulting_revision": lifecycle_revision,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("rma", identity),
+                        AuditResultRef("rma_assignment", event_id),
+                    ),
+                )
+
+            apply.event_id = ""
+            apply.lifecycle_revision = int(row[9]) + 1
+            apply.assignment_revision = None
+            return PreparedMutation(
+                no_change=False,
+                result_type="rma",
+                result_id=identity,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: self._inventory_result_response(
+                    [("rma", identity), ("rma_assignment", apply.event_id)],
+                    {f"rma:{identity}": apply.lifecycle_revision},
+                ),
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
 
 
 __all__ = ["InventoryRequestsRmaService"]
