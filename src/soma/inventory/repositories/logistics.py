@@ -302,6 +302,7 @@ class InventoryLogisticsRepository:
         cls,
         connection: Any,
         *,
+        logistics_event_id: str,
         event_kind: str,
         effective_at_utc: int | None,
         dispatch_location_id: str | None,
@@ -327,7 +328,7 @@ class InventoryLogisticsRepository:
             receiver_contact_id=receiver_contact_id,
         )
         now = utc_epoch_seconds()
-        event_id = new_uuid4()
+        event_id = logistics_event_id
         connection.execute(
             "INSERT INTO actual_logistics_events("
             "logistics_event_id,event_kind,effective_at_utc,dispatch_location_id,"

@@ -302,6 +302,7 @@ class InventoryConsequencesLogisticsService:
             def apply(inner: UnitOfWork):
                 actual_event_id, inserted = self._repository.record_actual_logistics_event(
                     inner.connection,
+                    logistics_event_id=event_id,
                     event_kind=kind,
                     effective_at_utc=effective,
                     dispatch_location_id=dispatch_id,
