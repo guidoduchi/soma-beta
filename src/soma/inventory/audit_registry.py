@@ -107,23 +107,38 @@ def _validate_spare_unit(payload: dict[str, object]) -> None:
 
 
 _SPR = re.compile(r"SPR-[0-9]{8}\Z")
+_SR7 = re.compile(r"SR[0-9]{7}\Z")
+_SPARE_REQUEST_EVENTS = frozenset({"CREATE", "DRAFT_UPDATE", "TERMINAL"})
 
 
-def _validate_spare_request_draft(payload: dict[str, object]) -> None:
+def _validate_spare_request(payload: dict[str, object]) -> None:
     _uuid(payload.get("spare_request_id"), "spare_request_id")
-    _uuid(payload.get("service_request_id"), "service_request_id")
     _uuid(payload.get("requester_contact_id"), "requester_contact_id")
     tracking_id = payload.get("tracking_id")
     if not isinstance(tracking_id, str) or _SPR.fullmatch(tracking_id) is None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "tracking_id is invalid")
-    if payload.get("event_kind") != "CREATE_DRAFT":
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request draft event is invalid")
-    if payload.get("mode") not in {"delivery", "self_pickup"}:
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request logistics mode is invalid")
+    if payload.get("event_kind") not in _SPARE_REQUEST_EVENTS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request event kind is invalid")
     _positive(payload.get("allocation_count"), "allocation_count")
     _positive(payload.get("resulting_revision"), "resulting_revision")
     _fingerprint(payload.get("requester_context_fingerprint"), "requester_context_fingerprint")
+    _reason(payload.get("reason_category"))
 
+
+def _validate_spare_request_identity(payload: dict[str, object]) -> None:
+    _uuid(payload.get("spare_request_id"), "spare_request_id")
+    if payload.get("event_kind") not in {"ASSIGN", "CORRECT"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request identity event is invalid")
+    current = payload.get("current_sr7")
+    former = payload.get("former_sr7")
+    if not isinstance(current, str) or _SR7.fullmatch(current) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "current_sr7 is invalid")
+    if former is not None and (
+        not isinstance(former, str) or _SR7.fullmatch(former) is None
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "former_sr7 is invalid")
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+    _reason(payload.get("reason_category"))
 
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
@@ -222,18 +237,39 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 frozenset(
                     {
                         "spare_request_id",
-                        "service_request_id",
-                        "requester_contact_id",
                         "tracking_id",
                         "event_kind",
-                        "mode",
-                        "allocation_count",
-                        "resulting_revision",
+                        "requester_contact_id",
                         "requester_context_fingerprint",
+                        "resulting_revision",
+                        "allocation_count",
+                        "reason_category",
                     }
                 ),
             ),
-            sensitivity_validator=_validate_spare_request_draft,
+            sensitivity_validator=_validate_spare_request,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.spare_request.official_id_changed",
+            action_version=1,
+            payload_schema="SpareRequestIdentityAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "SpareRequestIdentityAuditV1",
+                frozenset(
+                    {
+                        "spare_request_id",
+                        "event_kind",
+                        "current_sr7",
+                        "former_sr7",
+                        "resulting_revision",
+                        "reason_category",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_spare_request_identity,
         )
     )
     return registry

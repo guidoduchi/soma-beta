@@ -237,3 +237,177 @@ def test_t015_cross_sr_spare_request_draft_fails_before_identity_allocation(
             "WHERE allocator_kind='spare_request'"
         ).fetchone()
         assert tuple(allocator) == (1, 1)
+
+
+def test_spare_request_draft_update_replaces_editable_intent_without_touching_requester(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97100004")
+    need_a = _need(factory, sr_id=sr.service_request_id, device_name="REQ-UP-A", bom="REQ-UP-A")
+    need_b = _need(factory, sr_id=sr.service_request_id, device_name="REQ-UP-B", bom="REQ-UP-B")
+    contacts = ContactReferenceService(factory)
+    requester = contacts.create_contact(command_id=new_uuid4(), name="Draft Requester")
+    receiver = contacts.create_contact(command_id=new_uuid4(), name="Draft Receiver")
+    location_a = _dispatch_location(factory, "UP-A")
+    location_b = _dispatch_location(factory, "UP-B")
+    service = InventoryRequestsRmaService(factory)
+
+    created = service.create_spare_request_draft(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        requester_contact_id=requester.contact_id,
+        allocations=(SpareRequestAllocationIntent(need_a, 1),),
+        mode="delivery",
+        receiver_contact_id=receiver.contact_id,
+        dispatch_location_id=location_a,
+    )
+    request_id = str(created["spare_request_id"])
+    updated = service.update_spare_request_draft(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        allocations=(SpareRequestAllocationIntent(need_b, 3),),
+        mode="self_pickup",
+        receiver_contact_id=receiver.contact_id,
+        dispatch_location_id=location_b,
+    )
+    assert updated["revision"] == 2
+    assert updated["requester"] == created["requester"]
+
+    with ReadSnapshot(factory) as snapshot:
+        active = snapshot.connection.execute(
+            "SELECT spare_need_id,quantity FROM spare_request_need_allocations "
+            "WHERE spare_request_id=? AND active_draft=1",
+            (request_id,),
+        ).fetchall()
+        assert [(str(row[0]), int(row[1])) for row in active] == [(need_b, 3)]
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_need_allocations "
+            "WHERE spare_request_id=? AND active_draft=0",
+            (request_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_submission_snapshots WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()[0] == 0
+
+
+def test_t021_t022_t023_sr7_assignment_correction_and_global_non_reuse(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97100005")
+    need = _need(factory, sr_id=sr.service_request_id, device_name="REQ-SR7", bom="REQ-SR7")
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="SR7 Requester",
+    )
+    location_id = _dispatch_location(factory, "SR7")
+    service = InventoryRequestsRmaService(factory)
+    first = service.create_spare_request_draft(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        requester_contact_id=contact.contact_id,
+        allocations=(SpareRequestAllocationIntent(need, 1),),
+        mode="delivery",
+        receiver_contact_id=contact.contact_id,
+        dispatch_location_id=location_id,
+    )
+    request_id = str(first["spare_request_id"])
+
+    assigned = service.assign_or_correct_spare_request_official_id(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        sr7="SR0000001",
+        action="assign",
+    )
+    assert assigned["official_sr7"] == "SR0000001"
+    assert assigned["revision"] == 2
+
+    corrected = service.assign_or_correct_spare_request_official_id(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=2,
+        sr7="SR0000002",
+        action="correct",
+        reason_code="provider corrected identifier",
+    )
+    assert corrected["official_sr7"] == "SR0000002"
+    assert corrected["revision"] == 3
+
+    second = service.create_spare_request_draft(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        requester_contact_id=contact.contact_id,
+        allocations=(SpareRequestAllocationIntent(need, 1),),
+        mode="delivery",
+        receiver_contact_id=contact.contact_id,
+        dispatch_location_id=location_id,
+    )
+    with pytest.raises(SomaError) as excinfo:
+        service.assign_or_correct_spare_request_official_id(
+            command_id=new_uuid4(),
+            spare_request_id=str(second["spare_request_id"]),
+            base_revision=1,
+            sr7="SR0000001",
+            action="assign",
+        )
+    assert excinfo.value.code == "SR7_CONFLICT"
+
+    with ReadSnapshot(factory) as snapshot:
+        aliases = snapshot.connection.execute(
+            "SELECT sr7,alias_kind FROM spare_request_identifier_aliases "
+            "WHERE spare_request_id=? ORDER BY sr7",
+            (request_id,),
+        ).fetchall()
+        assert [tuple(row) for row in aliases] == [
+            ("SR0000001", "former"),
+            ("SR0000002", "current"),
+        ]
+
+
+def test_terminal_request_preserves_history_and_unblocks_nonterminal_semantics(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97100006")
+    need = _need(factory, sr_id=sr.service_request_id, device_name="REQ-TERM", bom="REQ-TERM")
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Terminal Requester",
+    )
+    location_id = _dispatch_location(factory, "TERM")
+    service = InventoryRequestsRmaService(factory)
+    created = service.create_spare_request_draft(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        requester_contact_id=contact.contact_id,
+        allocations=(SpareRequestAllocationIntent(need, 1),),
+        mode="delivery",
+        receiver_contact_id=contact.contact_id,
+        dispatch_location_id=location_id,
+    )
+    request_id = str(created["spare_request_id"])
+    terminal = service.cancel_or_reject_spare_request(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        action="cancelled",
+        reason_code="request withdrawn",
+    )
+    assert terminal["state"] == "terminal"
+    assert terminal["requester"] == created["requester"]
+    assert terminal["revision"] == 2
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT lifecycle_state FROM spare_request_current_projection "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()[0] == "cancelled"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_lifecycle_events "
+            "WHERE spare_request_id=? AND event_kind='cancelled'",
+            (request_id,),
+        ).fetchone()[0] == 1
