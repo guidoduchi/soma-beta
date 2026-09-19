@@ -1,36 +1,250 @@
 {
-  "schema":"SOMA-LLD-INTERFACES-V1",
-  "lld_id":"LLD-05",
-  "python_interfaces":[
-    {"name":"TaskRepository","methods":["get(reader,task_id)","insert(uow,task)","update_revision(uow,task_id,base_revision)","list(snapshot,filter,cursor,limit)"],"rule":"Task UUID/task_kind are immutable; repositories never commit internally"},
-    {"name":"WfmTaskRepository","methods":["get_by_task_no(reader,task_no)","task_no_status(reader,task_no) -> ACTIVE|RETIRED|ABSENT","get_identity(reader,task_id)","insert_identity(uow,task_id,task_no,rfc_id,origin)","retire_task_no(uow,retirement_id,task_id,task_no,hard_delete_command_id,retired_at_utc)","reassign_rfc(uow,task_id,new_rfc_id,base_revision,event)","current_source_projection(reader,task_id)","replace_rebuildable_source_projection(uow,task_id,accepted_projection,base_revision)"],"rule":"Task No. is canonical attempt identity; one current owning RFC has append-only reassignment history; source projection is rebuildable from LLD-04; RETIRED Task Nos are permanent nonreuse authority"},
-    {"name":"TaskPlanRepository","methods":["current(reader,task_id)","get_revision(reader,plan_revision_id)","append_revision(uow,revision)","set_current(uow,task_id,plan_revision_id,base_revision)","history(snapshot,task_id,cursor,limit)"],"rule":"plan revisions are immutable; current plan points to a newly accepted revision; Objective membership pins an exact accepted plan revision and never silently advances"},
-    {"name":"TaskExecutionRepository","methods":["projection(reader,task_id) -> persisted projection|null","freshness(reader,task_id) -> {execution_revision,execution_state,projection|null}","append_event(uow,event)","replace_projection(uow,task_id,projection,base_revision)","history(snapshot,task_id,cursor,limit)"],"rule":"execution evidence is append-only and current projection rebuildable. Exact no-history reads as execution_revision=0/not_started with no persisted projection/event. Any event requires a positive-revision projection, including corrected-to-not_started history; history/projection mismatch fails closed."},
-    {"name":"TaskOutcomeRepository","methods":["current(reader,task_id)","append_review_event(uow,event)","set_current(uow,task_id,event_id,base_revision)","history(snapshot,task_id,cursor,limit)"],"rule":"accepted outcomes are completed|incomplete|cancelled_without_execution; first event is genesis and every material correction points to the exact current tip; current revision equals the owned linear event count/chain length and current pointer is that tip; exact absence requires no current row and no owned history; projection/history mismatch fails closed; Awaiting Review is derived, not accepted outcome"},
-    {"name":"TaskRelationshipRepository","methods":["list_sr_links(reader,task_id,cursor,limit)","list_rfc_links(reader,task_id,cursor,limit)","list_device_links(reader,task_id,cursor,limit)","link(uow,relationship)","close(uow,relationship_id,close_context)"],"rule":"direct SR/RFC links are Local-only; Device Reference links may belong to Local/WFM; history is preserved and targets are LLD-03 identities, never Network Element IDs"},
-    {"name":"TaskRetryRepository","methods":["predecessor(reader,task_id)","successor(reader,task_id)","insert(uow,relation)","lineage(snapshot,task_id,cursor,limit)"],"rule":"every retry has one immediate predecessor; one attempt has at most one direct successor; retry identity is never reused"},
-    {"name":"TaskActivityLineageRepository","methods":["current(reader,task_id)","append_assignment(uow,event)","list_members(snapshot,lineage_id,cursor,limit)"],"rule":"reviewed activity lineage supports competing-WFM detection; missing lineage never authorizes collapsing distinct Task Nos"},
-    {"name":"ObjectiveRepository","methods":["get(reader,objective_id)","get_by_tracking_id(reader,tracking_id)","allocate_tracking_id(uow) -> MW-########","insert(uow,objective)","set_superseded(uow,objective_id,survivor_id,base_revision)","set_archive_projection(uow,objective_id,state,base_revision)","list(snapshot,filter,cursor,limit)"],"rule":"objective_id/MW identity never change; supersession/archive preserve row/history"},
-    {"name":"ObjectiveMembershipRepository","methods":["current_for_task(reader,task_id)","list_current_members(reader,objective_id,cursor,limit)","count_current_members(reader,objective_id)","append_event(uow,event)","replace_current(uow,task_id,objective_id,accepted_plan_revision_id,base_membership_revision)","remove_current(uow,task_id,base_membership_revision)"],"rule":"one Task has at most one current Objective; membership pins the exact reviewed Task-plan revision and history preserves prior Objective/plan context"},
-    {"name":"ObjectiveProjectionRepository","methods":["envelope(reader,objective_id)","aggregate(reader,objective_id)","rebuild_affected(uow,objective_ids)","find_envelope_overlaps(uow,start_utc,end_utc,exclude_objective_ids)"],"rule":"envelope/aggregate are transactional rebuildable projections; overlap uses indexed start < candidate_end AND end > candidate_start"},
-    {"name":"GroupingProposalRepository","methods":["get(reader,proposal_id)","insert(uow,proposal,task_changes,objective_changes)","transition(uow,proposal_id,state,decision_event,base_revision)","list(snapshot,filter,cursor,limit)","find_equivalent_rejection(snapshot,input_fingerprint)"],"rule":"proposal membership is persisted row-wise, exact and revision-bound; rejection suppression uses exact material-input fingerprint"},
-    {"name":"HistoricalObjectiveProposalRepository","methods":["get(reader,proposal_id)","insert_or_supersede(uow,proposal)","transition(uow,proposal_id,state,base_revision)","list(snapshot,filter,cursor,limit)"],"rule":"provider Complete + valid source plan may suggest historical structure when no conflicting current operational plan exists; exact matching plan may be reused, otherwise AcceptHistoricalObjectiveProposal alone may create historical_source_structure plan; proposal/import never records execution/outcome/Inventory"},
-    {"name":"ObjectiveReviewRepository","methods":["current_valid_review(reader,objective_id)","append(uow,review_event)","history(snapshot,objective_id,cursor,limit)"],"rule":"review stores reviewed_at plus exact membership/outcome fingerprint and aggregate snapshot; later material correction invalidates currentness without editing old review"},
-    {"name":"OperationalCountInclusionRepository","methods":["current(reader,task_id)","append(uow,event)","list_excluded(snapshot,filter,cursor,limit)"],"rule":"exclusion is reporting-only and never deletes Task/Objective/source/audit history"},
-    {"name":"ObjectiveTimezoneService","owner":"LLD-05 semantics over LLD-02 SettingStore","methods":["current(snapshot) -> IanaTimezone","validate_local_input(local_datetime,iana_name,fold_or_offset) -> CanonicalUtcInstant","preview_setting_change(snapshot,new_iana_name) -> presentation-only impact"],"rule":"setting change never mutates persisted Task/Objective instants; wall-clock preservation requires reviewed Task plan revisions"},
-    {"name":"WfmImportReader","owner":"LLD-05 implementation of LLD-04 contract","methods":["get_by_task_no(reader,task_no)","task_no_status(reader,task_no) -> ACTIVE|RETIRED|ABSENT","source_projection(reader,task_id)","source_plan(reader,task_id)","operational_plan_context(reader,task_id)","activity_conflicts(reader,task_id_or_candidate,interval) -> ConflictSet","source_acceptance_base_token(reader,target) -> sha256"],"rule":"matches LLD-04; RETIRED is never adoption/create target; base token covers identity/current RFC/source projection/current plan/membership/lock revisions relevant to proposal"},
-    {"name":"WfmImportMutationService","owner":"LLD-05 implementation of LLD-04 contract","methods":["create_or_adopt_wfm_from_source(uow,proposal,command_context)","apply_wfm_source_projection(uow,proposal,command_context)","apply_reviewed_operational_plan_from_source(uow,proposal,command_context)"],"contract":"caller supplies outer LLD-04 UoW/receipt. Exact Task No. adopts existing WFM; source projection changes no execution/outcome/membership; reviewed source plan appends Task plan but never silently repins Objective membership; mismatch becomes regroup input."},
-    {"name":"RfcTerminalTaskParticipant","owner":"LLD-05 implementation of LLD-03 contract","methods":["snapshot_applicable_wfms(snapshot,rfc_ids) -> ordered immutable task identities/revisions/task_nos","capture_applicable_wfms(uow,rfc_ids) -> ordered immutable task identities/revisions/task_nos","preview_terminal_cascade(snapshot,proposal_snapshot,after_key|null,limit<=500) -> RfcTerminalCascadeImpactProviderPageV1","revalidate_terminal_cascade(uow,proposal_snapshot,reviewed_exact_count,reviewed_provider_fingerprint) -> READY|STALE|INDETERMINATE","apply_terminal_cascade(uow,proposal_snapshot,command_context:RfcTerminalCascadeExecutionCommandContextV1) -> RfcTerminalCascadeParticipantApplyResultV1","classify_hard_delete_dependency(reader,rfc_id) -> CLEAR|BLOCKED|INDETERMINATE"],"contract":"preview/revalidate own exact Task/Objective impact; apply uses caller UoW after proof/outer receipt and returns only bounded summary; hard-delete classification is read-only; participant never commits"},
-    {"name":"RfcHistoryRiskProvider","owner":"LLD-05 implementation of LLD-03 contract","methods":["hierarchy_history_authority(reader,rfc_id) -> RfcHierarchyHistoryAuthorityV1"],"rule":"read-only in Snapshot or writer UoW. READY returns LOW|HIGH, exact evidence count and fingerprint; INDETERMINATE fails closed. Exact evidence semantics are owned by interfaces/cross-packet-v2.json; no Task/WFM/Objective rows cross into LLD-03."},
-    {"name":"InventoryTaskDependencyProvider","owner":"LLD-07 implementation of LLD-05 contract","methods":["classify_task_hard_delete_dependency(uow,task_id) -> CLEAR|BLOCKED|INDETERMINATE","preview_retry_relationship_clone(snapshot,predecessor_task_id,selected_inventory_relationship_ids) -> Impact","apply_retry_relationship_clone(uow,preview,new_task_id) -> result refs"],"rule":"matches LLD-07; LLD-05 never rewrites Inventory history; protected Inventory history blocks Task hard delete; retry copies only explicitly selected current eligible planning relationships"},
-    {"name":"TaskOperationalEvidenceReader","owner":"LLD-05 consumed by LLD-07/11","methods":["task_outcome(snapshot,task_id)","task_execution(snapshot,task_id)","objective_context(snapshot,task_id)","review_fingerprint(snapshot,task_id)"],"rule":"read-only accepted operational evidence; consumers cannot mutate Task lifecycle through it"}
+  "schema": "SOMA-LLD-INTERFACES-V1",
+  "lld_id": "LLD-05",
+  "python_interfaces": [
+    {
+      "name": "TaskRepository",
+      "methods": [
+        "get(reader,task_id)",
+        "insert(uow,task)",
+        "update_revision(uow,task_id,base_revision)",
+        "list(snapshot,filter,cursor,limit)"
+      ],
+      "rule": "Task UUID/task_kind are immutable; repositories never commit internally"
+    },
+    {
+      "name": "WfmTaskRepository",
+      "methods": [
+        "get_by_task_no(reader,task_no)",
+        "task_no_status(reader,task_no) -> ACTIVE|RETIRED|ABSENT",
+        "get_identity(reader,task_id)",
+        "insert_identity(uow,task_id,task_no,rfc_id,origin)",
+        "retire_task_no(uow,retirement_id,task_id,task_no,hard_delete_command_id,retired_at_utc)",
+        "reassign_rfc(uow,task_id,new_rfc_id,base_revision,event)",
+        "current_source_projection(reader,task_id)",
+        "replace_rebuildable_source_projection(uow,task_id,accepted_projection,base_revision)"
+      ],
+      "rule": "Task No. is canonical attempt identity; one current owning RFC has append-only reassignment history; source projection is rebuildable from LLD-04; RETIRED Task Nos are permanent nonreuse authority"
+    },
+    {
+      "name": "TaskPlanRepository",
+      "methods": [
+        "current(reader,task_id)",
+        "get_revision(reader,plan_revision_id)",
+        "append_revision(uow,revision)",
+        "set_current(uow,task_id,plan_revision_id,base_revision)",
+        "history(snapshot,task_id,cursor,limit)"
+      ],
+      "rule": "plan revisions are immutable; current plan points to a newly accepted revision; Objective membership pins an exact accepted plan revision and never silently advances"
+    },
+    {
+      "name": "TaskExecutionRepository",
+      "methods": [
+        "projection(reader,task_id) -> persisted projection|null",
+        "freshness(reader,task_id) -> {execution_revision,execution_state,projection|null}",
+        "append_event(uow,event)",
+        "replace_projection(uow,task_id,projection,base_revision)",
+        "history(snapshot,task_id,cursor,limit)"
+      ],
+      "rule": "execution evidence is append-only and current projection rebuildable. Exact no-history reads as execution_revision=0/not_started with no persisted projection/event. Any event requires a positive-revision projection, including corrected-to-not_started history; history/projection mismatch fails closed."
+    },
+    {
+      "name": "TaskOutcomeRepository",
+      "methods": [
+        "current(reader,task_id)",
+        "append_review_event(uow,event)",
+        "set_current(uow,task_id,event_id,base_revision)",
+        "history(snapshot,task_id,cursor,limit)"
+      ],
+      "rule": "accepted outcomes are completed|incomplete|cancelled_without_execution; first event is genesis and every material correction points to the exact current tip; current revision equals the owned linear event count/chain length and current pointer is that tip; exact absence requires no current row and no owned history; projection/history mismatch fails closed; Awaiting Review is derived, not accepted outcome"
+    },
+    {
+      "name": "TaskRelationshipRepository",
+      "methods": [
+        "list_sr_links(reader,task_id,cursor,limit)",
+        "list_rfc_links(reader,task_id,cursor,limit)",
+        "list_device_links(reader,task_id,cursor,limit)",
+        "link(uow,relationship)",
+        "close(uow,relationship_id,close_context)"
+      ],
+      "rule": "direct SR/RFC links are Local-only; Device Reference links may belong to Local/WFM; history is preserved and targets are LLD-03 identities, never Network Element IDs"
+    },
+    {
+      "name": "TaskRetryRepository",
+      "methods": [
+        "predecessor(reader,task_id)",
+        "successor(reader,task_id)",
+        "insert(uow,relation)",
+        "lineage(snapshot,task_id,cursor,limit)"
+      ],
+      "rule": "every retry has one immediate predecessor; one attempt has at most one direct successor; retry identity is never reused"
+    },
+    {
+      "name": "TaskActivityLineageRepository",
+      "methods": [
+        "current(reader,task_id)",
+        "append_assignment(uow,event)",
+        "list_members(snapshot,lineage_id,cursor,limit)"
+      ],
+      "rule": "reviewed activity lineage supports competing-WFM detection; missing lineage never authorizes collapsing distinct Task Nos"
+    },
+    {
+      "name": "ObjectiveRepository",
+      "methods": [
+        "get(reader,objective_id)",
+        "get_by_tracking_id(reader,tracking_id)",
+        "allocate_tracking_id(uow) -> MW-########",
+        "insert(uow,objective)",
+        "set_superseded(uow,objective_id,survivor_id,base_revision)",
+        "set_archive_projection(uow,objective_id,state,base_revision)",
+        "list(snapshot,filter,cursor,limit)"
+      ],
+      "rule": "objective_id/MW identity never change; supersession/archive preserve row/history"
+    },
+    {
+      "name": "ObjectiveMembershipRepository",
+      "methods": [
+        "current_for_task(reader,task_id)",
+        "list_current_members(reader,objective_id,cursor,limit)",
+        "count_current_members(reader,objective_id)",
+        "append_event(uow,event)",
+        "replace_current(uow,task_id,objective_id,accepted_plan_revision_id,base_membership_revision)",
+        "remove_current(uow,task_id,base_membership_revision)"
+      ],
+      "rule": "one Task has at most one current Objective; membership pins the exact reviewed Task-plan revision and history preserves prior Objective/plan context"
+    },
+    {
+      "name": "ObjectiveProjectionRepository",
+      "methods": [
+        "envelope(reader,objective_id)",
+        "aggregate(reader,objective_id)",
+        "rebuild_affected(uow,objective_ids)",
+        "find_envelope_overlaps(uow,start_utc,end_utc,exclude_objective_ids)"
+      ],
+      "rule": "envelope/aggregate are transactional rebuildable projections; overlap uses indexed start < candidate_end AND end > candidate_start"
+    },
+    {
+      "name": "GroupingProposalRepository",
+      "methods": [
+        "get(reader,proposal_id)",
+        "insert(uow,proposal,task_changes,objective_changes)",
+        "transition(uow,proposal_id,state,decision_event,base_revision)",
+        "list(snapshot,filter,cursor,limit)",
+        "find_equivalent_rejection(snapshot,input_fingerprint)"
+      ],
+      "rule": "proposal membership is persisted row-wise, exact and revision-bound; rejection suppression uses exact material-input fingerprint"
+    },
+    {
+      "name": "HistoricalObjectiveProposalRepository",
+      "methods": [
+        "get(reader,proposal_id)",
+        "insert_or_supersede(uow,proposal)",
+        "transition(uow,proposal_id,state,base_revision)",
+        "list(snapshot,filter,cursor,limit)"
+      ],
+      "rule": "provider Complete + valid source plan may suggest historical structure when no conflicting current operational plan exists; exact matching plan may be reused, otherwise AcceptHistoricalObjectiveProposal alone may create historical_source_structure plan; proposal/import never records execution/outcome/Inventory"
+    },
+    {
+      "name": "ObjectiveReviewRepository",
+      "methods": [
+        "current_valid_review(reader,objective_id)",
+        "append(uow,review_event)",
+        "history(snapshot,objective_id,cursor,limit)"
+      ],
+      "rule": "review stores reviewed_at plus exact membership/outcome fingerprint and aggregate snapshot; later material correction invalidates currentness without editing old review"
+    },
+    {
+      "name": "OperationalCountInclusionRepository",
+      "methods": [
+        "current(reader,task_id)",
+        "append(uow,event)",
+        "list_excluded(snapshot,filter,cursor,limit)"
+      ],
+      "rule": "exclusion is reporting-only and never deletes Task/Objective/source/audit history"
+    },
+    {
+      "name": "ObjectiveTimezoneService",
+      "owner": "LLD-05 semantics over LLD-02 SettingStore",
+      "methods": [
+        "current(snapshot) -> IanaTimezone",
+        "validate_local_input(local_datetime,iana_name,fold_or_offset) -> CanonicalUtcInstant",
+        "preview_setting_change(snapshot,new_iana_name) -> presentation-only impact"
+      ],
+      "rule": "setting change never mutates persisted Task/Objective instants; wall-clock preservation requires reviewed Task plan revisions"
+    },
+    {
+      "name": "WfmImportReader",
+      "owner": "LLD-05 implementation of LLD-04 contract",
+      "methods": [
+        "get_by_task_no(reader,task_no)",
+        "task_no_status(reader,task_no) -> ACTIVE|RETIRED|ABSENT",
+        "source_projection(reader,task_id)",
+        "source_plan(reader,task_id)",
+        "operational_plan_context(reader,task_id)",
+        "activity_conflicts(reader,task_id_or_candidate,interval) -> ConflictSet",
+        "source_acceptance_base_token(reader,target) -> sha256"
+      ],
+      "rule": "matches LLD-04; RETIRED is never adoption/create target; base token covers identity/current RFC/source projection/current plan/membership/lock revisions relevant to proposal"
+    },
+    {
+      "name": "WfmImportMutationService",
+      "owner": "LLD-05 implementation of LLD-04 contract",
+      "methods": [
+        "create_or_adopt_wfm_from_source(uow,proposal,command_context)",
+        "apply_wfm_source_projection(uow,proposal,command_context)",
+        "apply_reviewed_operational_plan_from_source(uow,proposal,command_context)"
+      ],
+      "contract": "caller supplies outer LLD-04 UoW/receipt. Exact Task No. adopts existing WFM; source projection changes no execution/outcome/membership; reviewed source plan appends Task plan but never silently repins Objective membership; mismatch becomes regroup input."
+    },
+    {
+      "name": "RfcTerminalTaskParticipant",
+      "owner": "LLD-05 implementation of LLD-03 contract",
+      "methods": [
+        "snapshot_applicable_wfms(snapshot,rfc_ids) -> ordered immutable task identities/revisions/task_nos",
+        "capture_applicable_wfms(uow,rfc_ids) -> ordered immutable task identities/revisions/task_nos",
+        "preview_terminal_cascade(snapshot,proposal_snapshot,after_key|null,limit<=500) -> RfcTerminalCascadeImpactProviderPageV1",
+        "revalidate_terminal_cascade(uow,proposal_snapshot,reviewed_exact_count,reviewed_provider_fingerprint) -> READY|STALE|INDETERMINATE",
+        "apply_terminal_cascade(uow,proposal_snapshot,command_context:RfcTerminalCascadeExecutionCommandContextV1) -> RfcTerminalCascadeParticipantApplyResultV1",
+        "classify_hard_delete_dependency(reader,rfc_id) -> CLEAR|BLOCKED|INDETERMINATE"
+      ],
+      "contract": "preview/revalidate own exact Task/Objective impact; apply uses caller UoW after proof/outer receipt and returns only bounded summary; hard-delete classification is read-only; participant never commits"
+    },
+    {
+      "name": "RfcHistoryRiskProvider",
+      "owner": "LLD-05 implementation of LLD-03 contract",
+      "methods": [
+        "hierarchy_history_authority(reader,rfc_id) -> RfcHierarchyHistoryAuthorityV1"
+      ],
+      "rule": "read-only in Snapshot or writer UoW. READY returns LOW|HIGH, exact evidence count and fingerprint; INDETERMINATE fails closed. Exact evidence semantics are owned by interfaces/cross-packet-v2.json; no Task/WFM/Objective rows cross into LLD-03."
+    },
+    {
+      "name": "InventoryTaskDependencyProvider",
+      "owner": "LLD-07 implementation of LLD-05 contract",
+      "methods": [
+        "classify_task_hard_delete_dependency(uow,task_id) -> CLEAR|BLOCKED|INDETERMINATE",
+        "preview_retry_relationship_clone(snapshot,predecessor_task_id,selected_inventory_relationship_ids) -> Impact",
+        "apply_retry_relationship_clone(uow,preview,new_task_id) -> result refs"
+      ],
+      "rule": "matches LLD-07; LLD-05 never rewrites Inventory history; protected Inventory history blocks Task hard delete; retry copies only explicitly selected current eligible planning relationships"
+    },
+    {
+      "name": "TaskOperationalEvidenceReader",
+      "owner": "LLD-05 consumed by LLD-07/11",
+      "methods": [
+        "task_outcome(reader,task_id) -> TaskOperationalOutcomeV1|null",
+        "task_execution(reader,task_id) -> TaskOperationalExecutionV1",
+        "objective_context(reader,task_id) -> TaskOperationalObjectiveContextV1|null",
+        "review_fingerprint(reader,task_id) -> lowercase sha256"
+      ],
+      "rule": "Read-only accepted operational evidence; accepts either one stable LLD-01 Snapshot or the current supplied writer UnitOfWork read context and never mutates/commits. TaskOperationalExecutionV1 is exact {execution_revision:int>=0,execution_state:'not_started|in_progress|ended|terminated',actual_start_utc:int|null,actual_end_utc:int|null,effective_termination_utc:int|null,termination_reason:string|null,last_event_id:uuid|null}. Exact absence is revision=0/not_started with all nullable fields null; any positive history/projection disagreement fails closed. TaskOperationalOutcomeV1 is null only when both task_outcome_current and owned task_outcome_events are exactly absent; otherwise it is exact {outcome_event_id:uuid,accepted_outcome:'completed|incomplete|cancelled_without_execution',reviewed_at_utc:int>=0,outcome_revision:int>=1}. Current projection must equal the unique linear immutable chain tip or the reader fails closed. TaskOperationalObjectiveContextV1 is null only when objective_task_membership_current is absent; otherwise it is exact {objective_id:uuid,membership_revision:int>=1,accepted_plan_revision_id:uuid,membership_last_event_id:uuid,objective_revision:int>=1,envelope_revision:int>=1,aggregate_revision:int>=1,aggregate_input_fingerprint:lowercase sha256}. Missing/corrupt current Objective projection fails closed. review_fingerprint is SOMA_TASK_OPERATIONAL_EVIDENCE_V1: SHA-256 over LLD-01 StrictVersionedJson canonical JSON UTF-8 bytes for {schema:'SOMA_TASK_OPERATIONAL_EVIDENCE_V1',task_id,execution:task_execution(...),outcome:task_outcome(...),objective_context:objective_context(...)}. It deliberately excludes Task plan/source/lock/general Task revision that do not change these operational facts. Any included execution event/projection change, outcome review/correction, current Objective membership move/repin, Objective revision, envelope revision, aggregate revision or aggregate input fingerprint change changes the digest."
+    }
   ],
-  "consumed_existing_interfaces":[
+  "consumed_existing_interfaces": [
     "LLD-02 DomainIdFactory, SettingDefinitionRegistry, SettingStore",
     "LLD-03 RFC identity/lifecycle/hierarchy plus terminal-cascade snapshot/review/context/apply-summary contracts",
     "LLD-04 immutable source evidence/proposal authority through WfmImportReader/WfmImportMutationService",
     "LLD-07 InventoryTaskDependencyProvider"
   ],
-  "cross_domain_transaction_rule":"Cross-domain mutations use caller UoW/receipt and never commit/rollback independently; RFC terminal revalidation precedes proof/apply; RFC history/hard-delete providers are read-only.",
-  "reader_contract":"Authoritative decisions re-read through supplied current reader; expensive previews use stable snapshots plus exact fingerprints/revisions for commit-time revalidation."
+  "cross_domain_transaction_rule": "Cross-domain mutations use caller UoW/receipt and never commit/rollback independently; RFC terminal revalidation precedes proof/apply; RFC history/hard-delete providers are read-only.",
+  "reader_contract": "Authoritative decisions re-read through supplied current reader; expensive previews use stable snapshots plus exact fingerprints/revisions for commit-time revalidation."
 }
