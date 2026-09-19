@@ -140,6 +140,19 @@ def _validate_spare_request_identity(payload: dict[str, object]) -> None:
     _positive(payload.get("resulting_revision"), "resulting_revision")
     _reason(payload.get("reason_category"))
 
+
+def _validate_spare_request_submission(payload: dict[str, object]) -> None:
+    _uuid(payload.get("spare_request_id"), "spare_request_id")
+    _uuid(payload.get("submission_event_id"), "submission_event_id")
+    _uuid(payload.get("submission_snapshot_id"), "submission_snapshot_id")
+    if payload.get("event_kind") not in {"ACCEPT", "CORRECT_FALSE"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request submission event is invalid")
+    _positive(payload.get("allocation_count"), "allocation_count")
+    _fingerprint(payload.get("input_fingerprint"), "input_fingerprint")
+    effective = payload.get("effective_at_utc")
+    if effective is not None and (type(effective) is not int or effective < 0):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "effective_at_utc is invalid")
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -248,6 +261,29 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_spare_request,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.spare_request.submitted",
+            action_version=1,
+            payload_schema="SpareRequestSubmissionAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "SpareRequestSubmissionAuditV1",
+                frozenset(
+                    {
+                        "spare_request_id",
+                        "submission_event_id",
+                        "submission_snapshot_id",
+                        "event_kind",
+                        "allocation_count",
+                        "input_fingerprint",
+                        "effective_at_utc",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_spare_request_submission,
         )
     )
     registry.register(

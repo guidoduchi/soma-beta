@@ -411,3 +411,173 @@ def test_terminal_request_preserves_history_and_unblocks_nonterminal_semantics(
             "WHERE spare_request_id=? AND event_kind='cancelled'",
             (request_id,),
         ).fetchone()[0] == 1
+
+
+def _request_projection(factory, request_id: str):
+    with ReadSnapshot(factory) as snapshot:
+        return snapshot.connection.execute(
+            "SELECT lifecycle_state,current_submission_snapshot_id,submitted_quantity,"
+            "response_warning_start_utc,revision,input_fingerprint "
+            "FROM spare_request_current_projection WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+
+
+def test_t017_t019_submission_freezes_exact_snapshot_and_starts_warning_chronology(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97100007")
+    need = _need(factory, sr_id=sr.service_request_id, device_name="REQ-SUB", bom="REQ-SUB-BOM")
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(), name="Submission Receiver"
+    )
+    location_id = _dispatch_location(factory, "SUB")
+    service = InventoryRequestsRmaService(factory)
+    created = service.create_spare_request_draft(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        requester_contact_id=contact.contact_id,
+        allocations=(SpareRequestAllocationIntent(need, 2),),
+        mode="delivery",
+        receiver_contact_id=contact.contact_id,
+        dispatch_location_id=location_id,
+    )
+    request_id = str(created["spare_request_id"])
+    before = _request_projection(factory, request_id)
+    submitted = service.accept_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_fingerprint=str(before[5]),
+        effective_submission_at_utc=1_000,
+    )
+    assert submitted["state"] == "submitted"
+    assert submitted["revision"] == 2
+
+    with ReadSnapshot(factory) as snapshot:
+        projection = snapshot.connection.execute(
+            "SELECT lifecycle_state,current_submission_snapshot_id,submitted_quantity,"
+            "response_warning_start_utc,revision "
+            "FROM spare_request_current_projection WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        assert tuple(projection[:1]) == ("submitted_awaiting_response",)
+        assert projection[1] is not None
+        assert tuple(projection[2:]) == (2, 1_000, 2)
+        snapshot_id = str(projection[1])
+        frozen = snapshot.connection.execute(
+            "SELECT temporary_tracking_id,mode,receiver_contact_id,dispatch_location_id,"
+            "location_name_snapshot,location_address_snapshot,effective_submission_at_utc "
+            "FROM spare_request_submission_snapshots WHERE submission_snapshot_id=?",
+            (snapshot_id,),
+        ).fetchone()
+        assert tuple(frozen[:4]) == (
+            created["local_handle"],
+            "delivery",
+            contact.contact_id,
+            location_id,
+        )
+        assert str(frozen[4]) == "Warehouse SUB"
+        assert str(frozen[5]) == "SUB test address"
+        assert int(frozen[6]) == 1_000
+        allocation = snapshot.connection.execute(
+            "SELECT spare_need_id,quantity,requested_bom_code "
+            "FROM spare_request_submission_allocations WHERE submission_snapshot_id=?",
+            (snapshot_id,),
+        ).fetchone()
+        assert (str(allocation[0]), int(allocation[1]), str(allocation[2])) == (
+            need,
+            2,
+            "REQ-SUB-BOM",
+        )
+
+    with pytest.raises(SomaError) as excinfo:
+        service.update_spare_request_draft(
+            command_id=new_uuid4(),
+            spare_request_id=request_id,
+            base_revision=2,
+            allocations=(SpareRequestAllocationIntent(need, 3),),
+            mode="delivery",
+            receiver_contact_id=contact.contact_id,
+            dispatch_location_id=location_id,
+        )
+    assert excinfo.value.code == "REQUEST_NOT_DRAFT"
+
+
+def test_t020_false_submission_correction_preserves_snapshot_and_restores_draft(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97100008")
+    need = _need(factory, sr_id=sr.service_request_id, device_name="REQ-FALSE", bom="REQ-FALSE")
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(), name="False Submission"
+    )
+    location_id = _dispatch_location(factory, "FALSE")
+    service = InventoryRequestsRmaService(factory)
+    created = service.create_spare_request_draft(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        requester_contact_id=contact.contact_id,
+        allocations=(SpareRequestAllocationIntent(need, 1),),
+        mode="self_pickup",
+        receiver_contact_id=contact.contact_id,
+        dispatch_location_id=location_id,
+    )
+    request_id = str(created["spare_request_id"])
+    before = _request_projection(factory, request_id)
+    service.accept_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_fingerprint=str(before[5]),
+        evidence_kind="indexed_sent",
+        evidence_id="indexed-message-1",
+    )
+    with ReadSnapshot(factory) as snapshot:
+        submission = snapshot.connection.execute(
+            "SELECT submission_event_id,submission_snapshot_id "
+            "FROM spare_request_submission_snapshots WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        event_id = str(submission[0])
+        snapshot_id = str(submission[1])
+
+    corrected = service.correct_false_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        submission_event_id=event_id,
+        reason_code="confirmed message was never sent",
+    )
+    assert corrected["state"] == "draft"
+    assert corrected["revision"] == 3
+
+    with ReadSnapshot(factory) as snapshot:
+        projection = snapshot.connection.execute(
+            "SELECT lifecycle_state,current_submission_snapshot_id,submitted_quantity,"
+            "response_warning_start_utc FROM spare_request_current_projection "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        assert tuple(projection) == ("draft", None, 0, None)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_submission_snapshots "
+            "WHERE submission_snapshot_id=?",
+            (snapshot_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_lifecycle_events "
+            "WHERE spare_request_id=? AND event_kind='submission_corrected_false' "
+            "AND target_event_id=?",
+            (request_id, event_id),
+        ).fetchone()[0] == 1
+
+    updated = service.update_spare_request_draft(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=3,
+        allocations=(SpareRequestAllocationIntent(need, 2),),
+        mode="delivery",
+        receiver_contact_id=contact.contact_id,
+        dispatch_location_id=location_id,
+    )
+    assert updated["revision"] == 4

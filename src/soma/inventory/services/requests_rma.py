@@ -642,4 +642,228 @@ class InventoryRequestsRmaService:
         return dict(execution.response)
 
 
+    def accept_spare_request_submission(
+        self,
+        *,
+        command_id: str,
+        spare_request_id: str,
+        expected_fingerprint: str,
+        effective_submission_at_utc: int | None = None,
+        evidence_kind: str = "manual",
+        evidence_id: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        request_id = require_uuid4(spare_request_id)
+        if (
+            not isinstance(expected_fingerprint, str)
+            or regex.fullmatch(r"[0-9a-f]{64}", expected_fingerprint) is None
+        ):
+            raise ValidationError("expected_fingerprint must be lowercase SHA-256 hex")
+        if (
+            effective_submission_at_utc is not None
+            and (
+                type(effective_submission_at_utc) is not int
+                or effective_submission_at_utc < 0
+            )
+        ):
+            raise ValidationError("effective_submission_at_utc must be non-negative or null")
+        if evidence_kind not in {"manual", "indexed_sent"}:
+            raise ValidationError("submission evidence kind is invalid")
+        if evidence_kind == "indexed_sent" and (
+            not isinstance(evidence_id, str) or not evidence_id.strip()
+        ):
+            raise ValidationError("indexed sent evidence requires evidence_id")
+        if evidence_kind == "manual" and evidence_id is not None:
+            raise ValidationError("manual submission cannot carry indexed evidence_id")
+        normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="AcceptSpareRequestSubmission",
+            target_type="spare_request",
+            target_id=request_id,
+            semantic_payload={
+                "expected_fingerprint": expected_fingerprint,
+                "effective_submission_at_utc": effective_submission_at_utc,
+                "evidence_kind": evidence_kind,
+                "evidence_id": normalized_evidence_id,
+            },
+            authorizing_fingerprints={"draft": expected_fingerprint},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            row = self._repository.current_detail(uow.connection, request_id)
+            if row is None or str(row[9]) != expected_fingerprint:
+                raise SomaError("INV_STALE", "Spare Request draft fingerprint changed")
+            if str(row[6]) != "draft":
+                raise SomaError("REQUEST_NOT_DRAFT", "Spare Request is not Draft")
+            projection = uow.connection.execute(
+                "SELECT current_submission_snapshot_id FROM spare_request_current_projection "
+                "WHERE spare_request_id=?",
+                (request_id,),
+            ).fetchone()
+            if projection is None or projection[0] is not None:
+                raise SomaError("REQUEST_NOT_DRAFT", "Spare Request already has submission authority")
+
+            def apply(inner: UnitOfWork):
+                (
+                    event_id,
+                    snapshot_id,
+                    resulting_revision,
+                    allocation_count,
+                    snapshot_hash,
+                ) = self._repository.accept_submission(
+                    inner.connection,
+                    spare_request_id=request_id,
+                    expected_fingerprint=expected_fingerprint,
+                    effective_submission_at_utc=effective_submission_at_utc,
+                    evidence_kind=evidence_kind,
+                    evidence_id=normalized_evidence_id,
+                    command_id=command_id,
+                )
+                apply.event_id = event_id
+                apply.snapshot_id = snapshot_id
+                apply.revision = resulting_revision
+                apply.allocation_count = allocation_count
+                apply.snapshot_hash = snapshot_hash
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.spare_request.submitted",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="spare_request",
+                    target_id=request_id,
+                    command_id=command_id,
+                    payload_schema="SpareRequestSubmissionAuditV1",
+                    payload_version=1,
+                    payload={
+                        "spare_request_id": request_id,
+                        "submission_event_id": event_id,
+                        "submission_snapshot_id": snapshot_id,
+                        "event_kind": "ACCEPT",
+                        "allocation_count": allocation_count,
+                        "input_fingerprint": expected_fingerprint,
+                        "effective_at_utc": effective_submission_at_utc,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("spare_request_submission_snapshot", snapshot_id),
+                    ),
+                )
+
+            apply.event_id = ""
+            apply.snapshot_id = ""
+            apply.revision = int(row[8]) + 1
+            apply.allocation_count = 0
+            apply.snapshot_hash = ""
+            return PreparedMutation(
+                no_change=False,
+                result_type="spare_request",
+                result_id=request_id,
+                apply=apply,
+                response_schema="SpareRequestV1",
+                response_factory=lambda inner: self._response(inner.connection, request_id),
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("Spare Request response is not an object")
+        return dict(execution.response)
+
+    def correct_false_spare_request_submission(
+        self,
+        *,
+        command_id: str,
+        spare_request_id: str,
+        submission_event_id: str,
+        reason_code: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        request_id = require_uuid4(spare_request_id)
+        target_event_id = require_uuid4(submission_event_id)
+        reason = validate_reason_code(reason_code)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CorrectFalseSpareRequestSubmission",
+            target_type="spare_request",
+            target_id=request_id,
+            semantic_payload={
+                "submission_event_id": target_event_id,
+                "reason_code": reason,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            current = self._repository.current_effective_submission(
+                uow.connection, request_id
+            )
+            if current is None or str(current[1]) != target_event_id:
+                raise SomaError(
+                    "CORRECTION_TARGET_INVALID",
+                    "Target is not current-effective submission authority",
+                )
+
+            def apply(inner: UnitOfWork):
+                (
+                    correction_event_id,
+                    snapshot_id,
+                    resulting_revision,
+                    allocation_count,
+                    effective_at_utc,
+                    prior_fingerprint,
+                ) = self._repository.correct_false_submission(
+                    inner.connection,
+                    spare_request_id=request_id,
+                    submission_event_id=target_event_id,
+                    reason_code=reason,
+                    command_id=command_id,
+                )
+                apply.event_id = correction_event_id
+                apply.snapshot_id = snapshot_id
+                apply.revision = resulting_revision
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.spare_request.submitted",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="spare_request",
+                    target_id=request_id,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="SpareRequestSubmissionAuditV1",
+                    payload_version=1,
+                    payload={
+                        "spare_request_id": request_id,
+                        "submission_event_id": target_event_id,
+                        "submission_snapshot_id": snapshot_id,
+                        "event_kind": "CORRECT_FALSE",
+                        "allocation_count": allocation_count,
+                        "input_fingerprint": prior_fingerprint,
+                        "effective_at_utc": effective_at_utc,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("spare_request_submission_snapshot", snapshot_id),
+                    ),
+                )
+
+            apply.event_id = ""
+            apply.snapshot_id = str(current[0])
+            apply.revision = 0
+            return PreparedMutation(
+                no_change=False,
+                result_type="spare_request",
+                result_id=request_id,
+                apply=apply,
+                response_schema="SpareRequestV1",
+                response_factory=lambda inner: self._response(inner.connection, request_id),
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("Spare Request response is not an object")
+        return dict(execution.response)
+
+
 __all__ = ["InventoryRequestsRmaService"]
