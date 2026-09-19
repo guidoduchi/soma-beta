@@ -312,6 +312,24 @@ def test_report_failure_cleans_all_staging_atomically_t032(initialized_database)
     with ReadSnapshot(factory) as snapshot:
         counts = ReportRepository.counts(snapshot.connection, report_id)
         assert counts == (0, 0, 0, 0)
+        terminal = ReportRepository.get_attempt(snapshot.connection, report_id)
+        assert terminal is not None
+        assert terminal.state == "failed"
+        assert terminal.revision == 3
+        assert terminal.failure_code == "SLA_REPORT_CONTRIBUTOR_FAILED"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (failed_command,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipt_results WHERE command_id=?",
+            (failed_command,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events "
+            "WHERE command_id=? AND action_type='sla.report.cancelled_or_failed'",
+            (failed_command,),
+        ).fetchone()[0] == 1
 
     jobs.fail(claim, "SLA_REPORT_CONTRIBUTOR_FAILED", None)
 
@@ -383,6 +401,23 @@ def test_report_cancel_revokes_running_job_and_cleans_staging_atomically_t039(
             (claim.job_id, claim.attempt_ordinal),
         ).fetchone()
         assert tuple(attempt_row) == ("cancelled", None)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM job_attempts WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (cancel_command,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipt_results WHERE command_id=?",
+            (cancel_command,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events "
+            "WHERE command_id=? AND action_type='sla.report.cancelled_or_failed'",
+            (cancel_command,),
+        ).fetchone()[0] == 1
 
         audit = snapshot.connection.execute(
             "SELECT action_type,command_id FROM audit_events "
