@@ -25,6 +25,7 @@ from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import canonical_json_bytes_bounded, loads_canonical_json
+from soma.objectives_tasks.services.wfm_import import WfmImportReader
 
 from ..audit_registry import build_ticket_import_audit_registry
 from ..jobs import (
@@ -49,8 +50,14 @@ from ..reconciliation.advanced_search_disappearance import (
     build_advanced_search_sr_disappearance_proposals,
 )
 from ..reconciliation.advanced_search_identity import build_advanced_search_sr_identity_proposals
-from ..reconciliation.engine import ProposalChangeDraft, ReconciliationProposalDraft
+from ..reconciliation.engine import ProposalChangeDraft, ReconciliationProposalDraft, row_logical_sha256
+from ..reconciliation.rfc_enhanced import build_rfc_enhanced_source_projection_proposals
+from ..reconciliation.rfc_enhanced_customer import build_rfc_enhanced_customer_reconciliation_proposals
+from ..reconciliation.rfc_enhanced_identity import build_rfc_enhanced_identity_proposals
+from ..reconciliation.rfc_enhanced_sr_link import build_rfc_enhanced_sr_link_candidate_proposals
 from ..reconciliation.staged import VerifiedStagedRun, verify_staged_logical_run
+from ..reconciliation.wfm_provisional_eligibility import build_wfm_service_provider_proposals
+from ..repositories.findings import NormalizedFindingEvidence, SourceFindingRepository
 from ..repositories.observations import SourceObservationRepository
 from ..repositories.proposals import (
     PendingProposalWrite,
@@ -121,6 +128,7 @@ class _PublicationPreflight:
     replay_classification: str
     checkpoint: SourceCheckpointState | None
     proposal_writes: tuple[PendingProposalWrite, ...]
+    reconciliation_findings: tuple[NormalizedFindingEvidence, ...]
     target_state: str
 
 
@@ -298,6 +306,94 @@ class PublishStagedImportRunService:
                 logical_fingerprint_sha256=verified.fingerprint.logical_fingerprint_sha256,
             )
             writes.extend(cls._absence_pending_write(draft) for draft in disappearance)
+        return tuple(writes)
+
+    @classmethod
+    def _rfc_enhanced_proposal_writes(
+        cls,
+        reader: Any,
+        verified: VerifiedStagedRun,
+    ) -> tuple[PendingProposalWrite, ...]:
+        if verified.evidence.source_family != "rfc_enhanced":
+            raise ValidationError("Enhanced RFC proposal builder received another source family")
+        writes: list[PendingProposalWrite] = []
+        for observation in verified.observations:
+            row = observation.row
+            if row.identity_state != "valid" or row.entity_kind != "rfc":
+                continue
+            kwargs = {
+                "import_run_id": verified.evidence.import_run_id,
+                "source_observation_id": observation.source_observation_id,
+            }
+            builders = (
+                build_rfc_enhanced_identity_proposals,
+                build_rfc_enhanced_source_projection_proposals,
+                build_rfc_enhanced_customer_reconciliation_proposals,
+                build_rfc_enhanced_sr_link_candidate_proposals,
+            )
+            for builder in builders:
+                result = builder(reader, **kwargs)
+                writes.extend(cls._observed_pending_write(draft) for draft in result.proposals)
+        return tuple(writes)
+
+    @staticmethod
+    def _wfm_reconciliation_findings(
+        reader: Any,
+        verified: VerifiedStagedRun,
+    ) -> tuple[NormalizedFindingEvidence, ...]:
+        if verified.evidence.source_family != "wfm_service_provider":
+            raise ValidationError("WFM reconciliation finding builder received another source family")
+        groups: dict[str, list[tuple[str, str]]] = {}
+        for observation in verified.observations:
+            row = observation.row
+            if row.identity_state != "valid" or row.entity_kind != "wfm" or row.canonical_primary_id is None:
+                continue
+            groups.setdefault(row.canonical_primary_id, []).append(
+                (observation.source_observation_id, row_logical_sha256(row))
+            )
+
+        findings: list[NormalizedFindingEvidence] = []
+        for task_no in sorted(groups):
+            variants = groups[task_no]
+            distinct_hashes = {digest for _observation_id, digest in variants}
+            if len(distinct_hashes) != 1:
+                continue
+            canonical_observation_id = min(observation_id for observation_id, _digest in variants)
+            status = WfmImportReader.task_no_status(reader, task_no)
+            if status == "RETIRED":
+                findings.append(
+                    NormalizedFindingEvidence(
+                        source_observation_id=canonical_observation_id,
+                        field_key="task_no",
+                        finding_code="WFM_TASK_ID_RETIRED",
+                        severity="error",
+                        scope_kind="identity",
+                        message_text="WFM Task No is permanently retired and cannot be reused from source evidence",
+                    )
+                )
+            elif status not in {"ACTIVE", "ABSENT"}:
+                raise IntegrityFailure("LLD-05 returned an invalid WFM Task No status during publication")
+        return tuple(findings)
+
+    @classmethod
+    def _wfm_proposal_writes(
+        cls,
+        reader: Any,
+        verified: VerifiedStagedRun,
+    ) -> tuple[PendingProposalWrite, ...]:
+        if verified.evidence.source_family != "wfm_service_provider":
+            raise ValidationError("WFM proposal builder received another source family")
+        writes: list[PendingProposalWrite] = []
+        for observation in verified.observations:
+            row = observation.row
+            if row.identity_state != "valid" or row.entity_kind != "wfm":
+                continue
+            result = build_wfm_service_provider_proposals(
+                reader,
+                import_run_id=verified.evidence.import_run_id,
+                source_observation_id=observation.source_observation_id,
+            )
+            writes.extend(cls._observed_pending_write(draft) for draft in result.proposals)
         return tuple(writes)
 
     @staticmethod
@@ -516,17 +612,26 @@ class PublishStagedImportRunService:
                 if existing is None or int(existing[0]) != 0:
                     raise IntegrityFailure("replay/noop classification found pre-existing proposal authority")
                 proposal_writes: tuple[PendingProposalWrite, ...] = ()
-            else:
-                if verified.evidence.source_family != "advanced_search_sr":
-                    raise SomaError(
-                        "IMPORT_RUN_STALE",
-                        "changed-source publication orchestration is not yet implemented for this source family",
-                    )
+                reconciliation_findings: tuple[NormalizedFindingEvidence, ...] = ()
+            elif verified.evidence.source_family == "advanced_search_sr":
                 proposal_writes = self._advanced_search_proposal_writes(snapshot.connection, verified)
+                reconciliation_findings = ()
+            elif verified.evidence.source_family == "rfc_enhanced":
+                proposal_writes = self._rfc_enhanced_proposal_writes(snapshot.connection, verified)
+                reconciliation_findings = ()
+            elif verified.evidence.source_family == "wfm_service_provider":
+                proposal_writes = self._wfm_proposal_writes(snapshot.connection, verified)
+                reconciliation_findings = self._wfm_reconciliation_findings(snapshot.connection, verified)
+            else:
+                raise SomaError(
+                    "IMPORT_RUN_STALE",
+                    "changed-source publication orchestration is not yet implemented for this source family",
+                )
             return _PublicationPreflight(
                 replay_classification=classification,
                 checkpoint=verified.checkpoint,
                 proposal_writes=proposal_writes,
+                reconciliation_findings=reconciliation_findings,
                 target_state=self._target_state(classification, proposal_writes),
             )
 
@@ -670,13 +775,26 @@ class PublishStagedImportRunService:
                 if existing is None or int(existing[0]) != 0:
                     raise IntegrityFailure("replay/noop classification found pre-existing proposal authority")
                 proposal_writes: tuple[PendingProposalWrite, ...] = ()
-            else:
-                if run.source_family != "advanced_search_sr":
+                reconciliation_findings: tuple[NormalizedFindingEvidence, ...] = ()
+            elif run.source_family == "advanced_search_sr":
+                proposal_writes = preflight.proposal_writes
+                reconciliation_findings = ()
+            elif run.source_family == "rfc_enhanced":
+                proposal_writes = preflight.proposal_writes
+                reconciliation_findings = ()
+            elif run.source_family == "wfm_service_provider":
+                proposal_writes = preflight.proposal_writes
+                reconciliation_findings = self._wfm_reconciliation_findings(uow.connection, verified)
+                if reconciliation_findings != preflight.reconciliation_findings:
                     raise SomaError(
                         "IMPORT_RUN_STALE",
-                        "changed-source publication orchestration is not yet implemented for this source family",
+                        "WFM retired-identity reconciliation evidence changed after publication preflight",
                     )
-                proposal_writes = preflight.proposal_writes
+            else:
+                raise SomaError(
+                    "IMPORT_RUN_STALE",
+                    "changed-source publication orchestration is not yet implemented for this source family",
+                )
 
             target_state = self._target_state(classification, proposal_writes)
             if target_state != preflight.target_state:
@@ -715,6 +833,14 @@ class PublishStagedImportRunService:
                     import_run_id=canonical_run_id,
                     writes=proposal_writes,
                 )
+                inserted_reconciliation_findings = SourceFindingRepository.append_reconciliation_findings_after_source_verification(
+                    inner,
+                    import_run_id=canonical_run_id,
+                    expected_run_revision=expected_run_revision,
+                    findings=reconciliation_findings,
+                )
+                if len(inserted_reconciliation_findings) != len(reconciliation_findings):
+                    raise IntegrityFailure("publication reconciliation finding count disagrees with preflight")
                 published = self._runs.publish_validating_run(
                     inner,
                     import_run_id=canonical_run_id,

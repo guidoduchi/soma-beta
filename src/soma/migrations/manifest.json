@@ -48,6 +48,12 @@
       "migration_id": "beta_0008_durable_job_coalescing",
       "filename": "0008_durable_job_coalescing.sql",
       "sha256": "aab4126fbc9b1e29af3e6246798f837bfe681d3bde8fbe7b26962bd06b12c3e4"
+    },
+    {
+      "sequence": 9,
+      "migration_id": "beta_0009_product_line_sla",
+      "filename": "0009_product_line_sla.sql",
+      "sha256": "2ea6c47e1f3ffc1b8894a41e7b2b9f73481396703b543c10b0a7d06473811059"
     }
   ]
 }

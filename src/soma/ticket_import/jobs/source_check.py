@@ -19,8 +19,14 @@ from soma.ticket_import.parsing.discovery import (
     CandidateDescriptor,
     discover_advanced_search_automatic,
     discover_advanced_search_manual,
+    discover_rfc_enhanced_automatic,
+    discover_rfc_enhanced_manual,
+    discover_wfm_service_provider_automatic,
+    discover_wfm_service_provider_manual,
 )
-from soma.ticket_import.parsing.staging import stage_advanced_search_parse_batch
+from soma.ticket_import.parsing.rfc import parse_rfc_enhanced
+from soma.ticket_import.parsing.staging import stage_import_parse_batch
+from soma.ticket_import.parsing.wfm import parse_wfm_service_provider
 from soma.ticket_import.profiles.registry import require_profile_versions
 from soma.ticket_import.reconciliation.staged import verify_staged_logical_run
 from soma.ticket_import.repositories.runs import ImportRunRepository, SourceCheckpointRepository
@@ -39,7 +45,7 @@ _JOB_JSON_ITEMS = 512
 
 
 class TicketImportSourceCheckWorker:
-    """Advanced Search source-check conductor over durable bounded transitions."""
+    """Registered Ticket Import source-check conductor over durable bounded transitions."""
 
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
@@ -129,15 +135,28 @@ class TicketImportSourceCheckWorker:
         return str(value["path"])
 
     def _discover(self, payload: dict[str, Any]) -> CandidateDescriptor:
-        if payload["source_family"] != "advanced_search_sr":
-            raise SomaError(
-                "IMPORT_SOURCE_PROFILE_MISMATCH",
-                "source-check runtime parser is not yet implemented for this source family",
-            )
+        source_family = str(payload["source_family"])
         locator = payload["source_locator"]
-        if payload["invocation_kind"] == "manual":
-            return discover_advanced_search_manual(str(locator["selected_path"]))
-        return discover_advanced_search_automatic(self._automatic_directory(payload))
+        manual = payload["invocation_kind"] == "manual"
+        if source_family == "advanced_search_sr":
+            return (
+                discover_advanced_search_manual(str(locator["selected_path"]))
+                if manual
+                else discover_advanced_search_automatic(self._automatic_directory(payload))
+            )
+        if source_family == "rfc_enhanced":
+            return (
+                discover_rfc_enhanced_manual(str(locator["selected_path"]))
+                if manual
+                else discover_rfc_enhanced_automatic(self._automatic_directory(payload))
+            )
+        if source_family == "wfm_service_provider":
+            return (
+                discover_wfm_service_provider_manual(str(locator["selected_path"]))
+                if manual
+                else discover_wfm_service_provider_automatic(self._automatic_directory(payload))
+            )
+        raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "source-check source family is not registered")
 
     @staticmethod
     def _locator_fingerprint(candidate: CandidateDescriptor) -> str:
@@ -226,7 +245,19 @@ class TicketImportSourceCheckWorker:
         checkpoint: dict[str, Any],
         candidate: CandidateDescriptor,
     ) -> dict[str, Any]:
-        parsed = parse_advanced_search(candidate.path, preflight=candidate.preflight)
+        if candidate.source_family == "advanced_search_sr":
+            parsed = parse_advanced_search(candidate.path, preflight=candidate.preflight)
+        elif candidate.source_family == "rfc_enhanced":
+            parsed = parse_rfc_enhanced(candidate.path, preflight=candidate.preflight)
+        elif candidate.source_family == "wfm_service_provider":
+            parsed = parse_wfm_service_provider(
+                candidate.path,
+                preflight=candidate.preflight,
+                source_chronology_utc=candidate.chronology_value,
+            )
+        else:
+            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "source-check parser family is not registered")
+
         batch = checkpoint.get("last_committed_batch")
         start_index = 0 if batch is None else int(batch.get("next_index", -1))
         global_staged = False if batch is None else bool(batch.get("global_findings_staged", False))
@@ -234,10 +265,11 @@ class TicketImportSourceCheckWorker:
             raise IntegrityFailure("source-check parser checkpoint is invalid")
         while True:
             with UnitOfWork(self._factory) as uow:
-                result = stage_advanced_search_parse_batch(
+                result = stage_import_parse_batch(
                     uow,
                     import_run_id=str(checkpoint["import_run_id"]),
                     expected_run_revision=int(checkpoint["run_revision"]),
+                    source_family=candidate.source_family,
                     parsed=parsed,
                     start_index=start_index,
                     include_global_findings=not global_staged,
@@ -403,8 +435,11 @@ class TicketImportSourceCheckWorker:
         profiles = self._profiles(payload)
         checkpoint = self._checkpoint(claim)
         candidate = self._discover(payload)
-        if candidate.profile_id != profiles["source_profile_id"]:
-            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "discovered candidate uses the wrong profile")
+        if (
+            candidate.source_family != payload["source_family"]
+            or candidate.profile_id != profiles["source_profile_id"]
+        ):
+            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "discovered candidate uses the wrong source family/profile")
 
         if checkpoint is None:
             _import_run_id, checkpoint = self._start_run(claim, payload, profiles, candidate)

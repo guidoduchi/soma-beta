@@ -19,12 +19,24 @@ from .xlsx_security import XlsxPreflightResult, preflight_xlsx
 _ADVANCED_SEARCH_FILENAME = re.compile(
     r"\AAdvanced Search\(Service Request\)([0-9]{14})\.xlsx\Z"
 )
+_RFC_ENHANCED_FILENAME = re.compile(
+    r"\AEnhanced Excel Data Export(?: \(([1-9][0-9]*)\))?\.xlsx\Z"
+)
+_WFM_SERVICE_PROVIDER_FILENAME = re.compile(
+    r"\AService Provider Plan Creation([0-9]{14})(?: \(([1-9][0-9]*)\))?\.xlsx\Z"
+)
 _ADVANCED_SEARCH_PROFILE_ID = "ADVANCED_SEARCH_SR_V1"
 _ADVANCED_SEARCH_FAMILY = "advanced_search_sr"
-_CHRONOLOGY_KIND = "embedded_filename_timestamp_utc"
+_RFC_ENHANCED_PROFILE_ID = "RFC_ENHANCED_V1"
+_RFC_ENHANCED_FAMILY = "rfc_enhanced"
+_WFM_SERVICE_PROVIDER_PROFILE_ID = "WFM_SERVICE_PROVIDER_V1"
+_WFM_SERVICE_PROVIDER_FAMILY = "wfm_service_provider"
+_EMBEDDED_CHRONOLOGY_KIND = "embedded_filename_timestamp_utc"
+_FILESYSTEM_CHRONOLOGY_KIND = "filesystem_mtime_ns"
 _STABILITY_INTERVAL_SECONDS = 1.0
 _STABILITY_MAX_ATTEMPTS = 3
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400
+_MAX_FILENAME_UTF8_BYTES = 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,14 +155,22 @@ def _asia_shanghai_timezone(local: datetime):
         return timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
-def _parse_advanced_search_filename(filename: str) -> int | None:
-    match = _ADVANCED_SEARCH_FILENAME.fullmatch(filename)
-    if match is None:
-        return None
-    token = match.group(1)
+def _america_guayaquil_timezone(local: datetime):
+    try:
+        return ZoneInfo("America/Guayaquil")
+    except ZoneInfoNotFoundError:
+        # WFM exports are modern operational artifacts. Mainland Ecuador is UTC-05 in
+        # the supported modern period; fail closed for older dates where historical
+        # timezone data would be required instead of guessing.
+        if local.year < 1993:
+            raise ValueError("America/Guayaquil historical timezone data is unavailable")
+        return timezone(timedelta(hours=-5), name="America/Guayaquil")
+
+
+def _parse_local_filename_timestamp(token: str, *, zone_factory: Callable[[datetime], object]) -> int | None:
     try:
         local = datetime.strptime(token, "%Y%m%d%H%M%S")
-        zone = _asia_shanghai_timezone(local)
+        zone = zone_factory(local)
         aware = local.replace(tzinfo=zone, fold=0)
         alternate = local.replace(tzinfo=zone, fold=1)
         if aware.utcoffset() != alternate.utcoffset():
@@ -160,8 +180,26 @@ def _parse_advanced_search_filename(filename: str) -> int | None:
             return None
         epoch = int(utc_instant.timestamp())
         return epoch if epoch >= 0 else None
-    except (OverflowError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         return None
+
+
+def _parse_advanced_search_filename(filename: str) -> int | None:
+    match = _ADVANCED_SEARCH_FILENAME.fullmatch(filename)
+    if match is None:
+        return None
+    return _parse_local_filename_timestamp(match.group(1), zone_factory=_asia_shanghai_timezone)
+
+
+def _parse_rfc_enhanced_filename(filename: str) -> bool:
+    return _RFC_ENHANCED_FILENAME.fullmatch(filename) is not None
+
+
+def _parse_wfm_service_provider_filename(filename: str) -> int | None:
+    match = _WFM_SERVICE_PROVIDER_FILENAME.fullmatch(filename)
+    if match is None:
+        return None
+    return _parse_local_filename_timestamp(match.group(1), zone_factory=_america_guayaquil_timezone)
 
 
 def _probe_stat(path: Path) -> _StableFile:
@@ -246,6 +284,39 @@ def _probe_stability(
     raise _unstable()
 
 
+def _preflight_stable(path: Path, stable: _StableFile) -> XlsxPreflightResult:
+    try:
+        preflight = preflight_xlsx(path)
+    except SomaError:
+        if _probe_stat(path) != stable:
+            raise _unstable()
+        raise
+    if _probe_stat(path) != stable:
+        raise _unstable()
+    return preflight
+
+
+def _probe_ranked_selection(
+    ranked: list[_RankedPath],
+    *,
+    sleep_fn: Callable[[float], None],
+) -> tuple[_RankedPath, _StableFile]:
+    selected = ranked[0]
+    selected_stability: _StableFile | None = None
+    for candidate in ranked:
+        try:
+            stable = _probe_stability(candidate.path, sleep_fn=sleep_fn)
+        except SomaError:
+            if candidate.path == selected.path:
+                raise
+            continue
+        if candidate.path == selected.path:
+            selected_stability = stable
+    if selected_stability is None:
+        raise _unstable()
+    return selected, selected_stability
+
+
 def discover_advanced_search_automatic(
     directory: str | os.PathLike[str] | None,
     *,
@@ -269,7 +340,7 @@ def discover_advanced_search_automatic(
                 chronology = _parse_advanced_search_filename(entry.name)
                 if chronology is None:
                     continue
-                if len(entry.name.encode("utf-8", errors="strict")) > 1024:
+                if len(entry.name.encode("utf-8", errors="strict")) > _MAX_FILENAME_UTF8_BYTES:
                     continue
                 safe_path = _assert_safe_direct_file(root, entry)
                 if safe_path is None:
@@ -282,32 +353,8 @@ def discover_advanced_search_automatic(
         raise _source_unavailable("configured Advanced Search directory has no eligible automatic source file")
 
     ranked.sort(key=lambda candidate: (-candidate.chronology_value, candidate.filename.encode("utf-8")))
-    selected = ranked[0]
-
-    # Probe every rankable candidate as required by the shared discovery contract, but
-    # only instability of the selected newest candidate is authoritative for this check.
-    selected_stability: _StableFile | None = None
-    for candidate in ranked:
-        try:
-            stable = _probe_stability(candidate.path, sleep_fn=sleep_fn)
-        except SomaError:
-            if candidate.path == selected.path:
-                raise
-            continue
-        if candidate.path == selected.path:
-            selected_stability = stable
-
-    if selected_stability is None:
-        raise _unstable()
-
-    try:
-        preflight = preflight_xlsx(selected.path)
-    except SomaError:
-        if _probe_stat(selected.path) != selected_stability:
-            raise _unstable()
-        raise
-    if _probe_stat(selected.path) != selected_stability:
-        raise _unstable()
+    selected, selected_stability = _probe_ranked_selection(ranked, sleep_fn=sleep_fn)
+    preflight = _preflight_stable(selected.path, selected_stability)
 
     return CandidateDescriptor(
         source_family=_ADVANCED_SEARCH_FAMILY,
@@ -316,7 +363,7 @@ def discover_advanced_search_automatic(
         filename=selected.filename,
         stable_size_bytes=selected_stability.size_bytes,
         stable_mtime_ns=selected_stability.mtime_ns,
-        chronology_kind=_CHRONOLOGY_KIND,
+        chronology_kind=_EMBEDDED_CHRONOLOGY_KIND,
         chronology_value=selected.chronology_value,
         discovery_provenance="automatic",
         preflight=preflight,
@@ -346,14 +393,7 @@ def discover_advanced_search_manual(
             "selected workbook filename does not match the Advanced Search source profile",
         )
     stable = _probe_stability(resolved, sleep_fn=sleep_fn)
-    try:
-        preflight = preflight_xlsx(resolved)
-    except SomaError:
-        if _probe_stat(resolved) != stable:
-            raise _unstable()
-        raise
-    if _probe_stat(resolved) != stable:
-        raise _unstable()
+    preflight = _preflight_stable(resolved, stable)
     return CandidateDescriptor(
         source_family=_ADVANCED_SEARCH_FAMILY,
         profile_id=_ADVANCED_SEARCH_PROFILE_ID,
@@ -361,8 +401,195 @@ def discover_advanced_search_manual(
         filename=resolved.name,
         stable_size_bytes=stable.size_bytes,
         stable_mtime_ns=stable.mtime_ns,
-        chronology_kind=_CHRONOLOGY_KIND,
+        chronology_kind=_EMBEDDED_CHRONOLOGY_KIND,
         chronology_value=chronology,
         discovery_provenance="manual",
         preflight=preflight,
     )
+
+
+def discover_rfc_enhanced_automatic(
+    directory: str | os.PathLike[str] | None,
+    *,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> CandidateDescriptor:
+    """Select the highest-ranked Enhanced RFC workbook from the shared RFC/WFM directory."""
+
+    if directory is None:
+        raise SomaError("IMPORT_SOURCE_NOT_CONFIGURED", "RFC/WFM import directory is not configured")
+    root = _assert_absolute_local_directory(Path(directory))
+    ranked: list[_RankedPath] = []
+    try:
+        with os.scandir(root) as entries:
+            for entry in entries:
+                if not _parse_rfc_enhanced_filename(entry.name):
+                    continue
+                if len(entry.name.encode("utf-8", errors="strict")) > _MAX_FILENAME_UTF8_BYTES:
+                    continue
+                safe_path = _assert_safe_direct_file(root, entry)
+                if safe_path is None:
+                    continue
+                try:
+                    chronology = int(os.lstat(safe_path).st_mtime_ns)
+                except OSError:
+                    continue
+                if chronology < 0:
+                    continue
+                ranked.append(_RankedPath(safe_path, entry.name, chronology))
+    except OSError as exc:
+        raise _source_unavailable("configured RFC/WFM directory cannot be enumerated") from exc
+
+    if not ranked:
+        raise _source_unavailable("configured RFC/WFM directory has no eligible Enhanced RFC source file")
+
+    ranked.sort(key=lambda candidate: (-candidate.chronology_value, candidate.filename.encode("utf-8")))
+    selected, selected_stability = _probe_ranked_selection(ranked, sleep_fn=sleep_fn)
+    if selected_stability.mtime_ns != selected.chronology_value:
+        raise _unstable()
+    preflight = _preflight_stable(selected.path, selected_stability)
+    return CandidateDescriptor(
+        source_family=_RFC_ENHANCED_FAMILY,
+        profile_id=_RFC_ENHANCED_PROFILE_ID,
+        path=selected.path,
+        filename=selected.filename,
+        stable_size_bytes=selected_stability.size_bytes,
+        stable_mtime_ns=selected_stability.mtime_ns,
+        chronology_kind=_FILESYSTEM_CHRONOLOGY_KIND,
+        chronology_value=selected.chronology_value,
+        discovery_provenance="automatic",
+        preflight=preflight,
+    )
+
+
+def discover_rfc_enhanced_manual(
+    selected_path: str | os.PathLike[str],
+    *,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> CandidateDescriptor:
+    """Stabilize an explicitly selected local RFC .xlsx; filename family matching is not required."""
+
+    requested = Path(selected_path)
+    _reject_unsupported_windows_namespace(requested)
+    if not requested.is_absolute():
+        raise _source_unavailable("selected Enhanced RFC workbook path is not absolute")
+    _assert_no_reparse_chain(requested)
+    try:
+        resolved = requested.resolve(strict=True)
+    except OSError as exc:
+        raise _source_unavailable("selected Enhanced RFC workbook is unavailable") from exc
+    if not resolved.name.endswith(".xlsx"):
+        raise SomaError(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "selected RFC workbook does not use the required .xlsx extension",
+        )
+    stable = _probe_stability(resolved, sleep_fn=sleep_fn)
+    if stable.mtime_ns < 0:
+        raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "selected RFC workbook has unusable filesystem chronology")
+    preflight = _preflight_stable(resolved, stable)
+    return CandidateDescriptor(
+        source_family=_RFC_ENHANCED_FAMILY,
+        profile_id=_RFC_ENHANCED_PROFILE_ID,
+        path=resolved,
+        filename=resolved.name,
+        stable_size_bytes=stable.size_bytes,
+        stable_mtime_ns=stable.mtime_ns,
+        chronology_kind=_FILESYSTEM_CHRONOLOGY_KIND,
+        chronology_value=stable.mtime_ns,
+        discovery_provenance="manual",
+        preflight=preflight,
+    )
+
+
+def discover_wfm_service_provider_automatic(
+    directory: str | os.PathLike[str] | None,
+    *,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> CandidateDescriptor:
+    """Select the newest exact Service Provider WFM workbook by embedded export timestamp."""
+
+    if directory is None:
+        raise SomaError("IMPORT_SOURCE_NOT_CONFIGURED", "RFC/WFM import directory is not configured")
+    root = _assert_absolute_local_directory(Path(directory))
+    ranked: list[_RankedPath] = []
+    try:
+        with os.scandir(root) as entries:
+            for entry in entries:
+                chronology = _parse_wfm_service_provider_filename(entry.name)
+                if chronology is None:
+                    continue
+                if len(entry.name.encode("utf-8", errors="strict")) > _MAX_FILENAME_UTF8_BYTES:
+                    continue
+                safe_path = _assert_safe_direct_file(root, entry)
+                if safe_path is None:
+                    continue
+                ranked.append(_RankedPath(safe_path, entry.name, chronology))
+    except OSError as exc:
+        raise _source_unavailable("configured RFC/WFM directory cannot be enumerated") from exc
+
+    if not ranked:
+        raise _source_unavailable("configured RFC/WFM directory has no eligible Service Provider WFM source file")
+
+    ranked.sort(key=lambda candidate: (-candidate.chronology_value, candidate.filename.encode("utf-8")))
+    selected, selected_stability = _probe_ranked_selection(ranked, sleep_fn=sleep_fn)
+    preflight = _preflight_stable(selected.path, selected_stability)
+    return CandidateDescriptor(
+        source_family=_WFM_SERVICE_PROVIDER_FAMILY,
+        profile_id=_WFM_SERVICE_PROVIDER_PROFILE_ID,
+        path=selected.path,
+        filename=selected.filename,
+        stable_size_bytes=selected_stability.size_bytes,
+        stable_mtime_ns=selected_stability.mtime_ns,
+        chronology_kind=_EMBEDDED_CHRONOLOGY_KIND,
+        chronology_value=selected.chronology_value,
+        discovery_provenance="automatic",
+        preflight=preflight,
+    )
+
+
+def discover_wfm_service_provider_manual(
+    selected_path: str | os.PathLike[str],
+    *,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> CandidateDescriptor:
+    """Stabilize one explicitly selected WFM workbook with supported embedded chronology."""
+
+    requested = Path(selected_path)
+    _reject_unsupported_windows_namespace(requested)
+    if not requested.is_absolute():
+        raise _source_unavailable("selected Service Provider WFM workbook path is not absolute")
+    _assert_no_reparse_chain(requested)
+    try:
+        resolved = requested.resolve(strict=True)
+    except OSError as exc:
+        raise _source_unavailable("selected Service Provider WFM workbook is unavailable") from exc
+    chronology = _parse_wfm_service_provider_filename(resolved.name)
+    if chronology is None:
+        raise SomaError(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "selected WFM workbook filename does not contain supported embedded source chronology",
+        )
+    stable = _probe_stability(resolved, sleep_fn=sleep_fn)
+    preflight = _preflight_stable(resolved, stable)
+    return CandidateDescriptor(
+        source_family=_WFM_SERVICE_PROVIDER_FAMILY,
+        profile_id=_WFM_SERVICE_PROVIDER_PROFILE_ID,
+        path=resolved,
+        filename=resolved.name,
+        stable_size_bytes=stable.size_bytes,
+        stable_mtime_ns=stable.mtime_ns,
+        chronology_kind=_EMBEDDED_CHRONOLOGY_KIND,
+        chronology_value=chronology,
+        discovery_provenance="manual",
+        preflight=preflight,
+    )
+
+
+__all__ = [
+    "CandidateDescriptor",
+    "discover_advanced_search_automatic",
+    "discover_advanced_search_manual",
+    "discover_rfc_enhanced_automatic",
+    "discover_rfc_enhanced_manual",
+    "discover_wfm_service_provider_automatic",
+    "discover_wfm_service_provider_manual",
+]
