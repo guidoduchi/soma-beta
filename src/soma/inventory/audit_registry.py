@@ -207,6 +207,27 @@ def _validate_logistics(payload: dict[str, object]) -> None:
     )
     _positive(payload.get("resulting_revision"), "resulting_revision")
 
+
+def _validate_physical_consequence(payload: dict[str, object]) -> None:
+    _uuid(payload.get("physical_consequence_id"), "physical_consequence_id")
+    _uuid(payload.get("task_id"), "task_id")
+    _fingerprint(payload.get("task_review_fingerprint"), "task_review_fingerprint")
+    if payload.get("event_kind") not in {"ACCEPT", "CORRECT", "SUPERSEDE"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "physical consequence event kind is invalid")
+    if payload.get("disposition") not in {
+        "installed_used",
+        "unused",
+        "inbound_faulty",
+        "incompatible",
+        "dismantled",
+        "removed_only",
+        "no_physical_change",
+        "other_reviewed",
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "physical consequence disposition is invalid")
+    _uuid(payload.get("return_obligation_id"), "return_obligation_id", nullable=True)
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -428,6 +449,29 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_logistics,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.task_physical_consequence.accepted_or_corrected",
+            action_version=1,
+            payload_schema="PhysicalConsequenceAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "PhysicalConsequenceAuditV1",
+                frozenset(
+                    {
+                        "physical_consequence_id",
+                        "task_id",
+                        "task_review_fingerprint",
+                        "event_kind",
+                        "disposition",
+                        "return_obligation_id",
+                        "resulting_revision",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_physical_consequence,
         )
     )
     return registry

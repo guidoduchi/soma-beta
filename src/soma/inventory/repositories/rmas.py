@@ -200,6 +200,13 @@ class InventoryRmasRepository:
                 current_c10=c10,
             )
             connection.execute(
+                "INSERT INTO rma_return_obligation_current("
+                "rma_id,obligation_state,device_part_unit_id,spare_part_unit_id,"
+                "physical_consequence_id,revision,last_event_id,last_command_id"
+                ") VALUES (?,'not_established',NULL,NULL,NULL,1,NULL,?)",
+                (rma_id, command_id),
+            )
+            connection.execute(
                 "INSERT INTO rma_lifecycle_projection("
                 "rma_id,state,current_target_device_part_unit_id,"
                 "direct_inbound_spare_part_unit_id,return_device_part_unit_id,"
