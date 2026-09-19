@@ -105,6 +105,26 @@ def _validate_spare_unit(payload: dict[str, object]) -> None:
     _reason(payload.get("reason_category"))
 
 
+
+_SPR = re.compile(r"SPR-[0-9]{8}\Z")
+
+
+def _validate_spare_request_draft(payload: dict[str, object]) -> None:
+    _uuid(payload.get("spare_request_id"), "spare_request_id")
+    _uuid(payload.get("service_request_id"), "service_request_id")
+    _uuid(payload.get("requester_contact_id"), "requester_contact_id")
+    tracking_id = payload.get("tracking_id")
+    if not isinstance(tracking_id, str) or _SPR.fullmatch(tracking_id) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "tracking_id is invalid")
+    if payload.get("event_kind") != "CREATE_DRAFT":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request draft event is invalid")
+    if payload.get("mode") not in {"delivery", "self_pickup"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request logistics mode is invalid")
+    _positive(payload.get("allocation_count"), "allocation_count")
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+    _fingerprint(payload.get("requester_context_fingerprint"), "requester_context_fingerprint")
+
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -189,6 +209,31 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_spare_unit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.spare_request.draft_changed",
+            action_version=1,
+            payload_schema="SpareRequestAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "SpareRequestAuditV1",
+                frozenset(
+                    {
+                        "spare_request_id",
+                        "service_request_id",
+                        "requester_contact_id",
+                        "tracking_id",
+                        "event_kind",
+                        "mode",
+                        "allocation_count",
+                        "resulting_revision",
+                        "requester_context_fingerprint",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_spare_request_draft,
         )
     )
     return registry
