@@ -245,6 +245,21 @@ def _validate_fault_tag(payload: dict[str, object]) -> None:
     _positive(payload.get("resulting_revision"), "resulting_revision")
     _reason(payload.get("reason_category"))
 
+
+def _validate_fault_tag_submission(payload: dict[str, object]) -> None:
+    _uuid(payload.get("fault_tag_id"), "fault_tag_id")
+    _uuid(payload.get("submission_event_id"), "submission_event_id")
+    _uuid(payload.get("submission_snapshot_id"), "submission_snapshot_id")
+    if payload.get("event_kind") not in {"ACCEPT", "CORRECT_FALSE"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag submission event kind is invalid")
+    count = payload.get("membership_count")
+    if type(count) is not int or count < 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag membership_count is invalid")
+    _fingerprint(payload.get("input_fingerprint"), "input_fingerprint")
+    effective = payload.get("effective_at_utc")
+    if effective is not None and (type(effective) is not int or effective < 0):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag effective_at_utc is invalid")
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -511,6 +526,29 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_fault_tag,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.fault_tag.submitted",
+            action_version=1,
+            payload_schema="FaultTagSubmissionAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "FaultTagSubmissionAuditV1",
+                frozenset(
+                    {
+                        "fault_tag_id",
+                        "submission_event_id",
+                        "submission_snapshot_id",
+                        "event_kind",
+                        "membership_count",
+                        "input_fingerprint",
+                        "effective_at_utc",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_fault_tag_submission,
         )
     )
     return registry

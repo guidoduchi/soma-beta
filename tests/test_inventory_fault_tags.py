@@ -63,3 +63,33 @@ def test_t042_fault_tag_draft_allocates_immutable_handle_and_allows_zero_members
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM fault_tag_membership_events"
         ).fetchone()[0] == 0
+
+
+def test_t043_pickup_fault_tag_submission_requires_pickup_origin(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    service = InventoryFaultTagsService(factory)
+    created = service.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="pickup",
+    )
+    with ReadSnapshot(factory) as snapshot:
+        fingerprint = str(
+            snapshot.connection.execute(
+                "SELECT input_fingerprint FROM fault_tag_current_projection "
+                "WHERE fault_tag_id=?",
+                (str(created["fault_tag_id"]),),
+            ).fetchone()[0]
+        )
+
+    import pytest
+    from soma.foundation.errors import SomaError
+
+    with pytest.raises(SomaError) as excinfo:
+        service.accept_fault_tag_submission(
+            command_id=new_uuid4(),
+            fault_tag_id=str(created["fault_tag_id"]),
+            expected_fingerprint=fingerprint,
+        )
+    assert excinfo.value.code == "FAULT_TAG_PICKUP_ORIGIN_REQUIRED"

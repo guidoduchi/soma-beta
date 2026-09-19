@@ -49,10 +49,19 @@ class InventoryFaultTagsService:
         if tag is None:
             raise IntegrityFailure("Fault Tag projection disappeared")
         members = InventoryFaultTagsRepository.current_members(connection, fault_tag_id)
+        state = cls._transport_state(str(tag[7]))
+        if (
+            state == "draft"
+            and tag[9] is None
+            and InventoryFaultTagsRepository.latest_lifecycle_kind(
+                connection, fault_tag_id
+            ) == "submission_corrected_false"
+        ):
+            state = "corrected_false_submission"
         return {
             "fault_tag_id": str(tag[0]),
             "tracking_handle": str(tag[1]),
-            "state": cls._transport_state(str(tag[7])),
+            "state": state,
             "revision": int(tag[10]),
             "members": [
                 {
@@ -340,6 +349,239 @@ class InventoryFaultTagsService:
                 response_factory=lambda inner: self._response(
                     inner.connection, identity
                 ),
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("Fault Tag response is not an object")
+        return dict(execution.response)
+
+
+    def accept_fault_tag_submission(
+        self,
+        *,
+        command_id: str,
+        fault_tag_id: str,
+        expected_fingerprint: str,
+        effective_submission_at_utc: int | None = None,
+        evidence_kind: str = "manual",
+        evidence_id: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        identity = require_uuid4(fault_tag_id)
+        if (
+            not isinstance(expected_fingerprint, str)
+            or len(expected_fingerprint) != 64
+            or any(ch not in "0123456789abcdef" for ch in expected_fingerprint)
+        ):
+            raise ValidationError("expected_fingerprint must be lowercase SHA-256 hex")
+        if (
+            effective_submission_at_utc is not None
+            and (type(effective_submission_at_utc) is not int or effective_submission_at_utc < 0)
+        ):
+            raise ValidationError("effective_submission_at_utc must be non-negative or null")
+        if evidence_kind not in {"manual", "indexed_sent"}:
+            raise ValidationError("Fault Tag submission evidence kind is invalid")
+        if evidence_kind == "indexed_sent" and (
+            not isinstance(evidence_id, str) or not evidence_id.strip()
+        ):
+            raise ValidationError("indexed sent Fault Tag submission requires evidence_id")
+        if evidence_kind == "manual" and evidence_id is not None:
+            raise ValidationError("manual Fault Tag submission cannot carry evidence_id")
+        normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="AcceptFaultTagSubmission",
+            target_type="fault_tag",
+            target_id=identity,
+            semantic_payload={
+                "expected_fingerprint": expected_fingerprint,
+                "effective_submission_at_utc": effective_submission_at_utc,
+                "evidence_kind": evidence_kind,
+                "evidence_id": normalized_evidence_id,
+            },
+            authorizing_fingerprints={"draft": expected_fingerprint},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            tag = self._repository.current_tag(uow.connection, identity)
+            if tag is None or str(tag[11]) != expected_fingerprint:
+                raise SomaError("INV_STALE", "Fault Tag draft fingerprint changed")
+            if str(tag[7]) != "draft" or tag[9] is not None:
+                raise SomaError("FAULT_TAG_NOT_DRAFT", "Fault Tag is not Draft")
+            if str(tag[2]) == "pickup" and tag[3] is None:
+                raise SomaError(
+                    "FAULT_TAG_PICKUP_ORIGIN_REQUIRED",
+                    "Pickup Fault Tag requires pickup-origin Dispatch Location",
+                )
+            if not self._repository.current_members(uow.connection, identity):
+                raise SomaError(
+                    "FAULT_TAG_NOT_DRAFT",
+                    "Fault Tag submission requires one-or-more members",
+                )
+
+            def apply(inner: UnitOfWork):
+                (
+                    event_id,
+                    snapshot_id,
+                    revision,
+                    member_count,
+                    snapshot_hash,
+                ) = self._repository.accept_submission(
+                    inner.connection,
+                    fault_tag_id=identity,
+                    expected_fingerprint=expected_fingerprint,
+                    effective_submission_at_utc=effective_submission_at_utc,
+                    evidence_kind=evidence_kind,
+                    evidence_id=normalized_evidence_id,
+                    command_id=command_id,
+                )
+                apply.event_id = event_id
+                apply.snapshot_id = snapshot_id
+                apply.revision = revision
+                apply.member_count = member_count
+                apply.snapshot_hash = snapshot_hash
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.fault_tag.submitted",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="fault_tag",
+                    target_id=identity,
+                    command_id=command_id,
+                    payload_schema="FaultTagSubmissionAuditV1",
+                    payload_version=1,
+                    payload={
+                        "fault_tag_id": identity,
+                        "submission_event_id": event_id,
+                        "submission_snapshot_id": snapshot_id,
+                        "event_kind": "ACCEPT",
+                        "membership_count": member_count,
+                        "input_fingerprint": expected_fingerprint,
+                        "effective_at_utc": effective_submission_at_utc,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("fault_tag", identity),
+                        AuditResultRef("fault_tag_submission_snapshot", snapshot_id),
+                    ),
+                )
+
+            apply.event_id = ""
+            apply.snapshot_id = ""
+            apply.revision = int(tag[10]) + 1
+            apply.member_count = 0
+            apply.snapshot_hash = ""
+            return PreparedMutation(
+                no_change=False,
+                result_type="fault_tag",
+                result_id=identity,
+                apply=apply,
+                response_schema="FaultTagV1",
+                response_factory=lambda inner: self._response(inner.connection, identity),
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("Fault Tag response is not an object")
+        return dict(execution.response)
+
+    def correct_false_fault_tag_submission(
+        self,
+        *,
+        command_id: str,
+        fault_tag_id: str,
+        submission_event_id: str,
+        reason_code: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        identity = require_uuid4(fault_tag_id)
+        target_event = require_uuid4(submission_event_id)
+        if not isinstance(reason_code, str) or not reason_code.strip():
+            raise ValidationError("False Fault Tag submission correction requires a reason")
+        reason = reason_code.strip()
+        if len(reason.encode("utf-8", errors="strict")) > 384:
+            raise ValidationError("reason_code exceeds UTF-8 byte bound")
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CorrectFalseFaultTagSubmission",
+            target_type="fault_tag",
+            target_id=identity,
+            semantic_payload={
+                "submission_event_id": target_event,
+                "reason_code": reason,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            current = self._repository.latest_submission(uow.connection, identity)
+            if current is None or str(current[1]) != target_event:
+                raise SomaError(
+                    "CORRECTION_TARGET_INVALID",
+                    "Target is not current-effective Fault Tag submission",
+                )
+            tag = self._repository.current_tag(uow.connection, identity)
+            if tag is None:
+                raise SomaError("INV_STALE", "Fault Tag no longer exists")
+            tracking_id = str(tag[1])
+
+            def apply(inner: UnitOfWork):
+                (
+                    correction_event_id,
+                    snapshot_id,
+                    revision,
+                    member_count,
+                    _prior_snapshot_hash,
+                ) = self._repository.correct_false_submission(
+                    inner.connection,
+                    fault_tag_id=identity,
+                    submission_event_id=target_event,
+                    reason_code=reason,
+                    command_id=command_id,
+                )
+                apply.event_id = correction_event_id
+                apply.snapshot_id = snapshot_id
+                apply.revision = revision
+                apply.member_count = member_count
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.fault_tag.draft_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="fault_tag",
+                    target_id=identity,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="FaultTagAuditV1",
+                    payload_version=1,
+                    payload={
+                        "fault_tag_id": identity,
+                        "tracking_id": tracking_id,
+                        "event_kind": "DRAFT_UPDATE",
+                        "member_count": member_count,
+                        "resulting_revision": revision,
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("fault_tag", identity),
+                        AuditResultRef("fault_tag_submission_snapshot", snapshot_id),
+                    ),
+                )
+
+            apply.event_id = ""
+            apply.snapshot_id = str(current[0])
+            apply.revision = int(tag[10]) + 1
+            apply.member_count = 0
+            return PreparedMutation(
+                no_change=False,
+                result_type="fault_tag",
+                result_id=identity,
+                apply=apply,
+                response_schema="FaultTagV1",
+                response_factory=lambda inner: self._response(inner.connection, identity),
             )
 
         execution = self._boundary.execute(envelope, prepare)
