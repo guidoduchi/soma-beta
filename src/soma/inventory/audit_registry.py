@@ -228,6 +228,23 @@ def _validate_physical_consequence(payload: dict[str, object]) -> None:
     _uuid(payload.get("return_obligation_id"), "return_obligation_id", nullable=True)
     _positive(payload.get("resulting_revision"), "resulting_revision")
 
+
+_FT = re.compile(r"FT-[0-9]{8}\Z")
+
+
+def _validate_fault_tag(payload: dict[str, object]) -> None:
+    _uuid(payload.get("fault_tag_id"), "fault_tag_id")
+    tracking_id = payload.get("tracking_id")
+    if not isinstance(tracking_id, str) or _FT.fullmatch(tracking_id) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag tracking_id is invalid")
+    if payload.get("event_kind") not in {"CREATE", "DRAFT_UPDATE", "ARCHIVE", "RESTORE"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag event kind is invalid")
+    member_count = payload.get("member_count")
+    if type(member_count) is not int or member_count < 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag member_count is invalid")
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+    _reason(payload.get("reason_category"))
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -472,6 +489,28 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_physical_consequence,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.fault_tag.draft_changed",
+            action_version=1,
+            payload_schema="FaultTagAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "FaultTagAuditV1",
+                frozenset(
+                    {
+                        "fault_tag_id",
+                        "tracking_id",
+                        "event_kind",
+                        "member_count",
+                        "resulting_revision",
+                        "reason_category",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_fault_tag,
         )
     )
     return registry

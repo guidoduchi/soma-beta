@@ -9,6 +9,8 @@ from soma.foundation.identifiers import require_uuid4
 _ALLOWED_REF_TYPES = frozenset(
     {
         "device_part_unit",
+        "fault_tag",
+        "fault_tag_membership",
         "inventory_physical_consequence",
         "local_need_fulfillment",
         "logistics_event",
