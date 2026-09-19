@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import pytest
+
+from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.inventory.queries.stock_needs import InventoryNeedsQueryService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
+from soma.objectives_tasks.services.task_planning import TaskPlanningService
 from soma.reference.application.contact_service import ContactReferenceService
 from soma.tickets.device_references import DeviceReferenceService
 from soma.tickets.service_requests import ServiceRequestService
@@ -439,3 +443,299 @@ def test_t005_history_remove_blocked_by_nonterminal_spare_request(
             "SELECT COUNT(*) FROM spare_need_active_keys WHERE spare_need_id=?",
             (need_id,),
         ).fetchone()[0] == 1
+
+
+def _spare_unit_projection(factory, spare_part_unit_id: str):
+    with ReadSnapshot(factory) as snapshot:
+        return snapshot.connection.execute(
+            "SELECT u.local_tracking_id,u.bom_code,u.manufacturer_serial,"
+            "p.condition_token,p.disposition_token,p.active_task_allocation_id,p.revision "
+            "FROM spare_part_units u JOIN spare_part_current_projection p "
+            "ON p.spare_part_unit_id=u.spare_part_unit_id "
+            "WHERE u.spare_part_unit_id=?",
+            (spare_part_unit_id,),
+        ).fetchone()
+
+
+def test_t011_manual_local_unit_allocates_lsu_and_preserves_duplicate_candidates(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    service = InventoryNeedsStockService(factory)
+    query = InventoryNeedsQueryService(factory)
+
+    first = service.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="  LOCAL-BOM-1 ",
+        condition_token="new",
+    )
+    first_id = next(
+        ref.result_id
+        for ref in first.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+    first_projection = _spare_unit_projection(factory, first_id)
+    assert tuple(first_projection) == (
+        "LSU-00000001",
+        "LOCAL-BOM-1",
+        None,
+        "new",
+        "available",
+        None,
+        1,
+    )
+
+    second = service.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="Local-Bom-1",
+        manufacturer_serial=" Serial-77 ",
+        condition_token="used",
+    )
+    second_id = next(
+        ref.result_id
+        for ref in second.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+    third = service.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="LOCAL-BOM-1",
+        manufacturer_serial="serial-77",
+        condition_token="used",
+    )
+    third_id = next(
+        ref.result_id
+        for ref in third.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+    assert second_id != third_id
+    candidates = query.preview_spare_part_duplicates(
+        bom_code=" local-bom-1 ",
+        manufacturer_serial="SERIAL-77",
+    )
+    assert {item.spare_part_unit_id for item in candidates} == {
+        second_id,
+        third_id,
+    }
+    assert {item.local_tracking_id for item in candidates} == {
+        "LSU-00000002",
+        "LSU-00000003",
+    }
+
+
+def test_t007_stock_query_recommends_without_reserving(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97000009")
+    device = _device(factory, sr.service_request_id, "NE-STOCK")
+    service = InventoryNeedsStockService(factory)
+    query = InventoryNeedsQueryService(factory)
+
+    need_result = service.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        device_reference_id=device.device_reference_id,
+        bom_code="BOM-STOCK",
+        condition_token="faulty",
+    )
+    need_id = next(
+        ref.result_id for ref in need_result.target_refs if ref.result_type == "spare_need"
+    )
+    stock_result = service.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="bom-stock",
+        manufacturer_serial="SPARE-1",
+        condition_token="new",
+    )
+    unit_id = next(
+        ref.result_id
+        for ref in stock_result.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+
+    page = query.stock_eligibility(spare_need_id=need_id)
+    exact = [
+        item
+        for item in page.items
+        if item.spare_part_unit_id == unit_id
+    ]
+    assert len(exact) == 1
+    assert exact[0].compatibility_classification == "exact"
+    assert exact[0].eligible is True
+    assert exact[0].availability_blockers == ()
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_unit_allocation_current"
+        ).fetchone()[0] == 0
+        projection = snapshot.connection.execute(
+            "SELECT disposition_token,active_task_allocation_id,revision "
+            "FROM spare_part_current_projection WHERE spare_part_unit_id=?",
+            (unit_id,),
+        ).fetchone()
+        assert tuple(projection) == ("available", None, 1)
+
+
+def test_t009_t010_task_reservation_is_exclusive_planning_only_and_releaseable(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97000010")
+    task_a = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Install local spare",
+        service_request_ids=(sr.service_request_id,),
+    )
+    task_b = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Competing local spare",
+        service_request_ids=(sr.service_request_id,),
+    )
+    service = InventoryNeedsStockService(factory)
+    created = service.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="BOM-ALLOC",
+        condition_token="new",
+    )
+    unit_id = next(
+        ref.result_id
+        for ref in created.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+
+    reserved = service.reserve_spare_part_unit_for_task(
+        command_id=new_uuid4(),
+        task_id=task_a.task_id,
+        spare_part_unit_id=unit_id,
+        unit_revision=1,
+        task_revision=task_a.revision,
+    )
+    allocation_id = next(
+        ref.result_id
+        for ref in reserved.target_refs
+        if ref.result_type == "task_unit_allocation"
+    )
+    assert _spare_unit_projection(factory, unit_id)[4:] == (
+        "reserved",
+        allocation_id,
+        2,
+    )
+
+    with pytest.raises(SomaError) as excinfo:
+        service.reserve_spare_part_unit_for_task(
+            command_id=new_uuid4(),
+            task_id=task_b.task_id,
+            spare_part_unit_id=unit_id,
+            unit_revision=2,
+            task_revision=task_b.revision,
+        )
+    assert excinfo.value.code == "UNIT_ALREADY_RESERVED"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_unit_allocation_current "
+            "WHERE spare_part_unit_id=?",
+            (unit_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM physical_consequence_current "
+            "WHERE installed_spare_part_unit_id=?",
+            (unit_id,),
+        ).fetchone()[0] == 0
+        execution = snapshot.connection.execute(
+            "SELECT execution_state FROM task_execution_projection WHERE task_id=?",
+            (task_a.task_id,),
+        ).fetchone()
+        assert execution is None or str(execution[0]) == "not_started"
+
+    released = service.release_spare_part_unit_reservation(
+        command_id=new_uuid4(),
+        allocation_id=allocation_id,
+        base_revision=1,
+        reason_code="planning changed",
+    )
+    assert released.outcome == "APPLIED"
+    assert _spare_unit_projection(factory, unit_id)[4:] == (
+        "available",
+        None,
+        3,
+    )
+
+
+def test_t004_local_selection_preserves_active_need_and_optional_reservation(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97000011")
+    device = _device(factory, sr.service_request_id, "NE-LOCAL-SEL")
+    service = InventoryNeedsStockService(factory)
+
+    fault = service.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        device_reference_id=device.device_reference_id,
+        bom_code="BOM-LOCAL-SEL",
+        condition_token="faulty",
+    )
+    need_id = next(
+        ref.result_id for ref in fault.target_refs if ref.result_type == "spare_need"
+    )
+    spare = service.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="BOM-LOCAL-SEL",
+        condition_token="new",
+    )
+    unit_id = next(
+        ref.result_id
+        for ref in spare.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+    task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Local selection planning",
+        service_request_ids=(sr.service_request_id,),
+    )
+
+    selected = service.record_local_need_fulfillment_selection(
+        command_id=new_uuid4(),
+        spare_need_id=need_id,
+        spare_part_unit_id=unit_id,
+        need_revision=1,
+        unit_revision=1,
+        task_id=task.task_id,
+        task_revision=task.revision,
+    )
+    assert selected.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        need = snapshot.connection.execute(
+            "SELECT lifecycle_state,planned_quantity,revision "
+            "FROM spare_need_current_projection WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()
+        assert tuple(need) == ("active", 1, 1)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_need_active_keys WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM local_need_fulfillment_events "
+            "WHERE spare_need_id=? AND event_kind='selected'",
+            (need_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_unit_allocation_current "
+            "WHERE task_id=? AND spare_part_unit_id=?",
+            (task.task_id, unit_id),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM physical_consequence_current "
+            "WHERE installed_spare_part_unit_id=?",
+            (unit_id,),
+        ).fetchone()[0] == 0
