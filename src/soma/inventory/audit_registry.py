@@ -168,6 +168,18 @@ def _validate_rma(payload: dict[str, object]) -> None:
     _uuid(payload.get("target_device_part_unit_id"), "target_device_part_unit_id", nullable=True)
     _positive(payload.get("resulting_revision"), "resulting_revision")
 
+
+def _validate_rma_receipt(payload: dict[str, object]) -> None:
+    _uuid(payload.get("rma_id"), "rma_id")
+    _uuid(payload.get("spare_part_unit_id"), "spare_part_unit_id")
+    _uuid(payload.get("receipt_event_id"), "receipt_event_id")
+    _uuid(payload.get("logistics_event_id"), "logistics_event_id")
+    _fingerprint(payload.get("actual_bom_fingerprint"), "actual_bom_fingerprint")
+    _fingerprint(payload.get("actual_serial_fingerprint"), "actual_serial_fingerprint", nullable=True)
+    effective = payload.get("effective_at_utc")
+    if effective is not None and (type(effective) is not int or effective < 0):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "effective_at_utc is invalid")
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -344,6 +356,29 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_rma,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.rma.inbound_received",
+            action_version=1,
+            payload_schema="RmaReceiptAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "RmaReceiptAuditV1",
+                frozenset(
+                    {
+                        "rma_id",
+                        "spare_part_unit_id",
+                        "receipt_event_id",
+                        "logistics_event_id",
+                        "actual_bom_fingerprint",
+                        "actual_serial_fingerprint",
+                        "effective_at_utc",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_rma_receipt,
         )
     )
     return registry

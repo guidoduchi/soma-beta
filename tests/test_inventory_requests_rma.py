@@ -847,3 +847,74 @@ def test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction(
             "SELECT COUNT(*) FROM spare_part_units WHERE origin_rma_id IN (?,?)",
             (assigned_id, unassigned_id),
         ).fetchone()[0] == 0
+
+
+def test_t032_rma_receipt_creates_actual_direct_inbound_unit_without_overwriting_promise(
+    initialized_database,
+) -> None:
+    from soma.inventory.services.consequences_logistics import (
+        InventoryConsequencesLogisticsService,
+    )
+
+    factory = _factory(initialized_database)
+    _sr_obj, _need_id, request_service, request_id, revision = _prepare_submitted_request(
+        factory,
+        official_sr="97100012",
+        request_quantity=1,
+        target_count=1,
+        bom="PROMISED-BOM",
+    )
+    batch = request_service.accept_rma_authorization_batch(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_request_revision=revision,
+        rows=(RmaAuthorizationIntent("C0000000030", "PROMISED-BOM"),),
+        accepted_at_utc=2_500,
+    )
+    rma_id = str(batch["created_rmas"][0]["rma_id"])
+    receipt_service = InventoryConsequencesLogisticsService(factory)
+    received = receipt_service.record_rma_inbound_receipt(
+        command_id=new_uuid4(),
+        rma_id=rma_id,
+        actual_bom_code="ACTUAL-BOM",
+        manufacturer_serial="SERIAL-ACTUAL",
+        condition_token="new",
+        effective_at_utc=2_600,
+        custody_text="Local stock room",
+    )
+    assert received.outcome == "APPLIED"
+    unit_id = next(
+        ref.result_id for ref in received.target_refs if ref.result_type == "spare_part_unit"
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        rma = snapshot.connection.execute(
+            "SELECT promised_bom_code FROM rmas WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert str(rma[0]) == "PROMISED-BOM"
+        unit = snapshot.connection.execute(
+            "SELECT bom_code,manufacturer_serial,creation_origin,origin_rma_id "
+            "FROM spare_part_units WHERE spare_part_unit_id=?",
+            (unit_id,),
+        ).fetchone()
+        assert tuple(unit) == (
+            "ACTUAL-BOM",
+            "SERIAL-ACTUAL",
+            "direct_rma_receipt",
+            rma_id,
+        )
+        direct = snapshot.connection.execute(
+            "SELECT spare_part_unit_id FROM rma_direct_inbound_units WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert str(direct[0]) == unit_id
+        projection = snapshot.connection.execute(
+            "SELECT state,direct_inbound_spare_part_unit_id FROM rma_lifecycle_projection "
+            "WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert tuple(projection) == ("received", unit_id)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM actual_logistics_events WHERE event_kind='receipt'"
+        ).fetchone()[0] == 1
