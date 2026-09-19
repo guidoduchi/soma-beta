@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import shutil
 import sqlite3
 
 from soma.foundation.migrations.manifest import MigrationManifest
@@ -125,5 +127,81 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
         assert connection.execute(
             "SELECT sequence,migration_id FROM schema_migrations ORDER BY sequence DESC LIMIT 1"
         ).fetchone() == (10, "beta_0010_inventory")
+    finally:
+        connection.close()
+
+
+
+def _stage_prefix(source, target, count: int) -> None:
+    target.mkdir()
+    raw = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
+    prefix = {"schema": raw["schema"], "migrations": raw["migrations"][:count]}
+    for entry in prefix["migrations"]:
+        shutil.copyfile(source / entry["filename"], target / entry["filename"])
+    (target / "manifest.json").write_text(
+        json.dumps(prefix, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def _schema(path):
+    connection = sqlite3.connect(path)
+    try:
+        return [
+            (str(row[0]), str(row[1]), str(row[2]))
+            for row in connection.execute(
+                "SELECT type,name,sql FROM sqlite_master "
+                "WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name"
+            ).fetchall()
+        ]
+    finally:
+        connection.close()
+
+
+def test_exact_sequence_nine_upgrade_matches_fresh_sequence_ten(
+    tmp_path,
+    migration_directory,
+    security_provider,
+) -> None:
+    prefix = tmp_path / "prefix-nine"
+    _stage_prefix(migration_directory, prefix, 9)
+    upgraded = tmp_path / "upgraded.db"
+    fresh = tmp_path / "fresh.db"
+
+    prefix_runner = MigrationRunner(
+        canonical_database_path=upgraded,
+        manifest=MigrationManifest.load(prefix),
+        factory_for_path=_factory_builder(security_provider),
+        app_version="test",
+        ownership_assertion=lambda: True,
+    )
+    assert prefix_runner.initialize_or_migrate() == 9
+
+    current_manifest = MigrationManifest.load(migration_directory)
+    upgraded_runner = MigrationRunner(
+        canonical_database_path=upgraded,
+        manifest=current_manifest,
+        factory_for_path=_factory_builder(security_provider),
+        app_version="test",
+        ownership_assertion=lambda: True,
+    )
+    fresh_runner = MigrationRunner(
+        canonical_database_path=fresh,
+        manifest=current_manifest,
+        factory_for_path=_factory_builder(security_provider),
+        app_version="test",
+        ownership_assertion=lambda: True,
+    )
+    assert upgraded_runner.initialize_or_migrate() == 10
+    assert fresh_runner.initialize_or_migrate() == 10
+    assert _schema(upgraded) == _schema(fresh)
+
+    connection = sqlite3.connect(upgraded)
+    try:
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert connection.execute(
+            "SELECT sequence,migration_id FROM schema_migrations ORDER BY sequence"
+        ).fetchall()[-1] == (10, "beta_0010_inventory")
     finally:
         connection.close()

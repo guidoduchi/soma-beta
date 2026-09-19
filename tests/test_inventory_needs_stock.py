@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import pytest
+
+from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
+from soma.inventory.repositories.needs import InventoryNeedRepository
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
 from soma.tickets.device_references import DeviceReferenceService
 from soma.tickets.relationships import TicketDeviceReferenceRelationshipService
@@ -239,3 +243,144 @@ def test_need_lifecycle_releases_and_restores_active_sr_bom_key(
         ).fetchone()
         assert active is not None
         assert str(active[0]) == sr_id
+
+
+
+def test_need_mutation_stale_revision_fails_before_receipt_or_history(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr_id, devices = _sr_and_devices(factory, official="98100006", count=1)
+    service = InventoryNeedsStockService(factory)
+    registered = service.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr_id,
+        device_reference_id=devices[0],
+        bom_code="Stale-BOM",
+        condition_token="faulty",
+    )
+    need_id = _ref_id(registered, "spare_need")
+    command_id = new_uuid4()
+
+    with pytest.raises(SomaError) as stale:
+        service.set_spare_need_planned_quantity(
+            command_id=command_id,
+            spare_need_id=need_id,
+            base_revision=99,
+            planned_quantity=3,
+            reason="stale_probe",
+        )
+    assert stale.value.code == "INV_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_need_lifecycle_events "
+            "WHERE spare_need_id=? AND event_kind='planned_quantity_changed'",
+            (need_id,),
+        ).fetchone()[0] == 0
+        projection = snapshot.connection.execute(
+            "SELECT planned_quantity,contributor_count,revision "
+            "FROM spare_need_current_projection WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()
+        assert tuple(projection) == (1, 1, 1)
+
+
+def test_need_lifecycle_rejects_noncanonical_lateral_transition(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr_id, devices = _sr_and_devices(factory, official="98100007", count=1)
+    service = InventoryNeedsStockService(factory)
+    registered = service.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr_id,
+        device_reference_id=devices[0],
+        bom_code="Transition-BOM",
+        condition_token="faulty",
+    )
+    need_id = _ref_id(registered, "spare_need")
+    service.change_spare_need_lifecycle(
+        command_id=new_uuid4(),
+        spare_need_id=need_id,
+        base_revision=1,
+        action="resolve",
+        reason="resolved_once",
+    )
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as invalid:
+        service.change_spare_need_lifecycle(
+            command_id=command_id,
+            spare_need_id=need_id,
+            base_revision=2,
+            action="cancel",
+            reason="invalid_lateral_move",
+        )
+    assert invalid.value.code == "INV_STALE"
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT lifecycle_state,revision FROM spare_need_current_projection "
+            "WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()
+        assert tuple(row) == ("resolved", 2)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_projection_failure_rolls_back_need_event_receipt_and_projection(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    sr_id, devices = _sr_and_devices(factory, official="98100008", count=1)
+    service = InventoryNeedsStockService(factory)
+    registered = service.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr_id,
+        device_reference_id=devices[0],
+        bom_code="Rollback-BOM",
+        condition_token="faulty",
+    )
+    need_id = _ref_id(registered, "spare_need")
+    command_id = new_uuid4()
+
+    def fail_projection(*_args, **_kwargs):
+        raise RuntimeError("injected Inventory projection failure")
+
+    monkeypatch.setattr(
+        InventoryNeedRepository,
+        "rebuild_projection",
+        classmethod(fail_projection),
+    )
+    with pytest.raises(RuntimeError, match="injected Inventory"):
+        service.set_spare_need_planned_quantity(
+            command_id=command_id,
+            spare_need_id=need_id,
+            base_revision=1,
+            planned_quantity=4,
+            reason="rollback_probe",
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_need_lifecycle_events "
+            "WHERE spare_need_id=? AND event_kind='planned_quantity_changed'",
+            (need_id,),
+        ).fetchone()[0] == 0
+        projection = snapshot.connection.execute(
+            "SELECT planned_quantity,contributor_count,revision "
+            "FROM spare_need_current_projection WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()
+        assert tuple(projection) == (1, 1, 1)

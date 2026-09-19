@@ -488,18 +488,16 @@ class InventoryNeedsStockService:
             current = InventoryNeedRepository.load_projection(uow.connection, need_id)
             if current is None or current.revision != base_revision:
                 raise SomaError("INV_STALE", "Spare Need revision changed")
-            if current.lifecycle_state == target_state:
-                response = {
-                    "outcome": "NO_CHANGE",
-                    "target_refs": [_ref("spare_need", need_id)],
-                    "revisions": {_revision_key("spare_need", need_id): current.revision},
-                }
-                return PreparedMutation(
-                    True,
-                    None,
-                    None,
-                    response_schema="InventoryMutationResultV1",
-                    response=response,
+            allowed = {
+                "active": {"resolve", "cancel"},
+                "resolved": {"reactivate", "history_remove"},
+                "cancelled": {"reactivate", "history_remove"},
+                "removed": set(),
+            }
+            if action not in allowed.get(current.lifecycle_state, set()):
+                raise SomaError(
+                    "INV_STALE",
+                    "Spare Need lifecycle action is incompatible with current state",
                 )
             if action == "reactivate":
                 competing = InventoryNeedRepository.active_need_id(
