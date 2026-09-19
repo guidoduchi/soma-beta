@@ -983,15 +983,7 @@ class InventoryFaultTagsRepository:
         )
         for member in members:
             membership_id = str(member[0])
-            previous_event_id = None if member[8] is None else str(member[8])
-            if previous_event_id is None:
-                # current_members exposes revision, not last event; fetch exact target.
-                previous = connection.execute(
-                    "SELECT last_event_id FROM fault_tag_membership_current "
-                    "WHERE fault_tag_membership_id=?",
-                    (membership_id,),
-                ).fetchone()
-                previous_event_id = None if previous is None or previous[0] is None else str(previous[0])
+            previous_event_id = None if member[9] is None else str(member[9])
             if previous_event_id is None:
                 raise IntegrityFailure("Submitted Fault Tag membership lacks submitted event")
             event_id = new_uuid4()
