@@ -19,7 +19,13 @@ from ..contracts.inventory import (
     InventoryMutationResult,
     inventory_mutation_result_from_execution,
 )
-from ..domain.logistics import normalize_optional_uuid, validate_receipt_identity
+from ..domain.logistics import (
+    LogisticsParticipantIntent,
+    normalize_optional_uuid,
+    validate_logistics_event_kind,
+    validate_logistics_participants,
+    validate_receipt_identity,
+)
 from ..domain.units import initial_disposition_for_condition
 from ..repositories.logistics import InventoryLogisticsRepository
 
@@ -206,6 +212,261 @@ class InventoryConsequencesLogisticsService:
                         f"spare_part_unit:{apply.unit_id}": apply.unit_revision,
                         f"rma:{identity}": apply.rma_revision,
                     },
+                ),
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
+
+
+    def record_actual_logistics_event(
+        self,
+        *,
+        command_id: str,
+        event_kind: str,
+        participants: tuple[LogisticsParticipantIntent, ...],
+        effective_at_utc: int | None = None,
+        dispatch_location_id: str | None = None,
+        receiver_contact_id: str | None = None,
+        custody_text: str | None = None,
+        observed_condition: str | None = None,
+        evidence_kind: str | None = None,
+        evidence_id: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        kind = validate_logistics_event_kind(event_kind)
+        accepted = validate_logistics_participants(participants)
+        participant_pairs = tuple(
+            (item.participant_kind, item.participant_id) for item in accepted
+        )
+        effective = (
+            None
+            if effective_at_utc is None
+            else (
+                effective_at_utc
+                if type(effective_at_utc) is int and effective_at_utc >= 0
+                else (_ for _ in ()).throw(
+                    ValidationError("effective_at_utc must be non-negative or null")
+                )
+            )
+        )
+        dispatch_id = normalize_optional_uuid(dispatch_location_id, "dispatch_location_id")
+        receiver_id = normalize_optional_uuid(receiver_contact_id, "receiver_contact_id")
+        if custody_text is not None and (
+            not isinstance(custody_text, str) or len(custody_text.encode("utf-8")) > 1024
+        ):
+            raise ValidationError("custody_text is invalid")
+        if observed_condition is not None and (
+            not isinstance(observed_condition, str)
+            or len(observed_condition.encode("utf-8")) > 512
+        ):
+            raise ValidationError("observed_condition is invalid")
+        if evidence_kind is None:
+            if evidence_id is not None:
+                raise ValidationError("evidence_id requires evidence_kind")
+        elif evidence_kind not in {"manual", "indexed_logistics"}:
+            raise ValidationError("logistics evidence kind is invalid")
+        normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
+        event_id = new_uuid4()
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="RecordActualLogisticsEvent",
+            target_type="logistics_event",
+            target_id=event_id,
+            semantic_payload={
+                "event_kind": kind,
+                "effective_at_utc": effective,
+                "dispatch_location_id": dispatch_id,
+                "receiver_contact_id": receiver_id,
+                "custody_text": custody_text,
+                "observed_condition": observed_condition,
+                "participants": [
+                    {"kind": p_kind, "id": p_id}
+                    for p_kind, p_id in participant_pairs
+                ],
+                "evidence_kind": evidence_kind,
+                "evidence_id": normalized_evidence_id,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            for p_kind, p_id in participant_pairs:
+                self._repository.require_participant_identity(
+                    uow.connection,
+                    participant_kind=p_kind,
+                    participant_id=p_id,
+                )
+
+            def apply(inner: UnitOfWork):
+                actual_event_id, inserted = self._repository.record_actual_logistics_event(
+                    inner.connection,
+                    event_kind=kind,
+                    effective_at_utc=effective,
+                    dispatch_location_id=dispatch_id,
+                    receiver_contact_id=receiver_id,
+                    custody_text=custody_text,
+                    observed_condition=observed_condition,
+                    participants=participant_pairs,
+                    evidence_kind=evidence_kind,
+                    evidence_id=normalized_evidence_id,
+                    command_id=command_id,
+                )
+                if actual_event_id != event_id:
+                    raise IntegrityFailure("Prepared logistics event identity drifted")
+                apply.participants = inserted
+                refs = [AuditResultRef("logistics_event", event_id)]
+                refs.extend(
+                    AuditResultRef("logistics_participant", participant_id)
+                    for _p_kind, participant_id in inserted
+                )
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.logistics.recorded_or_corrected",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="logistics_event",
+                    target_id=event_id,
+                    command_id=command_id,
+                    payload_schema="LogisticsAuditV1",
+                    payload_version=1,
+                    payload={
+                        "logistics_event_id": event_id,
+                        "event_kind": kind,
+                        "effective_at_utc": effective,
+                        "participant_count": len(inserted),
+                        "corrected_participant_id": None,
+                        "resulting_revision": 1,
+                    },
+                    resulting_event_refs=tuple(refs),
+                )
+
+            apply.participants = ()
+            return PreparedMutation(
+                no_change=False,
+                result_type="logistics_event",
+                result_id=event_id,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: self._response(
+                    [("logistics_event", event_id)]
+                    + [
+                        ("logistics_participant", participant_id)
+                        for _p_kind, participant_id in apply.participants
+                    ],
+                    {f"logistics_event:{event_id}": 1},
+                ),
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
+
+    def correct_logistics_participant(
+        self,
+        *,
+        command_id: str,
+        participant_id: str,
+        replacement: LogisticsParticipantIntent | None,
+        reason_code: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        participant = require_uuid4(participant_id)
+        reason = reason_code.strip() if isinstance(reason_code, str) else ""
+        if not reason or len(reason.encode("utf-8")) > 384:
+            raise ValidationError("reason_code is invalid")
+        replacement_kind = None
+        replacement_id = None
+        if replacement is not None:
+            replacement.validate()
+            replacement_kind = replacement.participant_kind
+            replacement_id = replacement.participant_id
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CorrectLogisticsParticipant",
+            target_type="logistics_participant",
+            target_id=participant,
+            semantic_payload={
+                "replacement_kind": replacement_kind,
+                "replacement_id": replacement_id,
+                "reason_code": reason,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            _kind, event_id, _target_id, active = self._repository.locate_participant(
+                uow.connection, participant
+            )
+            if active != "1":
+                raise SomaError("CORRECTION_TARGET_INVALID", "Logistics participant is not active")
+
+            def apply(inner: UnitOfWork):
+                actual_event_id, _old_kind, replacement_participant_id = (
+                    self._repository.correct_logistics_participant(
+                        inner.connection,
+                        participant_id=participant,
+                        replacement_kind=replacement_kind,
+                        replacement_id=replacement_id,
+                        reason_code=reason,
+                        command_id=command_id,
+                    )
+                )
+                apply.event_id = actual_event_id
+                apply.replacement_participant_id = replacement_participant_id
+                refs = [AuditResultRef("logistics_participant", participant)]
+                if replacement_participant_id is not None:
+                    refs.append(
+                        AuditResultRef(
+                            "logistics_participant", replacement_participant_id
+                        )
+                    )
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.logistics.recorded_or_corrected",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="logistics_event",
+                    target_id=actual_event_id,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="LogisticsAuditV1",
+                    payload_version=1,
+                    payload={
+                        "logistics_event_id": actual_event_id,
+                        "event_kind": "correction",
+                        "effective_at_utc": None,
+                        "participant_count": 1 + int(replacement_participant_id is not None),
+                        "corrected_participant_id": participant,
+                        "resulting_revision": 1,
+                    },
+                    resulting_event_refs=tuple(refs),
+                )
+
+            apply.event_id = event_id
+            apply.replacement_participant_id = None
+            return PreparedMutation(
+                no_change=False,
+                result_type="logistics_participant",
+                result_id=participant,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: self._response(
+                    [("logistics_participant", participant)]
+                    + (
+                        []
+                        if apply.replacement_participant_id is None
+                        else [
+                            (
+                                "logistics_participant",
+                                apply.replacement_participant_id,
+                            )
+                        ]
+                    ),
+                    {f"logistics_event:{apply.event_id}": 1},
                 ),
             )
 

@@ -918,3 +918,87 @@ def test_t032_rma_receipt_creates_actual_direct_inbound_unit_without_overwriting
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM actual_logistics_events WHERE event_kind='receipt'"
         ).fetchone()[0] == 1
+
+
+def test_t034_t035_shared_logistics_event_has_independently_correctable_participants(
+    initialized_database,
+) -> None:
+    from soma.inventory.domain.logistics import LogisticsParticipantIntent
+    from soma.inventory.services.consequences_logistics import (
+        InventoryConsequencesLogisticsService,
+    )
+
+    factory = _factory(initialized_database)
+    _sr_obj, _need_id, request_service, request_id, revision = _prepare_submitted_request(
+        factory,
+        official_sr="97100013",
+        request_quantity=2,
+        target_count=2,
+        bom="LOG-BOM",
+    )
+    batch = request_service.accept_rma_authorization_batch(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_request_revision=revision,
+        rows=(
+            RmaAuthorizationIntent("C0000000040", "LOG-BOM"),
+            RmaAuthorizationIntent("C0000000041", "LOG-BOM"),
+        ),
+        accepted_at_utc=2_700,
+    )
+    rma_a = str(batch["created_rmas"][0]["rma_id"])
+    rma_b = str(batch["created_rmas"][1]["rma_id"])
+    with ReadSnapshot(factory) as snapshot:
+        unit_target = str(
+            snapshot.connection.execute(
+                "SELECT device_part_unit_id FROM rma_current_assignment WHERE rma_id=?",
+                (rma_a,),
+            ).fetchone()[0]
+        )
+    service = InventoryConsequencesLogisticsService(factory)
+    result = service.record_actual_logistics_event(
+        command_id=new_uuid4(),
+        event_kind="dispatch",
+        effective_at_utc=2_800,
+        participants=(
+            LogisticsParticipantIntent("rma", rma_a),
+            LogisticsParticipantIntent("rma", rma_b),
+            LogisticsParticipantIntent("device_part_unit", unit_target),
+        ),
+    )
+    event_id = next(
+        ref.result_id for ref in result.target_refs if ref.result_type == "logistics_event"
+    )
+    participant_refs = [
+        ref.result_id
+        for ref in result.target_refs
+        if ref.result_type == "logistics_participant"
+    ]
+    assert len(participant_refs) == 3
+
+    corrected_id = participant_refs[1]
+    service.correct_logistics_participant(
+        command_id=new_uuid4(),
+        participant_id=corrected_id,
+        replacement=None,
+        reason_code="participant was included in error",
+    )
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM actual_logistics_events WHERE logistics_event_id=?",
+            (event_id,),
+        ).fetchone()[0] == 1
+        active_rmas = snapshot.connection.execute(
+            "SELECT rma_id,active FROM logistics_rma_participants "
+            "WHERE logistics_event_id=? ORDER BY rma_id",
+            (event_id,),
+        ).fetchall()
+        assert {str(row[0]): int(row[1]) for row in active_rmas} == {
+            rma_a: 1,
+            rma_b: 0,
+        }
+        assert snapshot.connection.execute(
+            "SELECT active FROM logistics_device_part_participants "
+            "WHERE logistics_event_id=?",
+            (event_id,),
+        ).fetchone()[0] == 1

@@ -180,6 +180,33 @@ def _validate_rma_receipt(payload: dict[str, object]) -> None:
     if effective is not None and (type(effective) is not int or effective < 0):
         raise SomaError("AUDIT_PAYLOAD_INVALID", "effective_at_utc is invalid")
 
+
+def _validate_logistics(payload: dict[str, object]) -> None:
+    _uuid(payload.get("logistics_event_id"), "logistics_event_id")
+    event_kind = payload.get("event_kind")
+    if event_kind not in {
+        "dispatch",
+        "pickup",
+        "delivery",
+        "receipt",
+        "custody_change",
+        "location_change",
+        "return_pickup",
+        "warehouse_delivery",
+        "correction",
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "logistics event kind is invalid")
+    effective = payload.get("effective_at_utc")
+    if effective is not None and (type(effective) is not int or effective < 0):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "effective_at_utc is invalid")
+    _positive(payload.get("participant_count"), "participant_count")
+    _uuid(
+        payload.get("corrected_participant_id"),
+        "corrected_participant_id",
+        nullable=True,
+    )
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -379,6 +406,28 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_rma_receipt,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.logistics.recorded_or_corrected",
+            action_version=1,
+            payload_schema="LogisticsAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "LogisticsAuditV1",
+                frozenset(
+                    {
+                        "logistics_event_id",
+                        "event_kind",
+                        "effective_at_utc",
+                        "participant_count",
+                        "corrected_participant_id",
+                        "resulting_revision",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_logistics,
         )
     )
     return registry
