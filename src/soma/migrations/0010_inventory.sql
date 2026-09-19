@@ -1065,4 +1065,3 @@ CREATE TRIGGER inv_fault_tag_membership_events_delete_guard
 BEFORE DELETE ON fault_tag_membership_events BEGIN
     SELECT RAISE(ABORT,'INVENTORY_FAULT_TAG_MEMBERSHIP_EVENTS_IMMUTABLE');
 END;
-
