@@ -81,6 +81,29 @@ def _validate_need(payload: dict[str, object]) -> None:
     _reason(payload.get("reason_category"))
 
 
+
+_SPARE_UNIT_EVENTS = frozenset({"REGISTER", "RESERVE", "RELEASE", "LOCAL_SELECTION"})
+_LSU = re.compile(r"LSU-[0-9]{8}\Z")
+
+
+def _validate_spare_unit(payload: dict[str, object]) -> None:
+    _uuid(payload.get("spare_part_unit_id"), "spare_part_unit_id")
+    if payload.get("event_kind") not in _SPARE_UNIT_EVENTS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Part Unit event kind is invalid")
+    tracking_id = payload.get("local_tracking_id")
+    if tracking_id is not None and (
+        not isinstance(tracking_id, str) or _LSU.fullmatch(tracking_id) is None
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "local_tracking_id is invalid")
+    _uuid(payload.get("task_id"), "task_id", nullable=True)
+    _uuid(payload.get("allocation_id"), "allocation_id", nullable=True)
+    _uuid(payload.get("spare_need_id"), "spare_need_id", nullable=True)
+    _positive(payload.get("resulting_unit_revision"), "resulting_unit_revision")
+    _positive(payload.get("allocation_revision"), "allocation_revision", nullable=True)
+    _fingerprint(payload.get("bom_fingerprint"), "bom_fingerprint", nullable=True)
+    _reason(payload.get("reason_category"))
+
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -139,6 +162,32 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_need,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.spare_unit.registered_or_reserved",
+            action_version=1,
+            payload_schema="SpareUnitAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "SpareUnitAuditV1",
+                frozenset(
+                    {
+                        "spare_part_unit_id",
+                        "event_kind",
+                        "local_tracking_id",
+                        "task_id",
+                        "allocation_id",
+                        "spare_need_id",
+                        "resulting_unit_revision",
+                        "allocation_revision",
+                        "bom_fingerprint",
+                        "reason_category",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_spare_unit,
         )
     )
     return registry
