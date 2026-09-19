@@ -54,6 +54,12 @@
       "migration_id": "beta_0009_product_line_sla",
       "filename": "0009_product_line_sla.sql",
       "sha256": "2ea6c47e1f3ffc1b8894a41e7b2b9f73481396703b543c10b0a7d06473811059"
+    },
+    {
+      "sequence": 10,
+      "migration_id": "beta_0010_inventory",
+      "filename": "0010_inventory.sql",
+      "sha256": "9c5d4ffe2c28e60b8d5a826a35fe833522af5cf5e02d97bd160b358225309ab9"
     }
   ]
 }
