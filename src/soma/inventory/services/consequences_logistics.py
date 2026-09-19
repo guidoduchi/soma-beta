@@ -126,6 +126,7 @@ class InventoryConsequencesLogisticsService:
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
             rma = self._repository.require_receipt_eligible(uow.connection, identity)
+            spare_part_unit_id = new_uuid4()
 
             def apply(inner: UnitOfWork):
                 (
@@ -137,6 +138,7 @@ class InventoryConsequencesLogisticsService:
                 ) = self._repository.record_rma_inbound_receipt(
                     inner.connection,
                     rma_id=identity,
+                    spare_part_unit_id=spare_part_unit_id,
                     bom_code=bom_code,
                     bom_key=bom_key,
                     manufacturer_serial=stored_serial,
@@ -184,7 +186,7 @@ class InventoryConsequencesLogisticsService:
                     ),
                 )
 
-            apply.unit_id = ""
+            apply.unit_id = spare_part_unit_id
             apply.logistics_id = ""
             apply.unit_event_id = ""
             apply.unit_revision = 1
@@ -192,7 +194,7 @@ class InventoryConsequencesLogisticsService:
             return PreparedMutation(
                 no_change=False,
                 result_type="spare_part_unit",
-                result_id=None,
+                result_id=spare_part_unit_id,
                 apply=apply,
                 response_schema="InventoryMutationResultV1",
                 response_factory=lambda _inner: self._response(
@@ -207,14 +209,9 @@ class InventoryConsequencesLogisticsService:
                 ),
             )
 
-        execution = self._boundary.execute(envelope, prepare)
-        # result identity is allocated inside apply, so bind the material receipt result
-        # through the exact response refs rather than inventing a provisional unit id.
-        if execution.result_type == "spare_part_unit" and execution.result_id is None:
-            # CommandBoundary requires a material result identity; this branch is unreachable
-            # once apply publishes the allocated unit. Keep fail-closed if runtime semantics change.
-            raise IntegrityFailure("Inbound receipt did not bind material result identity")
-        return inventory_mutation_result_from_execution(execution)
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
 
 
 __all__ = ["InventoryConsequencesLogisticsService"]

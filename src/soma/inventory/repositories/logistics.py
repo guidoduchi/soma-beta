@@ -84,6 +84,7 @@ class InventoryLogisticsRepository:
         connection: Any,
         *,
         rma_id: str,
+        spare_part_unit_id: str,
         bom_code: str,
         bom_key: str,
         manufacturer_serial: str | None,
@@ -114,7 +115,6 @@ class InventoryLogisticsRepository:
             dispatch_location_id=dispatch_location_id,
             receiver_contact_id=receiver_contact_id,
         )
-        spare_part_unit_id = new_uuid4()
         unit_event_id, unit_revision = self._units.insert_spare_part_unit(
             connection,
             spare_part_unit_id=spare_part_unit_id,
