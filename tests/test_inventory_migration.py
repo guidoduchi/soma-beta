@@ -7,7 +7,7 @@ from soma.foundation.migrations.manifest import MigrationManifest
 from soma.foundation.migrations.runner import MigrationRunner
 from soma.foundation.persistence.connections import ConnectionFactory
 
-_SEQUENCE_TEN_SHA256 = "9c5d4ffe2c28e60b8d5a826a35fe833522af5cf5e02d97bd160b358225309ab9"
+_SEQUENCE_TEN_SHA256 = "101465714bf01f5a458dc040e0f8c93d7e4450ee82aafdfd30e93a38bbb46628"
 _OWNED_TABLES = [
     'inventory_tracking_allocators',
     'device_part_units',
