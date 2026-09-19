@@ -308,7 +308,9 @@ def test_f002_partial_policy_materialization_rolls_back_revision_tiers_pointer_a
         reason_category="f002_failure_probe",
     )
     assert retried.replayed is False
-    assert retried.revision == prior_revision + 1
+    assert retried.cpl_revision == prior_revision + 1
+    assert retried.policy_revision_ordinal == 2
+    assert retried.contract_product_line_id == cpl.target_id
 
 
 def test_f005_second_mapping_after_preview_blocks_automatic_acceptance(
