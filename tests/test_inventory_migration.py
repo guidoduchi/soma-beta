@@ -6,6 +6,7 @@ import sqlite3
 from soma.foundation.migrations.manifest import MigrationManifest
 from soma.foundation.migrations.runner import MigrationRunner
 from soma.foundation.persistence.connections import ConnectionFactory
+from test_foundation_durable_job_migration import _runner, _stage_prefix
 
 _SEQUENCE_TEN_SHA256 = "101465714bf01f5a458dc040e0f8c93d7e4450ee82aafdfd30e93a38bbb46628"
 _OWNED_TABLES = [
@@ -76,7 +77,7 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
     security_provider,
 ) -> None:
     manifest = MigrationManifest.load(migration_directory)
-    assert [entry.sequence for entry in manifest.entries] == list(range(1, 11))
+    assert [entry.sequence for entry in manifest.entries] == list(range(1, 12))
     entry = manifest.entries[9]
     assert entry.migration_id == "beta_0010_inventory"
     assert entry.filename == "0010_inventory.sql"
@@ -93,7 +94,7 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
         app_version="test",
         ownership_assertion=lambda: True,
     )
-    assert runner.initialize_or_migrate() == 10
+    assert runner.initialize_or_migrate() == 11
 
     connection = sqlite3.connect(database)
     try:
@@ -124,6 +125,31 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         assert connection.execute(
             "SELECT sequence,migration_id FROM schema_migrations ORDER BY sequence DESC LIMIT 1"
-        ).fetchone() == (10, "beta_0010_inventory")
+        ).fetchone() == (11, "beta_0011_inventory_draft_delete")
+    finally:
+        connection.close()
+
+
+def test_sequence_eleven_upgrades_existing_inventory_without_rewriting_prefix(
+    tmp_path, migration_directory, security_provider,
+):
+    prefix = tmp_path / "prefix"
+    _stage_prefix(migration_directory, prefix, 10)
+    database = tmp_path / "upgrade.db"
+    assert _runner(database, prefix, security_provider).initialize_or_migrate() == 10
+    connection = sqlite3.connect(database)
+    before = connection.execute("SELECT * FROM schema_migrations ORDER BY sequence").fetchall()
+    connection.close()
+    runner = _runner(database, migration_directory, security_provider)
+    assert runner.initialize_or_migrate() == 11
+    assert runner.initialize_or_migrate() == 11
+    connection = sqlite3.connect(database)
+    try:
+        assert connection.execute("SELECT * FROM schema_migrations WHERE sequence<=10 ORDER BY sequence").fetchall() == before
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        for name in ("spare_need", "spare_request", "spare_part", "fault_tag"):
+            sql = connection.execute("SELECT sql FROM sqlite_master WHERE name=?", (f"inv_{name}_lifecycle_events_delete_guard",)).fetchone()[0]
+            assert "HardDeleteUntouchedInventoryDraft" in sql
+            assert "command_receipt_results" in sql
     finally:
         connection.close()

@@ -60,6 +60,12 @@
       "migration_id": "beta_0010_inventory",
       "filename": "0010_inventory.sql",
       "sha256": "101465714bf01f5a458dc040e0f8c93d7e4450ee82aafdfd30e93a38bbb46628"
+    },
+    {
+      "sequence": 11,
+      "migration_id": "beta_0011_inventory_draft_delete",
+      "filename": "0011_inventory_draft_delete.sql",
+      "sha256": "fc147866937fc7433516035579596e420f415c17d53d5b12f802fe7400afb53a"
     }
   ]
 }

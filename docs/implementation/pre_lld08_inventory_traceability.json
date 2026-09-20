@@ -1,9 +1,9 @@
 {
   "schema": "SOMA_IMPLEMENTATION_ACCEPTANCE_REVIEW_V1",
   "packet": "LLD-07",
-  "design_sha": "dbcf681fe095cdb59d93fb9500b2200c85c66ab8",
-  "implementation_parent_sha": "5c0bfdcc9cbe27ba565869ba39609d19a1633d8f",
-  "includes": "Inventory replay/SQL correction and warehouse regression tests committed with this review",
+  "design_sha": "972f53da1f38a74592f8e6127e6e6013205bc3df",
+  "implementation_parent_sha": "7e477dc30cbe5853ec054dfcda0c65dec63f7ce4",
+  "includes": "Requester and Fault Tag lineage replay repairs; forward-only untouched-draft deletion guard migration; focused adversarial tests",
   "certified": false,
   "method": "Name-based test candidates plus explicitly inspected assertions. A mapped name is not acceptance certification; all cases require semantic review before promotion.",
   "cases": [
@@ -619,8 +619,10 @@
       "production_owner": [
         "src/soma/inventory/services/fault_tags.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_fault_tag_lineage_replay.py::test_fault_tag_lineage_is_immutable_and_replays_after_successor_changes"
+      ],
+      "status": "focused_assertions_locally_verified"
     },
     {
       "id": "LLD07-T050",
@@ -669,8 +671,10 @@
       "production_owner": [
         "src/soma/inventory/services/fault_tags.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_fault_tag_lineage_replay.py::test_fault_tag_lineage_is_immutable_and_replays_after_successor_changes"
+      ],
+      "status": "focused_assertions_locally_verified"
     },
     {
       "id": "LLD07-T054",
@@ -757,8 +761,11 @@
         "src/soma/inventory/services/hard_delete.py",
         "src/soma/inventory/queries/previews.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_fault_tag_hard_delete.py::test_untouched_fault_tag_delete_retains_allocator_and_replays_t060"
+      ],
+      "status": "partial_focused_assertions_locally_verified",
+      "note": "Empty draft deletion, audit preservation and non-reuse verified; populated draft independence remains to be verified."
     },
     {
       "id": "LLD07-T061",
@@ -769,8 +776,11 @@
         "src/soma/inventory/services/hard_delete.py",
         "src/soma/inventory/queries/previews.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_fault_tag_hard_delete.py::test_submitted_fault_tag_history_blocks_hard_delete_t061"
+      ],
+      "status": "partial_focused_assertions_locally_verified",
+      "note": "Submitted history rejection verified; generation/proposal/warehouse/lineage variants remain to be verified."
     },
     {
       "id": "LLD07-T062",
