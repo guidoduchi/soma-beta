@@ -3202,3 +3202,198 @@ def test_generic_inventory_correction_dispatches_rma_alias_in_one_receipt_and_re
             "inventory.evidence.corrected",
             "inventory.rma.authorized_or_assigned",
         ]
+
+
+def test_generic_inventory_correction_replaces_logistics_participant_without_rewriting_event(
+    initialized_database,
+) -> None:
+    factory, receiver, location_id, rma_ids = _rma_ready(
+        initialized_database,
+        official_sr="97200034",
+        suffix="GEN-LOG-CORR",
+        count=1,
+        promised_bom="BOM-GEN-LOG-CORR",
+        c10_base=7600,
+    )
+    rma_id = rma_ids[0]
+    source_unit = _receive_rma_unit(
+        factory,
+        receiver=receiver,
+        location_id=location_id,
+        rma_id=rma_id,
+        bom="BOM-GEN-LOG-CORR",
+        serial="GEN-LOG-SOURCE",
+    )
+    replacement = InventoryNeedsStockService(factory).register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="BOM-GEN-LOG-CORR",
+        manufacturer_serial="GEN-LOG-REPLACEMENT",
+        condition_token="new",
+    )
+    replacement_unit = next(
+        ref.result_id
+        for ref in replacement.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+    logistics = InventoryConsequencesLogisticsService(factory).record_actual_logistics_event(
+        command_id=new_uuid4(),
+        event_kind="dispatch",
+        participants=LogisticsParticipants(
+            spare_part_unit_ids=(source_unit,),
+        ),
+        effective_at_utc=1_700_881_000,
+        dispatch_location_id=location_id,
+        receiver_contact_id=receiver.contact_id,
+        custody_text="generic correction relationship test",
+    )
+    logistics_event_id = next(
+        ref.result_id
+        for ref in logistics.target_refs
+        if ref.result_type == "logistics_event"
+    )
+    with ReadSnapshot(factory) as snapshot:
+        participant_id = str(
+            snapshot.connection.execute(
+                "SELECT logistics_spare_participant_id "
+                "FROM logistics_spare_unit_participants "
+                "WHERE logistics_event_id=? AND spare_part_unit_id=? AND active=1",
+                (logistics_event_id, source_unit),
+            ).fetchone()[0]
+        )
+
+    command_id = new_uuid4()
+    service = InventoryCorrectionsBulkService(factory)
+    corrected = service.correct_inventory_evidence(
+        command_id=command_id,
+        correction_kind="logistics_participant_relationship",
+        target_id=participant_id,
+        reason_code="wrong physical unit was attached to logistics event",
+        replacement_kind="spare_part_unit",
+        replacement_id=replacement_unit,
+    )
+    replay = service.correct_inventory_evidence(
+        command_id=command_id,
+        correction_kind="logistics_participant_relationship",
+        target_id=participant_id,
+        reason_code="wrong physical unit was attached to logistics event",
+        replacement_kind="spare_part_unit",
+        replacement_id=replacement_unit,
+    )
+    assert corrected.outcome == "APPLIED"
+    assert replay.replayed is True
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT active FROM logistics_spare_unit_participants "
+            "WHERE logistics_spare_participant_id=?",
+            (participant_id,),
+        ).fetchone()[0] == 0
+        replacement_row = snapshot.connection.execute(
+            "SELECT logistics_event_id,active FROM logistics_spare_unit_participants "
+            "WHERE spare_part_unit_id=? AND logistics_event_id=?",
+            (replacement_unit, logistics_event_id),
+        ).fetchone()
+        assert tuple(replacement_row) == (logistics_event_id, 1)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM actual_logistics_events WHERE logistics_event_id=?",
+            (logistics_event_id,),
+        ).fetchone()[0] == 1
+        actions = {
+            str(row[0])
+            for row in snapshot.connection.execute(
+                "SELECT action_type FROM audit_events WHERE command_id=?",
+                (command_id,),
+            ).fetchall()
+        }
+        assert actions == {
+            "inventory.evidence.corrected",
+            "inventory.logistics.recorded_or_corrected",
+        }
+
+
+def test_generic_inventory_correction_reinterprets_physical_consequence_append_only(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="97200035",
+    )
+    task_id, _reviewed, review_fingerprint = _reviewed_completed_task(
+        factory,
+        sr.service_request_id,
+    )
+    accepted = InventoryConsequencesLogisticsService(
+        factory
+    ).accept_inventory_physical_consequence(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_review_fingerprint=review_fingerprint,
+        intent=PhysicalConsequenceIntent(
+            physical_disposition="no_physical_change",
+            effective_at_utc=1_700_882_000,
+        ),
+    )
+    consequence_id = next(
+        ref.result_id
+        for ref in accepted.target_refs
+        if ref.result_type == "inventory_physical_consequence"
+    )
+    with ReadSnapshot(factory) as snapshot:
+        before = snapshot.connection.execute(
+            "SELECT revision,last_event_id FROM physical_consequence_current "
+            "WHERE physical_consequence_id=?",
+            (consequence_id,),
+        ).fetchone()
+    assert tuple(before)[0] == 1
+    original_event_id = str(before[1])
+
+    command_id = new_uuid4()
+    corrected = InventoryCorrectionsBulkService(factory).correct_inventory_evidence(
+        command_id=command_id,
+        correction_kind="physical_consequence",
+        target_id=consequence_id,
+        target_event_id=original_event_id,
+        expected_revision=1,
+        task_review_fingerprint=review_fingerprint,
+        physical_disposition="no_physical_change",
+        effective_at_utc=1_700_882_100,
+        reason_code="reviewed chronology correction",
+    )
+    assert corrected.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        current = snapshot.connection.execute(
+            "SELECT revision,last_event_id FROM physical_consequence_current "
+            "WHERE physical_consequence_id=?",
+            (consequence_id,),
+        ).fetchone()
+        assert int(current[0]) == 2
+        assert str(current[1]) != original_event_id
+        assert snapshot.connection.execute(
+            "SELECT event_kind,effective_at_utc,target_event_id,reason_code "
+            "FROM physical_consequence_events WHERE consequence_event_id=?",
+            (str(current[1]),),
+        ).fetchone() == (
+            "correct",
+            1_700_882_100,
+            original_event_id,
+            "reviewed chronology correction",
+        )
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM physical_consequence_events "
+            "WHERE physical_consequence_id=?",
+            (consequence_id,),
+        ).fetchone()[0] == 2
+        actions = {
+            str(row[0])
+            for row in snapshot.connection.execute(
+                "SELECT action_type FROM audit_events WHERE command_id=?",
+                (command_id,),
+            ).fetchall()
+        }
+        assert actions == {
+            "inventory.evidence.corrected",
+            "inventory.task_physical_consequence.accepted_or_corrected",
+        }
