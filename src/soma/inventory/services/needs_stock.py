@@ -892,6 +892,7 @@ class InventoryNeedsStockService:
                 response_schema="InventoryMutationResultV1",
                 response_factory=lambda _inner: self._response(
                     [
+                        ("task_unit_allocation", allocation_id),
                         ("spare_part_unit", apply.unit_id),
                         ("task_unit_allocation_event", apply.event_id),
                     ],
@@ -1089,7 +1090,7 @@ class InventoryNeedsStockService:
             apply.unit_revision = unit_revision if task is None else unit_revision + 1
             return PreparedMutation(
                 no_change=False,
-                result_type="local_need_fulfillment",
+                result_type="spare_need",
                 result_id=spare_need_id,
                 apply=apply,
                 response_schema="InventoryMutationResultV1",
