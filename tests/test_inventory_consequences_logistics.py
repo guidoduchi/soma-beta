@@ -24,6 +24,7 @@ from soma.inventory.services.consequences_logistics import (
 from soma.inventory.services.fault_tags import InventoryFaultTagService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
 from soma.inventory.services.requests_rma import InventoryRequestsRmaService
+from soma.inventory.queries.fault_tags import FaultTagQueryService
 from soma.inventory.queries.requests_rma import InventoryRequestsQueryService
 from soma.inventory.queries.task_context import TaskInventoryContextQueryService
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
@@ -1999,3 +2000,185 @@ def test_t056_manual_warehouse_receipt_and_final_decision_require_no_uploaded_ev
             "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
             (rma_id,),
         ).fetchone()[0] == "closed_accepted"
+
+
+def test_t049_material_fault_tag_replacement_allocates_new_identity_and_linear_correction_edge(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200028",
+            suffix="T049",
+            promised_bom="BOM-T049",
+            c10_base=7000,
+        )
+    )
+    draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    predecessor_id = str(draft["fault_tag_id"])
+    predecessor_member_id = str(submitted["members"][0]["fault_tag_membership_id"])
+    lineage = FaultTagQueryService(factory).lineage(predecessor_id)
+
+    replacement = InventoryFaultTagService(factory).create_fault_tag_replacement(
+        command_id=new_uuid4(),
+        predecessor_fault_tag_id=predecessor_id,
+        expected_predecessor_revision=int(lineage["projection_revision"]),
+        expected_lineage_fingerprint=str(lineage["lineage_fingerprint"]),
+        return_method="non_pickup",
+        memberships=(
+            FaultTagMembershipIntent(
+                rma_id=rma_id,
+                return_reason="corrected submitted return membership",
+            ),
+        ),
+        reason_code="submitted membership required material correction",
+    )
+    successor_id = str(replacement["fault_tag_id"])
+    assert successor_id != predecessor_id
+    assert replacement["tracking_handle"] != draft["tracking_handle"]
+    assert replacement["state"] == "draft"
+    assert str(replacement["members"][0]["fault_tag_membership_id"]) != predecessor_member_id
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state FROM fault_tag_current_projection WHERE fault_tag_id=?",
+            (predecessor_id,),
+        ).fetchone()[0] == "superseded"
+        assert snapshot.connection.execute(
+            "SELECT state,active_submitted FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (predecessor_member_id,),
+        ).fetchone() == ("superseded", 0)
+        edge = snapshot.connection.execute(
+            "SELECT relation_type,predecessor_fault_tag_id,successor_fault_tag_id "
+            "FROM fault_tag_lineage WHERE predecessor_fault_tag_id=? "
+            "AND relation_type='corrects_replaces'",
+            (predecessor_id,),
+        ).fetchone()
+        assert tuple(edge) == ("corrects_replaces", predecessor_id, successor_id)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_submission_snapshots WHERE fault_tag_id=?",
+            (predecessor_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT state,active_fault_tag_membership_id,return_obligation_open "
+            "FROM rma_lifecycle_projection WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone() == ("return_open", None, 1)
+
+    fresh = FaultTagQueryService(factory).lineage(predecessor_id)
+    attempted = new_uuid4()
+    with pytest.raises(SomaError) as branch:
+        InventoryFaultTagService(factory).create_fault_tag_replacement(
+            command_id=attempted,
+            predecessor_fault_tag_id=predecessor_id,
+            expected_predecessor_revision=int(fresh["projection_revision"]),
+            expected_lineage_fingerprint=str(fresh["lineage_fingerprint"]),
+            return_method="non_pickup",
+            memberships=(
+                FaultTagMembershipIntent(
+                    rma_id=rma_id,
+                    return_reason="invalid second correction branch",
+                ),
+            ),
+            reason_code="would branch correction lineage",
+        )
+    assert branch.value.code == "REPLACEMENT_LINEAGE_CONFLICT"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
+
+
+def test_t053_rejected_obligation_resend_creates_new_history_and_disallows_overlapping_scope(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200029",
+            suffix="T053",
+            promised_bom="BOM-T053",
+            c10_base=7100,
+        )
+    )
+    draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    predecessor_id = str(draft["fault_tag_id"])
+    member = submitted["members"][0]
+    membership_id = str(member["fault_tag_membership_id"])
+    service = InventoryFaultTagService(factory)
+    service.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=(_warehouse_target(member),),
+        effective_at_utc=1_700_856_000,
+    )
+    service.record_warehouse_final_decision(
+        command_id=new_uuid4(),
+        targets=(_current_warehouse_target(factory, membership_id),),
+        decision="rejected",
+        explicit_confirmation=True,
+        reason_code="warehouse rejected original attempt",
+        effective_at_utc=1_700_856_100,
+    )
+    predecessor_before = FaultTagQueryService(factory).get_fault_tag(predecessor_id)
+    lineage = FaultTagQueryService(factory).lineage(predecessor_id)
+
+    resend = service.create_fault_tag_resend(
+        command_id=new_uuid4(),
+        predecessor_fault_tag_id=predecessor_id,
+        expected_lineage_fingerprint=str(lineage["lineage_fingerprint"]),
+        return_method="non_pickup",
+        memberships=(
+            FaultTagMembershipIntent(
+                rma_id=rma_id,
+                return_reason="resend rejected return",
+            ),
+        ),
+        reason_code="warehouse rejected prior return attempt",
+    )
+    resend_id = str(resend["fault_tag_id"])
+    assert resend_id != predecessor_id
+    assert resend["state"] == "draft"
+
+    predecessor_after = FaultTagQueryService(factory).get_fault_tag(predecessor_id)
+    assert predecessor_after == predecessor_before
+    with ReadSnapshot(factory) as snapshot:
+        edge = snapshot.connection.execute(
+            "SELECT relation_type,predecessor_fault_tag_id,successor_fault_tag_id "
+            "FROM fault_tag_lineage WHERE successor_fault_tag_id=?",
+            (resend_id,),
+        ).fetchone()
+        assert tuple(edge) == ("resend_of", predecessor_id, resend_id)
+        assert snapshot.connection.execute(
+            "SELECT state FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone()[0] == "rejected"
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()[0] == "open"
+
+    fresh = FaultTagQueryService(factory).lineage(predecessor_id)
+    attempted = new_uuid4()
+    with pytest.raises(SomaError) as overlap:
+        service.create_fault_tag_resend(
+            command_id=attempted,
+            predecessor_fault_tag_id=predecessor_id,
+            expected_lineage_fingerprint=str(fresh["lineage_fingerprint"]),
+            return_method="non_pickup",
+            memberships=(
+                FaultTagMembershipIntent(
+                    rma_id=rma_id,
+                    return_reason="overlapping resend scope",
+                ),
+            ),
+            reason_code="second resend would overlap unresolved scope",
+        )
+    assert overlap.value.code == "RESEND_NOT_ELIGIBLE"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
