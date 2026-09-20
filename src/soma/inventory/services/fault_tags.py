@@ -698,6 +698,10 @@ class InventoryFaultTagService:
                 response_schema="InventoryMutationResultV1",
                 response_factory=lambda _inner: self._inventory_response(
                     [
+                        (
+                            "fault_tag_membership",
+                            accepted_targets[0].fault_tag_membership_id,
+                        ),
                         *(
                             []
                             if apply.result["batch_id"] is None
@@ -868,6 +872,10 @@ class InventoryFaultTagService:
                 response_schema="InventoryMutationResultV1",
                 response_factory=lambda _inner: self._inventory_response(
                     [
+                        (
+                            "fault_tag_membership",
+                            accepted_targets[0].fault_tag_membership_id,
+                        ),
                         *(
                             []
                             if apply.result["batch_id"] is None
