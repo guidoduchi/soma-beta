@@ -151,7 +151,7 @@ class InventoryFaultTagService:
         execution = self._boundary.execute(envelope, prepare)
         if not isinstance(execution.response, dict):
             raise IntegrityFailure("Fault Tag response is not an object")
-        return dict(execution.response) | {"replayed": execution.replayed}
+        return dict(execution.response)
 
     def accept_fault_tag_submission(
         self,
