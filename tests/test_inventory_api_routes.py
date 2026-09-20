@@ -78,3 +78,16 @@ def test_fault_tag_false_submission_route_is_exactly_lowercase() -> None:
         "POST",
         "/api/v1/inventory/fault-tags/00000000-0000-4000-8000-000000000001/submission/correct-False",
     ) is None
+
+
+def test_spare_request_false_submission_route_is_exactly_lowercase() -> None:
+    exact = resolve_inventory_route(
+        "POST",
+        "/api/v1/inventory/requests/00000000-0000-4000-8000-000000000001/submission/correct-false",
+    )
+    assert exact is not None
+    assert exact.spec.handler == "CorrectFalseSpareRequestSubmission"
+    assert resolve_inventory_route(
+        "POST",
+        "/api/v1/inventory/requests/00000000-0000-4000-8000-000000000001/submission/correct-False",
+    ) is None

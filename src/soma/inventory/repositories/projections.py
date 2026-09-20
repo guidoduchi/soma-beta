@@ -556,8 +556,8 @@ class InventoryProjectionsRepository:
             (physical_consequence_id,),
         ).fetchone() is not None:
             raise SomaError(
-                "REPLACEMENT_LINEAGE_CONFLICT",
-                "Submitted Fault Tag history consumed this physical consequence",
+                "CORRECTION_TARGET_INVALID",
+                "Submitted Fault Tag history requires a separate replacement workflow",
             )
 
         rma_id = None if row[3] is None else str(row[3])
