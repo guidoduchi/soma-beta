@@ -12,11 +12,17 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
 
 from ..audit_registry import build_inventory_audit_registry
+from ..contracts.inventory import (
+    InventoryMutationResult,
+    inventory_mutation_result_from_execution,
+)
 from ..domain.fault_tags import (
     FaultTagMembershipIntent,
+    WarehouseMembershipTarget,
     validate_fault_tag_effective_at,
     validate_fault_tag_memberships,
     validate_pickup_context,
+    validate_warehouse_targets,
 )
 from ..domain.needs import validate_reason_code
 from ..domain.rmas import validate_optional_evidence
@@ -49,6 +55,20 @@ class InventoryFaultTagService:
         ):
             raise ValidationError(f"{field} must be lowercase SHA-256")
         return value
+
+    @staticmethod
+    def _inventory_response(
+        refs: list[tuple[str, str]],
+        revisions: dict[str, int],
+    ) -> dict[str, object]:
+        return {
+            "outcome": "APPLIED",
+            "target_refs": [
+                {"type": result_type, "id": result_id}
+                for result_type, result_id in refs
+            ],
+            "revisions": dict(revisions),
+        }
 
     def create_fault_tag_draft(
         self,
@@ -563,7 +583,333 @@ class InventoryFaultTagService:
         execution = self._boundary.execute(envelope, prepare)
         if not isinstance(execution.response, dict):
             raise IntegrityFailure("Fault Tag submission response is not an object")
-        return dict(execution.response) | {"replayed": execution.replayed}
+        return dict(execution.response)
+
+
+    def record_warehouse_receipt(
+        self,
+        *,
+        command_id: str,
+        targets: tuple[WarehouseMembershipTarget, ...],
+        effective_at_utc: int | None = None,
+        evidence_kind: str | None = None,
+        evidence_id: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        accepted_targets = validate_warehouse_targets(targets)
+        effective = validate_fault_tag_effective_at(effective_at_utc)
+        evidence_kind_value, evidence_id_value = validate_optional_evidence(
+            evidence_kind,
+            evidence_id,
+        )
+        if evidence_kind_value is not None:
+            raise SomaError(
+                "DEPENDENCY_INDETERMINATE",
+                "Warehouse proposal evidence validator is unavailable",
+            )
+        target_pairs = tuple(
+            (item.fault_tag_membership_id, item.revision)
+            for item in accepted_targets
+        )
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="RecordWarehouseReceipt",
+            target_type="fault_tag_membership",
+            target_id=accepted_targets[0].fault_tag_membership_id,
+            semantic_payload={
+                "targets": [
+                    {
+                        "fault_tag_membership_id": item.fault_tag_membership_id,
+                        "revision": item.revision,
+                    }
+                    for item in accepted_targets
+                ],
+                "effective_at_utc": effective,
+                "evidence_kind": evidence_kind_value,
+                "evidence_id": evidence_id_value,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            for membership_id, revision in target_pairs:
+                self._fault_tags._require_warehouse_member(
+                    uow.connection,
+                    membership_id=membership_id,
+                    expected_revision=revision,
+                    expected_state="submitted_awaiting_receipt",
+                )
+
+            def apply(inner: UnitOfWork):
+                result = self._fault_tags.record_warehouse_receipt(
+                    inner.connection,
+                    targets=target_pairs,
+                    effective_at_utc=effective,
+                    evidence_kind=evidence_kind_value,
+                    evidence_id=evidence_id_value,
+                    command_id=command_id,
+                )
+                apply.result = result
+                return tuple(
+                    AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="inventory.fault_tag.warehouse_state_changed",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="fault_tag_membership",
+                        target_id=str(item["membership_id"]),
+                        command_id=command_id,
+                        batch_id=(
+                            None if result["batch_id"] is None else str(result["batch_id"])
+                        ),
+                        payload_schema="WarehouseDecisionAuditV1",
+                        payload_version=1,
+                        payload={
+                            "membership_id": str(item["membership_id"]),
+                            "event_kind": "RECEIVED",
+                            "rma_id": str(item["rma_id"]),
+                            "return_obligation_id": str(item["rma_id"]),
+                            "batch_id": (
+                                None
+                                if result["batch_id"] is None
+                                else str(result["batch_id"])
+                            ),
+                            "effective_at_utc": effective,
+                            "explicit_confirmation": False,
+                        },
+                        resulting_event_refs=(
+                            AuditResultRef(
+                                "fault_tag_membership_event",
+                                str(item["membership_event_id"]),
+                            ),
+                            AuditResultRef("rma_return_obligation", str(item["rma_id"])),
+                        ),
+                    )
+                    for item in result["events"]
+                )
+
+            apply.result = {}
+            return PreparedMutation(
+                no_change=False,
+                result_type="fault_tag_membership",
+                result_id=accepted_targets[0].fault_tag_membership_id,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: self._inventory_response(
+                    [
+                        *(
+                            []
+                            if apply.result["batch_id"] is None
+                            else [("inventory_batch", str(apply.result["batch_id"]))]
+                        ),
+                        *[
+                            ("fault_tag_membership_event", str(item["membership_event_id"]))
+                            for item in apply.result["events"]
+                        ],
+                    ],
+                    {
+                        **{
+                            f"fault_tag_membership:{item['membership_id']}": int(
+                                item["membership_revision"]
+                            )
+                            for item in apply.result["events"]
+                        },
+                        **{
+                            f"fault_tag:{tag_id}": int(revision)
+                            for tag_id, revision in apply.result["tag_revisions"].items()
+                        },
+                        **{
+                            f"rma:{item['rma_id']}": int(item["rma_revision"])
+                            for item in apply.result["events"]
+                        },
+                    },
+                ),
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
+
+    def record_warehouse_final_decision(
+        self,
+        *,
+        command_id: str,
+        targets: tuple[WarehouseMembershipTarget, ...],
+        decision: str,
+        explicit_confirmation: bool,
+        reason_code: str | None = None,
+        effective_at_utc: int | None = None,
+        evidence_kind: str | None = None,
+        evidence_id: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        accepted_targets = validate_warehouse_targets(targets)
+        if decision not in {"accepted", "rejected"}:
+            raise ValidationError("warehouse decision must be accepted or rejected")
+        if explicit_confirmation is not True:
+            raise SomaError(
+                "WAREHOUSE_FINAL_CONFIRMATION_REQUIRED",
+                "Warehouse final decision requires explicit operator confirmation",
+            )
+        if decision == "rejected":
+            if reason_code is None:
+                raise ValidationError("warehouse rejection requires reason_code")
+            reason = validate_reason_code(reason_code)
+        else:
+            if reason_code is not None:
+                raise ValidationError("warehouse acceptance does not accept rejection reason_code")
+            reason = None
+        effective = validate_fault_tag_effective_at(effective_at_utc)
+        evidence_kind_value, evidence_id_value = validate_optional_evidence(
+            evidence_kind,
+            evidence_id,
+        )
+        if evidence_kind_value is not None:
+            raise SomaError(
+                "DEPENDENCY_INDETERMINATE",
+                "Warehouse proposal evidence validator is unavailable",
+            )
+        target_pairs = tuple(
+            (item.fault_tag_membership_id, item.revision)
+            for item in accepted_targets
+        )
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="RecordWarehouseFinalDecision",
+            target_type="fault_tag_membership",
+            target_id=accepted_targets[0].fault_tag_membership_id,
+            semantic_payload={
+                "targets": [
+                    {
+                        "fault_tag_membership_id": item.fault_tag_membership_id,
+                        "revision": item.revision,
+                    }
+                    for item in accepted_targets
+                ],
+                "decision": decision,
+                "explicit_confirmation": True,
+                "reason_code": reason,
+                "effective_at_utc": effective,
+                "evidence_kind": evidence_kind_value,
+                "evidence_id": evidence_id_value,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            for membership_id, revision in target_pairs:
+                self._fault_tags._require_warehouse_member(
+                    uow.connection,
+                    membership_id=membership_id,
+                    expected_revision=revision,
+                    expected_state="warehouse_received",
+                )
+
+            def apply(inner: UnitOfWork):
+                result = self._fault_tags.record_warehouse_final_decision(
+                    inner.connection,
+                    targets=target_pairs,
+                    decision=decision,
+                    reason_code=reason,
+                    effective_at_utc=effective,
+                    evidence_kind=evidence_kind_value,
+                    evidence_id=evidence_id_value,
+                    command_id=command_id,
+                )
+                apply.result = result
+                audit_kind = "ACCEPTED" if decision == "accepted" else "REJECTED"
+                return tuple(
+                    AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="inventory.fault_tag.warehouse_state_changed",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="fault_tag_membership",
+                        target_id=str(item["membership_id"]),
+                        command_id=command_id,
+                        reason_category=reason,
+                        batch_id=(
+                            None if result["batch_id"] is None else str(result["batch_id"])
+                        ),
+                        payload_schema="WarehouseDecisionAuditV1",
+                        payload_version=1,
+                        payload={
+                            "membership_id": str(item["membership_id"]),
+                            "event_kind": audit_kind,
+                            "rma_id": str(item["rma_id"]),
+                            "return_obligation_id": str(item["rma_id"]),
+                            "batch_id": (
+                                None
+                                if result["batch_id"] is None
+                                else str(result["batch_id"])
+                            ),
+                            "effective_at_utc": effective,
+                            "explicit_confirmation": True,
+                        },
+                        resulting_event_refs=(
+                            AuditResultRef(
+                                "fault_tag_membership_event",
+                                str(item["membership_event_id"]),
+                            ),
+                            AuditResultRef("rma_return_obligation", str(item["rma_id"])),
+                        ),
+                    )
+                    for item in result["events"]
+                )
+
+            apply.result = {}
+            return PreparedMutation(
+                no_change=False,
+                result_type="fault_tag_membership",
+                result_id=accepted_targets[0].fault_tag_membership_id,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: self._inventory_response(
+                    [
+                        *(
+                            []
+                            if apply.result["batch_id"] is None
+                            else [("inventory_batch", str(apply.result["batch_id"]))]
+                        ),
+                        *[
+                            ("fault_tag_membership_event", str(item["membership_event_id"]))
+                            for item in apply.result["events"]
+                        ],
+                        *[
+                            ("rma_return_obligation", str(item["rma_id"]))
+                            for item in apply.result["events"]
+                        ],
+                    ],
+                    {
+                        **{
+                            f"fault_tag_membership:{item['membership_id']}": int(
+                                item["membership_revision"]
+                            )
+                            for item in apply.result["events"]
+                        },
+                        **{
+                            f"rma_return_obligation:{item['rma_id']}": int(
+                                item["obligation_revision"]
+                            )
+                            for item in apply.result["events"]
+                        },
+                        **{
+                            f"fault_tag:{tag_id}": int(revision)
+                            for tag_id, revision in apply.result["tag_revisions"].items()
+                        },
+                        **{
+                            f"rma:{item['rma_id']}": int(item["rma_revision"])
+                            for item in apply.result["events"]
+                        },
+                    },
+                ),
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
 
 
 __all__ = ["InventoryFaultTagService"]
