@@ -131,6 +131,27 @@ def _validate_spare_request_submission(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "effective_at_utc is invalid")
 
 
+
+_SR7_ID = re.compile(r"SR[0-9]{7}\Z")
+_SR7_EVENTS = frozenset({"ASSIGN", "CORRECT"})
+
+
+def _validate_spare_request_identity(payload: dict[str, object]) -> None:
+    _uuid(payload.get("spare_request_id"), "spare_request_id")
+    if payload.get("event_kind") not in _SR7_EVENTS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request identity event is invalid")
+    current_sr7 = payload.get("current_sr7")
+    former_sr7 = payload.get("former_sr7")
+    if not isinstance(current_sr7, str) or _SR7_ID.fullmatch(current_sr7) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "current_sr7 is invalid")
+    if former_sr7 is not None and (
+        not isinstance(former_sr7, str) or _SR7_ID.fullmatch(former_sr7) is None
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "former_sr7 is invalid")
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+    _reason(payload.get("reason_category"))
+
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -258,6 +279,28 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_spare_request_submission,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.spare_request.official_id_changed",
+            action_version=1,
+            payload_schema="SpareRequestIdentityAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "SpareRequestIdentityAuditV1",
+                frozenset(
+                    {
+                        "spare_request_id",
+                        "event_kind",
+                        "current_sr7",
+                        "former_sr7",
+                        "resulting_revision",
+                        "reason_category",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_spare_request_identity,
         )
     )
     return registry
