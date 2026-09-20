@@ -41,7 +41,7 @@ class InventoryRmasRepository:
         row = cls.request_authority(connection, spare_request_id)
         if row is None:
             raise SomaError("INV_STALE", "Spare Request no longer exists")
-        if int(row[7]) != expected_revision:
+        if int(row[12]) != expected_revision:
             raise SomaError("INV_STALE", "Spare Request revision changed")
         if row[3] is None:
             raise SomaError("RMA_REQUIRES_SR7", "RMA authorization requires current official SR7")
@@ -426,7 +426,10 @@ class InventoryRmasRepository:
     def current_rma(connection: Any, rma_id: str):
         return connection.execute(
             "SELECT r.rma_id,r.spare_request_id,r.promised_bom_code,r.promised_bom_key,"
-            "a.c10,l.state,l.current_target_device_part_unit_id,l.revision,l.input_fingerprint "
+            "a.c10,l.state,l.current_target_device_part_unit_id,"
+            "l.direct_inbound_spare_part_unit_id,l.return_device_part_unit_id,"
+            "l.return_spare_part_unit_id,l.return_obligation_open,"
+            "l.active_fault_tag_membership_id,l.revision,l.input_fingerprint "
             "FROM rmas r JOIN rma_identifier_aliases a "
             "ON a.rma_id=r.rma_id AND a.alias_kind='current' "
             "JOIN rma_lifecycle_projection l ON l.rma_id=r.rma_id "
@@ -483,12 +486,17 @@ class InventoryRmasRepository:
             ") VALUES (?,?,?,'current',?)",
             (alias_id, rma_id, new_c10, event_id),
         )
-        resulting_revision = int(row[7]) + 1
+        resulting_revision = int(row[12]) + 1
         fingerprint = cls.rma_lifecycle_fingerprint(
             rma_id=rma_id,
             current_c10=new_c10,
             state=str(row[5]),
             target_device_part_unit_id=None if row[6] is None else str(row[6]),
+            direct_inbound_spare_part_unit_id=None if row[7] is None else str(row[7]),
+            return_device_part_unit_id=None if row[8] is None else str(row[8]),
+            return_spare_part_unit_id=None if row[9] is None else str(row[9]),
+            return_obligation_open=bool(row[10]),
+            active_fault_tag_membership_id=None if row[11] is None else str(row[11]),
         )
         updated = connection.execute(
             "UPDATE rma_lifecycle_projection SET revision=?,input_fingerprint=?,"
@@ -498,7 +506,7 @@ class InventoryRmasRepository:
                 fingerprint,
                 command_id,
                 rma_id,
-                int(row[7]),
+                int(row[12]),
             ),
         )
         if updated.rowcount != 1:
@@ -627,12 +635,17 @@ class InventoryRmasRepository:
             if updated_assignment.rowcount != 1:
                 raise SomaError("INV_STALE", "RMA assignment changed during update")
 
-        lifecycle_revision = int(rma[7]) + 1
+        lifecycle_revision = int(rma[12]) + 1
         fingerprint = cls.rma_lifecycle_fingerprint(
             rma_id=rma_id,
             current_c10=str(rma[4]),
             state=str(rma[5]),
             target_device_part_unit_id=new_target_device_part_unit_id,
+            direct_inbound_spare_part_unit_id=None if rma[7] is None else str(rma[7]),
+            return_device_part_unit_id=None if rma[8] is None else str(rma[8]),
+            return_spare_part_unit_id=None if rma[9] is None else str(rma[9]),
+            return_obligation_open=bool(rma[10]),
+            active_fault_tag_membership_id=None if rma[11] is None else str(rma[11]),
         )
         updated_lifecycle = connection.execute(
             "UPDATE rma_lifecycle_projection SET current_target_device_part_unit_id=?,"
@@ -644,7 +657,7 @@ class InventoryRmasRepository:
                 fingerprint,
                 command_id,
                 rma_id,
-                int(rma[7]),
+                int(rma[12]),
             ),
         )
         if updated_lifecycle.rowcount != 1:
