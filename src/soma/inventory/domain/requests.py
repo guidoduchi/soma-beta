@@ -4,11 +4,13 @@ from dataclasses import dataclass
 
 from soma.foundation.errors import ValidationError
 from soma.foundation.identifiers import require_uuid4
+from soma.reference.domain.matching import trim_match_whitespace
 
 _REQUEST_ORIGINS = frozenset({"soma_draft", "external_registration"})
 _LOGISTICS_MODES = frozenset({"delivery", "self_pickup"})
 _MAX_ALLOCATIONS = 2000
 _MAX_QUANTITY = 1_000_000
+_MAX_EVIDENCE_TEXT_BYTES = 512
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,5 +57,46 @@ __all__ = [
     "SpareRequestAllocationIntent",
     "validate_allocation_intents",
     "validate_logistics_mode",
+    "validate_positive_revision",
     "validate_request_origin",
+    "validate_submission_evidence",
+    "validate_submission_time",
 ]
+
+def validate_positive_revision(value: int, *, field: str) -> int:
+    if type(value) is not int or value <= 0:
+        raise ValidationError(f"{field} must be a positive integer")
+    return value
+
+
+def validate_submission_time(value: int | None) -> int | None:
+    if value is None:
+        return None
+    if type(value) is not int or value < 0:
+        raise ValidationError("effective_submission_at_utc must be a nonnegative integer or null")
+    return value
+
+
+def validate_submission_evidence(
+    evidence_kind: str | None,
+    evidence_id: str | None,
+) -> tuple[str | None, str | None]:
+    if evidence_kind is None and evidence_id is None:
+        return None, None
+    if evidence_kind is None or evidence_id is None:
+        raise ValidationError("submission evidence_kind and evidence_id must both be present or both absent")
+    if not isinstance(evidence_kind, str) or not isinstance(evidence_id, str):
+        raise ValidationError("submission evidence values must be text")
+    kind = trim_match_whitespace(evidence_kind)
+    identity = trim_match_whitespace(evidence_id)
+    if not kind or not identity:
+        raise ValidationError("submission evidence values cannot be blank")
+    if (
+        len(kind.encode("utf-8", errors="strict")) > _MAX_EVIDENCE_TEXT_BYTES
+        or len(identity.encode("utf-8", errors="strict")) > _MAX_EVIDENCE_TEXT_BYTES
+    ):
+        raise ValidationError("submission evidence value exceeds its UTF-8 byte bound")
+    if any(token in kind or token in identity for token in ("\x00", "\r", "\n")):
+        raise ValidationError("submission evidence value contains a forbidden control/newline")
+    return kind, identity
+
