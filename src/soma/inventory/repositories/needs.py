@@ -151,6 +151,79 @@ class InventoryNeedsRepository:
         return last_event, projection_revision
 
     @staticmethod
+    def require_service_request(connection, service_request_id: str) -> None:
+        if connection.execute(
+            "SELECT 1 FROM service_requests WHERE service_request_id=?",
+            (service_request_id,),
+        ).fetchone() is None:
+            raise SomaError("INV_STALE", "Service Request no longer exists")
+
+    @classmethod
+    def create_manual_need(
+        cls,
+        connection,
+        *,
+        spare_need_id: str,
+        service_request_id: str,
+        bom_code: str,
+        bom_key: str,
+        planned_quantity: int,
+        command_id: str,
+    ) -> tuple[str, int]:
+        cls.require_service_request(connection, service_request_id)
+        if cls.active_need_for(connection, service_request_id, bom_key) is not None:
+            raise SomaError("INV_STALE", "Another active Need already owns this SR/BOM key")
+        now = utc_epoch_seconds()
+        need_event_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO spare_needs("
+            "spare_need_id,service_request_id,bom_code,bom_key,description,planned_quantity,"
+            "creation_origin,created_at_utc,created_command_id"
+            ") VALUES (?,?,?,?,NULL,?,'manual',?,?)",
+            (
+                spare_need_id,
+                service_request_id,
+                bom_code,
+                bom_key,
+                planned_quantity,
+                now,
+                command_id,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO spare_need_lifecycle_events("
+            "need_event_id,spare_need_id,event_kind,planned_quantity,reason_code,effective_at_utc,"
+            "recorded_at_utc,command_id"
+            ") VALUES (?,?,'created',?,NULL,NULL,?,?)",
+            (
+                need_event_id,
+                spare_need_id,
+                planned_quantity,
+                now,
+                command_id,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO spare_need_active_keys(service_request_id,bom_key,spare_need_id) "
+            "VALUES (?,?,?)",
+            (service_request_id, bom_key, spare_need_id),
+        )
+        fingerprint = cls._need_fingerprint(
+            connection,
+            spare_need_id=spare_need_id,
+            lifecycle_state="active",
+            planned_quantity=planned_quantity,
+        )
+        connection.execute(
+            "INSERT INTO spare_need_current_projection("
+            "spare_need_id,lifecycle_state,planned_quantity,contributor_count,revision,"
+            "input_fingerprint,last_command_id"
+            ") VALUES (?,'active',?,0,1,?,?)",
+            (spare_need_id, planned_quantity, fingerprint, command_id),
+        )
+        return need_event_id, 1
+
+    @staticmethod
     def active_need_for(connection, service_request_id: str, bom_key: str):
         return connection.execute(
             "SELECT k.spare_need_id,n.bom_code,n.bom_key,p.lifecycle_state,p.planned_quantity,"
