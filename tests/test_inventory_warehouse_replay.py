@@ -144,3 +144,252 @@ def test_warehouse_final_decision_requires_explicit_confirmation_t055(initialize
     assert rejected.value.code == "WAREHOUSE_FINAL_CONFIRMATION_REQUIRED"
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts WHERE command_id=?", (command,)).fetchone()[0] == 0
+
+def _membership_state(factory, membership_id):
+    with ReadSnapshot(factory) as snapshot:
+        return tuple(
+            snapshot.connection.execute(
+                "SELECT state,active_submitted,revision,input_fingerprint,last_event_id,last_command_id "
+                "FROM fault_tag_membership_current WHERE fault_tag_membership_id=?",
+                (membership_id,),
+            ).fetchone()
+        )
+
+
+def _membership_event(factory, event_id):
+    with ReadSnapshot(factory) as snapshot:
+        return tuple(
+            snapshot.connection.execute(
+                "SELECT event_kind,target_event_id,reason_code,evidence_kind,evidence_id,command_id "
+                "FROM fault_tag_membership_events WHERE membership_event_id=?",
+                (event_id,),
+            ).fetchone()
+        )
+
+
+def _rma_state(factory, rma_id):
+    with ReadSnapshot(factory) as snapshot:
+        return tuple(
+            snapshot.connection.execute(
+                "SELECT state,return_obligation_open,active_fault_tag_membership_id,"
+                "revision,input_fingerprint,last_command_id "
+                "FROM rma_lifecycle_projection WHERE rma_id=?",
+                (rma_id,),
+            ).fetchone()
+        )
+
+
+def _obligation_state(factory, rma_id):
+    with ReadSnapshot(factory) as snapshot:
+        return tuple(
+            snapshot.connection.execute(
+                "SELECT obligation_state,revision,last_event_id,last_command_id "
+                "FROM rma_return_obligation_current WHERE rma_id=?",
+                (rma_id,),
+            ).fetchone()
+        )
+
+
+def test_manual_warehouse_transition_needs_no_uploaded_evidence_t056(initialized_database):
+    factory = _factory(initialized_database)
+    tags, submitted, rmas = _submitted_tag(factory)
+    first = _members(submitted)[0]
+
+    receipt = tags.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        memberships=(first,),
+    )
+    receipt_event_id = next(
+        ref.result_id
+        for ref in receipt.target_refs
+        if ref.result_type == "fault_tag_membership_event"
+    )
+    receipt_event = _membership_event(factory, receipt_event_id)
+    assert receipt_event[0] == "warehouse_received"
+    assert receipt_event[3] is None
+    assert receipt_event[4] is None
+
+    current = _current_members(factory, submitted["fault_tag_id"])
+    current_first = next(
+        item for item in current
+        if item.fault_tag_membership_id == first.fault_tag_membership_id
+    )
+    final = tags.record_warehouse_final_decision(
+        command_id=new_uuid4(),
+        memberships=(current_first,),
+        decision="accepted",
+        explicit_confirmation=True,
+    )
+    final_event_id = next(
+        ref.result_id
+        for ref in final.target_refs
+        if ref.result_type == "fault_tag_membership_event"
+    )
+    final_event = _membership_event(factory, final_event_id)
+    assert final_event[0] == "warehouse_accepted"
+    assert final_event[3] is None
+    assert final_event[4] is None
+    assert _obligation_state(factory, rmas[0])[0] == "closed_accepted"
+
+
+def test_bulk_receipt_preflight_partitions_incompatible_target_t057(initialized_database):
+    factory = _factory(initialized_database)
+    tags, submitted, _ = _submitted_tag(factory)
+    original = _members(submitted)
+
+    tags.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        memberships=(original[0],),
+    )
+    current = _current_members(factory, submitted["fault_tag_id"])
+    preview = InventoryBulkPreviewQuery(factory).preview(
+        action_kind="warehouse_receipt",
+        targets=tuple(
+            (item.fault_tag_membership_id, item.revision)
+            for item in current
+        ),
+    )
+
+    assert preview["compatible"] is False
+    assert len(preview["targets"]) == 2
+    statuses = {
+        item["fault_tag_membership_id"]: (item["status"], item["blocker"])
+        for item in preview["targets"]
+    }
+    assert statuses[original[0].fault_tag_membership_id] == (
+        "incompatible",
+        "BULK_INCOMPATIBLE",
+    )
+    assert statuses[original[1].fault_tag_membership_id] == ("eligible", None)
+    assert preview["blockers"] == [
+        {
+            "fault_tag_membership_id": original[0].fault_tag_membership_id,
+            "status": "incompatible",
+            "code": "BULK_INCOMPATIBLE",
+        }
+    ]
+
+
+def test_later_false_receipt_correction_isolated_from_successful_bulk_t059(
+    initialized_database,
+):
+    factory = _factory(initialized_database)
+    _tags, submitted, rmas = _submitted_tag(factory)
+    members = _members(submitted)
+    preview = InventoryBulkPreviewQuery(factory).preview(
+        action_kind="warehouse_receipt",
+        targets=tuple(
+            (item.fault_tag_membership_id, item.revision)
+            for item in members
+        ),
+    )
+    bulk_command = new_uuid4()
+    bulk = InventoryCorrectionsBulkService(factory).accept_inventory_bulk_action(
+        command_id=bulk_command,
+        preview_fingerprint=preview["input_fingerprint"],
+        action_kind="warehouse_receipt",
+        memberships=members,
+    )
+    batch_id = next(
+        ref.result_id
+        for ref in bulk.target_refs
+        if ref.result_type == "inventory_batch"
+    )
+
+    current = _current_members(factory, submitted["fault_tag_id"])
+    corrected = current[0]
+    sibling = current[1]
+    corrected_before = _membership_state(
+        factory, corrected.fault_tag_membership_id
+    )
+    sibling_before = _membership_state(factory, sibling.fault_tag_membership_id)
+    sibling_rma_before = _rma_state(factory, rmas[1])
+    corrected_obligation_before = _obligation_state(factory, rmas[0])
+    target_event_id = str(corrected_before[4])
+    sibling_event_id = str(sibling_before[4])
+    sibling_event_before = _membership_event(factory, sibling_event_id)
+    original_receipt_before = _membership_event(factory, target_event_id)
+
+    with ReadSnapshot(factory) as snapshot:
+        batch_before = tuple(
+            snapshot.connection.execute(
+                "SELECT inventory_batch_id,batch_kind,target_count,recorded_at_utc,command_id "
+                "FROM inventory_lifecycle_batches WHERE inventory_batch_id=?",
+                (batch_id,),
+            ).fetchone()
+        )
+
+    correction_command = new_uuid4()
+    service = InventoryCorrectionsBulkService(factory)
+    corrected_result = service.correct_inventory_evidence(
+        command_id=correction_command,
+        correction_kind="false_warehouse_receipt",
+        target_id=corrected.fault_tag_membership_id,
+        target_event_id=target_event_id,
+        expected_revision=corrected.revision,
+        reason_code="false receipt",
+    )
+    replay = service.correct_inventory_evidence(
+        command_id=correction_command,
+        correction_kind="false_warehouse_receipt",
+        target_id=corrected.fault_tag_membership_id,
+        target_event_id=target_event_id,
+        expected_revision=corrected.revision,
+        reason_code="false receipt",
+    )
+    assert replay.replayed
+    assert replay.target_refs == corrected_result.target_refs
+    assert replay.revisions == corrected_result.revisions
+
+    corrected_after = _membership_state(
+        factory, corrected.fault_tag_membership_id
+    )
+    sibling_after = _membership_state(factory, sibling.fault_tag_membership_id)
+    assert corrected_after[0] == "submitted_awaiting_receipt"
+    assert corrected_after[1] == 1
+    assert corrected_after[2] == corrected.revision + 1
+    assert corrected_after[4] != target_event_id
+    assert sibling_after == sibling_before
+    assert _membership_event(factory, sibling_event_id) == sibling_event_before
+    assert _membership_event(factory, target_event_id) == original_receipt_before
+
+    correction_event = _membership_event(factory, str(corrected_after[4]))
+    assert correction_event[0] == "correct"
+    assert correction_event[1] == target_event_id
+    assert correction_event[2] == "false receipt"
+    assert correction_event[3] is None
+    assert correction_event[4] is None
+    assert correction_event[5] == correction_command
+
+    corrected_rma_after = _rma_state(factory, rmas[0])
+    assert corrected_rma_after[0] == "fault_tagged"
+    assert corrected_rma_after[1] == 1
+    assert corrected_rma_after[2] == corrected.fault_tag_membership_id
+    assert _obligation_state(factory, rmas[0]) == corrected_obligation_before
+    assert _rma_state(factory, rmas[1]) == sibling_rma_before
+
+    with ReadSnapshot(factory) as snapshot:
+        batch_after = tuple(
+            snapshot.connection.execute(
+                "SELECT inventory_batch_id,batch_kind,target_count,recorded_at_utc,command_id "
+                "FROM inventory_lifecycle_batches WHERE inventory_batch_id=?",
+                (batch_id,),
+            ).fetchone()
+        )
+        aggregate = tuple(
+            snapshot.connection.execute(
+                "SELECT state,awaiting_receipt_count,awaiting_final_count,"
+                "accepted_count,rejected_count "
+                "FROM fault_tag_current_projection WHERE fault_tag_id=?",
+                (submitted["fault_tag_id"],),
+            ).fetchone()
+        )
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_membership_events "
+            "WHERE fault_tag_membership_id=? AND event_kind='warehouse_received'",
+            (corrected.fault_tag_membership_id,),
+        ).fetchone()[0] == 1
+
+    assert batch_after == batch_before
+    assert aggregate == ("in_warehouse_review", 1, 1, 0, 0)
+
