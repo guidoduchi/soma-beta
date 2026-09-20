@@ -225,7 +225,7 @@ class InventoryFaultTagsRepository:
                     "pickup_contact_id": None if tag[3] is None else str(tag[3]),
                     "pickup_instructions": None if tag[4] is None else str(tag[4]),
                     "revision": int(tag[5]),
-                    "members": cls._member_payload(connection, fault_tag_id),
+                    "members": cls.current_members(connection, fault_tag_id),
                 },
                 "state": state,
                 "archived": archived,
@@ -400,6 +400,453 @@ class InventoryFaultTagsRepository:
         }
 
     @classmethod
+    def current_members(
+        cls,
+        connection: Any,
+        fault_tag_id: str,
+    ) -> list[dict[str, object]]:
+        return [
+            member
+            for member in cls._member_payload(connection, fault_tag_id)
+            if member["state"] not in {"cancelled", "superseded"}
+        ]
+
+    @classmethod
+    def update_draft(
+        cls,
+        connection: Any,
+        *,
+        fault_tag_id: str,
+        expected_revision: int,
+        expected_fingerprint: str,
+        return_method: str,
+        pickup_dispatch_location_id: str | None,
+        pickup_contact_id: str | None,
+        pickup_instructions: str | None,
+        add_memberships: tuple[FaultTagMembershipIntent, ...],
+        remove_membership_ids: tuple[str, ...],
+        command_id: str,
+    ) -> dict[str, object]:
+        current = cls.require_exact_draft(
+            connection,
+            fault_tag_id=fault_tag_id,
+            expected_revision=expected_revision,
+            expected_fingerprint=expected_fingerprint,
+        )
+        all_members = cls._member_payload(connection, fault_tag_id)
+        by_id = {str(item["fault_tag_membership_id"]): item for item in all_members}
+        for membership_id in remove_membership_ids:
+            member = by_id.get(membership_id)
+            if member is None or member["state"] != "draft":
+                raise SomaError(
+                    "FAULT_TAG_NOT_DRAFT",
+                    "Fault Tag membership is not removable Draft authority",
+                )
+
+        retained_rmas = {
+            str(item["rma_id"])
+            for item in all_members
+            if item["state"] == "draft"
+            and str(item["fault_tag_membership_id"]) not in remove_membership_ids
+        }
+        for item in add_memberships:
+            if item.rma_id in retained_rmas:
+                raise SomaError(
+                    "FAULT_TAG_MEMBERSHIP_CONFLICT",
+                    "Fault Tag already contains this RMA obligation",
+                )
+            cls.require_membership_available(
+                connection,
+                rma_id=item.rma_id,
+                allow_fault_tag_id=fault_tag_id,
+            )
+            retained_rmas.add(item.rma_id)
+
+        new_draft_revision = int(current[6]) + 1
+        now = utc_epoch_seconds()
+        updated_tag = connection.execute(
+            "UPDATE fault_tags SET draft_return_method=?,"
+            "draft_pickup_dispatch_location_id=?,draft_pickup_contact_id=?,"
+            "draft_pickup_instructions=?,draft_revision=? "
+            "WHERE fault_tag_id=? AND draft_revision=?",
+            (
+                return_method,
+                pickup_dispatch_location_id,
+                pickup_contact_id,
+                pickup_instructions,
+                new_draft_revision,
+                fault_tag_id,
+                int(current[6]),
+            ),
+        )
+        if updated_tag.rowcount != 1:
+            raise SomaError("INV_STALE", "Fault Tag draft revision changed")
+
+        removed_event_ids: list[str] = []
+        for membership_id in remove_membership_ids:
+            member = by_id[membership_id]
+            event_id = new_uuid4()
+            connection.execute(
+                "INSERT INTO fault_tag_membership_events("
+                "membership_event_id,fault_tag_membership_id,event_kind,effective_at_utc,"
+                "target_event_id,reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+                ") VALUES (?,?,'cancelled',NULL,?,"
+                "'draft_membership_removed',NULL,NULL,?,?)",
+                (
+                    event_id,
+                    membership_id,
+                    member["last_event_id"],
+                    now,
+                    command_id,
+                ),
+            )
+            revision = int(member["revision"]) + 1
+            fingerprint = cls.membership_fingerprint(
+                membership_id=membership_id,
+                fault_tag_id=fault_tag_id,
+                rma_id=str(member["rma_id"]),
+                device_part_unit_id=member["device_part_unit_id"],
+                spare_part_unit_id=member["spare_part_unit_id"],
+                state="cancelled",
+                active_submitted=False,
+                revision=revision,
+                last_event_id=event_id,
+            )
+            changed = connection.execute(
+                "UPDATE fault_tag_membership_current SET state='cancelled',"
+                "active_submitted=0,revision=?,input_fingerprint=?,last_event_id=?,"
+                "last_command_id=? WHERE fault_tag_membership_id=? AND revision=? "
+                "AND state='draft'",
+                (
+                    revision,
+                    fingerprint,
+                    event_id,
+                    command_id,
+                    membership_id,
+                    int(member["revision"]),
+                ),
+            )
+            if changed.rowcount != 1:
+                raise SomaError("INV_STALE", "Fault Tag draft membership changed")
+            removed_event_ids.append(event_id)
+
+        added_ids: list[str] = []
+        for item in add_memberships:
+            authority = cls.require_membership_available(
+                connection,
+                rma_id=item.rma_id,
+                allow_fault_tag_id=fault_tag_id,
+            )
+            membership_id = new_uuid4()
+            device_id = (
+                str(authority["unit_id"])
+                if authority["unit_kind"] == "device_part_unit"
+                else None
+            )
+            spare_id = (
+                str(authority["unit_id"])
+                if authority["unit_kind"] == "spare_part_unit"
+                else None
+            )
+            connection.execute(
+                "INSERT INTO fault_tag_memberships("
+                "fault_tag_membership_id,fault_tag_id,rma_id,physical_consequence_id,"
+                "device_part_unit_id,spare_part_unit_id,return_reason,draft_revision,"
+                "created_at_utc,created_command_id"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    membership_id,
+                    fault_tag_id,
+                    item.rma_id,
+                    str(authority["physical_consequence_id"]),
+                    device_id,
+                    spare_id,
+                    item.return_reason,
+                    new_draft_revision,
+                    now,
+                    command_id,
+                ),
+            )
+            fingerprint = cls.membership_fingerprint(
+                membership_id=membership_id,
+                fault_tag_id=fault_tag_id,
+                rma_id=item.rma_id,
+                device_part_unit_id=device_id,
+                spare_part_unit_id=spare_id,
+                state="draft",
+                active_submitted=False,
+                revision=1,
+                last_event_id=None,
+            )
+            connection.execute(
+                "INSERT INTO fault_tag_membership_current("
+                "fault_tag_membership_id,fault_tag_id,rma_id,device_part_unit_id,"
+                "spare_part_unit_id,state,active_submitted,revision,input_fingerprint,"
+                "last_event_id,last_command_id"
+                ") VALUES (?,?,?,?,?,'draft',0,1,?,NULL,?)",
+                (
+                    membership_id,
+                    fault_tag_id,
+                    item.rma_id,
+                    device_id,
+                    spare_id,
+                    fingerprint,
+                    command_id,
+                ),
+            )
+            added_ids.append(membership_id)
+
+        resulting_revision = int(current[15]) + 1
+        tag_fp = cls.tag_fingerprint(
+            connection,
+            fault_tag_id=fault_tag_id,
+            state="draft",
+            archived=bool(current[8]),
+            current_submission_snapshot_id=None,
+            submitted_member_count=0,
+            awaiting_receipt_count=0,
+            awaiting_final_count=0,
+            accepted_count=0,
+            rejected_count=0,
+        )
+        changed_tag = connection.execute(
+            "UPDATE fault_tag_current_projection SET revision=?,input_fingerprint=?,"
+            "last_command_id=? WHERE fault_tag_id=? AND revision=? AND state='draft'",
+            (
+                resulting_revision,
+                tag_fp,
+                command_id,
+                fault_tag_id,
+                int(current[15]),
+            ),
+        )
+        if changed_tag.rowcount != 1:
+            raise SomaError("INV_STALE", "Fault Tag projection changed during draft update")
+        return {
+            "added_membership_ids": tuple(added_ids),
+            "removed_event_ids": tuple(removed_event_ids),
+            "revision": resulting_revision,
+            "input_fingerprint": tag_fp,
+        }
+
+    @classmethod
+    def correct_false_submission(
+        cls,
+        connection: Any,
+        *,
+        fault_tag_id: str,
+        submission_event_id: str,
+        reason_code: str,
+        confirmed_no_real_send: bool,
+        command_id: str,
+    ) -> dict[str, object]:
+        if confirmed_no_real_send is not True:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "False-submission correction requires explicit proof of no real send",
+            )
+        current = cls.current_tag(connection, fault_tag_id)
+        if current is None:
+            raise SomaError("INV_STALE", "Fault Tag no longer exists")
+        if str(current[7]) not in {"submitted", "in_warehouse_review"}:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Fault Tag has no current accepted submission to correct",
+            )
+        snapshot_id = current[9]
+        if snapshot_id is None:
+            raise IntegrityFailure("submitted Fault Tag lacks current snapshot")
+        snapshot = connection.execute(
+            "SELECT submission_event_id FROM fault_tag_submission_snapshots "
+            "WHERE fault_tag_submission_snapshot_id=? AND fault_tag_id=?",
+            (str(snapshot_id), fault_tag_id),
+        ).fetchone()
+        if snapshot is None or str(snapshot[0]) != submission_event_id:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Fault Tag submission event is not current-effective",
+            )
+        submission = connection.execute(
+            "SELECT evidence_kind FROM fault_tag_lifecycle_events "
+            "WHERE fault_tag_event_id=? AND fault_tag_id=? AND event_kind='submission_accepted'",
+            (submission_event_id, fault_tag_id),
+        ).fetchone()
+        if submission is None:
+            raise SomaError("CORRECTION_TARGET_INVALID", "Submission event does not exist")
+        if submission[0] is not None:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Indexed sent evidence contradicts false-submission correction",
+            )
+
+        members = cls._member_payload(connection, fault_tag_id)
+        submitted = [
+            item for item in members if item["state"] in {"submitted_awaiting_receipt", "warehouse_received"}
+        ]
+        if len(submitted) != int(current[10]):
+            raise IntegrityFailure("Fault Tag submitted-member count disagrees with member projection")
+        if any(item["state"] != "submitted_awaiting_receipt" for item in submitted):
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Warehouse evidence contradicts false-submission correction",
+            )
+        for member in submitted:
+            downstream = connection.execute(
+                "SELECT 1 FROM fault_tag_membership_events "
+                "WHERE fault_tag_membership_id=? AND event_kind IN "
+                "('warehouse_received','warehouse_accepted','warehouse_rejected') LIMIT 1",
+                (str(member["fault_tag_membership_id"]),),
+            ).fetchone()
+            if downstream is not None:
+                raise SomaError(
+                    "CORRECTION_TARGET_INVALID",
+                    "Warehouse history contradicts false-submission correction",
+                )
+
+        now = utc_epoch_seconds()
+        correction_event_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO fault_tag_lifecycle_events("
+            "fault_tag_event_id,fault_tag_id,event_kind,effective_at_utc,target_event_id,"
+            "reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+            ") VALUES (?,?,'submission_corrected_false',NULL,?,?,NULL,NULL,?,?)",
+            (
+                correction_event_id,
+                fault_tag_id,
+                submission_event_id,
+                reason_code,
+                now,
+                command_id,
+            ),
+        )
+        membership_correction_ids: list[str] = []
+        for member in submitted:
+            membership_id = str(member["fault_tag_membership_id"])
+            correction_id = new_uuid4()
+            connection.execute(
+                "INSERT INTO fault_tag_membership_events("
+                "membership_event_id,fault_tag_membership_id,event_kind,effective_at_utc,"
+                "target_event_id,reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+                ") VALUES (?,?,'correct',NULL,?,?,NULL,NULL,?,?)",
+                (
+                    correction_id,
+                    membership_id,
+                    member["last_event_id"],
+                    reason_code,
+                    now,
+                    command_id,
+                ),
+            )
+            revision = int(member["revision"]) + 1
+            fingerprint = cls.membership_fingerprint(
+                membership_id=membership_id,
+                fault_tag_id=fault_tag_id,
+                rma_id=str(member["rma_id"]),
+                device_part_unit_id=member["device_part_unit_id"],
+                spare_part_unit_id=member["spare_part_unit_id"],
+                state="draft",
+                active_submitted=False,
+                revision=revision,
+                last_event_id=correction_id,
+            )
+            changed = connection.execute(
+                "UPDATE fault_tag_membership_current SET state='draft',active_submitted=0,"
+                "revision=?,input_fingerprint=?,last_event_id=?,last_command_id=? "
+                "WHERE fault_tag_membership_id=? AND revision=? "
+                "AND state='submitted_awaiting_receipt'",
+                (
+                    revision,
+                    fingerprint,
+                    correction_id,
+                    command_id,
+                    membership_id,
+                    int(member["revision"]),
+                ),
+            )
+            if changed.rowcount != 1:
+                raise SomaError("INV_STALE", "Fault Tag membership changed during correction")
+
+            rma = InventoryRmasRepository.current_rma(connection, str(member["rma_id"]))
+            if rma is None:
+                raise SomaError("INV_STALE", "RMA disappeared during Fault Tag correction")
+            if rma[11] is None or str(rma[11]) != membership_id:
+                raise SomaError(
+                    "CORRECTION_TARGET_INVALID",
+                    "RMA active Fault Tag membership no longer matches correction target",
+                )
+            rma_revision = int(rma[12]) + 1
+            rma_fp = InventoryRmasRepository.rma_lifecycle_fingerprint(
+                rma_id=str(member["rma_id"]),
+                current_c10=str(rma[4]),
+                state="return_open",
+                target_device_part_unit_id=None if rma[6] is None else str(rma[6]),
+                direct_inbound_spare_part_unit_id=None if rma[7] is None else str(rma[7]),
+                return_device_part_unit_id=None if rma[8] is None else str(rma[8]),
+                return_spare_part_unit_id=None if rma[9] is None else str(rma[9]),
+                return_obligation_open=True,
+                active_fault_tag_membership_id=None,
+            )
+            updated_rma = connection.execute(
+                "UPDATE rma_lifecycle_projection SET state='return_open',"
+                "active_fault_tag_membership_id=NULL,revision=?,input_fingerprint=?,"
+                "last_command_id=? WHERE rma_id=? AND revision=?",
+                (
+                    rma_revision,
+                    rma_fp,
+                    command_id,
+                    str(member["rma_id"]),
+                    int(rma[12]),
+                ),
+            )
+            if updated_rma.rowcount != 1:
+                raise SomaError("INV_STALE", "RMA lifecycle changed during Fault Tag correction")
+            membership_correction_ids.append(correction_id)
+
+        draft_revision = int(current[6]) + 1
+        changed_draft = connection.execute(
+            "UPDATE fault_tags SET draft_revision=? WHERE fault_tag_id=? AND draft_revision=?",
+            (draft_revision, fault_tag_id, int(current[6])),
+        )
+        if changed_draft.rowcount != 1:
+            raise SomaError("INV_STALE", "Fault Tag draft revision changed during correction")
+
+        resulting_revision = int(current[15]) + 1
+        tag_fp = cls.tag_fingerprint(
+            connection,
+            fault_tag_id=fault_tag_id,
+            state="draft",
+            archived=bool(current[8]),
+            current_submission_snapshot_id=None,
+            submitted_member_count=0,
+            awaiting_receipt_count=0,
+            awaiting_final_count=0,
+            accepted_count=0,
+            rejected_count=0,
+        )
+        changed_tag = connection.execute(
+            "UPDATE fault_tag_current_projection SET state='draft',"
+            "current_submission_snapshot_id=NULL,submitted_member_count=0,"
+            "awaiting_receipt_count=0,awaiting_final_count=0,accepted_count=0,"
+            "rejected_count=0,revision=?,input_fingerprint=?,last_command_id=? "
+            "WHERE fault_tag_id=? AND revision=?",
+            (
+                resulting_revision,
+                tag_fp,
+                command_id,
+                fault_tag_id,
+                int(current[15]),
+            ),
+        )
+        if changed_tag.rowcount != 1:
+            raise SomaError("INV_STALE", "Fault Tag changed during false-submission correction")
+        return {
+            "correction_event_id": correction_event_id,
+            "membership_correction_ids": tuple(membership_correction_ids),
+            "revision": resulting_revision,
+            "input_fingerprint": tag_fp,
+        }
+
+    @classmethod
     def response(cls, connection: Any, fault_tag_id: str) -> dict[str, object]:
         current = cls.current_tag(connection, fault_tag_id)
         if current is None:
@@ -481,7 +928,7 @@ class InventoryFaultTagsRepository:
             expected_revision=expected_revision,
             expected_fingerprint=expected_fingerprint,
         )
-        members = cls._member_payload(connection, fault_tag_id)
+        members = cls.current_members(connection, fault_tag_id)
         if not members:
             raise SomaError("FAULT_TAG_NOT_DRAFT", "Fault Tag submission requires at least one member")
         if str(current[2]) == "pickup" and current[3] is None:
