@@ -198,6 +198,7 @@ class InventoryCorrectionsBulkService:
                         evidence_id=None,
                         command_id=command_id,
                         force_batch=True,
+                        requested_batch_id=batch_id,
                     )
                     audit_kind = (
                         "ACCEPTED"
@@ -254,7 +255,7 @@ class InventoryCorrectionsBulkService:
                         "type": "fault_tag_membership_event",
                         "id": str(item["membership_event_id"]),
                     }
-                    for item in result["events"][:16]
+                    for item in result["events"]
                 ]
                 bulk_audit = AuditEventInput(
                     audit_event_id=new_uuid4(),
