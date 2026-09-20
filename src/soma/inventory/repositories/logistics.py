@@ -208,6 +208,7 @@ class InventoryLogisticsRepository:
         connection: Any,
         *,
         rma_id: str,
+        spare_part_unit_id: str,
         actual_bom_code: str,
         actual_bom_key: str,
         manufacturer_serial: str | None,
@@ -231,7 +232,6 @@ class InventoryLogisticsRepository:
             raise SomaError("RMA_INBOUND_EXISTS", "RMA already has a direct inbound unit")
 
         cls.require_reference_context(connection, expected=reference_context)
-        spare_part_unit_id = new_uuid4()
         now = utc_epoch_seconds()
         connection.execute(
             "INSERT INTO spare_part_units("
