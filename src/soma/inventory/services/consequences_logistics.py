@@ -794,17 +794,36 @@ class InventoryConsequencesLogisticsService:
         command_id: str,
         participant_id: str,
         reason_code: str,
+        replacement_kind: str | None = None,
+        replacement_id: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
     ) -> InventoryMutationResult:
         identity = require_uuid4(participant_id)
         reason = validate_reason_code(reason_code)
+        if (replacement_kind is None) != (replacement_id is None):
+            raise ValidationError(
+                "replacement_kind and replacement_id must both be null or both present"
+            )
+        if replacement_kind is not None and replacement_kind not in {
+            "rma",
+            "spare_part_unit",
+            "device_part_unit",
+        }:
+            raise ValidationError("replacement_kind is invalid")
+        replacement_identity = (
+            None if replacement_id is None else require_uuid4(replacement_id)
+        )
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="CorrectLogisticsParticipant",
             target_type="logistics_participant",
             target_id=identity,
-            semantic_payload={"reason_code": reason},
+            semantic_payload={
+                "reason_code": reason,
+                "replacement_kind": replacement_kind,
+                "replacement_id": replacement_identity,
+            },
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
@@ -820,17 +839,24 @@ class InventoryConsequencesLogisticsService:
             logistics_event_id = str(located[2])
 
             def apply(inner: UnitOfWork):
-                _kind, event_id = self._logistics.close_participant(
+                (
+                    event_id,
+                    corrected_participant_id,
+                    replacement_participant_id,
+                ) = self._logistics.correct_participant_relationship(
                     inner.connection,
                     participant_id=identity,
+                    replacement_kind=replacement_kind,
+                    replacement_id=replacement_identity,
                     reason_code=reason,
                     command_id=command_id,
                 )
-                if event_id != logistics_event_id:
+                if event_id != logistics_event_id or corrected_participant_id != identity:
                     raise SomaError(
                         "INV_STALE",
                         "Logistics participant event changed unexpectedly",
                     )
+                apply.replacement_participant_id = replacement_participant_id
                 return AuditEventInput(
                     audit_event_id=new_uuid4(),
                     action_type="inventory.logistics.recorded_or_corrected",
@@ -854,21 +880,51 @@ class InventoryConsequencesLogisticsService:
                     resulting_event_refs=(
                         AuditResultRef("logistics_event", logistics_event_id),
                         AuditResultRef("logistics_participant", identity),
+                        *(
+                            ()
+                            if apply.replacement_participant_id is None
+                            else (
+                                AuditResultRef(
+                                    "logistics_participant",
+                                    apply.replacement_participant_id,
+                                ),
+                            )
+                        ),
                     ),
                 )
 
+            apply.replacement_participant_id = None
             return PreparedMutation(
                 no_change=False,
                 result_type="logistics_participant",
                 result_id=identity,
                 apply=apply,
                 response_schema="InventoryMutationResultV1",
-                response=self._response(
+                response_factory=lambda _inner: self._response(
                     [
                         ("logistics_participant", identity),
                         ("logistics_event", logistics_event_id),
+                        *(
+                            []
+                            if apply.replacement_participant_id is None
+                            else [
+                                (
+                                    "logistics_participant",
+                                    apply.replacement_participant_id,
+                                )
+                            ]
+                        ),
                     ],
-                    {f"logistics_participant:{identity}": 2},
+                    {
+                        f"logistics_participant:{identity}": 2,
+                        **(
+                            {}
+                            if apply.replacement_participant_id is None
+                            else {
+                                f"logistics_participant:{apply.replacement_participant_id}": 1
+                            }
+                        ),
+                    },
                 ),
             )
 
