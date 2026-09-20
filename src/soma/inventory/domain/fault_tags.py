@@ -35,6 +35,32 @@ def validate_fault_tag_memberships(
     return tuple(sorted(accepted, key=lambda value: value.rma_id.encode("utf-8")))
 
 
+@dataclass(frozen=True, slots=True)
+class WarehouseMembershipTarget:
+    fault_tag_membership_id: str
+    revision: int
+
+    def validate(self) -> "WarehouseMembershipTarget":
+        identity = require_uuid4(self.fault_tag_membership_id)
+        if type(self.revision) is not int or self.revision <= 0:
+            raise ValidationError("warehouse membership revision must be positive")
+        return WarehouseMembershipTarget(identity, self.revision)
+
+
+def validate_warehouse_targets(
+    values: tuple[WarehouseMembershipTarget, ...],
+) -> tuple[WarehouseMembershipTarget, ...]:
+    if not isinstance(values, tuple) or not values or len(values) > 2000:
+        raise ValidationError("warehouse targets must contain 1..2000 memberships")
+    accepted = tuple(value.validate() for value in values)
+    ids = [value.fault_tag_membership_id for value in accepted]
+    if len(set(ids)) != len(ids):
+        raise ValidationError("warehouse targets contain duplicate memberships")
+    return tuple(
+        sorted(accepted, key=lambda value: value.fault_tag_membership_id.encode("utf-8"))
+    )
+
+
 def validate_return_method(value: str) -> str:
     if value not in {"pickup", "non_pickup"}:
         raise ValidationError("Fault Tag return method must be pickup or non_pickup")
@@ -70,8 +96,10 @@ def validate_fault_tag_effective_at(value: int | None) -> int | None:
 
 __all__ = [
     "FaultTagMembershipIntent",
+    "WarehouseMembershipTarget",
     "validate_fault_tag_effective_at",
     "validate_fault_tag_memberships",
     "validate_pickup_context",
     "validate_return_method",
+    "validate_warehouse_targets",
 ]
