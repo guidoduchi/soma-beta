@@ -224,7 +224,6 @@ class InventoryRequestsRmaService:
                 apply.revision = revision
                 refs = [
                     AuditResultRef("spare_request", spare_request_id),
-                    AuditResultRef("spare_request_event", event_id),
                 ]
                 refs.extend(
                     AuditResultRef("spare_request_allocation", allocation_id)
