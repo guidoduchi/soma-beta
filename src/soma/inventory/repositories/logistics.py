@@ -127,6 +127,7 @@ class InventoryLogisticsRepository:
         reason_code: str | None,
         target_event_id: str | None,
         command_id: str,
+        logistics_event_id: str | None = None,
     ) -> tuple[str, tuple[tuple[str, str], ...]]:
         cls.require_reference_context(connection, expected=reference_context)
         cls.require_participants(
@@ -135,7 +136,7 @@ class InventoryLogisticsRepository:
             spare_part_unit_ids=spare_part_unit_ids,
             device_part_unit_ids=device_part_unit_ids,
         )
-        event_id = new_uuid4()
+        event_id = new_uuid4() if logistics_event_id is None else logistics_event_id
         now = utc_epoch_seconds()
         receiver_snapshot = reference_context["receiver_snapshot"]
         connection.execute(
@@ -277,7 +278,7 @@ class InventoryLogisticsRepository:
             "unit_event_id,spare_part_unit_id,event_kind,condition_token,disposition_token,"
             "location_kind,location_ref_id,custody_text,effective_at_utc,target_event_id,"
             "reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
-            ") VALUES (?,?,'received',?,?,?,?,?,?,?,NULL,NULL,?,?,?,?)",
+            ") VALUES (?,?,'received',?,?,?,?,?,?,NULL,NULL,?,?,?,?)",
             (
                 received_event_id,
                 spare_part_unit_id,
