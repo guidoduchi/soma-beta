@@ -12,6 +12,7 @@ from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.strict_json import sha256_canonical_json
 
 from ..audit_registry import build_inventory_audit_registry
 from ..contracts.inventory import (
@@ -136,9 +137,7 @@ class InventoryConsequencesLogisticsService:
                 receiver_contact_id=receiver_id,
             )
 
-        reference_fingerprint = hashlib.sha256(
-            repr(sorted(reference_context.items())).encode("utf-8")
-        ).hexdigest()
+        reference_fingerprint = sha256_canonical_json(reference_context)
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="RecordRmaInboundReceipt",
