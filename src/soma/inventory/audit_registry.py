@@ -325,7 +325,7 @@ def _validate_inventory_bulk(payload: dict[str, object]) -> None:
     if payload.get("result") != "APPLIED":
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory bulk result is invalid")
     refs = payload.get("result_refs")
-    if not isinstance(refs, list) or not refs or len(refs) > 2000:
+    if not isinstance(refs, list) or not refs or len(refs) > 16:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory bulk result_refs are invalid")
     for item in refs:
         if not isinstance(item, dict) or set(item) != {"type", "id"}:
@@ -350,7 +350,7 @@ def _validate_inventory_hard_delete(payload: dict[str, object]) -> None:
     _positive(payload.get("reviewed_revision"), "reviewed_revision")
     _fingerprint(payload.get("eligibility_fingerprint"), "eligibility_fingerprint")
     retained = payload.get("retained_related_ids")
-    if not isinstance(retained, list) or len(retained) > 10000:
+    if not isinstance(retained, list) or len(retained) > 16:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "retained_related_ids are invalid")
     for identity in retained:
         _uuid(identity, "retained_related_id")
