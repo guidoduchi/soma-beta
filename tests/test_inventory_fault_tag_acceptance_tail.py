@@ -8,7 +8,10 @@ from soma.foundation.persistence.uow import ReadSnapshot
 from soma.inventory.domain.fault_tags import FaultTagMembershipIntent, WarehouseMembershipIntent
 from soma.inventory.domain.rmas import RmaAuthorizationIntent
 from soma.inventory.services.consequences_logistics import InventoryConsequencesLogisticsService
+from soma.inventory.queries.fault_tags import InventoryFaultTagQueryService
 from soma.inventory.services.fault_tags import InventoryFaultTagsService
+from soma.inventory.services.requests_rma import InventoryRequestsRmaService
+from soma.reference.application.dispatch_service import DispatchLocationService
 from test_inventory_consequence_replay import _factory, _reviewed_task
 from test_inventory_requests_rma import _prepare_submitted_request
 from test_inventory_warehouse_replay import _current_members, _members, _submitted_tag
@@ -172,6 +175,131 @@ def test_t045_second_submission_rejects_active_rma_membership_conflict(
             (str(second["fault_tag_id"]),),
         ).fetchone()
         assert tuple(state) == ("draft", 0)
+
+
+def test_t046_submission_snapshots_remain_frozen_while_current_master_truth_changes(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    old_c10 = "C0000000461"
+    new_c10 = "C0000000462"
+    rma_id, _request_id, _sr_id = _eligible_rma(
+        factory,
+        official_sr="97800047",
+        c10=old_c10,
+        bom="FT46-BOM",
+    )
+    dispatch = DispatchLocationService(factory)
+    created_location = dispatch.create_standalone(
+        command_id=new_uuid4(),
+        name="FT46 Pickup Old",
+        address_text="46 Old Pickup Avenue",
+    )
+    location_id = str(created_location.dispatch_location_id)
+
+    tags = InventoryFaultTagsService(factory)
+    draft = tags.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="pickup",
+        pickup_dispatch_location_id=location_id,
+        memberships=(FaultTagMembershipIntent(rma_id, "freeze submitted display"),),
+    )
+    tag_id = str(draft["fault_tag_id"])
+    tags.accept_fault_tag_submission(
+        command_id=new_uuid4(),
+        fault_tag_id=tag_id,
+        expected_fingerprint=_draft_fingerprint(factory, tag_id),
+    )
+
+    query = InventoryFaultTagQueryService(factory)
+    before = query.detail(tag_id)
+    assert before["current_pickup_location"] == {
+        "dispatch_location_id": location_id,
+        "name": "FT46 Pickup Old",
+        "address_mode": "standalone",
+        "address_text": "46 Old Pickup Avenue",
+        "revision": 1,
+    }
+    assert len(before["submission_history"]) == 1
+    historical_before = before["submission_history"][0]
+    assert historical_before["pickup_location_name_snapshot"] == "FT46 Pickup Old"
+    assert historical_before["pickup_location_address_snapshot"] == "46 Old Pickup Avenue"
+    assert len(historical_before["members"]) == 1
+    historical_display = historical_before["members"][0]["historical_display"]
+    assert historical_display["current_c10"] == old_c10
+    assert before["members"][0]["current_c10"] == old_c10
+    assert before["members"][0]["current_unit_bom_code"] == "FT46-BOM"
+
+    with ReadSnapshot(factory) as snapshot:
+        raw_tag_snapshot_before = tuple(
+            snapshot.connection.execute(
+                "SELECT * FROM fault_tag_submission_snapshots WHERE fault_tag_id=?",
+                (tag_id,),
+            ).fetchone()
+        )
+        raw_member_snapshot_before = tuple(
+            snapshot.connection.execute(
+                "SELECT * FROM fault_tag_membership_submission_snapshots "
+                "WHERE fault_tag_submission_snapshot_id=?",
+                (str(historical_before["snapshot_id"]),),
+            ).fetchone()
+        )
+
+    InventoryRequestsRmaService(factory).correct_rma_official_id(
+        command_id=new_uuid4(),
+        rma_id=rma_id,
+        current_c10=old_c10,
+        new_c10=new_c10,
+        reason_code="supplier corrected C10",
+    )
+    updated_location = dispatch.update_descriptive_data(
+        command_id=new_uuid4(),
+        dispatch_location_id=location_id,
+        base_revision=1,
+        name="FT46 Pickup Current",
+        address_text="46 Current Pickup Avenue",
+    )
+    assert updated_location.outcome == "APPLIED"
+    assert updated_location.revision == 2
+
+    after = query.detail(tag_id)
+    assert after["submission_history"] == before["submission_history"]
+    assert after["members"][0]["current_c10"] == new_c10
+    assert after["members"][0]["current_unit_bom_code"] == "FT46-BOM"
+    assert after["current_pickup_location"] == {
+        "dispatch_location_id": location_id,
+        "name": "FT46 Pickup Current",
+        "address_mode": "standalone",
+        "address_text": "46 Current Pickup Avenue",
+        "revision": 2,
+    }
+    assert (
+        after["submission_history"][0]["members"][0]["historical_display"]["current_c10"]
+        == old_c10
+    )
+    assert (
+        after["submission_history"][0]["pickup_location_name_snapshot"]
+        == "FT46 Pickup Old"
+    )
+    assert (
+        after["submission_history"][0]["pickup_location_address_snapshot"]
+        == "46 Old Pickup Avenue"
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT * FROM fault_tag_submission_snapshots WHERE fault_tag_id=?",
+                (tag_id,),
+            ).fetchone()
+        ) == raw_tag_snapshot_before
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT * FROM fault_tag_membership_submission_snapshots "
+                "WHERE fault_tag_submission_snapshot_id=?",
+                (str(historical_before["snapshot_id"]),),
+            ).fetchone()
+        ) == raw_member_snapshot_before
 
 
 def test_t047_submitted_fault_tag_cannot_be_directly_edited_or_remove_member(
