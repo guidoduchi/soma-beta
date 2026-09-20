@@ -61,8 +61,8 @@
       "command": "CorrectInventoryEvidence",
       "request_type": "CorrectInventoryEvidenceRequestV1",
       "response_type": "InventoryMutationResultV1",
-      "transaction_boundary": "correction type classification outside lock rejects genuine later developments; one UnitOfWork proves exact disputed current-effective fact and dependencies, inserts receipt, appends targeted correction/supersession without deleting original evidence, rebuilds affected projections/attention and audits atomically",
-      "revision_effects": "only current projection/relationship authority affected by targeted correction advances; original evidence remains history; material submitted Fault Tag changes require replacement rather than in-place mutation",
+      "transaction_boundary": "correction type classification outside lock rejects genuine later developments; one UnitOfWork proves exact disputed current-effective fact and dependencies, inserts receipt, appends targeted correction/supersession without deleting original evidence, rebuilds affected projections/attention and audits atomically; false_warehouse_receipt additionally requires the exact current warehouse_received event/revision and rejects any later final decision",
+      "revision_effects": "only current projection/relationship authority affected by targeted correction advances; original evidence remains history; false_warehouse_receipt advances only the corrected membership, its owning Fault Tag aggregate and its RMA projection while restoring submitted_awaiting_receipt/fault_tagged authority with the same open obligation; sibling batch members and the original batch remain unchanged; material submitted Fault Tag changes require replacement rather than in-place mutation",
       "audit": "inventory.evidence.corrected.v1",
       "errors": [
         "INV_STALE",
