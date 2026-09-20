@@ -842,7 +842,7 @@ class InventoryPhysicalConsequenceRepository:
             "installed_spare_part_unit_id,removed_device_part_unit_id,inbound_spare_part_unit_id,"
             "parent_dismantled_unit_id,effective_at_utc,target_event_id,reason_code,"
             "recorded_at_utc,command_id"
-            ") VALUES (?,?,'correct',?,?,?,?,?,?,?,?,?,?,?)",
+            ") VALUES (?,?,'correct',?,?,?,?,?,?,?,?,?,?)",
             (
                 consequence_event_id,
                 physical_consequence_id,
