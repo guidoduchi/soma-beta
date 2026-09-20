@@ -870,7 +870,7 @@ class InventoryFaultTagsRepository:
             "return_method": str(current[2]),
             "pickup_dispatch_location_id": None if current[3] is None else str(current[3]),
             "pickup_contact_id": None if current[4] is None else str(current[4]),
-            "members": cls._member_payload(connection, fault_tag_id),
+            "members": cls.current_members(connection, fault_tag_id),
         }
 
     @classmethod
