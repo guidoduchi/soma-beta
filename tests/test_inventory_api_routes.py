@@ -16,7 +16,7 @@ from soma.inventory.api.routes_inventory import (
 
 
 def test_route_registries_match_normative_surface_and_resolve_parameters() -> None:
-    assert len(INVENTORY_ROUTE_SPECS) == 29
+    assert len(INVENTORY_ROUTE_SPECS) == 30
     assert len(FAULT_TAG_ROUTE_SPECS) == 21
     request = resolve_inventory_route("GET", "/api/v1/inventory/requests/abc")
     assert request is not None
