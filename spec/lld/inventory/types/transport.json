@@ -400,41 +400,6 @@
     "CursorV1": {
       "kind": "reference",
       "contract": "spec/lld/_packet-contract-v2.json#cursor_contract"
-    },
-    "InventoryProposalTargetPayloadV1": {
-      "kind": "closed_union",
-      "discriminator": "action mapping from inventory_proposals.proposal_kind + inventory_proposal_targets.proposed_action",
-      "variants": {
-        "warehouse_received": {
-          "target_kind": "fault_tag_membership",
-          "required": [
-            "schema",
-            "effective_at_utc"
-          ],
-          "fields": {
-            "schema": "literal INVENTORY_PROPOSAL_TARGET_V1",
-            "effective_at_utc": "int>=0|null"
-          },
-          "unknown_fields": "reject"
-        },
-        "warehouse_final_decision": {
-          "target_kind": "fault_tag_membership",
-          "required": [
-            "schema",
-            "decision",
-            "reason_code",
-            "effective_at_utc"
-          ],
-          "fields": {
-            "schema": "literal INVENTORY_PROPOSAL_TARGET_V1",
-            "decision": "accepted|rejected",
-            "reason_code": "bounded string|null",
-            "effective_at_utc": "int>=0|null"
-          },
-          "unknown_fields": "reject"
-        }
-      },
-      "rule": "No communication body or free-form source evidence content is accepted as Inventory authority."
     }
   }
 }
