@@ -1300,4 +1300,183 @@ class InventoryRequestsRmaService:
         )
 
 
+    def cancel_or_reject_spare_request(
+        self,
+        *,
+        command_id: str,
+        spare_request_id: str,
+        base_revision: int,
+        terminal_state: str,
+        reason_code: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        request_id = require_uuid4(spare_request_id)
+        revision = validate_positive_revision(base_revision, field="base_revision")
+        if terminal_state not in {"cancelled", "rejected"}:
+            raise ValidationError("terminal_state must be cancelled or rejected")
+        reason = validate_reason_code(reason_code)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CancelOrRejectSpareRequest",
+            target_type="spare_request",
+            target_id=request_id,
+            semantic_payload={
+                "terminal_state": terminal_state,
+                "reason_code": reason,
+            },
+            base_revisions={"spare_request": revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            material = self._repository.draft_material(
+                uow.connection,
+                request_id,
+            )
+            if int(material["revision"]) != revision:
+                raise SomaError("INV_STALE", "Spare Request revision changed")
+            current_state = str(material["lifecycle_state"])
+            if current_state in {"cancelled", "rejected"}:
+                if current_state == terminal_state:
+                    return PreparedMutation(
+                        no_change=True,
+                        result_type=None,
+                        result_id=None,
+                        response_schema="SpareRequestV1",
+                        response=self._response(uow.connection, request_id),
+                    )
+                raise SomaError(
+                    "REQUEST_SUBMISSION_INVALID",
+                    "Spare Request already has a different terminal state",
+                )
+            if uow.connection.execute(
+                "SELECT 1 FROM rmas WHERE spare_request_id=? LIMIT 1",
+                (request_id,),
+            ).fetchone() is not None:
+                raise SomaError(
+                    "REQUEST_SUBMISSION_INVALID",
+                    "Accepted RMA authority blocks Spare Request terminal transition",
+                )
+            tracking_id = str(material["tracking_id"])
+            requester_id = str(material["requester_contact_id"])
+            requester_context = loads_canonical_json(
+                str(material["requester_context_json"]),
+                max_bytes=4096,
+                max_depth=3,
+                max_collection_items=16,
+            )
+            if not isinstance(requester_context, dict):
+                raise IntegrityFailure("Spare Request requester context is invalid")
+            requester_fingerprint = sha256_canonical_json(requester_context)
+            allocation_count = int(
+                uow.connection.execute(
+                    "SELECT COUNT(*) FROM spare_request_need_allocations "
+                    "WHERE spare_request_id=?",
+                    (request_id,),
+                ).fetchone()[0]
+            )
+            if allocation_count <= 0:
+                raise IntegrityFailure("Spare Request has no allocation history")
+
+            def apply(inner: UnitOfWork):
+                now = __import__("time").time_ns() // 1_000_000_000
+                event_id = new_uuid4()
+                inner.connection.execute(
+                    "INSERT INTO spare_request_lifecycle_events("
+                    "request_event_id,spare_request_id,event_kind,effective_at_utc,"
+                    "target_event_id,reason_code,evidence_kind,evidence_id,"
+                    "recorded_at_utc,command_id"
+                    ") VALUES (?,?,?,NULL,NULL,?,NULL,NULL,?,?)",
+                    (
+                        event_id,
+                        request_id,
+                        terminal_state,
+                        reason,
+                        now,
+                        command_id,
+                    ),
+                )
+                inner.connection.execute(
+                    "UPDATE spare_request_need_allocations SET active_draft=0,"
+                    "revision=revision+1,last_command_id=? "
+                    "WHERE spare_request_id=? AND active_draft=1",
+                    (command_id, request_id),
+                )
+                resulting_revision = revision + 1
+                fingerprint = sha256_canonical_json(
+                    {
+                        "schema": "SOMA_SPARE_REQUEST_CURRENT_V1",
+                        "spare_request_id": request_id,
+                        "lifecycle_state": terminal_state,
+                        "current_sr7": material["current_sr7"],
+                        "current_submission_snapshot_id": material[
+                            "current_submission_snapshot_id"
+                        ],
+                        "submitted_quantity": int(material["submitted_quantity"]),
+                        "authorized_rma_count": int(material["authorized_rma_count"]),
+                        "response_warning_start_utc": None,
+                    }
+                )
+                updated = inner.connection.execute(
+                    "UPDATE spare_request_current_projection SET lifecycle_state=?,"
+                    "response_warning_start_utc=NULL,revision=?,input_fingerprint=?,"
+                    "last_command_id=? WHERE spare_request_id=? AND revision=?",
+                    (
+                        terminal_state,
+                        resulting_revision,
+                        fingerprint,
+                        command_id,
+                        request_id,
+                        revision,
+                    ),
+                )
+                if updated.rowcount != 1:
+                    raise SomaError("INV_STALE", "Spare Request changed during terminal transition")
+                apply.event_id = event_id
+                apply.revision = resulting_revision
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.spare_request.draft_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="spare_request",
+                    target_id=request_id,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="SpareRequestAuditV1",
+                    payload_version=1,
+                    payload={
+                        "spare_request_id": request_id,
+                        "tracking_id": tracking_id,
+                        "event_kind": "TERMINAL",
+                        "requester_contact_id": requester_id,
+                        "requester_context_fingerprint": requester_fingerprint,
+                        "resulting_revision": resulting_revision,
+                        "allocation_count": allocation_count,
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("spare_request", request_id),
+                        AuditResultRef("spare_request_event", event_id),
+                    ),
+                )
+
+            apply.event_id = ""
+            apply.revision = revision + 1
+            return PreparedMutation(
+                no_change=False,
+                result_type="spare_request",
+                result_id=request_id,
+                apply=apply,
+                response_schema="SpareRequestV1",
+                response_factory=lambda inner: self._response(inner.connection, request_id),
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("Spare Request terminal response is not an object")
+        return dict(execution.response)
+
+
 __all__ = ["InventoryRequestsRmaService"]
