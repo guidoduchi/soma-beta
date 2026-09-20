@@ -29,6 +29,15 @@ from soma.inventory.services.participants import (
     InventoryProposalTargetService,
     InventoryTaskDependencyProvider,
 )
+from soma.inventory.services.providers import (
+    InventoryCommunicationIdentityProvider,
+    InventoryDevicePartReferenceReader,
+    InventoryOverviewProjectionProvider,
+    InventoryPhysicalConsequenceReader,
+    InventoryReferenceDependencyValidator,
+    InventorySiteDependencyValidator,
+    RfcInventoryDependencyProvider,
+)
 from soma.inventory.services.requests_rma import InventoryRequestsRmaService
 from soma.inventory.queries.attention_history import InventoryAttentionQueryService
 from soma.inventory.queries.fault_tags import FaultTagQueryService
@@ -54,6 +63,7 @@ from soma.objectives_tasks.services.task_execution import TaskExecutionService
 from soma.objectives_tasks.services.task_review import TaskReviewService
 from soma.product_line_sla.report_sections import ReportSectionContributorRegistry
 from soma.reference.application.contact_service import ContactReferenceService
+from soma.reference.domain.dependencies import ReferenceTarget
 from soma.tickets.device_references import DeviceReferenceService
 from soma.tickets.service_requests import ServiceRequestService
 
@@ -3660,3 +3670,342 @@ def test_normative_hard_delete_owner_deletes_clear_fault_tag_draft(
             "SELECT COUNT(*) FROM fault_tags WHERE fault_tag_id=?",
             (draft["fault_tag_id"],),
         ).fetchone()[0] == 0
+
+
+def test_inventory_v2_physical_consequence_and_device_part_readers(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, _rma_id, _unit_id, consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200044",
+            suffix="V2-READERS",
+            promised_bom="BOM-V2-READERS",
+            c10_base=8200,
+        )
+    )
+    with ReadSnapshot(factory) as snapshot:
+        consequence = InventoryPhysicalConsequenceReader.get_current(
+            snapshot,
+            consequence_id,
+        )
+        assert consequence is not None
+        assert consequence["physical_consequence_id"] == consequence_id
+        assert consequence["physical_disposition"] == "unused"
+        assert InventoryPhysicalConsequenceReader.validate_current(
+            snapshot,
+            consequence_id,
+            str(consequence["input_fingerprint"]),
+        ) == "VALID"
+        assert InventoryPhysicalConsequenceReader.validate_current(
+            snapshot,
+            consequence_id,
+            "0" * 64,
+        ) == "STALE"
+
+        device_row = snapshot.connection.execute(
+            "SELECT device_part_unit_id FROM device_part_units "
+            "ORDER BY creation_sequence LIMIT 1"
+        ).fetchone()
+        assert device_row is not None
+        device = InventoryDevicePartReferenceReader.get_reference_context(
+            snapshot,
+            str(device_row[0]),
+        )
+        assert device is not None
+        assert device["device_part_unit_id"] == str(device_row[0])
+        assert device["bom_code"] == "BOM-V2-READERS"
+        assert device["condition_token"] == "faulty"
+
+
+def test_inventory_v2_rfc_dependency_provider_blocks_inventory_task_history(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="97200045",
+    )
+    task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="RFC Inventory dependency",
+        service_request_ids=(sr.service_request_id,),
+    )
+    inventory = InventoryNeedsStockService(factory)
+    unit = inventory.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="BOM-RFC-DEP",
+        manufacturer_serial="RFC-DEP-UNIT",
+        condition_token="new",
+    )
+    unit_id = next(
+        ref.result_id
+        for ref in unit.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+    inventory.reserve_spare_part_unit_for_task(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        spare_part_unit_id=unit_id,
+        unit_revision=1,
+        task_revision=task.revision,
+    )
+    rfc_id = new_uuid4()
+    link_command = new_uuid4()
+    now = utc_epoch_seconds()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO command_receipts("
+            "command_id,command_type,request_hash,target_type,target_id,"
+            "committed_at_utc,result_type,result_id"
+            ") VALUES (?,?,?,?,?,?,?,?)",
+            (
+                link_command,
+                "TestRfcInventoryDependency",
+                "a" * 64,
+                "rfc",
+                rfc_id,
+                now,
+                None,
+                None,
+            ),
+        )
+        uow.connection.execute(
+            "INSERT INTO rfcs("
+            "rfc_id,rfc_no,customer_org_id,local_archive_state,revision,"
+            "created_at_utc,updated_at_utc"
+            ") VALUES (?,?,NULL,'active',1,?,?)",
+            (rfc_id, "NC00000000000001", now, now),
+        )
+        uow.connection.execute(
+            "INSERT INTO task_rfc_links("
+            "link_id,task_id,rfc_id,active,opened_command_id,closed_command_id"
+            ") VALUES (?,?,?,1,?,NULL)",
+            (new_uuid4(), task.task_id, rfc_id, link_command),
+        )
+
+    provider = RfcInventoryDependencyProvider()
+    with ReadSnapshot(factory) as snapshot:
+        assert (
+            provider.classify_hard_delete_dependency(snapshot, rfc_id)
+            == "BLOCKED"
+        )
+        assert (
+            provider.classify_hard_delete_dependency(snapshot, new_uuid4())
+            == "INDETERMINATE"
+        )
+
+
+def test_inventory_v2_reference_dependency_blocks_active_requester_and_dispatch(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="97200046",
+    )
+    device = DeviceReferenceService(factory).create(
+        command_id=new_uuid4(),
+        operational_name="REF-V2",
+    )
+    _link_sr_device(factory, sr.service_request_id, device.device_reference_id)
+    inventory = InventoryNeedsStockService(factory)
+    registered = inventory.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        device_reference_id=device.device_reference_id,
+        bom_code="BOM-REF-V2",
+        manufacturer_serial="REF-V2-FAULT",
+        condition_token="faulty",
+    )
+    need_id = next(
+        ref.result_id
+        for ref in registered.target_refs
+        if ref.result_type == "spare_need"
+    )
+    contacts = ContactReferenceService(factory)
+    requester = contacts.create_contact(
+        command_id=new_uuid4(),
+        name="V2 Requester",
+    )
+    receiver = contacts.create_contact(
+        command_id=new_uuid4(),
+        name="V2 Receiver",
+    )
+    location_id = _dispatch_location(factory, "REF-V2")
+    requests = InventoryRequestsRmaService(factory)
+    draft = requests.create_spare_request_draft(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        requester_contact_id=requester.contact_id,
+        allocations=(SpareRequestAllocationIntent(need_id, 1),),
+        mode="delivery",
+        receiver_contact_id=receiver.contact_id,
+        dispatch_location_id=location_id,
+    )
+    request_id = str(draft["spare_request_id"])
+    validator = InventoryReferenceDependencyValidator()
+    requester_target = ReferenceTarget("contact", requester.contact_id)
+    dispatch_target = ReferenceTarget("dispatch_location", location_id)
+
+    with UnitOfWork(factory) as uow:
+        requester_guard = validator.guard_archive(uow, requester_target)
+        dispatch_guard = validator.guard_archive(uow, dispatch_target)
+        assert requester_guard.state == "BLOCKED"
+        assert dispatch_guard.state == "BLOCKED"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert validator.count_archive_blockers(snapshot, requester_target) == 1
+        requester_page = validator.list_archive_blockers(
+            snapshot,
+            requester_target,
+            None,
+            50,
+        )
+        assert len(requester_page.blockers) == 1
+        assert (
+            requester_page.blockers[0].reason_code
+            == "active_requester_contact"
+        )
+
+    requests.cancel_or_reject_spare_request(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        terminal_state="cancelled",
+        reason_code="test terminal request releases active references",
+    )
+    with UnitOfWork(factory) as uow:
+        assert validator.guard_archive(uow, requester_target).state == "CLEAR"
+        assert validator.guard_archive(uow, dispatch_target).state == "CLEAR"
+
+
+def test_inventory_v2_site_dependency_fails_closed_before_lld08_schema(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    provider = InventorySiteDependencyValidator()
+    with ReadSnapshot(factory) as snapshot:
+        assert (
+            provider.guard_archive(snapshot, new_uuid4())
+            == "INDETERMINATE"
+        )
+        with pytest.raises(SomaError) as indeterminate:
+            provider.count_blockers(snapshot, new_uuid4())
+        assert indeterminate.value.code == "DEPENDENCY_INDETERMINATE"
+
+
+def test_inventory_v2_communication_identity_registry_and_validation(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_ids = _rma_ready(
+        initialized_database,
+        official_sr="97200047",
+        suffix="COMMS-V2",
+        count=1,
+        promised_bom="BOM-COMMS-V2",
+        c10_base=8300,
+    )
+    tag = InventoryFaultTagService(factory).create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+    )
+    provider = InventoryCommunicationIdentityProvider()
+    with ReadSnapshot(factory) as snapshot:
+        identities = provider.snapshot_trackable_inventory(snapshot)
+
+    kinds = {(item["target_type"], item["identity_kind"]) for item in identities}
+    assert ("SPARE_REQUEST", "SPR_LOCAL_HANDLE") in kinds
+    assert ("SPARE_REQUEST", "SPARE_REQUEST_SR7") in kinds
+    assert ("RMA", "RMA_C10") in kinds
+    assert ("FAULT_TAG", "FAULT_TAG_TRACKING") in kinds
+    assert all(
+        set(item)
+        == {
+            "target_type",
+            "target_id",
+            "target_revision",
+            "identity_kind",
+            "normalized_value",
+            "effective_from",
+        }
+        for item in identities
+    )
+    rma_identity = next(
+        item
+        for item in identities
+        if item["target_type"] == "RMA"
+        and item["target_id"] == rma_ids[0]
+    )
+    with UnitOfWork(factory) as uow:
+        assert (
+            provider.validate_trackable_target(
+                uow,
+                "RMA",
+                rma_ids[0],
+                int(rma_identity["target_revision"]),
+                rma_identity,
+            )
+            == "VALID"
+        )
+        assert (
+            provider.validate_trackable_target(
+                uow,
+                "RMA",
+                rma_ids[0],
+                int(rma_identity["target_revision"]) + 1,
+                rma_identity,
+            )
+            == "INVALID"
+        )
+    assert any(
+        item["target_type"] == "FAULT_TAG"
+        and item["target_id"] == tag["fault_tag_id"]
+        for item in identities
+    )
+
+
+def test_inventory_v2_overview_projection_and_targets_share_scope_snapshot(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200048",
+            suffix="OVERVIEW-V2",
+            promised_bom="BOM-OVERVIEW-V2",
+            c10_base=8400,
+        )
+    )
+    provider = InventoryOverviewProjectionProvider()
+    window = {
+        "timezone": "America/Guayaquil",
+        "current_start_utc": 1_700_000_000,
+        "current_end_utc": 1_701_000_000,
+        "previous_start_utc": 1_699_000_000,
+        "previous_end_utc": 1_700_000_000,
+        "period_kind": "weekly",
+        "anchor_local_date": "2023-11-20",
+        "window_fingerprint": "c" * 64,
+    }
+    scope = {
+        "kind": "all",
+        "customer_org_id": None,
+        "display_name": None,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        projection = provider.project_overview(snapshot, window, scope)
+        refs = provider.iter_communication_targets(snapshot, window, scope)
+
+    assert projection["card"]["title"] == "Inventory"
+    assert projection["card"]["open_need_count"] >= 1
+    assert projection["card"]["active_request_count"] == 0
+    assert projection["card"]["open_rma_count"] >= 1
+    assert projection["metadata"]["provider_id"] == "inventory"
+    assert projection["metadata"]["coverage"]["state"] == "complete"
+    assert any(
+        ref["target_type"] == "RMA" and ref["target_id"] == rma_id
+        for ref in refs
+    )
+    assert all(set(ref) == {"target_type", "target_id"} for ref in refs)
