@@ -319,8 +319,10 @@ class InventoryFaultTagService:
         tag_id = require_uuid4(fault_tag_id)
         event_id = require_uuid4(submission_event_id)
         reason = validate_reason_code(reason_code)
-        if type(confirmed_no_real_send) is not bool:
-            raise ValidationError("confirmed_no_real_send must be boolean")
+        if confirmed_no_real_send is not True:
+            raise ValidationError(
+                "confirmed_no_real_send must be true for false-submission correction"
+            )
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="CorrectFalseFaultTagSubmission",
@@ -343,6 +345,26 @@ class InventoryFaultTagService:
                     "CORRECTION_TARGET_INVALID",
                     "Fault Tag has no current submission snapshot",
                 )
+            snapshot = uow.connection.execute(
+                "SELECT submission_event_id,effective_submission_at_utc,snapshot_hash "
+                "FROM fault_tag_submission_snapshots "
+                "WHERE fault_tag_submission_snapshot_id=? AND fault_tag_id=?",
+                (str(snapshot_id), tag_id),
+            ).fetchone()
+            if snapshot is None or str(snapshot[0]) != event_id:
+                raise SomaError(
+                    "CORRECTION_TARGET_INVALID",
+                    "Fault Tag submission event is not current",
+                )
+            membership_count = int(
+                uow.connection.execute(
+                    "SELECT COUNT(*) FROM fault_tag_membership_submission_snapshots "
+                    "WHERE fault_tag_submission_snapshot_id=?",
+                    (str(snapshot_id),),
+                ).fetchone()[0]
+            )
+            snapshot_effective = None if snapshot[1] is None else int(snapshot[1])
+            snapshot_hash = str(snapshot[2])
 
             def apply(inner: UnitOfWork):
                 result = self._fault_tags.correct_false_submission(
@@ -371,9 +393,9 @@ class InventoryFaultTagService:
                         "submission_event_id": event_id,
                         "submission_snapshot_id": str(snapshot_id),
                         "event_kind": "CORRECT_FALSE",
-                        "membership_count": len(result["membership_correction_ids"]),
-                        "input_fingerprint": str(result["input_fingerprint"]),
-                        "effective_at_utc": None,
+                        "membership_count": membership_count,
+                        "input_fingerprint": snapshot_hash,
+                        "effective_at_utc": snapshot_effective,
                     },
                     resulting_event_refs=(
                         AuditResultRef("fault_tag_submission_snapshot", str(snapshot_id)),
