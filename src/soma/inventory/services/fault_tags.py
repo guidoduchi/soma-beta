@@ -894,4 +894,322 @@ class InventoryFaultTagsService:
         )
 
 
+    def _create_fault_tag_successor(
+        self,
+        *,
+        command_id: str,
+        predecessor_fault_tag_id: str,
+        relation_type: str,
+        return_method: str,
+        memberships: tuple[FaultTagMembershipIntent, ...],
+        reason_code: str,
+        pickup_dispatch_location_id: str | None,
+        pickup_contact_id: str | None,
+        pickup_instructions: str | None,
+        actor_kind: str,
+        actor_id: str | None,
+    ) -> dict[str, object]:
+        predecessor = require_uuid4(predecessor_fault_tag_id)
+        method = validate_return_method(return_method)
+        location_id = normalize_optional_uuid(
+            pickup_dispatch_location_id, "pickup_dispatch_location_id"
+        )
+        contact_id = normalize_optional_uuid(pickup_contact_id, "pickup_contact_id")
+        instructions = normalize_optional_instructions(pickup_instructions)
+        if method == "non_pickup" and (
+            location_id is not None or contact_id is not None or instructions is not None
+        ):
+            raise ValidationError("non_pickup Fault Tag cannot carry pickup-origin context")
+        accepted_memberships = validate_memberships(memberships)
+        if not accepted_memberships:
+            raise ValidationError("Fault Tag successor requires one-or-more memberships")
+        if not isinstance(reason_code, str) or not reason_code.strip():
+            raise ValidationError("Fault Tag successor requires a reason")
+        reason = reason_code.strip()
+        if len(reason.encode("utf-8", errors="strict")) > 384:
+            raise ValidationError("reason_code exceeds UTF-8 byte bound")
+        successor_id = new_uuid4()
+        command_type = (
+            "CreateFaultTagReplacement"
+            if relation_type == "corrects_replaces"
+            else "CreateFaultTagResend"
+        )
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type=command_type,
+            target_type="fault_tag",
+            target_id=predecessor,
+            semantic_payload={
+                "successor_fault_tag_id": successor_id,
+                "return_method": method,
+                "pickup_dispatch_location_id": location_id,
+                "pickup_contact_id": contact_id,
+                "pickup_instructions": instructions,
+                "memberships": [
+                    {"rma_id": rma_id, "return_reason": member_reason}
+                    for rma_id, member_reason in accepted_memberships
+                ],
+                "reason_code": reason,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            predecessor_tag = self._repository.current_tag(uow.connection, predecessor)
+            if predecessor_tag is None:
+                raise SomaError("INV_STALE", "Fault Tag predecessor no longer exists")
+            if relation_type == "corrects_replaces":
+                if not self._repository.has_submission_history(uow.connection, predecessor):
+                    raise SomaError(
+                        "REPLACEMENT_LINEAGE_CONFLICT",
+                        "Fault Tag replacement requires submitted predecessor history",
+                    )
+                if self._repository.correction_successor(uow.connection, predecessor) is not None:
+                    raise SomaError(
+                        "REPLACEMENT_LINEAGE_CONFLICT",
+                        "Fault Tag already has a correction successor",
+                    )
+            else:
+                self._repository.require_resend_scope(
+                    uow.connection,
+                    predecessor_fault_tag_id=predecessor,
+                    memberships=accepted_memberships,
+                )
+            self._repository.require_optional_draft_references(
+                uow.connection,
+                return_method=method,
+                pickup_dispatch_location_id=location_id,
+                pickup_contact_id=contact_id,
+            )
+
+            def apply(inner: UnitOfWork):
+                lineage_id, tracking_id, membership_ids, revision = (
+                    self._repository.create_lineage_successor(
+                        inner.connection,
+                        successor_fault_tag_id=successor_id,
+                        predecessor_fault_tag_id=predecessor,
+                        relation_type=relation_type,
+                        return_method=method,
+                        pickup_dispatch_location_id=location_id,
+                        pickup_contact_id=contact_id,
+                        pickup_instructions=instructions,
+                        memberships=accepted_memberships,
+                        reason_code=reason,
+                        command_id=command_id,
+                    )
+                )
+                apply.lineage_id = lineage_id
+                apply.tracking_id = tracking_id
+                apply.membership_ids = membership_ids
+                apply.revision = revision
+                scope_fingerprint = self._repository._lineage_scope_fingerprint(
+                    accepted_memberships
+                )
+                event_kind = (
+                    "CORRECTS_REPLACES"
+                    if relation_type == "corrects_replaces"
+                    else "RESEND_OF"
+                )
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.fault_tag.replacement_or_resend_created",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="fault_tag",
+                    target_id=successor_id,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="FaultTagLineageAuditV1",
+                    payload_version=1,
+                    payload={
+                        "predecessor_fault_tag_id": predecessor,
+                        "successor_fault_tag_id": successor_id,
+                        "lineage_kind": event_kind,
+                        "membership_scope_fingerprint": scope_fingerprint,
+                        "reason_category": reason,
+                        "resulting_revision": revision,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("fault_tag", successor_id),
+                        AuditResultRef("fault_tag_lineage", lineage_id),
+                    ),
+                )
+
+            apply.lineage_id = ""
+            apply.tracking_id = ""
+            apply.membership_ids = ()
+            apply.revision = 1
+            return PreparedMutation(
+                no_change=False,
+                result_type="fault_tag",
+                result_id=successor_id,
+                apply=apply,
+                response_schema="FaultTagV1",
+                response_factory=lambda inner: self._response(
+                    inner.connection, successor_id
+                ),
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("Fault Tag successor response is not an object")
+        return dict(execution.response)
+
+    def create_fault_tag_replacement(
+        self,
+        *,
+        command_id: str,
+        predecessor_fault_tag_id: str,
+        return_method: str,
+        memberships: tuple[FaultTagMembershipIntent, ...],
+        reason_code: str,
+        pickup_dispatch_location_id: str | None = None,
+        pickup_contact_id: str | None = None,
+        pickup_instructions: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        return self._create_fault_tag_successor(
+            command_id=command_id,
+            predecessor_fault_tag_id=predecessor_fault_tag_id,
+            relation_type="corrects_replaces",
+            return_method=return_method,
+            memberships=memberships,
+            reason_code=reason_code,
+            pickup_dispatch_location_id=pickup_dispatch_location_id,
+            pickup_contact_id=pickup_contact_id,
+            pickup_instructions=pickup_instructions,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+        )
+
+    def create_fault_tag_resend(
+        self,
+        *,
+        command_id: str,
+        predecessor_fault_tag_id: str,
+        return_method: str,
+        memberships: tuple[FaultTagMembershipIntent, ...],
+        reason_code: str,
+        pickup_dispatch_location_id: str | None = None,
+        pickup_contact_id: str | None = None,
+        pickup_instructions: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        return self._create_fault_tag_successor(
+            command_id=command_id,
+            predecessor_fault_tag_id=predecessor_fault_tag_id,
+            relation_type="resend_of",
+            return_method=return_method,
+            memberships=memberships,
+            reason_code=reason_code,
+            pickup_dispatch_location_id=pickup_dispatch_location_id,
+            pickup_contact_id=pickup_contact_id,
+            pickup_instructions=pickup_instructions,
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+        )
+
+    def archive_or_restore_fault_tag(
+        self,
+        *,
+        command_id: str,
+        fault_tag_id: str,
+        base_revision: int,
+        action: str,
+        reason_code: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        identity = require_uuid4(fault_tag_id)
+        if type(base_revision) is not int or base_revision <= 0:
+            raise ValidationError("base_revision must be positive")
+        if action not in {"archive", "restore"}:
+            raise ValidationError("Fault Tag archive action is invalid")
+        reason = None
+        if reason_code is not None:
+            if not isinstance(reason_code, str) or not reason_code.strip():
+                raise ValidationError("reason_code is invalid")
+            reason = reason_code.strip()
+        if action == "archive" and reason is None:
+            raise ValidationError("Fault Tag archive requires a reason")
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="ArchiveOrRestoreFaultTag",
+            target_type="fault_tag",
+            target_id=identity,
+            semantic_payload={"action": action, "reason_code": reason},
+            base_revisions={"fault_tag": base_revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            tag = self._repository.current_tag(uow.connection, identity)
+            if tag is None or int(tag[10]) != base_revision:
+                raise SomaError("INV_STALE", "Fault Tag revision changed")
+            desired = action == "archive"
+            if bool(int(tag[8])) == desired:
+                return PreparedMutation(
+                    no_change=True,
+                    result_type=None,
+                    result_id=None,
+                    response_schema="FaultTagV1",
+                    response=self._response(uow.connection, identity),
+                )
+            tracking_id = str(tag[1])
+            member_count = len(self._repository.current_members(uow.connection, identity))
+
+            def apply(inner: UnitOfWork):
+                event_id, revision = self._repository.set_archive_state(
+                    inner.connection,
+                    fault_tag_id=identity,
+                    base_revision=base_revision,
+                    archived=desired,
+                    reason_code=reason,
+                    command_id=command_id,
+                )
+                apply.event_id = event_id
+                apply.revision = revision
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.fault_tag.draft_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="fault_tag",
+                    target_id=identity,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="FaultTagAuditV1",
+                    payload_version=1,
+                    payload={
+                        "fault_tag_id": identity,
+                        "tracking_id": tracking_id,
+                        "event_kind": "ARCHIVE" if desired else "RESTORE",
+                        "member_count": member_count,
+                        "resulting_revision": revision,
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("fault_tag", identity),
+                    ),
+                )
+
+            apply.event_id = ""
+            apply.revision = base_revision + 1
+            return PreparedMutation(
+                no_change=False,
+                result_type="fault_tag",
+                result_id=identity,
+                apply=apply,
+                response_schema="FaultTagV1",
+                response_factory=lambda inner: self._response(inner.connection, identity),
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("Fault Tag archive response is not an object")
+        return dict(execution.response)
+
+
 __all__ = ["InventoryFaultTagsService"]
