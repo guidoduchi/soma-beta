@@ -366,6 +366,7 @@ _CORRECTION_KINDS = frozenset(
         "false_spare_request_submission",
         "rma_identifier_alias",
         "logistics_participant_relationship",
+        "spare_part_rma_provenance",
         "false_fault_tag_submission",
         "physical_consequence",
     }
