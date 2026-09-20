@@ -83,26 +83,17 @@ def _validate_need(payload: dict[str, object]) -> None:
 
 
 
-_SPARE_UNIT_EVENTS = frozenset({"REGISTER", "RESERVE", "RELEASE", "LOCAL_SELECTION"})
-_LSU = re.compile(r"LSU-[0-9]{8}\Z")
+_SPARE_UNIT_EVENTS = frozenset({"REGISTER", "RESERVE", "RELEASE", "SELECT"})
 
 
 def _validate_spare_unit(payload: dict[str, object]) -> None:
     _uuid(payload.get("spare_part_unit_id"), "spare_part_unit_id")
     if payload.get("event_kind") not in _SPARE_UNIT_EVENTS:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Part Unit event kind is invalid")
-    tracking_id = payload.get("local_tracking_id")
-    if tracking_id is not None and (
-        not isinstance(tracking_id, str) or _LSU.fullmatch(tracking_id) is None
-    ):
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "local_tracking_id is invalid")
     _uuid(payload.get("task_id"), "task_id", nullable=True)
     _uuid(payload.get("allocation_id"), "allocation_id", nullable=True)
     _uuid(payload.get("spare_need_id"), "spare_need_id", nullable=True)
-    _positive(payload.get("resulting_unit_revision"), "resulting_unit_revision")
-    _positive(payload.get("allocation_revision"), "allocation_revision", nullable=True)
-    _fingerprint(payload.get("bom_fingerprint"), "bom_fingerprint", nullable=True)
-    _reason(payload.get("reason_category"))
+    _positive(payload.get("resulting_revision"), "resulting_revision")
 
 
 
@@ -111,18 +102,16 @@ _SPR = re.compile(r"SPR-[0-9]{8}\Z")
 
 def _validate_spare_request_draft(payload: dict[str, object]) -> None:
     _uuid(payload.get("spare_request_id"), "spare_request_id")
-    _uuid(payload.get("service_request_id"), "service_request_id")
     _uuid(payload.get("requester_contact_id"), "requester_contact_id")
     tracking_id = payload.get("tracking_id")
     if not isinstance(tracking_id, str) or _SPR.fullmatch(tracking_id) is None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "tracking_id is invalid")
-    if payload.get("event_kind") != "CREATE_DRAFT":
+    if payload.get("event_kind") not in {"CREATE", "DRAFT_UPDATE", "TERMINAL"}:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request draft event is invalid")
-    if payload.get("mode") not in {"delivery", "self_pickup"}:
-        raise SomaError("AUDIT_PAYLOAD_INVALID", "Spare Request logistics mode is invalid")
     _positive(payload.get("allocation_count"), "allocation_count")
     _positive(payload.get("resulting_revision"), "resulting_revision")
     _fingerprint(payload.get("requester_context_fingerprint"), "requester_context_fingerprint")
+    _reason(payload.get("reason_category"))
 
 
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
@@ -197,14 +186,10 @@ def build_inventory_audit_registry() -> AuditRegistry:
                     {
                         "spare_part_unit_id",
                         "event_kind",
-                        "local_tracking_id",
                         "task_id",
                         "allocation_id",
                         "spare_need_id",
-                        "resulting_unit_revision",
-                        "allocation_revision",
-                        "bom_fingerprint",
-                        "reason_category",
+                        "resulting_revision",
                     }
                 ),
             ),
@@ -222,14 +207,13 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 frozenset(
                     {
                         "spare_request_id",
-                        "service_request_id",
-                        "requester_contact_id",
                         "tracking_id",
                         "event_kind",
-                        "mode",
-                        "allocation_count",
-                        "resulting_revision",
+                        "requester_contact_id",
                         "requester_context_fingerprint",
+                        "resulting_revision",
+                        "allocation_count",
+                        "reason_category",
                     }
                 ),
             ),
