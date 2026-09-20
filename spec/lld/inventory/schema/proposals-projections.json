@@ -70,8 +70,11 @@
         "last_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT"
       ],
       "rules": [
-        "rebuildable safety/attention projection only",
-        "unknown or unresolved states stay visible rather than becoming generic completion"
+        "rebuildable safety/attention cache only; rows are never independent lifecycle authority",
+        "unknown or unresolved states stay visible rather than becoming generic completion",
+        "attention_id uses INVENTORY_REDUCER_V1 deterministic target_kind+target_id+attention_kind identity",
+        "command-detectable rows are target-scoped rebuilt in the owning command UnitOfWork; obsolete rows are deleted before commit",
+        "spare_request_response_overdue and task_outcome_consequence_pending are read-only derived overlay kinds in Beta 1.0 because time/upstream Task authority can change without an Inventory command; pure queries never materialize them"
       ]
     }
   ],
