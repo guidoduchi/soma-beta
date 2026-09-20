@@ -145,33 +145,41 @@ class TaskInventoryContextQueryService:
                 else objective.to_payload(),
                 "review_fingerprint": operational_fingerprint,
             },
-            "active_allocations": [
-                {
-                    "allocation_id": str(row[0]),
-                    "spare_part_unit_id": str(row[1]),
-                    "spare_need_id": None if row[2] is None else str(row[2]),
-                    "revision": int(row[3]),
-                    "last_event_id": str(row[4]),
-                }
-                for row in active_allocations
-            ],
-            "allocation_history": [
-                {
-                    "allocation_event_id": str(row[0]),
-                    "allocation_id": str(row[1]),
-                    "spare_part_unit_id": str(row[2]),
-                    "spare_need_id": None if row[3] is None else str(row[3]),
-                    "event_kind": str(row[4]),
-                    "prior_task_id": None if row[5] is None else str(row[5]),
-                    "reason_code": None if row[6] is None else str(row[6]),
-                    "effective_at_utc": None if row[7] is None else int(row[7]),
-                    "target_event_id": None if row[8] is None else str(row[8]),
-                    "recorded_at_utc": int(row[9]),
-                }
-                for row in allocation_history
-            ],
+            "allocations": {
+                "active": [
+                    {
+                        "allocation_id": str(row[0]),
+                        "spare_part_unit_id": str(row[1]),
+                        "spare_need_id": None if row[2] is None else str(row[2]),
+                        "revision": int(row[3]),
+                        "last_event_id": str(row[4]),
+                    }
+                    for row in active_allocations
+                ],
+                "history": [
+                    {
+                        "allocation_event_id": str(row[0]),
+                        "allocation_id": str(row[1]),
+                        "spare_part_unit_id": str(row[2]),
+                        "spare_need_id": None if row[3] is None else str(row[3]),
+                        "event_kind": str(row[4]),
+                        "prior_task_id": None if row[5] is None else str(row[5]),
+                        "reason_code": None if row[6] is None else str(row[6]),
+                        "effective_at_utc": None if row[7] is None else int(row[7]),
+                        "target_event_id": None if row[8] is None else str(row[8]),
+                        "recorded_at_utc": int(row[9]),
+                    }
+                    for row in allocation_history
+                ],
+            },
             "needs": needs,
             "physical_consequences": consequences,
+            "open_return_obligations": [
+                obligation
+                for consequence in consequences
+                for obligation in consequence["return_obligations"]
+                if obligation["obligation_state"] == "open"
+            ],
         }
 
     def get(self, task_id: str) -> dict[str, object]:
