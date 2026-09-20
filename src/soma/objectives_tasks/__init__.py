@@ -12,6 +12,12 @@ from .queries.task_activity_review import (
     WfmActivityRelationshipReviewPreview,
     WfmActivityRelationshipReviewQueryService,
 )
+from .queries.tasks import (
+    TaskOperationalEvidenceReader,
+    TaskOperationalExecution,
+    TaskOperationalObjectiveContext,
+    TaskOperationalOutcome,
+)
 from .repositories.objectives import ObjectiveAggregateProjection, ObjectiveProjectionRepository
 from .repositories.tasks import TaskNoStatus, WfmTaskRepository
 from .services.hard_delete import TaskHardDeleteService
@@ -32,6 +38,10 @@ __all__ = [
     "TaskHardDeleteQueryService",
     "TaskHardDeleteService",
     "TaskMutationResult",
+    "TaskOperationalEvidenceReader",
+    "TaskOperationalExecution",
+    "TaskOperationalObjectiveContext",
+    "TaskOperationalOutcome",
     "TaskNoStatus",
     "TaskPlanningService",
     "TaskResultRef",
