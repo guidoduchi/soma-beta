@@ -18,6 +18,7 @@ from soma.inventory.services.consequences_logistics import (
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
 from soma.inventory.services.requests_rma import InventoryRequestsRmaService
 from soma.inventory.queries.requests_rma import InventoryRequestsQueryService
+from soma.inventory.queries.task_context import TaskInventoryContextQueryService
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.queries.execution_review import (
     TaskOutcomeCorrectionQueryService,
@@ -963,6 +964,17 @@ def test_t041_task_outcome_correction_changes_operational_fingerprint_and_blocks
         ).fetchone()[0]
     assert current_fingerprint != original_fingerprint
     assert str(stored) == original_fingerprint
+    task_context = TaskInventoryContextQueryService(factory).get(task_id)
+    stale_consequence = next(
+        item
+        for item in task_context["physical_consequences"]
+        if item["physical_consequence_id"] == consequence_id
+    )
+    assert stale_consequence["requires_rereview"] is True
+    assert (
+        task_context["task_operational"]["review_fingerprint"]
+        == current_fingerprint
+    )
 
     attempted_command = new_uuid4()
     with pytest.raises(SomaError) as stale:
