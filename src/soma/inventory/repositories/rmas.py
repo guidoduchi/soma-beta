@@ -41,7 +41,7 @@ class InventoryRmasRepository:
         row = cls.request_authority(connection, spare_request_id)
         if row is None:
             raise SomaError("INV_STALE", "Spare Request no longer exists")
-        if int(row[12]) != expected_revision:
+        if int(row[7]) != expected_revision:
             raise SomaError("INV_STALE", "Spare Request revision changed")
         if row[3] is None:
             raise SomaError("RMA_REQUIRES_SR7", "RMA authorization requires current official SR7")
