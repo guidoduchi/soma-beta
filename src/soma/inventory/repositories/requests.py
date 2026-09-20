@@ -194,13 +194,16 @@ class InventoryRequestsRepository:
         mode: str,
         receiver_contact_id: str,
         dispatch_location_id: str,
+        current_sr7: str | None = None,
+        lifecycle_state: str = "draft",
     ) -> str:
         return sha256_canonical_json(
             {
                 "schema": "SOMA_SPARE_REQUEST_CURRENT_V1",
                 "spare_request_id": spare_request_id,
                 "service_request_id": service_request_id,
-                "lifecycle_state": "draft",
+                "lifecycle_state": lifecycle_state,
+                "current_sr7": current_sr7,
                 "requester_context_sha256": requester_context_sha256,
                 "allocations": [
                     {"spare_need_id": need_id, "quantity": quantity}
@@ -226,13 +229,14 @@ class InventoryRequestsRepository:
         snapshot_hash: str,
         submitted_quantity: int,
         authorized_rma_count: int,
-        response_warning_start_utc: int,
+        response_warning_start_utc: int | None,
+        lifecycle_state: str = "submitted_awaiting_response",
     ) -> str:
         return sha256_canonical_json(
             {
                 "schema": "SOMA_SPARE_REQUEST_CURRENT_V1",
                 "spare_request_id": spare_request_id,
-                "lifecycle_state": "submitted_awaiting_response",
+                "lifecycle_state": lifecycle_state,
                 "current_sr7": current_sr7,
                 "current_submission_snapshot_id": submission_snapshot_id,
                 "snapshot_hash": snapshot_hash,
@@ -845,6 +849,176 @@ class InventoryRequestsRepository:
             str(current[4]),
             None if current[5] is None else int(current[5]),
             int(allocation_count),
+            resulting_revision,
+        )
+
+
+    @staticmethod
+    def sr7_alias_owner(connection: Any, sr7: str):
+        return connection.execute(
+            "SELECT spare_request_id,alias_kind,source_identifier_event_id "
+            "FROM spare_request_identifier_aliases WHERE sr7=?",
+            (sr7,),
+        ).fetchone()
+
+    @classmethod
+    def assign_or_correct_sr7(
+        cls,
+        connection: Any,
+        *,
+        spare_request_id: str,
+        base_revision: int,
+        sr7: str,
+        action: str,
+        reason_code: str | None,
+        command_id: str,
+    ) -> tuple[str, str | None, str | None, int]:
+        material = cls.draft_material(connection, spare_request_id)
+        if int(material["revision"]) != base_revision:
+            raise SomaError("INV_STALE", "Spare Request revision changed")
+        current_sr7 = material["current_sr7"]
+        if action == "assign":
+            if current_sr7 is not None:
+                raise SomaError("SR7_CONFLICT", "Spare Request already has a current SR7")
+            if reason_code is not None:
+                raise IntegrityFailure("SR7 assignment unexpectedly carries correction reason")
+        elif action == "correct":
+            if current_sr7 is None:
+                raise SomaError("SR7_CONFLICT", "Spare Request has no current SR7 to correct")
+            if reason_code is None:
+                raise IntegrityFailure("SR7 correction reason is missing")
+        else:
+            raise IntegrityFailure("SR7 action escaped domain validation")
+
+        alias = cls.sr7_alias_owner(connection, sr7)
+        if alias is not None:
+            raise SomaError("SR7_CONFLICT", "Official SR7 is already current or former history")
+
+        identifier_event_id = new_uuid4()
+        now = utc_epoch_seconds()
+        connection.execute(
+            "INSERT INTO spare_request_identifier_events("
+            "identifier_event_id,spare_request_id,event_kind,prior_sr7,new_sr7,"
+            "reason_code,recorded_at_utc,command_id"
+            ") VALUES (?,?,?,?,?,?,?,?)",
+            (
+                identifier_event_id,
+                spare_request_id,
+                action,
+                current_sr7,
+                sr7,
+                reason_code,
+                now,
+                command_id,
+            ),
+        )
+        if current_sr7 is not None:
+            updated_alias = connection.execute(
+                "UPDATE spare_request_identifier_aliases SET alias_kind='former' "
+                "WHERE spare_request_id=? AND sr7=? AND alias_kind='current'",
+                (spare_request_id, current_sr7),
+            )
+            if updated_alias.rowcount != 1:
+                raise IntegrityFailure("Current SR7 alias projection is inconsistent")
+        alias_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO spare_request_identifier_aliases("
+            "alias_id,spare_request_id,sr7,alias_kind,source_identifier_event_id"
+            ") VALUES (?,?,?,'current',?)",
+            (
+                alias_id,
+                spare_request_id,
+                sr7,
+                identifier_event_id,
+            ),
+        )
+
+        resulting_state = str(material["lifecycle_state"])
+        warning_start = material["response_warning_start_utc"]
+        acknowledgement_event_id: str | None = None
+        if action == "assign" and resulting_state == "submitted_awaiting_response":
+            acknowledgement_event_id = new_uuid4()
+            connection.execute(
+                "INSERT INTO spare_request_lifecycle_events("
+                "request_event_id,spare_request_id,event_kind,effective_at_utc,target_event_id,"
+                "reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+                ") VALUES (?,?,'acknowledgement_accepted',NULL,NULL,NULL,NULL,NULL,?,?)",
+                (
+                    acknowledgement_event_id,
+                    spare_request_id,
+                    now,
+                    command_id,
+                ),
+            )
+            resulting_state = "acknowledged"
+            warning_start = None
+
+        if material["current_submission_snapshot_id"] is not None:
+            snapshot = connection.execute(
+                "SELECT snapshot_hash FROM spare_request_submission_snapshots "
+                "WHERE submission_snapshot_id=?",
+                (str(material["current_submission_snapshot_id"]),),
+            ).fetchone()
+            if snapshot is None:
+                raise IntegrityFailure("Current Spare Request submission snapshot is missing")
+            projection_fingerprint = cls.submitted_projection_fingerprint(
+                spare_request_id=spare_request_id,
+                current_sr7=sr7,
+                submission_snapshot_id=str(material["current_submission_snapshot_id"]),
+                snapshot_hash=str(snapshot[0]),
+                submitted_quantity=int(material["submitted_quantity"]),
+                authorized_rma_count=int(material["authorized_rma_count"]),
+                response_warning_start_utc=(
+                    None if warning_start is None else int(warning_start)
+                ),
+                lifecycle_state=resulting_state,
+            )
+        else:
+            requester_context_sha = sha256_canonical_json(
+                json.loads(str(material["requester_context_json"]))
+            )
+            allocations = tuple(
+                (str(item["spare_need_id"]), int(item["quantity"]))
+                for item in material["allocations"]
+            )
+            projection_fingerprint = cls.draft_projection_fingerprint(
+                spare_request_id=spare_request_id,
+                service_request_id=str(material["service_request_id"]),
+                requester_context_sha256=requester_context_sha,
+                allocations=allocations,
+                mode=str(material["mode"]),
+                receiver_contact_id=str(material["receiver_contact_id"]),
+                dispatch_location_id=str(material["dispatch_location_id"]),
+                current_sr7=sr7,
+                lifecycle_state=resulting_state,
+            )
+
+        resulting_revision = base_revision + 1
+        updated = connection.execute(
+            "UPDATE spare_request_current_projection SET current_sr7=?,"
+            "lifecycle_state=?,response_warning_start_utc=?,revision=?,"
+            "input_fingerprint=?,last_command_id=? "
+            "WHERE spare_request_id=? AND revision=? AND "
+            "((current_sr7 IS NULL AND ? IS NULL) OR current_sr7=?)",
+            (
+                sr7,
+                resulting_state,
+                warning_start,
+                resulting_revision,
+                projection_fingerprint,
+                command_id,
+                spare_request_id,
+                base_revision,
+                current_sr7,
+                current_sr7,
+            ),
+        )
+        if updated.rowcount != 1:
+            raise SomaError("INV_STALE", "Spare Request changed during SR7 update")
+        return (
+            identifier_event_id,
+            alias_id,
+            acknowledgement_event_id,
             resulting_revision,
         )
 
