@@ -16,6 +16,7 @@ _ALLOWED_REF_TYPES = frozenset(
         "fault_tag_lineage",
         "hard_delete_evidence",
         "inventory_batch",
+        "inventory_proposal",
         "inventory_physical_consequence",
         "physical_consequence_event",
         "local_need_fulfillment",
