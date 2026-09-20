@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import pytest
+
+from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.inventory.domain.consequences import (
+    ExtractedSparePartIntent,
+    PhysicalConsequenceIntent,
+)
 from soma.inventory.domain.logistics import LogisticsParticipants
 from soma.inventory.domain.requests import SpareRequestAllocationIntent
 from soma.inventory.domain.rmas import RmaAuthorizationIntent
@@ -11,6 +18,14 @@ from soma.inventory.services.consequences_logistics import (
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
 from soma.inventory.services.requests_rma import InventoryRequestsRmaService
 from soma.inventory.queries.requests_rma import InventoryRequestsQueryService
+from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
+from soma.objectives_tasks.queries.execution_review import (
+    TaskOutcomeCorrectionQueryService,
+    TaskOutcomeReviewQueryService,
+)
+from soma.objectives_tasks.queries.tasks import TaskOperationalEvidenceReader
+from soma.objectives_tasks.services.task_execution import TaskExecutionService
+from soma.objectives_tasks.services.task_review import TaskReviewService
 from soma.reference.application.contact_service import ContactReferenceService
 from soma.tickets.device_references import DeviceReferenceService
 from soma.tickets.service_requests import ServiceRequestService
@@ -395,4 +410,580 @@ def test_t034_t035_shared_logistics_event_has_independently_correctable_particip
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM actual_logistics_events WHERE logistics_event_id=?",
             (event_id,),
+        ).fetchone()[0] == 1
+
+
+def _rma_operational_context(factory, rma_id: str) -> tuple[str, str | None]:
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT r.service_request_id,l.current_target_device_part_unit_id "
+            "FROM rmas m JOIN spare_requests r ON r.spare_request_id=m.spare_request_id "
+            "JOIN rma_lifecycle_projection l ON l.rma_id=m.rma_id WHERE m.rma_id=?",
+            (rma_id,),
+        ).fetchone()
+    assert row is not None
+    return str(row[0]), None if row[1] is None else str(row[1])
+
+
+def _reviewed_completed_task(factory, service_request_id: str):
+    created = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Inventory physical consequence",
+        service_request_ids=(service_request_id,),
+        schedule=AcceptedTaskSchedule(
+            start_utc=1_700_700_000,
+            end_utc=1_700_703_600,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    execution = TaskExecutionService(factory)
+    started = execution.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=created.task_id,
+        task_revision=created.revision,
+        execution_revision=0,
+        effective_start_utc=1_700_700_100,
+    )
+    ended = execution.end_task_execution(
+        command_id=new_uuid4(),
+        task_id=created.task_id,
+        task_revision=started.revision,
+        execution_revision=1,
+        effective_end_utc=1_700_700_200,
+    )
+    preview = TaskOutcomeReviewQueryService(factory).preview(
+        task_id=created.task_id,
+        task_revision=ended.revision,
+        execution_revision=2,
+        outcome_revision=0,
+        current_outcome_event_id=None,
+        outcome="completed",
+        reason_category=None,
+    )
+    assert preview.eligible is True
+    reviewed = TaskReviewService(factory).review_task_outcome(
+        command_id=new_uuid4(),
+        task_id=created.task_id,
+        task_revision=ended.revision,
+        execution_revision=2,
+        outcome_revision=0,
+        current_outcome_event_id=None,
+        outcome="completed",
+        reason_category=None,
+        outcome_review_fingerprint=preview.outcome_review_fingerprint,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        fingerprint = TaskOperationalEvidenceReader.review_fingerprint(
+            snapshot.connection,
+            created.task_id,
+        )
+    return created.task_id, reviewed, fingerprint
+
+
+def _receive_rma_unit(
+    factory,
+    *,
+    receiver,
+    location_id: str,
+    rma_id: str,
+    bom: str,
+    serial: str,
+) -> str:
+    received = InventoryConsequencesLogisticsService(factory).record_rma_inbound_receipt(
+        command_id=new_uuid4(),
+        rma_id=rma_id,
+        actual_bom_code=bom,
+        manufacturer_serial=serial,
+        condition_token="new",
+        effective_at_utc=1_700_690_000,
+        dispatch_location_id=location_id,
+        receiver_contact_id=receiver.contact_id,
+    )
+    return next(
+        ref.result_id
+        for ref in received.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+
+
+def test_t036_successful_replacement_installs_spare_removes_target_and_selects_removed_return(
+    initialized_database,
+) -> None:
+    factory, receiver, location_id, rma_ids = _rma_ready(
+        initialized_database,
+        official_sr="97200003",
+        suffix="T036",
+        count=1,
+        promised_bom="BOM-REPLACE",
+    )
+    rma_id = rma_ids[0]
+    service_request_id, target_id = _rma_operational_context(factory, rma_id)
+    assert target_id is not None
+    inbound_id = _receive_rma_unit(
+        factory,
+        receiver=receiver,
+        location_id=location_id,
+        rma_id=rma_id,
+        bom="BOM-REPLACE",
+        serial="T036-INBOUND",
+    )
+    task_id, reviewed, fingerprint = _reviewed_completed_task(
+        factory,
+        service_request_id,
+    )
+    InventoryNeedsStockService(factory).reserve_spare_part_unit_for_task(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        spare_part_unit_id=inbound_id,
+        unit_revision=2,
+        task_revision=reviewed.revision,
+    )
+
+    result = InventoryConsequencesLogisticsService(
+        factory
+    ).accept_inventory_physical_consequence(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_review_fingerprint=fingerprint,
+        target_device_part_unit_id=target_id,
+        rma_id=rma_id,
+        intent=PhysicalConsequenceIntent(
+            physical_disposition="installed_used",
+            installed_spare_part_unit_id=inbound_id,
+            removed_device_part_unit_id=target_id,
+            inbound_spare_part_unit_id=inbound_id,
+            effective_at_utc=1_700_700_300,
+        ),
+    )
+    consequence_id = next(
+        ref.result_id
+        for ref in result.target_refs
+        if ref.result_type == "inventory_physical_consequence"
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT physical_disposition,installed_spare_part_unit_id,"
+            "removed_device_part_unit_id,revision FROM physical_consequence_current "
+            "WHERE physical_consequence_id=?",
+            (consequence_id,),
+        ).fetchone() == ("installed_used", inbound_id, target_id, 1)
+        assert snapshot.connection.execute(
+            "SELECT disposition_token,active_task_allocation_id "
+            "FROM spare_part_current_projection WHERE spare_part_unit_id=?",
+            (inbound_id,),
+        ).fetchone() == ("installed", None)
+        assert snapshot.connection.execute(
+            "SELECT condition_token FROM device_part_current_projection "
+            "WHERE device_part_unit_id=?",
+            (target_id,),
+        ).fetchone()[0] == "removed"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_unit_allocation_current "
+            "WHERE spare_part_unit_id=?",
+            (inbound_id,),
+        ).fetchone()[0] == 0
+        obligation = snapshot.connection.execute(
+            "SELECT obligation_state,device_part_unit_id,spare_part_unit_id,"
+            "physical_consequence_id FROM rma_return_obligation_current WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert tuple(obligation) == ("open", target_id, None, consequence_id)
+
+
+def test_t037_unused_replacement_returns_inbound_unit_without_installation(
+    initialized_database,
+) -> None:
+    factory, receiver, location_id, rma_ids = _rma_ready(
+        initialized_database,
+        official_sr="97200004",
+        suffix="T037",
+        count=1,
+        promised_bom="BOM-UNUSED",
+    )
+    rma_id = rma_ids[0]
+    service_request_id, _target_id = _rma_operational_context(factory, rma_id)
+    inbound_id = _receive_rma_unit(
+        factory,
+        receiver=receiver,
+        location_id=location_id,
+        rma_id=rma_id,
+        bom="BOM-UNUSED",
+        serial="T037-INBOUND",
+    )
+    task_id, _reviewed, fingerprint = _reviewed_completed_task(
+        factory,
+        service_request_id,
+    )
+    result = InventoryConsequencesLogisticsService(
+        factory
+    ).accept_inventory_physical_consequence(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_review_fingerprint=fingerprint,
+        rma_id=rma_id,
+        intent=PhysicalConsequenceIntent(
+            physical_disposition="unused",
+            inbound_spare_part_unit_id=inbound_id,
+            effective_at_utc=1_700_710_000,
+        ),
+    )
+    consequence_id = next(
+        ref.result_id
+        for ref in result.target_refs
+        if ref.result_type == "inventory_physical_consequence"
+    )
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT obligation_state,device_part_unit_id,spare_part_unit_id,"
+            "physical_consequence_id FROM rma_return_obligation_current WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone() == ("open", None, inbound_id, consequence_id)
+        assert snapshot.connection.execute(
+            "SELECT disposition_token FROM spare_part_current_projection "
+            "WHERE spare_part_unit_id=?",
+            (inbound_id,),
+        ).fetchone()[0] == "available"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_part_lifecycle_events "
+            "WHERE spare_part_unit_id=? AND event_kind='installed'",
+            (inbound_id,),
+        ).fetchone()[0] == 0
+
+
+@pytest.mark.parametrize(
+    ("disposition", "expected_condition"),
+    (
+        ("inbound_faulty", "faulty"),
+        ("incompatible", "incompatible"),
+    ),
+)
+def test_t038_faulty_or_incompatible_inbound_preserves_physical_state_and_return_selection(
+    initialized_database,
+    disposition: str,
+    expected_condition: str,
+) -> None:
+    factory, receiver, location_id, rma_ids = _rma_ready(
+        initialized_database,
+        official_sr="97200005",
+        suffix=f"T038-{expected_condition}",
+        count=1,
+        promised_bom="BOM-T038",
+    )
+    rma_id = rma_ids[0]
+    service_request_id, _target_id = _rma_operational_context(factory, rma_id)
+    inbound_id = _receive_rma_unit(
+        factory,
+        receiver=receiver,
+        location_id=location_id,
+        rma_id=rma_id,
+        bom="BOM-T038",
+        serial=f"T038-{expected_condition}",
+    )
+    task_id, _reviewed, fingerprint = _reviewed_completed_task(
+        factory,
+        service_request_id,
+    )
+    InventoryConsequencesLogisticsService(factory).accept_inventory_physical_consequence(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_review_fingerprint=fingerprint,
+        rma_id=rma_id,
+        intent=PhysicalConsequenceIntent(
+            physical_disposition=disposition,
+            inbound_spare_part_unit_id=inbound_id,
+            effective_at_utc=1_700_720_000,
+        ),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT condition_token,disposition_token FROM spare_part_current_projection "
+            "WHERE spare_part_unit_id=?",
+            (inbound_id,),
+        ).fetchone() == (expected_condition, "quarantined")
+        assert snapshot.connection.execute(
+            "SELECT obligation_state,spare_part_unit_id "
+            "FROM rma_return_obligation_current WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone() == ("open", inbound_id)
+
+
+def test_t033_t039_dismantled_parent_stays_direct_return_and_extracted_children_get_new_identities(
+    initialized_database,
+) -> None:
+    factory, receiver, location_id, rma_ids = _rma_ready(
+        initialized_database,
+        official_sr="97200006",
+        suffix="T033",
+        count=1,
+        promised_bom="ASSEMBLY-BOM",
+    )
+    rma_id = rma_ids[0]
+    service_request_id, _target_id = _rma_operational_context(factory, rma_id)
+    parent_id = _receive_rma_unit(
+        factory,
+        receiver=receiver,
+        location_id=location_id,
+        rma_id=rma_id,
+        bom="ASSEMBLY-BOM",
+        serial="PARENT-ASSEMBLY",
+    )
+    with ReadSnapshot(factory) as snapshot:
+        original_logistics_count = snapshot.connection.execute(
+            "SELECT COUNT(*) FROM actual_logistics_events"
+        ).fetchone()[0]
+
+    task_id, _reviewed, fingerprint = _reviewed_completed_task(
+        factory,
+        service_request_id,
+    )
+    result = InventoryConsequencesLogisticsService(
+        factory
+    ).accept_inventory_physical_consequence(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_review_fingerprint=fingerprint,
+        rma_id=rma_id,
+        intent=PhysicalConsequenceIntent(
+            physical_disposition="dismantled",
+            parent_dismantled_unit_id=parent_id,
+            extracted_units=(
+                ExtractedSparePartIntent(
+                    bom_code="CHILD-A",
+                    manufacturer_serial="CHILD-A-SERIAL",
+                    condition_token="new",
+                ),
+                ExtractedSparePartIntent(
+                    bom_code="CHILD-B",
+                    manufacturer_serial="CHILD-B-SERIAL",
+                    condition_token="used",
+                ),
+            ),
+            effective_at_utc=1_700_730_000,
+        ),
+    )
+    child_ids = [
+        ref.result_id
+        for ref in result.target_refs
+        if ref.result_type == "spare_part_unit" and ref.result_id != parent_id
+    ]
+    assert len(child_ids) == 2
+
+    with ReadSnapshot(factory) as snapshot:
+        direct = snapshot.connection.execute(
+            "SELECT spare_part_unit_id FROM rma_direct_inbound_units WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert str(direct[0]) == parent_id
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM actual_logistics_events"
+        ).fetchone()[0] == original_logistics_count
+        assert snapshot.connection.execute(
+            "SELECT disposition_token FROM spare_part_current_projection "
+            "WHERE spare_part_unit_id=?",
+            (parent_id,),
+        ).fetchone()[0] == "dismantled"
+        children = snapshot.connection.execute(
+            "SELECT spare_part_unit_id,local_tracking_id,creation_origin,origin_rma_id,"
+            "parent_spare_part_unit_id FROM spare_part_units "
+            "WHERE parent_spare_part_unit_id=? ORDER BY local_tracking_id",
+            (parent_id,),
+        ).fetchall()
+        assert len(children) == 2
+        assert {str(row[0]) for row in children} == set(child_ids)
+        assert {str(row[1]) for row in children} == {
+            "LSU-00000001",
+            "LSU-00000002",
+        }
+        assert all(
+            tuple(row[2:]) == ("extracted", rma_id, parent_id)
+            for row in children
+        )
+        assert snapshot.connection.execute(
+            "SELECT obligation_state,spare_part_unit_id "
+            "FROM rma_return_obligation_current WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone() == ("open", parent_id)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM logistics_spare_unit_participants "
+            "WHERE spare_part_unit_id IN (?,?)",
+            tuple(child_ids),
+        ).fetchone()[0] == 0
+
+
+def test_t040_local_stock_replacement_records_physical_truth_without_fake_rma(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="97200007",
+    )
+    device = DeviceReferenceService(factory).create(
+        command_id=new_uuid4(),
+        operational_name="LOCAL-T040",
+    )
+    _link_sr_device(factory, sr.service_request_id, device.device_reference_id)
+    inventory = InventoryNeedsStockService(factory)
+    fault = inventory.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        device_reference_id=device.device_reference_id,
+        bom_code="LOCAL-BOM",
+        manufacturer_serial="FAULT-T040",
+        condition_token="faulty",
+    )
+    target_id = next(
+        ref.result_id
+        for ref in fault.target_refs
+        if ref.result_type == "device_part_unit"
+    )
+    local = inventory.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="LOCAL-BOM",
+        manufacturer_serial="LOCAL-SPARE-T040",
+        condition_token="new",
+    )
+    unit_id = next(
+        ref.result_id
+        for ref in local.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+    task_id, reviewed, fingerprint = _reviewed_completed_task(
+        factory,
+        sr.service_request_id,
+    )
+    inventory.reserve_spare_part_unit_for_task(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        spare_part_unit_id=unit_id,
+        unit_revision=1,
+        task_revision=reviewed.revision,
+    )
+    InventoryConsequencesLogisticsService(factory).accept_inventory_physical_consequence(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_review_fingerprint=fingerprint,
+        target_device_part_unit_id=target_id,
+        intent=PhysicalConsequenceIntent(
+            physical_disposition="installed_used",
+            installed_spare_part_unit_id=unit_id,
+            removed_device_part_unit_id=target_id,
+            effective_at_utc=1_700_740_000,
+        ),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT disposition_token FROM spare_part_current_projection "
+            "WHERE spare_part_unit_id=?",
+            (unit_id,),
+        ).fetchone()[0] == "installed"
+        assert snapshot.connection.execute(
+            "SELECT condition_token FROM device_part_current_projection "
+            "WHERE device_part_unit_id=?",
+            (target_id,),
+        ).fetchone()[0] == "removed"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rmas"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rma_return_selection_events"
+        ).fetchone()[0] == 0
+
+
+def test_t041_task_outcome_correction_changes_operational_fingerprint_and_blocks_stale_consequence(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="97200008",
+    )
+    task_id, reviewed, original_fingerprint = _reviewed_completed_task(
+        factory,
+        sr.service_request_id,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        outcome_event_id = str(
+            snapshot.connection.execute(
+                "SELECT outcome_event_id FROM task_outcome_current WHERE task_id=?",
+                (task_id,),
+            ).fetchone()[0]
+        )
+
+    consequence = InventoryConsequencesLogisticsService(
+        factory
+    ).accept_inventory_physical_consequence(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_review_fingerprint=original_fingerprint,
+        intent=PhysicalConsequenceIntent(
+            physical_disposition="no_physical_change",
+            effective_at_utc=1_700_750_000,
+        ),
+    )
+    consequence_id = next(
+        ref.result_id
+        for ref in consequence.target_refs
+        if ref.result_type == "inventory_physical_consequence"
+    )
+
+    preview = TaskOutcomeCorrectionQueryService(factory).preview(
+        task_id=task_id,
+        task_revision=reviewed.revision,
+        execution_revision=2,
+        current_outcome_revision=1,
+        current_outcome_event_id=outcome_event_id,
+        replacement_outcome="incomplete",
+        reason_category="physical review changed",
+    )
+    corrected = TaskReviewService(factory).correct_task_outcome(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_revision=reviewed.revision,
+        execution_revision=2,
+        current_outcome_revision=1,
+        current_outcome_event_id=outcome_event_id,
+        replacement_outcome="incomplete",
+        reason_category="physical review changed",
+        correction_review_fingerprint=preview.correction_review_fingerprint,
+    )
+    assert corrected.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        current_fingerprint = TaskOperationalEvidenceReader.review_fingerprint(
+            snapshot.connection,
+            task_id,
+        )
+        stored = snapshot.connection.execute(
+            "SELECT task_review_fingerprint FROM physical_consequence_current "
+            "WHERE physical_consequence_id=?",
+            (consequence_id,),
+        ).fetchone()[0]
+    assert current_fingerprint != original_fingerprint
+    assert str(stored) == original_fingerprint
+
+    attempted_command = new_uuid4()
+    with pytest.raises(SomaError) as stale:
+        InventoryConsequencesLogisticsService(
+            factory
+        ).accept_inventory_physical_consequence(
+            command_id=attempted_command,
+            task_id=task_id,
+            task_review_fingerprint=original_fingerprint,
+            intent=PhysicalConsequenceIntent(
+                physical_disposition="no_physical_change",
+                effective_at_utc=1_700_750_100,
+            ),
+        )
+    assert stale.value.code == "TASK_REVIEW_STALE"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted_command,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM inventory_physical_consequences WHERE task_id=?",
+            (task_id,),
         ).fetchone()[0] == 1
