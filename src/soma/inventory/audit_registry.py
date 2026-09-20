@@ -288,6 +288,30 @@ def _validate_fault_tag_lineage(payload: dict[str, object]) -> None:
     _positive(payload.get("resulting_revision"), "resulting_revision")
 
 
+
+def _validate_inventory_proposal(payload: dict[str, object]) -> None:
+    _uuid(payload.get("proposal_id"), "proposal_id")
+    if payload.get("decision") not in {"ACCEPT", "REJECT"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "proposal decision is invalid")
+    _fingerprint(payload.get("input_fingerprint"), "input_fingerprint")
+    accepted = payload.get("accepted_target_count")
+    rejected = payload.get("deferred_or_rejected_count")
+    if type(accepted) is not int or accepted < 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "accepted_target_count is invalid")
+    if type(rejected) is not int or rejected < 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "deferred_or_rejected_count is invalid")
+    source_ref = payload.get("source_evidence_ref")
+    if (
+        not isinstance(source_ref, str)
+        or not source_ref
+        or len(source_ref.encode("utf-8", errors="strict")) > 768
+        or "\x00" in source_ref
+        or "\r" in source_ref
+        or "\n" in source_ref
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "source_evidence_ref is invalid")
+    _reason(payload.get("reason_category"))
+
 def _validate_inventory_hard_delete(payload: dict[str, object]) -> None:
     if payload.get("target_type") not in {
         "spare_need", "spare_request", "spare_part_unit", "fault_tag"
@@ -638,6 +662,29 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_fault_tag_lineage,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.proposal.decided",
+            action_version=1,
+            payload_schema="InventoryProposalAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "InventoryProposalAuditV1",
+                frozenset(
+                    {
+                        "proposal_id",
+                        "decision",
+                        "input_fingerprint",
+                        "accepted_target_count",
+                        "deferred_or_rejected_count",
+                        "source_evidence_ref",
+                        "reason_category",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_inventory_proposal,
         )
     )
     registry.register(

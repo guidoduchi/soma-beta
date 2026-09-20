@@ -16,6 +16,7 @@ _ALLOWED_REF_TYPES = frozenset(
         "hard_delete_evidence",
         "inventory_batch",
         "inventory_physical_consequence",
+        "inventory_proposal",
         "local_need_fulfillment",
         "logistics_event",
         "logistics_participant",
