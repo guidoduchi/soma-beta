@@ -64,6 +64,30 @@ _TASK_LOCK_AUDIT_FIELDS = frozenset(
         "reason_category",
     }
 )
+_OBJECTIVE_AUDIT_FIELDS = frozenset(
+    {
+        "objective_id",
+        "tracking_id",
+        "creation_origin",
+        "resulting_revision",
+        "membership_input_fingerprint",
+        "archive_action",
+        "reason_category",
+    }
+)
+_OBJECTIVE_REVIEW_AUDIT_FIELDS = frozenset(
+    {
+        "objective_id",
+        "objective_review_event_id",
+        "review_fingerprint",
+        "derived_outcome",
+        "included_task_count",
+        "excluded_task_count",
+        "reason_category",
+    }
+)
+_OBJECTIVE_TRACKING_RE = re.compile(r"MW-[0-9]{8}\Z")
+
 _HARD_DELETE_AUDIT_FIELDS = frozenset(
     {
         "target_type",
@@ -282,6 +306,57 @@ def _validate_hard_delete(payload: dict[str, object]) -> None:
         seen.add(value)
 
 
+
+def _validate_objective_audit(payload: dict[str, object]) -> None:
+    try:
+        objective_id = payload.get("objective_id")
+        if not isinstance(objective_id, str):
+            raise ValidationError("objective_id must be UUID text")
+        require_uuid4(objective_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective audit identity is invalid") from exc
+    tracking = payload.get("tracking_id")
+    if not isinstance(tracking, str) or _OBJECTIVE_TRACKING_RE.fullmatch(tracking) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective tracking identity is invalid")
+    if payload.get("creation_origin") not in {
+        "manual", "automatic_grouping", "historical_provider_complete"
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective creation origin is invalid")
+    revision = payload.get("resulting_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective audit revision is invalid")
+    fingerprint = payload.get("membership_input_fingerprint")
+    if fingerprint is not None and (
+        not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective membership fingerprint is invalid")
+    if payload.get("archive_action") not in {None, "archive", "restore"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective archive action is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=False, label="Objective")
+
+
+def _validate_objective_review(payload: dict[str, object]) -> None:
+    for field in ("objective_id", "objective_review_event_id"):
+        try:
+            value = payload.get(field)
+            if not isinstance(value, str):
+                raise ValidationError(f"{field} must be UUID text")
+            require_uuid4(value)
+        except ValidationError as exc:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective review identity is invalid") from exc
+    fingerprint = payload.get("review_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective review fingerprint is invalid")
+    if payload.get("derived_outcome") not in {
+        "completed", "incomplete", "cancelled", "mixed", "excluded_from_operational_counts"
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective review outcome is invalid")
+    for field in ("included_task_count", "excluded_task_count"):
+        value = payload.get(field)
+        if type(value) is not int or value < 0:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective review count is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=False, label="Objective review")
+
 def _contract(name: str, fields: frozenset[str], *, max_items: int = 32) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -364,6 +439,36 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
             payload_version=1,
             payload_contract=_contract("HardDeleteAuditV1", _HARD_DELETE_AUDIT_FIELDS),
             sensitivity_validator=_validate_hard_delete,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.created",
+            action_version=1,
+            payload_schema="ObjectiveAuditV1",
+            payload_version=1,
+            payload_contract=_contract("ObjectiveAuditV1", _OBJECTIVE_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_objective_audit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.reviewed",
+            action_version=1,
+            payload_schema="ObjectiveReviewAuditV1",
+            payload_version=1,
+            payload_contract=_contract("ObjectiveReviewAuditV1", _OBJECTIVE_REVIEW_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_objective_review,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.archive_state_changed",
+            action_version=1,
+            payload_schema="ObjectiveAuditV1",
+            payload_version=1,
+            payload_contract=_contract("ObjectiveAuditV1", _OBJECTIVE_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_objective_audit,
         )
     )
     return registry
