@@ -1420,6 +1420,7 @@ class InventoryFaultTagsRepository:
             cls.insert_lifecycle_batch(
                 connection,
                 batch_id=batch_id,
+                batch_kind="manual_bulk",
                 target_count=len(targets),
                 command_id=command_id,
             )
