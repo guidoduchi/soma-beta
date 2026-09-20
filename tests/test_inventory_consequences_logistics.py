@@ -24,15 +24,22 @@ from soma.inventory.services.consequences_logistics import (
 from soma.inventory.services.corrections_bulk import InventoryCorrectionsBulkService
 from soma.inventory.services.fault_tags import InventoryFaultTagService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
+from soma.inventory.services.participants import InventoryTaskDependencyProvider
 from soma.inventory.services.requests_rma import InventoryRequestsRmaService
+from soma.inventory.queries.attention_history import InventoryAttentionQueryService
 from soma.inventory.queries.fault_tags import FaultTagQueryService
 from soma.inventory.queries.requests_rma import InventoryRequestsQueryService
 from soma.inventory.queries.previews import (
     InventoryBulkPreviewTarget,
     InventoryPreviewsQueryService,
 )
-from soma.inventory.queries.task_context import TaskInventoryContextQueryService
+from soma.inventory.queries.task_context import (
+    ObjectiveInventoryContextQueryService,
+    TaskInventoryContextQueryService,
+)
+from soma.inventory.report_sections import InventoryReportSectionContributor
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
+from soma.objectives_tasks.queries.hard_delete import TaskHardDeleteQueryService
 from soma.objectives_tasks.queries.execution_review import (
     TaskOutcomeCorrectionQueryService,
     TaskOutcomeReviewQueryService,
@@ -40,6 +47,7 @@ from soma.objectives_tasks.queries.execution_review import (
 from soma.objectives_tasks.queries.tasks import TaskOperationalEvidenceReader
 from soma.objectives_tasks.services.task_execution import TaskExecutionService
 from soma.objectives_tasks.services.task_review import TaskReviewService
+from soma.product_line_sla.report_sections import ReportSectionContributorRegistry
 from soma.reference.application.contact_service import ContactReferenceService
 from soma.tickets.device_references import DeviceReferenceService
 from soma.tickets.service_requests import ServiceRequestService
@@ -2534,3 +2542,423 @@ def test_t061_fault_tag_with_protected_submission_history_cannot_be_hard_deleted
             "WHERE fault_tag_submission_snapshot_id=?",
             (snapshot_id,),
         ).fetchone()[0] == 1
+
+
+def test_t062_inventory_report_contributor_emits_minimized_constituent_summary(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="97200036",
+    )
+    device = DeviceReferenceService(factory).create(
+        command_id=new_uuid4(),
+        operational_name="REPORT-T062",
+    )
+    _link_sr_device(factory, sr.service_request_id, device.device_reference_id)
+    InventoryNeedsStockService(factory).register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        device_reference_id=device.device_reference_id,
+        bom_code="BOM-T062",
+        manufacturer_serial="FAULT-T062",
+        condition_token="faulty",
+    )
+
+    contributor = InventoryReportSectionContributor()
+    registry = ReportSectionContributorRegistry((contributor,))
+    with ReadSnapshot(factory) as snapshot:
+        rows = registry.emit_rows(
+            snapshot=snapshot,
+            report_kind="sla_report",
+            report_request={"customer_org_id": None},
+            as_of_utc=1_700_900_000,
+        )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["section_kind"] == "inventory_constituent_summary"
+    assert row["schema_name"] == "InventoryConstituentSummaryV1"
+    assert row["schema_version"] == 1
+    assert row["canonical_row_key"] == sr.service_request_id
+    payload = row["payload"]
+    assert set(payload) == {
+        "service_request_id",
+        "customer_org_id",
+        "active_need_count",
+        "spare_request_count",
+        "rma_count",
+        "open_return_obligation_count",
+        "fault_tag_count",
+        "unresolved_attention_count",
+    }
+    assert payload["service_request_id"] == sr.service_request_id
+    assert payload["active_need_count"] == 1
+    assert payload["spare_request_count"] == 0
+    assert payload["rma_count"] == 0
+    serialized = json.dumps(payload, sort_keys=True).lower()
+    for forbidden in (
+        "message_body",
+        "provider_body",
+        "communication_body",
+        "lifecycle_events",
+        "payload_json",
+        "evidence_body",
+    ):
+        assert forbidden not in serialized
+
+
+def test_t063_task_hard_delete_inventory_provider_blocks_accepted_physical_consequence(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="97200037",
+    )
+    task_id, reviewed, fingerprint = _reviewed_completed_task(
+        factory,
+        sr.service_request_id,
+    )
+    InventoryConsequencesLogisticsService(factory).accept_inventory_physical_consequence(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_review_fingerprint=fingerprint,
+        intent=PhysicalConsequenceIntent(
+            physical_disposition="no_physical_change",
+            effective_at_utc=1_700_901_000,
+        ),
+    )
+
+    provider = InventoryTaskDependencyProvider()
+    preview = TaskHardDeleteQueryService(factory, provider).preview(
+        task_id=task_id,
+        base_revision=reviewed.revision,
+    )
+    assert preview.inventory_status == "BLOCKED"
+    assert any(
+        blocker.code == "TASK_INVENTORY_DEPENDENCY_PRESENT"
+        and blocker.source == "inventory"
+        for blocker in preview.blockers
+    )
+
+
+def test_t064_retry_participant_reassigns_selected_planning_relation_in_caller_uow_only(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="97200038",
+    )
+    predecessor = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Retry predecessor",
+        service_request_ids=(sr.service_request_id,),
+    )
+    successor = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Retry successor",
+        service_request_ids=(sr.service_request_id,),
+    )
+    inventory = InventoryNeedsStockService(factory)
+    unit = inventory.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="BOM-T064",
+        manufacturer_serial="RETRY-T064",
+        condition_token="new",
+    )
+    unit_id = next(
+        ref.result_id
+        for ref in unit.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+    reserved = inventory.reserve_spare_part_unit_for_task(
+        command_id=new_uuid4(),
+        task_id=predecessor.task_id,
+        spare_part_unit_id=unit_id,
+        unit_revision=1,
+        task_revision=predecessor.revision,
+    )
+    allocation_id = next(
+        ref.result_id
+        for ref in reserved.target_refs
+        if ref.result_type == "task_unit_allocation"
+    )
+
+    provider = InventoryTaskDependencyProvider()
+    with ReadSnapshot(factory) as snapshot:
+        preview = provider.preview_retry_relationship_clone(
+            snapshot,
+            predecessor.task_id,
+            (allocation_id,),
+        )
+    assert preview["status"] == "READY"
+
+    outer_command_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO command_receipts("
+            "command_id,command_type,request_hash,target_type,target_id,committed_at_utc,"
+            "result_type,result_id"
+            ") VALUES (?,?,?,?,?,?,?,?)",
+            (
+                outer_command_id,
+                "CreateLocalTaskRetry",
+                "d" * 64,
+                "task",
+                successor.task_id,
+                utc_epoch_seconds(),
+                "task",
+                successor.task_id,
+            ),
+        )
+        refs = provider.apply_retry_relationship_clone(
+            uow,
+            preview,
+            successor.task_id,
+            {
+                "command_id": outer_command_id,
+                "actor_kind": "local_user",
+                "actor_id": None,
+            },
+        )
+        assert {ref["type"] for ref in refs} == {
+            "task_unit_allocation",
+            "task_unit_allocation_event",
+        }
+
+    with ReadSnapshot(factory) as snapshot:
+        current = snapshot.connection.execute(
+            "SELECT task_id,spare_part_unit_id,revision,last_command_id "
+            "FROM task_unit_allocation_current WHERE allocation_id=?",
+            (allocation_id,),
+        ).fetchone()
+        assert tuple(current) == (
+            successor.task_id,
+            unit_id,
+            2,
+            outer_command_id,
+        )
+        event = snapshot.connection.execute(
+            "SELECT event_kind,task_id,prior_task_id,target_event_id,command_id "
+            "FROM task_unit_allocation_events WHERE allocation_id=? "
+            "ORDER BY recorded_at_utc DESC,allocation_event_id DESC LIMIT 1",
+            (allocation_id,),
+        ).fetchone()
+        assert event[0] == "reassign"
+        assert event[1] == successor.task_id
+        assert event[2] == predecessor.task_id
+        assert event[3] is not None
+        assert event[4] == outer_command_id
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM inventory_physical_consequences "
+            "WHERE task_id=?",
+            (successor.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_membership_events"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM actual_logistics_events"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (outer_command_id,),
+        ).fetchone()[0] == 1
+
+
+def _bind_task_to_test_objective(factory, task_id: str) -> str:
+    objective_id = new_uuid4()
+    command_id = new_uuid4()
+    membership_event_id = new_uuid4()
+    now = utc_epoch_seconds()
+    with UnitOfWork(factory) as uow:
+        plan = uow.connection.execute(
+            "SELECT p.plan_revision_id,p.start_utc,p.end_utc "
+            "FROM task_plan_current c JOIN task_plan_revisions p "
+            "ON p.plan_revision_id=c.plan_revision_id "
+            "WHERE c.task_id=?",
+            (task_id,),
+        ).fetchone()
+        assert plan is not None
+        plan_id = str(plan[0])
+        uow.connection.execute(
+            "INSERT INTO command_receipts("
+            "command_id,command_type,request_hash,target_type,target_id,committed_at_utc,"
+            "result_type,result_id"
+            ") VALUES (?,?,?,?,?,?,?,?)",
+            (
+                command_id,
+                "TestBindTaskObjective",
+                "e" * 64,
+                "objective",
+                objective_id,
+                now,
+                None,
+                None,
+            ),
+        )
+        uow.connection.execute(
+            "INSERT INTO objectives("
+            "objective_id,tracking_sequence,tracking_id,creation_origin,"
+            "superseded_by_objective_id,revision,created_at_utc,created_command_id"
+            ") VALUES (?,1,'MW-00000001','manual',NULL,1,?,?)",
+            (objective_id, now, command_id),
+        )
+        uow.connection.execute(
+            "INSERT INTO objective_membership_events("
+            "membership_event_id,task_id,event_kind,from_objective_id,to_objective_id,"
+            "accepted_plan_revision_id,grouping_proposal_id,reason_code,recorded_at_utc,command_id"
+            ") VALUES (?,?,'add',NULL,?,?,NULL,NULL,?,?)",
+            (
+                membership_event_id,
+                task_id,
+                objective_id,
+                plan_id,
+                now,
+                command_id,
+            ),
+        )
+        uow.connection.execute(
+            "INSERT INTO objective_task_membership_current("
+            "task_id,objective_id,accepted_plan_revision_id,membership_revision,"
+            "last_event_id,last_command_id"
+            ") VALUES (?,?,?,1,?,?)",
+            (task_id, objective_id, plan_id, membership_event_id, command_id),
+        )
+        uow.connection.execute(
+            "INSERT INTO objective_envelope_projection("
+            "objective_id,start_utc,end_utc,member_count,membership_input_fingerprint,"
+            "revision,last_command_id"
+            ") VALUES (?,?,?,?,?,1,?)",
+            (
+                objective_id,
+                int(plan[1]),
+                int(plan[2]),
+                1,
+                "a" * 64,
+                command_id,
+            ),
+        )
+        uow.connection.execute(
+            "INSERT INTO objective_aggregate_projection("
+            "objective_id,execution_state,aggregate_outcome,actual_start_utc,actual_end_utc,"
+            "attention_reason,included_task_count,excluded_task_count,"
+            "aggregate_input_fingerprint,revision,last_command_id"
+            ") VALUES (?,'planned',NULL,NULL,NULL,NULL,1,0,?,1,?)",
+            (objective_id, "b" * 64, command_id),
+        )
+    return objective_id
+
+
+def test_t065_objective_inventory_context_derives_units_only_through_member_tasks(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no="97200039",
+    )
+    task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Objective member with Inventory",
+        schedule=AcceptedTaskSchedule(
+            start_utc=1_700_910_000,
+            end_utc=1_700_913_600,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+        service_request_ids=(sr.service_request_id,),
+    )
+    inventory = InventoryNeedsStockService(factory)
+    unit = inventory.register_spare_part_unit(
+        command_id=new_uuid4(),
+        origin="manual_local",
+        bom_code="BOM-T065",
+        manufacturer_serial="OBJECTIVE-T065",
+        condition_token="new",
+    )
+    unit_id = next(
+        ref.result_id
+        for ref in unit.target_refs
+        if ref.result_type == "spare_part_unit"
+    )
+    inventory.reserve_spare_part_unit_for_task(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        spare_part_unit_id=unit_id,
+        unit_revision=1,
+        task_revision=task.revision,
+    )
+    objective_id = _bind_task_to_test_objective(factory, task.task_id)
+
+    context = ObjectiveInventoryContextQueryService(factory).get(objective_id)
+    assert context["ownership"] == "derived_through_tasks"
+    assert context["task_ids"] == [task.task_id]
+    assert context["unit_refs"] == [
+        {
+            "source_task_id": task.task_id,
+            "relationship": "active_allocation",
+            "spare_part_unit_id": unit_id,
+        }
+    ]
+    with ReadSnapshot(factory) as snapshot:
+        allocation_columns = {
+            str(row[1])
+            for row in snapshot.connection.execute(
+                "PRAGMA table_info(task_unit_allocation_current)"
+            ).fetchall()
+        }
+    assert "objective_id" not in allocation_columns
+
+
+def test_t066_archived_rejected_fault_tag_does_not_hide_unresolved_attention(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200040",
+            suffix="T066",
+            promised_bom="BOM-T066",
+            c10_base=7800,
+        )
+    )
+    draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    member = submitted["members"][0]
+    membership_id = str(member["fault_tag_membership_id"])
+    service = InventoryFaultTagService(factory)
+    service.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=(_warehouse_target(member),),
+        effective_at_utc=1_700_920_000,
+    )
+    service.record_warehouse_final_decision(
+        command_id=new_uuid4(),
+        targets=(_current_warehouse_target(factory, membership_id),),
+        decision="rejected",
+        explicit_confirmation=True,
+        reason_code="warehouse rejected unresolved return",
+        effective_at_utc=1_700_920_100,
+    )
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE fault_tag_current_projection SET archived=1 "
+            "WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        )
+
+    items = InventoryAttentionQueryService(factory).list_items(
+        attention_kind="warehouse_rejected_resend_required",
+        severity="action_required",
+    )
+    item = next(value for value in items if value["target_id"] == rma_id)
+    assert item["target_kind"] == "rma"
+    assert item["attention_kind"] == "warehouse_rejected_resend_required"
+    assert item["next_governed_action"] == "create_fault_tag_resend"
+    assert item["derived_context"]["obligation_state"] == "open"
+    assert item["derived_context"]["return_obligation_open"] is True
+    assert item["derived_context"]["rejected_fault_tag_id"] == draft["fault_tag_id"]
+    assert item["derived_context"]["rejected_fault_tag_archived"] is True
