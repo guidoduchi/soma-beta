@@ -75,6 +75,15 @@ _OBJECTIVE_AUDIT_FIELDS = frozenset(
         "reason_category",
     }
 )
+_OBJECTIVE_TIMEZONE_AUDIT_FIELDS = frozenset(
+    {
+        "setting_key",
+        "prior_revision",
+        "new_revision",
+        "iana_timezone",
+        "change_kind",
+    }
+)
 _OBJECTIVE_REVIEW_AUDIT_FIELDS = frozenset(
     {
         "objective_id",
@@ -359,6 +368,41 @@ def _validate_objective_review(payload: dict[str, object]) -> None:
             raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective review count is invalid")
     _validate_bounded_reason(payload.get("reason_category"), required=False, label="Objective review")
 
+
+def _validate_objective_timezone(payload: dict[str, object]) -> None:
+    if payload.get("setting_key") != "OBJECTIVE_TIMEZONE_V1":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone setting key is invalid")
+    prior = payload.get("prior_revision")
+    new = payload.get("new_revision")
+    change = payload.get("change_kind")
+    if prior is not None and (type(prior) is not int or prior <= 0):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone prior revision is invalid")
+    if type(new) is not int or new <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone new revision is invalid")
+    if change == "CREATE":
+        if prior is not None or new != 1:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone CREATE revision is invalid")
+    elif change == "UPDATE":
+        if type(prior) is not int or new != prior + 1:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone UPDATE revision is invalid")
+    else:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone change kind is invalid")
+    timezone = payload.get("iana_timezone")
+    if not isinstance(timezone, str):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone value is invalid")
+    try:
+        encoded = timezone.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone is invalid Unicode") from exc
+    if (
+        not encoded
+        or len(encoded) > 255
+        or "\x00" in timezone
+        or "\r" in timezone
+        or "\n" in timezone
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone violates its bound")
+
 def _contract(name: str, fields: frozenset[str], *, max_items: int = 32) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -491,6 +535,20 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
             payload_version=1,
             payload_contract=_contract("HardDeleteAuditV1", _HARD_DELETE_AUDIT_FIELDS),
             sensitivity_validator=_validate_hard_delete,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.timezone_changed",
+            action_version=1,
+            payload_schema="ObjectiveTimezoneAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "ObjectiveTimezoneAuditV1",
+                _OBJECTIVE_TIMEZONE_AUDIT_FIELDS,
+                max_items=16,
+            ),
+            sensitivity_validator=_validate_objective_timezone,
         )
     )
     return registry
