@@ -518,25 +518,6 @@ class InventoryRequestsRmaService:
             evidence_id,
         )
 
-        with ReadSnapshot(self._factory) as snapshot:
-            material = self._repository.draft_material(
-                snapshot.connection,
-                request_id,
-            )
-            if material["lifecycle_state"] != "draft":
-                raise SomaError("REQUEST_NOT_DRAFT", "Spare Request is not editable Draft")
-            if (
-                int(material["revision"]) != revision
-                or str(material["input_fingerprint"]) != expected_fingerprint
-            ):
-                raise SomaError("INV_STALE", "Spare Request Draft changed")
-            recipient_context = self._repository.submission_reference_context(
-                snapshot.connection,
-                receiver_contact_id=str(material["receiver_contact_id"]),
-                dispatch_location_id=str(material["dispatch_location_id"]),
-            )
-
-        context_fingerprint = sha256_canonical_json(recipient_context)
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="AcceptSpareRequestSubmission",
@@ -550,7 +531,6 @@ class InventoryRequestsRmaService:
             base_revisions={"spare_request": revision},
             authorizing_fingerprints={
                 "draft": expected_fingerprint,
-                "recipient_context": context_fingerprint,
             },
         )
 
@@ -566,9 +546,10 @@ class InventoryRequestsRmaService:
                 or str(material_now["input_fingerprint"]) != expected_fingerprint
             ):
                 raise SomaError("INV_STALE", "Spare Request Draft changed before submission")
-            self._repository.require_submission_reference_context(
+            recipient_context = self._repository.submission_reference_context(
                 uow.connection,
-                expected=recipient_context,
+                receiver_contact_id=str(material_now["receiver_contact_id"]),
+                dispatch_location_id=str(material_now["dispatch_location_id"]),
             )
             if evidence_kind_value is not None and evidence_id_value is not None:
                 validator = self._submission_evidence_validator
