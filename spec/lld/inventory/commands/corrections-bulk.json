@@ -152,5 +152,88 @@
       "explicit_confirmation": "required true at commit for warehouse_accept and warehouse_reject"
     },
     "acceptance": "AcceptInventoryBulkAction accepts exactly the eligible target identities/revisions returned by the reviewed preview fingerprint; any drift aborts the whole selected scope."
+  },
+  "correction_dispatch_contract_v1": {
+    "correction_kinds": {
+      "false_spare_request_submission": {
+        "target_kind": "spare_request",
+        "required": [
+          "target_id",
+          "target_event_id",
+          "reason_code"
+        ],
+        "owner": "CorrectFalseSpareRequestSubmission reducer"
+      },
+      "rma_identifier_alias": {
+        "target_kind": "rma",
+        "required": [
+          "target_id",
+          "current_c10",
+          "new_c10",
+          "reason_code"
+        ],
+        "owner": "CorrectRmaOfficialId reducer"
+      },
+      "logistics_participant_relationship": {
+        "target_kind": "logistics_participant",
+        "required": [
+          "target_id",
+          "replacement_kind",
+          "replacement_id",
+          "reason_code"
+        ],
+        "rules": [
+          "replacement_kind/replacement_id are both null for suppression or both non-null",
+          "replacement_kind in rma|spare_part_unit|device_part_unit"
+        ],
+        "owner": "CorrectLogisticsParticipant reducer"
+      },
+      "false_fault_tag_submission": {
+        "target_kind": "fault_tag",
+        "required": [
+          "target_id",
+          "target_event_id",
+          "reason_code"
+        ],
+        "owner": "CorrectFalseFaultTagSubmission reducer"
+      },
+      "physical_consequence": {
+        "target_kind": "inventory_physical_consequence",
+        "required": [
+          "target_id",
+          "expected_revision",
+          "target_event_id",
+          "task_review_fingerprint",
+          "physical_disposition",
+          "installed_spare_part_unit_id",
+          "removed_device_part_unit_id",
+          "inbound_spare_part_unit_id",
+          "parent_dismantled_unit_id",
+          "effective_at_utc",
+          "reason_code"
+        ],
+        "owner": "CorrectInventoryPhysicalConsequence reducer",
+        "rule": "Beta 1.0 generic correction supports append-only reinterpretation only when the typed physical unit relationship set remains unchanged; material relationship rewrites fail CORRECTION_TARGET_INVALID and submitted Fault Tag consumption requires separate replacement workflow."
+      },
+      "submitted_fault_tag_material": {
+        "target_kind": "fault_tag",
+        "required": [
+          "target_id",
+          "reason_code"
+        ],
+        "behavior": "no mutation; fail REPLACEMENT_LINEAGE_CONFLICT"
+      },
+      "genuine_later_development": {
+        "target_kind": "inventory_event",
+        "required": [
+          "target_id",
+          "reason_code"
+        ],
+        "behavior": "no mutation; fail CORRECTION_TARGET_INVALID and route to normal lifecycle command"
+      }
+    },
+    "transaction": "one CorrectInventoryEvidence receipt/UoW dispatches directly to raw LLD-07 owner reducers; public correction services are never nested",
+    "response": "InventoryMutationResultV1 with only owner result refs/revisions",
+    "audit": "owner audit plus inventory.evidence.corrected.v1 in the same UoW"
   }
 }

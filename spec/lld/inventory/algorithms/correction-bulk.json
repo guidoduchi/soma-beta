@@ -82,5 +82,25 @@
       "spare_part_unit_id|null"
     ],
     "commit": "recompute the eligible-scope fingerprint in the writer UoW from the accepted target list; exact mismatch or any target no longer eligible aborts the entire batch before writes."
+  },
+  "correction_dispatch_contract_v1": {
+    "rule": "classification is explicit caller-reviewed input from the closed correction kind enum; writer revalidates the exact current-effective owner fact and refuses mismatched class",
+    "false_event": [
+      "false_spare_request_submission",
+      "false_fault_tag_submission"
+    ],
+    "relationship_correction": [
+      "logistics_participant_relationship",
+      "physical_consequence"
+    ],
+    "identifier_alias_correction": [
+      "rma_identifier_alias"
+    ],
+    "material_submitted_fault_tag_correction": [
+      "submitted_fault_tag_material -> REPLACEMENT_LINEAGE_CONFLICT"
+    ],
+    "genuine_later_development": [
+      "genuine_later_development -> CORRECTION_TARGET_INVALID"
+    ]
   }
 }
