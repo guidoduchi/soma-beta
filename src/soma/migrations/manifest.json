@@ -59,7 +59,7 @@
       "sequence": 10,
       "migration_id": "beta_0010_inventory",
       "filename": "0010_inventory.sql",
-      "sha256": "101465714bf01f5a458dc040e0f8c93d7e4450ee82aafdfd30e93a38bbb46628"
+      "sha256": "09e426194655c4e3424ca34eeac1e3d1e1bc95e8b99dec4e4fa3967a1177ed7a"
     }
   ]
 }
