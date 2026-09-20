@@ -91,7 +91,8 @@
     ],
     "relationship_correction": [
       "logistics_participant_relationship",
-      "physical_consequence"
+      "physical_consequence",
+      "spare_part_rma_provenance"
     ],
     "identifier_alias_correction": [
       "rma_identifier_alias"
