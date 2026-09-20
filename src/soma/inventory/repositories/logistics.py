@@ -478,4 +478,113 @@ class InventoryLogisticsRepository:
         return kind, event_id
 
 
+    @classmethod
+    def correct_participant_relationship(
+        cls,
+        connection: Any,
+        *,
+        participant_id: str,
+        replacement_kind: str | None,
+        replacement_id: str | None,
+        reason_code: str,
+        command_id: str,
+    ) -> tuple[str, str, str | None]:
+        if (replacement_kind is None) != (replacement_id is None):
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Logistics participant replacement kind/id must both be null or both present",
+            )
+        if replacement_kind is not None and replacement_kind not in {
+            "rma",
+            "spare_part_unit",
+            "device_part_unit",
+        }:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Logistics participant replacement kind is invalid",
+            )
+
+        located = cls.locate_participant(connection, participant_id)
+        if located is None or located[3] != 1:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Logistics participant is not current-active",
+            )
+        _old_kind, _table, event_id, _active = located
+
+        if replacement_kind == "rma":
+            assert replacement_id is not None
+            cls.require_participants(
+                connection,
+                rma_ids=(replacement_id,),
+                spare_part_unit_ids=(),
+                device_part_unit_ids=(),
+            )
+            table = "logistics_rma_participants"
+            id_column = "logistics_rma_participant_id"
+            target_column = "rma_id"
+        elif replacement_kind == "spare_part_unit":
+            assert replacement_id is not None
+            cls.require_participants(
+                connection,
+                rma_ids=(),
+                spare_part_unit_ids=(replacement_id,),
+                device_part_unit_ids=(),
+            )
+            table = "logistics_spare_unit_participants"
+            id_column = "logistics_spare_participant_id"
+            target_column = "spare_part_unit_id"
+        elif replacement_kind == "device_part_unit":
+            assert replacement_id is not None
+            cls.require_participants(
+                connection,
+                rma_ids=(),
+                spare_part_unit_ids=(),
+                device_part_unit_ids=(replacement_id,),
+            )
+            table = "logistics_device_part_participants"
+            id_column = "logistics_device_participant_id"
+            target_column = "device_part_unit_id"
+        else:
+            table = id_column = target_column = ""
+
+        if replacement_kind is not None:
+            assert replacement_id is not None
+            conflict = connection.execute(
+                f"SELECT 1 FROM {table} WHERE logistics_event_id=? "
+                f"AND {target_column}=? AND active=1 LIMIT 1",
+                (event_id, replacement_id),
+            ).fetchone()
+            if conflict is not None:
+                raise SomaError(
+                    "CORRECTION_TARGET_INVALID",
+                    "Replacement logistics participant is already active on the event",
+                )
+
+        cls.close_participant(
+            connection,
+            participant_id=participant_id,
+            reason_code=reason_code,
+            command_id=command_id,
+        )
+
+        replacement_participant_id: str | None = None
+        if replacement_kind is not None:
+            assert replacement_id is not None
+            replacement_participant_id = new_uuid4()
+            connection.execute(
+                f"INSERT INTO {table}("
+                f"{id_column},logistics_event_id,{target_column},active,"
+                "opened_command_id,closed_command_id,close_reason"
+                ") VALUES (?,?,?,1,?,NULL,NULL)",
+                (
+                    replacement_participant_id,
+                    event_id,
+                    replacement_id,
+                    command_id,
+                ),
+            )
+        return event_id, participant_id, replacement_participant_id
+
+
 __all__ = ["InventoryLogisticsRepository"]
