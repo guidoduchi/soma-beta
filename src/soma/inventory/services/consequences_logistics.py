@@ -472,6 +472,162 @@ class InventoryConsequencesLogisticsService:
             self._boundary.execute(envelope, prepare)
         )
 
+    def correct_inventory_physical_consequence(
+        self,
+        *,
+        command_id: str,
+        physical_consequence_id: str,
+        expected_revision: int,
+        expected_event_id: str,
+        replacement_intent: PhysicalConsequenceIntent,
+        reason_code: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        consequence_id = require_uuid4(physical_consequence_id)
+        event_id = require_uuid4(expected_event_id)
+        if type(expected_revision) is not int or expected_revision <= 0:
+            raise ValidationError("expected_revision must be positive")
+        accepted = replacement_intent.validate()
+        reason = validate_reason_code(reason_code)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CorrectInventoryPhysicalConsequence",
+            target_type="inventory_physical_consequence",
+            target_id=consequence_id,
+            semantic_payload={
+                "expected_event_id": event_id,
+                "physical_disposition": accepted.physical_disposition,
+                "installed_spare_part_unit_id": accepted.installed_spare_part_unit_id,
+                "removed_device_part_unit_id": accepted.removed_device_part_unit_id,
+                "inbound_spare_part_unit_id": accepted.inbound_spare_part_unit_id,
+                "parent_dismantled_unit_id": accepted.parent_dismantled_unit_id,
+                "effective_at_utc": accepted.effective_at_utc,
+                "reason_code": reason,
+            },
+            base_revisions={"inventory_physical_consequence": expected_revision},
+        )
+
+        def require_current(connection):
+            current = self._consequences.current(connection, consequence_id)
+            if current is None:
+                raise SomaError("INV_STALE", "Physical consequence no longer exists")
+            if int(current[10]) != expected_revision or str(current[12]) != event_id:
+                raise SomaError("INV_STALE", "Physical consequence revision/event changed")
+            task_id = str(current[1])
+            current_task_fingerprint = TaskOperationalEvidenceReader.review_fingerprint(
+                connection,
+                task_id,
+            )
+            if current_task_fingerprint != str(current[2]):
+                raise SomaError(
+                    "TASK_REVIEW_STALE",
+                    "Task operational evidence changed after consequence review",
+                )
+            self._consequences.require_context(
+                connection,
+                task_id=task_id,
+                rma_id=None if current[4] is None else str(current[4]),
+                target_device_part_unit_id=None
+                if current[3] is None
+                else str(current[3]),
+                intent=accepted,
+            )
+            return current
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            current = require_current(uow.connection)
+            task_id = str(current[1])
+            rma_id = None if current[4] is None else str(current[4])
+
+            def apply(inner: UnitOfWork):
+                require_current(inner.connection)
+                result = self._consequences.correct(
+                    inner.connection,
+                    physical_consequence_id=consequence_id,
+                    expected_revision=expected_revision,
+                    expected_event_id=event_id,
+                    intent=accepted,
+                    reason_code=reason,
+                    command_id=command_id,
+                )
+                apply.result = result
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type=(
+                        "inventory.task_physical_consequence."
+                        "accepted_or_corrected"
+                    ),
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="task",
+                    target_id=task_id,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="PhysicalConsequenceAuditV1",
+                    payload_version=1,
+                    payload={
+                        "physical_consequence_id": consequence_id,
+                        "task_id": task_id,
+                        "task_review_fingerprint": str(current[2]),
+                        "event_kind": "CORRECT",
+                        "disposition": accepted.physical_disposition,
+                        "return_obligation_id": rma_id,
+                        "resulting_revision": int(result["consequence_revision"]),
+                    },
+                    resulting_event_refs=tuple(
+                        AuditResultRef(result_type, result_id)
+                        for result_type, result_id in result["refs"]
+                        if result_type
+                        in {
+                            "inventory_physical_consequence",
+                            "rma_return_obligation",
+                        }
+                    ),
+                )
+
+            apply.result = {}
+            return PreparedMutation(
+                no_change=False,
+                result_type="inventory_physical_consequence",
+                result_id=consequence_id,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: self._response(
+                    list(apply.result["refs"]),
+                    {
+                        f"inventory_physical_consequence:{consequence_id}": int(
+                            apply.result["consequence_revision"]
+                        ),
+                        **(
+                            {}
+                            if accepted.inbound_spare_part_unit_id is None
+                            or apply.result["unit_revision"] is None
+                            else {
+                                f"spare_part_unit:{accepted.inbound_spare_part_unit_id}": int(
+                                    apply.result["unit_revision"]
+                                )
+                            }
+                        ),
+                        **(
+                            {}
+                            if rma_id is None
+                            or apply.result["obligation_revision"] is None
+                            else {
+                                f"rma_return_obligation:{rma_id}": int(
+                                    apply.result["obligation_revision"]
+                                )
+                            }
+                        ),
+                    },
+                ),
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
+
     def record_actual_logistics_event(
         self,
         *,
