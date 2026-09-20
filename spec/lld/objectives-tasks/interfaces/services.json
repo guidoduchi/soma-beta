@@ -1,0 +1,86 @@
+{
+  "schema": "SOMA-LLD-INTERFACE-REGISTRY-V2",
+  "lld_id": "LLD-05",
+  "internal": [
+    {
+      "name": "ObjectiveTimezoneService",
+      "owner": "LLD-05 semantics over LLD-02 SettingStore",
+      "methods": [
+        "current(snapshot) -> IanaTimezone",
+        "validate_local_input(local_datetime,iana_name,fold_or_offset) -> CanonicalUtcInstant",
+        "preview_setting_change(snapshot,new_iana_name) -> presentation-only impact"
+      ],
+      "rule": "setting change never mutates persisted Task/Objective instants; wall-clock preservation requires reviewed Task plan revisions"
+    },
+    {
+      "name": "WfmImportReader",
+      "owner": "LLD-05 implementation of LLD-04 contract",
+      "methods": [
+        "get_by_task_no(reader,task_no)",
+        "task_no_status(reader,task_no) -> ACTIVE|RETIRED|ABSENT",
+        "source_projection(reader,task_id)",
+        "source_plan(reader,task_id)",
+        "operational_plan_context(reader,task_id)",
+        "activity_conflicts(reader,task_id_or_candidate,interval) -> ConflictSet",
+        "source_acceptance_base_token(reader,target) -> sha256"
+      ],
+      "rule": "matches LLD-04; RETIRED is never adoption/create target; base token covers identity/current RFC/source projection/current plan/membership/lock revisions relevant to proposal"
+    },
+    {
+      "name": "WfmImportMutationService",
+      "owner": "LLD-05 implementation of LLD-04 contract",
+      "methods": [
+        "create_or_adopt_wfm_from_source(uow,proposal,command_context)",
+        "apply_wfm_source_projection(uow,proposal,command_context)",
+        "apply_reviewed_operational_plan_from_source(uow,proposal,command_context)"
+      ],
+      "contract": "caller supplies outer LLD-04 UoW/receipt. Exact Task No. adopts existing WFM; source projection changes no execution/outcome/membership; reviewed source plan appends Task plan but never silently repins Objective membership; mismatch becomes regroup input."
+    },
+    {
+      "name": "RfcTerminalTaskParticipant",
+      "owner": "LLD-05 implementation of LLD-03 contract",
+      "methods": [
+        "snapshot_applicable_wfms(snapshot,rfc_ids) -> ordered immutable task identities/revisions/task_nos",
+        "capture_applicable_wfms(uow,rfc_ids) -> ordered immutable task identities/revisions/task_nos",
+        "preview_terminal_cascade(snapshot,proposal_snapshot,after_key|null,limit<=500) -> RfcTerminalCascadeImpactProviderPageV1",
+        "revalidate_terminal_cascade(uow,proposal_snapshot,reviewed_exact_count,reviewed_provider_fingerprint) -> READY|STALE|INDETERMINATE",
+        "apply_terminal_cascade(uow,proposal_snapshot,command_context:RfcTerminalCascadeExecutionCommandContextV1) -> RfcTerminalCascadeParticipantApplyResultV1",
+        "classify_hard_delete_dependency(reader,rfc_id) -> CLEAR|BLOCKED|INDETERMINATE"
+      ],
+      "contract": "preview/revalidate own exact Task/Objective impact; apply uses caller UoW after proof/outer receipt and returns only bounded summary; hard-delete classification is read-only; participant never commits"
+    },
+    {
+      "name": "RfcHistoryRiskProvider",
+      "owner": "LLD-05 implementation of LLD-03 contract",
+      "methods": [
+        "hierarchy_history_authority(reader,rfc_id) -> RfcHierarchyHistoryAuthorityV1"
+      ],
+      "rule": "read-only in Snapshot or writer UoW. READY returns LOW|HIGH, exact evidence count and fingerprint; INDETERMINATE fails closed. Exact evidence semantics are owned by interfaces/cross-packet-v2.json; no Task/WFM/Objective rows cross into LLD-03."
+    },
+    {
+      "name": "InventoryTaskDependencyProvider",
+      "owner": "LLD-07 implementation of LLD-05 contract",
+      "methods": [
+        "classify_task_hard_delete_dependency(uow,task_id) -> CLEAR|BLOCKED|INDETERMINATE",
+        "preview_retry_relationship_clone(snapshot,predecessor_task_id,selected_inventory_relationship_ids) -> Impact",
+        "apply_retry_relationship_clone(uow,preview,new_task_id) -> result refs"
+      ],
+      "rule": "matches LLD-07; LLD-05 never rewrites Inventory history; protected Inventory history blocks Task hard delete; retry copies only explicitly selected current eligible planning relationships"
+    },
+    {
+      "name": "TaskOperationalEvidenceReader",
+      "owner": "LLD-05 consumed by LLD-07/11",
+      "methods": [
+        "task_outcome(reader,task_id) -> TaskOperationalOutcomeV1|null",
+        "task_execution(reader,task_id) -> TaskOperationalExecutionV1",
+        "objective_context(reader,task_id) -> TaskOperationalObjectiveContextV1|null",
+        "review_fingerprint(reader,task_id) -> lowercase sha256"
+      ],
+      "rule": "Read-only accepted operational evidence; accepts either one stable LLD-01 Snapshot or the current supplied writer UnitOfWork read context and never mutates/commits. TaskOperationalExecutionV1 is exact {execution_revision:int>=0,execution_state:'not_started|in_progress|ended|terminated',actual_start_utc:int|null,actual_end_utc:int|null,effective_termination_utc:int|null,termination_reason:string|null,last_event_id:uuid|null}. Exact absence is revision=0/not_started with all nullable fields null; any positive history/projection disagreement fails closed. TaskOperationalOutcomeV1 is null only when both task_outcome_current and owned task_outcome_events are exactly absent; otherwise it is exact {outcome_event_id:uuid,accepted_outcome:'completed|incomplete|cancelled_without_execution',reviewed_at_utc:int>=0,outcome_revision:int>=1}. Current projection must equal the unique linear immutable chain tip or the reader fails closed. TaskOperationalObjectiveContextV1 is null only when objective_task_membership_current is absent; otherwise it is exact {objective_id:uuid,membership_revision:int>=1,accepted_plan_revision_id:uuid,membership_last_event_id:uuid,objective_revision:int>=1,envelope_revision:int>=1,aggregate_revision:int>=1,aggregate_input_fingerprint:lowercase sha256}. Missing/corrupt current Objective projection fails closed. review_fingerprint is SOMA_TASK_OPERATIONAL_EVIDENCE_V1: SHA-256 over LLD-01 StrictVersionedJson canonical JSON UTF-8 bytes for {schema:'SOMA_TASK_OPERATIONAL_EVIDENCE_V1',task_id,execution:task_execution(...),outcome:task_outcome(...),objective_context:objective_context(...)}. It deliberately excludes Task plan/source/lock/general Task revision that do not change these operational facts. Any included execution event/projection change, outcome review/correction, current Objective membership move/repin, Objective revision, envelope revision, aggregate revision or aggregate input fingerprint change changes the digest."
+    }
+  ],
+  "registry_contract": [
+    "This bounded registry preserves the exact internal service and participant declarations formerly held in the LLD-05 omnibus interfaces.json.",
+    "Canonical cross-packet provider and consumer signatures remain owned by interfaces/cross-packet-v2.json."
+  ]
+}

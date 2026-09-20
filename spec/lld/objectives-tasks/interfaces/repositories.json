@@ -1,0 +1,170 @@
+{
+  "schema": "SOMA-LLD-INTERFACE-REGISTRY-V2",
+  "lld_id": "LLD-05",
+  "internal": [
+    {
+      "name": "TaskRepository",
+      "methods": [
+        "get(reader,task_id)",
+        "insert(uow,task)",
+        "update_revision(uow,task_id,base_revision)",
+        "list(snapshot,filter,cursor,limit)"
+      ],
+      "rule": "Task UUID/task_kind are immutable; repositories never commit internally"
+    },
+    {
+      "name": "WfmTaskRepository",
+      "methods": [
+        "get_by_task_no(reader,task_no)",
+        "task_no_status(reader,task_no) -> ACTIVE|RETIRED|ABSENT",
+        "get_identity(reader,task_id)",
+        "insert_identity(uow,task_id,task_no,rfc_id,origin)",
+        "retire_task_no(uow,retirement_id,task_id,task_no,hard_delete_command_id,retired_at_utc)",
+        "reassign_rfc(uow,task_id,new_rfc_id,base_revision,event)",
+        "current_source_projection(reader,task_id)",
+        "replace_rebuildable_source_projection(uow,task_id,accepted_projection,base_revision)"
+      ],
+      "rule": "Task No. is canonical attempt identity; one current owning RFC has append-only reassignment history; source projection is rebuildable from LLD-04; RETIRED Task Nos are permanent nonreuse authority"
+    },
+    {
+      "name": "TaskPlanRepository",
+      "methods": [
+        "current(reader,task_id)",
+        "get_revision(reader,plan_revision_id)",
+        "append_revision(uow,revision)",
+        "set_current(uow,task_id,plan_revision_id,base_revision)",
+        "history(snapshot,task_id,cursor,limit)"
+      ],
+      "rule": "plan revisions are immutable; current plan points to a newly accepted revision; Objective membership pins an exact accepted plan revision and never silently advances"
+    },
+    {
+      "name": "TaskExecutionRepository",
+      "methods": [
+        "projection(reader,task_id) -> persisted projection|null",
+        "freshness(reader,task_id) -> {execution_revision,execution_state,projection|null}",
+        "append_event(uow,event)",
+        "replace_projection(uow,task_id,projection,base_revision)",
+        "history(snapshot,task_id,cursor,limit)"
+      ],
+      "rule": "execution evidence is append-only and current projection rebuildable. Exact no-history reads as execution_revision=0/not_started with no persisted projection/event. Any event requires a positive-revision projection, including corrected-to-not_started history; history/projection mismatch fails closed."
+    },
+    {
+      "name": "TaskOutcomeRepository",
+      "methods": [
+        "current(reader,task_id)",
+        "append_review_event(uow,event)",
+        "set_current(uow,task_id,event_id,base_revision)",
+        "history(snapshot,task_id,cursor,limit)"
+      ],
+      "rule": "accepted outcomes are completed|incomplete|cancelled_without_execution; first event is genesis and every material correction points to the exact current tip; current revision equals the owned linear event count/chain length and current pointer is that tip; exact absence requires no current row and no owned history; projection/history mismatch fails closed; Awaiting Review is derived, not accepted outcome"
+    },
+    {
+      "name": "TaskRelationshipRepository",
+      "methods": [
+        "list_sr_links(reader,task_id,cursor,limit)",
+        "list_rfc_links(reader,task_id,cursor,limit)",
+        "list_device_links(reader,task_id,cursor,limit)",
+        "link(uow,relationship)",
+        "close(uow,relationship_id,close_context)"
+      ],
+      "rule": "direct SR/RFC links are Local-only; Device Reference links may belong to Local/WFM; history is preserved and targets are LLD-03 identities, never Network Element IDs"
+    },
+    {
+      "name": "TaskRetryRepository",
+      "methods": [
+        "predecessor(reader,task_id)",
+        "successor(reader,task_id)",
+        "insert(uow,relation)",
+        "lineage(snapshot,task_id,cursor,limit)"
+      ],
+      "rule": "every retry has one immediate predecessor; one attempt has at most one direct successor; retry identity is never reused"
+    },
+    {
+      "name": "TaskActivityLineageRepository",
+      "methods": [
+        "current(reader,task_id)",
+        "append_assignment(uow,event)",
+        "list_members(snapshot,lineage_id,cursor,limit)"
+      ],
+      "rule": "reviewed activity lineage supports competing-WFM detection; missing lineage never authorizes collapsing distinct Task Nos"
+    },
+    {
+      "name": "ObjectiveRepository",
+      "methods": [
+        "get(reader,objective_id)",
+        "get_by_tracking_id(reader,tracking_id)",
+        "allocate_tracking_id(uow) -> MW-########",
+        "insert(uow,objective)",
+        "set_superseded(uow,objective_id,survivor_id,base_revision)",
+        "set_archive_projection(uow,objective_id,state,base_revision)",
+        "list(snapshot,filter,cursor,limit)"
+      ],
+      "rule": "objective_id/MW identity never change; supersession/archive preserve row/history"
+    },
+    {
+      "name": "ObjectiveMembershipRepository",
+      "methods": [
+        "current_for_task(reader,task_id)",
+        "list_current_members(reader,objective_id,cursor,limit)",
+        "count_current_members(reader,objective_id)",
+        "append_event(uow,event)",
+        "replace_current(uow,task_id,objective_id,accepted_plan_revision_id,base_membership_revision)",
+        "remove_current(uow,task_id,base_membership_revision)"
+      ],
+      "rule": "one Task has at most one current Objective; membership pins the exact reviewed Task-plan revision and history preserves prior Objective/plan context"
+    },
+    {
+      "name": "ObjectiveProjectionRepository",
+      "methods": [
+        "envelope(reader,objective_id)",
+        "aggregate(reader,objective_id)",
+        "rebuild_affected(uow,objective_ids)",
+        "find_envelope_overlaps(uow,start_utc,end_utc,exclude_objective_ids)"
+      ],
+      "rule": "envelope/aggregate are transactional rebuildable projections; overlap uses indexed start < candidate_end AND end > candidate_start"
+    },
+    {
+      "name": "GroupingProposalRepository",
+      "methods": [
+        "get(reader,proposal_id)",
+        "insert(uow,proposal,task_changes,objective_changes)",
+        "transition(uow,proposal_id,state,decision_event,base_revision)",
+        "list(snapshot,filter,cursor,limit)",
+        "find_equivalent_rejection(snapshot,input_fingerprint)"
+      ],
+      "rule": "proposal membership is persisted row-wise, exact and revision-bound; rejection suppression uses exact material-input fingerprint"
+    },
+    {
+      "name": "HistoricalObjectiveProposalRepository",
+      "methods": [
+        "get(reader,proposal_id)",
+        "insert_or_supersede(uow,proposal)",
+        "transition(uow,proposal_id,state,base_revision)",
+        "list(snapshot,filter,cursor,limit)"
+      ],
+      "rule": "provider Complete + valid source plan may suggest historical structure when no conflicting current operational plan exists; exact matching plan may be reused, otherwise AcceptHistoricalObjectiveProposal alone may create historical_source_structure plan; proposal/import never records execution/outcome/Inventory"
+    },
+    {
+      "name": "ObjectiveReviewRepository",
+      "methods": [
+        "current_valid_review(reader,objective_id)",
+        "append(uow,review_event)",
+        "history(snapshot,objective_id,cursor,limit)"
+      ],
+      "rule": "review stores reviewed_at plus exact membership/outcome fingerprint and aggregate snapshot; later material correction invalidates currentness without editing old review"
+    },
+    {
+      "name": "OperationalCountInclusionRepository",
+      "methods": [
+        "current(reader,task_id)",
+        "append(uow,event)",
+        "list_excluded(snapshot,filter,cursor,limit)"
+      ],
+      "rule": "exclusion is reporting-only and never deletes Task/Objective/source/audit history"
+    }
+  ],
+  "registry_contract": [
+    "This bounded registry preserves the exact internal repository declarations formerly held in the LLD-05 omnibus interfaces.json.",
+    "Repositories accept the declared reader or caller UnitOfWork and never commit or roll back independently."
+  ]
+}
