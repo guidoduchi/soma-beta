@@ -1560,6 +1560,119 @@ class InventoryFaultTagsRepository:
             )
         return tuple(results), tag_revisions
 
+    @classmethod
+    def correct_false_warehouse_receipt(
+        cls,
+        connection: Any,
+        *,
+        membership_id: str,
+        expected_revision: int,
+        target_event_id: str,
+        reason_code: str,
+        command_id: str,
+    ) -> dict[str, object]:
+        row, obligation = cls._require_warehouse_target(
+            connection,
+            membership_id=membership_id,
+            expected_revision=expected_revision,
+            required_state="warehouse_received",
+        )
+        if row[8] is None or str(row[8]) != target_event_id:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Target is not the current-effective warehouse receipt event",
+            )
+        source = connection.execute(
+            "SELECT event_kind FROM fault_tag_membership_events "
+            "WHERE membership_event_id=? AND fault_tag_membership_id=?",
+            (target_event_id, membership_id),
+        ).fetchone()
+        if source is None or str(source[0]) != "warehouse_received":
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Target event is not a warehouse receipt",
+            )
+        if str(obligation[0]) != "open":
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Warehouse receipt cannot be corrected after obligation closure",
+            )
+
+        now = utc_epoch_seconds()
+        correction_event_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO fault_tag_membership_events("
+            "membership_event_id,fault_tag_membership_id,event_kind,effective_at_utc,"
+            "target_event_id,reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+            ") VALUES (?,?,'correct',NULL,?,?,NULL,NULL,?,?)",
+            (
+                correction_event_id,
+                membership_id,
+                target_event_id,
+                reason_code,
+                now,
+                command_id,
+            ),
+        )
+        fingerprint = cls._membership_state_fingerprint(
+            membership_id=membership_id,
+            rma_id=str(row[2]),
+            state="submitted_awaiting_receipt",
+            active_submitted=1,
+            device_part_unit_id=None if row[3] is None else str(row[3]),
+            spare_part_unit_id=None if row[4] is None else str(row[4]),
+            last_event_id=correction_event_id,
+        )
+        changed = connection.execute(
+            "UPDATE fault_tag_membership_current "
+            "SET state='submitted_awaiting_receipt',revision=revision+1,"
+            "input_fingerprint=?,last_event_id=?,last_command_id=? "
+            "WHERE fault_tag_membership_id=? AND revision=? "
+            "AND state='warehouse_received' AND active_submitted=1 "
+            "AND last_event_id=?",
+            (
+                fingerprint,
+                correction_event_id,
+                command_id,
+                membership_id,
+                expected_revision,
+                target_event_id,
+            ),
+        )
+        if changed.rowcount != 1:
+            raise SomaError(
+                "INV_STALE",
+                "Fault Tag membership changed during warehouse receipt correction",
+            )
+
+        rma_revision = cls._rebuild_rma_warehouse_state(
+            connection,
+            rma_id=str(row[2]),
+            membership_id=membership_id,
+            state="fault_tagged",
+            obligation_open=1,
+            command_id=command_id,
+        )
+        tag_revision = cls._rebuild_tag_projection(
+            connection,
+            fault_tag_id=str(row[1]),
+            command_id=command_id,
+        )
+        InventoryProjectionsRepository.rebuild_fault_tag_membership_attention(
+            connection,
+            membership_id=membership_id,
+            command_id=command_id,
+        )
+        return {
+            "membership_id": membership_id,
+            "membership_event_id": correction_event_id,
+            "membership_revision": expected_revision + 1,
+            "fault_tag_id": str(row[1]),
+            "fault_tag_revision": tag_revision,
+            "rma_id": str(row[2]),
+            "rma_revision": rma_revision,
+        }
+
     @staticmethod
     def has_submission_history(connection: Any, fault_tag_id: str) -> bool:
         return connection.execute(
