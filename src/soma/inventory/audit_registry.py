@@ -287,6 +287,23 @@ def _validate_fault_tag_lineage(payload: dict[str, object]) -> None:
     _reason(payload.get("reason_category"))
     _positive(payload.get("resulting_revision"), "resulting_revision")
 
+
+def _validate_inventory_hard_delete(payload: dict[str, object]) -> None:
+    if payload.get("target_type") not in {
+        "spare_need", "spare_request", "spare_part_unit", "fault_tag"
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete target_type is invalid")
+    _uuid(payload.get("target_id"), "target_id")
+    _positive(payload.get("reviewed_revision"), "reviewed_revision")
+    _fingerprint(payload.get("eligibility_fingerprint"), "eligibility_fingerprint")
+    related = payload.get("retained_related_ids")
+    if not isinstance(related, list) or len(related) > 256:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "retained_related_ids is invalid")
+    for identity in related:
+        _uuid(identity, "retained_related_id")
+    if payload.get("result") != "DELETED":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete result is invalid")
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -621,6 +638,28 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_fault_tag_lineage,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.untouched_draft.hard_deleted",
+            action_version=1,
+            payload_schema="InventoryHardDeleteAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "InventoryHardDeleteAuditV1",
+                frozenset(
+                    {
+                        "target_type",
+                        "target_id",
+                        "reviewed_revision",
+                        "eligibility_fingerprint",
+                        "retained_related_ids",
+                        "result",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_inventory_hard_delete,
         )
     )
     return registry
