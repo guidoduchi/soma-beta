@@ -1,17 +1,21 @@
 from __future__ import annotations
 
-import math
 import re
-from dataclasses import dataclass
 from fractions import Fraction
 from typing import Iterable, Mapping, Sequence
 
 from soma.foundation.errors import ValidationError
 from soma.foundation.strict_json import sha256_canonical_json
+from soma.product_line_sla.domain.policy import (
+    ExactDuration,
+    PolicyTierInput,
+    ValidatedPolicy,
+    ValidatedPolicyTier,
+    duration_from_fraction as _duration_from_fraction,
+)
 
 _BASE_SEVERITIES = ("critical", "major", "minor")
 _DERIVED_SEVERITY = "non_fault_inquiry"
-_SUPPORTED_SEVERITIES = frozenset((*_BASE_SEVERITIES, _DERIVED_SEVERITY))
 _TEMPLATE_IDS = frozenset({"IT_DEFAULT_V1", "NFV_DEFAULT_V1"})
 _DECIMAL_RE = re.compile(r"(?:0|[1-9][0-9]*)(?:\.([0-9]+))?%?\Z")
 _DURATION_UNITS = {
@@ -20,8 +24,6 @@ _DURATION_UNITS = {
     "days": 86_400,
 }
 _MAX_PERCENTAGE_MILLIONTHS = 100_000_000
-_MAX_DURATION_NUMERATOR = 9_223_372_036_854_775_807
-_MAX_DURATION_DENOMINATOR = 1_000_000_000
 _MAX_POLICY_TIERS = 128
 
 _TEMPLATE_INPUTS: dict[str, dict[str, tuple[tuple[str, str, str], ...]]] = {
@@ -36,85 +38,6 @@ _TEMPLATE_INPUTS: dict[str, dict[str, tuple[tuple[str, str, str], ...]]] = {
         "minor": (("100", "90", "days"),),
     },
 }
-
-
-@dataclass(frozen=True, slots=True)
-class ExactDuration:
-    numerator_seconds: int
-    denominator: int
-
-    def __post_init__(self) -> None:
-        if (
-            type(self.numerator_seconds) is not int
-            or type(self.denominator) is not int
-            or self.numerator_seconds <= 0
-            or self.denominator <= 0
-        ):
-            raise ValidationError("SLA duration must be a positive rational number of seconds")
-        divisor = math.gcd(self.numerator_seconds, self.denominator)
-        if divisor != 1:
-            raise ValidationError("SLA duration rational must be reduced")
-        if self.numerator_seconds > _MAX_DURATION_NUMERATOR:
-            raise ValidationError("SLA duration numerator exceeds the accepted bound")
-        if self.denominator > _MAX_DURATION_DENOMINATOR:
-            raise ValidationError("SLA duration denominator exceeds the accepted bound")
-
-    @property
-    def fraction(self) -> Fraction:
-        return Fraction(self.numerator_seconds, self.denominator)
-
-    def multiplied(self, numerator: int, denominator: int) -> "ExactDuration":
-        if type(numerator) is not int or type(denominator) is not int or numerator <= 0 or denominator <= 0:
-            raise ValidationError("SLA duration multiplier must be a positive rational")
-        value = self.fraction * Fraction(numerator, denominator)
-        return _duration_from_fraction(value)
-
-    def to_fingerprint_object(self) -> dict[str, int]:
-        return {
-            "numerator_seconds": self.numerator_seconds,
-            "denominator": self.denominator,
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class PolicyTierInput:
-    required_percentage: str
-    maximum_duration: str
-    duration_unit: str
-
-
-@dataclass(frozen=True, slots=True)
-class ValidatedPolicyTier:
-    severity: str
-    tier_ordinal: int
-    required_percentage_millionths: int
-    maximum_duration: ExactDuration
-    derived_from_minor_ordinal: int | None = None
-    derivation_num: int | None = None
-    derivation_den: int | None = None
-
-    def to_fingerprint_object(self) -> dict[str, object]:
-        return {
-            "severity": self.severity,
-            "tier_ordinal": self.tier_ordinal,
-            "required_percentage_millionths": self.required_percentage_millionths,
-            "maximum_duration": self.maximum_duration.to_fingerprint_object(),
-            "derived_from_minor_ordinal": self.derived_from_minor_ordinal,
-            "derivation_num": self.derivation_num,
-            "derivation_den": self.derivation_den,
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class ValidatedPolicy:
-    template_source: str | None
-    tiers: tuple[ValidatedPolicyTier, ...]
-    content_fingerprint: str
-
-    def tiers_for(self, severity: str) -> tuple[ValidatedPolicyTier, ...]:
-        if severity not in _SUPPORTED_SEVERITIES:
-            raise ValidationError("unsupported SLA severity")
-        return tuple(tier for tier in self.tiers if tier.severity == severity)
 
 
 def _decimal_fraction(value: str, *, label: str, max_scale: int | None = None) -> Fraction:
@@ -144,13 +67,6 @@ def _percentage_millionths(value: str) -> int:
     if not 1 <= millionths <= _MAX_PERCENTAGE_MILLIONTHS:
         raise ValidationError("required percentage must be greater than zero and at most 100%")
     return millionths
-
-
-def _duration_from_fraction(value: Fraction) -> ExactDuration:
-    if value <= 0:
-        raise ValidationError("SLA duration must be positive")
-    reduced = Fraction(value.numerator, value.denominator)
-    return ExactDuration(reduced.numerator, reduced.denominator)
 
 
 def _duration(value: str, unit: str) -> ExactDuration:

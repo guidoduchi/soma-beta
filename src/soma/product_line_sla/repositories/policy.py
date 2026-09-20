@@ -1,33 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from soma.foundation.persistence.uow import UnitOfWork
-
-
-@dataclass(frozen=True, slots=True)
-class SlaPolicyRevisionRecord:
-    policy_revision_id: str
-    contract_product_line_id: str
-    revision_ordinal: int
-    policy_name: str
-    template_source: str | None
-    created_at_utc: int
-    created_command_id: str
-
-
-@dataclass(frozen=True, slots=True)
-class SlaPolicyTierRecord:
-    policy_tier_id: str
-    policy_revision_id: str
-    severity: str
-    tier_ordinal: int
-    required_percentage_millionths: int
-    maximum_duration_numerator_seconds: int
-    maximum_duration_denominator: int
-    derived_from_tier_id: str | None
-    derivation_num: int | None
-    derivation_den: int | None
+from soma.product_line_sla.domain.policy import (
+    SlaPolicyRevisionRecord,
+    SlaPolicyTierRecord,
+)
 
 
 class SlaPolicyRepository:
