@@ -21,11 +21,16 @@ from soma.inventory.domain.rmas import RmaAuthorizationIntent
 from soma.inventory.services.consequences_logistics import (
     InventoryConsequencesLogisticsService,
 )
+from soma.inventory.services.corrections_bulk import InventoryCorrectionsBulkService
 from soma.inventory.services.fault_tags import InventoryFaultTagService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
 from soma.inventory.services.requests_rma import InventoryRequestsRmaService
 from soma.inventory.queries.fault_tags import FaultTagQueryService
 from soma.inventory.queries.requests_rma import InventoryRequestsQueryService
+from soma.inventory.queries.previews import (
+    InventoryBulkPreviewTarget,
+    InventoryPreviewsQueryService,
+)
 from soma.inventory.queries.task_context import TaskInventoryContextQueryService
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.queries.execution_review import (
@@ -2182,3 +2187,350 @@ def test_t053_rejected_obligation_resend_creates_new_history_and_disallows_overl
             "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
             (attempted,),
         ).fetchone()[0] == 0
+
+
+def test_t057_bulk_preview_partitions_incompatible_target_without_silent_skip(
+    initialized_database,
+) -> None:
+    first = _open_return_obligation(
+        initialized_database,
+        official_sr="97200028",
+        suffix="T057-A",
+        promised_bom="BOM-T057-A",
+        c10_base=7000,
+    )
+    second = _open_return_obligation(
+        initialized_database,
+        official_sr="97200029",
+        suffix="T057-B",
+        promised_bom="BOM-T057-B",
+        c10_base=7100,
+    )
+    factory = first[0]
+    _draft, submitted = _submitted_fault_tag_for_rmas(
+        factory,
+        (first[3], second[3]),
+    )
+    members = {str(item["rma_id"]): item for item in submitted["members"]}
+    service = InventoryFaultTagService(factory)
+    first_member_id = str(members[first[3]]["fault_tag_membership_id"])
+    service.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=(_warehouse_target(members[first[3]]),),
+        effective_at_utc=1_700_860_000,
+    )
+    first_current = _current_warehouse_target(factory, first_member_id)
+    second_target = _warehouse_target(members[second[3]])
+
+    preview = InventoryPreviewsQueryService(factory).preview_bulk_action(
+        action_kind="warehouse_receipt",
+        targets=(
+            InventoryBulkPreviewTarget(
+                first_current.fault_tag_membership_id,
+                first_current.revision,
+            ),
+            InventoryBulkPreviewTarget(
+                second_target.fault_tag_membership_id,
+                second_target.revision,
+            ),
+        ),
+    )
+    partition = {
+        str(item["fault_tag_membership_id"]): item
+        for item in preview["partitions"]
+    }
+    assert preview["selected_count"] == 2
+    assert preview["eligible_count"] == 1
+    assert partition[first_member_id]["classification"] == "incompatible"
+    assert partition[first_member_id]["reason"] == "requires_submitted_awaiting_receipt"
+    assert (
+        partition[second_target.fault_tag_membership_id]["classification"]
+        == "eligible"
+    )
+    assert preview["eligible_targets"] == [
+        {
+            "fault_tag_membership_id": second_target.fault_tag_membership_id,
+            "expected_revision": second_target.revision,
+        }
+    ]
+
+
+def test_t058_bulk_commit_aborts_all_targets_when_one_changes_after_preview(
+    initialized_database,
+) -> None:
+    first = _open_return_obligation(
+        initialized_database,
+        official_sr="97200030",
+        suffix="T058-A",
+        promised_bom="BOM-T058-A",
+        c10_base=7200,
+    )
+    second = _open_return_obligation(
+        initialized_database,
+        official_sr="97200031",
+        suffix="T058-B",
+        promised_bom="BOM-T058-B",
+        c10_base=7300,
+    )
+    factory = first[0]
+    _draft, submitted = _submitted_fault_tag_for_rmas(
+        factory,
+        (first[3], second[3]),
+    )
+    members = tuple(submitted["members"])
+    targets = tuple(_warehouse_target(item) for item in members)
+    preview_targets = tuple(
+        InventoryBulkPreviewTarget(item.fault_tag_membership_id, item.revision)
+        for item in targets
+    )
+    preview = InventoryPreviewsQueryService(factory).preview_bulk_action(
+        action_kind="warehouse_receipt",
+        targets=preview_targets,
+        effective_at_utc=1_700_861_000,
+    )
+    assert preview["eligible_count"] == 2
+
+    InventoryFaultTagService(factory).record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=(targets[0],),
+        effective_at_utc=1_700_861_050,
+    )
+    second_id = targets[1].fault_tag_membership_id
+    attempted = new_uuid4()
+    with pytest.raises(SomaError) as stale:
+        InventoryCorrectionsBulkService(factory).accept_inventory_bulk_action(
+            command_id=attempted,
+            action_kind="warehouse_receipt",
+            targets=targets,
+            preview_fingerprint=str(preview["input_fingerprint"]),
+            effective_at_utc=1_700_861_000,
+        )
+    assert stale.value.code in {"INV_STALE", "BULK_INCOMPATIBLE"}
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,revision FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (second_id,),
+        ).fetchone() == ("submitted_awaiting_receipt", targets[1].revision)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM inventory_lifecycle_batches "
+            "WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
+
+
+def test_t059_successful_bulk_batch_keeps_members_independently_addressable_afterward(
+    initialized_database,
+) -> None:
+    first = _open_return_obligation(
+        initialized_database,
+        official_sr="97200032",
+        suffix="T059-A",
+        promised_bom="BOM-T059-A",
+        c10_base=7400,
+    )
+    second = _open_return_obligation(
+        initialized_database,
+        official_sr="97200033",
+        suffix="T059-B",
+        promised_bom="BOM-T059-B",
+        c10_base=7500,
+    )
+    factory = first[0]
+    _draft, submitted = _submitted_fault_tag_for_rmas(
+        factory,
+        (first[3], second[3]),
+    )
+    targets = tuple(_warehouse_target(item) for item in submitted["members"])
+    preview = InventoryPreviewsQueryService(factory).preview_bulk_action(
+        action_kind="warehouse_receipt",
+        targets=tuple(
+            InventoryBulkPreviewTarget(item.fault_tag_membership_id, item.revision)
+            for item in targets
+        ),
+        effective_at_utc=1_700_862_000,
+    )
+    bulk = InventoryCorrectionsBulkService(factory).accept_inventory_bulk_action(
+        command_id=new_uuid4(),
+        action_kind="warehouse_receipt",
+        targets=targets,
+        preview_fingerprint=str(preview["input_fingerprint"]),
+        effective_at_utc=1_700_862_000,
+    )
+    batch_ids = [
+        ref.result_id for ref in bulk.target_refs if ref.result_type == "inventory_batch"
+    ]
+    assert len(batch_ids) == 1
+    batch_id = batch_ids[0]
+    member_ids = [item.fault_tag_membership_id for item in targets]
+
+    with ReadSnapshot(factory) as snapshot:
+        before = {
+            str(row[0]): (str(row[1]), int(row[2]), str(row[3]))
+            for row in snapshot.connection.execute(
+                "SELECT fault_tag_membership_id,state,revision,last_event_id "
+                "FROM fault_tag_membership_current "
+                "WHERE fault_tag_membership_id IN (?,?)",
+                tuple(member_ids),
+            ).fetchall()
+        }
+        assert all(value[0] == "warehouse_received" for value in before.values())
+        assert snapshot.connection.execute(
+            "SELECT target_count FROM inventory_lifecycle_batches "
+            "WHERE inventory_batch_id=?",
+            (batch_id,),
+        ).fetchone()[0] == 2
+
+    first_target = _current_warehouse_target(factory, member_ids[0])
+    InventoryFaultTagService(factory).record_warehouse_final_decision(
+        command_id=new_uuid4(),
+        targets=(first_target,),
+        decision="accepted",
+        explicit_confirmation=True,
+        effective_at_utc=1_700_862_100,
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        first_after = snapshot.connection.execute(
+            "SELECT state,revision FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (member_ids[0],),
+        ).fetchone()
+        second_after = snapshot.connection.execute(
+            "SELECT state,revision,last_event_id FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (member_ids[1],),
+        ).fetchone()
+        assert first_after[0] == "accepted"
+        assert tuple(second_after) == before[member_ids[1]]
+        assert snapshot.connection.execute(
+            "SELECT target_count FROM inventory_lifecycle_batches "
+            "WHERE inventory_batch_id=?",
+            (batch_id,),
+        ).fetchone()[0] == 2
+
+
+def test_t060_untouched_fault_tag_hard_delete_removes_only_draft_rows_and_never_reuses_ft(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200034",
+            suffix="T060",
+            promised_bom="BOM-T060",
+            c10_base=7600,
+        )
+    )
+    fault_tags = InventoryFaultTagService(factory)
+    draft = fault_tags.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+        memberships=(
+            FaultTagMembershipIntent(
+                rma_id=rma_id,
+                return_reason="untouched draft only",
+            ),
+        ),
+    )
+    preview = InventoryPreviewsQueryService(factory).preview_hard_delete(
+        target_kind="fault_tag",
+        target_id=str(draft["fault_tag_id"]),
+    )
+    assert preview["classification"] == "CLEAR"
+    assert preview["reviewed_revision"] == 1
+    deleted = InventoryCorrectionsBulkService(factory).hard_delete_untouched_fault_tag(
+        command_id=new_uuid4(),
+        fault_tag_id=str(draft["fault_tag_id"]),
+        reviewed_revision=int(preview["reviewed_revision"]),
+        eligibility_fingerprint=str(preview["eligibility_fingerprint"]),
+        deliberate_confirmation=True,
+    )
+    assert deleted.outcome == "APPLIED"
+    assert any(
+        ref.result_type == "hard_delete_evidence"
+        for ref in deleted.target_refs
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tags WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_memberships WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rmas WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_part_units WHERE spare_part_unit_id=?",
+            (unit_id,),
+        ).fetchone()[0] == 1
+        allocator = snapshot.connection.execute(
+            "SELECT next_sequence FROM inventory_tracking_allocators "
+            "WHERE allocator_kind='fault_tag'",
+        ).fetchone()
+        assert int(allocator[0]) == 2
+
+    next_tag = fault_tags.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+    )
+    assert next_tag["tracking_handle"] == "FT-00000002"
+
+
+def test_t061_fault_tag_with_protected_submission_history_cannot_be_hard_deleted(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200035",
+            suffix="T061",
+            promised_bom="BOM-T061",
+            c10_base=7700,
+        )
+    )
+    draft, submitted, _event_id, snapshot_id = _submitted_fault_tag(
+        factory,
+        rma_id=rma_id,
+    )
+    preview = InventoryPreviewsQueryService(factory).preview_hard_delete(
+        target_kind="fault_tag",
+        target_id=str(draft["fault_tag_id"]),
+    )
+    assert preview["classification"] == "BLOCKED"
+    assert "submission_history" in preview["reasons"]
+    attempted = new_uuid4()
+    with pytest.raises(SomaError) as blocked:
+        InventoryCorrectionsBulkService(factory).hard_delete_untouched_fault_tag(
+            command_id=attempted,
+            fault_tag_id=str(draft["fault_tag_id"]),
+            reviewed_revision=int(submitted["revision"]),
+            eligibility_fingerprint=str(preview["eligibility_fingerprint"]),
+            deliberate_confirmation=True,
+        )
+    assert blocked.value.code == "HARD_DELETE_BLOCKED"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tags WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_submission_snapshots "
+            "WHERE fault_tag_submission_snapshot_id=?",
+            (snapshot_id,),
+        ).fetchone()[0] == 1
