@@ -1433,3 +1433,124 @@ def test_t031_rma_authorization_never_fabricates_physical_spare_unit(
         ).fetchone()
         assert tuple(obligation) == ("not_established", None, None, 1)
 
+
+
+def test_spare_request_cancel_is_append_only_and_preserves_requester_identity(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        requester,
+        _receiver,
+        _location_id,
+        service,
+        created,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100019",
+        suffix="CANCEL",
+    )
+    request_id = str(created["spare_request_id"])
+    with ReadSnapshot(factory) as snapshot:
+        before_requester = snapshot.connection.execute(
+            "SELECT requester_contact_id,requester_context_json "
+            "FROM spare_requests WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        before_events = snapshot.connection.execute(
+            "SELECT request_event_id,event_kind FROM spare_request_lifecycle_events "
+            "WHERE spare_request_id=? ORDER BY recorded_at_utc,request_event_id",
+            (request_id,),
+        ).fetchall()
+    assert str(before_requester[0]) == requester.contact_id
+    assert [str(row[1]) for row in before_events] == ["created"]
+
+    result = service.cancel_or_reject_spare_request(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=int(created["revision"]),
+        terminal_state="cancelled",
+        reason_code="request no longer required",
+    )
+    assert result["state"] == "terminal"
+    assert result["revision"] == int(created["revision"]) + 1
+
+    with ReadSnapshot(factory) as snapshot:
+        after_requester = snapshot.connection.execute(
+            "SELECT requester_contact_id,requester_context_json "
+            "FROM spare_requests WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        assert tuple(after_requester) == tuple(before_requester)
+        events = snapshot.connection.execute(
+            "SELECT event_kind,reason_code FROM spare_request_lifecycle_events "
+            "WHERE spare_request_id=? ORDER BY recorded_at_utc,request_event_id",
+            (request_id,),
+        ).fetchall()
+        assert [str(row[0]) for row in events] == ["created", "cancelled"]
+        assert str(events[-1][1]) == "request no longer required"
+        assert snapshot.connection.execute(
+            "SELECT lifecycle_state,response_warning_start_utc "
+            "FROM spare_request_current_projection WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone() == ("cancelled", None)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_need_allocations "
+            "WHERE spare_request_id=? AND active_draft=1",
+            (request_id,),
+        ).fetchone()[0] == 0
+
+
+def test_spare_request_terminal_transition_is_blocked_after_rma_authority_exists(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _target_ids,
+        service,
+        request_id,
+    ) = _authorized_request_with_targets(
+        initialized_database,
+        official_sr="97100020",
+        suffix="TERMINAL-BLOCK",
+        target_count=1,
+        requested_quantity=1,
+        bom_code="BOM-TERMINAL-BLOCK",
+    )
+    authorized = service.accept_rma_authorization_batch(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_request_revision=3,
+        rows=(
+            RmaAuthorizationIntent(
+                c10="C0000005001",
+                promised_bom_code="BOM-TERMINAL-BLOCK",
+            ),
+        ),
+    )
+    assert len(authorized["created_rmas"]) == 1
+
+    attempted = new_uuid4()
+    with pytest.raises(SomaError) as blocked:
+        service.cancel_or_reject_spare_request(
+            command_id=attempted,
+            spare_request_id=request_id,
+            base_revision=4,
+            terminal_state="rejected",
+            reason_code="late provider rejection",
+        )
+    assert blocked.value.code == "REQUEST_SUBMISSION_INVALID"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT lifecycle_state FROM spare_request_current_projection "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()[0] == "authorized"
