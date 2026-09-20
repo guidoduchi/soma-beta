@@ -11,7 +11,10 @@ from soma.inventory.domain.consequences import (
     ExtractedSparePartIntent,
     PhysicalConsequenceIntent,
 )
-from soma.inventory.domain.fault_tags import FaultTagMembershipIntent
+from soma.inventory.domain.fault_tags import (
+    FaultTagMembershipIntent,
+    WarehouseMembershipTarget,
+)
 from soma.inventory.domain.logistics import LogisticsParticipants
 from soma.inventory.domain.requests import SpareRequestAllocationIntent
 from soma.inventory.domain.rmas import RmaAuthorizationIntent
@@ -1611,3 +1614,388 @@ def test_rs004_false_corrected_fault_tag_s2_freezes_only_changed_current_members
             "WHERE fault_tag_membership_id=?",
             (first_membership_id,),
         ).fetchone()[0] == "cancelled"
+
+
+def _submitted_fault_tag_for_rmas(factory, rma_ids: tuple[str, ...]):
+    service = InventoryFaultTagService(factory)
+    draft = service.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+        memberships=tuple(
+            FaultTagMembershipIntent(
+                rma_id=rma_id,
+                return_reason=f"return obligation {ordinal}",
+            )
+            for ordinal, rma_id in enumerate(rma_ids, start=1)
+        ),
+    )
+    submitted = service.accept_fault_tag_submission(
+        command_id=new_uuid4(),
+        fault_tag_id=str(draft["fault_tag_id"]),
+        base_revision=int(draft["revision"]),
+        expected_draft_fingerprint=str(draft["input_fingerprint"]),
+        effective_submission_at_utc=1_700_850_000,
+    )
+    return draft, submitted
+
+
+def _warehouse_target(member: dict[str, object]) -> WarehouseMembershipTarget:
+    return WarehouseMembershipTarget(
+        fault_tag_membership_id=str(member["fault_tag_membership_id"]),
+        revision=int(member["revision"]),
+    )
+
+
+def _current_warehouse_target(factory, membership_id: str) -> WarehouseMembershipTarget:
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT revision FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone()
+    assert row is not None
+    return WarehouseMembershipTarget(membership_id, int(row[0]))
+
+
+def test_t050_warehouse_receipt_advances_only_selected_members_and_keeps_obligations_open(
+    initialized_database,
+) -> None:
+    first = _open_return_obligation(
+        initialized_database,
+        official_sr="97200019",
+        suffix="T050-A",
+        promised_bom="BOM-T050-A",
+        c10_base=6100,
+    )
+    second = _open_return_obligation(
+        initialized_database,
+        official_sr="97200020",
+        suffix="T050-B",
+        promised_bom="BOM-T050-B",
+        c10_base=6200,
+    )
+    factory = first[0]
+    draft, submitted = _submitted_fault_tag_for_rmas(
+        factory,
+        (first[3], second[3]),
+    )
+    members = {str(item["rma_id"]): item for item in submitted["members"]}
+    service = InventoryFaultTagService(factory)
+    receipt = service.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=(_warehouse_target(members[first[3]]),),
+        effective_at_utc=1_700_851_000,
+    )
+    assert receipt.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        first_member = str(members[first[3]]["fault_tag_membership_id"])
+        second_member = str(members[second[3]]["fault_tag_membership_id"])
+        assert snapshot.connection.execute(
+            "SELECT state,active_submitted FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (first_member,),
+        ).fetchone() == ("warehouse_received", 1)
+        assert snapshot.connection.execute(
+            "SELECT state,active_submitted FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (second_member,),
+        ).fetchone() == ("submitted_awaiting_receipt", 1)
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (first[3],),
+        ).fetchone()[0] == "open"
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (second[3],),
+        ).fetchone()[0] == "open"
+        tag = snapshot.connection.execute(
+            "SELECT state,awaiting_receipt_count,awaiting_final_count "
+            "FROM fault_tag_current_projection WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()
+        assert tuple(tag) == ("in_warehouse_review", 1, 1)
+
+
+def test_t051_warehouse_acceptance_closes_exact_obligation_and_leaves_sibling_unchanged(
+    initialized_database,
+) -> None:
+    first = _open_return_obligation(
+        initialized_database,
+        official_sr="97200021",
+        suffix="T051-A",
+        promised_bom="BOM-T051-A",
+        c10_base=6300,
+    )
+    second = _open_return_obligation(
+        initialized_database,
+        official_sr="97200022",
+        suffix="T051-B",
+        promised_bom="BOM-T051-B",
+        c10_base=6400,
+    )
+    factory = first[0]
+    _draft, submitted = _submitted_fault_tag_for_rmas(
+        factory,
+        (first[3], second[3]),
+    )
+    members = {str(item["rma_id"]): item for item in submitted["members"]}
+    service = InventoryFaultTagService(factory)
+    first_id = str(members[first[3]]["fault_tag_membership_id"])
+    service.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=(_warehouse_target(members[first[3]]),),
+        effective_at_utc=1_700_852_000,
+    )
+    final = service.record_warehouse_final_decision(
+        command_id=new_uuid4(),
+        targets=(_current_warehouse_target(factory, first_id),),
+        decision="accepted",
+        explicit_confirmation=True,
+        effective_at_utc=1_700_852_100,
+    )
+    assert final.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,active_submitted FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (first_id,),
+        ).fetchone() == ("accepted", 0)
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (first[3],),
+        ).fetchone()[0] == "closed_accepted"
+        assert snapshot.connection.execute(
+            "SELECT state,return_obligation_open,active_fault_tag_membership_id "
+            "FROM rma_lifecycle_projection WHERE rma_id=?",
+            (first[3],),
+        ).fetchone() == ("closed_accepted", 0, None)
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (second[3],),
+        ).fetchone()[0] == "open"
+        assert snapshot.connection.execute(
+            "SELECT state FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (str(members[second[3]]["fault_tag_membership_id"]),),
+        ).fetchone()[0] == "submitted_awaiting_receipt"
+
+
+def test_t052_warehouse_rejection_preserves_open_obligation_and_surfaces_resend_attention(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200023",
+            suffix="T052",
+            promised_bom="BOM-T052",
+            c10_base=6500,
+        )
+    )
+    _draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    member = submitted["members"][0]
+    membership_id = str(member["fault_tag_membership_id"])
+    service = InventoryFaultTagService(factory)
+    service.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=(_warehouse_target(member),),
+        effective_at_utc=1_700_853_000,
+    )
+    service.record_warehouse_final_decision(
+        command_id=new_uuid4(),
+        targets=(_current_warehouse_target(factory, membership_id),),
+        decision="rejected",
+        explicit_confirmation=True,
+        reason_code="warehouse rejected returned unit",
+        effective_at_utc=1_700_853_100,
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,active_submitted FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone() == ("rejected", 0)
+        obligation = snapshot.connection.execute(
+            "SELECT obligation_state,revision FROM rma_return_obligation_current "
+            "WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert obligation[0] == "open"
+        assert int(obligation[1]) >= 3
+        assert snapshot.connection.execute(
+            "SELECT state,return_obligation_open,active_fault_tag_membership_id "
+            "FROM rma_lifecycle_projection WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone() == ("return_rejected", 1, None)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM inventory_attention_projection "
+            "WHERE target_kind='rma' AND target_id=? "
+            "AND attention_kind='warehouse_rejected_resend_required'",
+            (rma_id,),
+        ).fetchone()[0] == 1
+
+
+def test_t054_mixed_final_decisions_reduce_tag_terminal_with_rejected(
+    initialized_database,
+) -> None:
+    first = _open_return_obligation(
+        initialized_database,
+        official_sr="97200024",
+        suffix="T054-A",
+        promised_bom="BOM-T054-A",
+        c10_base=6600,
+    )
+    second = _open_return_obligation(
+        initialized_database,
+        official_sr="97200025",
+        suffix="T054-B",
+        promised_bom="BOM-T054-B",
+        c10_base=6700,
+    )
+    factory = first[0]
+    draft, submitted = _submitted_fault_tag_for_rmas(
+        factory,
+        (first[3], second[3]),
+    )
+    members = {str(item["rma_id"]): item for item in submitted["members"]}
+    service = InventoryFaultTagService(factory)
+    service.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=tuple(_warehouse_target(item) for item in submitted["members"]),
+        effective_at_utc=1_700_854_000,
+    )
+    service.record_warehouse_final_decision(
+        command_id=new_uuid4(),
+        targets=(
+            _current_warehouse_target(
+                factory,
+                str(members[first[3]]["fault_tag_membership_id"]),
+            ),
+        ),
+        decision="accepted",
+        explicit_confirmation=True,
+        effective_at_utc=1_700_854_100,
+    )
+    service.record_warehouse_final_decision(
+        command_id=new_uuid4(),
+        targets=(
+            _current_warehouse_target(
+                factory,
+                str(members[second[3]]["fault_tag_membership_id"]),
+            ),
+        ),
+        decision="rejected",
+        explicit_confirmation=True,
+        reason_code="warehouse rejected second unit",
+        effective_at_utc=1_700_854_200,
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        tag = snapshot.connection.execute(
+            "SELECT state,awaiting_receipt_count,awaiting_final_count,"
+            "accepted_count,rejected_count FROM fault_tag_current_projection "
+            "WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()
+        assert tuple(tag) == ("terminal_with_rejected", 0, 0, 1, 1)
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (first[3],),
+        ).fetchone()[0] == "closed_accepted"
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (second[3],),
+        ).fetchone()[0] == "open"
+
+
+def test_t055_warehouse_final_proposal_without_explicit_confirmation_cannot_mutate_inventory(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200026",
+            suffix="T055",
+            promised_bom="BOM-T055",
+            c10_base=6800,
+        )
+    )
+    _draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    member = submitted["members"][0]
+    membership_id = str(member["fault_tag_membership_id"])
+    service = InventoryFaultTagService(factory)
+    service.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=(_warehouse_target(member),),
+        effective_at_utc=1_700_855_000,
+    )
+    attempted = new_uuid4()
+    target = _current_warehouse_target(factory, membership_id)
+    with pytest.raises(SomaError) as confirmation:
+        service.record_warehouse_final_decision(
+            command_id=attempted,
+            targets=(target,),
+            decision="accepted",
+            explicit_confirmation=False,
+            effective_at_utc=1_700_855_100,
+        )
+    assert confirmation.value.code == "WAREHOUSE_FINAL_CONFIRMATION_REQUIRED"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT state,revision FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone() == ("warehouse_received", target.revision)
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()[0] == "open"
+
+
+def test_t056_manual_warehouse_receipt_and_final_decision_require_no_uploaded_evidence(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200027",
+            suffix="T056",
+            promised_bom="BOM-T056",
+            c10_base=6900,
+        )
+    )
+    _draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    member = submitted["members"][0]
+    membership_id = str(member["fault_tag_membership_id"])
+    service = InventoryFaultTagService(factory)
+    received = service.record_warehouse_receipt(
+        command_id=new_uuid4(),
+        targets=(_warehouse_target(member),),
+        effective_at_utc=None,
+        evidence_kind=None,
+        evidence_id=None,
+    )
+    assert received.outcome == "APPLIED"
+    accepted = service.record_warehouse_final_decision(
+        command_id=new_uuid4(),
+        targets=(_current_warehouse_target(factory, membership_id),),
+        decision="accepted",
+        explicit_confirmation=True,
+        effective_at_utc=None,
+        evidence_kind=None,
+        evidence_id=None,
+    )
+    assert accepted.outcome == "APPLIED"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()[0] == "closed_accepted"
