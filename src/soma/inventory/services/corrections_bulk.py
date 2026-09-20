@@ -178,6 +178,7 @@ class InventoryCorrectionsBulkService:
                         evidence_id=None,
                         command_id=command_id,
                         force_batch=True,
+                        requested_batch_id=batch_id,
                     )
                     audit_kind = "RECEIVED"
                     final_confirmation = False
