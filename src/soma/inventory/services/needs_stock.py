@@ -426,13 +426,17 @@ class InventoryNeedsStockService:
             if row is None or int(row[2]) != base_revision:
                 raise SomaError("INV_STALE", "Spare Need revision changed")
             service_request_id = str(row[0])
-            if str(row[1]) == target_state:
-                return PreparedMutation(
-                    no_change=True,
-                    result_type=None,
-                    result_id=None,
-                    response_schema="InventoryMutationResultV1",
-                    response=self._response([], {}, outcome="NO_CHANGE"),
+            current_state = str(row[1])
+            allowed_actions = {
+                "active": {"resolve", "cancel"},
+                "resolved": {"reactivate", "history_remove"},
+                "cancelled": {"reactivate", "history_remove"},
+                "removed": set(),
+            }
+            if action not in allowed_actions.get(current_state, set()):
+                raise SomaError(
+                    "INV_STALE",
+                    "Spare Need lifecycle action is incompatible with current state",
                 )
 
             def apply(inner: UnitOfWork):
