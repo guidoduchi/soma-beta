@@ -6,6 +6,8 @@ from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.strict_json import sha256_canonical_json
 
+from .projections import InventoryProjectionsRepository
+
 
 class InventoryFaultTagsRepository:
     @staticmethod
@@ -1372,6 +1374,11 @@ class InventoryFaultTagsRepository:
                 obligation_open=1,
                 command_id=command_id,
             )
+            InventoryProjectionsRepository.rebuild_fault_tag_membership_attention(
+                connection,
+                membership_id=membership_id,
+                command_id=command_id,
+            )
             affected_tags.add(str(row[1]))
             results.append(
                 {
@@ -1524,6 +1531,11 @@ class InventoryFaultTagsRepository:
                     obligation_open=1,
                     command_id=command_id,
                 )
+            InventoryProjectionsRepository.rebuild_fault_tag_membership_attention(
+                connection,
+                membership_id=membership_id,
+                command_id=command_id,
+            )
             affected_tags.add(str(row[1]))
             results.append(
                 {
@@ -1811,6 +1823,23 @@ class InventoryFaultTagsRepository:
                 command_id,
             ),
         )
+        if relation_type == "resend_of":
+            for rma_id, _return_reason in memberships:
+                predecessor_member = connection.execute(
+                    "SELECT fault_tag_membership_id FROM fault_tag_membership_current "
+                    "WHERE fault_tag_id=? AND rma_id=? AND state='rejected' "
+                    "AND active_submitted=0",
+                    (predecessor_fault_tag_id, rma_id),
+                ).fetchone()
+                if predecessor_member is None:
+                    raise IntegrityFailure(
+                        "Rejected predecessor membership disappeared during resend"
+                    )
+                InventoryProjectionsRepository.rebuild_fault_tag_membership_attention(
+                    connection,
+                    membership_id=str(predecessor_member[0]),
+                    command_id=command_id,
+                )
         return lineage_id, tracking_id, membership_ids, revision
 
     @classmethod

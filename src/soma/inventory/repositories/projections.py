@@ -17,6 +17,226 @@ class InventoryProjectionsRepository:
         self._units = InventoryUnitsRepository()
 
     @staticmethod
+    def _attention_identity(
+        *,
+        target_kind: str,
+        target_id: str,
+        attention_kind: str,
+    ) -> str:
+        return sha256_canonical_json(
+            {
+                "schema": "SOMA_INVENTORY_ATTENTION_KEY_V1",
+                "target_kind": target_kind,
+                "target_id": target_id,
+                "attention_kind": attention_kind,
+            }
+        )
+
+    @classmethod
+    def _set_attention(
+        cls,
+        connection: Any,
+        *,
+        target_kind: str,
+        target_id: str,
+        attention_kind: str,
+        severity: str,
+        condition: dict[str, object],
+        active: bool,
+        command_id: str,
+    ) -> None:
+        attention_id = cls._attention_identity(
+            target_kind=target_kind,
+            target_id=target_id,
+            attention_kind=attention_kind,
+        )
+        if not active:
+            connection.execute(
+                "DELETE FROM inventory_attention_projection WHERE attention_id=?",
+                (attention_id,),
+            )
+            return
+        input_fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_INVENTORY_ATTENTION_CONDITION_V1",
+                "attention_id": attention_id,
+                "severity": severity,
+                "condition": condition,
+            }
+        )
+        connection.execute(
+            "INSERT INTO inventory_attention_projection("
+            "attention_id,target_kind,target_id,attention_kind,severity,"
+            "input_fingerprint,last_command_id"
+            ") VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(attention_id) DO UPDATE SET "
+            "target_kind=excluded.target_kind,target_id=excluded.target_id,"
+            "attention_kind=excluded.attention_kind,severity=excluded.severity,"
+            "input_fingerprint=excluded.input_fingerprint,"
+            "last_command_id=excluded.last_command_id",
+            (
+                attention_id,
+                target_kind,
+                target_id,
+                attention_kind,
+                severity,
+                input_fingerprint,
+                command_id,
+            ),
+        )
+
+    @classmethod
+    def rebuild_request_attention(
+        cls,
+        connection: Any,
+        *,
+        spare_request_id: str,
+        command_id: str,
+    ) -> None:
+        row = connection.execute(
+            "SELECT lifecycle_state,submitted_quantity,authorized_rma_count,revision "
+            "FROM spare_request_current_projection WHERE spare_request_id=?",
+            (spare_request_id,),
+        ).fetchone()
+        if row is None:
+            raise IntegrityFailure("Spare Request attention target disappeared")
+        cls._set_attention(
+            connection,
+            target_kind="spare_request",
+            target_id=spare_request_id,
+            attention_kind="partial_rma_authorization",
+            severity="action_required",
+            condition={
+                "lifecycle_state": str(row[0]),
+                "submitted_quantity": int(row[1]),
+                "authorized_rma_count": int(row[2]),
+                "remaining_quantity": max(int(row[1]) - int(row[2]), 0),
+                "revision": int(row[3]),
+            },
+            active=str(row[0]) == "partially_authorized",
+            command_id=command_id,
+        )
+
+    @classmethod
+    def rebuild_rma_attention(
+        cls,
+        connection: Any,
+        *,
+        rma_id: str,
+        command_id: str,
+    ) -> None:
+        row = connection.execute(
+            "SELECT r.promised_bom_code,p.state,p.revision,a.device_part_unit_id,"
+            "o.obligation_state,o.revision "
+            "FROM rmas r JOIN rma_lifecycle_projection p ON p.rma_id=r.rma_id "
+            "JOIN rma_return_obligation_current o ON o.rma_id=r.rma_id "
+            "LEFT JOIN rma_current_assignment a ON a.rma_id=r.rma_id "
+            "WHERE r.rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        if row is None:
+            raise IntegrityFailure("RMA attention target disappeared")
+        state = str(row[1])
+        cls._set_attention(
+            connection,
+            target_kind="rma",
+            target_id=rma_id,
+            attention_kind="rma_assignment_conflict",
+            severity="action_required",
+            condition={
+                "rma_state": state,
+                "promised_bom_code": str(row[0]),
+                "assignment_present": row[3] is not None,
+                "revision": int(row[2]),
+            },
+            active=row[3] is None and state != "closed_accepted",
+            command_id=command_id,
+        )
+        obligation_state = str(row[4])
+        cls._set_attention(
+            connection,
+            target_kind="rma",
+            target_id=rma_id,
+            attention_kind="return_obligation_open",
+            severity="action_required",
+            condition={
+                "rma_state": state,
+                "obligation_state": obligation_state,
+                "obligation_revision": int(row[5]),
+                "rma_revision": int(row[2]),
+            },
+            active=obligation_state == "open",
+            command_id=command_id,
+        )
+
+    @classmethod
+    def rebuild_fault_tag_membership_attention(
+        cls,
+        connection: Any,
+        *,
+        membership_id: str,
+        command_id: str,
+    ) -> None:
+        row = connection.execute(
+            "SELECT c.fault_tag_id,c.rma_id,c.state,c.revision,"
+            "p.archived,p.revision,o.obligation_state "
+            "FROM fault_tag_membership_current c "
+            "JOIN fault_tag_current_projection p ON p.fault_tag_id=c.fault_tag_id "
+            "JOIN rma_return_obligation_current o ON o.rma_id=c.rma_id "
+            "WHERE c.fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone()
+        if row is None:
+            raise IntegrityFailure("Fault Tag membership attention target disappeared")
+        fault_tag_id = str(row[0])
+        rma_id = str(row[1])
+        state = str(row[2])
+        obligation_state = str(row[6])
+        resend = connection.execute(
+            "SELECT 1 FROM fault_tag_lineage l "
+            "JOIN fault_tag_memberships m ON m.fault_tag_id=l.successor_fault_tag_id "
+            "WHERE l.predecessor_fault_tag_id=? AND l.relation_type='resend_of' "
+            "AND m.rma_id=? LIMIT 1",
+            (fault_tag_id, rma_id),
+        ).fetchone()
+        condition = {
+            "fault_tag_id": fault_tag_id,
+            "rma_id": rma_id,
+            "membership_state": state,
+            "membership_revision": int(row[3]),
+            "fault_tag_archived": bool(int(row[4])),
+            "fault_tag_revision": int(row[5]),
+            "obligation_state": obligation_state,
+        }
+        cls._set_attention(
+            connection,
+            target_kind="fault_tag_membership",
+            target_id=membership_id,
+            attention_kind="warehouse_final_decision_pending",
+            severity="action_required",
+            condition=condition,
+            active=state == "warehouse_received",
+            command_id=command_id,
+        )
+        cls._set_attention(
+            connection,
+            target_kind="fault_tag_membership",
+            target_id=membership_id,
+            attention_kind="warehouse_rejected_resend_required",
+            severity="action_required",
+            condition={**condition, "resend_successor_exists": resend is not None},
+            active=state == "rejected"
+            and obligation_state == "open"
+            and resend is None,
+            command_id=command_id,
+        )
+        cls.rebuild_rma_attention(
+            connection,
+            rma_id=rma_id,
+            command_id=command_id,
+        )
+
+    @staticmethod
     def require_no_current_task_consequence(connection: Any, task_id: str) -> None:
         if connection.execute(
             "SELECT 1 FROM inventory_physical_consequences c "
@@ -479,6 +699,11 @@ class InventoryProjectionsRepository:
             )
             if updated.rowcount != 1:
                 raise SomaError("INV_STALE", "RMA lifecycle changed during return selection")
+            self.rebuild_rma_attention(
+                connection,
+                rma_id=rma_id,
+                command_id=command_id,
+            )
 
         return {
             "consequence_event_id": event_id,
@@ -715,6 +940,11 @@ class InventoryProjectionsRepository:
             )
             if updated.rowcount != 1:
                 raise SomaError("INV_STALE", "Return obligation changed during correction")
+            cls.rebuild_rma_attention(
+                connection,
+                rma_id=rma_id,
+                command_id=command_id,
+            )
 
         return {
             "consequence_event_id": consequence_event_id,

@@ -25,6 +25,7 @@ from ..domain.requests import (
 )
 from ..repositories.requests import InventoryRequestsRepository
 from ..repositories.rmas import InventoryRmasRepository
+from ..repositories.projections import InventoryProjectionsRepository
 from ..domain.needs import validate_reason_code
 from ..domain.rmas import (
     RmaAuthorizationIntent,
@@ -63,6 +64,7 @@ class InventoryRequestsRmaService:
         self._factory = connection_factory
         self._repository = InventoryRequestsRepository()
         self._rmas = InventoryRmasRepository()
+        self._projections = InventoryProjectionsRepository()
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_inventory_audit_registry()),
@@ -946,6 +948,17 @@ class InventoryRequestsRmaService:
                 apply.created = created
                 apply.request_revision = resulting_revision
                 apply.remaining = remaining
+                self._projections.rebuild_request_attention(
+                    inner.connection,
+                    spare_request_id=request_id,
+                    command_id=command_id,
+                )
+                for attention_item in created:
+                    self._projections.rebuild_rma_attention(
+                        inner.connection,
+                        rma_id=str(attention_item["rma_id"]),
+                        command_id=command_id,
+                    )
                 audits: list[AuditEventInput] = []
                 for item in created:
                     refs = [AuditResultRef("rma", str(item["rma_id"]))]
@@ -1179,6 +1192,11 @@ class InventoryRequestsRmaService:
                 apply.event_id = event_id
                 apply.lifecycle_revision = lifecycle_revision
                 apply.assignment_revision = assignment_revision
+                self._projections.rebuild_rma_attention(
+                    inner.connection,
+                    rma_id=identity,
+                    command_id=command_id,
+                )
                 event_kind = (
                     "CLEAR"
                     if target_id is None
