@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -168,6 +169,17 @@ def _canonicalize_xlsx_archive(path: Path) -> None:
         ) as writer:
             for name in sorted(reader.namelist()):
                 data = reader.read(name)
+                if name == "docProps/core.xml":
+                    data, replacements = re.subn(
+                        rb"(<dcterms:modified\\b[^>]*>)[^<]*(</dcterms:modified>)",
+                        rb"\\g<1>1980-01-01T00:00:00Z\\g<2>",
+                        data,
+                        count=1,
+                    )
+                    if replacements != 1:
+                        raise IntegrityFailure(
+                            "report workbook core properties lack deterministic modified timestamp"
+                        )
                 info = zipfile.ZipInfo(filename=name, date_time=_FIXED_ZIP_TIME)
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.create_system = 0
