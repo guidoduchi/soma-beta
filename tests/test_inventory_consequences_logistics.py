@@ -24,11 +24,16 @@ from soma.inventory.services.consequences_logistics import (
 from soma.inventory.services.corrections_bulk import InventoryCorrectionsBulkService
 from soma.inventory.services.fault_tags import InventoryFaultTagService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
-from soma.inventory.services.participants import InventoryTaskDependencyProvider
+from soma.inventory.services.hard_delete import InventoryHardDeleteService
+from soma.inventory.services.participants import (
+    InventoryProposalTargetService,
+    InventoryTaskDependencyProvider,
+)
 from soma.inventory.services.requests_rma import InventoryRequestsRmaService
 from soma.inventory.queries.attention_history import InventoryAttentionQueryService
 from soma.inventory.queries.fault_tags import FaultTagQueryService
 from soma.inventory.queries.requests_rma import InventoryRequestsQueryService
+from soma.inventory.queries.stock_needs import InventoryNeedsQueryService
 from soma.inventory.queries.previews import (
     InventoryBulkPreviewTarget,
     InventoryPreviewsQueryService,
@@ -3397,3 +3402,261 @@ def test_generic_inventory_correction_reinterprets_physical_consequence_append_o
             "inventory.evidence.corrected",
             "inventory.task_physical_consequence.accepted_or_corrected",
         }
+
+
+def test_inventory_query_closure_need_request_rma_and_history_surfaces(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_ids = _rma_ready(
+        initialized_database,
+        official_sr="97200041",
+        suffix="QUERY-CLOSURE",
+        count=1,
+        promised_bom="BOM-QUERY-CLOSURE",
+        c10_base=7900,
+    )
+    rma_id = rma_ids[0]
+    rma = InventoryRequestsQueryService(factory).get_rma(rma_id)
+    request_id = str(rma["spare_request_id"])
+
+    requests = InventoryRequestsQueryService(factory)
+    page = requests.list_spare_requests(
+        service_request_id=None,
+        lifecycle_state="authorized",
+        limit=50,
+    )
+    request_row = next(
+        item for item in page.items if item["spare_request_id"] == request_id
+    )
+    assert request_row["requester_contact_id"]
+    assert request_row["rma_count"] == 1
+    assert request_row["submitted_quantity"] == 1
+
+    detail = requests.spare_request_detail(request_id)
+    assert detail["spare_request_id"] == request_id
+    assert len(detail["submission_snapshots"]) == 1
+    assert detail["submission_snapshots"][0]["historical"] is True
+    assert len(detail["rmas"]) == 1
+    assert detail["rmas"][0]["rma_id"] == rma_id
+
+    needs = InventoryNeedsQueryService(factory).inventory_needs(
+        service_request_id=str(detail["rmas"][0]["service_request_id"])
+        if "service_request_id" in detail["rmas"][0]
+        else None,
+        bom_code="BOM-QUERY-CLOSURE",
+        limit=50,
+    )
+    assert needs.exact_total == 1
+    assert needs.items[0]["planned_quantity"] == 1
+    assert needs.items[0]["request_count"] == 1
+    assert needs.items[0]["request_allocation_quantity"] == 1
+
+    assert rma["identifier_aliases"]
+    assert rma["identifier_aliases"][0]["c10"].startswith("C")
+    assert rma["promised_bom_code"] == "BOM-QUERY-CLOSURE"
+
+    history = InventoryAttentionQueryService(factory).history(
+        target_kind="rma",
+        target_id=rma_id,
+        limit=100,
+    )
+    assert history.items
+    assert any(item["authority"] == "rma_identifier" for item in history.items)
+    assert any(item["authority"] == "application_audit" for item in history.items)
+
+
+def test_fault_tag_query_closure_eligibility_list_and_warehouse_queue(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200042",
+            suffix="QUERY-FT",
+            promised_bom="BOM-QUERY-FT",
+            c10_base=8000,
+        )
+    )
+    queries = FaultTagQueryService(factory)
+    eligible = queries.eligible_memberships(
+        rma_id=rma_id,
+        limit=50,
+    )
+    assert eligible["exact_total"] == 1
+    assert eligible["items"][0]["eligible"] is True
+    assert eligible["items"][0]["conflict_reason"] is None
+
+    draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    tag_id = str(draft["fault_tag_id"])
+    listed = queries.list_fault_tags(
+        state="submitted",
+        attention_required=True,
+        limit=50,
+    )
+    tag = next(item for item in listed["items"] if item["fault_tag_id"] == tag_id)
+    assert tag["tracking_id"].startswith("FT-")
+    assert tag["awaiting_receipt_count"] == 1
+    assert tag["open_obligation_count"] == 1
+
+    queue = queries.warehouse_queue(
+        queue_state="awaiting_receipt",
+        limit=50,
+    )
+    queued = next(
+        item for item in queue["items"] if item["fault_tag_id"] == tag_id
+    )
+    assert queued["rma_id"] == rma_id
+    assert queued["state"] == "submitted_awaiting_receipt"
+    assert queued["governed_actions"] == ["record_warehouse_receipt"]
+
+    conflict = queries.eligible_memberships(
+        rma_id=rma_id,
+        limit=50,
+    )
+    assert conflict["items"][0]["eligible"] is False
+    assert (
+        conflict["items"][0]["conflict_reason"]
+        == "active_submitted_fault_tag_membership"
+    )
+    assert (
+        conflict["items"][0]["active_submitted_membership"][
+            "fault_tag_membership_id"
+        ]
+        == submitted["members"][0]["fault_tag_membership_id"]
+    )
+
+
+def test_inventory_proposal_target_participant_uses_outer_uow_without_nested_receipt(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200043",
+            suffix="PROPOSAL-PARTICIPANT",
+            promised_bom="BOM-PROPOSAL-PARTICIPANT",
+            c10_base=8100,
+        )
+    )
+    _draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    member = submitted["members"][0]
+    target = {
+        "target_kind": "fault_tag_membership",
+        "target_id": str(member["fault_tag_membership_id"]),
+        "expected_revision": int(member["revision"]),
+        "proposed_action": "warehouse_received",
+        "payload": {
+            "schema": "INVENTORY_PROPOSAL_TARGET_V1",
+            "effective_at_utc": 1_700_930_000,
+        },
+    }
+    provider = InventoryProposalTargetService()
+    evidence = {
+        "evidence_kind": "communication_proposal",
+        "evidence_id": "proposal-evidence-closure-001",
+    }
+    with ReadSnapshot(factory) as snapshot:
+        preview = provider.preview(
+            snapshot,
+            "warehouse_received",
+            (target,),
+            evidence,
+            risk_tier="normal",
+            explicit_confirmation=False,
+        )
+        assert (
+            provider.base_token(
+                snapshot,
+                "warehouse_received",
+                (target,),
+            )
+            == preview["base_token"]
+        )
+
+    outer_command_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        before_receipts = int(
+            uow.connection.execute(
+                "SELECT COUNT(*) FROM command_receipts"
+            ).fetchone()[0]
+        )
+        uow.connection.execute(
+            "INSERT INTO command_receipts("
+            "command_id,command_type,request_hash,target_type,target_id,"
+            "committed_at_utc,result_type,result_id"
+            ") VALUES (?,?,?,?,?,?,?,?)",
+            (
+                outer_command_id,
+                "AcceptCommunicationProposal",
+                "f" * 64,
+                "communication_proposal",
+                None,
+                utc_epoch_seconds(),
+                None,
+                None,
+            ),
+        )
+        refs = provider.apply(
+            uow,
+            preview,
+            {
+                "command_id": outer_command_id,
+                "actor_kind": "local_user",
+                "actor_id": None,
+            },
+        )
+        assert any(ref["type"] == "inventory_batch" for ref in refs)
+        assert any(
+            ref["type"] == "fault_tag_membership_event" for ref in refs
+        )
+        after_receipts = int(
+            uow.connection.execute(
+                "SELECT COUNT(*) FROM command_receipts"
+            ).fetchone()[0]
+        )
+        assert after_receipts == before_receipts + 1
+
+    with ReadSnapshot(factory) as snapshot:
+        current = snapshot.connection.execute(
+            "SELECT state,revision,last_command_id "
+            "FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (member["fault_tag_membership_id"],),
+        ).fetchone()
+        assert current[0] == "warehouse_received"
+        assert int(current[1]) == int(member["revision"]) + 1
+        assert current[2] == outer_command_id
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (outer_command_id,),
+        ).fetchone()[0] == 1
+
+
+def test_normative_hard_delete_owner_deletes_clear_fault_tag_draft(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    draft = InventoryFaultTagService(factory).create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+    )
+    preview = InventoryPreviewsQueryService(factory).preview_hard_delete(
+        target_kind="fault_tag",
+        target_id=str(draft["fault_tag_id"]),
+    )
+    result = InventoryHardDeleteService(
+        factory
+    ).hard_delete_untouched_inventory_draft(
+        command_id=new_uuid4(),
+        target_kind="fault_tag",
+        target_id=str(draft["fault_tag_id"]),
+        reviewed_revision=int(preview["reviewed_revision"]),
+        eligibility_fingerprint=str(preview["eligibility_fingerprint"]),
+        deliberate_confirmation=True,
+    )
+    assert result.outcome == "APPLIED"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tags WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()[0] == 0
