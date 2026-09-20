@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
@@ -497,3 +497,297 @@ class TaskHardDeleteQueryService:
             if task.revision != base_revision:
                 raise SomaError("HARD_DELETE_BLOCKED", "Task revision changed; refresh the Task before preview")
             return self.evaluate(snapshot, task=task)
+
+
+
+@dataclass(frozen=True, slots=True)
+class ObjectiveHardDeletePreview:
+    status: str
+    objective_id: str
+    objective_revision: int
+    eligibility_fingerprint: str
+    blockers: tuple[str, ...]
+    member_task_ids: tuple[str, ...]
+    membership_event_ids: tuple[str, ...]
+    created_command_id: str
+    tracking_id: str
+
+    @property
+    def eligible(self) -> bool:
+        return self.status == "ELIGIBLE"
+
+    def to_response(self) -> dict[str, object]:
+        return {
+            "eligible": self.eligible,
+            "fingerprint": self.eligibility_fingerprint,
+            "blockers": list(self.blockers),
+        }
+
+
+class ObjectiveHardDeleteQueryService:
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
+
+    @staticmethod
+    def evaluate_hard_delete(
+        connection: Any,
+        objective_id: str,
+    ) -> ObjectiveHardDeletePreview:
+        identity = require_uuid4(objective_id)
+        row = connection.execute(
+            "SELECT objective_id,tracking_id,creation_origin,superseded_by_objective_id,"
+            "revision,created_command_id FROM objectives WHERE objective_id=?",
+            (identity,),
+        ).fetchone()
+        if row is None:
+            raise SomaError("OBJECTIVE_NOT_FOUND", "Objective does not exist")
+
+        tracking_id = str(row[1])
+        creation_origin = str(row[2])
+        superseded_by = None if row[3] is None else str(row[3])
+        revision = int(row[4])
+        created_command_id = str(row[5])
+        blockers: list[str] = []
+
+        def block(code: str, condition: bool) -> None:
+            if condition:
+                blockers.append(code)
+
+        block("OBJECTIVE_CREATION_NOT_MANUAL", creation_origin != "manual")
+        block("OBJECTIVE_SUPERSEDED", superseded_by is not None)
+        block("OBJECTIVE_REVISION_NOT_INITIAL", revision != 1)
+
+        receipt = connection.execute(
+            "SELECT command_type,target_type,target_id FROM command_receipts WHERE command_id=?",
+            (created_command_id,),
+        ).fetchone()
+        block(
+            "OBJECTIVE_CREATION_RECEIPT_INVALID",
+            receipt is None
+            or str(receipt[0]) != "CreateObjectiveFromPreview"
+            or str(receipt[1]) != "objective"
+            or (receipt[2] is not None and str(receipt[2]) != identity),
+        )
+
+        objective_audits = connection.execute(
+            "SELECT action_type,command_id FROM audit_events "
+            "WHERE target_type='objective' AND target_id=? ORDER BY audit_event_id",
+            (identity,),
+        ).fetchall()
+        block(
+            "OBJECTIVE_AUDIT_HISTORY_PRESENT",
+            len(objective_audits) != 1
+            or str(objective_audits[0][0]) != "objective.created"
+            or str(objective_audits[0][1]) != created_command_id,
+        )
+
+        archive = connection.execute(
+            "SELECT archived,revision,last_event_id FROM objective_archive_projection "
+            "WHERE objective_id=?",
+            (identity,),
+        ).fetchone()
+        block(
+            "OBJECTIVE_ARCHIVE_HISTORY_PRESENT",
+            archive is None
+            or int(archive[0]) != 0
+            or int(archive[1]) != 1
+            or archive[2] is not None
+            or connection.execute(
+                "SELECT 1 FROM objective_archive_events WHERE objective_id=? LIMIT 1",
+                (identity,),
+            ).fetchone()
+            is not None,
+        )
+        block(
+            "OBJECTIVE_REVIEW_HISTORY_PRESENT",
+            connection.execute(
+                "SELECT 1 FROM objective_review_events WHERE objective_id=? LIMIT 1",
+                (identity,),
+            ).fetchone()
+            is not None,
+        )
+
+        envelope = connection.execute(
+            "SELECT start_utc,end_utc,member_count,membership_input_fingerprint,revision "
+            "FROM objective_envelope_projection WHERE objective_id=?",
+            (identity,),
+        ).fetchone()
+        aggregate = connection.execute(
+            "SELECT execution_state,aggregate_outcome,actual_start_utc,actual_end_utc,"
+            "attention_reason,revision FROM objective_aggregate_projection WHERE objective_id=?",
+            (identity,),
+        ).fetchone()
+        block(
+            "OBJECTIVE_PROJECTION_HISTORY_PRESENT",
+            envelope is None
+            or aggregate is None
+            or int(envelope[4]) != 1
+            or int(aggregate[5]) != 1
+            or str(aggregate[0]) != "planned"
+            or aggregate[1] is not None
+            or aggregate[2] is not None
+            or aggregate[3] is not None
+            or aggregate[4] is not None,
+        )
+
+        members = connection.execute(
+            "SELECT task_id,accepted_plan_revision_id,membership_revision,last_event_id,last_command_id "
+            "FROM objective_task_membership_current WHERE objective_id=? ORDER BY task_id",
+            (identity,),
+        ).fetchall()
+        block("OBJECTIVE_EMPTY", not members)
+        if envelope is not None:
+            block("OBJECTIVE_MEMBER_COUNT_CHANGED", int(envelope[2]) != len(members))
+
+        member_task_ids = tuple(str(member[0]) for member in members)
+        current_event_ids = tuple(str(member[3]) for member in members)
+        event_rows = connection.execute(
+            "SELECT membership_event_id,task_id,event_kind,from_objective_id,to_objective_id,"
+            "accepted_plan_revision_id,grouping_proposal_id,command_id "
+            "FROM objective_membership_events "
+            "WHERE from_objective_id=? OR to_objective_id=? "
+            "ORDER BY task_id,membership_event_id",
+            (identity, identity),
+        ).fetchall()
+
+        baseline_event_ids: list[str] = []
+        baseline_by_task: dict[str, tuple[str, str]] = {}
+        invalid_membership_history = False
+        for event in event_rows:
+            event_id = str(event[0])
+            task_id = str(event[1])
+            if (
+                str(event[2]) != "add"
+                or event[3] is not None
+                or event[4] is None
+                or str(event[4]) != identity
+                or event[6] is not None
+                or str(event[7]) != created_command_id
+                or task_id in baseline_by_task
+            ):
+                invalid_membership_history = True
+                continue
+            baseline_by_task[task_id] = (event_id, str(event[5]))
+            baseline_event_ids.append(event_id)
+
+        if len(event_rows) != len(members):
+            invalid_membership_history = True
+        for member in members:
+            task_id = str(member[0])
+            baseline = baseline_by_task.get(task_id)
+            if (
+                baseline is None
+                or int(member[2]) != 1
+                or str(member[3]) != baseline[0]
+                or str(member[1]) != baseline[1]
+                or str(member[4]) != created_command_id
+            ):
+                invalid_membership_history = True
+                break
+        block("OBJECTIVE_MEMBERSHIP_HISTORY_PRESENT", invalid_membership_history)
+
+        if member_task_ids:
+            placeholders = ",".join("?" for _ in member_task_ids)
+            protected = connection.execute(
+                "SELECT 1 FROM task_execution_events WHERE task_id IN (" + placeholders + ") LIMIT 1",
+                member_task_ids,
+            ).fetchone()
+            if protected is None:
+                protected = connection.execute(
+                    "SELECT 1 FROM task_outcome_events WHERE task_id IN (" + placeholders + ") LIMIT 1",
+                    member_task_ids,
+                ).fetchone()
+            block("OBJECTIVE_MEMBER_EXECUTION_OR_OUTCOME_HISTORY_PRESENT", protected is not None)
+
+        block(
+            "OBJECTIVE_REGROUP_HISTORY_PRESENT",
+            connection.execute(
+                "SELECT 1 FROM regroup_proposal_objective_changes WHERE objective_id=? LIMIT 1",
+                (identity,),
+            ).fetchone()
+            is not None
+            or connection.execute(
+                "SELECT 1 FROM regroup_proposal_task_changes "
+                "WHERE from_objective_id=? OR to_objective_id=? LIMIT 1",
+                (identity, identity),
+            ).fetchone()
+            is not None,
+        )
+
+        blocker_tuple = tuple(sorted(set(blockers)))
+        status = "ELIGIBLE" if not blocker_tuple else "BLOCKED"
+        fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_OBJECTIVE_HARD_DELETE_ELIGIBILITY_V1",
+                "objective": {
+                    "objective_id": identity,
+                    "tracking_id": tracking_id,
+                    "creation_origin": creation_origin,
+                    "superseded_by_objective_id": superseded_by,
+                    "revision": revision,
+                    "created_command_id": created_command_id,
+                },
+                "members": [
+                    {
+                        "task_id": str(member[0]),
+                        "accepted_plan_revision_id": str(member[1]),
+                        "membership_revision": int(member[2]),
+                        "last_event_id": str(member[3]),
+                        "last_command_id": str(member[4]),
+                    }
+                    for member in members
+                ],
+                "membership_event_ids": sorted(baseline_event_ids),
+                "envelope": None
+                if envelope is None
+                else {
+                    "start_utc": int(envelope[0]),
+                    "end_utc": int(envelope[1]),
+                    "member_count": int(envelope[2]),
+                    "membership_input_fingerprint": str(envelope[3]),
+                    "revision": int(envelope[4]),
+                },
+                "aggregate": None
+                if aggregate is None
+                else {
+                    "execution_state": str(aggregate[0]),
+                    "aggregate_outcome": None if aggregate[1] is None else str(aggregate[1]),
+                    "actual_start_utc": None if aggregate[2] is None else int(aggregate[2]),
+                    "actual_end_utc": None if aggregate[3] is None else int(aggregate[3]),
+                    "attention_reason": None if aggregate[4] is None else str(aggregate[4]),
+                    "revision": int(aggregate[5]),
+                },
+                "status": status,
+                "blockers": list(blocker_tuple),
+            }
+        )
+        return ObjectiveHardDeletePreview(
+            status=status,
+            objective_id=identity,
+            objective_revision=revision,
+            eligibility_fingerprint=fingerprint,
+            blockers=blocker_tuple,
+            member_task_ids=member_task_ids,
+            membership_event_ids=tuple(sorted(baseline_event_ids)),
+            created_command_id=created_command_id,
+            tracking_id=tracking_id,
+        )
+
+    def hard_delete_preview(
+        self,
+        *,
+        objective_id: str,
+        base_revision: int,
+    ) -> ObjectiveHardDeletePreview:
+        identity = require_uuid4(objective_id)
+        if type(base_revision) is not int or base_revision <= 0:
+            raise ValidationError("base_revision must be positive")
+        with ReadSnapshot(self._factory) as snapshot:
+            preview = self.evaluate_hard_delete(snapshot.connection, identity)
+            if preview.objective_revision != base_revision:
+                raise SomaError(
+                    "HARD_DELETE_BLOCKED",
+                    "Objective revision changed; refresh before hard-delete preview",
+                )
+            return preview
+

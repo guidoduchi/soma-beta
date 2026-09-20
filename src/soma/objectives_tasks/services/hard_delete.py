@@ -10,8 +10,18 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
 
 from ..audit_registry import build_objectives_tasks_audit_registry
-from ..contracts.objectives_tasks import TaskMutationResult, task_mutation_result_from_execution
-from ..queries.hard_delete import InventoryTaskDependencyProvider, TaskHardDeletePreview, TaskHardDeleteQueryService
+from ..contracts.objectives_tasks import (
+    ObjectiveMutationResult,
+    TaskMutationResult,
+    objective_mutation_result_from_execution,
+    task_mutation_result_from_execution,
+)
+from ..queries.hard_delete import (
+    InventoryTaskDependencyProvider,
+    ObjectiveHardDeleteQueryService,
+    TaskHardDeletePreview,
+    TaskHardDeleteQueryService,
+)
 from ..repositories.tasks import WfmTaskRepository
 
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
@@ -216,3 +226,154 @@ class TaskHardDeleteService:
             )
 
         return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+
+
+
+class ObjectiveHardDeleteService:
+    """Delete only an exact untouched manual Objective while retaining its Tasks."""
+
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._queries = ObjectiveHardDeleteQueryService(connection_factory)
+        self._boundary = CommandBoundary(
+            connection_factory,
+            AuditWriter(build_objectives_tasks_audit_registry()),
+        )
+
+    def hard_delete(
+        self,
+        *,
+        command_id: str,
+        objective_id: str,
+        objective_revision: int,
+        eligibility_fingerprint: str,
+        confirmation_context_id: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ObjectiveMutationResult:
+        identity = require_uuid4(objective_id)
+        if type(objective_revision) is not int or objective_revision <= 0:
+            raise ValidationError("objective_revision must be positive")
+        fingerprint = _validate_fingerprint(eligibility_fingerprint)
+        confirmation = _validate_confirmation_context(confirmation_context_id)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="HardDeleteObjective",
+            target_type="objective",
+            target_id=identity,
+            semantic_payload={"confirmation_context_id": confirmation},
+            base_revisions={identity: objective_revision},
+            authorizing_fingerprints={"eligibility_fingerprint": fingerprint},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            preview = self._queries.evaluate_hard_delete(uow.connection, identity)
+            if preview.objective_revision != objective_revision:
+                raise SomaError(
+                    "OBJECTIVE_STALE",
+                    "Objective revision changed since hard-delete preview",
+                )
+            if preview.status != "ELIGIBLE":
+                raise SomaError(
+                    "HARD_DELETE_BLOCKED",
+                    "Objective hard deletion is blocked by current evidence",
+                )
+            if preview.eligibility_fingerprint != fingerprint:
+                raise SomaError(
+                    "OBJECTIVE_STALE",
+                    "Objective hard-delete eligibility changed since preview",
+                )
+
+            evidence_id = new_uuid4()
+
+            def apply(_inner: UnitOfWork) -> AuditEventInput:
+                return AuditEventInput(
+                    audit_event_id=evidence_id,
+                    action_type="objective.hard_deleted",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="objective",
+                    target_id=identity,
+                    command_id=command_id,
+                    payload_schema="HardDeleteAuditV1",
+                    payload_version=1,
+                    payload={
+                        "target_type": "objective",
+                        "target_id": identity,
+                        "reviewed_revision": objective_revision,
+                        "eligibility_fingerprint": fingerprint,
+                        "confirmation_context_id": confirmation,
+                        "retained_related_ids": list(preview.member_task_ids),
+                        "result": "deleted",
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("hard_delete_evidence", evidence_id),
+                    ),
+                )
+
+            def delete_after_audit(inner: UnitOfWork) -> None:
+                for task_id in preview.member_task_ids:
+                    deleted = inner.connection.execute(
+                        "DELETE FROM objective_task_membership_current "
+                        "WHERE task_id=? AND objective_id=?",
+                        (task_id, identity),
+                    )
+                    if deleted.rowcount != 1:
+                        raise IntegrityFailure(
+                            "Objective hard-delete current membership changed after revalidation"
+                        )
+                for table in (
+                    "objective_archive_projection",
+                    "objective_aggregate_projection",
+                    "objective_envelope_projection",
+                ):
+                    deleted = inner.connection.execute(
+                        f"DELETE FROM {table} WHERE objective_id=?",
+                        (identity,),
+                    )
+                    if deleted.rowcount != 1:
+                        raise IntegrityFailure(
+                            "Objective hard-delete projection changed after revalidation"
+                        )
+                for event_id in preview.membership_event_ids:
+                    deleted = inner.connection.execute(
+                        "DELETE FROM objective_membership_events "
+                        "WHERE membership_event_id=? AND to_objective_id=? "
+                        "AND from_objective_id IS NULL AND command_id=?",
+                        (event_id, identity, preview.created_command_id),
+                    )
+                    if deleted.rowcount != 1:
+                        raise IntegrityFailure(
+                            "Objective hard-delete baseline membership changed after revalidation"
+                        )
+                deleted = inner.connection.execute(
+                    "DELETE FROM objectives WHERE objective_id=? AND revision=? "
+                    "AND creation_origin='manual' AND superseded_by_objective_id IS NULL",
+                    (identity, objective_revision),
+                )
+                if deleted.rowcount != 1:
+                    raise IntegrityFailure(
+                        "Objective disappeared before its reviewed deletion"
+                    )
+
+            return PreparedMutation(
+                False,
+                "hard_delete_evidence",
+                evidence_id,
+                apply,
+                response_schema="ObjectiveMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "objective_id": identity,
+                    "revision": objective_revision,
+                    "result_refs": [
+                        {"type": "hard_delete_evidence", "id": evidence_id}
+                    ],
+                },
+                after_audit=delete_after_audit,
+            )
+
+        return objective_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )

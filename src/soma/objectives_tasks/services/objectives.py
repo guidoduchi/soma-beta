@@ -14,7 +14,7 @@ from soma.foundation.strict_json import sha256_canonical_json
 from ..audit_registry import build_objectives_tasks_audit_registry
 from ..contracts.objectives_tasks import ObjectiveMutationResult, objective_mutation_result_from_execution
 from ..domain.objectives import ObjectiveDraftLocalTaskIntent, ObjectiveExistingTaskIntent
-from ..queries.objectives import ObjectiveHardDeletePreview, ObjectiveQueryService
+from ..queries.grouping import ObjectiveGroupingQueryService
 from ..repositories.objectives import ObjectiveProjectionRepository
 from ..repositories.tasks import (
     TaskPlanRecord,
@@ -33,7 +33,6 @@ class ObjectiveService:
         self._plans = TaskPlanRepository()
         self._relationships = TaskRelationshipRepository()
         self._objectives = ObjectiveProjectionRepository()
-        self._preview = ObjectiveQueryService(connection_factory)
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_objectives_tasks_audit_registry()),
@@ -196,7 +195,7 @@ class ObjectiveService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
-            preview = ObjectiveQueryService.evaluate_creation(
+            preview = ObjectiveGroupingQueryService.evaluate_creation(
                 uow.connection,
                 existing_tasks=existing,
                 draft_tasks=drafts,
@@ -1013,164 +1012,6 @@ class ObjectiveService:
             self._boundary.execute(envelope, prepare)
         )
 
-    def hard_delete_objective(
-        self,
-        *,
-        command_id: str,
-        objective_id: str,
-        objective_revision: int,
-        eligibility_fingerprint: str,
-        confirmation_context_id: str | None = None,
-        actor_kind: str = "local_user",
-        actor_id: str | None = None,
-    ) -> ObjectiveMutationResult:
-        identity = require_uuid4(objective_id)
-        if type(objective_revision) is not int or objective_revision <= 0:
-            raise ValidationError("objective_revision must be positive")
-        if (
-            not isinstance(eligibility_fingerprint, str)
-            or len(eligibility_fingerprint) != 64
-            or any(ch not in "0123456789abcdef" for ch in eligibility_fingerprint)
-        ):
-            raise ValidationError("eligibility_fingerprint must be lowercase SHA-256")
-        if confirmation_context_id is not None:
-            if not isinstance(confirmation_context_id, str):
-                raise ValidationError("confirmation_context_id must be text or null")
-            encoded = confirmation_context_id.encode("utf-8", errors="strict")
-            if (
-                not encoded
-                or len(encoded) > 1024
-                or "\x00" in confirmation_context_id
-                or "\r" in confirmation_context_id
-                or "\n" in confirmation_context_id
-            ):
-                raise ValidationError("confirmation_context_id violates its bounded one-line contract")
-        envelope = CommandEnvelope(
-            command_id=command_id,
-            command_type="HardDeleteObjective",
-            target_type="objective",
-            target_id=identity,
-            semantic_payload={"confirmation_context_id": confirmation_context_id},
-            base_revisions={identity: objective_revision},
-            authorizing_fingerprints={
-                "eligibility_fingerprint": eligibility_fingerprint
-            },
-        )
-
-        def prepare(uow: UnitOfWork) -> PreparedMutation:
-            preview = ObjectiveQueryService.evaluate_hard_delete(
-                uow.connection, identity
-            )
-            if preview.objective_revision != objective_revision:
-                raise SomaError(
-                    "OBJECTIVE_STALE",
-                    "Objective revision changed since hard-delete preview",
-                )
-            if preview.status != "ELIGIBLE":
-                raise SomaError(
-                    "HARD_DELETE_BLOCKED",
-                    "Objective hard deletion is blocked by current evidence",
-                )
-            if preview.eligibility_fingerprint != eligibility_fingerprint:
-                raise SomaError(
-                    "OBJECTIVE_STALE",
-                    "Objective hard-delete eligibility changed since preview",
-                )
-
-            evidence_id = new_uuid4()
-
-            def apply(_inner: UnitOfWork):
-                return AuditEventInput(
-                    audit_event_id=evidence_id,
-                    action_type="objective.hard_deleted",
-                    action_version=1,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
-                    target_type="objective",
-                    target_id=identity,
-                    command_id=command_id,
-                    payload_schema="HardDeleteAuditV1",
-                    payload_version=1,
-                    payload={
-                        "target_type": "objective",
-                        "target_id": identity,
-                        "reviewed_revision": objective_revision,
-                        "eligibility_fingerprint": eligibility_fingerprint,
-                        "confirmation_context_id": confirmation_context_id,
-                        "retained_related_ids": list(preview.member_task_ids),
-                        "result": "deleted",
-                    },
-                    resulting_event_refs=(
-                        AuditResultRef("hard_delete_evidence", evidence_id),
-                    ),
-                )
-
-            def delete_after_audit(inner: UnitOfWork) -> None:
-                for task_id in preview.member_task_ids:
-                    deleted = inner.connection.execute(
-                        "DELETE FROM objective_task_membership_current "
-                        "WHERE task_id=? AND objective_id=?",
-                        (task_id, identity),
-                    )
-                    if deleted.rowcount != 1:
-                        raise IntegrityFailure(
-                            "Objective hard-delete current membership changed after revalidation"
-                        )
-                for table in (
-                    "objective_archive_projection",
-                    "objective_aggregate_projection",
-                    "objective_envelope_projection",
-                ):
-                    deleted = inner.connection.execute(
-                        f"DELETE FROM {table} WHERE objective_id=?",
-                        (identity,),
-                    )
-                    if deleted.rowcount != 1:
-                        raise IntegrityFailure(
-                            "Objective hard-delete projection changed after revalidation"
-                        )
-                for event_id in preview.membership_event_ids:
-                    deleted = inner.connection.execute(
-                        "DELETE FROM objective_membership_events "
-                        "WHERE membership_event_id=? AND to_objective_id=? "
-                        "AND from_objective_id IS NULL AND command_id=?",
-                        (event_id, identity, preview.created_command_id),
-                    )
-                    if deleted.rowcount != 1:
-                        raise IntegrityFailure(
-                            "Objective hard-delete baseline membership changed after revalidation"
-                        )
-                deleted = inner.connection.execute(
-                    "DELETE FROM objectives WHERE objective_id=? AND revision=? "
-                    "AND creation_origin='manual' AND superseded_by_objective_id IS NULL",
-                    (identity, objective_revision),
-                )
-                if deleted.rowcount != 1:
-                    raise IntegrityFailure(
-                        "Objective disappeared before its reviewed deletion"
-                    )
-
-            return PreparedMutation(
-                False,
-                "hard_delete_evidence",
-                evidence_id,
-                apply,
-                response_schema="ObjectiveMutationResultV1",
-                response_version=1,
-                response={
-                    "outcome": "APPLIED",
-                    "objective_id": identity,
-                    "revision": objective_revision,
-                    "result_refs": [
-                        {"type": "hard_delete_evidence", "id": evidence_id}
-                    ],
-                },
-                after_audit=delete_after_audit,
-            )
-
-        return objective_mutation_result_from_execution(
-            self._boundary.execute(envelope, prepare)
-        )
 
 
 __all__ = ["ObjectiveService"]

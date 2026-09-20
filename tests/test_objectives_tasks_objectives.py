@@ -10,7 +10,10 @@ from soma.objectives_tasks.domain.objectives import (
     ObjectiveDraftLocalTaskIntent,
     ObjectiveExistingTaskIntent,
 )
+from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
+from soma.objectives_tasks.queries.hard_delete import ObjectiveHardDeleteQueryService
 from soma.objectives_tasks.queries.objectives import ObjectiveQueryService
+from soma.objectives_tasks.services.hard_delete import ObjectiveHardDeleteService
 from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.task_execution import TaskExecutionService
 
@@ -52,8 +55,9 @@ def test_objective_creation_preview_commit_replay_and_overlap(initialized_databa
         ),
     )
     intent = _existing_intent(factory, task.task_id)
+    grouping = ObjectiveGroupingQueryService(factory)
     queries = ObjectiveQueryService(factory)
-    preview = queries.creation_preview(existing_tasks=(intent,))
+    preview = grouping.creation_preview(existing_tasks=(intent,))
     assert preview["mode"] == "CREATE"
 
     service = ObjectiveService(factory)
@@ -90,7 +94,7 @@ def test_objective_creation_preview_commit_replay_and_overlap(initialized_databa
             scheduling_timezone_iana=TZ,
         ),
     )
-    overlap = queries.creation_preview(
+    overlap = grouping.creation_preview(
         existing_tasks=(_existing_intent(factory, overlap_task.task_id),)
     )
     assert overlap["mode"] == "REGROUP_REQUIRED"
@@ -107,8 +111,9 @@ def test_objective_creation_can_atomically_create_draft_local_task(initialized_d
             scheduling_timezone_iana=TZ,
         ),
     )
+    grouping = ObjectiveGroupingQueryService(factory)
     queries = ObjectiveQueryService(factory)
-    preview = queries.creation_preview(draft_tasks=(draft,))
+    preview = grouping.creation_preview(draft_tasks=(draft,))
     service = ObjectiveService(factory)
     result = service.create_objective_from_preview(
         command_id=new_uuid4(),
@@ -161,8 +166,9 @@ def test_objective_cancel_before_execution_is_atomic_and_reviewed(initialized_da
         _existing_intent(factory, first.task_id),
         _existing_intent(factory, second.task_id),
     )
+    grouping = ObjectiveGroupingQueryService(factory)
     queries = ObjectiveQueryService(factory)
-    preview = queries.creation_preview(existing_tasks=intents)
+    preview = grouping.creation_preview(existing_tasks=intents)
     service = ObjectiveService(factory)
     created = service.create_objective_from_preview(
         command_id=new_uuid4(),
@@ -243,8 +249,9 @@ def test_objective_cancel_fails_atomically_after_any_member_start(initialized_da
         _existing_intent(factory, first.task_id),
         _existing_intent(factory, second.task_id),
     )
+    grouping = ObjectiveGroupingQueryService(factory)
     queries = ObjectiveQueryService(factory)
-    preview = queries.creation_preview(existing_tasks=intents)
+    preview = grouping.creation_preview(existing_tasks=intents)
     service = ObjectiveService(factory)
     created = service.create_objective_from_preview(
         command_id=new_uuid4(),
@@ -289,20 +296,22 @@ def test_objective_hard_delete_retains_tasks_and_removes_only_baseline_membershi
         ),
     )
     intent = _existing_intent(factory, task.task_id)
+    grouping = ObjectiveGroupingQueryService(factory)
     queries = ObjectiveQueryService(factory)
-    preview = queries.creation_preview(existing_tasks=(intent,))
+    preview = grouping.creation_preview(existing_tasks=(intent,))
     service = ObjectiveService(factory)
     created = service.create_objective_from_preview(
         command_id=new_uuid4(),
         preview_fingerprint=str(preview["fingerprint"]),
         existing_tasks=(intent,),
     )
-    delete_preview = queries.hard_delete_preview(
+    delete_queries = ObjectiveHardDeleteQueryService(factory)
+    delete_preview = delete_queries.preview(
         objective_id=created.objective_id,
         base_revision=1,
     )
     assert delete_preview.eligible is True
-    result = service.hard_delete_objective(
+    result = ObjectiveHardDeleteService(factory).hard_delete(
         command_id=new_uuid4(),
         objective_id=created.objective_id,
         objective_revision=1,
