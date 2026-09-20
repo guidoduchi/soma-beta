@@ -12,7 +12,7 @@ from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditW
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 
 from ..audit_registry import build_inventory_audit_registry
 from ..contracts.inventory import (
@@ -282,12 +282,11 @@ class InventoryConsequencesLogisticsService:
         elif evidence_kind not in {"manual", "indexed_logistics"}:
             raise ValidationError("logistics evidence kind is invalid")
         normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
-        event_id = new_uuid4()
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="RecordActualLogisticsEvent",
             target_type="logistics_event",
-            target_id=event_id,
+            target_id=None,
             semantic_payload={
                 "event_kind": kind,
                 "effective_at_utc": effective,
@@ -311,6 +310,7 @@ class InventoryConsequencesLogisticsService:
                     participant_kind=p_kind,
                     participant_id=p_id,
                 )
+            event_id = new_uuid4()
 
             def apply(inner: UnitOfWork):
                 actual_event_id, inserted = self._repository.record_actual_logistics_event(
@@ -537,26 +537,11 @@ class InventoryConsequencesLogisticsService:
             inbound_spare_part_unit_id=inbound,
             parent_dismantled_unit_id=parent,
         )
-        with ReadSnapshot(self._factory) as snapshot:
-            outcome = self._task_evidence.task_outcome(snapshot, task)
-            if outcome is None:
-                raise SomaError(
-                    "TASK_REVIEW_STALE",
-                    "Inventory physical consequence requires reviewed Task outcome",
-                )
-            current_fingerprint = self._task_evidence.review_fingerprint(snapshot, task)
-            if current_fingerprint != task_review_fingerprint:
-                raise SomaError(
-                    "TASK_REVIEW_STALE",
-                    "Task operational review fingerprint changed",
-                )
-
-        consequence_id = new_uuid4()
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="AcceptInventoryPhysicalConsequence",
             target_type="inventory_physical_consequence",
-            target_id=consequence_id,
+            target_id=None,
             semantic_payload={
                 "task_id": task,
                 "physical_disposition": disposition,
@@ -585,6 +570,7 @@ class InventoryConsequencesLogisticsService:
                     "Task operational review fingerprint changed before consequence commit",
                 )
             self._projections.require_no_current_task_consequence(uow.connection, task)
+            consequence_id = new_uuid4()
 
             def apply(inner: UnitOfWork):
                 result = self._projections.accept_physical_consequence(
@@ -726,18 +712,6 @@ class InventoryConsequencesLogisticsService:
         if not reason or len(reason.encode("utf-8", errors="strict")) > 384:
             raise ValidationError("reason_code is invalid")
 
-        with ReadSnapshot(self._factory) as snapshot:
-            current = self._projections.current_physical_consequence(
-                snapshot.connection, identity
-            )
-            if current is None:
-                raise SomaError("CORRECTION_TARGET_INVALID", "Physical consequence is missing")
-            task_id = str(current[1])
-            if int(current[10]) != expected_revision or str(current[12]) != current_event:
-                raise SomaError("INV_STALE", "Physical consequence changed")
-            if self._task_evidence.review_fingerprint(snapshot, task_id) != task_review_fingerprint:
-                raise SomaError("TASK_REVIEW_STALE", "Task review fingerprint changed")
-
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="CorrectInventoryPhysicalConsequence",
@@ -761,9 +735,10 @@ class InventoryConsequencesLogisticsService:
             current = self._projections.current_physical_consequence(
                 uow.connection, identity
             )
+            if current is None:
+                raise SomaError("CORRECTION_TARGET_INVALID", "Physical consequence is missing")
             if (
-                current is None
-                or int(current[10]) != expected_revision
+                int(current[10]) != expected_revision
                 or str(current[12]) != current_event
             ):
                 raise SomaError("INV_STALE", "Physical consequence changed")

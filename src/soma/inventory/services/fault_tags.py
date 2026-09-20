@@ -624,14 +624,13 @@ class InventoryFaultTagsService:
         if evidence_kind is None and evidence_id is not None:
             raise ValidationError("evidence_id requires evidence_kind")
         normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
-        batch_id = new_uuid4() if len(targets) > 1 else None
-        result_type = "inventory_batch" if batch_id is not None else "fault_tag_membership"
-        result_id = batch_id if batch_id is not None else targets[0][0]
+        is_batch = len(targets) > 1
+        result_type = "inventory_batch" if is_batch else "fault_tag_membership"
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="RecordWarehouseReceipt",
             target_type=result_type,
-            target_id=result_id,
+            target_id=None if is_batch else targets[0][0],
             semantic_payload={
                 "memberships": [
                     {"fault_tag_membership_id": identity, "revision": revision}
@@ -644,6 +643,8 @@ class InventoryFaultTagsService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            batch_id = new_uuid4() if is_batch else None
+            result_id = batch_id if is_batch else targets[0][0]
             for identity, revision in targets:
                 self._repository._require_warehouse_target(
                     uow.connection,
@@ -776,14 +777,13 @@ class InventoryFaultTagsService:
         if evidence_kind is None and evidence_id is not None:
             raise ValidationError("evidence_id requires evidence_kind")
         normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
-        batch_id = new_uuid4() if len(targets) > 1 else None
-        result_type = "inventory_batch" if batch_id is not None else "fault_tag_membership"
-        result_id = batch_id if batch_id is not None else targets[0][0]
+        is_batch = len(targets) > 1
+        result_type = "inventory_batch" if is_batch else "fault_tag_membership"
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="RecordWarehouseFinalDecision",
             target_type=result_type,
-            target_id=result_id,
+            target_id=None if is_batch else targets[0][0],
             semantic_payload={
                 "memberships": [
                     {"fault_tag_membership_id": identity, "revision": revision}
@@ -799,6 +799,8 @@ class InventoryFaultTagsService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            batch_id = new_uuid4() if is_batch else None
+            result_id = batch_id if is_batch else targets[0][0]
             for identity, revision in targets:
                 self._repository._require_warehouse_target(
                     uow.connection,

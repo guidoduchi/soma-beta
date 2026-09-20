@@ -361,12 +361,11 @@ class InventoryCorrectionsBulkService:
             effective_at_utc=effective_at_utc,
             reason_code=reason_code,
         )
-        batch_id = new_uuid4()
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="AcceptInventoryBulkAction",
             target_type="inventory_batch",
-            target_id=batch_id,
+            target_id=None,
             semantic_payload={
                 "preview_fingerprint": fingerprint,
                 "action_kind": action_kind,
@@ -385,6 +384,7 @@ class InventoryCorrectionsBulkService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            batch_id = new_uuid4()
             preview = InventoryBulkPreviewQuery.classify_bulk(
                 uow.connection,
                 action_kind=action_kind,
