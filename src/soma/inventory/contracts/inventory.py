@@ -14,6 +14,7 @@ _ALLOWED_REF_TYPES = frozenset(
         "fault_tag_membership",
         "fault_tag_membership_event",
         "fault_tag_lineage",
+        "hard_delete_evidence",
         "inventory_batch",
         "inventory_physical_consequence",
         "physical_consequence_event",
@@ -88,14 +89,14 @@ def inventory_mutation_result_from_execution(
     if outcome not in {"APPLIED", "NO_CHANGE"} or bool(result.no_change) != (outcome == "NO_CHANGE"):
         raise IntegrityFailure("Inventory mutation outcome is inconsistent with receipt semantics")
     raw_refs = value.get("target_refs")
-    if not isinstance(raw_refs, list) or len(raw_refs) > 32:
+    if not isinstance(raw_refs, list) or len(raw_refs) > 4096:
         raise IntegrityFailure("Inventory mutation result refs are invalid")
     refs = tuple(_result_ref(raw) for raw in raw_refs)
     identities = [(ref.result_type, ref.result_id) for ref in refs]
     if len(set(identities)) != len(identities):
         raise IntegrityFailure("Inventory mutation result refs contain duplicates")
     revisions = value.get("revisions")
-    if not isinstance(revisions, dict) or len(revisions) > 32:
+    if not isinstance(revisions, dict) or len(revisions) > 4096:
         raise IntegrityFailure("Inventory mutation revisions are invalid")
     normalized_revisions: dict[str, int] = {}
     for key, revision in revisions.items():
