@@ -419,18 +419,25 @@ def test_t005_history_remove_blocked_by_nonterminal_spare_request(
             (request_id, "c" * 64, setup_command),
         )
 
-    try:
+    resolved = service.change_spare_need_lifecycle(
+        command_id=new_uuid4(),
+        spare_need_id=need_id,
+        base_revision=1,
+        action="resolve",
+        reason_code="prepare history removal",
+    )
+    assert resolved.outcome == "APPLIED"
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as blocked:
         service.change_spare_need_lifecycle(
-            command_id=new_uuid4(),
+            command_id=command_id,
             spare_need_id=need_id,
-            base_revision=1,
+            base_revision=2,
             action="history_remove",
             reason_code="operator requested removal",
         )
-    except Exception as exc:
-        assert getattr(exc, "code", None) == "NEED_DELETE_BLOCKED"
-    else:
-        raise AssertionError("history_remove unexpectedly accepted a nonterminal request dependency")
+    assert blocked.value.code == "NEED_DELETE_BLOCKED"
 
     with ReadSnapshot(factory) as snapshot:
         projection = snapshot.connection.execute(
@@ -438,12 +445,120 @@ def test_t005_history_remove_blocked_by_nonterminal_spare_request(
             "WHERE spare_need_id=?",
             (need_id,),
         ).fetchone()
-        assert tuple(projection) == ("active", 1)
+        assert tuple(projection) == ("resolved", 2)
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM spare_need_active_keys WHERE spare_need_id=?",
             (need_id,),
-        ).fetchone()[0] == 1
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
 
+
+def test_spare_need_lifecycle_rejects_noncanonical_lateral_transition(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97000018")
+    dev = _device(factory, sr.service_request_id, "NE-NEED-LATERAL")
+    service = InventoryNeedsStockService(factory)
+    created = service.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        device_reference_id=dev.device_reference_id,
+        bom_code="BOM-NEED-LATERAL",
+        condition_token="faulty",
+    )
+    need_id = next(
+        ref.result_id for ref in created.target_refs if ref.result_type == "spare_need"
+    )
+    service.change_spare_need_lifecycle(
+        command_id=new_uuid4(),
+        spare_need_id=need_id,
+        base_revision=1,
+        action="resolve",
+        reason_code="resolved once",
+    )
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as invalid:
+        service.change_spare_need_lifecycle(
+            command_id=command_id,
+            spare_need_id=need_id,
+            base_revision=2,
+            action="cancel",
+            reason_code="invalid lateral move",
+        )
+    assert invalid.value.code == "INV_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT lifecycle_state,revision FROM spare_need_current_projection "
+            "WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()
+        assert tuple(row) == ("resolved", 2)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_spare_need_history_remove_accepts_terminal_dependency_free_need(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97000019")
+    dev = _device(factory, sr.service_request_id, "NE-NEED-HISTORY")
+    service = InventoryNeedsStockService(factory)
+    created = service.register_device_part_unit(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        device_reference_id=dev.device_reference_id,
+        bom_code="BOM-NEED-HISTORY",
+        condition_token="faulty",
+    )
+    need_id = next(
+        ref.result_id for ref in created.target_refs if ref.result_type == "spare_need"
+    )
+    service.change_spare_need_lifecycle(
+        command_id=new_uuid4(),
+        spare_need_id=need_id,
+        base_revision=1,
+        action="cancel",
+        reason_code="cancel demand",
+    )
+    removed = service.change_spare_need_lifecycle(
+        command_id=new_uuid4(),
+        spare_need_id=need_id,
+        base_revision=2,
+        action="history_remove",
+        reason_code="remove terminal history",
+    )
+    assert removed.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT lifecycle_state,revision FROM spare_need_current_projection "
+            "WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()
+        assert tuple(row) == ("removed", 3)
+        events = snapshot.connection.execute(
+            "SELECT event_kind FROM spare_need_lifecycle_events "
+            "WHERE spare_need_id=? ORDER BY recorded_at_utc,need_event_id",
+            (need_id,),
+        ).fetchall()
+        assert {str(row[0]) for row in events} == {
+            "created",
+            "cancelled",
+            "history_removed",
+        }
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_need_active_keys WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()[0] == 0
 
 def _spare_unit_projection(factory, spare_part_unit_id: str):
     with ReadSnapshot(factory) as snapshot:
