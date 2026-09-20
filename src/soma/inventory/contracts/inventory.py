@@ -9,12 +9,17 @@ from soma.foundation.identifiers import require_uuid4
 _ALLOWED_REF_TYPES = frozenset(
     {
         "device_part_unit",
+        "device_part_unit_event",
+        "inventory_physical_consequence",
+        "physical_consequence_event",
         "local_need_fulfillment",
         "logistics_event",
         "logistics_participant",
         "rma",
         "rma_assignment",
         "rma_identifier",
+        "rma_return_obligation",
+        "rma_return_selection_event",
         "spare_need",
         "spare_need_contributor",
         "spare_need_event",
