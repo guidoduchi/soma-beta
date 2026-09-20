@@ -93,6 +93,7 @@ class InventoryUnitsRepository:
         serial_key: str | None,
         creation_origin: str,
         origin_rma_id: str | None,
+        parent_spare_part_unit_id: str | None = None,
         condition_token: str,
         disposition_token: str,
         location_kind: str | None,
@@ -107,7 +108,7 @@ class InventoryUnitsRepository:
             "spare_part_unit_id,local_tracking_sequence,local_tracking_id,bom_code,bom_key,"
             "manufacturer_serial,serial_key,creation_origin,origin_rma_id,"
             "parent_spare_part_unit_id,created_at_utc,created_command_id"
-            ") VALUES (?,?,?,?,?,?,?,?,?,NULL,?,?)",
+            ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 spare_part_unit_id,
                 local_tracking_sequence,
@@ -118,6 +119,7 @@ class InventoryUnitsRepository:
                 serial_key,
                 creation_origin,
                 origin_rma_id,
+                parent_spare_part_unit_id,
                 now,
                 command_id,
             ),
