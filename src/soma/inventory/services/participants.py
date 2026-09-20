@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Any, Iterator
 
-from soma.foundation.errors import SomaError, ValidationError
-from soma.foundation.identifiers import require_uuid4
+from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.identifiers import new_uuid4, require_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import ObjectContract, sha256_canonical_json
+from soma.inventory.audit_registry import build_inventory_audit_registry
+from soma.inventory.repositories.units import InventoryUnitsRepository
 from soma.product_line_sla.report_sections import (
     ReportSectionDescriptor,
     ReportSectionRow,
@@ -131,21 +134,105 @@ class InventoryTaskDependencyProvider:
         }
         return {**value, "input_fingerprint": sha256_canonical_json(value)}
 
-    @staticmethod
+    @classmethod
     def apply_retry_relationship_clone(
+        cls,
         uow: UnitOfWork,
         preview: dict[str, object],
         new_task_id: str,
+        command_context: dict[str, object],
     ) -> tuple[dict[str, str], ...]:
-        # The accepted cross-packet contract intentionally omits a command-id parameter.
-        # Creating Inventory planning evidence without the caller command identity would
-        # make history unauditable, so mutation remains fail-closed until the caller
-        # supplies command context in a later interface revision.
-        require_uuid4(new_task_id)
-        raise SomaError(
-            "DEPENDENCY_INDETERMINATE",
-            "Inventory retry relationship clone requires caller command context",
-        )
+        successor = require_uuid4(new_task_id)
+        if not isinstance(command_context, dict) or set(command_context) != {
+            "command_id", "actor_kind", "actor_id"
+        }:
+            raise ValidationError("Inventory retry clone command_context is invalid")
+        command_id_raw = command_context.get("command_id")
+        actor_kind = command_context.get("actor_kind")
+        actor_id = command_context.get("actor_id")
+        if not isinstance(command_id_raw, str):
+            raise ValidationError("Inventory retry clone command_id must be UUID text")
+        command_id = require_uuid4(command_id_raw)
+        if not isinstance(actor_kind, str) or not actor_kind:
+            raise ValidationError("Inventory retry clone actor_kind is invalid")
+        if actor_id is not None and not isinstance(actor_id, str):
+            raise ValidationError("Inventory retry clone actor_id is invalid")
+        if not isinstance(preview, dict) or preview.get("schema") != "SOMA_INVENTORY_RETRY_CLONE_PREVIEW_V1":
+            raise SomaError("DEPENDENCY_INDETERMINATE", "Inventory retry clone preview is invalid")
+        predecessor_raw = preview.get("predecessor_task_id")
+        relationships = preview.get("relationships")
+        fingerprint = preview.get("input_fingerprint")
+        if not isinstance(predecessor_raw, str) or not isinstance(relationships, list):
+            raise SomaError("DEPENDENCY_INDETERMINATE", "Inventory retry clone preview is incomplete")
+        predecessor = require_uuid4(predecessor_raw)
+        selected_ids: list[str] = []
+        for item in relationships:
+            if not isinstance(item, dict) or item.get("status") != "eligible":
+                raise SomaError(
+                    "DEPENDENCY_INDETERMINATE",
+                    "Selected Inventory retry relationship is not currently eligible",
+                )
+            allocation_id = item.get("id")
+            if not isinstance(allocation_id, str):
+                raise SomaError("DEPENDENCY_INDETERMINATE", "Inventory retry allocation id is invalid")
+            selected_ids.append(require_uuid4(allocation_id))
+        recomputed = cls.preview_retry_relationship_clone(uow, predecessor, tuple(selected_ids))
+        if (
+            not isinstance(fingerprint, str)
+            or recomputed.get("input_fingerprint") != fingerprint
+            or recomputed.get("relationships") != relationships
+        ):
+            raise SomaError("INV_STALE", "Inventory retry clone preview changed")
+        writer = AuditWriter(build_inventory_audit_registry())
+        refs: list[dict[str, str]] = []
+        for item in relationships:
+            allocation_id = str(item["id"])
+            event_id, unit_id, spare_need_id, allocation_revision, unit_revision = (
+                InventoryUnitsRepository.reassign_task_allocation(
+                    uow.connection,
+                    allocation_id=allocation_id,
+                    predecessor_task_id=predecessor,
+                    new_task_id=successor,
+                    expected_allocation_revision=int(item["revision"]),
+                    command_id=command_id,
+                )
+            )
+            unit = InventoryUnitsRepository.current_unit(uow.connection, unit_id)
+            if unit is None:
+                raise IntegrityFailure("Retry reassignment lost Spare Part Unit authority")
+            writer.write(
+                uow,
+                AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.spare_unit.registered_or_reserved",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="spare_part_unit",
+                    target_id=unit_id,
+                    command_id=command_id,
+                    reason_category="retry_clone",
+                    payload_schema="SpareUnitAuditV1",
+                    payload_version=1,
+                    payload={
+                        "spare_part_unit_id": unit_id,
+                        "event_kind": "REASSIGN",
+                        "local_tracking_id": None if unit[1] is None else str(unit[1]),
+                        "task_id": successor,
+                        "allocation_id": allocation_id,
+                        "spare_need_id": spare_need_id,
+                        "resulting_unit_revision": unit_revision,
+                        "allocation_revision": allocation_revision,
+                        "bom_fingerprint": None,
+                        "reason_category": "retry_clone",
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("task_unit_allocation_event", event_id),
+                    ),
+                ),
+            )
+            refs.append({"type": "task_unit_allocation_event", "id": event_id})
+        return tuple(refs)
 
 
 class RfcInventoryDependencyProvider:

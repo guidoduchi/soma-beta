@@ -371,3 +371,54 @@ def test_wfm_retry_audit_failure_rolls_back_receipt_edge_audit_and_replay(initia
             "SELECT 1 FROM command_receipt_results WHERE command_id=?",
             (command_id,),
         ).fetchone() is None
+
+
+def test_local_retry_creates_new_task_plan_and_immutable_edge(
+    initialized_database,
+) -> None:
+    from soma.foundation.persistence.uow import ReadSnapshot
+    from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
+    from soma.objectives_tasks.services.retries import TaskRetryService
+
+    factory = _factory(initialized_database)
+    predecessor = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Original work",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_300_000_000,
+            end_utc=2_300_003_600,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    retry = TaskRetryService(factory).create_local_task_retry(
+        command_id=new_uuid4(),
+        predecessor_task_id=predecessor.task_id,
+        predecessor_task_revision=predecessor.revision,
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_300_010_000,
+            end_utc=2_300_013_600,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    assert retry.outcome == "APPLIED"
+    assert retry.task_id != predecessor.task_id
+    with ReadSnapshot(factory) as snapshot:
+        successor = snapshot.connection.execute(
+            "SELECT task_kind,local_task_name,creation_origin,revision FROM tasks WHERE task_id=?",
+            (retry.task_id,),
+        ).fetchone()
+        edge = snapshot.connection.execute(
+            "SELECT predecessor_task_id,successor_task_id FROM task_retry_relations "
+            "WHERE predecessor_task_id=?",
+            (predecessor.task_id,),
+        ).fetchone()
+        plan = snapshot.connection.execute(
+            "SELECT p.origin,p.predecessor_plan_revision_id "
+            "FROM task_plan_current c JOIN task_plan_revisions p "
+            "ON p.plan_revision_id=c.plan_revision_id WHERE c.task_id=?",
+            (retry.task_id,),
+        ).fetchone()
+    assert tuple(successor) == ("local", "Original work", "retry", 1)
+    assert tuple(edge) == (predecessor.task_id, retry.task_id)
+    assert str(plan[0]) == "retry_clone"
+    assert plan[1] is not None

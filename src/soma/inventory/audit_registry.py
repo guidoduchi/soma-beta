@@ -83,7 +83,7 @@ def _validate_need(payload: dict[str, object]) -> None:
 
 
 
-_SPARE_UNIT_EVENTS = frozenset({"REGISTER", "RESERVE", "RELEASE", "LOCAL_SELECTION"})
+_SPARE_UNIT_EVENTS = frozenset({"REGISTER", "RESERVE", "RELEASE", "REASSIGN", "LOCAL_SELECTION"})
 _LSU = re.compile(r"LSU-[0-9]{8}\Z")
 
 

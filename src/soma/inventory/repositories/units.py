@@ -475,6 +475,91 @@ class InventoryUnitsRepository:
             raise SomaError("INV_STALE", "Spare Part Unit projection changed during release")
         return event_id, unit_id, unit_revision
 
+
+    @classmethod
+    def reassign_task_allocation(
+        cls,
+        connection,
+        *,
+        allocation_id: str,
+        predecessor_task_id: str,
+        new_task_id: str,
+        expected_allocation_revision: int,
+        command_id: str,
+    ) -> tuple[str, str, str | None, int, int]:
+        current = connection.execute(
+            "SELECT task_id,spare_part_unit_id,spare_need_id,revision,last_event_id "
+            "FROM task_unit_allocation_current WHERE allocation_id=?",
+            (allocation_id,),
+        ).fetchone()
+        if current is None:
+            raise SomaError("INV_STALE", "Selected retry allocation is no longer current")
+        if str(current[0]) != predecessor_task_id or int(current[3]) != expected_allocation_revision:
+            raise SomaError("INV_STALE", "Selected retry allocation changed")
+        if connection.execute(
+            "SELECT 1 FROM tasks WHERE task_id=?",
+            (new_task_id,),
+        ).fetchone() is None:
+            raise SomaError("INV_STALE", "Retry successor Task is missing")
+        if connection.execute(
+            "SELECT 1 FROM inventory_physical_consequences WHERE task_id=? LIMIT 1",
+            (predecessor_task_id,),
+        ).fetchone() is not None:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Inventory allocation is protected by predecessor physical-consequence history",
+            )
+        unit_id = str(current[1])
+        unit = cls.current_unit(connection, unit_id)
+        if unit is None:
+            raise IntegrityFailure("Retry allocation points to missing Spare Part Unit")
+        if unit[13] is None or str(unit[13]) != allocation_id:
+            raise IntegrityFailure("Spare Part Unit projection disagrees with retry allocation")
+        now = utc_epoch_seconds()
+        event_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO task_unit_allocation_events("
+            "allocation_event_id,allocation_id,task_id,spare_part_unit_id,spare_need_id,"
+            "event_kind,prior_task_id,reason_code,effective_at_utc,target_event_id,"
+            "recorded_at_utc,command_id"
+            ") VALUES (?,?,?,?,?,'reassign',?,'retry_clone',NULL,?,?,?)",
+            (
+                event_id,
+                allocation_id,
+                new_task_id,
+                unit_id,
+                None if current[2] is None else str(current[2]),
+                predecessor_task_id,
+                str(current[4]),
+                now,
+                command_id,
+            ),
+        )
+        next_revision = expected_allocation_revision + 1
+        changed = connection.execute(
+            "UPDATE task_unit_allocation_current SET task_id=?,revision=?,last_event_id=?,"
+            "last_command_id=? WHERE allocation_id=? AND task_id=? AND revision=? AND last_event_id=?",
+            (
+                new_task_id,
+                next_revision,
+                event_id,
+                command_id,
+                allocation_id,
+                predecessor_task_id,
+                expected_allocation_revision,
+                str(current[4]),
+            ),
+        )
+        if changed.rowcount != 1:
+            raise SomaError("INV_STALE", "Retry allocation changed during reassignment")
+        return (
+            event_id,
+            unit_id,
+            None if current[2] is None else str(current[2]),
+            next_revision,
+            int(unit[14]),
+        )
+
     @staticmethod
     def latest_allocation_event(connection, allocation_id: str):
         return connection.execute(
