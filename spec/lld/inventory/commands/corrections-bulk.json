@@ -72,7 +72,7 @@
         "command_id"
       ],
       "steps": [
-        "outside lock classify correction type: false event, relationship correction, alias correction, material submitted correction, or genuine later development",
+        "outside lock classify correction type: false event (including false warehouse receipt), relationship correction, alias correction, material submitted correction, or genuine later development",
         "reject genuine later development from correction path",
         "inside UoW prove exact disputed fact and all affected dependencies",
         "insert receipt and append targeted correction/supersession event; never update/delete original evidence",
@@ -82,7 +82,10 @@
       ],
       "rules": [
         "identity-bearing entities never replaced by relationship correction",
-        "Task outcome correction remains upstream LLD-05"
+        "Task outcome correction remains upstream LLD-05",
+        "false_warehouse_receipt requires target_id=fault_tag_membership_id, target_event_id=current warehouse_received event and exact expected_revision; it is invalid after any later warehouse final decision",
+        "false_warehouse_receipt appends one membership correct event targeting the false receipt, returns only that membership to submitted_awaiting_receipt, restores its RMA projection to fault_tagged with the same open obligation and active membership, rebuilds only that Fault Tag aggregate/attention, and never edits the original receipt event or inventory_lifecycle_batch",
+        "a false warehouse receipt correction does not alter sibling batch memberships, their events, revisions, RMA projections or obligations"
       ]
     },
     {
