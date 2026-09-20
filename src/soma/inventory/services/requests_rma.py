@@ -168,36 +168,6 @@ class InventoryRequestsRmaService:
             for item in accepted_allocations
         )
 
-        with ReadSnapshot(self._factory) as snapshot:
-            authority = self._repository.requester_authority(
-                snapshot.connection,
-                requester_id,
-            )
-            if authority is None or str(authority[3]) != "active":
-                raise SomaError(
-                    "REQUEST_SUBMISSION_INVALID",
-                    "Requester Contact is not active",
-                )
-            context = _requester_context(
-                contact_id=requester_id,
-                display_name=str(authority[1]),
-                revision=int(authority[2]),
-                affiliation_id=None if authority[4] is None else str(authority[4]),
-                customer_org_id=None if authority[5] is None else str(authority[5]),
-            )
-            self._repository.require_receiver_and_location(
-                snapshot.connection,
-                receiver_contact_id=receiver_id,
-                dispatch_location_id=location_id,
-            )
-            self._repository.require_sr_need_allocations(
-                snapshot.connection,
-                service_request_id=sr_id,
-                allocations=allocation_pairs,
-            )
-
-        requester_context_json = canonical_json_bytes(context).decode("utf-8")
-        requester_context_fingerprint = sha256_canonical_json(context)
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="CreateSpareRequestDraft",
@@ -215,20 +185,27 @@ class InventoryRequestsRmaService:
                 "dispatch_location_id": location_id,
                 "origin": creation_origin,
             },
-            authorizing_fingerprints={
-                "requester_context": requester_context_fingerprint,
-            },
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
-            self._repository.require_requester_authority(
+            authority = self._repository.requester_authority(
                 uow.connection,
-                contact_id=requester_id,
-                expected_revision=int(context["contact_revision_at_creation"]),
-                expected_name=str(context["display_name_snapshot"]),
-                expected_affiliation_id=context["affiliation_id_at_creation"],
-                expected_customer_org_id=context["customer_org_id_at_creation"],
+                requester_id,
             )
+            if authority is None or str(authority[3]) != "active":
+                raise SomaError(
+                    "REQUEST_SUBMISSION_INVALID",
+                    "Requester Contact is not active",
+                )
+            context = _requester_context(
+                contact_id=requester_id,
+                display_name=str(authority[1]),
+                revision=int(authority[2]),
+                affiliation_id=None if authority[4] is None else str(authority[4]),
+                customer_org_id=None if authority[5] is None else str(authority[5]),
+            )
+            requester_context_json = canonical_json_bytes(context).decode("utf-8")
+            requester_context_fingerprint = sha256_canonical_json(context)
             self._repository.require_receiver_and_location(
                 uow.connection,
                 receiver_contact_id=receiver_id,
