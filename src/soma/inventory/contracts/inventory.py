@@ -94,7 +94,7 @@ def inventory_mutation_result_from_execution(
     if len(set(identities)) != len(identities):
         raise IntegrityFailure("Inventory mutation result refs contain duplicates")
     revisions = value.get("revisions")
-    if not isinstance(revisions, dict) or len(revisions) > 32:
+    if not isinstance(revisions, dict) or len(revisions) > 512:
         raise IntegrityFailure("Inventory mutation revisions are invalid")
     normalized_revisions: dict[str, int] = {}
     for key, revision in revisions.items():

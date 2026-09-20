@@ -16,6 +16,7 @@ from ..contracts.inventory import (
     InventoryMutationResult,
     inventory_mutation_result_from_execution,
 )
+from ..domain.fault_tags import WarehouseMembershipIntent, validate_warehouse_memberships
 from ..domain.proposals import (
     ParsedInventoryProposalTarget,
     normalize_reason_category,
@@ -25,6 +26,7 @@ from ..domain.proposals import (
     validate_positive_revision,
     validate_proposal_id,
 )
+from ..queries.previews import InventoryBulkPreviewQuery
 from ..repositories.fault_tags import InventoryFaultTagsRepository
 
 
@@ -303,6 +305,200 @@ class InventoryCorrectionsBulkService:
                         **{
                             f"fault_tag:{tag_id}": tag_revision
                             for tag_id, tag_revision in apply.tag_revisions.items()
+                        },
+                    },
+                },
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
+
+
+    def accept_inventory_bulk_action(
+        self,
+        *,
+        command_id: str,
+        preview_fingerprint: str,
+        action_kind: str,
+        memberships: tuple[WarehouseMembershipIntent, ...],
+        effective_at_utc: int | None = None,
+        reason_code: str | None = None,
+        explicit_confirmation: bool = False,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        fingerprint = validate_fingerprint(preview_fingerprint, "preview_fingerprint")
+        targets = validate_warehouse_memberships(memberships)
+        if len(targets) > InventoryBulkPreviewQuery._MAX_TARGETS:
+            raise ValidationError("Inventory bulk target bound exceeded")
+        if action_kind in {"warehouse_accept", "warehouse_reject"} and explicit_confirmation is not True:
+            raise SomaError(
+                "WAREHOUSE_FINAL_CONFIRMATION_REQUIRED",
+                "Bulk warehouse final decision requires explicit operator confirmation",
+            )
+        # Reuse the pure preview's exact context validation before constructing a receipt.
+        InventoryBulkPreviewQuery._context(
+            action_kind=action_kind,
+            effective_at_utc=effective_at_utc,
+            reason_code=reason_code,
+        )
+        batch_id = new_uuid4()
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="AcceptInventoryBulkAction",
+            target_type="inventory_batch",
+            target_id=batch_id,
+            semantic_payload={
+                "preview_fingerprint": fingerprint,
+                "action_kind": action_kind,
+                "targets": [
+                    {
+                        "fault_tag_membership_id": membership_id,
+                        "expected_revision": revision,
+                    }
+                    for membership_id, revision in targets
+                ],
+                "effective_at_utc": effective_at_utc,
+                "reason_code": reason_code,
+                "explicit_confirmation": explicit_confirmation,
+            },
+            authorizing_fingerprints={"bulk_preview": fingerprint},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            preview = InventoryBulkPreviewQuery.classify_bulk(
+                uow.connection,
+                action_kind=action_kind,
+                targets=tuple((membership_id, revision) for membership_id, revision in targets),
+                effective_at_utc=effective_at_utc,
+                reason_code=reason_code,
+            )
+            if preview["input_fingerprint"] != fingerprint:
+                raise SomaError("INV_STALE", "Inventory bulk preview changed")
+            if not preview["targets"] or any(
+                item["status"] != "eligible" for item in preview["targets"]
+            ):
+                raise SomaError(
+                    "BULK_INCOMPATIBLE",
+                    "Inventory bulk target set is no longer fully eligible",
+                )
+
+            repository = InventoryFaultTagsRepository()
+
+            def apply(inner: UnitOfWork):
+                if action_kind == "warehouse_receipt":
+                    rows, tag_revisions = repository.record_warehouse_receipt(
+                        inner.connection,
+                        targets=targets,
+                        effective_at_utc=effective_at_utc,
+                        evidence_kind=None,
+                        evidence_id=None,
+                        batch_id=batch_id,
+                        command_id=command_id,
+                    )
+                else:
+                    decision = "accepted" if action_kind == "warehouse_accept" else "rejected"
+                    rows, tag_revisions = repository.record_warehouse_final_decision(
+                        inner.connection,
+                        targets=targets,
+                        decision=decision,
+                        reason_code=reason_code,
+                        effective_at_utc=effective_at_utc,
+                        evidence_kind=None,
+                        evidence_id=None,
+                        batch_id=batch_id,
+                        command_id=command_id,
+                    )
+                apply.rows = rows
+                apply.tag_revisions = tag_revisions
+                audits: list[AuditEventInput] = []
+                result_refs: list[dict[str, str]] = []
+                for item in rows:
+                    event_kind = (
+                        "RECEIVED"
+                        if action_kind == "warehouse_receipt"
+                        else ("ACCEPTED" if action_kind == "warehouse_accept" else "REJECTED")
+                    )
+                    event_id = str(item["membership_event_id"])
+                    result_refs.append(
+                        {"type": "fault_tag_membership_event", "id": event_id}
+                    )
+                    audits.append(
+                        AuditEventInput(
+                            audit_event_id=new_uuid4(),
+                            action_type="inventory.fault_tag.warehouse_state_changed",
+                            action_version=1,
+                            actor_kind=actor_kind,
+                            actor_id=actor_id,
+                            target_type="fault_tag_membership",
+                            target_id=str(item["membership_id"]),
+                            command_id=command_id,
+                            reason_category=reason_code,
+                            payload_schema="WarehouseDecisionAuditV1",
+                            payload_version=1,
+                            payload={
+                                "membership_id": str(item["membership_id"]),
+                                "event_kind": event_kind,
+                                "rma_id": str(item["rma_id"]),
+                                "return_obligation_id": str(item["rma_id"]),
+                                "batch_id": batch_id,
+                                "effective_at_utc": effective_at_utc,
+                                "explicit_confirmation": True,
+                            },
+                            resulting_event_refs=(
+                                AuditResultRef("fault_tag_membership_event", event_id),
+                            ),
+                        )
+                    )
+                audits.append(
+                    AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="inventory.bulk.accepted",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="inventory_batch",
+                        target_id=batch_id,
+                        command_id=command_id,
+                        payload_schema="InventoryBulkAuditV1",
+                        payload_version=1,
+                        payload={
+                            "batch_id": batch_id,
+                            "action_kind": action_kind,
+                            "input_fingerprint": fingerprint,
+                            "target_count": len(rows),
+                            "result_refs": result_refs,
+                            "result": "APPLIED",
+                        },
+                        resulting_event_refs=(
+                            AuditResultRef("inventory_batch", batch_id),
+                        ),
+                    )
+                )
+                return tuple(audits)
+
+            apply.rows = ()
+            apply.tag_revisions = {}
+            return PreparedMutation(
+                no_change=False,
+                result_type="inventory_batch",
+                result_id=batch_id,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: {
+                    "outcome": "APPLIED",
+                    "target_refs": [{"type": "inventory_batch", "id": batch_id}],
+                    "revisions": {
+                        **{
+                            f"fault_tag_membership:{row['membership_id']}": int(
+                                row["membership_revision"]
+                            )
+                            for row in apply.rows
+                        },
+                        **{
+                            f"fault_tag:{tag_id}": revision
+                            for tag_id, revision in apply.tag_revisions.items()
                         },
                     },
                 },

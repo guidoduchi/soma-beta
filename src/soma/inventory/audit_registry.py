@@ -328,6 +328,31 @@ def _validate_inventory_hard_delete(payload: dict[str, object]) -> None:
     if payload.get("result") != "DELETED":
         raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete result is invalid")
 
+
+def _validate_inventory_bulk(payload: dict[str, object]) -> None:
+    _uuid(payload.get("batch_id"), "batch_id")
+    if payload.get("action_kind") not in {
+        "warehouse_receipt", "warehouse_accept", "warehouse_reject"
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "bulk action_kind is invalid")
+    _fingerprint(payload.get("input_fingerprint"), "input_fingerprint")
+    target_count = payload.get("target_count")
+    if type(target_count) is not int or not 1 <= target_count <= 200:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "bulk target_count is invalid")
+    refs = payload.get("result_refs")
+    if not isinstance(refs, list) or len(refs) != target_count:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "bulk result_refs are invalid")
+    for ref in refs:
+        if (
+            not isinstance(ref, dict)
+            or set(ref) != {"type", "id"}
+            or ref.get("type") != "fault_tag_membership_event"
+        ):
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "bulk result ref is invalid")
+        _uuid(ref.get("id"), "bulk_result_id")
+    if payload.get("result") != "APPLIED":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "bulk result is invalid")
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -707,6 +732,42 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_inventory_hard_delete,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.bulk.accepted",
+            action_version=1,
+            payload_schema="InventoryBulkAuditV1",
+            payload_version=1,
+            payload_contract=ObjectContract(
+                name="InventoryBulkAuditV1",
+                version=1,
+                required_fields=frozenset(
+                    {
+                        "batch_id",
+                        "action_kind",
+                        "input_fingerprint",
+                        "target_count",
+                        "result_refs",
+                        "result",
+                    }
+                ),
+                allowed_fields=frozenset(
+                    {
+                        "batch_id",
+                        "action_kind",
+                        "input_fingerprint",
+                        "target_count",
+                        "result_refs",
+                        "result",
+                    }
+                ),
+                max_depth=4,
+                max_collection_items=700,
+                max_utf8_bytes=131_072,
+            ),
+            sensitivity_validator=_validate_inventory_bulk,
         )
     )
     return registry

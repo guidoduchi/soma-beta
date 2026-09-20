@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from soma.foundation.errors import ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
+
+from ..domain.proposals import normalize_reason_category
+from ..repositories.fault_tags import InventoryFaultTagsRepository
 
 _HARD_DELETE_KINDS = frozenset(
     {"spare_need", "spare_request", "spare_part_unit", "fault_tag"}
@@ -270,4 +273,189 @@ class InventoryDestructivePreviewQuery:
             )
 
 
-__all__ = ["InventoryDestructivePreviewQuery"]
+_BULK_ACTIONS = frozenset(
+    {"warehouse_receipt", "warehouse_accept", "warehouse_reject"}
+)
+
+
+class InventoryBulkPreviewQuery:
+    """Pure stable-snapshot preflight for bounded warehouse bulk actions."""
+
+    _MAX_TARGETS = 200
+
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
+
+    @staticmethod
+    def _context(
+        *,
+        action_kind: str,
+        effective_at_utc: int | None,
+        reason_code: str | None,
+    ) -> tuple[int | None, str | None]:
+        if action_kind not in _BULK_ACTIONS:
+            raise ValidationError("Inventory bulk action kind is invalid")
+        if effective_at_utc is not None and (
+            type(effective_at_utc) is not int or effective_at_utc < 0
+        ):
+            raise ValidationError("bulk effective_at_utc must be non-negative or null")
+        if action_kind == "warehouse_reject":
+            if reason_code is None:
+                raise ValidationError("warehouse reject bulk action requires reason_code")
+            reason = normalize_reason_category(reason_code)
+            if reason != reason_code:
+                raise ValidationError("bulk reason_code must already be normalized")
+        elif reason_code is not None:
+            raise ValidationError("reason_code is valid only for warehouse_reject")
+        else:
+            reason = None
+        return effective_at_utc, reason
+
+    @classmethod
+    def classify_bulk(
+        cls,
+        connection: Any,
+        *,
+        action_kind: str,
+        targets: tuple[tuple[str, int | None], ...],
+        effective_at_utc: int | None = None,
+        reason_code: str | None = None,
+    ) -> dict[str, object]:
+        effective, reason = cls._context(
+            action_kind=action_kind,
+            effective_at_utc=effective_at_utc,
+            reason_code=reason_code,
+        )
+        if not isinstance(targets, tuple) or not targets:
+            raise ValidationError("Inventory bulk preview requires one-or-more targets")
+        if len(targets) > cls._MAX_TARGETS:
+            raise ValidationError("Inventory bulk preview target bound exceeded")
+
+        seen: set[str] = set()
+        projected: list[dict[str, object]] = []
+        eligible_material: list[dict[str, object]] = []
+        blockers: list[dict[str, object]] = []
+        repository = InventoryFaultTagsRepository()
+        required_state = (
+            "submitted_awaiting_receipt"
+            if action_kind == "warehouse_receipt"
+            else "warehouse_received"
+        )
+
+        normalized_targets: list[tuple[str, int | None]] = []
+        for raw_id, raw_revision in targets:
+            membership_id = require_uuid4(raw_id)
+            if membership_id in seen:
+                raise ValidationError("Inventory bulk preview contains duplicate target")
+            seen.add(membership_id)
+            if raw_revision is not None and (
+                type(raw_revision) is not int or raw_revision <= 0
+            ):
+                raise ValidationError("bulk target revision must be positive or null")
+            normalized_targets.append((membership_id, raw_revision))
+        normalized_targets.sort(key=lambda item: item[0])
+
+        for membership_id, expected_revision in normalized_targets:
+            status = "eligible"
+            blocker: str | None = None
+            current_revision: int | None = None
+            material: dict[str, object] | None = None
+
+            if expected_revision is None:
+                status = "missing_input"
+                blocker = "expected_revision_required"
+            else:
+                row = repository.warehouse_membership_authority(connection, membership_id)
+                if row is None:
+                    status = "stale"
+                    blocker = "target_missing"
+                else:
+                    current_revision = int(row[7])
+                    if current_revision != expected_revision:
+                        status = "stale"
+                        blocker = "revision_changed"
+                    else:
+                        try:
+                            verified, obligation = repository._require_warehouse_target(
+                                connection,
+                                membership_id=membership_id,
+                                expected_revision=expected_revision,
+                                required_state=required_state,
+                            )
+                        except SomaError as exc:
+                            status = "stale" if exc.code == "INV_STALE" else "incompatible"
+                            blocker = exc.code
+                        except IntegrityFailure:
+                            status = "individual_review"
+                            blocker = "dependency_integrity_failure"
+                        else:
+                            material = {
+                                "fault_tag_membership_id": membership_id,
+                                "expected_revision": expected_revision,
+                                "required_state": required_state,
+                                "rma_id": str(verified[2]),
+                                "physical_consequence_id": str(obligation[3]),
+                                "return_obligation_revision": int(obligation[4]),
+                                "device_part_unit_id": (
+                                    None if verified[3] is None else str(verified[3])
+                                ),
+                                "spare_part_unit_id": (
+                                    None if verified[4] is None else str(verified[4])
+                                ),
+                            }
+                            eligible_material.append(material)
+
+            projected.append(
+                {
+                    "fault_tag_membership_id": membership_id,
+                    "expected_revision": expected_revision,
+                    "current_revision": current_revision,
+                    "status": status,
+                    "blocker": blocker,
+                }
+            )
+            if status != "eligible":
+                blockers.append(
+                    {
+                        "fault_tag_membership_id": membership_id,
+                        "status": status,
+                        "code": blocker,
+                    }
+                )
+
+        fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_INVENTORY_BULK_PREVIEW_V1",
+                "action_kind": action_kind,
+                "effective_at_utc": effective,
+                "reason_code": reason,
+                "eligible_targets": eligible_material,
+            }
+        )
+        return {
+            "compatible": bool(projected)
+            and all(item["status"] == "eligible" for item in projected),
+            "input_fingerprint": fingerprint,
+            "targets": projected,
+            "blockers": blockers,
+        }
+
+    def preview(
+        self,
+        *,
+        action_kind: str,
+        targets: tuple[tuple[str, int | None], ...],
+        effective_at_utc: int | None = None,
+        reason_code: str | None = None,
+    ) -> dict[str, object]:
+        with ReadSnapshot(self._factory) as snapshot:
+            return self.classify_bulk(
+                snapshot.connection,
+                action_kind=action_kind,
+                targets=targets,
+                effective_at_utc=effective_at_utc,
+                reason_code=reason_code,
+            )
+
+
+__all__ = ["InventoryBulkPreviewQuery", "InventoryDestructivePreviewQuery"]
