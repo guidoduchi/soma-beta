@@ -179,6 +179,16 @@ def _rma_state(factory, rma_id):
         )
 
 
+def _membership_rma(factory, membership_id):
+    with ReadSnapshot(factory) as snapshot:
+        return str(
+            snapshot.connection.execute(
+                "SELECT rma_id FROM fault_tag_memberships WHERE fault_tag_membership_id=?",
+                (membership_id,),
+            ).fetchone()[0]
+        )
+
+
 def _obligation_state(factory, rma_id):
     with ReadSnapshot(factory) as snapshot:
         return tuple(
@@ -229,7 +239,8 @@ def test_manual_warehouse_transition_needs_no_uploaded_evidence_t056(initialized
     assert final_event[0] == "warehouse_accepted"
     assert final_event[3] is None
     assert final_event[4] is None
-    assert _obligation_state(factory, rmas[0])[0] == "closed_accepted"
+    first_rma = _membership_rma(factory, first.fault_tag_membership_id)
+    assert _obligation_state(factory, first_rma)[0] == "closed_accepted"
 
 
 def test_bulk_receipt_preflight_partitions_incompatible_target_t057(initialized_database):
@@ -303,8 +314,10 @@ def test_later_false_receipt_correction_isolated_from_successful_bulk_t059(
         factory, corrected.fault_tag_membership_id
     )
     sibling_before = _membership_state(factory, sibling.fault_tag_membership_id)
-    sibling_rma_before = _rma_state(factory, rmas[1])
-    corrected_obligation_before = _obligation_state(factory, rmas[0])
+    corrected_rma = _membership_rma(factory, corrected.fault_tag_membership_id)
+    sibling_rma = _membership_rma(factory, sibling.fault_tag_membership_id)
+    sibling_rma_before = _rma_state(factory, sibling_rma)
+    corrected_obligation_before = _obligation_state(factory, corrected_rma)
     target_event_id = str(corrected_before[4])
     sibling_event_id = str(sibling_before[4])
     sibling_event_before = _membership_event(factory, sibling_event_id)
@@ -361,12 +374,12 @@ def test_later_false_receipt_correction_isolated_from_successful_bulk_t059(
     assert correction_event[4] is None
     assert correction_event[5] == correction_command
 
-    corrected_rma_after = _rma_state(factory, rmas[0])
+    corrected_rma_after = _rma_state(factory, corrected_rma)
     assert corrected_rma_after[0] == "fault_tagged"
     assert corrected_rma_after[1] == 1
     assert corrected_rma_after[2] == corrected.fault_tag_membership_id
-    assert _obligation_state(factory, rmas[0]) == corrected_obligation_before
-    assert _rma_state(factory, rmas[1]) == sibling_rma_before
+    assert _obligation_state(factory, corrected_rma) == corrected_obligation_before
+    assert _rma_state(factory, sibling_rma) == sibling_rma_before
 
     with ReadSnapshot(factory) as snapshot:
         batch_after = tuple(
