@@ -71,7 +71,14 @@ class InventoryHardDeleteService:
         target_kind: str,
         target_id: str,
         preview: dict[str, object],
+        command_id: str,
     ) -> None:
+        inner.connection.execute(
+            "INSERT INTO inventory_hard_delete_authorizations("
+            "command_id,target_kind,target_id,created_at_utc"
+            ") VALUES (?,?,?,strftime('%s','now'))",
+            (command_id, target_kind, target_id),
+        )
         if target_kind == "spare_need":
             inner.connection.execute(
                 "DELETE FROM spare_need_active_keys WHERE spare_need_id=?",
@@ -159,6 +166,16 @@ class InventoryHardDeleteService:
                 "INV_STALE",
                 "Inventory draft disappeared during hard delete",
             )
+        removed_auth = inner.connection.execute(
+            "DELETE FROM inventory_hard_delete_authorizations "
+            "WHERE command_id=? AND target_kind=? AND target_id=?",
+            (command_id, target_kind, target_id),
+        )
+        if removed_auth.rowcount != 1:
+            raise SomaError(
+                "INV_STALE",
+                "Inventory hard-delete authorization disappeared",
+            )
 
     def hard_delete_untouched_inventory_draft(
         self,
@@ -235,6 +252,7 @@ class InventoryHardDeleteService:
                     target_kind=target_kind,
                     target_id=identity,
                     preview=current,
+                    command_id=command_id,
                 )
                 return AuditEventInput(
                     audit_event_id=new_uuid4(),
