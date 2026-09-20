@@ -11,7 +11,7 @@ from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditW
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import canonical_json_bytes, loads_canonical_json, sha256_canonical_json
 
 from ..audit_registry import build_inventory_audit_registry
