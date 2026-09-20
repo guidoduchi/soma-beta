@@ -8,15 +8,31 @@ from .services.participants import (
     InventoryReportSectionContributor,
     InventoryTaskDependencyProvider,
 )
+from .services.providers import (
+    InventoryCommunicationIdentityProvider,
+    InventoryDevicePartReferenceReader,
+    InventoryOverviewProjectionProvider,
+    InventoryPhysicalConsequenceReader,
+    InventoryReferenceDependencyValidator,
+    InventorySiteDependencyValidator,
+    RfcInventoryDependencyProvider,
+)
 
 __all__ = [
+    "InventoryCommunicationIdentityProvider",
     "InventoryCorrectionsBulkService",
+    "InventoryDevicePartReferenceReader",
     "InventoryFaultTagService",
     "InventoryHardDeleteService",
     "InventoryMutationResult",
     "InventoryNeedsStockService",
+    "InventoryOverviewProjectionProvider",
+    "InventoryPhysicalConsequenceReader",
     "InventoryProposalTargetService",
+    "InventoryReferenceDependencyValidator",
     "InventoryReportSectionContributor",
     "InventoryResultRef",
+    "InventorySiteDependencyValidator",
     "InventoryTaskDependencyProvider",
+    "RfcInventoryDependencyProvider",
 ]
