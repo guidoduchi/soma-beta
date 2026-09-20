@@ -2962,3 +2962,243 @@ def test_t066_archived_rejected_fault_tag_does_not_hide_unresolved_attention(
     assert item["derived_context"]["return_obligation_open"] is True
     assert item["derived_context"]["rejected_fault_tag_id"] == draft["fault_tag_id"]
     assert item["derived_context"]["rejected_fault_tag_archived"] is True
+
+
+def _insert_warehouse_received_proposal(
+    factory,
+    *,
+    membership_id: str,
+    expected_revision: int,
+    effective_at_utc: int | None,
+) -> tuple[str, str, str]:
+    proposal_id = new_uuid4()
+    target_id = new_uuid4()
+    evidence_id = new_uuid4()
+    fingerprint = "7" * 64
+    payload_json = json.dumps(
+        {
+            "effective_at_utc": effective_at_utc,
+            "schema": "INVENTORY_PROPOSAL_TARGET_V1",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO inventory_proposals("
+            "inventory_proposal_id,proposal_kind,evidence_kind,evidence_id,"
+            "source_proposal_key,state,input_fingerprint,risk_tier,created_at_utc,"
+            "revision,last_command_id"
+            ") VALUES (?,'warehouse_received','indexed_message',?,?,"
+            "'pending',?,'normal',?,1,NULL)",
+            (
+                proposal_id,
+                evidence_id,
+                f"warehouse-received:{proposal_id}",
+                fingerprint,
+                utc_epoch_seconds(),
+            ),
+        )
+        uow.connection.execute(
+            "INSERT INTO inventory_proposal_targets("
+            "inventory_proposal_target_id,inventory_proposal_id,target_kind,"
+            "spare_request_id,rma_id,spare_part_unit_id,fault_tag_id,"
+            "fault_tag_membership_id,expected_revision,proposed_action,payload_json"
+            ") VALUES (?,?,'fault_tag_membership',NULL,NULL,NULL,NULL,?,?,"
+            "'warehouse_received',?)",
+            (
+                target_id,
+                proposal_id,
+                membership_id,
+                expected_revision,
+                payload_json,
+            ),
+        )
+    return proposal_id, target_id, fingerprint
+
+
+def test_inventory_proposal_accept_reuses_warehouse_owner_and_replays_exactly(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200031",
+            suffix="PROP-ACCEPT",
+            promised_bom="BOM-PROP-ACCEPT",
+            c10_base=7300,
+        )
+    )
+    _draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    member = submitted["members"][0]
+    membership_id = str(member["fault_tag_membership_id"])
+    proposal_id, target_id, fingerprint = _insert_warehouse_received_proposal(
+        factory,
+        membership_id=membership_id,
+        expected_revision=int(member["revision"]),
+        effective_at_utc=1_700_880_000,
+    )
+    command_id = new_uuid4()
+    service = InventoryCorrectionsBulkService(factory)
+    accepted = service.accept_inventory_proposal(
+        command_id=command_id,
+        proposal_id=proposal_id,
+        revision=1,
+        input_fingerprint=fingerprint,
+        selected_target_ids=(target_id,),
+        explicit_confirmation=False,
+    )
+    replay = service.accept_inventory_proposal(
+        command_id=command_id,
+        proposal_id=proposal_id,
+        revision=1,
+        input_fingerprint=fingerprint,
+        selected_target_ids=(target_id,),
+        explicit_confirmation=False,
+    )
+    assert accepted.outcome == "APPLIED"
+    assert replay.replayed is True
+    assert replay.target_refs == accepted.target_refs
+    assert any(ref.result_type == "inventory_batch" for ref in accepted.target_refs)
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,revision FROM inventory_proposals "
+            "WHERE inventory_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("accepted", 2)
+        assert snapshot.connection.execute(
+            "SELECT state FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone()[0] == "warehouse_received"
+        assert snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()[0] == "open"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_membership_events "
+            "WHERE fault_tag_membership_id=? AND event_kind='warehouse_received'",
+            (membership_id,),
+        ).fetchone()[0] == 1
+        actions = {
+            str(row[0])
+            for row in snapshot.connection.execute(
+                "SELECT action_type FROM audit_events WHERE command_id=?",
+                (command_id,),
+            ).fetchall()
+        }
+        assert actions == {
+            "inventory.fault_tag.warehouse_state_changed",
+            "inventory.proposal.decided",
+        }
+
+
+def test_inventory_proposal_reject_changes_only_proposal_authority(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200032",
+            suffix="PROP-REJECT",
+            promised_bom="BOM-PROP-REJECT",
+            c10_base=7400,
+        )
+    )
+    _draft, submitted = _submitted_fault_tag_for_rmas(factory, (rma_id,))
+    member = submitted["members"][0]
+    membership_id = str(member["fault_tag_membership_id"])
+    proposal_id, _target_id, _fingerprint = _insert_warehouse_received_proposal(
+        factory,
+        membership_id=membership_id,
+        expected_revision=int(member["revision"]),
+        effective_at_utc=None,
+    )
+
+    rejected = InventoryCorrectionsBulkService(factory).reject_inventory_proposal(
+        command_id=new_uuid4(),
+        proposal_id=proposal_id,
+        revision=1,
+        reason_code="operator rejected communication proposal",
+    )
+    assert rejected.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,revision FROM inventory_proposals "
+            "WHERE inventory_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("rejected", 2)
+        assert snapshot.connection.execute(
+            "SELECT state,revision FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone() == ("submitted_awaiting_receipt", int(member["revision"]))
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_membership_events "
+            "WHERE fault_tag_membership_id=? AND event_kind='warehouse_received'",
+            (membership_id,),
+        ).fetchone()[0] == 0
+
+
+def test_generic_inventory_correction_dispatches_rma_alias_in_one_receipt_and_replays(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_ids = _rma_ready(
+        initialized_database,
+        official_sr="97200033",
+        suffix="GEN-CORR",
+        count=1,
+        promised_bom="BOM-GEN-CORR",
+        c10_base=7500,
+    )
+    rma_id = rma_ids[0]
+    command_id = new_uuid4()
+    service = InventoryCorrectionsBulkService(factory)
+    corrected = service.correct_inventory_evidence(
+        command_id=command_id,
+        correction_kind="rma_identifier_alias",
+        target_id=rma_id,
+        reason_code="provider corrected official identifier",
+        current_c10="C0000007500",
+        new_c10="C0000007599",
+    )
+    replay = service.correct_inventory_evidence(
+        command_id=command_id,
+        correction_kind="rma_identifier_alias",
+        target_id=rma_id,
+        reason_code="provider corrected official identifier",
+        current_c10="C0000007500",
+        new_c10="C0000007599",
+    )
+    assert corrected.outcome == "APPLIED"
+    assert replay.replayed is True
+    assert replay.target_refs == corrected.target_refs
+
+    with ReadSnapshot(factory) as snapshot:
+        aliases = snapshot.connection.execute(
+            "SELECT c10,alias_kind FROM rma_identifier_aliases "
+            "WHERE rma_id=? ORDER BY c10",
+            (rma_id,),
+        ).fetchall()
+        assert {tuple(row) for row in aliases} == {
+            ("C0000007500", "former"),
+            ("C0000007599", "current"),
+        }
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 1
+        actions = [
+            str(row[0])
+            for row in snapshot.connection.execute(
+                "SELECT action_type FROM audit_events WHERE command_id=? "
+                "ORDER BY action_type",
+                (command_id,),
+            ).fetchall()
+        ]
+        assert actions == [
+            "inventory.evidence.corrected",
+            "inventory.rma.authorized_or_assigned",
+        ]
