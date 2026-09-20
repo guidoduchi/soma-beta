@@ -929,6 +929,13 @@ CREATE INDEX idx_inv_fk_inventory_proposal_targets_fault_tag_id ON inventory_pro
 CREATE INDEX idx_inv_fk_inventory_proposal_targets_fault_tag_membership_id ON inventory_proposal_targets(fault_tag_membership_id);
 CREATE INDEX idx_inv_fk_inventory_attention_projection_last_command_id ON inventory_attention_projection(last_command_id);
 
+CREATE TABLE inventory_hard_delete_authorizations (
+    command_id TEXT PRIMARY KEY REFERENCES command_receipts(command_id) ON DELETE RESTRICT,
+    target_kind TEXT NOT NULL CHECK(target_kind IN ('spare_need','spare_request','spare_part_unit','fault_tag')),
+    target_id TEXT NOT NULL,
+    created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)
+) STRICT;
+
 CREATE TRIGGER inv_device_part_lifecycle_events_update_guard
 BEFORE UPDATE ON device_part_lifecycle_events BEGIN
     SELECT RAISE(ABORT,'INVENTORY_DEVICE_PART_LIFECYCLE_EVENTS_IMMUTABLE');
@@ -942,7 +949,11 @@ BEFORE UPDATE ON spare_need_lifecycle_events BEGIN
     SELECT RAISE(ABORT,'INVENTORY_SPARE_NEED_LIFECYCLE_EVENTS_IMMUTABLE');
 END;
 CREATE TRIGGER inv_spare_need_lifecycle_events_delete_guard
-BEFORE DELETE ON spare_need_lifecycle_events BEGIN
+BEFORE DELETE ON spare_need_lifecycle_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM inventory_hard_delete_authorizations a
+    WHERE a.target_kind='spare_need' AND a.target_id=OLD.spare_need_id
+) BEGIN
     SELECT RAISE(ABORT,'INVENTORY_SPARE_NEED_LIFECYCLE_EVENTS_IMMUTABLE');
 END;
 CREATE TRIGGER inv_spare_request_lifecycle_events_update_guard
@@ -950,7 +961,11 @@ BEFORE UPDATE ON spare_request_lifecycle_events BEGIN
     SELECT RAISE(ABORT,'INVENTORY_SPARE_REQUEST_LIFECYCLE_EVENTS_IMMUTABLE');
 END;
 CREATE TRIGGER inv_spare_request_lifecycle_events_delete_guard
-BEFORE DELETE ON spare_request_lifecycle_events BEGIN
+BEFORE DELETE ON spare_request_lifecycle_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM inventory_hard_delete_authorizations a
+    WHERE a.target_kind='spare_request' AND a.target_id=OLD.spare_request_id
+) BEGIN
     SELECT RAISE(ABORT,'INVENTORY_SPARE_REQUEST_LIFECYCLE_EVENTS_IMMUTABLE');
 END;
 CREATE TRIGGER inv_spare_request_identifier_events_update_guard
@@ -998,7 +1013,11 @@ BEFORE UPDATE ON spare_part_lifecycle_events BEGIN
     SELECT RAISE(ABORT,'INVENTORY_SPARE_PART_LIFECYCLE_EVENTS_IMMUTABLE');
 END;
 CREATE TRIGGER inv_spare_part_lifecycle_events_delete_guard
-BEFORE DELETE ON spare_part_lifecycle_events BEGIN
+BEFORE DELETE ON spare_part_lifecycle_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM inventory_hard_delete_authorizations a
+    WHERE a.target_kind='spare_part_unit' AND a.target_id=OLD.spare_part_unit_id
+) BEGIN
     SELECT RAISE(ABORT,'INVENTORY_SPARE_PART_LIFECYCLE_EVENTS_IMMUTABLE');
 END;
 CREATE TRIGGER inv_task_unit_allocation_events_update_guard
@@ -1038,7 +1057,11 @@ BEFORE UPDATE ON fault_tag_lifecycle_events BEGIN
     SELECT RAISE(ABORT,'INVENTORY_FAULT_TAG_LIFECYCLE_EVENTS_IMMUTABLE');
 END;
 CREATE TRIGGER inv_fault_tag_lifecycle_events_delete_guard
-BEFORE DELETE ON fault_tag_lifecycle_events BEGIN
+BEFORE DELETE ON fault_tag_lifecycle_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM inventory_hard_delete_authorizations a
+    WHERE a.target_kind='fault_tag' AND a.target_id=OLD.fault_tag_id
+) BEGIN
     SELECT RAISE(ABORT,'INVENTORY_FAULT_TAG_LIFECYCLE_EVENTS_IMMUTABLE');
 END;
 CREATE TRIGGER inv_fault_tag_submission_snapshots_update_guard
