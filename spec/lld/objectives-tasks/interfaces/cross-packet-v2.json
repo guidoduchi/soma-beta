@@ -57,12 +57,13 @@
     {
       "name": "TaskOperationalEvidenceReader",
       "methods": [
-        "task_outcome(snapshot,task_id)",
-        "task_execution(snapshot,task_id)",
-        "objective_context(snapshot,task_id)",
-        "review_fingerprint(snapshot,task_id)"
+        "task_outcome(reader,task_id) -> TaskOperationalOutcomeV1|null",
+        "task_execution(reader,task_id) -> TaskOperationalExecutionV1",
+        "objective_context(reader,task_id) -> TaskOperationalObjectiveContextV1|null",
+        "review_fingerprint(reader,task_id) -> lowercase sha256"
       ],
-      "transaction": "read-only"
+      "transaction": "read-only",
+      "rule": "Read-only accepted operational evidence; accepts either one stable LLD-01 Snapshot or the current supplied writer UnitOfWork read context and never mutates/commits. TaskOperationalExecutionV1 is exact {execution_revision:int>=0,execution_state:'not_started|in_progress|ended|terminated',actual_start_utc:int|null,actual_end_utc:int|null,effective_termination_utc:int|null,termination_reason:string|null,last_event_id:uuid|null}. Exact absence is revision=0/not_started with all nullable fields null; any positive history/projection disagreement fails closed. TaskOperationalOutcomeV1 is null only when both task_outcome_current and owned task_outcome_events are exactly absent; otherwise it is exact {outcome_event_id:uuid,accepted_outcome:'completed|incomplete|cancelled_without_execution',reviewed_at_utc:int>=0,outcome_revision:int>=1}. Current projection must equal the unique linear immutable chain tip or the reader fails closed. TaskOperationalObjectiveContextV1 is null only when objective_task_membership_current is absent; otherwise it is exact {objective_id:uuid,membership_revision:int>=1,accepted_plan_revision_id:uuid,membership_last_event_id:uuid,objective_revision:int>=1,envelope_revision:int>=1,aggregate_revision:int>=1,aggregate_input_fingerprint:lowercase sha256}. Missing/corrupt current Objective projection fails closed. review_fingerprint is SOMA_TASK_OPERATIONAL_EVIDENCE_V1: SHA-256 over LLD-01 StrictVersionedJson canonical JSON UTF-8 bytes for {schema:'SOMA_TASK_OPERATIONAL_EVIDENCE_V1',task_id,execution:task_execution(...),outcome:task_outcome(...),objective_context:objective_context(...)}. It deliberately excludes Task plan/source/lock/general Task revision that do not change these operational facts. Any included execution event/projection change, outcome review/correction, current Objective membership move/repin, Objective revision, envelope revision, aggregate revision or aggregate input fingerprint change changes the digest."
     },
     {
       "name": "TaskSiteDependencyValidator",
