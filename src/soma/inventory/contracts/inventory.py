@@ -30,6 +30,7 @@ _ALLOWED_REF_TYPES = frozenset(
         "spare_need",
         "spare_need_contributor",
         "spare_need_event",
+        "spare_request",
         "spare_part_unit",
         "spare_part_unit_event",
         "task_unit_allocation",
