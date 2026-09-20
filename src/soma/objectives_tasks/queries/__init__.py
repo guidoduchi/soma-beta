@@ -5,9 +5,19 @@ from .hard_delete import (
     TaskHardDeletePreview,
     TaskHardDeleteQueryService,
 )
+from .tasks import (
+    TaskOperationalEvidenceReader,
+    TaskOperationalExecution,
+    TaskOperationalObjectiveContext,
+    TaskOperationalOutcome,
+)
 
 __all__ = [
     "InventoryTaskDependencyProvider",
+    "TaskOperationalEvidenceReader",
+    "TaskOperationalExecution",
+    "TaskOperationalObjectiveContext",
+    "TaskOperationalOutcome",
     "TaskHardDeletePreview",
     "TaskHardDeleteQueryService",
 ]
