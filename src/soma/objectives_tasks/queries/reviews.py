@@ -1,0 +1,267 @@
+from __future__ import annotations
+
+from typing import Any
+
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.identifiers import require_uuid4
+from soma.foundation.persistence.connections import ConnectionFactory
+from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.strict_json import sha256_canonical_json
+
+from ..repositories.tasks import TaskPlanRepository, TaskRepository, WfmTaskRepository
+from ..source_terminal_authority import current_source_projection
+
+
+def _limit(value: int) -> int:
+    if type(value) is not int or not 1 <= value <= 500:
+        raise ValidationError("limit must be an integer from 1 through 500")
+    return value
+
+
+class HistoricalObjectiveQueryService:
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
+
+    @staticmethod
+    def input_fingerprint(reader: Any, task_id: str) -> str:
+        identity = require_uuid4(task_id)
+        task = TaskRepository.get(reader, identity)
+        wfm = WfmTaskRepository.get_identity(reader, identity)
+        if task is None or task.task_kind != "wfm" or wfm is None:
+            raise SomaError(
+                "HISTORICAL_PROPOSAL_NOT_ELIGIBLE",
+                "historical Objective proposal requires a current WFM Task",
+            )
+        source = current_source_projection(reader, identity)
+        source_value = None
+        if source is not None:
+            source_value = {
+                "revision": source.source_projection_revision,
+                "provider_status_token": source.provider_status_token,
+                "provider_lifecycle_class": source.provider_lifecycle_class,
+                "start_utc": source.source_plan_start_utc,
+                "end_utc": source.source_plan_end_utc,
+                "accepted_source_observation_id": source.accepted_source_observation_id,
+                "source_base_token": source.source_base_token,
+            }
+        pointer = TaskPlanRepository.current_pointer(reader, identity)
+        plan_value = None
+        if pointer is not None:
+            plan = TaskPlanRepository.get_revision(reader, pointer.plan_revision_id)
+            if plan is None or plan.task_id != identity:
+                raise IntegrityFailure(
+                    "historical proposal Task plan pointer is invalid"
+                )
+            plan_value = {
+                "current_revision": pointer.revision,
+                "plan_revision_id": plan.plan_revision_id,
+                "start_utc": plan.start_utc,
+                "end_utc": plan.end_utc,
+                "origin": plan.origin,
+                "source_observation_id": plan.source_observation_id,
+            }
+        membership = reader.execute(
+            "SELECT objective_id,accepted_plan_revision_id,membership_revision,last_event_id "
+            "FROM objective_task_membership_current WHERE task_id=?",
+            (identity,),
+        ).fetchone()
+        lock = reader.execute(
+            "SELECT explicit_plan_lock,explicit_membership_lock,revision,last_event_id "
+            "FROM task_lock_projection WHERE task_id=?",
+            (identity,),
+        ).fetchone()
+        execution_count = int(
+            reader.execute(
+                "SELECT count(*) FROM task_execution_events WHERE task_id=?",
+                (identity,),
+            ).fetchone()[0]
+        )
+        execution = reader.execute(
+            "SELECT execution_state,actual_start_utc,actual_end_utc,"
+            "effective_termination_utc,revision,last_event_id "
+            "FROM task_execution_projection WHERE task_id=?",
+            (identity,),
+        ).fetchone()
+        outcome_count = int(
+            reader.execute(
+                "SELECT count(*) FROM task_outcome_events WHERE task_id=?",
+                (identity,),
+            ).fetchone()[0]
+        )
+        outcome = reader.execute(
+            "SELECT outcome_event_id,accepted_outcome,reviewed_at_utc,revision "
+            "FROM task_outcome_current WHERE task_id=?",
+            (identity,),
+        ).fetchone()
+        return sha256_canonical_json(
+            {
+                "schema": "SOMA_HISTORICAL_OBJECTIVE_PROPOSAL_INPUT_V1",
+                "task": {
+                    "task_id": task.task_id,
+                    "task_revision": task.revision,
+                    "creation_origin": task.creation_origin,
+                },
+                "wfm": {
+                    "task_no": wfm.task_no,
+                    "current_rfc_id": wfm.current_rfc_id,
+                    "assignment_revision": wfm.assignment_revision,
+                },
+                "source": source_value,
+                "operational_plan": plan_value,
+                "membership": None
+                if membership is None
+                else {
+                    "objective_id": str(membership[0]),
+                    "accepted_plan_revision_id": str(membership[1]),
+                    "membership_revision": int(membership[2]),
+                    "last_event_id": str(membership[3]),
+                },
+                "explicit_lock": None
+                if lock is None
+                else {
+                    "plan": bool(lock[0]),
+                    "membership": bool(lock[1]),
+                    "revision": int(lock[2]),
+                    "last_event_id": None if lock[3] is None else str(lock[3]),
+                },
+                "execution": {
+                    "event_count": execution_count,
+                    "projection": None
+                    if execution is None
+                    else {
+                        "state": str(execution[0]),
+                        "actual_start_utc": execution[1],
+                        "actual_end_utc": execution[2],
+                        "effective_termination_utc": execution[3],
+                        "revision": int(execution[4]),
+                        "last_event_id": str(execution[5]),
+                    },
+                },
+                "outcome": {
+                    "event_count": outcome_count,
+                    "current": None
+                    if outcome is None
+                    else {
+                        "event_id": str(outcome[0]),
+                        "accepted_outcome": str(outcome[1]),
+                        "reviewed_at_utc": int(outcome[2]),
+                        "revision": int(outcome[3]),
+                    },
+                },
+            }
+        )
+
+    def list_historical_proposals(
+        self,
+        *,
+        state: str | None = None,
+        after_created_at_utc: int | None = None,
+        after_proposal_id: str | None = None,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        page_limit = _limit(limit)
+        if state is not None and state not in {
+            "pending",
+            "accepted",
+            "rejected",
+            "superseded",
+        }:
+            raise ValidationError("historical proposal state filter is invalid")
+        after_id = (
+            None
+            if after_proposal_id is None
+            else require_uuid4(after_proposal_id)
+        )
+        if (after_created_at_utc is None) != (after_id is None):
+            raise ValidationError(
+                "historical proposal continuation requires both key fields"
+            )
+        if after_created_at_utc is not None and (
+            type(after_created_at_utc) is not int
+            or after_created_at_utc < 0
+        ):
+            raise ValidationError(
+                "historical proposal continuation timestamp is invalid"
+            )
+        clauses: list[str] = []
+        params: list[object] = []
+        if state is not None:
+            clauses.append("p.state=?")
+            params.append(state)
+        with ReadSnapshot(self._factory) as snapshot:
+            total_where = (
+                "" if not clauses else " WHERE " + " AND ".join(clauses)
+            )
+            total = int(
+                snapshot.connection.execute(
+                    "SELECT count(*) FROM historical_objective_proposals p"
+                    + total_where,
+                    tuple(params),
+                ).fetchone()[0]
+            )
+            page_clauses = list(clauses)
+            page_params = list(params)
+            if after_created_at_utc is not None and after_id is not None:
+                page_clauses.append(
+                    "(p.created_at_utc<? OR "
+                    "(p.created_at_utc=? AND p.historical_proposal_id>?))"
+                )
+                page_params.extend(
+                    [after_created_at_utc, after_created_at_utc, after_id]
+                )
+            where = (
+                ""
+                if not page_clauses
+                else " WHERE " + " AND ".join(page_clauses)
+            )
+            rows = snapshot.connection.execute(
+                "SELECT p.historical_proposal_id,p.task_id,w.task_no,"
+                "p.expected_wfm_source_projection_revision,"
+                "p.expected_source_plan_start_utc,p.expected_source_plan_end_utc,"
+                "p.expected_source_observation_id,"
+                "p.expected_matching_operational_plan_revision_id,"
+                "p.input_fingerprint,p.state,p.revision,p.created_at_utc "
+                "FROM historical_objective_proposals p "
+                "JOIN wfm_task_identities w ON w.task_id=p.task_id"
+                + where
+                + " ORDER BY p.created_at_utc DESC,"
+                "p.historical_proposal_id ASC LIMIT ?",
+                (*page_params, page_limit + 1),
+            ).fetchall()
+            page = rows[:page_limit]
+            items = [
+                {
+                    "proposal_id": str(row[0]),
+                    "task_id": str(row[1]),
+                    "task_no": str(row[2]),
+                    "source_projection_revision": int(row[3]),
+                    "source_plan": {
+                        "start_utc": int(row[4]),
+                        "end_utc": int(row[5]),
+                    },
+                    "source_evidence_id": str(row[6]),
+                    "matching_operational_plan_revision_id": (
+                        None if row[7] is None else str(row[7])
+                    ),
+                    "input_fingerprint": str(row[8]),
+                    "state": str(row[9]),
+                    "revision": int(row[10]),
+                    "created_at_utc": int(row[11]),
+                }
+                for row in page
+            ]
+            continuation = None
+            if len(rows) > page_limit and page:
+                last = page[-1]
+                continuation = {
+                    "created_at_utc": int(last[11]),
+                    "proposal_id": str(last[0]),
+                }
+            return {
+                "items": items,
+                "continuation": continuation,
+                "exact_total": total,
+            }
+
+
+__all__ = ["HistoricalObjectiveQueryService"]

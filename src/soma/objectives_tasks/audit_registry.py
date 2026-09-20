@@ -75,6 +75,28 @@ _OBJECTIVE_AUDIT_FIELDS = frozenset(
         "reason_category",
     }
 )
+_HISTORICAL_OBJECTIVE_AUDIT_FIELDS = frozenset(
+    {
+        "proposal_id",
+        "task_id",
+        "source_projection_revision",
+        "source_evidence_id",
+        "decision",
+        "objective_id",
+        "membership_plan_revision_id",
+        "review_fingerprint",
+        "reason_category",
+    }
+)
+_TASK_COUNT_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "included",
+        "inclusion_event_id",
+        "resulting_revision",
+        "reason_category",
+    }
+)
 _OBJECTIVE_TIMEZONE_AUDIT_FIELDS = frozenset(
     {
         "setting_key",
@@ -403,6 +425,126 @@ def _validate_objective_timezone(payload: dict[str, object]) -> None:
     ):
         raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone violates its bound")
 
+
+def _validate_historical_objective(payload: dict[str, object]) -> None:
+    for field in ("proposal_id", "task_id"):
+        try:
+            value = payload.get(field)
+            if not isinstance(value, str):
+                raise ValidationError(f"{field} must be UUID text")
+            require_uuid4(value)
+        except ValidationError as exc:
+            raise SomaError(
+                "AUDIT_PAYLOAD_INVALID",
+                "historical Objective audit identity is invalid",
+            ) from exc
+    revision = payload.get("source_projection_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective source revision is invalid",
+        )
+    evidence = payload.get("source_evidence_id")
+    if not isinstance(evidence, str):
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective source evidence is invalid",
+        )
+    try:
+        encoded = evidence.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective source evidence is invalid Unicode",
+        ) from exc
+    if (
+        not encoded
+        or len(encoded) > 1024
+        or "\x00" in evidence
+        or "\r" in evidence
+        or "\n" in evidence
+    ):
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective source evidence violates its bound",
+        )
+    decision = payload.get("decision")
+    if decision not in {"ACCEPTED", "REJECTED"}:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective decision is invalid",
+        )
+    objective_id = payload.get("objective_id")
+    plan_id = payload.get("membership_plan_revision_id")
+    try:
+        if objective_id is not None:
+            if not isinstance(objective_id, str):
+                raise ValidationError("objective_id must be UUID text or null")
+            require_uuid4(objective_id)
+        if plan_id is not None:
+            if not isinstance(plan_id, str):
+                raise ValidationError(
+                    "membership_plan_revision_id must be UUID text or null"
+                )
+            require_uuid4(plan_id)
+    except ValidationError as exc:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective result identity is invalid",
+        ) from exc
+    if decision == "ACCEPTED" and (objective_id is None or plan_id is None):
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "accepted historical Objective decision lacks structure identity",
+        )
+    if decision == "REJECTED" and (objective_id is not None or plan_id is not None):
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "rejected historical Objective decision claims structure identity",
+        )
+    fingerprint = payload.get("review_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective review fingerprint is invalid",
+        )
+    _validate_bounded_reason(
+        payload.get("reason_category"),
+        required=decision == "REJECTED",
+        label="historical Objective",
+    )
+
+
+def _validate_task_count(payload: dict[str, object]) -> None:
+    try:
+        task_id = payload.get("task_id")
+        event_id = payload.get("inclusion_event_id")
+        if not isinstance(task_id, str) or not isinstance(event_id, str):
+            raise ValidationError("Task count identities must be UUID text")
+        require_uuid4(task_id)
+        require_uuid4(event_id)
+    except ValidationError as exc:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "Task count audit identity is invalid",
+        ) from exc
+    if type(payload.get("included")) is not bool:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "Task count inclusion flag is invalid",
+        )
+    revision = payload.get("resulting_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "Task count revision is invalid",
+        )
+    _validate_bounded_reason(
+        payload.get("reason_category"),
+        required=True,
+        label="Task count",
+    )
+
 def _contract(name: str, fields: frozenset[str], *, max_items: int = 32) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -533,7 +675,11 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
             action_version=1,
             payload_schema="HardDeleteAuditV1",
             payload_version=1,
-            payload_contract=_contract("HardDeleteAuditV1", _HARD_DELETE_AUDIT_FIELDS),
+            payload_contract=_contract(
+                "HardDeleteAuditV1",
+                _HARD_DELETE_AUDIT_FIELDS,
+                max_items=128,
+            ),
             sensitivity_validator=_validate_hard_delete,
         )
     )
@@ -549,6 +695,34 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
                 max_items=16,
             ),
             sensitivity_validator=_validate_objective_timezone,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.historical_proposal_decided",
+            action_version=1,
+            payload_schema="HistoricalObjectiveAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "HistoricalObjectiveAuditV1",
+                _HISTORICAL_OBJECTIVE_AUDIT_FIELDS,
+                max_items=24,
+            ),
+            sensitivity_validator=_validate_historical_objective,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.operational_count_inclusion_changed",
+            action_version=1,
+            payload_schema="TaskCountAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "TaskCountAuditV1",
+                _TASK_COUNT_AUDIT_FIELDS,
+                max_items=16,
+            ),
+            sensitivity_validator=_validate_task_count,
         )
     )
     return registry

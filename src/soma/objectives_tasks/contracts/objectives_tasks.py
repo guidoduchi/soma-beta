@@ -79,6 +79,22 @@ class ObjectiveMutationResult:
         return self.outcome == "NO_CHANGE"
 
 
+
+@dataclass(frozen=True, slots=True)
+class HistoricalObjectiveProposalDecisionResult:
+    outcome: str
+    proposal_id: str
+    proposal_revision: int
+    state: str
+    objective_id: str | None
+    result_refs: tuple[TaskResultRef, ...]
+    replayed: bool
+
+    @property
+    def no_change(self) -> bool:
+        return self.outcome == "NO_CHANGE"
+
+
 @dataclass(frozen=True, slots=True)
 class WfmActivityRelationshipReviewResult:
     outcome: str
@@ -202,6 +218,95 @@ def objective_mutation_result_from_execution(result: CommandExecutionResult) -> 
         replayed=result.replayed,
     )
 
+
+
+def historical_objective_proposal_decision_from_execution(
+    result: CommandExecutionResult,
+) -> HistoricalObjectiveProposalDecisionResult:
+    expected_fields = {
+        "outcome",
+        "proposal_id",
+        "proposal_revision",
+        "state",
+        "objective_id",
+        "result_refs",
+    }
+    if (
+        result.response_schema != "HistoricalObjectiveProposalDecisionV1"
+        or result.response_version != 1
+        or not isinstance(result.response, dict)
+        or set(result.response) != expected_fields
+    ):
+        raise IntegrityFailure(
+            "historical Objective proposal replay result has the wrong response contract"
+        )
+    response = result.response
+    outcome = response.get("outcome")
+    if outcome not in {"APPLIED", "NO_CHANGE"} or bool(result.no_change) != (
+        outcome == "NO_CHANGE"
+    ):
+        raise IntegrityFailure(
+            "historical Objective proposal replay result has inconsistent outcome"
+        )
+    proposal_id = response.get("proposal_id")
+    objective_id = response.get("objective_id")
+    try:
+        if not isinstance(proposal_id, str):
+            raise ValidationError("proposal_id must be UUID text")
+        require_uuid4(proposal_id)
+        if objective_id is not None:
+            if not isinstance(objective_id, str):
+                raise ValidationError("objective_id must be UUID text or null")
+            require_uuid4(objective_id)
+    except ValidationError as exc:
+        raise IntegrityFailure(
+            "historical Objective proposal replay identity is invalid"
+        ) from exc
+    revision = response.get("proposal_revision")
+    if type(revision) is not int or revision <= 0:
+        raise IntegrityFailure(
+            "historical Objective proposal replay revision is invalid"
+        )
+    state = response.get("state")
+    if state not in {"accepted", "rejected"}:
+        raise IntegrityFailure(
+            "historical Objective proposal replay state is invalid"
+        )
+    if (state == "accepted") != (objective_id is not None):
+        raise IntegrityFailure(
+            "historical Objective proposal replay Objective identity is inconsistent"
+        )
+    refs = _parse_result_refs(response.get("result_refs"), max_items=8)
+    if outcome == "NO_CHANGE":
+        if refs or result.result_id is not None or result.result_type not in {
+            None,
+            "NO_CHANGE",
+        }:
+            raise IntegrityFailure(
+                "historical Objective proposal NO_CHANGE claims material authority"
+            )
+    else:
+        if not isinstance(result.result_type, str) or not isinstance(
+            result.result_id, str
+        ):
+            raise IntegrityFailure(
+                "historical Objective proposal material receipt lacks result identity"
+            )
+        if (result.result_type, result.result_id) not in {
+            (ref.result_type, ref.result_id) for ref in refs
+        }:
+            raise IntegrityFailure(
+                "historical Objective proposal response omits receipt result identity"
+            )
+    return HistoricalObjectiveProposalDecisionResult(
+        outcome=str(outcome),
+        proposal_id=proposal_id,
+        proposal_revision=revision,
+        state=str(state),
+        objective_id=None if objective_id is None else str(objective_id),
+        result_refs=refs,
+        replayed=result.replayed,
+    )
 
 def wfm_activity_review_result_from_execution(
     result: CommandExecutionResult,
