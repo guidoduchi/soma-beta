@@ -47,5 +47,40 @@
     ],
     "unsupported": "Any other proposal kind/action is reviewable/rejectable only and fails acceptance with DEPENDENCY_INDETERMINATE.",
     "selection": "all-target atomic in Beta 1.0; partial selected scope fails DEPENDENCY_INDETERMINATE until target-level disposition persistence exists"
+  },
+  "bulk_action_contract_v1": {
+    "action_kinds": {
+      "warehouse_receipt": {
+        "required_state": "submitted_awaiting_receipt",
+        "owner_reducer": "RecordWarehouseReceipt"
+      },
+      "warehouse_accept": {
+        "required_state": "warehouse_received",
+        "owner_reducer": "RecordWarehouseFinalDecision(decision=accepted)"
+      },
+      "warehouse_reject": {
+        "required_state": "warehouse_received",
+        "owner_reducer": "RecordWarehouseFinalDecision(decision=rejected)"
+      }
+    },
+    "partitions": [
+      "eligible",
+      "incompatible",
+      "stale",
+      "missing_input",
+      "individual_review"
+    ],
+    "fingerprint": "SOMA_INVENTORY_BULK_PREVIEW_V1 over action kind + normalized action context + ordered eligible target identities/expected revisions/current material dependency tuple only; noneligible partitions are returned separately and are not silently accepted.",
+    "material_dependency_tuple": [
+      "fault_tag_membership_id",
+      "expected membership revision",
+      "required membership state",
+      "rma_id",
+      "physical_consequence_id",
+      "open return-obligation revision",
+      "device_part_unit_id|null",
+      "spare_part_unit_id|null"
+    ],
+    "commit": "recompute the eligible-scope fingerprint in the writer UoW from the accepted target list; exact mismatch or any target no longer eligible aborts the entire batch before writes."
   }
 }

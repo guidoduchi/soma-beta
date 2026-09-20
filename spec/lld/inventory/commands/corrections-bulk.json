@@ -138,5 +138,19 @@
     "warehouse_final_decision requires material_final risk and explicit_confirmation=true before any mutation",
     "unsupported proposal kinds/actions fail DEPENDENCY_INDETERMINATE and leave proposal/Inventory unchanged",
     "Beta 1.0 accepts the complete proposal target set atomically; partial selected scope fails DEPENDENCY_INDETERMINATE because target-level dispositions are not persisted by the current schema"
-  ]
+  ],
+  "bulk_action_contract_v1": {
+    "action_kinds": [
+      "warehouse_receipt",
+      "warehouse_accept",
+      "warehouse_reject"
+    ],
+    "target": "fault_tag_membership_id + expected_revision; missing revision remains visible as missing_input in preview",
+    "context": {
+      "effective_at_utc": "int>=0|null",
+      "reason_code": "bounded string required only for warehouse_reject",
+      "explicit_confirmation": "required true at commit for warehouse_accept and warehouse_reject"
+    },
+    "acceptance": "AcceptInventoryBulkAction accepts exactly the eligible target identities/revisions returned by the reviewed preview fingerprint; any drift aborts the whole selected scope."
+  }
 }
