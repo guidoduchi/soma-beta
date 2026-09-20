@@ -5,13 +5,18 @@ from typing import Any, Iterator
 from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
-from soma.foundation.strict_json import sha256_canonical_json
+from soma.foundation.strict_json import ObjectContract, sha256_canonical_json
+from soma.product_line_sla.report_sections import (
+    ReportSectionDescriptor,
+    ReportSectionRow,
+)
 from soma.reference.domain.dependencies import (
     DependencyBlocker,
     DependencyGuard,
     DependencyPage,
     ReferenceTarget,
 )
+from soma.tickets.service_request_sla_input import ServiceRequestSlaInputReader
 
 Reader = ReadSnapshot | UnitOfWork
 
@@ -516,13 +521,177 @@ class InventoryOverviewProjectionProvider:
         )
 
 
+class InventoryReportSectionContributor:
+    """Minimized Inventory facts for the exact LLD-06 report Snapshot scope."""
+
+    _CONTRACT = ObjectContract(
+        name="InventoryReportSectionV1",
+        version=1,
+        required_fields=frozenset(
+            {
+                "service_request_id",
+                "as_of_utc",
+                "spare_need_count",
+                "active_spare_need_count",
+                "spare_request_count",
+                "open_rma_count",
+                "fault_tag_count",
+                "open_return_obligation_count",
+                "attention_count",
+            }
+        ),
+        allowed_fields=frozenset(
+            {
+                "service_request_id",
+                "as_of_utc",
+                "spare_need_count",
+                "active_spare_need_count",
+                "spare_request_count",
+                "open_rma_count",
+                "fault_tag_count",
+                "open_return_obligation_count",
+                "attention_count",
+            }
+        ),
+        max_depth=2,
+        max_collection_items=16,
+        max_utf8_bytes=4096,
+    )
+
+    @classmethod
+    def section_descriptor(cls) -> ReportSectionDescriptor:
+        return ReportSectionDescriptor(
+            section_kind="inventory_summary",
+            schema_name=cls._CONTRACT.name,
+            schema_version=cls._CONTRACT.version,
+            ordinal=700,
+            payload_contract=cls._CONTRACT,
+        )
+
+    @staticmethod
+    def _count(connection: Any, sql: str, params: tuple[object, ...]) -> int:
+        row = connection.execute(sql, params).fetchone()
+        return 0 if row is None else int(row[0])
+
+    @classmethod
+    def _row(cls, connection: Any, service_request_id: str, as_of_utc: int) -> ReportSectionRow:
+        sr_id = require_uuid4(service_request_id)
+        rma_scope = (
+            "SELECT m.rma_id FROM rmas m JOIN spare_requests q "
+            "ON q.spare_request_id=m.spare_request_id WHERE q.service_request_id=?"
+        )
+        fault_tag_scope = (
+            "SELECT DISTINCT fm.fault_tag_id FROM fault_tag_memberships fm "
+            "WHERE fm.rma_id IN (" + rma_scope + ")"
+        )
+        attention_count = cls._count(
+            connection,
+            "SELECT COUNT(*) FROM inventory_attention_projection a WHERE "
+            "(a.target_kind='spare_need' AND a.target_id IN "
+            "(SELECT spare_need_id FROM spare_needs WHERE service_request_id=?)) OR "
+            "(a.target_kind='spare_request' AND a.target_id IN "
+            "(SELECT spare_request_id FROM spare_requests WHERE service_request_id=?)) OR "
+            "(a.target_kind='rma' AND a.target_id IN (" + rma_scope + ")) OR "
+            "(a.target_kind='fault_tag' AND a.target_id IN (" + fault_tag_scope + "))",
+            (sr_id, sr_id, sr_id, sr_id),
+        )
+        payload = {
+            "service_request_id": sr_id,
+            "as_of_utc": as_of_utc,
+            "spare_need_count": cls._count(
+                connection,
+                "SELECT COUNT(*) FROM spare_needs WHERE service_request_id=?",
+                (sr_id,),
+            ),
+            "active_spare_need_count": cls._count(
+                connection,
+                "SELECT COUNT(*) FROM spare_needs n JOIN spare_need_current_projection p "
+                "ON p.spare_need_id=n.spare_need_id "
+                "WHERE n.service_request_id=? AND p.lifecycle_state='active'",
+                (sr_id,),
+            ),
+            "spare_request_count": cls._count(
+                connection,
+                "SELECT COUNT(*) FROM spare_requests WHERE service_request_id=?",
+                (sr_id,),
+            ),
+            "open_rma_count": cls._count(
+                connection,
+                "SELECT COUNT(*) FROM rma_lifecycle_projection p WHERE p.rma_id IN ("
+                + rma_scope
+                + ") AND p.state<>'closed_accepted'",
+                (sr_id,),
+            ),
+            "fault_tag_count": cls._count(
+                connection,
+                "SELECT COUNT(*) FROM fault_tags t WHERE t.fault_tag_id IN ("
+                + fault_tag_scope
+                + ")",
+                (sr_id,),
+            ),
+            "open_return_obligation_count": cls._count(
+                connection,
+                "SELECT COUNT(*) FROM rma_return_obligation_current o WHERE o.rma_id IN ("
+                + rma_scope
+                + ") AND o.obligation_state='open'",
+                (sr_id,),
+            ),
+            "attention_count": attention_count,
+        }
+        return ReportSectionRow(canonical_row_key=sr_id, payload=payload)
+
+    @classmethod
+    def stream_snapshot_rows(
+        cls,
+        snapshot: Any,
+        report_request: dict[str, object],
+        as_of_utc: int,
+    ) -> tuple[ReportSectionRow, ...]:
+        if type(as_of_utc) is not int or as_of_utc < 0:
+            raise ValidationError("Inventory report as_of_utc is invalid")
+        period_start = report_request.get("period_start_utc")
+        period_end = report_request.get("period_end_utc")
+        customer_id = report_request.get("customer_org_id")
+        if type(period_start) is not int or type(period_end) is not int:
+            raise ValidationError("Inventory report period bounds are invalid")
+        if customer_id is not None and not isinstance(customer_id, str):
+            raise ValidationError("Inventory report customer scope is invalid")
+
+        rows: list[ReportSectionRow] = []
+        cursor: str | None = None
+        while True:
+            page = ServiceRequestSlaInputReader.list_report_date_month(
+                snapshot,
+                period_start,
+                period_end,
+                customer_id,
+                cursor,
+                500,
+            )
+            rows.extend(
+                cls._row(snapshot, item.service_request_id, as_of_utc)
+                for item in page.items
+            )
+            if page.next_cursor is None:
+                break
+            cursor = page.next_cursor
+        return tuple(rows)
+
+
+# Normative module-map service name; the explicit Inventory name avoids ambiguity at
+# composition roots that also import the LLD-06 protocol.
+ReportSectionContributor = InventoryReportSectionContributor
+
+
 __all__ = [
     "InventoryCommunicationIdentityProvider",
     "InventoryDevicePartReferenceReader",
     "InventoryOverviewProjectionProvider",
     "InventoryPhysicalConsequenceReader",
+    "InventoryReportSectionContributor",
     "InventoryReferenceDependencyValidator",
     "InventorySiteDependencyValidator",
     "InventoryTaskDependencyProvider",
+    "ReportSectionContributor",
     "RfcInventoryDependencyProvider",
 ]
