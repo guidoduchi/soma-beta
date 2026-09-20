@@ -59,3 +59,76 @@ def test_identical_rejected_grouping_input_is_suppressed_until_reconsidered(
         origin="manual_request",
     )
     assert len(first["items"]) == 1
+    item = first["items"][0]
+    proposal_id = str(item["proposal_id"])
+    fingerprint = str(item["input_fingerprint"])
+    rejected = service.reject_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        input_fingerprint=fingerprint,
+        reason_category="operator_rejected",
+    )
+    assert rejected["state"] == "rejected"
+    suppressed = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert suppressed["items"] == []
+
+    with ReadSnapshot(factory) as snapshot:
+        rejection_id = str(
+            snapshot.connection.execute(
+                "SELECT rejection_event_id FROM regroup_rejection_events "
+                "WHERE regroup_proposal_id=?",
+                (proposal_id,),
+            ).fetchone()[0]
+        )
+    service.reconsider_regroup_inputs(
+        command_id=new_uuid4(),
+        proposal_id=proposal_id,
+        rejection_event_id=rejection_id,
+        input_fingerprint=fingerprint,
+        reason_category="reconsider",
+    )
+    fresh = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert len(fresh["items"]) == 1
+
+
+def test_accept_create_grouping_proposal_creates_nonoverlapping_objective(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    first = _task(factory, "A", 2_600_000_000, 2_600_000_200)
+    second = _task(factory, "B", 2_600_000_100, 2_600_000_300)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert len(page["items"]) == 1
+    item = page["items"][0]
+    accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(item["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+    with ReadSnapshot(factory) as snapshot:
+        memberships = snapshot.connection.execute(
+            "SELECT task_id,objective_id FROM objective_task_membership_current "
+            "ORDER BY task_id"
+        ).fetchall()
+        objectives = snapshot.connection.execute(
+            "SELECT objective_id,creation_origin,superseded_by_objective_id "
+            "FROM objectives ORDER BY objective_id"
+        ).fetchall()
+    assert len(memberships) == 2
+    assert {str(row[0]) for row in memberships} == {first.task_id, second.task_id}
+    assert len({str(row[1]) for row in memberships}) == 1
+    assert len(objectives) == 1
+    assert str(objectives[0][1]) == "automatic_grouping"

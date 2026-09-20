@@ -214,34 +214,33 @@ class RegroupProposalRepository:
         connection: Any,
         *,
         proposal_id: str,
+        rejection_event_id: str,
         input_fingerprint: str,
         reason_code: str,
         command_id: str,
     ) -> str:
         row = connection.execute(
-            "SELECT rejection_event_id FROM regroup_rejection_events "
-            "WHERE regroup_proposal_id=? AND input_fingerprint=? "
-            "AND reconsidered_at_utc IS NULL "
-            "ORDER BY recorded_at_utc DESC,rejection_event_id DESC LIMIT 1",
-            (proposal_id, input_fingerprint),
+            "SELECT reason_code FROM regroup_rejection_events "
+            "WHERE rejection_event_id=? AND regroup_proposal_id=? AND input_fingerprint=? "
+            "AND reconsidered_at_utc IS NULL",
+            (rejection_event_id, proposal_id, input_fingerprint),
         ).fetchone()
         if row is None:
             raise SomaError(
                 "GROUPING_EQUIVALENT_REJECTION",
                 "exact regroup rejection is absent or already reconsidered",
             )
-        rejection_id = str(row[0])
         changed = connection.execute(
             "UPDATE regroup_rejection_events SET reconsidered_at_utc=? "
             "WHERE rejection_event_id=? AND reconsidered_at_utc IS NULL",
-            (utc_epoch_seconds(), rejection_id),
+            (utc_epoch_seconds(), rejection_event_id),
         )
         if changed.rowcount != 1:
             raise SomaError(
                 "GROUPING_EQUIVALENT_REJECTION",
                 "regroup rejection was already reconsidered",
             )
-        return rejection_id
+        return rejection_event_id
 
 
 __all__ = ["RegroupProposalRecord", "RegroupProposalRepository"]
