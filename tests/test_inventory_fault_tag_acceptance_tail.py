@@ -393,7 +393,7 @@ def test_t048_false_submission_returns_same_fault_tag_to_draft_and_preserves_his
         reason_code="operator confirmed no send occurred",
     )
     assert corrected["fault_tag_id"] == tag_id
-    assert corrected["state"] == "corrected_false_submission"
+    assert corrected["state"] == "draft"
 
     with ReadSnapshot(factory) as snapshot:
         current = snapshot.connection.execute(
