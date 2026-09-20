@@ -481,6 +481,80 @@ class InventoryPhysicalConsequenceRepository:
         return selection_event_id, obligation_revision, lifecycle_revision
 
     @classmethod
+    def insert_extracted_children(
+        cls,
+        connection: Any,
+        *,
+        parent_spare_part_unit_id: str,
+        rma_id: str,
+        children: tuple[dict[str, object], ...],
+        effective_at_utc: int | None,
+        command_id: str,
+    ) -> tuple[dict[str, object], ...]:
+        parent = connection.execute(
+            "SELECT origin_rma_id FROM spare_part_units WHERE spare_part_unit_id=?",
+            (parent_spare_part_unit_id,),
+        ).fetchone()
+        if parent is None or parent[0] is None or str(parent[0]) != rma_id:
+            raise SomaError(
+                "RETURN_SELECTION_INVALID",
+                "Dismantled parent does not carry the expected RMA provenance",
+            )
+        direct = connection.execute(
+            "SELECT spare_part_unit_id FROM rma_direct_inbound_units WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        if direct is None or str(direct[0]) != parent_spare_part_unit_id:
+            raise SomaError(
+                "RETURN_SELECTION_INVALID",
+                "Dismantled parent is not the RMA direct inbound assembly",
+            )
+
+        created: list[dict[str, object]] = []
+        for child in children:
+            spare_part_unit_id = new_uuid4()
+            sequence, tracking_id = InventoryUnitsRepository.allocate_local_tracking_sequence(
+                connection,
+                command_id,
+            )
+            event_id, revision = InventoryUnitsRepository.insert_spare_part_unit(
+                connection,
+                spare_part_unit_id=spare_part_unit_id,
+                local_tracking_sequence=sequence,
+                local_tracking_id=tracking_id,
+                bom_code=str(child["bom_code"]),
+                bom_key=str(child["bom_key"]),
+                manufacturer_serial=(
+                    None
+                    if child["manufacturer_serial"] is None
+                    else str(child["manufacturer_serial"])
+                ),
+                serial_key=(
+                    None if child["serial_key"] is None else str(child["serial_key"])
+                ),
+                creation_origin="extracted",
+                origin_rma_id=rma_id,
+                parent_spare_part_unit_id=parent_spare_part_unit_id,
+                condition_token=str(child["condition_token"]),
+                disposition_token=str(child["disposition_token"]),
+                location_kind=None,
+                location_ref_id=None,
+                custody_text=None,
+                effective_at_utc=effective_at_utc,
+                command_id=command_id,
+            )
+            created.append(
+                {
+                    "spare_part_unit_id": spare_part_unit_id,
+                    "local_tracking_id": tracking_id,
+                    "event_id": event_id,
+                    "revision": revision,
+                    "bom_key": str(child["bom_key"]),
+                }
+            )
+        return tuple(created)
+
+    @classmethod
     def accept(
         cls,
         connection: Any,
@@ -491,6 +565,7 @@ class InventoryPhysicalConsequenceRepository:
         target_device_part_unit_id: str | None,
         rma_id: str | None,
         intent: PhysicalConsequenceIntent,
+        extracted_children: tuple[dict[str, object], ...] = (),
         command_id: str,
     ) -> dict[str, object]:
         cls.require_context(
@@ -629,6 +704,31 @@ class InventoryPhysicalConsequenceRepository:
             )
             refs.append(("spare_part_unit_event", parent_event))
 
+        extracted: tuple[dict[str, object], ...] = ()
+        if extracted_children:
+            if intent.physical_disposition != "dismantled":
+                raise IntegrityFailure("extracted children reached non-dismantled consequence")
+            if rma_id is None or intent.parent_dismantled_unit_id is None:
+                raise SomaError(
+                    "RETURN_SELECTION_INVALID",
+                    "extracted children require RMA-backed dismantled parent",
+                )
+            extracted = cls.insert_extracted_children(
+                connection,
+                parent_spare_part_unit_id=intent.parent_dismantled_unit_id,
+                rma_id=rma_id,
+                children=extracted_children,
+                effective_at_utc=intent.effective_at_utc,
+                command_id=command_id,
+            )
+            for child in extracted:
+                refs.extend(
+                    (
+                        ("spare_part_unit", str(child["spare_part_unit_id"])),
+                        ("spare_part_unit_event", str(child["event_id"])),
+                    )
+                )
+
         selection_event_id: str | None = None
         obligation_revision: int | None = None
         rma_revision: int | None = None
@@ -653,6 +753,7 @@ class InventoryPhysicalConsequenceRepository:
             "rma_revision": rma_revision,
             "refs": tuple(refs),
             "consequence_revision": 1,
+            "extracted_units": extracted,
         }
 
 
