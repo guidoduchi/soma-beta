@@ -234,6 +234,25 @@
     },
     "transaction": "one CorrectInventoryEvidence receipt/UoW dispatches directly to raw LLD-07 owner reducers; public correction services are never nested",
     "response": "InventoryMutationResultV1 with only owner result refs/revisions",
-    "audit": "owner audit plus inventory.evidence.corrected.v1 in the same UoW"
+    "audit": "owner audit plus inventory.evidence.corrected.v1 in the same UoW",
+    "generic_audit_payload": {
+      "schema": "InventoryCorrectionAuditV1",
+      "required_fields": [
+        "correction_kind",
+        "target_id",
+        "target_event_id",
+        "reason_category",
+        "result_kind",
+        "result_id"
+      ],
+      "result_kind": "inventory_event|inventory_relationship",
+      "rules": [
+        "target_event_id is UUID|null",
+        "result_id is UUID",
+        "reason_category is bounded normalized operator reason",
+        "unknown fields reject",
+        "no communication body, provider text, or source payload is copied into audit"
+      ]
+    }
   }
 }
