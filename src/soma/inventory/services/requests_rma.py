@@ -11,7 +11,7 @@ from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditW
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import canonical_json_bytes, loads_canonical_json, sha256_canonical_json
 
 from ..audit_registry import build_inventory_audit_registry
@@ -130,36 +130,6 @@ class InventoryRequestsRmaService:
             key=lambda item: item[0],
         ))
 
-        with ReadSnapshot(self._factory) as snapshot:
-            authority = self._repository.requester_authority(
-                snapshot.connection,
-                requester_id,
-            )
-            if authority is None or str(authority[3]) != "active":
-                raise SomaError(
-                    "REQUEST_SUBMISSION_INVALID",
-                    "Requester Contact is not active",
-                )
-            context = _requester_context(
-                contact_id=requester_id,
-                display_name=str(authority[1]),
-                revision=int(authority[2]),
-                affiliation_id=None if authority[4] is None else str(authority[4]),
-                customer_org_id=None if authority[5] is None else str(authority[5]),
-            )
-            self._repository.require_receiver_and_location(
-                snapshot.connection,
-                receiver_contact_id=receiver_id,
-                dispatch_location_id=location_id,
-            )
-            self._repository.require_sr_need_allocations(
-                snapshot.connection,
-                service_request_id=sr_id,
-                allocations=allocation_pairs,
-            )
-
-        requester_context_json = canonical_json_bytes(context).decode("utf-8")
-        requester_context_fingerprint = sha256_canonical_json(context)
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="CreateSpareRequestDraft",
@@ -177,12 +147,28 @@ class InventoryRequestsRmaService:
                 "dispatch_location_id": location_id,
                 "origin": creation_origin,
             },
-            authorizing_fingerprints={
-                "requester_context": requester_context_fingerprint,
-            },
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            # Creation evidence is server-derived, not part of the caller's
+            # request identity. Resolve it only after receipt replay, under the
+            # same writer UoW that captures and revalidates the immutable facts.
+            authority = self._repository.requester_authority(
+                uow.connection, requester_id,
+            )
+            if authority is None or str(authority[3]) != "active":
+                raise SomaError(
+                    "REQUEST_SUBMISSION_INVALID", "Requester Contact is not active",
+                )
+            context = _requester_context(
+                contact_id=requester_id,
+                display_name=str(authority[1]),
+                revision=int(authority[2]),
+                affiliation_id=None if authority[4] is None else str(authority[4]),
+                customer_org_id=None if authority[5] is None else str(authority[5]),
+            )
+            requester_context_json = canonical_json_bytes(context).decode("utf-8")
+            requester_context_fingerprint = sha256_canonical_json(context)
             self._repository.require_requester_authority(
                 uow.connection,
                 contact_id=requester_id,

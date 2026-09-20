@@ -930,7 +930,6 @@ class InventoryFaultTagsService:
         reason = reason_code.strip()
         if len(reason.encode("utf-8", errors="strict")) > 384:
             raise ValidationError("reason_code exceeds UTF-8 byte bound")
-        successor_id = new_uuid4()
         command_type = (
             "CreateFaultTagReplacement"
             if relation_type == "corrects_replaces"
@@ -942,7 +941,6 @@ class InventoryFaultTagsService:
             target_type="fault_tag",
             target_id=predecessor,
             semantic_payload={
-                "successor_fault_tag_id": successor_id,
                 "return_method": method,
                 "pickup_dispatch_location_id": location_id,
                 "pickup_contact_id": contact_id,
@@ -956,6 +954,7 @@ class InventoryFaultTagsService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            successor_id = new_uuid4()
             predecessor_tag = self._repository.current_tag(uow.connection, predecessor)
             if predecessor_tag is None:
                 raise SomaError("INV_STALE", "Fault Tag predecessor no longer exists")
