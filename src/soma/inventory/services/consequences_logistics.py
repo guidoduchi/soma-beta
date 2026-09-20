@@ -147,7 +147,7 @@ class InventoryConsequencesLogisticsService:
 
             def apply(inner: UnitOfWork):
                 (
-                    spare_part_unit_id,
+                    recorded_spare_part_unit_id,
                     logistics_event_id,
                     receipt_unit_event_id,
                     unit_revision,
@@ -172,7 +172,9 @@ class InventoryConsequencesLogisticsService:
                     evidence_id=normalized_evidence_id,
                     command_id=command_id,
                 )
-                apply.unit_id = spare_part_unit_id
+                if recorded_spare_part_unit_id != spare_part_unit_id:
+                    raise IntegrityFailure("RMA receipt returned a different pre-bound Spare Part Unit identity")
+                apply.unit_id = recorded_spare_part_unit_id
                 apply.logistics_id = logistics_event_id
                 apply.unit_event_id = receipt_unit_event_id
                 apply.unit_revision = unit_revision

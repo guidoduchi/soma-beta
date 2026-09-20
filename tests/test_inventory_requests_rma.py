@@ -719,8 +719,9 @@ def test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserv
             str(row[0])
             for row in snapshot.connection.execute(
                 "SELECT a.device_part_unit_id FROM rmas r "
+                "JOIN rma_authorization_batches b ON b.authorization_batch_id=r.authorization_batch_id "
                 "JOIN rma_current_assignment a ON a.rma_id=r.rma_id "
-                "WHERE r.spare_request_id=? ORDER BY r.authorization_batch_id,r.response_ordinal",
+                "WHERE r.spare_request_id=? ORDER BY b.batch_ordinal,r.response_ordinal",
                 (request_id,),
             ).fetchall()
         ]
@@ -748,9 +749,10 @@ def test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserv
             str(row[0])
             for row in snapshot.connection.execute(
                 "SELECT a.device_part_unit_id FROM rmas r "
+                "JOIN rma_authorization_batches b ON b.authorization_batch_id=r.authorization_batch_id "
                 "JOIN rma_current_assignment a ON a.rma_id=r.rma_id "
                 "WHERE r.spare_request_id=? "
-                "ORDER BY r.authorization_batch_id,r.response_ordinal",
+                "ORDER BY b.batch_ordinal,r.response_ordinal",
                 (request_id,),
             ).fetchall()
         ]
@@ -833,8 +835,14 @@ def test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction(
             (assigned_id,),
         ).fetchall()
         assert len(history) == 2
-        assert str(history[-1][0]) == first_target
-        assert str(history[-1][1]) == alternate
+        auto_assign = [row for row in history if str(row[2]) == "auto_assign"]
+        reassign = [row for row in history if str(row[2]) == "reassign"]
+        assert len(auto_assign) == 1
+        assert len(reassign) == 1
+        assert auto_assign[0][0] is None
+        assert str(auto_assign[0][1]) == first_target
+        assert str(reassign[0][0]) == first_target
+        assert str(reassign[0][1]) == alternate
         aliases = snapshot.connection.execute(
             "SELECT c10,alias_kind FROM rma_identifier_aliases WHERE rma_id=? ORDER BY c10",
             (assigned_id,),

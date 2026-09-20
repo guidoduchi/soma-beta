@@ -171,8 +171,8 @@ def _canonicalize_xlsx_archive(path: Path) -> None:
                 data = reader.read(name)
                 if name == "docProps/core.xml":
                     data, replacements = re.subn(
-                        rb"(<dcterms:modified\\b[^>]*>)[^<]*(</dcterms:modified>)",
-                        rb"\\g<1>1980-01-01T00:00:00Z\\g<2>",
+                        rb"(<dcterms:modified\b[^>]*>)[^<]*(</dcterms:modified>)",
+                        rb"\g<1>1980-01-01T00:00:00Z\g<2>",
                         data,
                         count=1,
                     )

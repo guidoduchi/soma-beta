@@ -133,11 +133,13 @@ class InventoryRequestsRmaQueryService:
                 "SELECT r.rma_id,r.authorization_batch_id,r.response_ordinal,"
                 "r.promised_bom_code,a.c10,p.state,p.current_target_device_part_unit_id,"
                 "p.direct_inbound_spare_part_unit_id,p.return_obligation_open,p.revision "
-                "FROM rmas r JOIN rma_identifier_aliases a "
+                "FROM rmas r JOIN rma_authorization_batches b "
+                "ON b.authorization_batch_id=r.authorization_batch_id "
+                "JOIN rma_identifier_aliases a "
                 "ON a.rma_id=r.rma_id AND a.alias_kind='current' "
                 "JOIN rma_lifecycle_projection p ON p.rma_id=r.rma_id "
                 "WHERE r.spare_request_id=? "
-                "ORDER BY r.authorization_batch_id,r.response_ordinal,r.rma_id",
+                "ORDER BY b.batch_ordinal,r.response_ordinal,r.rma_id",
                 (identity,),
             ).fetchall()
             history = snapshot.connection.execute(
