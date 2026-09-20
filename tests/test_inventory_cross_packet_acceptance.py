@@ -112,12 +112,20 @@ def test_t064_retry_reassigns_only_selected_planning_relation(
         assert int(current[2]) == 2
 
         events = snapshot.connection.execute(
-            "SELECT event_kind,task_id FROM task_unit_allocation_events "
-            "WHERE allocation_id=? ORDER BY recorded_at_utc,allocation_event_id",
+            "SELECT allocation_event_id,event_kind,task_id,prior_task_id,target_event_id "
+            "FROM task_unit_allocation_events WHERE allocation_id=?",
             (allocation_id,),
         ).fetchall()
-        assert [str(row[0]) for row in events] == ["reserve", "reassign"]
-        assert str(events[-1][1]) == retry.task_id
+        assert len(events) == 2
+        by_kind = {str(row[1]): row for row in events}
+        assert set(by_kind) == {"reserve", "reassign"}
+        reserve = by_kind["reserve"]
+        reassign = by_kind["reassign"]
+        assert str(reserve[2]) == predecessor.task_id
+        assert reserve[3] is None and reserve[4] is None
+        assert str(reassign[2]) == retry.task_id
+        assert str(reassign[3]) == predecessor.task_id
+        assert str(reassign[4]) == str(reserve[0])
 
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM inventory_physical_consequences "
