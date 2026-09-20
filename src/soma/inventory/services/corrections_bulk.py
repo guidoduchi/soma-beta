@@ -1318,14 +1318,10 @@ class InventoryCorrectionsBulkService:
                         reason_code=reason,
                         command_id=command_id,
                     )
-                    generic_audit_id = new_uuid4()
-                    correction_event_id = (
-                        replacement_participant_id
-                        if replacement_participant_id is not None
-                        else generic_audit_id
-                    )
+                    owner_audit_id = new_uuid4()
+                    correction_event_id = owner_audit_id
                     owner_audit = AuditEventInput(
-                        audit_event_id=new_uuid4(),
+                        audit_event_id=owner_audit_id,
                         action_type="inventory.logistics.recorded_or_corrected",
                         action_version=1,
                         actor_kind=actor_kind,
