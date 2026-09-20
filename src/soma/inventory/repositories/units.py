@@ -93,7 +93,7 @@ class InventoryUnitsRepository:
         serial_key: str | None,
         creation_origin: str,
         origin_rma_id: str | None,
-        parent_spare_part_unit_id: str | None = None,
+        parent_spare_part_unit_id: str | None,
         condition_token: str,
         disposition_token: str,
         location_kind: str | None,
