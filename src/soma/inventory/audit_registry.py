@@ -353,6 +353,28 @@ def _validate_inventory_bulk(payload: dict[str, object]) -> None:
     if payload.get("result") != "APPLIED":
         raise SomaError("AUDIT_PAYLOAD_INVALID", "bulk result is invalid")
 
+
+_CORRECTION_KINDS = frozenset(
+    {
+        "false_spare_request_submission",
+        "rma_identifier_alias",
+        "logistics_participant_relationship",
+        "false_fault_tag_submission",
+        "physical_consequence",
+    }
+)
+
+
+def _validate_inventory_correction(payload: dict[str, object]) -> None:
+    if payload.get("correction_kind") not in _CORRECTION_KINDS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "correction_kind is invalid")
+    _uuid(payload.get("target_id"), "target_id")
+    _uuid(payload.get("target_event_id"), "target_event_id", nullable=True)
+    _reason(payload.get("reason_category"))
+    if payload.get("result_kind") not in {"inventory_event", "inventory_relationship"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "correction result_kind is invalid")
+    _uuid(payload.get("result_id"), "result_id")
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -768,6 +790,28 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 max_utf8_bytes=131_072,
             ),
             sensitivity_validator=_validate_inventory_bulk,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.evidence.corrected",
+            action_version=1,
+            payload_schema="InventoryCorrectionAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "InventoryCorrectionAuditV1",
+                frozenset(
+                    {
+                        "correction_kind",
+                        "target_id",
+                        "target_event_id",
+                        "reason_category",
+                        "result_kind",
+                        "result_id",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_inventory_correction,
         )
     )
     return registry
