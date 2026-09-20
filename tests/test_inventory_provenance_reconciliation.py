@@ -138,9 +138,12 @@ def test_t013_local_unit_later_adopts_rma_provenance_without_identity_or_history
     assert after_root[:8] == before_root[:8]
     assert after_root[8] == rma_id
     assert after_root[9:] == before_root[9:]
-    assert after_events[0] == before_events[0]
-    assert [row[1] for row in after_events] == ["registered", "correction"]
-    assert after_events[1][10:12] == ("rma_provenance", rma_id)
+    assert len(after_events) == 2
+    by_kind = {str(row[1]): row for row in after_events}
+    assert set(by_kind) == {"registered", "correction"}
+    assert by_kind["registered"] == before_events[0]
+    assert by_kind["correction"][10:12] == ("rma_provenance", rma_id)
+    assert by_kind["correction"][13] == command_id
     assert tuple(projection) == (2, command_id)
     assert direct is None
     assert [str(row[0]) for row in audits] == [
