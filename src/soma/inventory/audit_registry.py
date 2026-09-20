@@ -302,6 +302,16 @@ def _validate_warehouse_decision(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "explicit_confirmation is invalid")
 
 
+def _validate_fault_tag_lineage(payload: dict[str, object]) -> None:
+    _uuid(payload.get("predecessor_fault_tag_id"), "predecessor_fault_tag_id")
+    _uuid(payload.get("successor_fault_tag_id"), "successor_fault_tag_id")
+    if payload.get("lineage_kind") not in {"CORRECTS_REPLACES", "RESEND_OF"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag lineage kind is invalid")
+    _fingerprint(payload.get("membership_scope_fingerprint"), "membership_scope_fingerprint")
+    _reason(payload.get("reason_category"))
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -610,6 +620,28 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_warehouse_decision,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.fault_tag.replacement_or_resend_created",
+            action_version=1,
+            payload_schema="FaultTagLineageAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "FaultTagLineageAuditV1",
+                frozenset(
+                    {
+                        "predecessor_fault_tag_id",
+                        "successor_fault_tag_id",
+                        "lineage_kind",
+                        "membership_scope_fingerprint",
+                        "reason_category",
+                        "resulting_revision",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_fault_tag_lineage,
         )
     )
     return registry
