@@ -757,4 +757,282 @@ class InventoryPhysicalConsequenceRepository:
         }
 
 
+    @classmethod
+    def correct(
+        cls,
+        connection: Any,
+        *,
+        physical_consequence_id: str,
+        expected_revision: int,
+        expected_event_id: str,
+        intent: PhysicalConsequenceIntent,
+        reason_code: str,
+        command_id: str,
+    ) -> dict[str, object]:
+        current = cls.current(connection, physical_consequence_id)
+        if current is None:
+            raise SomaError("INV_STALE", "Physical consequence no longer exists")
+        if int(current[10]) != expected_revision or str(current[12]) != expected_event_id:
+            raise SomaError("INV_STALE", "Physical consequence revision/event changed")
+        if (
+            (None if current[6] is None else str(current[6]))
+            != intent.installed_spare_part_unit_id
+            or (None if current[7] is None else str(current[7]))
+            != intent.removed_device_part_unit_id
+            or (None if current[8] is None else str(current[8]))
+            != intent.inbound_spare_part_unit_id
+            or (None if current[9] is None else str(current[9]))
+            != intent.parent_dismantled_unit_id
+        ):
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Physical consequence correction cannot rewrite typed physical relationships",
+            )
+        rma_id = None if current[4] is None else str(current[4])
+        if rma_id is not None:
+            active_membership = connection.execute(
+                "SELECT 1 FROM fault_tag_membership_current "
+                "WHERE rma_id=? AND active_submitted=1 LIMIT 1",
+                (rma_id,),
+            ).fetchone()
+            if active_membership is not None:
+                raise SomaError(
+                    "REPLACEMENT_LINEAGE_CONFLICT",
+                    "Submitted Fault Tag consumption requires replacement workflow",
+                )
+            obligation = connection.execute(
+                "SELECT obligation_state,device_part_unit_id,spare_part_unit_id,"
+                "physical_consequence_id,revision,last_event_id "
+                "FROM rma_return_obligation_current WHERE rma_id=?",
+                (rma_id,),
+            ).fetchone()
+            if obligation is None:
+                raise IntegrityFailure("RMA consequence lacks return obligation projection")
+            if str(obligation[0]) == "closed_accepted":
+                raise SomaError(
+                    "CORRECTION_TARGET_INVALID",
+                    "Accepted warehouse finality blocks consequence reinterpretation",
+                )
+            candidate = intent.return_candidate()
+            if candidate is None:
+                expected_device = None
+                expected_spare = None
+            elif candidate[0] == "device_part_unit":
+                expected_device, expected_spare = candidate[1], None
+            else:
+                expected_device, expected_spare = None, candidate[1]
+            if (
+                (None if obligation[1] is None else str(obligation[1])) != expected_device
+                or (None if obligation[2] is None else str(obligation[2])) != expected_spare
+                or (
+                    obligation[3] is not None
+                    and str(obligation[3]) != physical_consequence_id
+                )
+            ):
+                raise SomaError(
+                    "CORRECTION_TARGET_INVALID",
+                    "Correction would change the selected return relationship",
+                )
+
+        now = utc_epoch_seconds()
+        consequence_event_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO physical_consequence_events("
+            "consequence_event_id,physical_consequence_id,event_kind,physical_disposition,"
+            "installed_spare_part_unit_id,removed_device_part_unit_id,inbound_spare_part_unit_id,"
+            "parent_dismantled_unit_id,effective_at_utc,target_event_id,reason_code,"
+            "recorded_at_utc,command_id"
+            ") VALUES (?,?,'correct',?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                consequence_event_id,
+                physical_consequence_id,
+                intent.physical_disposition,
+                intent.installed_spare_part_unit_id,
+                intent.removed_device_part_unit_id,
+                intent.inbound_spare_part_unit_id,
+                intent.parent_dismantled_unit_id,
+                intent.effective_at_utc,
+                expected_event_id,
+                reason_code,
+                now,
+                command_id,
+            ),
+        )
+        resulting_revision = expected_revision + 1
+        consequence_fp = cls.consequence_fingerprint(
+            physical_consequence_id=physical_consequence_id,
+            task_review_fingerprint=str(current[2]),
+            intent=intent,
+        )
+        updated = connection.execute(
+            "UPDATE physical_consequence_current SET physical_disposition=?,"
+            "revision=?,input_fingerprint=?,last_event_id=?,last_command_id=? "
+            "WHERE physical_consequence_id=? AND revision=? AND last_event_id=?",
+            (
+                intent.physical_disposition,
+                resulting_revision,
+                consequence_fp,
+                consequence_event_id,
+                command_id,
+                physical_consequence_id,
+                expected_revision,
+                expected_event_id,
+            ),
+        )
+        if updated.rowcount != 1:
+            raise SomaError("INV_STALE", "Physical consequence changed during correction")
+
+        refs: list[tuple[str, str]] = [
+            ("inventory_physical_consequence", physical_consequence_id),
+            ("physical_consequence_event", consequence_event_id),
+        ]
+        unit_revision: int | None = None
+        unit_event_id: str | None = None
+        if intent.inbound_spare_part_unit_id is not None and intent.physical_disposition in {
+            "unused",
+            "inbound_faulty",
+            "incompatible",
+        }:
+            unit_id = intent.inbound_spare_part_unit_id
+            unit = InventoryUnitsRepository.current_unit(connection, unit_id)
+            if unit is None:
+                raise SomaError("INV_STALE", "Inbound Spare Part Unit disappeared")
+            prior_event = connection.execute(
+                "SELECT unit_event_id FROM spare_part_lifecycle_events "
+                "WHERE spare_part_unit_id=? ORDER BY recorded_at_utc DESC,unit_event_id DESC LIMIT 1",
+                (unit_id,),
+            ).fetchone()
+            if prior_event is None:
+                raise IntegrityFailure("Inbound Spare Part Unit lacks lifecycle history")
+            if intent.physical_disposition == "unused":
+                received = connection.execute(
+                    "SELECT condition_token FROM spare_part_lifecycle_events "
+                    "WHERE spare_part_unit_id=? AND event_kind IN ('received','registered') "
+                    "AND condition_token IS NOT NULL "
+                    "ORDER BY recorded_at_utc,unit_event_id LIMIT 1",
+                    (unit_id,),
+                ).fetchone()
+                condition = "unknown" if received is None else str(received[0])
+                disposition = "available"
+            elif intent.physical_disposition == "inbound_faulty":
+                condition, disposition = "faulty", "quarantined"
+            else:
+                condition, disposition = "incompatible", "quarantined"
+            unit_event_id = new_uuid4()
+            connection.execute(
+                "INSERT INTO spare_part_lifecycle_events("
+                "unit_event_id,spare_part_unit_id,event_kind,condition_token,disposition_token,"
+                "location_kind,location_ref_id,custody_text,effective_at_utc,target_event_id,"
+                "reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+                ") VALUES (?,?,'correction',?,?,?,?,?,?,?,?,NULL,NULL,?,?)",
+                (
+                    unit_event_id,
+                    unit_id,
+                    condition,
+                    disposition,
+                    unit[10],
+                    unit[11],
+                    unit[12],
+                    intent.effective_at_utc,
+                    str(prior_event[0]),
+                    reason_code,
+                    now,
+                    command_id,
+                ),
+            )
+            unit_revision = int(unit[14]) + 1
+            unit_fp = InventoryUnitsRepository.projection_fingerprint(
+                spare_part_unit_id=unit_id,
+                condition_token=condition,
+                disposition_token=disposition,
+                location_kind=None if unit[10] is None else str(unit[10]),
+                location_ref_id=None if unit[11] is None else str(unit[11]),
+                custody_text=None if unit[12] is None else str(unit[12]),
+                active_task_allocation_id=None if unit[13] is None else str(unit[13]),
+            )
+            changed = connection.execute(
+                "UPDATE spare_part_current_projection SET condition_token=?,"
+                "disposition_token=?,revision=?,input_fingerprint=?,last_command_id=? "
+                "WHERE spare_part_unit_id=? AND revision=?",
+                (
+                    condition,
+                    disposition,
+                    unit_revision,
+                    unit_fp,
+                    command_id,
+                    unit_id,
+                    int(unit[14]),
+                ),
+            )
+            if changed.rowcount != 1:
+                raise SomaError("INV_STALE", "Inbound Spare Part Unit changed during correction")
+            refs.append(("spare_part_unit_event", unit_event_id))
+
+        return_event_id: str | None = None
+        obligation_revision: int | None = None
+        if rma_id is not None:
+            obligation = connection.execute(
+                "SELECT obligation_state,device_part_unit_id,spare_part_unit_id,"
+                "revision,last_event_id FROM rma_return_obligation_current WHERE rma_id=?",
+                (rma_id,),
+            ).fetchone()
+            if obligation is None:
+                raise IntegrityFailure("RMA return obligation disappeared during correction")
+            candidate = intent.return_candidate()
+            if candidate is not None and str(obligation[0]) == "open":
+                return_event_id = new_uuid4()
+                device_id = candidate[1] if candidate[0] == "device_part_unit" else None
+                spare_id = candidate[1] if candidate[0] == "spare_part_unit" else None
+                connection.execute(
+                    "INSERT INTO rma_return_selection_events("
+                    "return_selection_event_id,rma_id,physical_consequence_id,event_kind,"
+                    "device_part_unit_id,spare_part_unit_id,reason_code,effective_at_utc,"
+                    "target_event_id,recorded_at_utc,command_id"
+                    ") VALUES (?,?,?,'correct',?,?,?,?,?,?,?)",
+                    (
+                        return_event_id,
+                        rma_id,
+                        physical_consequence_id,
+                        device_id,
+                        spare_id,
+                        reason_code,
+                        intent.effective_at_utc,
+                        obligation[4],
+                        now,
+                        command_id,
+                    ),
+                )
+                obligation_revision = int(obligation[3]) + 1
+                changed_obligation = connection.execute(
+                    "UPDATE rma_return_obligation_current SET revision=?,last_event_id=?,"
+                    "last_command_id=? WHERE rma_id=? AND revision=?",
+                    (
+                        obligation_revision,
+                        return_event_id,
+                        command_id,
+                        rma_id,
+                        int(obligation[3]),
+                    ),
+                )
+                if changed_obligation.rowcount != 1:
+                    raise SomaError("INV_STALE", "RMA return obligation changed during correction")
+                refs.extend(
+                    (
+                        ("rma_return_selection_event", return_event_id),
+                        ("rma_return_obligation", rma_id),
+                    )
+                )
+
+        return {
+            "refs": tuple(refs),
+            "consequence_revision": resulting_revision,
+            "consequence_event_id": consequence_event_id,
+            "unit_revision": unit_revision,
+            "unit_event_id": unit_event_id,
+            "obligation_revision": obligation_revision,
+            "return_event_id": return_event_id,
+            "rma_id": rma_id,
+        }
+
+
 __all__ = ["InventoryPhysicalConsequenceRepository"]
