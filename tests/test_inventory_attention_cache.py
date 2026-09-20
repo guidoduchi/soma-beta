@@ -119,6 +119,15 @@ def test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived(
         assert int(projection[3]) == 1
         tag_revision = int(projection[1])
 
+    with ReadSnapshot(factory) as snapshot:
+        fingerprint_before_archive = str(
+            snapshot.connection.execute(
+                "SELECT input_fingerprint FROM inventory_attention_projection "
+                "WHERE target_id=? AND attention_kind='warehouse_rejected_resend_required'",
+                (rejected_id,),
+            ).fetchone()[0]
+        )
+
     tags.archive_or_restore_fault_tag(
         command_id=new_uuid4(),
         fault_tag_id=tag_id,
@@ -132,3 +141,12 @@ def test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived(
     )
     assert archived["exact_total"] == 1
     assert archived["items"][0]["target_id"] == rejected_id
+    with ReadSnapshot(factory) as snapshot:
+        fingerprint_after_archive = str(
+            snapshot.connection.execute(
+                "SELECT input_fingerprint FROM inventory_attention_projection "
+                "WHERE target_id=? AND attention_kind='warehouse_rejected_resend_required'",
+                (rejected_id,),
+            ).fetchone()[0]
+        )
+    assert fingerprint_after_archive != fingerprint_before_archive

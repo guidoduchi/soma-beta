@@ -1374,11 +1374,6 @@ class InventoryFaultTagsRepository:
                 obligation_open=1,
                 command_id=command_id,
             )
-            InventoryProjectionsRepository.rebuild_fault_tag_membership_attention(
-                connection,
-                membership_id=membership_id,
-                command_id=command_id,
-            )
             affected_tags.add(str(row[1]))
             results.append(
                 {
@@ -1398,6 +1393,12 @@ class InventoryFaultTagsRepository:
             )
             for tag_id in sorted(affected_tags)
         }
+        for item in results:
+            InventoryProjectionsRepository.rebuild_fault_tag_membership_attention(
+                connection,
+                membership_id=str(item["membership_id"]),
+                command_id=command_id,
+            )
         return tuple(results), tag_revisions
 
     @classmethod
@@ -1531,11 +1532,6 @@ class InventoryFaultTagsRepository:
                     obligation_open=1,
                     command_id=command_id,
                 )
-            InventoryProjectionsRepository.rebuild_fault_tag_membership_attention(
-                connection,
-                membership_id=membership_id,
-                command_id=command_id,
-            )
             affected_tags.add(str(row[1]))
             results.append(
                 {
@@ -1556,6 +1552,12 @@ class InventoryFaultTagsRepository:
             )
             for tag_id in sorted(affected_tags)
         }
+        for item in results:
+            InventoryProjectionsRepository.rebuild_fault_tag_membership_attention(
+                connection,
+                membership_id=str(item["membership_id"]),
+                command_id=command_id,
+            )
         return tuple(results), tag_revisions
 
     @staticmethod
@@ -1892,6 +1894,17 @@ class InventoryFaultTagsRepository:
         )
         if changed.rowcount != 1:
             raise SomaError("INV_STALE", "Fault Tag changed during archive transition")
+        member_rows = connection.execute(
+            "SELECT fault_tag_membership_id FROM fault_tag_membership_current "
+            "WHERE fault_tag_id=? ORDER BY fault_tag_membership_id",
+            (fault_tag_id,),
+        ).fetchall()
+        for member_row in member_rows:
+            InventoryProjectionsRepository.rebuild_fault_tag_membership_attention(
+                connection,
+                membership_id=str(member_row[0]),
+                command_id=command_id,
+            )
         return event_id, revision
 
 
