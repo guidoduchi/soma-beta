@@ -259,5 +259,219 @@ class ObjectiveQueryService:
 
 
 
+    def context_by_task_relationships(
+        self,
+        objective_id: str,
+        *,
+        after_key: tuple[str, str, str] | None = None,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        identity = require_uuid4(objective_id)
+        page_limit = _limit(limit)
+        with ReadSnapshot(self._factory) as snapshot:
+            if snapshot.connection.execute(
+                "SELECT 1 FROM objectives WHERE objective_id=?",
+                (identity,),
+            ).fetchone() is None:
+                raise SomaError("OBJECTIVE_NOT_FOUND", "Objective does not exist")
+            task_ids = [
+                str(row[0])
+                for row in snapshot.connection.execute(
+                    "SELECT task_id FROM objective_task_membership_current "
+                    "WHERE objective_id=? ORDER BY task_id",
+                    (identity,),
+                ).fetchall()
+            ]
+            rows: list[dict[str, object]] = []
+            for task_id in task_ids:
+                kind_row = snapshot.connection.execute(
+                    "SELECT task_kind FROM tasks WHERE task_id=?",
+                    (task_id,),
+                ).fetchone()
+                if kind_row is None:
+                    raise IntegrityFailure("Objective member Task is missing")
+                kind = str(kind_row[0])
+                for context_type, table, column in (
+                    ("sr", "task_sr_links", "service_request_id"),
+                    ("rfc", "task_rfc_links", "rfc_id"),
+                    ("device", "task_device_links", "device_reference_id"),
+                ):
+                    for rel in snapshot.connection.execute(
+                        f"SELECT {column},link_id FROM {table} "
+                        "WHERE task_id=? AND active=1 ORDER BY "
+                        f"{column},link_id",
+                        (task_id,),
+                    ).fetchall():
+                        rows.append(
+                            {
+                                "context_type": context_type,
+                                "related_id": str(rel[0]),
+                                "source_task_id": task_id,
+                                "provenance": f"direct_task_{context_type}_relationship",
+                                "resolution_state": "resolved",
+                            }
+                        )
+                if kind == "wfm":
+                    wfm = snapshot.connection.execute(
+                        "SELECT current_rfc_id FROM wfm_task_identities WHERE task_id=?",
+                        (task_id,),
+                    ).fetchone()
+                    if wfm is None:
+                        raise IntegrityFailure("WFM Objective member lacks owning RFC")
+                    owning = str(wfm[0])
+                    parent = snapshot.connection.execute(
+                        "SELECT parent_rfc_id FROM rfc_hierarchy_edges "
+                        "WHERE child_rfc_id=? AND edge_state='active'",
+                        (owning,),
+                    ).fetchone()
+                    root = owning if parent is None else str(parent[0])
+                    rows.append(
+                        {
+                            "context_type": "rfc",
+                            "related_id": owning,
+                            "source_task_id": task_id,
+                            "provenance": "wfm_owning_rfc",
+                            "resolution_state": "resolved",
+                        }
+                    )
+                    for sr in snapshot.connection.execute(
+                        "SELECT service_request_id FROM sr_rfc_links "
+                        "WHERE rfc_id=? AND link_state='active' ORDER BY service_request_id",
+                        (root,),
+                    ).fetchall():
+                        rows.append(
+                            {
+                                "context_type": "sr",
+                                "related_id": str(sr[0]),
+                                "source_task_id": task_id,
+                                "provenance": "wfm_governing_root_sr",
+                                "resolution_state": "resolved",
+                            }
+                        )
+                    customer = snapshot.connection.execute(
+                        "SELECT customer_org_id FROM rfcs WHERE rfc_id=?",
+                        (root,),
+                    ).fetchone()
+                    rows.append(
+                        {
+                            "context_type": "customer",
+                            "related_id": None
+                            if customer is None or customer[0] is None
+                            else str(customer[0]),
+                            "source_task_id": task_id,
+                            "provenance": "wfm_governing_root_customer",
+                            "resolution_state": (
+                                "unresolved"
+                                if customer is None or customer[0] is None
+                                else "resolved"
+                            ),
+                        }
+                    )
+            rows.sort(
+                key=lambda item: (
+                    str(item["context_type"]),
+                    "" if item["related_id"] is None else str(item["related_id"]),
+                    str(item["source_task_id"]),
+                )
+            )
+            totals: dict[str, int] = {}
+            for item in rows:
+                key = str(item["context_type"])
+                totals[key] = totals.get(key, 0) + 1
+            start = 0
+            if after_key is not None:
+                if len(after_key) != 3:
+                    raise ValidationError("Objective context cursor is invalid")
+                needle = tuple(str(value) for value in after_key)
+                keys = [
+                    (
+                        str(item["context_type"]),
+                        "" if item["related_id"] is None else str(item["related_id"]),
+                        str(item["source_task_id"]),
+                    )
+                    for item in rows
+                ]
+                try:
+                    start = keys.index(needle) + 1
+                except ValueError as exc:
+                    raise ValidationError("Objective context cursor is stale") from exc
+            page = rows[start : start + page_limit]
+            continuation = None
+            if start + len(page) < len(rows) and page:
+                last = page[-1]
+                continuation = (
+                    str(last["context_type"]),
+                    "" if last["related_id"] is None else str(last["related_id"]),
+                    str(last["source_task_id"]),
+                )
+            return {
+                "items": page,
+                "continuation": continuation,
+                "exact_totals_by_context_type": totals,
+            }
+
+    def monthly_ordinal(
+        self,
+        objective_id: str,
+        *,
+        timezone_iana: str,
+    ) -> dict[str, object]:
+        identity = require_uuid4(objective_id)
+        if not isinstance(timezone_iana, str) or not timezone_iana:
+            raise ValidationError("Objective timezone is required")
+        try:
+            tz = ZoneInfo(timezone_iana)
+        except ZoneInfoNotFoundError as exc:
+            raise ValidationError("Objective timezone is unknown") from exc
+        with ReadSnapshot(self._factory) as snapshot:
+            rows = snapshot.connection.execute(
+                "SELECT o.objective_id,e.start_utc,a.actual_start_utc "
+                "FROM objectives o "
+                "JOIN objective_envelope_projection e ON e.objective_id=o.objective_id "
+                "JOIN objective_aggregate_projection a ON a.objective_id=o.objective_id "
+                "WHERE o.superseded_by_objective_id IS NULL "
+                "ORDER BY COALESCE(a.actual_start_utc,e.start_utc),o.objective_id"
+            ).fetchall()
+            entries = []
+            target = None
+            for row in rows:
+                effective = int(row[2]) if row[2] is not None else int(row[1])
+                local = datetime.fromtimestamp(effective, tz=timezone.utc).astimezone(tz)
+                item = {
+                    "objective_id": str(row[0]),
+                    "effective_start_utc": effective,
+                    "basis": "actual_start" if row[2] is not None else "planned_start",
+                    "year_month": f"{local.year:04d}-{local.month:02d}",
+                }
+                entries.append(item)
+                if str(row[0]) == identity:
+                    target = item
+            if target is None:
+                raise SomaError("OBJECTIVE_NOT_FOUND", "Objective does not exist")
+            bucket = [
+                item
+                for item in entries
+                if item["year_month"] == target["year_month"]
+            ]
+            bucket.sort(
+                key=lambda item: (
+                    int(item["effective_start_utc"]),
+                    str(item["objective_id"]),
+                )
+            )
+            ordinal = next(
+                index
+                for index, item in enumerate(bucket, start=1)
+                if item["objective_id"] == identity
+            )
+            return {
+                "objective_id": identity,
+                "year_month": target["year_month"],
+                "ordinal": ordinal,
+                "effective_start_utc": target["effective_start_utc"],
+                "basis": target["basis"],
+                "timezone": timezone_iana,
+            }
+
 
 __all__ = ["ObjectiveQueryService"]

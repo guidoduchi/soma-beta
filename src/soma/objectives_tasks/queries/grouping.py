@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.identifiers import require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
@@ -186,6 +187,136 @@ class ObjectiveGroupingQueryService:
                 draft_tasks=draft_tasks,
             )
 
+
+    def grouping_eligibility(
+        self,
+        task_id: str,
+        *,
+        as_of_utc: int,
+    ) -> dict[str, object]:
+        identity = require_uuid4(task_id)
+        if type(as_of_utc) is not int or as_of_utc < 0:
+            raise ValidationError("as_of_utc must be non-negative")
+        with ReadSnapshot(self._factory) as snapshot:
+            row = snapshot.connection.execute(
+                "SELECT t.task_kind,t.creation_origin,t.revision,"
+                "pc.revision,pc.plan_revision_id,p.start_utc,p.end_utc,"
+                "m.objective_id,m.membership_revision,m.accepted_plan_revision_id,"
+                "COALESCE(l.revision,0),COALESCE(l.explicit_plan_lock,0),"
+                "COALESCE(l.explicit_membership_lock,0),"
+                "COALESCE(e.execution_state,'not_started'),"
+                "oc.accepted_outcome,sp.provider_lifecycle_class,sp.source_projection_revision,"
+                "alc.activity_lineage_id "
+                "FROM tasks t "
+                "LEFT JOIN task_plan_current pc ON pc.task_id=t.task_id "
+                "LEFT JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
+                "LEFT JOIN objective_task_membership_current m ON m.task_id=t.task_id "
+                "LEFT JOIN task_lock_projection l ON l.task_id=t.task_id "
+                "LEFT JOIN task_execution_projection e ON e.task_id=t.task_id "
+                "LEFT JOIN task_outcome_current oc ON oc.task_id=t.task_id "
+                "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=t.task_id "
+                "LEFT JOIN task_activity_lineage_current alc ON alc.task_id=t.task_id "
+                "WHERE t.task_id=?",
+                (identity,),
+            ).fetchone()
+            if row is None:
+                raise SomaError("TASK_NOT_FOUND", "Task does not exist")
+            if row[4] is None:
+                classification = "unscheduled"
+                eligible = False
+            elif row[14] == "cancelled_without_execution":
+                classification = "cancelled"
+                eligible = False
+            elif row[13] in {"ended", "terminated"} or row[14] is not None:
+                classification = "terminal_history"
+                eligible = False
+            elif int(row[11]) == 1 or int(row[12]) == 1 or row[13] == "in_progress":
+                classification = "started_or_protected"
+                eligible = False
+            elif row[7] is not None and str(row[9]) != str(row[4]):
+                classification = "plan_membership_mismatch"
+                eligible = False
+            elif row[17] is not None and int(
+                snapshot.connection.execute(
+                    "SELECT COUNT(*) FROM task_activity_lineage_current "
+                    "WHERE activity_lineage_id=?",
+                    (str(row[17]),),
+                ).fetchone()[0]
+            ) > 1:
+                classification = "competing_attempt"
+                eligible = False
+            elif row[15] == "complete" and int(row[5]) < as_of_utc:
+                classification = "historical_candidate"
+                eligible = False
+            else:
+                classification = "ordinary_future"
+                eligible = int(row[5]) >= as_of_utc
+            return {
+                "task_id": identity,
+                "eligible": eligible,
+                "classification": classification,
+                "current_plan": None
+                if row[4] is None
+                else {
+                    "revision": int(row[3]),
+                    "plan_revision_id": str(row[4]),
+                    "start_utc": int(row[5]),
+                    "end_utc": int(row[6]),
+                },
+                "membership": None
+                if row[7] is None
+                else {
+                    "objective_id": str(row[7]),
+                    "revision": int(row[8]),
+                    "accepted_plan_revision_id": str(row[9]),
+                },
+                "lock_revision": int(row[10]),
+                "source_projection_revision": None if row[16] is None else int(row[16]),
+            }
+
+    def overlap_neighbors(
+        self,
+        *,
+        start_utc: int,
+        end_utc: int,
+        exclude_objective_ids: Sequence[str] = (),
+    ) -> dict[str, object]:
+        if type(start_utc) is not int or start_utc < 0:
+            raise ValidationError("start_utc is invalid")
+        if type(end_utc) is not int or end_utc <= start_utc:
+            raise ValidationError("end_utc must be greater than start_utc")
+        excluded = tuple(sorted({require_uuid4(value) for value in exclude_objective_ids}))
+        params: list[object] = [end_utc, start_utc]
+        clause = ""
+        if excluded:
+            placeholders = ",".join("?" for _ in excluded)
+            clause = f" AND e.objective_id NOT IN ({placeholders})"
+            params.extend(excluded)
+        with ReadSnapshot(self._factory) as snapshot:
+            rows = snapshot.connection.execute(
+                "SELECT e.objective_id,e.start_utc,e.end_utc,e.member_count,e.revision,o.revision "
+                "FROM objective_envelope_projection e "
+                "JOIN objectives o ON o.objective_id=e.objective_id "
+                "WHERE o.superseded_by_objective_id IS NULL "
+                "AND e.start_utc<? AND e.end_utc>?"
+                + clause
+                + " ORDER BY e.start_utc,e.objective_id",
+                tuple(params),
+            ).fetchall()
+            return {
+                "items": [
+                    {
+                        "objective_id": str(row[0]),
+                        "start_utc": int(row[1]),
+                        "end_utc": int(row[2]),
+                        "member_count": int(row[3]),
+                        "envelope_revision": int(row[4]),
+                        "objective_revision": int(row[5]),
+                    }
+                    for row in rows
+                ],
+                "exact_total": len(rows),
+            }
 
 
     def list_proposals(

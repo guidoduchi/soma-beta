@@ -264,4 +264,180 @@ class HistoricalObjectiveQueryService:
             }
 
 
-__all__ = ["HistoricalObjectiveQueryService"]
+class OperationalReviewQueueQueryService:
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
+
+    def objective_review_queue(
+        self,
+        *,
+        as_of_utc: int,
+        reason: str | None = None,
+        after_objective_id: str | None = None,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        if type(as_of_utc) is not int or as_of_utc < 0:
+            raise ValidationError("as_of_utc must be non-negative")
+        page_limit = _limit(limit)
+        after = None if after_objective_id is None else require_uuid4(after_objective_id)
+        with ReadSnapshot(self._factory) as snapshot:
+            ids = [
+                str(row[0])
+                for row in snapshot.connection.execute(
+                    "SELECT objective_id FROM objectives "
+                    "WHERE superseded_by_objective_id IS NULL ORDER BY objective_id"
+                ).fetchall()
+            ]
+            items: list[dict[str, object]] = []
+            for objective_id in ids:
+                aggregate = ObjectiveProjectionRepository.aggregate(
+                    snapshot.connection, objective_id
+                )
+                if aggregate is None:
+                    raise IntegrityFailure("Objective review queue lacks aggregate authority")
+                obj = snapshot.connection.execute(
+                    "SELECT revision FROM objectives WHERE objective_id=?",
+                    (objective_id,),
+                ).fetchone()
+                members = ObjectiveProjectionRepository._load_members(
+                    snapshot.connection, objective_id
+                )
+                fingerprint = ObjectiveProjectionRepository._review_fingerprint(
+                    objective_id=objective_id,
+                    objective_revision=int(obj[0]),
+                    superseded_by=None,
+                    members=members,
+                )
+                latest = snapshot.connection.execute(
+                    "SELECT review_fingerprint FROM objective_review_events "
+                    "WHERE objective_id=? ORDER BY reviewed_at_utc DESC,"
+                    "objective_review_event_id DESC LIMIT 1",
+                    (objective_id,),
+                ).fetchone()
+                queue_reason = None
+                if aggregate.execution_state == "awaiting_review":
+                    queue_reason = (
+                        "mixed_outcomes"
+                        if aggregate.attention_reason == "mixed_outcomes"
+                        else (
+                            "lost_last_executable"
+                            if aggregate.attention_reason == "lost_last_executable"
+                            else "due_unreviewed"
+                        )
+                    )
+                elif latest is not None and str(latest[0]) != fingerprint:
+                    queue_reason = "corrected_after_review"
+                if queue_reason is None or (reason is not None and queue_reason != reason):
+                    continue
+                items.append(
+                    {
+                        "objective_id": objective_id,
+                        "reason_code": queue_reason,
+                        "aggregate_revision": aggregate.revision,
+                        "review_fingerprint": fingerprint,
+                        "aggregate_state": aggregate.execution_state,
+                    }
+                )
+            if after is not None:
+                items = [item for item in items if str(item["objective_id"]) > after]
+            total = len(items)
+            page = items[:page_limit]
+            return {
+                "items": page,
+                "continuation": (
+                    str(page[-1]["objective_id"])
+                    if len(items) > page_limit and page
+                    else None
+                ),
+                "exact_total": total,
+            }
+
+    def source_terminal_review_queue(
+        self,
+        *,
+        state: str = "pending",
+        after_created_at_utc: int | None = None,
+        after_review_id: str | None = None,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        if state != "pending":
+            raise ValidationError("source-terminal queue currently exposes pending review authority")
+        page_limit = _limit(limit)
+        if (after_created_at_utc is None) != (after_review_id is None):
+            raise ValidationError("source-terminal cursor requires both fields")
+        params: list[object] = [state]
+        clause = ""
+        if after_created_at_utc is not None:
+            if type(after_created_at_utc) is not int or after_created_at_utc < 0:
+                raise ValidationError("source-terminal cursor timestamp is invalid")
+            review_id = require_uuid4(str(after_review_id))
+            clause = " AND (r.created_at_utc>? OR (r.created_at_utc=? AND r.source_terminal_review_id>?))"
+            params.extend([after_created_at_utc, after_created_at_utc, review_id])
+        with ReadSnapshot(self._factory) as snapshot:
+            total = int(
+                snapshot.connection.execute(
+                    "SELECT COUNT(*) FROM wfm_source_terminal_reviews WHERE state=?",
+                    (state,),
+                ).fetchone()[0]
+            )
+            rows = snapshot.connection.execute(
+                "SELECT r.source_terminal_review_id,r.task_id,w.task_no,"
+                "r.provider_lifecycle_class,r.source_projection_revision,r.input_fingerprint,"
+                "r.revision,r.created_at_utc,sp.provider_status_token,"
+                "sp.accepted_source_observation_id,m.objective_id,e.execution_state "
+                "FROM wfm_source_terminal_reviews r "
+                "JOIN wfm_task_identities w ON w.task_id=r.task_id "
+                "JOIN wfm_source_projection_cache sp ON sp.task_id=r.task_id "
+                "LEFT JOIN objective_task_membership_current m ON m.task_id=r.task_id "
+                "LEFT JOIN task_execution_projection e ON e.task_id=r.task_id "
+                "WHERE r.state=?"
+                + clause
+                + " ORDER BY r.created_at_utc,r.source_terminal_review_id LIMIT ?",
+                (*params, page_limit + 1),
+            ).fetchall()
+            page = rows[:page_limit]
+            items = []
+            for row in page:
+                objective_id = None if row[10] is None else str(row[10])
+                surviving = None
+                if objective_id is not None:
+                    surviving = int(
+                        snapshot.connection.execute(
+                            "SELECT COUNT(*) FROM objective_task_membership_current m "
+                            "LEFT JOIN task_execution_projection e ON e.task_id=m.task_id "
+                            "WHERE m.objective_id=? AND m.task_id<>? "
+                            "AND COALESCE(e.execution_state,'not_started') NOT IN ('ended','terminated')",
+                            (objective_id, str(row[1])),
+                        ).fetchone()[0]
+                    )
+                items.append(
+                    {
+                        "source_terminal_review_id": str(row[0]),
+                        "task_id": str(row[1]),
+                        "task_no": str(row[2]),
+                        "provider_lifecycle_class": str(row[3]),
+                        "source_projection_revision": int(row[4]),
+                        "input_fingerprint": str(row[5]),
+                        "review_revision": int(row[6]),
+                        "created_at_utc": int(row[7]),
+                        "provider_status_token": None if row[8] is None else str(row[8]),
+                        "source_evidence_id": None if row[9] is None else str(row[9]),
+                        "local_context": {
+                            "objective_id": objective_id,
+                            "execution_state": "not_started" if row[11] is None else str(row[11]),
+                        },
+                        "impact_summary": {
+                            "surviving_executable_count": surviving,
+                        },
+                    }
+                )
+            continuation = None
+            if len(rows) > page_limit and page:
+                continuation = {
+                    "created_at_utc": int(page[-1][7]),
+                    "review_id": str(page[-1][0]),
+                }
+            return {"items": items, "continuation": continuation, "exact_total": total}
+
+
+__all__ = ["HistoricalObjectiveQueryService", "OperationalReviewQueueQueryService"]
