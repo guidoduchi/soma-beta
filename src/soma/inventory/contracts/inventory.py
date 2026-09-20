@@ -10,6 +10,10 @@ _ALLOWED_REF_TYPES = frozenset(
     {
         "device_part_unit",
         "device_part_unit_event",
+        "fault_tag",
+        "fault_tag_membership",
+        "fault_tag_membership_event",
+        "inventory_batch",
         "inventory_physical_consequence",
         "physical_consequence_event",
         "local_need_fulfillment",
