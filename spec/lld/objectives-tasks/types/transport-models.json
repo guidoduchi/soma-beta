@@ -374,6 +374,25 @@
     "CursorV1": {
       "kind": "reference",
       "contract": "spec/lld/_packet-contract-v2.json#cursor_contract"
+    },
+    "HistoricalObjectiveProposalDecisionV1": {
+      "kind": "object",
+      "required": [
+        "outcome",
+        "proposal_id",
+        "proposal_revision",
+        "state",
+        "objective_id",
+        "result_refs"
+      ],
+      "fields": {
+        "outcome": "APPLIED|NO_CHANGE",
+        "proposal_id": "uuid",
+        "proposal_revision": "int>=1",
+        "state": "accepted|rejected",
+        "objective_id": "uuid|null; non-null iff state=accepted",
+        "result_refs": "bounded array<typed ref>"
+      }
     }
   }
 }
