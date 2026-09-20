@@ -227,6 +227,36 @@ class InventoryConsequencesLogisticsService:
                         ),
                     ),
                 )
+                child_audits = tuple(
+                    AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="inventory.spare_unit.registered_or_reserved",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="spare_part_unit",
+                        target_id=str(child["spare_part_unit_id"]),
+                        command_id=command_id,
+                        payload_schema="SpareUnitAuditV1",
+                        payload_version=1,
+                        payload={
+                            "spare_part_unit_id": str(child["spare_part_unit_id"]),
+                            "event_kind": "REGISTER",
+                            "task_id": task,
+                            "allocation_id": None,
+                            "spare_need_id": None,
+                            "resulting_revision": int(child["revision"]),
+                        },
+                        resulting_event_refs=(
+                            AuditResultRef(
+                                "spare_part_unit",
+                                str(child["spare_part_unit_id"]),
+                            ),
+                        ),
+                    )
+                    for child in result["extracted_units"]
+                )
+                return (consequence_audit, *child_audits)
 
             apply.result = {}
             return PreparedMutation(
@@ -277,6 +307,24 @@ class InventoryConsequencesLogisticsService:
         )
         rma = None if rma_id is None else require_uuid4(rma_id)
         accepted = intent.validate()
+        extracted_children = tuple(
+            {
+                "bom_code": stored_bom,
+                "bom_key": bom_key,
+                "manufacturer_serial": stored_serial,
+                "serial_key": serial_key,
+                "condition_token": condition,
+                "disposition_token": initial_disposition_for_condition(condition),
+            }
+            for child in accepted.extracted_units
+            for stored_bom, bom_key, stored_serial, serial_key in (
+                normalize_spare_part_identity(
+                    child.bom_code,
+                    child.manufacturer_serial,
+                ),
+            )
+            for condition in (validate_spare_condition(child.condition_token),)
+        )
         if (
             not isinstance(task_review_fingerprint, str)
             or len(task_review_fingerprint) != 64
@@ -307,6 +355,17 @@ class InventoryConsequencesLogisticsService:
                     accepted.explicit_return_spare_part_unit_id
                 ),
                 "effective_at_utc": accepted.effective_at_utc,
+                "extracted_units": [
+                    {
+                        "bom_code": child["bom_code"],
+                        "bom_key": child["bom_key"],
+                        "manufacturer_serial": child["manufacturer_serial"],
+                        "serial_key": child["serial_key"],
+                        "condition_token": child["condition_token"],
+                        "disposition_token": child["disposition_token"],
+                    }
+                    for child in extracted_children
+                ],
             },
             authorizing_fingerprints={
                 "task_review_fingerprint": task_review_fingerprint,
@@ -351,10 +410,11 @@ class InventoryConsequencesLogisticsService:
                     target_device_part_unit_id=target,
                     rma_id=rma,
                     intent=accepted,
+                    extracted_children=extracted_children,
                     command_id=command_id,
                 )
                 apply.result = result
-                return AuditEventInput(
+                consequence_audit = AuditEventInput(
                     audit_event_id=new_uuid4(),
                     action_type=(
                         "inventory.task_physical_consequence."
@@ -415,6 +475,12 @@ class InventoryConsequencesLogisticsService:
                                 ),
                             }
                         ),
+                        **{
+                            f"spare_part_unit:{child['spare_part_unit_id']}": int(
+                                child["revision"]
+                            )
+                            for child in apply.result["extracted_units"]
+                        },
                     },
                 ),
             )
