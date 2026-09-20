@@ -152,6 +152,28 @@ def _validate_spare_request_identity(payload: dict[str, object]) -> None:
     _reason(payload.get("reason_category"))
 
 
+
+_C10_ID = re.compile(r"C[0-9]{10}\Z")
+_RMA_EVENTS = frozenset({"AUTHORIZE", "ASSIGN", "REASSIGN", "CLEAR", "C10_CORRECT"})
+
+
+def _validate_rma(payload: dict[str, object]) -> None:
+    _uuid(payload.get("spare_request_id"), "spare_request_id")
+    _uuid(payload.get("authorization_batch_id"), "authorization_batch_id", nullable=True)
+    _uuid(payload.get("rma_id"), "rma_id")
+    if payload.get("event_kind") not in _RMA_EVENTS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "RMA event kind is invalid")
+    current_c10 = payload.get("current_c10")
+    if not isinstance(current_c10, str) or _C10_ID.fullmatch(current_c10) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "current_c10 is invalid")
+    _uuid(
+        payload.get("target_device_part_unit_id"),
+        "target_device_part_unit_id",
+        nullable=True,
+    )
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -301,6 +323,29 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_spare_request_identity,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.rma.authorized_or_assigned",
+            action_version=1,
+            payload_schema="RmaAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "RmaAuditV1",
+                frozenset(
+                    {
+                        "spare_request_id",
+                        "authorization_batch_id",
+                        "rma_id",
+                        "event_kind",
+                        "current_c10",
+                        "target_device_part_unit_id",
+                        "resulting_revision",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_rma,
         )
     )
     return registry
