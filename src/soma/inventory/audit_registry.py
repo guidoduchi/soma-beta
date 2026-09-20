@@ -47,6 +47,11 @@ def _positive(value: object, field: str, *, nullable: bool = False) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field} is invalid")
 
 
+def _nonnegative(value: object, field: str) -> None:
+    if type(value) is not int or value < 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{field} is invalid")
+
+
 def _reason(value: object) -> None:
     if value is None:
         return
@@ -253,6 +258,34 @@ def _validate_logistics(payload: dict[str, object]) -> None:
         nullable=True,
     )
     _positive(payload.get("resulting_revision"), "resulting_revision")
+
+
+_FT = re.compile(r"FT-[0-9]{8}\Z")
+
+
+def _validate_fault_tag(payload: dict[str, object]) -> None:
+    _uuid(payload.get("fault_tag_id"), "fault_tag_id")
+    tracking = payload.get("tracking_id")
+    if not isinstance(tracking, str) or _FT.fullmatch(tracking) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag tracking_id is invalid")
+    if payload.get("event_kind") not in {"CREATE", "DRAFT_UPDATE", "ARCHIVE", "RESTORE"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag event kind is invalid")
+    _nonnegative(payload.get("member_count"), "member_count")
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+    _reason(payload.get("reason_category"))
+
+
+def _validate_fault_tag_submission(payload: dict[str, object]) -> None:
+    _uuid(payload.get("fault_tag_id"), "fault_tag_id")
+    _uuid(payload.get("submission_event_id"), "submission_event_id")
+    _uuid(payload.get("submission_snapshot_id"), "submission_snapshot_id")
+    if payload.get("event_kind") not in {"ACCEPT", "CORRECT_FALSE"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Fault Tag submission event is invalid")
+    _positive(payload.get("membership_count"), "membership_count")
+    _fingerprint(payload.get("input_fingerprint"), "input_fingerprint")
+    effective = payload.get("effective_at_utc")
+    if effective is not None and (type(effective) is not int or effective < 0):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "effective_at_utc is invalid")
 
 
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
@@ -495,6 +528,51 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_logistics,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.fault_tag.draft_changed",
+            action_version=1,
+            payload_schema="FaultTagAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "FaultTagAuditV1",
+                frozenset(
+                    {
+                        "fault_tag_id",
+                        "tracking_id",
+                        "event_kind",
+                        "member_count",
+                        "resulting_revision",
+                        "reason_category",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_fault_tag,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.fault_tag.submitted",
+            action_version=1,
+            payload_schema="FaultTagSubmissionAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "FaultTagSubmissionAuditV1",
+                frozenset(
+                    {
+                        "fault_tag_id",
+                        "submission_event_id",
+                        "submission_snapshot_id",
+                        "event_kind",
+                        "membership_count",
+                        "input_fingerprint",
+                        "effective_at_utc",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_fault_tag_submission,
         )
     )
     return registry
