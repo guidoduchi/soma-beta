@@ -781,30 +781,6 @@ class InventoryRequestsRmaService:
                 raise ValidationError("SR7 assignment does not accept correction reason_code")
             reason = None
 
-        with ReadSnapshot(self._factory) as snapshot:
-            material = self._repository.draft_material(
-                snapshot.connection,
-                request_id,
-            )
-            if int(material["revision"]) != revision:
-                raise SomaError("INV_STALE", "Spare Request revision changed")
-            current_sr7 = material["current_sr7"]
-            if current_sr7 == official_sr7:
-                if accepted_action == "assign":
-                    existing_response = self._response(snapshot.connection, request_id)
-                else:
-                    raise SomaError("SR7_CONFLICT", "SR7 correction must change the current alias")
-            else:
-                existing_response = None
-                if self._repository.sr7_alias_owner(
-                    snapshot.connection,
-                    official_sr7,
-                ) is not None:
-                    raise SomaError(
-                        "SR7_CONFLICT",
-                        "Official SR7 is already current or former history",
-                    )
-
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="AssignOrCorrectSpareRequestOfficialId",
