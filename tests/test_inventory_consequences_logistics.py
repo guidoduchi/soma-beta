@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 
@@ -4009,3 +4010,70 @@ def test_inventory_v2_overview_projection_and_targets_share_scope_snapshot(
         for ref in refs
     )
     assert all(set(ref) == {"target_type", "target_id"} for ref in refs)
+
+
+def test_fault_tag_archive_restore_is_presentation_only_and_lifecycle_events_remain_immutable(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    service = InventoryFaultTagService(factory)
+    created = service.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+    )
+    tag_id = str(created["fault_tag_id"])
+
+    with pytest.raises(sqlite3.IntegrityError):
+        with UnitOfWork(factory) as uow:
+            uow.connection.execute(
+                "DELETE FROM fault_tag_lifecycle_events WHERE fault_tag_id=?",
+                (tag_id,),
+            )
+
+    archived = service.archive_or_restore_fault_tag(
+        command_id=new_uuid4(),
+        fault_tag_id=tag_id,
+        base_revision=int(created["revision"]),
+        action="archive",
+        reason_code="hide completed presentation item",
+    )
+    assert archived["fault_tag_id"] == tag_id
+    assert archived["state"] == "draft"
+    assert archived["revision"] == 2
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT archived,state,revision FROM fault_tag_current_projection "
+            "WHERE fault_tag_id=?",
+            (tag_id,),
+        ).fetchone() == (1, "draft", 2)
+        assert [
+            str(row[0])
+            for row in snapshot.connection.execute(
+                "SELECT event_kind FROM fault_tag_lifecycle_events "
+                "WHERE fault_tag_id=? ORDER BY recorded_at_utc,fault_tag_event_id",
+                (tag_id,),
+            ).fetchall()
+        ] == ["created", "archived"]
+
+    restored = service.archive_or_restore_fault_tag(
+        command_id=new_uuid4(),
+        fault_tag_id=tag_id,
+        base_revision=2,
+        action="restore",
+    )
+    assert restored["revision"] == 3
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT archived,state,revision FROM fault_tag_current_projection "
+            "WHERE fault_tag_id=?",
+            (tag_id,),
+        ).fetchone() == (0, "draft", 3)
+        assert [
+            str(row[0])
+            for row in snapshot.connection.execute(
+                "SELECT event_kind FROM fault_tag_lifecycle_events "
+                "WHERE fault_tag_id=? ORDER BY recorded_at_utc,fault_tag_event_id",
+                (tag_id,),
+            ).fetchall()
+        ] == ["created", "archived", "restored"]
