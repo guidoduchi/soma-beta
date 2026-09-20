@@ -8,6 +8,8 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
 
+from ..repositories.grouping import RegroupProposalRepository
+
 from ..domain.objectives import ObjectiveDraftLocalTaskIntent, ObjectiveExistingTaskIntent
 
 
@@ -183,6 +185,182 @@ class ObjectiveGroupingQueryService:
                 existing_tasks=existing_tasks,
                 draft_tasks=draft_tasks,
             )
+
+
+
+    def list_proposals(
+        self,
+        *,
+        state: str | None = None,
+        risk: str | None = None,
+        origin: str | None = None,
+        after_created_at_utc: int | None = None,
+        after_proposal_id: str | None = None,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        if type(limit) is not int or not 1 <= limit <= 500:
+            raise ValidationError("grouping proposal limit must be in 1..500")
+        params: list[object] = []
+        clauses: list[str] = []
+        if state is not None:
+            clauses.append("state=?")
+            params.append(state)
+        if risk is not None:
+            clauses.append("risk_tier=?")
+            params.append(risk)
+        if origin is not None:
+            clauses.append("origin=?")
+            params.append(origin)
+        if (after_created_at_utc is None) != (after_proposal_id is None):
+            raise ValidationError("grouping continuation requires both key fields")
+        if after_created_at_utc is not None:
+            if type(after_created_at_utc) is not int or after_created_at_utc < 0:
+                raise ValidationError("grouping continuation timestamp is invalid")
+            from soma.foundation.identifiers import require_uuid4
+            after_id = require_uuid4(str(after_proposal_id))
+            clauses.append("(created_at_utc>? OR (created_at_utc=? AND regroup_proposal_id>?))")
+            params.extend([after_created_at_utc, after_created_at_utc, after_id])
+        where = "" if not clauses else " WHERE " + " AND ".join(clauses)
+        with ReadSnapshot(self._factory) as snapshot:
+            rows = snapshot.connection.execute(
+                "SELECT p.regroup_proposal_id,p.proposal_kind,p.origin,p.risk_tier,"
+                "p.input_fingerprint,p.state,p.revision,p.created_at_utc,"
+                "(SELECT COUNT(*) FROM regroup_proposal_task_changes t "
+                " WHERE t.regroup_proposal_id=p.regroup_proposal_id),"
+                "(SELECT COUNT(*) FROM regroup_proposal_objective_changes o "
+                " WHERE o.regroup_proposal_id=p.regroup_proposal_id) "
+                "FROM regroup_proposals p" + where +
+                " ORDER BY p.created_at_utc,p.regroup_proposal_id LIMIT ?",
+                (*params, limit + 1),
+            ).fetchall()
+            page = rows[:limit]
+            items = [
+                {
+                    "proposal_id": str(row[0]),
+                    "revision": int(row[6]),
+                    "input_fingerprint": str(row[4]),
+                    "state": str(row[5]),
+                    "diff": {
+                        "proposal_kind": str(row[1]),
+                        "origin": str(row[2]),
+                        "risk_tier": str(row[3]),
+                        "task_change_count": int(row[8]),
+                        "objective_change_count": int(row[9]),
+                    },
+                    "created_at_utc": int(row[7]),
+                }
+                for row in page
+            ]
+            continuation = None
+            if len(rows) > limit and page:
+                continuation = {
+                    "created_at_utc": int(page[-1][7]),
+                    "proposal_id": str(page[-1][0]),
+                }
+            return {"items": items, "continuation": continuation}
+
+    def proposal_detail(
+        self,
+        proposal_id: str,
+        *,
+        task_after_id: str | None = None,
+        task_limit: int = 100,
+        objective_after_id: str | None = None,
+        objective_limit: int = 100,
+    ) -> dict[str, object]:
+        from soma.foundation.identifiers import require_uuid4
+        identity = require_uuid4(proposal_id)
+        if type(task_limit) is not int or not 1 <= task_limit <= 500:
+            raise ValidationError("task change limit must be in 1..500")
+        if type(objective_limit) is not int or not 1 <= objective_limit <= 500:
+            raise ValidationError("objective change limit must be in 1..500")
+        with ReadSnapshot(self._factory) as snapshot:
+            proposal = RegroupProposalRepository.get(snapshot.connection, identity)
+            if proposal is None:
+                raise SomaError("GROUPING_PROPOSAL_NOT_FOUND", "grouping proposal does not exist")
+            task_rows = RegroupProposalRepository.task_changes(snapshot.connection, identity)
+            objective_rows = RegroupProposalRepository.objective_changes(snapshot.connection, identity)
+            if task_after_id is not None:
+                after = require_uuid4(task_after_id)
+                task_rows = [row for row in task_rows if str(row[1]) > after]
+            if objective_after_id is not None:
+                after = require_uuid4(objective_after_id)
+                objective_rows = [
+                    row for row in objective_rows
+                    if row[1] is not None and str(row[1]) > after
+                ]
+            task_page = task_rows[: task_limit + 1]
+            objective_page = objective_rows[: objective_limit + 1]
+            stale = False
+            for row in task_rows:
+                current = snapshot.connection.execute(
+                    "SELECT t.revision,pc.plan_revision_id,m.objective_id,m.membership_revision "
+                    "FROM tasks t JOIN task_plan_current pc ON pc.task_id=t.task_id "
+                    "LEFT JOIN objective_task_membership_current m ON m.task_id=t.task_id "
+                    "WHERE t.task_id=?",
+                    (str(row[1]),),
+                ).fetchone()
+                if current is None or int(current[0]) != int(row[4]) or str(current[1]) != str(row[5]):
+                    stale = True
+                    break
+                expected_objective = None if row[2] is None else str(row[2])
+                current_objective = None if current[2] is None else str(current[2])
+                expected_membership_revision = None if row[6] is None else int(row[6])
+                current_membership_revision = None if current[3] is None else int(current[3])
+                if (
+                    current_objective != expected_objective
+                    or current_membership_revision != expected_membership_revision
+                ):
+                    stale = True
+                    break
+            return {
+                "proposal_id": identity,
+                "proposal_kind": proposal.proposal_kind,
+                "origin": proposal.origin,
+                "risk_tier": proposal.risk_tier,
+                "revision": proposal.revision,
+                "input_fingerprint": proposal.input_fingerprint,
+                "state": proposal.state,
+                "survivor_objective_id": proposal.survivor_objective_id,
+                "stale": stale,
+                "equivalent_rejection_suppressed": RegroupProposalRepository.rejection_suppressed(
+                    snapshot.connection, proposal.input_fingerprint
+                ),
+                "task_changes": [
+                    {
+                        "proposal_task_change_id": str(row[0]),
+                        "task_id": str(row[1]),
+                        "from_objective_id": None if row[2] is None else str(row[2]),
+                        "to_objective_id": None if row[3] is None else str(row[3]),
+                        "expected_task_revision": int(row[4]),
+                        "expected_current_plan_revision_id": str(row[5]),
+                        "expected_membership_revision": None if row[6] is None else int(row[6]),
+                        "change_kind": str(row[7]),
+                    }
+                    for row in task_page[:task_limit]
+                ],
+                "task_change_exact_count": len(task_rows),
+                "task_change_continuation": (
+                    str(task_page[task_limit - 1][1])
+                    if len(task_page) > task_limit and task_limit > 0 else None
+                ),
+                "objective_changes": [
+                    {
+                        "proposal_objective_change_id": str(row[0]),
+                        "objective_id": None if row[1] is None else str(row[1]),
+                        "action": str(row[2]),
+                        "expected_objective_revision": None if row[3] is None else int(row[3]),
+                        "expected_envelope_revision": None if row[4] is None else int(row[4]),
+                    }
+                    for row in objective_page[:objective_limit]
+                ],
+                "objective_change_exact_count": len(objective_rows),
+                "objective_change_continuation": (
+                    str(objective_page[objective_limit - 1][1])
+                    if len(objective_page) > objective_limit and objective_page[objective_limit - 1][1] is not None
+                    else None
+                ),
+            }
 
 
 

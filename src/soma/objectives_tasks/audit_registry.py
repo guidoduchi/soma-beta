@@ -545,6 +545,37 @@ def _validate_task_count(payload: dict[str, object]) -> None:
         label="Task count",
     )
 
+
+_GROUPING_EVENTS = frozenset({"RECOMPUTED", "ACCEPTED", "REJECTED", "RECONSIDERED"})
+_GROUPING_KINDS = frozenset(
+    {"create", "join", "move", "repin", "consolidate", "manual_merge", "manual_split"}
+)
+
+
+def _validate_grouping_audit(payload: dict[str, object]) -> None:
+    try:
+        proposal_id = payload.get("proposal_id")
+        if not isinstance(proposal_id, str):
+            raise ValidationError("proposal_id must be UUID text")
+        require_uuid4(proposal_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping proposal identity is invalid") from exc
+    if payload.get("event_kind") not in _GROUPING_EVENTS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping event_kind is invalid")
+    if payload.get("proposal_kind") not in _GROUPING_KINDS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping proposal_kind is invalid")
+    if payload.get("risk_tier") not in {"normal", "high"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping risk_tier is invalid")
+    fingerprint = payload.get("input_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping fingerprint is invalid")
+    for field in ("task_change_count", "objective_change_count"):
+        value = payload.get(field)
+        if type(value) is not int or value < 0:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping count is invalid")
+    required_reason = payload.get("event_kind") in {"REJECTED", "RECONSIDERED"}
+    _validate_bounded_reason(payload.get("reason_category"), required=required_reason, label="Grouping")
+
 def _contract(name: str, fields: frozenset[str], *, max_items: int = 32) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -723,6 +754,38 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
                 max_items=16,
             ),
             sensitivity_validator=_validate_task_count,
+        )
+    )
+    grouping_fields = frozenset(
+        {
+            "proposal_id",
+            "event_kind",
+            "proposal_kind",
+            "risk_tier",
+            "input_fingerprint",
+            "task_change_count",
+            "objective_change_count",
+            "reason_category",
+        }
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="grouping.proposal_recomputed",
+            action_version=1,
+            payload_schema="GroupingAuditV1",
+            payload_version=1,
+            payload_contract=_contract("GroupingAuditV1", grouping_fields, max_items=16),
+            sensitivity_validator=_validate_grouping_audit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="grouping.proposal_decided",
+            action_version=1,
+            payload_schema="GroupingAuditV1",
+            payload_version=1,
+            payload_contract=_contract("GroupingAuditV1", grouping_fields, max_items=16),
+            sensitivity_validator=_validate_grouping_audit,
         )
     )
     return registry
