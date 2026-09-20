@@ -7,13 +7,29 @@ from .participants import (
     InventoryReportSectionContributor,
     InventoryTaskDependencyProvider,
 )
+from .providers import (
+    InventoryCommunicationIdentityProvider,
+    InventoryDevicePartReferenceReader,
+    InventoryOverviewProjectionProvider,
+    InventoryPhysicalConsequenceReader,
+    InventoryReferenceDependencyValidator,
+    InventorySiteDependencyValidator,
+    RfcInventoryDependencyProvider,
+)
 
 __all__ = [
+    "InventoryCommunicationIdentityProvider",
     "InventoryCorrectionsBulkService",
+    "InventoryDevicePartReferenceReader",
     "InventoryFaultTagService",
     "InventoryHardDeleteService",
     "InventoryNeedsStockService",
+    "InventoryOverviewProjectionProvider",
+    "InventoryPhysicalConsequenceReader",
     "InventoryProposalTargetService",
+    "InventoryReferenceDependencyValidator",
     "InventoryReportSectionContributor",
+    "InventorySiteDependencyValidator",
     "InventoryTaskDependencyProvider",
+    "RfcInventoryDependencyProvider",
 ]
