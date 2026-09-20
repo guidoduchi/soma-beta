@@ -10,6 +10,8 @@ _ALLOWED_REF_TYPES = frozenset(
     {
         "device_part_unit",
         "local_need_fulfillment",
+        "logistics_event",
+        "logistics_participant",
         "rma",
         "rma_assignment",
         "rma_identifier",
