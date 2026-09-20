@@ -254,16 +254,8 @@ class InventoryCorrectionsBulkService:
                         "type": "fault_tag_membership_event",
                         "id": str(item["membership_event_id"]),
                     }
-                    for item in result["events"]
+                    for item in result["events"][:16]
                 ]
-                if action_kind != "warehouse_receipt":
-                    result_refs.extend(
-                        {
-                            "type": "rma_return_obligation",
-                            "id": str(item["rma_id"]),
-                        }
-                        for item in result["events"]
-                    )
                 bulk_audit = AuditEventInput(
                     audit_event_id=new_uuid4(),
                     action_type="inventory.bulk.accepted",
@@ -468,7 +460,7 @@ class InventoryCorrectionsBulkService:
                         "target_id": identity,
                         "reviewed_revision": reviewed_revision,
                         "eligibility_fingerprint": fingerprint,
-                        "retained_related_ids": list(retained),
+                        "retained_related_ids": list(retained[:16]),
                         "result": "DELETED",
                     },
                     resulting_event_refs=(
