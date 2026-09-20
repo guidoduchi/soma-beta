@@ -488,13 +488,14 @@ class InventoryUnitsRepository:
     def record_local_fulfillment(
         connection,
         *,
+        fulfillment_event_id: str,
         spare_need_id: str,
         spare_part_unit_id: str,
         task_id: str | None,
         reason_code: str | None,
         command_id: str,
     ) -> str:
-        event_id = new_uuid4()
+        event_id = fulfillment_event_id
         connection.execute(
             "INSERT INTO local_need_fulfillment_events("
             "local_fulfillment_event_id,spare_need_id,spare_part_unit_id,task_id,quantity,"

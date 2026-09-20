@@ -974,10 +974,12 @@ class InventoryNeedsStockService:
                     task_revision,
                 )
             allocation_id = None if task is None else new_uuid4()
+            fulfillment_event_id = new_uuid4()
 
             def apply(inner: UnitOfWork):
-                fulfillment_event_id = self._units.record_local_fulfillment(
+                actual_fulfillment_event_id = self._units.record_local_fulfillment(
                     inner.connection,
+                    fulfillment_event_id=fulfillment_event_id,
                     spare_need_id=spare_need_id,
                     spare_part_unit_id=spare_part_unit_id,
                     task_id=task,
@@ -1006,6 +1008,8 @@ class InventoryNeedsStockService:
                 after = self._units.current_unit(inner.connection, spare_part_unit_id)
                 if after is None:
                     raise IntegrityFailure("selected Spare Part Unit disappeared")
+                if actual_fulfillment_event_id != fulfillment_event_id:
+                    raise IntegrityFailure("Prepared local fulfillment identity drifted")
                 apply.fulfillment_event_id = fulfillment_event_id
                 apply.allocation_event_id = allocation_event_id
                 apply.allocation_revision = allocation_revision
@@ -1084,14 +1088,14 @@ class InventoryNeedsStockService:
                 )
                 return (need_audit, unit_audit)
 
-            apply.fulfillment_event_id = ""
+            apply.fulfillment_event_id = fulfillment_event_id
             apply.allocation_event_id = None
             apply.allocation_revision = None
             apply.unit_revision = unit_revision if task is None else unit_revision + 1
             return PreparedMutation(
                 no_change=False,
                 result_type="local_need_fulfillment",
-                result_id=apply.fulfillment_event_id,
+                result_id=fulfillment_event_id,
                 apply=apply,
                 response_schema="InventoryMutationResultV1",
                 response_factory=lambda _inner: self._response(
