@@ -24,6 +24,8 @@ from ..domain.requests import (
     validate_request_origin,
     validate_submission_evidence,
     validate_submission_time,
+    validate_sr7,
+    validate_sr7_action,
 )
 from ..interfaces import SpareRequestSubmissionEvidenceValidator
 from ..repositories.requests import InventoryRequestsRepository
@@ -764,6 +766,171 @@ class InventoryRequestsRmaService:
         execution = self._boundary.execute(envelope, prepare)
         if not isinstance(execution.response, dict):
             raise IntegrityFailure("Spare Request correction response is not an object")
+        return dict(execution.response)
+
+
+    def assign_or_correct_spare_request_official_id(
+        self,
+        *,
+        command_id: str,
+        spare_request_id: str,
+        base_revision: int,
+        sr7: str,
+        action: str,
+        reason_code: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        request_id = require_uuid4(spare_request_id)
+        revision = validate_positive_revision(base_revision, field="base_revision")
+        official_sr7 = validate_sr7(sr7)
+        accepted_action = validate_sr7_action(action)
+        if accepted_action == "correct":
+            if reason_code is None:
+                raise ValidationError("SR7 correction requires reason_code")
+            reason = validate_reason_code(reason_code)
+        else:
+            if reason_code is not None:
+                raise ValidationError("SR7 assignment does not accept correction reason_code")
+            reason = None
+
+        with ReadSnapshot(self._factory) as snapshot:
+            material = self._repository.draft_material(
+                snapshot.connection,
+                request_id,
+            )
+            if int(material["revision"]) != revision:
+                raise SomaError("INV_STALE", "Spare Request revision changed")
+            current_sr7 = material["current_sr7"]
+            if current_sr7 == official_sr7:
+                if accepted_action == "assign":
+                    existing_response = self._response(snapshot.connection, request_id)
+                else:
+                    raise SomaError("SR7_CONFLICT", "SR7 correction must change the current alias")
+            else:
+                existing_response = None
+                if self._repository.sr7_alias_owner(
+                    snapshot.connection,
+                    official_sr7,
+                ) is not None:
+                    raise SomaError(
+                        "SR7_CONFLICT",
+                        "Official SR7 is already current or former history",
+                    )
+
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="AssignOrCorrectSpareRequestOfficialId",
+            target_type="spare_request",
+            target_id=request_id,
+            semantic_payload={
+                "sr7": official_sr7,
+                "action": accepted_action,
+                "reason_code": reason,
+            },
+            base_revisions={"spare_request": revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            material_now = self._repository.draft_material(
+                uow.connection,
+                request_id,
+            )
+            if int(material_now["revision"]) != revision:
+                raise SomaError("INV_STALE", "Spare Request revision changed")
+            current = material_now["current_sr7"]
+            if current == official_sr7:
+                if accepted_action != "assign":
+                    raise SomaError(
+                        "SR7_CONFLICT",
+                        "SR7 correction must change the current alias",
+                    )
+                return PreparedMutation(
+                    no_change=True,
+                    result_type=None,
+                    result_id=None,
+                    response_schema="SpareRequestV1",
+                    response=self._response(uow.connection, request_id),
+                )
+            if self._repository.sr7_alias_owner(
+                uow.connection,
+                official_sr7,
+            ) is not None:
+                raise SomaError(
+                    "SR7_CONFLICT",
+                    "Official SR7 is already current or former history",
+                )
+            former_sr7 = None if current is None else str(current)
+            if accepted_action == "assign" and former_sr7 is not None:
+                raise SomaError("SR7_CONFLICT", "Spare Request already has a current SR7")
+            if accepted_action == "correct" and former_sr7 is None:
+                raise SomaError("SR7_CONFLICT", "Spare Request has no current SR7 to correct")
+
+            def apply(inner: UnitOfWork):
+                (
+                    identifier_event_id,
+                    alias_id,
+                    acknowledgement_event_id,
+                    resulting_revision,
+                ) = self._repository.assign_or_correct_sr7(
+                    inner.connection,
+                    spare_request_id=request_id,
+                    base_revision=revision,
+                    sr7=official_sr7,
+                    action=accepted_action,
+                    reason_code=reason,
+                    command_id=command_id,
+                )
+                apply.identifier_event_id = identifier_event_id
+                apply.alias_id = alias_id
+                apply.acknowledgement_event_id = acknowledgement_event_id
+                apply.revision = resulting_revision
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.spare_request.official_id_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="spare_request",
+                    target_id=request_id,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="SpareRequestIdentityAuditV1",
+                    payload_version=1,
+                    payload={
+                        "spare_request_id": request_id,
+                        "event_kind": (
+                            "ASSIGN" if accepted_action == "assign" else "CORRECT"
+                        ),
+                        "current_sr7": official_sr7,
+                        "former_sr7": former_sr7,
+                        "resulting_revision": resulting_revision,
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("spare_request_identifier", alias_id),
+                    ),
+                )
+
+            apply.identifier_event_id = ""
+            apply.alias_id = ""
+            apply.acknowledgement_event_id = None
+            apply.revision = revision + 1
+            return PreparedMutation(
+                no_change=False,
+                result_type="spare_request",
+                result_id=request_id,
+                apply=apply,
+                response_schema="SpareRequestV1",
+                response_factory=lambda inner: self._response(
+                    inner.connection,
+                    request_id,
+                ),
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("Spare Request SR7 response is not an object")
         return dict(execution.response)
 
 
