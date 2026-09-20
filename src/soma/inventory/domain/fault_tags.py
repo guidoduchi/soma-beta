@@ -54,6 +54,32 @@ def normalize_return_reason(value: str) -> str:
 
 
 @dataclass(frozen=True, slots=True)
+class WarehouseMembershipIntent:
+    fault_tag_membership_id: str
+    revision: int
+
+    def normalized(self) -> tuple[str, int]:
+        identity = require_uuid4(self.fault_tag_membership_id)
+        if type(self.revision) is not int or self.revision <= 0:
+            raise ValidationError("warehouse membership revision must be positive")
+        return identity, self.revision
+
+
+def validate_warehouse_memberships(
+    value: tuple[WarehouseMembershipIntent, ...],
+) -> tuple[tuple[str, int], ...]:
+    if not isinstance(value, tuple) or not value:
+        raise ValidationError("warehouse transition requires one-or-more memberships")
+    if len(value) > _MAX_MEMBERS:
+        raise ValidationError("warehouse transition hard limit exceeded")
+    normalized = tuple(item.normalized() for item in value)
+    identities = [item[0] for item in normalized]
+    if len(set(identities)) != len(identities):
+        raise ValidationError("warehouse transition contains duplicate memberships")
+    return tuple(sorted(normalized, key=lambda item: item[0]))
+
+
+@dataclass(frozen=True, slots=True)
 class FaultTagMembershipIntent:
     rma_id: str
     return_reason: str
@@ -78,9 +104,11 @@ def validate_memberships(
 
 __all__ = [
     "FaultTagMembershipIntent",
+    "WarehouseMembershipIntent",
     "normalize_optional_instructions",
     "normalize_optional_uuid",
     "normalize_return_reason",
     "validate_memberships",
     "validate_return_method",
+    "validate_warehouse_memberships",
 ]

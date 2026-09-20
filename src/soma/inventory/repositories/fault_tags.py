@@ -1069,5 +1069,477 @@ class InventoryFaultTagsRepository:
             str(current[4]),
         )
 
+    @staticmethod
+    def warehouse_membership_authority(connection: Any, membership_id: str):
+        return connection.execute(
+            "SELECT c.fault_tag_membership_id,c.fault_tag_id,c.rma_id,"
+            "c.device_part_unit_id,c.spare_part_unit_id,c.state,c.active_submitted,"
+            "c.revision,c.last_event_id,m.physical_consequence_id "
+            "FROM fault_tag_membership_current c JOIN fault_tag_memberships m "
+            "ON m.fault_tag_membership_id=c.fault_tag_membership_id "
+            "WHERE c.fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone()
+
+    @classmethod
+    def _require_warehouse_target(
+        cls,
+        connection: Any,
+        *,
+        membership_id: str,
+        expected_revision: int,
+        required_state: str,
+    ):
+        row = cls.warehouse_membership_authority(connection, membership_id)
+        if row is None or int(row[7]) != expected_revision:
+            raise SomaError("INV_STALE", "Fault Tag membership revision changed")
+        if str(row[5]) != required_state or int(row[6]) != 1:
+            if required_state == "warehouse_received":
+                raise SomaError(
+                    "WAREHOUSE_RECEIPT_REQUIRED",
+                    "Fault Tag membership is not awaiting final warehouse decision",
+                )
+            raise SomaError(
+                "BULK_INCOMPATIBLE",
+                "Fault Tag membership is not awaiting warehouse receipt",
+            )
+        obligation = connection.execute(
+            "SELECT obligation_state,device_part_unit_id,spare_part_unit_id,"
+            "physical_consequence_id,revision,last_event_id "
+            "FROM rma_return_obligation_current WHERE rma_id=?",
+            (str(row[2]),),
+        ).fetchone()
+        if obligation is None or str(obligation[0]) != "open":
+            raise SomaError(
+                "INV_STALE",
+                "Fault Tag membership return obligation is no longer open",
+            )
+        if (
+            (None if obligation[1] is None else str(obligation[1]))
+            != (None if row[3] is None else str(row[3]))
+            or (None if obligation[2] is None else str(obligation[2]))
+            != (None if row[4] is None else str(row[4]))
+            or (None if obligation[3] is None else str(obligation[3]))
+            != str(row[9])
+        ):
+            raise SomaError(
+                "INV_STALE",
+                "Fault Tag membership no longer matches current return obligation",
+            )
+        return row, obligation
+
+    @staticmethod
+    def _membership_state_fingerprint(
+        *,
+        membership_id: str,
+        rma_id: str,
+        state: str,
+        active_submitted: int,
+        device_part_unit_id: str | None,
+        spare_part_unit_id: str | None,
+        last_event_id: str,
+    ) -> str:
+        return sha256_canonical_json(
+            {
+                "schema": "SOMA_FAULT_TAG_MEMBERSHIP_CURRENT_V1",
+                "fault_tag_membership_id": membership_id,
+                "rma_id": rma_id,
+                "state": state,
+                "active_submitted": active_submitted,
+                "device_part_unit_id": device_part_unit_id,
+                "spare_part_unit_id": spare_part_unit_id,
+                "last_event_id": last_event_id,
+            }
+        )
+
+    @classmethod
+    def _rebuild_tag_projection(
+        cls,
+        connection: Any,
+        *,
+        fault_tag_id: str,
+        command_id: str,
+    ) -> int:
+        tag = cls.current_tag(connection, fault_tag_id)
+        if tag is None:
+            raise IntegrityFailure("Fault Tag disappeared during projection rebuild")
+        projection = connection.execute(
+            "SELECT submitted_member_count,revision,current_submission_snapshot_id,archived "
+            "FROM fault_tag_current_projection WHERE fault_tag_id=?",
+            (fault_tag_id,),
+        ).fetchone()
+        if projection is None:
+            raise IntegrityFailure("Fault Tag projection disappeared during rebuild")
+        counts = {
+            str(row[0]): int(row[1])
+            for row in connection.execute(
+                "SELECT state,COUNT(*) FROM fault_tag_membership_current "
+                "WHERE fault_tag_id=? GROUP BY state",
+                (fault_tag_id,),
+            ).fetchall()
+        }
+        submitted_count = int(projection[0])
+        awaiting_receipt = counts.get("submitted_awaiting_receipt", 0)
+        awaiting_final = counts.get("warehouse_received", 0)
+        accepted = counts.get("accepted", 0)
+        rejected = counts.get("rejected", 0)
+        terminal_count = accepted + rejected + counts.get("cancelled", 0) + counts.get("superseded", 0)
+        if submitted_count > 0 and terminal_count >= submitted_count:
+            state = "terminal_with_rejected" if rejected else "terminal_completed"
+        elif awaiting_final > 0:
+            state = "in_warehouse_review"
+        else:
+            state = "submitted"
+        revision = int(projection[1]) + 1
+        fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_FAULT_TAG_CURRENT_V1",
+                "fault_tag_id": fault_tag_id,
+                "state": state,
+                "archived": int(projection[3]),
+                "current_submission_snapshot_id": (
+                    None if projection[2] is None else str(projection[2])
+                ),
+                "submitted_member_count": submitted_count,
+                "awaiting_receipt_count": awaiting_receipt,
+                "awaiting_final_count": awaiting_final,
+                "accepted_count": accepted,
+                "rejected_count": rejected,
+            }
+        )
+        changed = connection.execute(
+            "UPDATE fault_tag_current_projection SET state=?,awaiting_receipt_count=?,"
+            "awaiting_final_count=?,accepted_count=?,rejected_count=?,revision=?,"
+            "input_fingerprint=?,last_command_id=? WHERE fault_tag_id=? AND revision=?",
+            (
+                state,
+                awaiting_receipt,
+                awaiting_final,
+                accepted,
+                rejected,
+                revision,
+                fingerprint,
+                command_id,
+                fault_tag_id,
+                int(projection[1]),
+            ),
+        )
+        if changed.rowcount != 1:
+            raise SomaError("INV_STALE", "Fault Tag changed during projection rebuild")
+        return revision
+
+    @staticmethod
+    def _rebuild_rma_warehouse_state(
+        connection: Any,
+        *,
+        rma_id: str,
+        membership_id: str | None,
+        state: str,
+        obligation_open: int,
+        command_id: str,
+    ) -> int:
+        row = connection.execute(
+            "SELECT current_target_device_part_unit_id,direct_inbound_spare_part_unit_id,"
+            "return_device_part_unit_id,return_spare_part_unit_id,revision "
+            "FROM rma_lifecycle_projection WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        if row is None:
+            raise IntegrityFailure("RMA projection disappeared during warehouse transition")
+        revision = int(row[4]) + 1
+        fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_RMA_LIFECYCLE_V1",
+                "rma_id": rma_id,
+                "state": state,
+                "current_target_device_part_unit_id": None if row[0] is None else str(row[0]),
+                "direct_inbound_spare_part_unit_id": None if row[1] is None else str(row[1]),
+                "return_device_part_unit_id": None if row[2] is None else str(row[2]),
+                "return_spare_part_unit_id": None if row[3] is None else str(row[3]),
+                "return_obligation_open": obligation_open,
+                "active_fault_tag_membership_id": membership_id,
+            }
+        )
+        changed = connection.execute(
+            "UPDATE rma_lifecycle_projection SET state=?,return_obligation_open=?,"
+            "active_fault_tag_membership_id=?,revision=?,input_fingerprint=?,last_command_id=? "
+            "WHERE rma_id=? AND revision=?",
+            (
+                state,
+                obligation_open,
+                membership_id,
+                revision,
+                fingerprint,
+                command_id,
+                rma_id,
+                int(row[4]),
+            ),
+        )
+        if changed.rowcount != 1:
+            raise SomaError("INV_STALE", "RMA changed during warehouse transition")
+        return revision
+
+    @staticmethod
+    def insert_lifecycle_batch(
+        connection: Any,
+        *,
+        batch_id: str,
+        target_count: int,
+        command_id: str,
+    ) -> None:
+        connection.execute(
+            "INSERT INTO inventory_lifecycle_batches("
+            "inventory_batch_id,batch_kind,target_count,recorded_at_utc,command_id"
+            ") VALUES (?,'manual_bulk',?,?,?)",
+            (batch_id, target_count, utc_epoch_seconds(), command_id),
+        )
+
+    @classmethod
+    def record_warehouse_receipt(
+        cls,
+        connection: Any,
+        *,
+        targets: tuple[tuple[str, int], ...],
+        effective_at_utc: int | None,
+        evidence_kind: str | None,
+        evidence_id: str | None,
+        batch_id: str | None,
+        command_id: str,
+    ) -> tuple[tuple[dict[str, object], ...], dict[str, int]]:
+        preflight = [
+            cls._require_warehouse_target(
+                connection,
+                membership_id=membership_id,
+                expected_revision=revision,
+                required_state="submitted_awaiting_receipt",
+            )
+            for membership_id, revision in targets
+        ]
+        if batch_id is not None:
+            cls.insert_lifecycle_batch(
+                connection,
+                batch_id=batch_id,
+                target_count=len(targets),
+                command_id=command_id,
+            )
+        now = utc_epoch_seconds()
+        results: list[dict[str, object]] = []
+        affected_tags: set[str] = set()
+        for (membership_id, expected_revision), (row, _obligation) in zip(targets, preflight):
+            event_id = new_uuid4()
+            connection.execute(
+                "INSERT INTO fault_tag_membership_events("
+                "membership_event_id,fault_tag_membership_id,event_kind,effective_at_utc,"
+                "target_event_id,reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+                ") VALUES (?,?,'warehouse_received',?,NULL,NULL,?,?,?,?)",
+                (
+                    event_id,
+                    membership_id,
+                    effective_at_utc,
+                    evidence_kind,
+                    evidence_id,
+                    now,
+                    command_id,
+                ),
+            )
+            fingerprint = cls._membership_state_fingerprint(
+                membership_id=membership_id,
+                rma_id=str(row[2]),
+                state="warehouse_received",
+                active_submitted=1,
+                device_part_unit_id=None if row[3] is None else str(row[3]),
+                spare_part_unit_id=None if row[4] is None else str(row[4]),
+                last_event_id=event_id,
+            )
+            changed = connection.execute(
+                "UPDATE fault_tag_membership_current SET state='warehouse_received',"
+                "revision=revision+1,input_fingerprint=?,last_event_id=?,last_command_id=? "
+                "WHERE fault_tag_membership_id=? AND revision=? "
+                "AND state='submitted_awaiting_receipt' AND active_submitted=1",
+                (fingerprint, event_id, command_id, membership_id, expected_revision),
+            )
+            if changed.rowcount != 1:
+                raise SomaError("INV_STALE", "Fault Tag membership changed during warehouse receipt")
+            rma_revision = cls._rebuild_rma_warehouse_state(
+                connection,
+                rma_id=str(row[2]),
+                membership_id=membership_id,
+                state="warehouse_received",
+                obligation_open=1,
+                command_id=command_id,
+            )
+            affected_tags.add(str(row[1]))
+            results.append(
+                {
+                    "membership_id": membership_id,
+                    "membership_event_id": event_id,
+                    "membership_revision": expected_revision + 1,
+                    "fault_tag_id": str(row[1]),
+                    "rma_id": str(row[2]),
+                    "rma_revision": rma_revision,
+                }
+            )
+        tag_revisions = {
+            tag_id: cls._rebuild_tag_projection(
+                connection,
+                fault_tag_id=tag_id,
+                command_id=command_id,
+            )
+            for tag_id in sorted(affected_tags)
+        }
+        return tuple(results), tag_revisions
+
+    @classmethod
+    def record_warehouse_final_decision(
+        cls,
+        connection: Any,
+        *,
+        targets: tuple[tuple[str, int], ...],
+        decision: str,
+        reason_code: str | None,
+        effective_at_utc: int | None,
+        evidence_kind: str | None,
+        evidence_id: str | None,
+        batch_id: str | None,
+        command_id: str,
+    ) -> tuple[tuple[dict[str, object], ...], dict[str, int]]:
+        preflight = [
+            cls._require_warehouse_target(
+                connection,
+                membership_id=membership_id,
+                expected_revision=revision,
+                required_state="warehouse_received",
+            )
+            for membership_id, revision in targets
+        ]
+        if batch_id is not None:
+            cls.insert_lifecycle_batch(
+                connection,
+                batch_id=batch_id,
+                target_count=len(targets),
+                command_id=command_id,
+            )
+        now = utc_epoch_seconds()
+        target_state = "accepted" if decision == "accepted" else "rejected"
+        event_kind = "warehouse_accepted" if decision == "accepted" else "warehouse_rejected"
+        results: list[dict[str, object]] = []
+        affected_tags: set[str] = set()
+        for (membership_id, expected_revision), (row, obligation) in zip(targets, preflight):
+            event_id = new_uuid4()
+            connection.execute(
+                "INSERT INTO fault_tag_membership_events("
+                "membership_event_id,fault_tag_membership_id,event_kind,effective_at_utc,"
+                "target_event_id,reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+                ") VALUES (?,?,?,?,NULL,?,?,?,?,?)",
+                (
+                    event_id,
+                    membership_id,
+                    event_kind,
+                    effective_at_utc,
+                    reason_code,
+                    evidence_kind,
+                    evidence_id,
+                    now,
+                    command_id,
+                ),
+            )
+            fingerprint = cls._membership_state_fingerprint(
+                membership_id=membership_id,
+                rma_id=str(row[2]),
+                state=target_state,
+                active_submitted=0,
+                device_part_unit_id=None if row[3] is None else str(row[3]),
+                spare_part_unit_id=None if row[4] is None else str(row[4]),
+                last_event_id=event_id,
+            )
+            changed = connection.execute(
+                "UPDATE fault_tag_membership_current SET state=?,active_submitted=0,"
+                "revision=revision+1,input_fingerprint=?,last_event_id=?,last_command_id=? "
+                "WHERE fault_tag_membership_id=? AND revision=? AND state='warehouse_received' "
+                "AND active_submitted=1",
+                (
+                    target_state,
+                    fingerprint,
+                    event_id,
+                    command_id,
+                    membership_id,
+                    expected_revision,
+                ),
+            )
+            if changed.rowcount != 1:
+                raise SomaError("INV_STALE", "Fault Tag membership changed during final decision")
+            return_event_id = None
+            if decision == "accepted":
+                if obligation[3] is None:
+                    raise IntegrityFailure("Open return obligation lacks physical consequence")
+                return_event_id = new_uuid4()
+                connection.execute(
+                    "INSERT INTO rma_return_selection_events("
+                    "return_selection_event_id,rma_id,physical_consequence_id,event_kind,"
+                    "device_part_unit_id,spare_part_unit_id,reason_code,effective_at_utc,"
+                    "target_event_id,recorded_at_utc,command_id"
+                    ") VALUES (?,?,?,'close',NULL,NULL,NULL,?,?,?,?)",
+                    (
+                        return_event_id,
+                        str(row[2]),
+                        str(obligation[3]),
+                        effective_at_utc,
+                        None if obligation[5] is None else str(obligation[5]),
+                        now,
+                        command_id,
+                    ),
+                )
+                changed_obligation = connection.execute(
+                    "UPDATE rma_return_obligation_current SET obligation_state='closed_accepted',"
+                    "revision=revision+1,last_event_id=?,last_command_id=? "
+                    "WHERE rma_id=? AND revision=? AND obligation_state='open'",
+                    (
+                        return_event_id,
+                        command_id,
+                        str(row[2]),
+                        int(obligation[4]),
+                    ),
+                )
+                if changed_obligation.rowcount != 1:
+                    raise SomaError("INV_STALE", "Return obligation changed during acceptance")
+                rma_revision = cls._rebuild_rma_warehouse_state(
+                    connection,
+                    rma_id=str(row[2]),
+                    membership_id=None,
+                    state="closed_accepted",
+                    obligation_open=0,
+                    command_id=command_id,
+                )
+            else:
+                rma_revision = cls._rebuild_rma_warehouse_state(
+                    connection,
+                    rma_id=str(row[2]),
+                    membership_id=None,
+                    state="return_rejected",
+                    obligation_open=1,
+                    command_id=command_id,
+                )
+            affected_tags.add(str(row[1]))
+            results.append(
+                {
+                    "membership_id": membership_id,
+                    "membership_event_id": event_id,
+                    "membership_revision": expected_revision + 1,
+                    "fault_tag_id": str(row[1]),
+                    "rma_id": str(row[2]),
+                    "rma_revision": rma_revision,
+                    "return_event_id": return_event_id,
+                }
+            )
+        tag_revisions = {
+            tag_id: cls._rebuild_tag_projection(
+                connection,
+                fault_tag_id=tag_id,
+                command_id=command_id,
+            )
+            for tag_id in sorted(affected_tags)
+        }
+        return tuple(results), tag_revisions
+
 
 __all__ = ["InventoryFaultTagsRepository"]
