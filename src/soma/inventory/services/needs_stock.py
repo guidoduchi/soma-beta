@@ -611,7 +611,6 @@ class InventoryNeedsStockService:
                     },
                     resulting_event_refs=(
                         AuditResultRef("spare_part_unit", spare_part_unit_id),
-                        AuditResultRef("spare_part_unit_event", event_id),
                     ),
                 )
 
@@ -747,7 +746,6 @@ class InventoryNeedsStockService:
                     resulting_event_refs=(
                         AuditResultRef("spare_part_unit", spare_part_unit_id),
                         AuditResultRef("task_unit_allocation", allocation_id),
-                        AuditResultRef("task_unit_allocation_event", event_id),
                     ),
                 )
 
@@ -865,7 +863,7 @@ class InventoryNeedsStockService:
                     },
                     resulting_event_refs=(
                         AuditResultRef("spare_part_unit", released_unit_id),
-                        AuditResultRef("task_unit_allocation_event", event_id),
+                        AuditResultRef("task_unit_allocation", allocation_id),
                     ),
                 )
 
@@ -1029,21 +1027,10 @@ class InventoryNeedsStockService:
                 )
                 unit_refs = [
                     AuditResultRef("spare_part_unit", spare_part_unit_id),
-                    AuditResultRef(
-                        "local_need_fulfillment",
-                        fulfillment_event_id,
-                    ),
                 ]
                 if allocation_id is not None:
                     unit_refs.append(
                         AuditResultRef("task_unit_allocation", allocation_id)
-                    )
-                if allocation_event_id is not None:
-                    unit_refs.append(
-                        AuditResultRef(
-                            "task_unit_allocation_event",
-                            allocation_event_id,
-                        )
                     )
                 unit_audit = AuditEventInput(
                     audit_event_id=new_uuid4(),
