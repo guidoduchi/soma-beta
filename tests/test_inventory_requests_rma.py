@@ -765,3 +765,193 @@ def test_false_submission_correction_rejects_indexed_sent_evidence(
             (request_id,),
         ).fetchone()[0] == "submitted_awaiting_response"
 
+def test_t021_t022_sr7_assignment_and_correction_preserve_request_and_submission_history(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _requester,
+        _receiver,
+        _location_id,
+        service,
+        created,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100010",
+        suffix="T021",
+    )
+    request_id = str(created["spare_request_id"])
+    detail = InventoryRequestsQueryService(factory).get_spare_request(request_id)
+    service.accept_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        expected_draft_fingerprint=str(detail["input_fingerprint"]),
+        effective_submission_at_utc=1_700_400_000,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        original_snapshot_id = snapshot.connection.execute(
+            "SELECT current_submission_snapshot_id "
+            "FROM spare_request_current_projection WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()[0]
+        original_snapshot_hash = snapshot.connection.execute(
+            "SELECT snapshot_hash FROM spare_request_submission_snapshots "
+            "WHERE submission_snapshot_id=?",
+            (original_snapshot_id,),
+        ).fetchone()[0]
+
+    assigned = service.assign_or_correct_spare_request_official_id(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=2,
+        sr7="SR0000123",
+        action="assign",
+    )
+    assert assigned["spare_request_id"] == request_id
+    assert assigned["official_sr7"] == "SR0000123"
+    assert assigned["state"] == "submitted"
+    assert assigned["revision"] == 3
+
+    assert InventoryAttentionQueryService(factory).spare_request_response_attention(
+        spare_request_id=request_id,
+        as_of_utc=1_700_400_000 + 200_000,
+    ) is None
+
+    corrected = service.assign_or_correct_spare_request_official_id(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=3,
+        sr7="SR7654321",
+        action="correct",
+        reason_code="provider corrected official request identifier",
+    )
+    assert corrected["spare_request_id"] == request_id
+    assert corrected["official_sr7"] == "SR7654321"
+    assert corrected["revision"] == 4
+
+    with ReadSnapshot(factory) as snapshot:
+        aliases = snapshot.connection.execute(
+            "SELECT sr7,alias_kind FROM spare_request_identifier_aliases "
+            "WHERE spare_request_id=? ORDER BY sr7",
+            (request_id,),
+        ).fetchall()
+        assert {(str(row[0]), str(row[1])) for row in aliases} == {
+            ("SR0000123", "former"),
+            ("SR7654321", "current"),
+        }
+        events = snapshot.connection.execute(
+            "SELECT event_kind,prior_sr7,new_sr7 FROM spare_request_identifier_events "
+            "WHERE spare_request_id=? ORDER BY recorded_at_utc,identifier_event_id",
+            (request_id,),
+        ).fetchall()
+        assert {(str(row[0]), row[1], str(row[2])) for row in events} == {
+            ("assign", None, "SR0000123"),
+            ("correct", "SR0000123", "SR7654321"),
+        }
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_lifecycle_events "
+            "WHERE spare_request_id=? AND event_kind='acknowledgement_accepted'",
+            (request_id,),
+        ).fetchone()[0] == 1
+        projection = snapshot.connection.execute(
+            "SELECT lifecycle_state,current_sr7,current_submission_snapshot_id,"
+            "response_warning_start_utc,revision "
+            "FROM spare_request_current_projection WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        assert tuple(projection) == (
+            "acknowledged",
+            "SR7654321",
+            original_snapshot_id,
+            None,
+            4,
+        )
+        assert snapshot.connection.execute(
+            "SELECT snapshot_hash FROM spare_request_submission_snapshots "
+            "WHERE submission_snapshot_id=?",
+            (original_snapshot_id,),
+        ).fetchone()[0] == original_snapshot_hash
+
+
+def test_t023_current_and_former_sr7_aliases_are_globally_non_reusable(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_a,
+        _need_a,
+        _requester_a,
+        _receiver_a,
+        _location_a,
+        service_a,
+        created_a,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100011",
+        suffix="T023-A",
+    )
+    (
+        _factory_b,
+        _sr_b,
+        _need_b,
+        _requester_b,
+        _receiver_b,
+        _location_b,
+        service_b,
+        created_b,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100012",
+        suffix="T023-B",
+    )
+    request_a = str(created_a["spare_request_id"])
+    request_b = str(created_b["spare_request_id"])
+
+    service_a.assign_or_correct_spare_request_official_id(
+        command_id=new_uuid4(),
+        spare_request_id=request_a,
+        base_revision=1,
+        sr7="SR1234567",
+        action="assign",
+    )
+    with pytest.raises(SomaError) as current_conflict:
+        service_b.assign_or_correct_spare_request_official_id(
+            command_id=new_uuid4(),
+            spare_request_id=request_b,
+            base_revision=1,
+            sr7="SR1234567",
+            action="assign",
+        )
+    assert current_conflict.value.code == "SR7_CONFLICT"
+
+    service_a.assign_or_correct_spare_request_official_id(
+        command_id=new_uuid4(),
+        spare_request_id=request_a,
+        base_revision=2,
+        sr7="SR2345678",
+        action="correct",
+        reason_code="provider correction",
+    )
+    with pytest.raises(SomaError) as former_conflict:
+        service_b.assign_or_correct_spare_request_official_id(
+            command_id=new_uuid4(),
+            spare_request_id=request_b,
+            base_revision=1,
+            sr7="SR1234567",
+            action="assign",
+        )
+    assert former_conflict.value.code == "SR7_CONFLICT"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_identifier_aliases WHERE sr7='SR1234567'"
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_identifier_aliases "
+            "WHERE spare_request_id=?",
+            (request_b,),
+        ).fetchone()[0] == 0
+
