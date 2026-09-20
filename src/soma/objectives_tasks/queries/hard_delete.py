@@ -125,15 +125,28 @@ class TaskHardDeleteQueryService:
             "SELECT command_type,target_type,target_id FROM command_receipts WHERE command_id=?",
             (task.created_command_id,),
         ).fetchone()
-        expected = "RegisterManualWfmTask" if task.task_kind == "wfm" else "CreateLocalTask"
-        if (
-            row is None
-            or str(row[0]) != expected
-            or str(row[1]) != "task"
-            or (row[2] is not None and str(row[2]) != task.task_id)
-        ):
+        if row is None:
             return "INDETERMINATE"
-        return "CLEAR"
+        command_type, target_type, target_id = str(row[0]), str(row[1]), row[2]
+        if task.task_kind == "wfm":
+            if (
+                command_type != "RegisterManualWfmTask"
+                or target_type != "task"
+                or (target_id is not None and str(target_id) != task.task_id)
+            ):
+                return "INDETERMINATE"
+            return "CLEAR"
+        if command_type == "CreateLocalTask":
+            if target_type != "task" or (
+                target_id is not None and str(target_id) != task.task_id
+            ):
+                return "INDETERMINATE"
+            return "CLEAR"
+        if command_type == "CreateObjectiveFromPreview":
+            if target_type != "objective":
+                return "INDETERMINATE"
+            return "CLEAR"
+        return "INDETERMINATE"
 
     @staticmethod
     def _creation_audit_evidence(connection, task: TaskRecord) -> _CreationAuditEvidence:

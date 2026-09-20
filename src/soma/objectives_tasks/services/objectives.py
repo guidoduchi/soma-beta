@@ -14,7 +14,7 @@ from soma.foundation.strict_json import sha256_canonical_json
 from ..audit_registry import build_objectives_tasks_audit_registry
 from ..contracts.objectives_tasks import ObjectiveMutationResult, objective_mutation_result_from_execution
 from ..domain.objectives import ObjectiveDraftLocalTaskIntent, ObjectiveExistingTaskIntent
-from ..queries.objectives import ObjectiveQueryService
+from ..queries.objectives import ObjectiveHardDeletePreview, ObjectiveQueryService
 from ..repositories.objectives import ObjectiveProjectionRepository
 from ..repositories.tasks import (
     TaskPlanRecord,
@@ -23,6 +23,7 @@ from ..repositories.tasks import (
     TaskRelationshipRepository,
     TaskRepository,
 )
+from .task_execution import TaskExecutionService
 from .task_planning import TaskPlanningService, validate_task_reason_category
 
 
@@ -739,6 +740,436 @@ class ObjectiveService:
             reason_category=None,
             actor_kind=actor_kind,
             actor_id=actor_id,
+        )
+
+
+    def cancel_objective_before_execution(
+        self,
+        *,
+        command_id: str,
+        objective_id: str,
+        objective_revision: int,
+        aggregate_revision: int,
+        effective_cancel_utc: int,
+        reason_category: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ObjectiveMutationResult:
+        identity = require_uuid4(objective_id)
+        if type(objective_revision) is not int or objective_revision <= 0:
+            raise ValidationError("objective_revision must be positive")
+        if type(aggregate_revision) is not int or aggregate_revision <= 0:
+            raise ValidationError("aggregate_revision must be positive")
+        if type(effective_cancel_utc) is not int or effective_cancel_utc < 0:
+            raise ValidationError("effective_cancel_utc must be a nonnegative UTC whole second")
+        reason = validate_task_reason_category(reason_category)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CancelObjectiveBeforeExecution",
+            target_type="objective",
+            target_id=identity,
+            semantic_payload={
+                "aggregate_revision": aggregate_revision,
+                "effective_cancel_utc": effective_cancel_utc,
+                "reason_category": reason,
+            },
+            base_revisions={
+                identity: objective_revision,
+                f"objective_aggregate:{identity}": aggregate_revision,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            objective = uow.connection.execute(
+                "SELECT revision,tracking_id,creation_origin,superseded_by_objective_id "
+                "FROM objectives WHERE objective_id=?",
+                (identity,),
+            ).fetchone()
+            if objective is None:
+                raise SomaError("OBJECTIVE_NOT_FOUND", "Objective does not exist")
+            if int(objective[0]) != objective_revision or objective[3] is not None:
+                raise SomaError("OBJECTIVE_STALE", "Objective revision/currentness changed")
+            aggregate = self._objectives.aggregate(uow.connection, identity)
+            if aggregate is None or aggregate.revision != aggregate_revision:
+                raise SomaError("OBJECTIVE_STALE", "Objective aggregate revision changed")
+
+            members = self._objectives._load_members(uow.connection, identity)
+            if not members:
+                raise IntegrityFailure("current Objective has no members")
+            if any(member.has_started for member in members):
+                raise SomaError(
+                    "OBJECTIVE_CANCEL_AFTER_EXECUTION",
+                    "At least one Objective Task already has accepted start evidence",
+                )
+
+            already_cancelled = all(
+                member.execution_state == "terminated"
+                and member.actual_start_utc is None
+                and member.accepted_outcome == "cancelled_without_execution"
+                for member in members
+            )
+            if already_cancelled and aggregate.aggregate_outcome == "cancelled":
+                return PreparedMutation(
+                    True,
+                    None,
+                    None,
+                    response_schema="ObjectiveMutationResultV1",
+                    response_version=1,
+                    response={
+                        "outcome": "NO_CHANGE",
+                        "objective_id": identity,
+                        "revision": objective_revision,
+                        "result_refs": [],
+                    },
+                )
+            if aggregate.execution_state != "planned":
+                raise SomaError(
+                    "OBJECTIVE_STALE",
+                    "Objective is not in a cancellable pre-execution state",
+                )
+
+            authorities: list[tuple[object, object]] = []
+            for member in members:
+                task = self._tasks.get(uow.connection, member.task_id)
+                if task is None:
+                    raise IntegrityFailure("Objective member Task disappeared")
+                execution = TaskExecutionService._execution_authority(
+                    uow.connection, member.task_id
+                )
+                if execution.state == "in_progress" and execution.actual_start_utc is not None:
+                    raise SomaError(
+                        "OBJECTIVE_CANCEL_AFTER_EXECUTION",
+                        "At least one Objective Task already has accepted start evidence",
+                    )
+                if execution.state in {"ended", "terminated"}:
+                    raise SomaError(
+                        "OBJECTIVE_STALE",
+                        "Objective member has protected terminal execution state",
+                    )
+                if execution.state != "not_started" or execution.actual_start_utc is not None:
+                    raise IntegrityFailure("Objective cancellation member execution authority is invalid")
+                if TaskExecutionService._has_terminal_outcome(
+                    uow.connection, member.task_id
+                ):
+                    raise SomaError(
+                        "OBJECTIVE_STALE",
+                        "Objective member already has reviewed terminal outcome",
+                    )
+                authorities.append((task, execution))
+
+            recorded_at = utc_epoch_seconds()
+            execution_event_ids = [new_uuid4() for _ in members]
+            outcome_event_ids = [new_uuid4() for _ in members]
+            review_event_id = new_uuid4()
+
+            def apply(inner: UnitOfWork):
+                for member, pair, execution_event_id, outcome_event_id in zip(
+                    members,
+                    authorities,
+                    execution_event_ids,
+                    outcome_event_ids,
+                    strict=True,
+                ):
+                    task, execution = pair
+                    resulting_execution_revision = execution.revision + 1
+                    inner.connection.execute(
+                        "INSERT INTO task_execution_events("
+                        "execution_event_id,task_id,execution_revision,event_kind,effective_at_utc,"
+                        "target_event_id,correction_action,reason_code,recorded_at_utc,command_id"
+                        ") VALUES (?,?,?,'manual_cancel',?,NULL,NULL,?,?,?)",
+                        (
+                            execution_event_id,
+                            member.task_id,
+                            resulting_execution_revision,
+                            effective_cancel_utc,
+                            reason,
+                            recorded_at,
+                            command_id,
+                        ),
+                    )
+                    TaskExecutionService._insert_or_advance_cancel_projection(
+                        inner,
+                        task_id=member.task_id,
+                        authority=execution,
+                        event_id=execution_event_id,
+                        accepted_cancel=effective_cancel_utc,
+                        reason=reason,
+                    )
+                    inner.connection.execute(
+                        "INSERT INTO task_outcome_events("
+                        "outcome_event_id,task_id,accepted_outcome,correction_of_event_id,"
+                        "reason_code,reviewed_at_utc,command_id"
+                        ") VALUES (?,?,'cancelled_without_execution',NULL,?,?,?)",
+                        (outcome_event_id, member.task_id, reason, recorded_at, command_id),
+                    )
+                    inner.connection.execute(
+                        "INSERT INTO task_outcome_current("
+                        "task_id,outcome_event_id,accepted_outcome,reviewed_at_utc,"
+                        "revision,last_command_id"
+                        ") VALUES (?,?,'cancelled_without_execution',?,1,?)",
+                        (member.task_id, outcome_event_id, recorded_at, command_id),
+                    )
+                    self._tasks.increment_revision(
+                        inner,
+                        task_id=member.task_id,
+                        expected_revision=task.revision,
+                    )
+
+                current_members = self._objectives._load_members(inner.connection, identity)
+                review_fingerprint = self._objectives._review_fingerprint(
+                    objective_id=identity,
+                    objective_revision=objective_revision,
+                    superseded_by=None,
+                    members=current_members,
+                )
+                derived = self._objectives._derive_outcome(current_members)
+                if derived != "cancelled":
+                    raise IntegrityFailure(
+                        "Objective cancellation did not derive cancelled aggregate outcome"
+                    )
+                inner.connection.execute(
+                    "INSERT INTO objective_review_events("
+                    "objective_review_event_id,objective_id,review_fingerprint,derived_outcome,"
+                    "reviewed_at_utc,reason_code,command_id"
+                    ") VALUES (?,?,?,'cancelled',?,?,?)",
+                    (
+                        review_event_id,
+                        identity,
+                        review_fingerprint,
+                        recorded_at,
+                        reason,
+                        command_id,
+                    ),
+                )
+                rebuilt = self._objectives.rebuild_aggregate(
+                    inner,
+                    objective_id=identity,
+                    command_id=command_id,
+                )
+                if (
+                    rebuilt.execution_state != "reviewed"
+                    or rebuilt.aggregate_outcome != "cancelled"
+                ):
+                    raise IntegrityFailure(
+                        "Objective cancellation aggregate rebuild is inconsistent"
+                    )
+                envelope_row = inner.connection.execute(
+                    "SELECT membership_input_fingerprint FROM objective_envelope_projection "
+                    "WHERE objective_id=?",
+                    (identity,),
+                ).fetchone()
+                if envelope_row is None:
+                    raise IntegrityFailure("Objective cancellation lost envelope authority")
+                refs = [AuditResultRef("objective", identity)]
+                refs.extend(
+                    AuditResultRef("task_outcome_event", event_id)
+                    for event_id in outcome_event_ids
+                )
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="objective.cancelled",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="objective",
+                    target_id=identity,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="ObjectiveAuditV1",
+                    payload_version=1,
+                    payload={
+                        "objective_id": identity,
+                        "tracking_id": str(objective[1]),
+                        "creation_origin": str(objective[2]),
+                        "resulting_revision": objective_revision,
+                        "membership_input_fingerprint": str(envelope_row[0]),
+                        "archive_action": None,
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=tuple(refs),
+                )
+
+            response_refs = [{"type": "objective", "id": identity}]
+            response_refs.extend(
+                {"type": "task_outcome_event", "id": event_id}
+                for event_id in outcome_event_ids
+            )
+            return PreparedMutation(
+                False,
+                "objective",
+                identity,
+                apply,
+                response_schema="ObjectiveMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "objective_id": identity,
+                    "revision": objective_revision,
+                    "result_refs": response_refs,
+                },
+            )
+
+        return objective_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
+
+    def hard_delete_objective(
+        self,
+        *,
+        command_id: str,
+        objective_id: str,
+        objective_revision: int,
+        eligibility_fingerprint: str,
+        confirmation_context_id: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ObjectiveMutationResult:
+        identity = require_uuid4(objective_id)
+        if type(objective_revision) is not int or objective_revision <= 0:
+            raise ValidationError("objective_revision must be positive")
+        if (
+            not isinstance(eligibility_fingerprint, str)
+            or len(eligibility_fingerprint) != 64
+            or any(ch not in "0123456789abcdef" for ch in eligibility_fingerprint)
+        ):
+            raise ValidationError("eligibility_fingerprint must be lowercase SHA-256")
+        if confirmation_context_id is not None:
+            if not isinstance(confirmation_context_id, str):
+                raise ValidationError("confirmation_context_id must be text or null")
+            encoded = confirmation_context_id.encode("utf-8", errors="strict")
+            if (
+                not encoded
+                or len(encoded) > 1024
+                or "\x00" in confirmation_context_id
+                or "\r" in confirmation_context_id
+                or "\n" in confirmation_context_id
+            ):
+                raise ValidationError("confirmation_context_id violates its bounded one-line contract")
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="HardDeleteObjective",
+            target_type="objective",
+            target_id=identity,
+            semantic_payload={"confirmation_context_id": confirmation_context_id},
+            base_revisions={identity: objective_revision},
+            authorizing_fingerprints={
+                "eligibility_fingerprint": eligibility_fingerprint
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            preview = ObjectiveQueryService.evaluate_hard_delete(
+                uow.connection, identity
+            )
+            if preview.objective_revision != objective_revision:
+                raise SomaError(
+                    "OBJECTIVE_STALE",
+                    "Objective revision changed since hard-delete preview",
+                )
+            if preview.status != "ELIGIBLE":
+                raise SomaError(
+                    "HARD_DELETE_BLOCKED",
+                    "Objective hard deletion is blocked by current evidence",
+                )
+            if preview.eligibility_fingerprint != eligibility_fingerprint:
+                raise SomaError(
+                    "OBJECTIVE_STALE",
+                    "Objective hard-delete eligibility changed since preview",
+                )
+
+            evidence_id = new_uuid4()
+
+            def apply(_inner: UnitOfWork):
+                return AuditEventInput(
+                    audit_event_id=evidence_id,
+                    action_type="objective.hard_deleted",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="objective",
+                    target_id=identity,
+                    command_id=command_id,
+                    payload_schema="HardDeleteAuditV1",
+                    payload_version=1,
+                    payload={
+                        "target_type": "objective",
+                        "target_id": identity,
+                        "reviewed_revision": objective_revision,
+                        "eligibility_fingerprint": eligibility_fingerprint,
+                        "confirmation_context_id": confirmation_context_id,
+                        "retained_related_ids": list(preview.member_task_ids),
+                        "result": "deleted",
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("hard_delete_evidence", evidence_id),
+                    ),
+                )
+
+            def delete_after_audit(inner: UnitOfWork) -> None:
+                for task_id in preview.member_task_ids:
+                    deleted = inner.connection.execute(
+                        "DELETE FROM objective_task_membership_current "
+                        "WHERE task_id=? AND objective_id=?",
+                        (task_id, identity),
+                    )
+                    if deleted.rowcount != 1:
+                        raise IntegrityFailure(
+                            "Objective hard-delete current membership changed after revalidation"
+                        )
+                for table in (
+                    "objective_archive_projection",
+                    "objective_aggregate_projection",
+                    "objective_envelope_projection",
+                ):
+                    deleted = inner.connection.execute(
+                        f"DELETE FROM {table} WHERE objective_id=?",
+                        (identity,),
+                    )
+                    if deleted.rowcount != 1:
+                        raise IntegrityFailure(
+                            "Objective hard-delete projection changed after revalidation"
+                        )
+                for event_id in preview.membership_event_ids:
+                    deleted = inner.connection.execute(
+                        "DELETE FROM objective_membership_events "
+                        "WHERE membership_event_id=? AND to_objective_id=? "
+                        "AND from_objective_id IS NULL AND command_id=?",
+                        (event_id, identity, preview.created_command_id),
+                    )
+                    if deleted.rowcount != 1:
+                        raise IntegrityFailure(
+                            "Objective hard-delete baseline membership changed after revalidation"
+                        )
+                deleted = inner.connection.execute(
+                    "DELETE FROM objectives WHERE objective_id=? AND revision=? "
+                    "AND creation_origin='manual' AND superseded_by_objective_id IS NULL",
+                    (identity, objective_revision),
+                )
+                if deleted.rowcount != 1:
+                    raise IntegrityFailure(
+                        "Objective disappeared before its reviewed deletion"
+                    )
+
+            return PreparedMutation(
+                False,
+                "hard_delete_evidence",
+                evidence_id,
+                apply,
+                response_schema="ObjectiveMutationResultV1",
+                response_version=1,
+                response={
+                    "outcome": "APPLIED",
+                    "objective_id": identity,
+                    "revision": objective_revision,
+                    "result_refs": [
+                        {"type": "hard_delete_evidence", "id": evidence_id}
+                    ],
+                },
+                after_audit=delete_after_audit,
+            )
+
+        return objective_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
         )
 
 
