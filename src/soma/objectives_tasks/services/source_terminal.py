@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hmac
 import re
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
@@ -11,10 +13,11 @@ from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
-from soma.foundation.strict_json import ObjectContract
+from soma.foundation.strict_json import ObjectContract, sha256_canonical_json
 
 from ..audit_registry import build_objectives_tasks_audit_registry
 from ..contracts.objectives_tasks import TaskMutationResult, task_mutation_result_from_execution
+from ..queries.cascade import RfcTerminalCascadeQueryService
 from ..repositories.objectives import ObjectiveProjectionRepository
 from ..repositories.tasks import TaskRepository, WfmTaskRepository
 from ..source_terminal_authority import (
@@ -37,6 +40,18 @@ _AUDIT_FIELDS = frozenset(
         "accepted_local_consequence",
         "execution_event_id",
         "reason_category",
+    }
+)
+
+_CASCADE_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "proposal_id",
+        "execution_event_id",
+        "prior_execution_revision",
+        "prior_execution_state",
+        "resulting_execution_revision",
+        "reviewed_preview_fingerprint",
     }
 )
 
@@ -93,6 +108,43 @@ def _validate_source_terminal_audit(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "source-terminal audit reason is invalid") from exc
 
 
+
+def _validate_rfc_terminal_cascade_audit(payload: dict[str, object]) -> None:
+    try:
+        for field in ("task_id", "proposal_id", "execution_event_id"):
+            value = payload.get(field)
+            if not isinstance(value, str):
+                raise ValidationError(f"{field} must be UUID text")
+            require_uuid4(value)
+    except ValidationError as exc:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "RFC terminal cascade audit identity is invalid",
+        ) from exc
+    prior_revision = payload.get("prior_execution_revision")
+    resulting_revision = payload.get("resulting_execution_revision")
+    if (
+        type(prior_revision) is not int
+        or prior_revision < 0
+        or type(resulting_revision) is not int
+        or resulting_revision != prior_revision + 1
+    ):
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "RFC terminal cascade execution revisions are invalid",
+        )
+    if payload.get("prior_execution_state") not in {"not_started", "in_progress"}:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "RFC terminal cascade prior execution state is invalid",
+        )
+    fingerprint = payload.get("reviewed_preview_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "RFC terminal cascade reviewed preview fingerprint is invalid",
+        )
+
 def _build_source_terminal_audit_registry():
     registry = build_objectives_tasks_audit_registry()
     registry.register(
@@ -111,6 +163,24 @@ def _build_source_terminal_audit_registry():
                 max_utf8_bytes=16_384,
             ),
             sensitivity_validator=_validate_source_terminal_audit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.rfc_terminal_cascade_applied",
+            action_version=1,
+            payload_schema="TaskRfcTerminalCascadeAuditV1",
+            payload_version=1,
+            payload_contract=ObjectContract(
+                name="TaskRfcTerminalCascadeAuditV1",
+                version=1,
+                required_fields=_CASCADE_AUDIT_FIELDS,
+                allowed_fields=_CASCADE_AUDIT_FIELDS,
+                max_depth=3,
+                max_collection_items=16,
+                max_utf8_bytes=16_384,
+            ),
+            sensitivity_validator=_validate_rfc_terminal_cascade_audit,
         )
     )
     return registry
@@ -359,3 +429,408 @@ class WfmSourceTerminalService:
             )
 
         return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
+
+
+@dataclass(frozen=True, slots=True)
+class RfcTerminalCascadeExecutionCommandContext:
+    command_id: str
+    actor_kind: str
+    actor_id: str | None
+    reviewed_preview_fingerprint: str
+
+
+@dataclass(frozen=True, slots=True)
+class RfcTerminalCascadeParticipantApplyResult:
+    domain: str
+    result_ref_count: int
+    audit_event_count: int
+    result_fingerprint: str
+
+
+class RfcTerminalTaskParticipant:
+    """LLD-03 same-UoW Task/Objective participant for RFC terminal cascades."""
+
+    @staticmethod
+    def _proposal_id(proposal_snapshot: Mapping[str, object]) -> str:
+        if not isinstance(proposal_snapshot, Mapping):
+            raise ValidationError("proposal_snapshot must be an object")
+        value = proposal_snapshot.get("proposal_id")
+        if not isinstance(value, str):
+            raise ValidationError("proposal_snapshot.proposal_id must be UUID text")
+        return require_uuid4(value)
+
+    @classmethod
+    def _assert_snapshot_matches(
+        cls,
+        preview: Mapping[str, object],
+        proposal_snapshot: Mapping[str, object],
+    ) -> None:
+        proposal_id = cls._proposal_id(proposal_snapshot)
+        if str(preview.get("proposal_id")) != proposal_id:
+            raise SomaError(
+                "RFC_TERMINAL_CASCADE_STALE",
+                "RFC terminal cascade proposal identity changed",
+            )
+        expected_revision = proposal_snapshot.get("proposal_revision")
+        expected_scope = proposal_snapshot.get("scope_fingerprint")
+        if (
+            type(expected_revision) is not int
+            or expected_revision <= 0
+            or int(preview.get("proposal_revision", -1)) != expected_revision
+            or not isinstance(expected_scope, str)
+            or str(preview.get("scope_fingerprint")) != expected_scope
+        ):
+            raise SomaError(
+                "RFC_TERMINAL_CASCADE_STALE",
+                "RFC terminal cascade proposal authority changed",
+            )
+        supplied_wfms = proposal_snapshot.get("wfm_members")
+        if not isinstance(supplied_wfms, Sequence) or isinstance(
+            supplied_wfms, (str, bytes)
+        ):
+            raise ValidationError("proposal_snapshot.wfm_members must be an array")
+        normalized: list[tuple[str, str, int, str]] = []
+        for item in supplied_wfms:
+            if not isinstance(item, Mapping):
+                raise ValidationError("proposal WFM member must be an object")
+            task_id = require_uuid4(str(item.get("task_id")))
+            owning_rfc_id = require_uuid4(str(item.get("owning_rfc_id")))
+            revision = item.get("captured_task_revision")
+            task_no = item.get("captured_task_no")
+            if type(revision) is not int or revision <= 0:
+                raise ValidationError("captured_task_revision must be positive")
+            if (
+                not isinstance(task_no, str)
+                or len(task_no) != 16
+                or not task_no.startswith("TK")
+                or not task_no[2:].isascii()
+                or not task_no[2:].isdigit()
+            ):
+                raise ValidationError("captured_task_no is invalid")
+            normalized.append((task_id, owning_rfc_id, revision, task_no))
+        current = [
+            (
+                str(item["task_id"]),
+                str(item["owning_rfc_id"]),
+                int(item["task_revision"]),
+                str(item["task_no"]),
+            )
+            for item in preview.get("captured_wfms", [])
+        ]
+        normalized.sort(key=lambda item: (item[1].encode("utf-8"), item[0].encode("utf-8")))
+        current.sort(key=lambda item: (item[1].encode("utf-8"), item[0].encode("utf-8")))
+        if normalized != current:
+            raise SomaError(
+                "RFC_TERMINAL_CASCADE_STALE",
+                "RFC terminal cascade captured WFM authority changed",
+            )
+
+    @staticmethod
+    def capture_applicable_wfms(
+        uow: UnitOfWork,
+        rfc_ids: Sequence[str],
+    ) -> tuple[dict[str, object], ...]:
+        if isinstance(rfc_ids, (str, bytes)) or not isinstance(rfc_ids, Sequence):
+            raise ValidationError("rfc_ids must be a sequence")
+        canonical = tuple(sorted({require_uuid4(value) for value in rfc_ids}))
+        if not canonical:
+            return ()
+        placeholders = ",".join("?" for _ in canonical)
+        rows = uow.connection.execute(
+            "SELECT t.task_id,w.current_rfc_id,t.revision,w.task_no "
+            "FROM tasks t JOIN wfm_task_identities w ON w.task_id=t.task_id "
+            "LEFT JOIN task_execution_projection e ON e.task_id=t.task_id "
+            "LEFT JOIN task_outcome_current oc ON oc.task_id=t.task_id "
+            f"WHERE w.current_rfc_id IN ({placeholders}) "
+            "AND COALESCE(e.execution_state,'not_started') "
+            "NOT IN ('ended','terminated') AND oc.task_id IS NULL "
+            "ORDER BY w.current_rfc_id,t.task_id",
+            canonical,
+        ).fetchall()
+        return tuple(
+            {
+                "task_id": str(row[0]),
+                "owning_rfc_id": str(row[1]),
+                "captured_task_revision": int(row[2]),
+                "captured_task_no": str(row[3]),
+            }
+            for row in rows
+        )
+
+    @classmethod
+    def preview_terminal_cascade(
+        cls,
+        snapshot: Any,
+        proposal_snapshot: Mapping[str, object],
+    ) -> dict[str, object]:
+        connection = getattr(snapshot, "connection", snapshot)
+        preview = RfcTerminalCascadeQueryService.preview_with_reader(
+            connection,
+            cls._proposal_id(proposal_snapshot),
+        )
+        if preview["status"] != "READY":
+            return {
+                "domain": "TASKS_OBJECTIVES",
+                "status": "INDETERMINATE",
+                "exact_count": None,
+                "provider_fingerprint": None,
+                "items": [],
+                "continuation_key": None,
+                "warning_code": preview["warning_code"],
+            }
+        try:
+            cls._assert_snapshot_matches(preview, proposal_snapshot)
+        except SomaError:
+            return {
+                "domain": "TASKS_OBJECTIVES",
+                "status": "INDETERMINATE",
+                "exact_count": None,
+                "provider_fingerprint": None,
+                "items": [],
+                "continuation_key": None,
+                "warning_code": "CAPTURED_WFM_STALE",
+            }
+        return {
+            "domain": "TASKS_OBJECTIVES",
+            "status": "READY",
+            "exact_count": int(preview["exact_count"]),
+            "provider_fingerprint": str(preview["provider_fingerprint"]),
+            "items": list(preview["items"]),
+            "continuation_key": None,
+            "warning_code": None,
+        }
+
+    @classmethod
+    def revalidate_terminal_cascade(
+        cls,
+        uow: UnitOfWork,
+        proposal_snapshot: Mapping[str, object],
+        reviewed_exact_count: int,
+        reviewed_provider_fingerprint: str,
+    ) -> str:
+        if type(reviewed_exact_count) is not int or reviewed_exact_count < 0:
+            raise ValidationError("reviewed_exact_count must be non-negative")
+        reviewed = _require_sha256(
+            reviewed_provider_fingerprint,
+            label="reviewed_provider_fingerprint",
+        )
+        preview = RfcTerminalCascadeQueryService.preview_with_reader(
+            uow.connection,
+            cls._proposal_id(proposal_snapshot),
+        )
+        if preview["status"] != "READY":
+            return "INDETERMINATE"
+        try:
+            cls._assert_snapshot_matches(preview, proposal_snapshot)
+        except SomaError:
+            return "STALE"
+        if (
+            int(preview["exact_count"]) != reviewed_exact_count
+            or not hmac.compare_digest(
+                str(preview["provider_fingerprint"]),
+                reviewed,
+            )
+        ):
+            return "STALE"
+        return "READY"
+
+    @classmethod
+    def apply_terminal_cascade(
+        cls,
+        uow: UnitOfWork,
+        proposal_snapshot: Mapping[str, object],
+        command_context: RfcTerminalCascadeExecutionCommandContext,
+    ) -> RfcTerminalCascadeParticipantApplyResult:
+        if not isinstance(
+            command_context,
+            RfcTerminalCascadeExecutionCommandContext,
+        ):
+            raise ValidationError(
+                "command_context must be RfcTerminalCascadeExecutionCommandContext"
+            )
+        command_id = require_uuid4(command_context.command_id)
+        reviewed_preview = _require_sha256(
+            command_context.reviewed_preview_fingerprint,
+            label="reviewed_preview_fingerprint",
+        )
+        if uow.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None:
+            raise IntegrityFailure(
+                "RFC terminal cascade participant requires caller-owned command receipt"
+            )
+        proposal_id = cls._proposal_id(proposal_snapshot)
+        preview = RfcTerminalCascadeQueryService.preview_with_reader(
+            uow.connection,
+            proposal_id,
+        )
+        if preview["status"] != "READY":
+            raise SomaError(
+                "RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED",
+                "Task/Objective cascade authority is indeterminate",
+            )
+        cls._assert_snapshot_matches(preview, proposal_snapshot)
+
+        now = utc_epoch_seconds()
+        result_refs: list[dict[str, str]] = []
+        audit_ids: list[str] = []
+        audit_writer = AuditWriter(_build_source_terminal_audit_registry())
+        tasks = TaskRepository()
+        objectives = ObjectiveProjectionRepository()
+        affected_objectives: set[str] = set()
+
+        for captured in preview["captured_wfms"]:
+            task_id = str(captured["task_id"])
+            task = tasks.get(uow.connection, task_id)
+            if task is None or task.revision != int(captured["task_revision"]):
+                raise SomaError(
+                    "RFC_TERMINAL_CASCADE_STALE",
+                    "captured WFM Task revision changed",
+                )
+            execution = TaskExecutionService._execution_authority(
+                uow.connection,
+                task_id,
+            )
+            if (
+                execution.state not in {"not_started", "in_progress"}
+                or execution.revision != int(captured["execution_revision"])
+            ):
+                raise SomaError(
+                    "RFC_TERMINAL_CASCADE_STALE",
+                    "captured WFM execution authority changed",
+                )
+            event_id = new_uuid4()
+            audit_id = new_uuid4()
+            resulting_execution_revision = execution.revision + 1
+            uow.connection.execute(
+                "INSERT INTO task_execution_events("
+                "execution_event_id,task_id,execution_revision,event_kind,"
+                "effective_at_utc,target_event_id,correction_action,reason_code,"
+                "recorded_at_utc,command_id"
+                ") VALUES (?,?,?,'rfc_terminal_terminate',NULL,NULL,NULL,"
+                "'rfc_terminal_cascade',?,?)",
+                (
+                    event_id,
+                    task_id,
+                    resulting_execution_revision,
+                    now,
+                    command_id,
+                ),
+            )
+            WfmSourceTerminalService._advance_termination_projection(
+                uow,
+                task_id=task_id,
+                authority=execution,
+                execution_event_id=event_id,
+                reason="rfc_terminal_cascade",
+            )
+            tasks.increment_revision(
+                uow,
+                task_id=task_id,
+                expected_revision=task.revision,
+            )
+            membership = objectives.current_membership_for_task(
+                uow.connection,
+                task_id,
+            )
+            if membership is not None:
+                affected_objectives.add(membership.objective_id)
+            audit_writer.write(
+                uow,
+                AuditEventInput(
+                    audit_event_id=audit_id,
+                    action_type="task.rfc_terminal_cascade_applied",
+                    action_version=1,
+                    actor_kind=command_context.actor_kind,
+                    actor_id=command_context.actor_id,
+                    target_type="task",
+                    target_id=task_id,
+                    command_id=command_id,
+                    payload_schema="TaskRfcTerminalCascadeAuditV1",
+                    payload_version=1,
+                    payload={
+                        "task_id": task_id,
+                        "proposal_id": proposal_id,
+                        "execution_event_id": event_id,
+                        "prior_execution_revision": execution.revision,
+                        "prior_execution_state": execution.state,
+                        "resulting_execution_revision": resulting_execution_revision,
+                        "reviewed_preview_fingerprint": reviewed_preview,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("task_execution_event", event_id),
+                    ),
+                ),
+            )
+            result_refs.append(
+                {"type": "task_execution_event", "id": event_id}
+            )
+            audit_ids.append(audit_id)
+
+        for objective_id in sorted(affected_objectives):
+            objectives.rebuild_aggregate(
+                uow,
+                objective_id=objective_id,
+                command_id=command_id,
+            )
+
+        canonical_refs = sorted(
+            result_refs,
+            key=lambda item: (
+                item["type"].encode("utf-8"),
+                item["id"].encode("utf-8"),
+            ),
+        )
+        canonical_audits = sorted(audit_ids)
+        result_fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_RFC_TERMINAL_CASCADE_PARTICIPANT_RESULT_V1",
+                "domain": "TASKS_OBJECTIVES",
+                "outer_command_id": command_id,
+                "proposal_id": proposal_id,
+                "result_refs": canonical_refs,
+                "audit_event_ids": canonical_audits,
+            }
+        )
+        return RfcTerminalCascadeParticipantApplyResult(
+            domain="TASKS_OBJECTIVES",
+            result_ref_count=len(canonical_refs),
+            audit_event_count=len(canonical_audits),
+            result_fingerprint=result_fingerprint,
+        )
+
+    @staticmethod
+    def classify_hard_delete_dependency(reader: Any, rfc_id: str) -> str:
+        connection = getattr(reader, "connection", reader)
+        try:
+            identity = require_uuid4(rfc_id)
+            checks = (
+                (
+                    "SELECT 1 FROM wfm_task_identities WHERE current_rfc_id=? LIMIT 1",
+                    (identity,),
+                ),
+                (
+                    "SELECT 1 FROM wfm_rfc_assignment_events "
+                    "WHERE prior_rfc_id=? OR new_rfc_id=? LIMIT 1",
+                    (identity, identity),
+                ),
+                (
+                    "SELECT 1 FROM task_rfc_links WHERE rfc_id=? LIMIT 1",
+                    (identity,),
+                ),
+            )
+            for sql, params in checks:
+                if connection.execute(sql, params).fetchone() is not None:
+                    return "BLOCKED"
+            return "CLEAR"
+        except Exception:
+            return "INDETERMINATE"
+
+
+__all__ = [
+    "RfcTerminalCascadeExecutionCommandContext",
+    "RfcTerminalCascadeParticipantApplyResult",
+    "RfcTerminalTaskParticipant",
+    "WfmSourceTerminalService",
+]
