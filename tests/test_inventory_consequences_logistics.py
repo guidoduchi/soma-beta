@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from soma.foundation.errors import SomaError
@@ -9,12 +11,14 @@ from soma.inventory.domain.consequences import (
     ExtractedSparePartIntent,
     PhysicalConsequenceIntent,
 )
+from soma.inventory.domain.fault_tags import FaultTagMembershipIntent
 from soma.inventory.domain.logistics import LogisticsParticipants
 from soma.inventory.domain.requests import SpareRequestAllocationIntent
 from soma.inventory.domain.rmas import RmaAuthorizationIntent
 from soma.inventory.services.consequences_logistics import (
     InventoryConsequencesLogisticsService,
 )
+from soma.inventory.services.fault_tags import InventoryFaultTagService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
 from soma.inventory.services.requests_rma import InventoryRequestsRmaService
 from soma.inventory.queries.requests_rma import InventoryRequestsQueryService
@@ -100,6 +104,7 @@ def _rma_ready(
     suffix: str,
     count: int,
     promised_bom: str,
+    c10_base: int = 5000,
 ):
     factory = _factory(initialized_database)
     sr = ServiceRequestService(factory).create_manual_service_request(
@@ -172,7 +177,7 @@ def _rma_ready(
         expected_request_revision=3,
         rows=tuple(
             RmaAuthorizationIntent(
-                c10=f"C{5000 + ordinal:010d}",
+                c10=f"C{c10_base + ordinal:010d}",
                 promised_bom_code=promised_bom,
             )
             for ordinal in range(count)
@@ -999,3 +1004,326 @@ def test_t041_task_outcome_correction_changes_operational_fingerprint_and_blocks
             "SELECT COUNT(*) FROM inventory_physical_consequences WHERE task_id=?",
             (task_id,),
         ).fetchone()[0] == 1
+
+
+def _open_return_obligation(
+    initialized_database,
+    *,
+    official_sr: str,
+    suffix: str,
+    promised_bom: str,
+    c10_base: int,
+):
+    factory, receiver, location_id, rma_ids = _rma_ready(
+        initialized_database,
+        official_sr=official_sr,
+        suffix=suffix,
+        count=1,
+        promised_bom=promised_bom,
+        c10_base=c10_base,
+    )
+    rma_id = rma_ids[0]
+    service_request_id, _target_id = _rma_operational_context(factory, rma_id)
+    inbound_id = _receive_rma_unit(
+        factory,
+        receiver=receiver,
+        location_id=location_id,
+        rma_id=rma_id,
+        bom=promised_bom,
+        serial=f"{suffix}-RETURN",
+    )
+    task_id, _reviewed, fingerprint = _reviewed_completed_task(
+        factory,
+        service_request_id,
+    )
+    consequence = InventoryConsequencesLogisticsService(
+        factory
+    ).accept_inventory_physical_consequence(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_review_fingerprint=fingerprint,
+        rma_id=rma_id,
+        intent=PhysicalConsequenceIntent(
+            physical_disposition="unused",
+            inbound_spare_part_unit_id=inbound_id,
+            effective_at_utc=1_700_800_000,
+        ),
+    )
+    consequence_id = next(
+        ref.result_id
+        for ref in consequence.target_refs
+        if ref.result_type == "inventory_physical_consequence"
+    )
+    return factory, receiver, location_id, rma_id, inbound_id, consequence_id
+
+
+def test_t042_fault_tag_draft_allocates_nonreusable_identity_and_allows_zero_members(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    created = InventoryFaultTagService(factory).create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+    )
+    assert created["tracking_handle"] == "FT-00000001"
+    assert created["state"] == "draft"
+    assert created["revision"] == 1
+    assert created["members"] == []
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT event_kind FROM fault_tag_lifecycle_events WHERE fault_tag_id=?",
+            (created["fault_tag_id"],),
+        ).fetchone()[0] == "created"
+        assert snapshot.connection.execute(
+            "SELECT state,submitted_member_count,revision FROM fault_tag_current_projection "
+            "WHERE fault_tag_id=?",
+            (created["fault_tag_id"],),
+        ).fetchone() == ("draft", 0, 1)
+
+
+def test_t043_pickup_fault_tag_without_origin_is_blocked_at_submission(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200009",
+            suffix="T043",
+            promised_bom="BOM-T043",
+            c10_base=5100,
+        )
+    )
+    service = InventoryFaultTagService(factory)
+    draft = service.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="pickup",
+        memberships=(
+            FaultTagMembershipIntent(
+                rma_id=rma_id,
+                return_reason="return unused replacement",
+            ),
+        ),
+    )
+    attempted = new_uuid4()
+    with pytest.raises(SomaError) as missing_origin:
+        service.accept_fault_tag_submission(
+            command_id=attempted,
+            fault_tag_id=str(draft["fault_tag_id"]),
+            base_revision=int(draft["revision"]),
+            expected_draft_fingerprint=str(draft["input_fingerprint"]),
+            effective_submission_at_utc=1_700_810_000,
+        )
+    assert missing_origin.value.code == "FAULT_TAG_PICKUP_ORIGIN_REQUIRED"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT state FROM fault_tag_current_projection WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()[0] == "draft"
+
+
+def test_t044_fault_tag_draft_accepts_open_obligations_across_different_service_requests(
+    initialized_database,
+) -> None:
+    first = _open_return_obligation(
+        initialized_database,
+        official_sr="97200010",
+        suffix="T044-A",
+        promised_bom="BOM-T044-A",
+        c10_base=5200,
+    )
+    second = _open_return_obligation(
+        initialized_database,
+        official_sr="97200011",
+        suffix="T044-B",
+        promised_bom="BOM-T044-B",
+        c10_base=5300,
+    )
+    factory = first[0]
+    draft = InventoryFaultTagService(factory).create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+        memberships=(
+            FaultTagMembershipIntent(
+                rma_id=first[3],
+                return_reason="first independent obligation",
+            ),
+            FaultTagMembershipIntent(
+                rma_id=second[3],
+                return_reason="second independent obligation",
+            ),
+        ),
+    )
+    assert len(draft["members"]) == 2
+    assert {item["rma_id"] for item in draft["members"]} == {first[3], second[3]}
+    assert len({item["fault_tag_membership_id"] for item in draft["members"]}) == 2
+    assert {item["physical_consequence_id"] for item in draft["members"]} == {
+        first[5],
+        second[5],
+    }
+
+
+def test_t045_second_submission_cannot_claim_already_active_rma_obligation(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200012",
+            suffix="T045",
+            promised_bom="BOM-T045",
+            c10_base=5400,
+        )
+    )
+    service = InventoryFaultTagService(factory)
+    first = service.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+        memberships=(FaultTagMembershipIntent(rma_id, "first submission"),),
+    )
+    second = service.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="non_pickup",
+        memberships=(FaultTagMembershipIntent(rma_id, "competing submission"),),
+    )
+    service.accept_fault_tag_submission(
+        command_id=new_uuid4(),
+        fault_tag_id=str(first["fault_tag_id"]),
+        base_revision=int(first["revision"]),
+        expected_draft_fingerprint=str(first["input_fingerprint"]),
+        effective_submission_at_utc=1_700_820_000,
+    )
+
+    attempted = new_uuid4()
+    with pytest.raises(SomaError) as conflict:
+        service.accept_fault_tag_submission(
+            command_id=attempted,
+            fault_tag_id=str(second["fault_tag_id"]),
+            base_revision=int(second["revision"]),
+            expected_draft_fingerprint=str(second["input_fingerprint"]),
+            effective_submission_at_utc=1_700_820_100,
+        )
+    assert conflict.value.code == "FAULT_TAG_MEMBERSHIP_CONFLICT"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT state FROM fault_tag_current_projection WHERE fault_tag_id=?",
+            (second["fault_tag_id"],),
+        ).fetchone()[0] == "draft"
+
+
+def test_t046_fault_tag_submission_snapshots_survive_later_master_changes_and_replay(
+    initialized_database,
+) -> None:
+    factory, receiver, location_id, rma_id, unit_id, consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200013",
+            suffix="T046",
+            promised_bom="BOM-T046",
+            c10_base=5500,
+        )
+    )
+    service = InventoryFaultTagService(factory)
+    draft = service.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method="pickup",
+        pickup_dispatch_location_id=location_id,
+        pickup_contact_id=receiver.contact_id,
+        pickup_instructions="collect from original dispatch point",
+        memberships=(
+            FaultTagMembershipIntent(
+                rma_id=rma_id,
+                return_reason="return for warehouse review",
+            ),
+        ),
+    )
+    command_id = new_uuid4()
+    submitted = service.accept_fault_tag_submission(
+        command_id=command_id,
+        fault_tag_id=str(draft["fault_tag_id"]),
+        base_revision=int(draft["revision"]),
+        expected_draft_fingerprint=str(draft["input_fingerprint"]),
+        effective_submission_at_utc=1_700_830_000,
+    )
+    replay = service.accept_fault_tag_submission(
+        command_id=command_id,
+        fault_tag_id=str(draft["fault_tag_id"]),
+        base_revision=int(draft["revision"]),
+        expected_draft_fingerprint=str(draft["input_fingerprint"]),
+        effective_submission_at_utc=1_700_830_000,
+    )
+    assert replay == submitted
+
+    with ReadSnapshot(factory) as snapshot:
+        tag_snapshot = snapshot.connection.execute(
+            "SELECT fault_tag_submission_snapshot_id,pickup_location_name_snapshot,"
+            "pickup_location_address_snapshot,snapshot_hash "
+            "FROM fault_tag_submission_snapshots WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()
+        member_snapshot = snapshot.connection.execute(
+            "SELECT display_snapshot_json FROM fault_tag_membership_submission_snapshots "
+            "WHERE fault_tag_submission_snapshot_id=?",
+            (str(tag_snapshot[0]),),
+        ).fetchone()
+        display_before = json.loads(str(member_snapshot[0]))
+        tag_before = tuple(tag_snapshot)
+
+    InventoryRequestsRmaService(factory).correct_rma_official_id(
+        command_id=new_uuid4(),
+        rma_id=rma_id,
+        current_c10="C0000005500",
+        new_c10="C0000005599",
+        reason_code="provider corrected identifier",
+    )
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE dispatch_locations SET name=?,standalone_address_text=?,revision=revision+1,"
+            "updated_at_utc=? WHERE dispatch_location_id=?",
+            (
+                "Changed Pickup Name",
+                "Changed pickup address",
+                utc_epoch_seconds(),
+                location_id,
+            ),
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        tag_after = snapshot.connection.execute(
+            "SELECT fault_tag_submission_snapshot_id,pickup_location_name_snapshot,"
+            "pickup_location_address_snapshot,snapshot_hash "
+            "FROM fault_tag_submission_snapshots WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()
+        display_after = json.loads(
+            str(
+                snapshot.connection.execute(
+                    "SELECT display_snapshot_json FROM fault_tag_membership_submission_snapshots "
+                    "WHERE fault_tag_submission_snapshot_id=?",
+                    (str(tag_after[0]),),
+                ).fetchone()[0]
+            )
+        )
+        assert tuple(tag_after) == tag_before
+        assert display_after == display_before
+        assert display_after["current_c10"] == "C0000005500"
+        assert display_after["unit_id"] == unit_id
+        assert display_after["physical_consequence_id"] == consequence_id
+        assert snapshot.connection.execute(
+            "SELECT a.c10 FROM rma_identifier_aliases a "
+            "WHERE a.rma_id=? AND a.alias_kind='current'",
+            (rma_id,),
+        ).fetchone()[0] == "C0000005599"
+        assert snapshot.connection.execute(
+            "SELECT name,standalone_address_text FROM dispatch_locations "
+            "WHERE dispatch_location_id=?",
+            (location_id,),
+        ).fetchone() == ("Changed Pickup Name", "Changed pickup address")
