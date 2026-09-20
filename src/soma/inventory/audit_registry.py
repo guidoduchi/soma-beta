@@ -288,6 +288,20 @@ def _validate_fault_tag_submission(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "effective_at_utc is invalid")
 
 
+def _validate_warehouse_decision(payload: dict[str, object]) -> None:
+    _uuid(payload.get("membership_id"), "membership_id")
+    if payload.get("event_kind") not in {"RECEIVED", "ACCEPTED", "REJECTED"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "warehouse event kind is invalid")
+    _uuid(payload.get("rma_id"), "rma_id")
+    _uuid(payload.get("return_obligation_id"), "return_obligation_id")
+    _uuid(payload.get("batch_id"), "batch_id", nullable=True)
+    effective = payload.get("effective_at_utc")
+    if effective is not None and (type(effective) is not int or effective < 0):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "effective_at_utc is invalid")
+    if type(payload.get("explicit_confirmation")) is not bool:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "explicit_confirmation is invalid")
+
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -573,6 +587,29 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_fault_tag_submission,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.fault_tag.warehouse_state_changed",
+            action_version=1,
+            payload_schema="WarehouseDecisionAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "WarehouseDecisionAuditV1",
+                frozenset(
+                    {
+                        "membership_id",
+                        "event_kind",
+                        "rma_id",
+                        "return_obligation_id",
+                        "batch_id",
+                        "effective_at_utc",
+                        "explicit_confirmation",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_warehouse_decision,
         )
     )
     return registry
