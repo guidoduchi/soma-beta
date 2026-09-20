@@ -2092,4 +2092,75 @@ class InventoryFaultTagsRepository:
         }
 
 
+    @classmethod
+    def archive_or_restore(
+        cls,
+        connection: Any,
+        *,
+        fault_tag_id: str,
+        expected_revision: int,
+        action: str,
+        reason_code: str | None,
+        command_id: str,
+    ) -> dict[str, object]:
+        current = cls.current_tag(connection, fault_tag_id)
+        if current is None:
+            raise SomaError("INV_STALE", "Fault Tag no longer exists")
+        if int(current[15]) != expected_revision:
+            raise SomaError("INV_STALE", "Fault Tag revision changed")
+        archived = bool(current[8])
+        target_archived = action == "archive"
+        if archived == target_archived:
+            return {
+                "outcome": "NO_CHANGE",
+                "revision": int(current[15]),
+                "event_id": None,
+            }
+        now = utc_epoch_seconds()
+        event_id = new_uuid4()
+        event_kind = "archived" if target_archived else "restored"
+        connection.execute(
+            "INSERT INTO fault_tag_lifecycle_events("
+            "fault_tag_event_id,fault_tag_id,event_kind,effective_at_utc,target_event_id,"
+            "reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+            ") VALUES (?,?,?,NULL,NULL,?,NULL,NULL,?,?)",
+            (
+                event_id,
+                fault_tag_id,
+                event_kind,
+                reason_code,
+                now,
+                command_id,
+            ),
+        )
+        revision = int(current[15]) + 1
+        fingerprint = cls.tag_fingerprint(
+            connection,
+            fault_tag_id=fault_tag_id,
+            state=str(current[7]),
+            archived=target_archived,
+            current_submission_snapshot_id=None if current[9] is None else str(current[9]),
+            submitted_member_count=int(current[10]),
+            awaiting_receipt_count=int(current[11]),
+            awaiting_final_count=int(current[12]),
+            accepted_count=int(current[13]),
+            rejected_count=int(current[14]),
+        )
+        updated = connection.execute(
+            "UPDATE fault_tag_current_projection SET archived=?,revision=?,"
+            "input_fingerprint=?,last_command_id=? WHERE fault_tag_id=? AND revision=?",
+            (
+                1 if target_archived else 0,
+                revision,
+                fingerprint,
+                command_id,
+                fault_tag_id,
+                expected_revision,
+            ),
+        )
+        if updated.rowcount != 1:
+            raise SomaError("INV_STALE", "Fault Tag changed during archive transition")
+        return {"outcome": "APPLIED", "revision": revision, "event_id": event_id}
+
+
 __all__ = ["InventoryFaultTagsRepository"]
