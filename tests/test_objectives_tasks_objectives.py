@@ -1,8 +1,8 @@
+from __future__ import annotations
+
 import pytest
 
 from soma.foundation.errors import SomaError
-from __future__ import annotations
-
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService

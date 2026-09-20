@@ -291,7 +291,9 @@ def _validate_hard_delete(payload: dict[str, object]) -> None:
         if not encoded or len(encoded) > 1024 or "\x00" in confirmation or "\r" in confirmation or "\n" in confirmation:
             raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete confirmation context violates its bound")
     retained = payload.get("retained_related_ids")
-    if not isinstance(retained, list) or len(retained) > 32:
+    target_type = payload.get("target_type")
+    retained_limit = 32 if target_type == "task" else 100
+    if not isinstance(retained, list) or len(retained) > retained_limit:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete retained-related list is invalid")
     seen: set[str] = set()
     for value in retained:
@@ -437,7 +439,7 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
             action_version=1,
             payload_schema="HardDeleteAuditV1",
             payload_version=1,
-            payload_contract=_contract("HardDeleteAuditV1", _HARD_DELETE_AUDIT_FIELDS),
+            payload_contract=_contract("HardDeleteAuditV1", _HARD_DELETE_AUDIT_FIELDS, max_items=128),
             sensitivity_validator=_validate_hard_delete,
         )
     )
