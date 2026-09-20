@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from soma.foundation.errors import ValidationError
 from soma.foundation.identifiers import require_uuid4
@@ -11,6 +12,7 @@ _LOGISTICS_MODES = frozenset({"delivery", "self_pickup"})
 _MAX_ALLOCATIONS = 2000
 _MAX_QUANTITY = 1_000_000
 _MAX_EVIDENCE_TEXT_BYTES = 512
+_SR7 = re.compile(r"SR[0-9]{7}\Z")
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +63,8 @@ __all__ = [
     "validate_request_origin",
     "validate_submission_evidence",
     "validate_submission_time",
+    "validate_sr7",
+    "validate_sr7_action",
 ]
 
 def validate_positive_revision(value: int, *, field: str) -> int:
@@ -99,4 +103,18 @@ def validate_submission_evidence(
     if any(token in kind or token in identity for token in ("\x00", "\r", "\n")):
         raise ValidationError("submission evidence value contains a forbidden control/newline")
     return kind, identity
+
+def validate_sr7(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValidationError("official SR7 must be text")
+    canonical = value.strip()
+    if _SR7.fullmatch(canonical) is None:
+        raise ValidationError("official SR7 must be SR followed by exactly seven ASCII digits")
+    return canonical
+
+
+def validate_sr7_action(value: str) -> str:
+    if value not in {"assign", "correct"}:
+        raise ValidationError("SR7 action must be assign or correct")
+    return value
 
