@@ -562,6 +562,7 @@ class ObjectiveService:
         objective_id: str,
         objective_revision: int,
         archive_revision: int,
+        aggregate_revision: int,
         action: str,
         reason_category: str | None,
         actor_kind: str,
@@ -572,6 +573,8 @@ class ObjectiveService:
             raise ValidationError("objective_revision must be positive")
         if type(archive_revision) is not int or archive_revision <= 0:
             raise ValidationError("archive_revision must be positive")
+        if type(aggregate_revision) is not int or aggregate_revision <= 0:
+            raise ValidationError("aggregate_revision must be positive")
         reason = None if reason_category is None else validate_task_reason_category(reason_category)
         desired = 1 if action == "archive" else 0
         envelope = CommandEnvelope(
@@ -581,10 +584,15 @@ class ObjectiveService:
             target_id=identity,
             semantic_payload={
                 "archive_revision": archive_revision,
+                "aggregate_revision": aggregate_revision,
                 "action": action,
                 "reason_category": reason,
             },
-            base_revisions={identity: objective_revision, f"objective_archive:{identity}": archive_revision},
+            base_revisions={
+                identity: objective_revision,
+                f"objective_archive:{identity}": archive_revision,
+                f"objective_aggregate:{identity}": aggregate_revision,
+            },
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
@@ -599,6 +607,9 @@ class ObjectiveService:
                 raise SomaError("OBJECTIVE_NOT_FOUND", "Objective does not exist")
             if int(row[0]) != objective_revision:
                 raise SomaError("OBJECTIVE_STALE", "Objective revision changed")
+            aggregate = self._objectives.aggregate(uow.connection, identity)
+            if aggregate is None or aggregate.revision != aggregate_revision:
+                raise SomaError("OBJECTIVE_STALE", "Objective aggregate revision changed")
             archive = uow.connection.execute(
                 "SELECT archived,revision FROM objective_archive_projection WHERE objective_id=?",
                 (identity,),
@@ -690,6 +701,7 @@ class ObjectiveService:
         objective_id: str,
         objective_revision: int,
         archive_revision: int,
+        aggregate_revision: int,
         reason_category: str | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
@@ -699,6 +711,7 @@ class ObjectiveService:
             objective_id=objective_id,
             objective_revision=objective_revision,
             archive_revision=archive_revision,
+            aggregate_revision=aggregate_revision,
             action="archive",
             reason_category=reason_category,
             actor_kind=actor_kind,
@@ -712,6 +725,7 @@ class ObjectiveService:
         objective_id: str,
         objective_revision: int,
         archive_revision: int,
+        aggregate_revision: int,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
     ) -> ObjectiveMutationResult:
@@ -720,6 +734,7 @@ class ObjectiveService:
             objective_id=objective_id,
             objective_revision=objective_revision,
             archive_revision=archive_revision,
+            aggregate_revision=aggregate_revision,
             action="restore",
             reason_category=None,
             actor_kind=actor_kind,
