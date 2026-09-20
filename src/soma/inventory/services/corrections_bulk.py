@@ -806,7 +806,7 @@ class InventoryCorrectionsBulkService:
                         "type": "fault_tag_membership_event",
                         "id": str(item["membership_event_id"]),
                     }
-                    for item in result["events"]
+                    for item in result["events"][:16]
                 ]
                 bulk_audit = AuditEventInput(
                     audit_event_id=new_uuid4(),
