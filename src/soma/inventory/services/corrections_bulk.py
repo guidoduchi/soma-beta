@@ -68,8 +68,8 @@ class InventoryCorrectionsBulkService:
         risk_tier: str,
     ) -> tuple[ParsedInventoryProposalTarget, ...]:
         rows = uow.connection.execute(
-            "SELECT inventory_proposal_target_id,target_kind,fault_tag_membership_id,"
-            "expected_revision,proposed_action,payload_json "
+            "SELECT inventory_proposal_target_id,target_kind,spare_request_id,"
+            "fault_tag_membership_id,expected_revision,proposed_action,payload_json "
             "FROM inventory_proposal_targets WHERE inventory_proposal_id=? "
             "ORDER BY inventory_proposal_target_id",
             (proposal_id,),
@@ -85,10 +85,11 @@ class InventoryCorrectionsBulkService:
                         proposal_kind=proposal_kind,
                         risk_tier=risk_tier,
                         target_kind=str(row[1]),
-                        membership_id=None if row[2] is None else str(row[2]),
-                        expected_revision=int(row[3]),
-                        proposed_action=str(row[4]),
-                        payload_json=str(row[5]),
+                        spare_request_id=None if row[2] is None else str(row[2]),
+                        membership_id=None if row[3] is None else str(row[3]),
+                        expected_revision=int(row[4]),
+                        proposed_action=str(row[5]),
+                        payload_json=str(row[6]),
                     )
                 )
         except ValidationError as exc:
@@ -168,6 +169,190 @@ class InventoryCorrectionsBulkService:
                 raise SomaError(
                     "DEPENDENCY_INDETERMINATE",
                     "Material warehouse final-decision proposal requires explicit confirmation",
+                )
+
+            if proposal_kind == "spare_request_submission":
+                if (
+                    evidence_kind != "indexed_sent"
+                    or not evidence_id
+                    or evidence_id.strip() != evidence_id
+                ):
+                    raise SomaError(
+                        "DEPENDENCY_INDETERMINATE",
+                        "Spare Request submission proposal requires canonical indexed_sent evidence",
+                    )
+                request_rows: list[tuple[ParsedInventoryProposalTarget, object]] = []
+                for target in targets:
+                    if (
+                        target.action != "spare_request_submission"
+                        or target.spare_request_id is None
+                        or target.expected_draft_fingerprint is None
+                    ):
+                        raise SomaError(
+                            "DEPENDENCY_INDETERMINATE",
+                            "Spare Request proposal target mapping is incomplete",
+                        )
+                    row = self._requests.current_detail(
+                        uow.connection,
+                        target.spare_request_id,
+                    )
+                    if (
+                        row is None
+                        or int(row[8]) != target.expected_revision
+                        or str(row[9]) != target.expected_draft_fingerprint
+                    ):
+                        raise SomaError(
+                            "PROPOSAL_STALE",
+                            "Spare Request draft authority changed",
+                        )
+                    if str(row[6]) != "draft":
+                        raise SomaError(
+                            "PROPOSAL_STALE",
+                            "Spare Request is no longer Draft",
+                        )
+                    projection = uow.connection.execute(
+                        "SELECT current_submission_snapshot_id "
+                        "FROM spare_request_current_projection WHERE spare_request_id=?",
+                        (target.spare_request_id,),
+                    ).fetchone()
+                    if projection is None or projection[0] is not None:
+                        raise SomaError(
+                            "PROPOSAL_STALE",
+                            "Spare Request already has submission authority",
+                        )
+                    request_rows.append((target, row))
+
+                resulting_revision = revision + 1
+                evidence_ref = source_evidence_ref(evidence_kind, evidence_id)
+
+                def apply_request_submission(inner: UnitOfWork):
+                    result_rows: list[dict[str, object]] = []
+                    audits: list[AuditEventInput] = []
+                    for target, _prepared_row in request_rows:
+                        assert target.spare_request_id is not None
+                        assert target.expected_draft_fingerprint is not None
+                        (
+                            event_id,
+                            snapshot_id,
+                            request_revision,
+                            allocation_count,
+                            _snapshot_hash,
+                        ) = self._requests.accept_submission(
+                            inner.connection,
+                            spare_request_id=target.spare_request_id,
+                            expected_fingerprint=target.expected_draft_fingerprint,
+                            effective_submission_at_utc=target.effective_at_utc,
+                            evidence_kind="indexed_sent",
+                            evidence_id=evidence_id,
+                            command_id=command_id,
+                        )
+                        result_rows.append(
+                            {
+                                "spare_request_id": target.spare_request_id,
+                                "submission_event_id": event_id,
+                                "submission_snapshot_id": snapshot_id,
+                                "request_revision": request_revision,
+                                "allocation_count": allocation_count,
+                                "expected_draft_fingerprint": target.expected_draft_fingerprint,
+                                "effective_submission_at_utc": target.effective_at_utc,
+                            }
+                        )
+                        audits.append(
+                            AuditEventInput(
+                                audit_event_id=new_uuid4(),
+                                action_type="inventory.spare_request.submitted",
+                                action_version=1,
+                                actor_kind=actor_kind,
+                                actor_id=actor_id,
+                                target_type="spare_request",
+                                target_id=target.spare_request_id,
+                                command_id=command_id,
+                                payload_schema="SpareRequestSubmissionAuditV1",
+                                payload_version=1,
+                                payload={
+                                    "spare_request_id": target.spare_request_id,
+                                    "submission_event_id": event_id,
+                                    "submission_snapshot_id": snapshot_id,
+                                    "event_kind": "ACCEPT",
+                                    "allocation_count": allocation_count,
+                                    "input_fingerprint": target.expected_draft_fingerprint,
+                                    "effective_at_utc": target.effective_at_utc,
+                                },
+                                resulting_event_refs=(
+                                    AuditResultRef(
+                                        "spare_request_submission_snapshot",
+                                        snapshot_id,
+                                    ),
+                                ),
+                            )
+                        )
+
+                    changed = inner.connection.execute(
+                        "UPDATE inventory_proposals SET state='accepted',revision=?,last_command_id=? "
+                        "WHERE inventory_proposal_id=? AND state='pending' AND revision=? "
+                        "AND input_fingerprint=?",
+                        (resulting_revision, command_id, identity, revision, fingerprint),
+                    )
+                    if changed.rowcount != 1:
+                        raise SomaError("PROPOSAL_STALE", "Inventory proposal changed")
+                    apply_request_submission.result_rows = tuple(result_rows)
+                    audits.append(
+                        AuditEventInput(
+                            audit_event_id=new_uuid4(),
+                            action_type="inventory.proposal.decided",
+                            action_version=1,
+                            actor_kind=actor_kind,
+                            actor_id=actor_id,
+                            target_type="inventory_proposal",
+                            target_id=identity,
+                            command_id=command_id,
+                            payload_schema="InventoryProposalAuditV1",
+                            payload_version=1,
+                            payload={
+                                "proposal_id": identity,
+                                "decision": "ACCEPT",
+                                "input_fingerprint": fingerprint,
+                                "accepted_target_count": len(targets),
+                                "deferred_or_rejected_count": 0,
+                                "source_evidence_ref": evidence_ref,
+                                "reason_category": None,
+                            },
+                            resulting_event_refs=(
+                                AuditResultRef("inventory_proposal", identity),
+                            ),
+                        )
+                    )
+                    return tuple(audits)
+
+                apply_request_submission.result_rows = ()
+                return PreparedMutation(
+                    no_change=False,
+                    result_type="inventory_proposal",
+                    result_id=identity,
+                    apply=apply_request_submission,
+                    response_schema="InventoryMutationResultV1",
+                    response_factory=lambda _inner: {
+                        "outcome": "APPLIED",
+                        "target_refs": (
+                            [{"type": "inventory_proposal", "id": identity}]
+                            + [
+                                {
+                                    "type": "spare_request",
+                                    "id": str(item["spare_request_id"]),
+                                }
+                                for item in apply_request_submission.result_rows
+                            ]
+                        ),
+                        "revisions": {
+                            identity: resulting_revision,
+                            **{
+                                f"spare_request:{item['spare_request_id']}": int(
+                                    item["request_revision"]
+                                )
+                                for item in apply_request_submission.result_rows
+                            },
+                        },
+                    },
                 )
 
             repo = InventoryFaultTagsRepository()
