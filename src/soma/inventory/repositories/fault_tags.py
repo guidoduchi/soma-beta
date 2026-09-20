@@ -1370,6 +1370,8 @@ class InventoryFaultTagsRepository:
         evidence_kind: str | None,
         evidence_id: str | None,
         command_id: str,
+        force_batch: bool = False,
+        requested_batch_id: str | None = None,
     ) -> dict[str, object]:
         preflight = [
             cls._require_warehouse_member(
@@ -1383,7 +1385,7 @@ class InventoryFaultTagsRepository:
         batch_id: str | None = None
         now = utc_epoch_seconds()
         if force_batch or len(targets) > 1:
-            batch_id = new_uuid4()
+            batch_id = requested_batch_id or new_uuid4()
             connection.execute(
                 "INSERT INTO inventory_lifecycle_batches("
                 "inventory_batch_id,batch_kind,target_count,recorded_at_utc,command_id"
@@ -1510,6 +1512,7 @@ class InventoryFaultTagsRepository:
         evidence_id: str | None,
         command_id: str,
         force_batch: bool = False,
+        requested_batch_id: str | None = None,
     ) -> dict[str, object]:
         preflight = [
             cls._require_warehouse_member(
@@ -1523,7 +1526,7 @@ class InventoryFaultTagsRepository:
         batch_id: str | None = None
         now = utc_epoch_seconds()
         if force_batch or len(targets) > 1:
-            batch_id = new_uuid4()
+            batch_id = requested_batch_id or new_uuid4()
             connection.execute(
                 "INSERT INTO inventory_lifecycle_batches("
                 "inventory_batch_id,batch_kind,target_count,recorded_at_utc,command_id"
