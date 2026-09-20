@@ -6,6 +6,8 @@ from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.inventory.domain.requests import SpareRequestAllocationIntent
+from soma.inventory.queries.attention_history import InventoryAttentionQueryService
+from soma.inventory.queries.requests_rma import InventoryRequestsQueryService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
 from soma.inventory.services.requests_rma import InventoryRequestsRmaService
 from soma.reference.application.contact_service import ContactReferenceService
@@ -237,3 +239,529 @@ def test_t015_cross_sr_spare_request_draft_fails_before_identity_allocation(
             "WHERE allocator_kind='spare_request'"
         ).fetchone()
         assert tuple(allocator) == (1, 1)
+
+class _ValidIndexedSentEvidence:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int, str, str]] = []
+
+    def validate_indexed_sent_evidence(
+        self,
+        uow,
+        *,
+        spare_request_id: str,
+        spare_request_revision: int,
+        evidence_kind: str,
+        evidence_id: str,
+    ) -> str:
+        assert uow.connection.in_transaction
+        self.calls.append(
+            (
+                spare_request_id,
+                spare_request_revision,
+                evidence_kind,
+                evidence_id,
+            )
+        )
+        return "VALID"
+
+
+def _request_fixture(initialized_database, *, official_sr: str, suffix: str):
+    factory = _factory(initialized_database)
+    sr = _sr(factory, official_sr)
+    need = _need(
+        factory,
+        sr_id=sr.service_request_id,
+        device_name=f"REQ-{suffix}",
+        bom=f"BOM-{suffix}",
+    )
+    contacts = ContactReferenceService(factory)
+    requester = contacts.create_contact(
+        command_id=new_uuid4(),
+        name=f"Requester {suffix}",
+    )
+    receiver = contacts.create_contact(
+        command_id=new_uuid4(),
+        name=f"Receiver {suffix}",
+    )
+    location_id = _dispatch_location(factory, suffix)
+    service = InventoryRequestsRmaService(factory)
+    created = service.create_spare_request_draft(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        requester_contact_id=requester.contact_id,
+        allocations=(SpareRequestAllocationIntent(need, 2),),
+        mode="delivery",
+        receiver_contact_id=receiver.contact_id,
+        dispatch_location_id=location_id,
+    )
+    return (
+        factory,
+        sr,
+        need,
+        requester,
+        receiver,
+        location_id,
+        service,
+        created,
+    )
+
+
+def test_t016_msg_draft_payload_is_pure_and_never_starts_submission_chronology(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _requester,
+        _receiver,
+        _location_id,
+        _service,
+        created,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100004",
+        suffix="T016",
+    )
+    request_id = str(created["spare_request_id"])
+    query = InventoryRequestsQueryService(factory)
+
+    with ReadSnapshot(factory) as snapshot:
+        before = (
+            snapshot.connection.execute(
+                "SELECT lifecycle_state,current_submission_snapshot_id,"
+                "response_warning_start_utc,revision,input_fingerprint "
+                "FROM spare_request_current_projection WHERE spare_request_id=?",
+                (request_id,),
+            ).fetchone(),
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM spare_request_lifecycle_events "
+                "WHERE spare_request_id=?",
+                (request_id,),
+            ).fetchone()[0],
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM command_receipts"
+            ).fetchone()[0],
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM audit_events"
+            ).fetchone()[0],
+        )
+
+    generated = query.spare_request_draft_payload(request_id)
+    exported = query.spare_request_draft_payload(request_id)
+    opened = query.spare_request_draft_payload(request_id)
+
+    assert generated == exported == opened
+    assert generated.payload["schema"] == "INVENTORY_SPARE_REQUEST_DRAFT_V1"
+    assert generated.payload["temporary_tracking_id"] == created["local_handle"]
+    assert generated.payload["request_revision"] == 1
+
+    with ReadSnapshot(factory) as snapshot:
+        after = (
+            snapshot.connection.execute(
+                "SELECT lifecycle_state,current_submission_snapshot_id,"
+                "response_warning_start_utc,revision,input_fingerprint "
+                "FROM spare_request_current_projection WHERE spare_request_id=?",
+                (request_id,),
+            ).fetchone(),
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM spare_request_lifecycle_events "
+                "WHERE spare_request_id=?",
+                (request_id,),
+            ).fetchone()[0],
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM command_receipts"
+            ).fetchone()[0],
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM audit_events"
+            ).fetchone()[0],
+        )
+    assert tuple(before[0]) == ("draft", None, None, 1, generated.payload["request_input_fingerprint"])
+    assert after == before
+
+
+def test_t017_manual_submission_freezes_exact_snapshot_and_replays(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        need_id,
+        _requester,
+        receiver,
+        location_id,
+        service,
+        created,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100005",
+        suffix="T017",
+    )
+    request_id = str(created["spare_request_id"])
+    detail = InventoryRequestsQueryService(factory).get_spare_request(request_id)
+    command_id = new_uuid4()
+
+    submitted = service.accept_spare_request_submission(
+        command_id=command_id,
+        spare_request_id=request_id,
+        base_revision=1,
+        expected_draft_fingerprint=str(detail["input_fingerprint"]),
+        effective_submission_at_utc=1_700_000_000,
+    )
+    assert submitted["state"] == "submitted"
+    assert submitted["revision"] == 2
+
+    replay = service.accept_spare_request_submission(
+        command_id=command_id,
+        spare_request_id=request_id,
+        base_revision=1,
+        expected_draft_fingerprint=str(detail["input_fingerprint"]),
+        effective_submission_at_utc=1_700_000_000,
+    )
+    assert replay == submitted
+
+    with ReadSnapshot(factory) as snapshot:
+        projection = snapshot.connection.execute(
+            "SELECT lifecycle_state,current_submission_snapshot_id,submitted_quantity,"
+            "response_warning_start_utc,revision FROM spare_request_current_projection "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        assert tuple(projection[0:1] + projection[2:]) == (
+            "submitted_awaiting_response",
+            2,
+            1_700_000_000,
+            2,
+        )
+        snapshot_id = str(projection[1])
+        submission = snapshot.connection.execute(
+            "SELECT temporary_tracking_id,mode,receiver_contact_id,dispatch_location_id,"
+            "location_name_snapshot,location_address_snapshot,recipient_context_json,"
+            "effective_submission_at_utc,evidence_kind,evidence_id,snapshot_hash "
+            "FROM spare_request_submission_snapshots WHERE submission_snapshot_id=?",
+            (snapshot_id,),
+        ).fetchone()
+        assert tuple(submission[:6]) == (
+            created["local_handle"],
+            "delivery",
+            receiver.contact_id,
+            location_id,
+            "Warehouse T017",
+            "T017 test address",
+        )
+        assert int(submission[7]) == 1_700_000_000
+        assert submission[8] is None and submission[9] is None
+        allocation = snapshot.connection.execute(
+            "SELECT spare_need_id,quantity,requested_bom_code,requested_bom_key "
+            "FROM spare_request_submission_allocations WHERE submission_snapshot_id=?",
+            (snapshot_id,),
+        ).fetchone()
+        assert str(allocation[0]) == need_id
+        assert int(allocation[1]) == 2
+        original_snapshot_row = tuple(submission)
+        original_allocation_row = tuple(allocation)
+
+    ContactReferenceService(factory).update_contact_descriptive_data(
+        command_id=new_uuid4(),
+        contact_id=receiver.contact_id,
+        base_revision=1,
+        name="Receiver Changed After Submission",
+    )
+    InventoryNeedsStockService(factory).set_spare_need_planned_quantity(
+        command_id=new_uuid4(),
+        spare_need_id=need_id,
+        base_revision=1,
+        planned_quantity=9,
+        reason_code="post-submission planning change",
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT temporary_tracking_id,mode,receiver_contact_id,dispatch_location_id,"
+                "location_name_snapshot,location_address_snapshot,recipient_context_json,"
+                "effective_submission_at_utc,evidence_kind,evidence_id,snapshot_hash "
+                "FROM spare_request_submission_snapshots WHERE submission_snapshot_id=?",
+                (snapshot_id,),
+            ).fetchone()
+        ) == original_snapshot_row
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT spare_need_id,quantity,requested_bom_code,requested_bom_key "
+                "FROM spare_request_submission_allocations WHERE submission_snapshot_id=?",
+                (snapshot_id,),
+            ).fetchone()
+        ) == original_allocation_row
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_submission_snapshots "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()[0] == 1
+
+
+def test_t018_indexed_sent_submission_requires_and_uses_typed_validator(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _requester,
+        _receiver,
+        _location_id,
+        _service,
+        created,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100006",
+        suffix="T018",
+    )
+    request_id = str(created["spare_request_id"])
+    detail = InventoryRequestsQueryService(factory).get_spare_request(request_id)
+
+    unavailable = InventoryRequestsRmaService(factory)
+    with pytest.raises(SomaError) as excinfo:
+        unavailable.accept_spare_request_submission(
+            command_id=new_uuid4(),
+            spare_request_id=request_id,
+            base_revision=1,
+            expected_draft_fingerprint=str(detail["input_fingerprint"]),
+            effective_submission_at_utc=1_700_100_000,
+            evidence_kind="indexed_sent",
+            evidence_id="COMM-EVIDENCE-001",
+        )
+    assert excinfo.value.code == "DEPENDENCY_INDETERMINATE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT lifecycle_state FROM spare_request_current_projection "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()[0] == "draft"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_request_submission_snapshots "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()[0] == 0
+
+    validator = _ValidIndexedSentEvidence()
+    service = InventoryRequestsRmaService(
+        factory,
+        submission_evidence_validator=validator,
+    )
+    submitted = service.accept_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        expected_draft_fingerprint=str(detail["input_fingerprint"]),
+        effective_submission_at_utc=1_700_100_000,
+        evidence_kind="indexed_sent",
+        evidence_id="COMM-EVIDENCE-001",
+    )
+    assert submitted["state"] == "submitted"
+    assert validator.calls == [
+        (
+            request_id,
+            1,
+            "indexed_sent",
+            "COMM-EVIDENCE-001",
+        )
+    ]
+    with ReadSnapshot(factory) as snapshot:
+        evidence = snapshot.connection.execute(
+            "SELECT evidence_kind,evidence_id FROM spare_request_submission_snapshots "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        assert tuple(evidence) == ("indexed_sent", "COMM-EVIDENCE-001")
+
+
+def test_t019_response_attention_flips_at_exact_twenty_four_hour_boundary(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _requester,
+        _receiver,
+        _location_id,
+        service,
+        created,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100007",
+        suffix="T019",
+    )
+    request_id = str(created["spare_request_id"])
+    detail = InventoryRequestsQueryService(factory).get_spare_request(request_id)
+    warning_start = 1_700_200_000
+    service.accept_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        expected_draft_fingerprint=str(detail["input_fingerprint"]),
+        effective_submission_at_utc=warning_start,
+    )
+
+    attention = InventoryAttentionQueryService(factory)
+    assert attention.spare_request_response_attention(
+        spare_request_id=request_id,
+        as_of_utc=warning_start + 86_399,
+    ) is None
+    exact = attention.spare_request_response_attention(
+        spare_request_id=request_id,
+        as_of_utc=warning_start + 86_400,
+    )
+    assert exact is not None
+    assert exact.attention_kind == "spare_request_response_overdue"
+    assert exact.warning_start_utc == warning_start
+    assert exact.due_at_utc == warning_start + 86_400
+    assert exact.age_seconds == 86_400
+
+
+def test_t020_false_submission_correction_preserves_snapshot_and_restores_draft(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        need_id,
+        _requester,
+        receiver,
+        location_id,
+        service,
+        created,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100008",
+        suffix="T020",
+    )
+    request_id = str(created["spare_request_id"])
+    query = InventoryRequestsQueryService(factory)
+    detail = query.get_spare_request(request_id)
+    service.accept_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        expected_draft_fingerprint=str(detail["input_fingerprint"]),
+        effective_submission_at_utc=1_700_300_000,
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        current = snapshot.connection.execute(
+            "SELECT p.current_submission_snapshot_id,s.submission_event_id,s.snapshot_hash "
+            "FROM spare_request_current_projection p "
+            "JOIN spare_request_submission_snapshots s "
+            "ON s.submission_snapshot_id=p.current_submission_snapshot_id "
+            "WHERE p.spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        snapshot_id = str(current[0])
+        submission_event_id = str(current[1])
+        snapshot_hash = str(current[2])
+
+    corrected = service.correct_false_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=2,
+        submission_event_id=submission_event_id,
+        reason_code="operator confirmed message was never sent",
+        confirmed_no_real_send=True,
+    )
+    assert corrected["state"] == "draft"
+    assert corrected["revision"] == 3
+
+    with ReadSnapshot(factory) as snapshot:
+        projection = snapshot.connection.execute(
+            "SELECT lifecycle_state,current_submission_snapshot_id,submitted_quantity,"
+            "response_warning_start_utc,revision FROM spare_request_current_projection "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        assert tuple(projection) == ("draft", None, 0, None, 3)
+        preserved = snapshot.connection.execute(
+            "SELECT snapshot_hash FROM spare_request_submission_snapshots "
+            "WHERE submission_snapshot_id=?",
+            (snapshot_id,),
+        ).fetchone()
+        assert str(preserved[0]) == snapshot_hash
+        correction = snapshot.connection.execute(
+            "SELECT target_event_id,reason_code FROM spare_request_lifecycle_events "
+            "WHERE spare_request_id=? AND event_kind='submission_corrected_false'",
+            (request_id,),
+        ).fetchone()
+        assert tuple(correction) == (
+            submission_event_id,
+            "operator confirmed message was never sent",
+        )
+
+    updated = service.update_spare_request_draft(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=3,
+        allocations=(SpareRequestAllocationIntent(need_id, 4),),
+        mode="self_pickup",
+        receiver_contact_id=receiver.contact_id,
+        dispatch_location_id=location_id,
+    )
+    assert updated["state"] == "draft"
+    assert updated["revision"] == 4
+
+
+def test_false_submission_correction_rejects_indexed_sent_evidence(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _requester,
+        _receiver,
+        _location_id,
+        _service,
+        created,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100009",
+        suffix="T020-EVIDENCE",
+    )
+    request_id = str(created["spare_request_id"])
+    detail = InventoryRequestsQueryService(factory).get_spare_request(request_id)
+    validator = _ValidIndexedSentEvidence()
+    service = InventoryRequestsRmaService(
+        factory,
+        submission_evidence_validator=validator,
+    )
+    service.accept_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        expected_draft_fingerprint=str(detail["input_fingerprint"]),
+        evidence_kind="indexed_sent",
+        evidence_id="COMM-EVIDENCE-REAL",
+    )
+    with ReadSnapshot(factory) as snapshot:
+        event_id = snapshot.connection.execute(
+            "SELECT submission_event_id FROM spare_request_submission_snapshots "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()[0]
+
+    with pytest.raises(SomaError) as excinfo:
+        service.correct_false_spare_request_submission(
+            command_id=new_uuid4(),
+            spare_request_id=request_id,
+            base_revision=2,
+            submission_event_id=str(event_id),
+            reason_code="incorrect operator claim",
+            confirmed_no_real_send=True,
+        )
+    assert excinfo.value.code == "CORRECTION_TARGET_INVALID"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT lifecycle_state FROM spare_request_current_projection "
+            "WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()[0] == "submitted_awaiting_response"
+
