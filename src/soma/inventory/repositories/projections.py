@@ -488,5 +488,241 @@ class InventoryProjectionsRepository:
             "unit_refs": tuple(unit_refs),
         }
 
+    @staticmethod
+    def current_physical_consequence(connection: Any, physical_consequence_id: str):
+        return connection.execute(
+            "SELECT i.physical_consequence_id,i.task_id,i.target_device_part_unit_id,"
+            "i.rma_id,c.task_review_fingerprint,c.physical_disposition,"
+            "c.installed_spare_part_unit_id,c.removed_device_part_unit_id,"
+            "c.inbound_spare_part_unit_id,c.parent_dismantled_unit_id,"
+            "c.revision,c.input_fingerprint,c.last_event_id "
+            "FROM inventory_physical_consequences i "
+            "JOIN physical_consequence_current c "
+            "ON c.physical_consequence_id=i.physical_consequence_id "
+            "WHERE i.physical_consequence_id=?",
+            (physical_consequence_id,),
+        ).fetchone()
+
+    @classmethod
+    def correct_physical_consequence(
+        cls,
+        connection: Any,
+        *,
+        physical_consequence_id: str,
+        expected_revision: int,
+        expected_event_id: str,
+        task_review_fingerprint: str,
+        disposition: str,
+        installed_spare_part_unit_id: str | None,
+        removed_device_part_unit_id: str | None,
+        inbound_spare_part_unit_id: str | None,
+        parent_dismantled_unit_id: str | None,
+        effective_at_utc: int | None,
+        selection: ReturnSelection | None,
+        reason_code: str,
+        command_id: str,
+    ) -> dict[str, object]:
+        row = cls.current_physical_consequence(connection, physical_consequence_id)
+        if (
+            row is None
+            or int(row[10]) != expected_revision
+            or str(row[12]) != expected_event_id
+        ):
+            raise SomaError("INV_STALE", "Physical consequence current authority changed")
+
+        current_relationships = (
+            None if row[6] is None else str(row[6]),
+            None if row[7] is None else str(row[7]),
+            None if row[8] is None else str(row[8]),
+            None if row[9] is None else str(row[9]),
+        )
+        replacement_relationships = (
+            installed_spare_part_unit_id,
+            removed_device_part_unit_id,
+            inbound_spare_part_unit_id,
+            parent_dismantled_unit_id,
+        )
+        if current_relationships != replacement_relationships:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Physical relationship changes require a separately reviewed replacement workflow",
+            )
+
+        if connection.execute(
+            "SELECT 1 FROM fault_tag_membership_submission_snapshots s "
+            "JOIN fault_tag_memberships m "
+            "ON m.fault_tag_membership_id=s.fault_tag_membership_id "
+            "WHERE m.physical_consequence_id=? LIMIT 1",
+            (physical_consequence_id,),
+        ).fetchone() is not None:
+            raise SomaError(
+                "REPLACEMENT_LINEAGE_CONFLICT",
+                "Submitted Fault Tag history consumed this physical consequence",
+            )
+
+        rma_id = None if row[3] is None else str(row[3])
+        obligation = None
+        if rma_id is not None:
+            obligation = connection.execute(
+                "SELECT obligation_state,device_part_unit_id,spare_part_unit_id,"
+                "physical_consequence_id,revision,last_event_id "
+                "FROM rma_return_obligation_current WHERE rma_id=?",
+                (rma_id,),
+            ).fetchone()
+            if obligation is None:
+                raise IntegrityFailure("RMA physical consequence lacks return-obligation projection")
+            if selection is None:
+                if str(obligation[0]) != "not_established":
+                    raise SomaError(
+                        "CORRECTION_TARGET_INVALID",
+                        "Correction cannot clear an established return selection in place",
+                    )
+            else:
+                if (
+                    str(obligation[0]) != "open"
+                    or obligation[3] is None
+                    or str(obligation[3]) != physical_consequence_id
+                ):
+                    raise SomaError(
+                        "CORRECTION_TARGET_INVALID",
+                        "Current return obligation does not belong to this consequence",
+                    )
+                selected_device = (
+                    selection.unit_id if selection.unit_kind == "device_part_unit" else None
+                )
+                selected_spare = (
+                    selection.unit_id if selection.unit_kind == "spare_part_unit" else None
+                )
+                if (
+                    (None if obligation[1] is None else str(obligation[1])) != selected_device
+                    or (None if obligation[2] is None else str(obligation[2])) != selected_spare
+                ):
+                    raise SomaError(
+                        "CORRECTION_TARGET_INVALID",
+                        "Return-unit changes require a separately reviewed replacement workflow",
+                    )
+
+        now = utc_epoch_seconds()
+        consequence_event_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO physical_consequence_events("
+            "consequence_event_id,physical_consequence_id,event_kind,physical_disposition,"
+            "installed_spare_part_unit_id,removed_device_part_unit_id,"
+            "inbound_spare_part_unit_id,parent_dismantled_unit_id,effective_at_utc,"
+            "target_event_id,reason_code,recorded_at_utc,command_id"
+            ") VALUES (?,?,'correct',?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                consequence_event_id,
+                physical_consequence_id,
+                disposition,
+                installed_spare_part_unit_id,
+                removed_device_part_unit_id,
+                inbound_spare_part_unit_id,
+                parent_dismantled_unit_id,
+                effective_at_utc,
+                expected_event_id,
+                reason_code,
+                now,
+                command_id,
+            ),
+        )
+        resulting_revision = expected_revision + 1
+        fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_PHYSICAL_CONSEQUENCE_CURRENT_V1",
+                "physical_consequence_id": physical_consequence_id,
+                "task_review_fingerprint": task_review_fingerprint,
+                "physical_disposition": disposition,
+                "installed_spare_part_unit_id": installed_spare_part_unit_id,
+                "removed_device_part_unit_id": removed_device_part_unit_id,
+                "inbound_spare_part_unit_id": inbound_spare_part_unit_id,
+                "parent_dismantled_unit_id": parent_dismantled_unit_id,
+                "last_event_id": consequence_event_id,
+            }
+        )
+        changed = connection.execute(
+            "UPDATE physical_consequence_current SET task_review_fingerprint=?,"
+            "physical_disposition=?,installed_spare_part_unit_id=?,"
+            "removed_device_part_unit_id=?,inbound_spare_part_unit_id=?,"
+            "parent_dismantled_unit_id=?,revision=?,input_fingerprint=?,"
+            "last_event_id=?,last_command_id=? "
+            "WHERE physical_consequence_id=? AND revision=? AND last_event_id=?",
+            (
+                task_review_fingerprint,
+                disposition,
+                installed_spare_part_unit_id,
+                removed_device_part_unit_id,
+                inbound_spare_part_unit_id,
+                parent_dismantled_unit_id,
+                resulting_revision,
+                fingerprint,
+                consequence_event_id,
+                command_id,
+                physical_consequence_id,
+                expected_revision,
+                expected_event_id,
+            ),
+        )
+        if changed.rowcount != 1:
+            raise SomaError("INV_STALE", "Physical consequence changed during correction")
+
+        return_event_id = None
+        obligation_revision = None
+        if rma_id is not None and selection is not None:
+            assert obligation is not None
+            prior_return_event_id = None if obligation[5] is None else str(obligation[5])
+            if prior_return_event_id is None:
+                raise IntegrityFailure("Open return obligation lacks current selection event")
+            return_event_id = new_uuid4()
+            device_return = (
+                selection.unit_id if selection.unit_kind == "device_part_unit" else None
+            )
+            spare_return = (
+                selection.unit_id if selection.unit_kind == "spare_part_unit" else None
+            )
+            connection.execute(
+                "INSERT INTO rma_return_selection_events("
+                "return_selection_event_id,rma_id,physical_consequence_id,event_kind,"
+                "device_part_unit_id,spare_part_unit_id,reason_code,effective_at_utc,"
+                "target_event_id,recorded_at_utc,command_id"
+                ") VALUES (?,?,?,'correct',?,?,?,?,?,?,?)",
+                (
+                    return_event_id,
+                    rma_id,
+                    physical_consequence_id,
+                    device_return,
+                    spare_return,
+                    reason_code,
+                    effective_at_utc,
+                    prior_return_event_id,
+                    now,
+                    command_id,
+                ),
+            )
+            obligation_revision = int(obligation[4]) + 1
+            updated = connection.execute(
+                "UPDATE rma_return_obligation_current SET revision=?,last_event_id=?,"
+                "last_command_id=? WHERE rma_id=? AND revision=? "
+                "AND obligation_state='open' AND last_event_id=?",
+                (
+                    obligation_revision,
+                    return_event_id,
+                    command_id,
+                    rma_id,
+                    int(obligation[4]),
+                    prior_return_event_id,
+                ),
+            )
+            if updated.rowcount != 1:
+                raise SomaError("INV_STALE", "Return obligation changed during correction")
+
+        return {
+            "consequence_event_id": consequence_event_id,
+            "consequence_revision": resulting_revision,
+            "return_selection_event_id": return_event_id,
+            "obligation_revision": obligation_revision,
+            "rma_id": rma_id,
+        }
+
 
 __all__ = ["InventoryProjectionsRepository"]

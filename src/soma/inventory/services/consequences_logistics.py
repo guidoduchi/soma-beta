@@ -12,7 +12,7 @@ from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditW
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import UnitOfWork
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 
 from ..audit_registry import build_inventory_audit_registry
 from ..contracts.inventory import (
@@ -661,6 +661,189 @@ class InventoryConsequencesLogisticsService:
                         or apply.result["obligation_revision"] is None
                         else {
                             f"rma_return_obligation:{rma}": int(
+                                apply.result["obligation_revision"]
+                            )
+                        }
+                    ),
+                ),
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
+
+    def correct_inventory_physical_consequence(
+        self,
+        *,
+        command_id: str,
+        physical_consequence_id: str,
+        expected_revision: int,
+        expected_event_id: str,
+        task_review_fingerprint: str,
+        physical_disposition: str,
+        installed_spare_part_unit_id: str | None = None,
+        removed_device_part_unit_id: str | None = None,
+        inbound_spare_part_unit_id: str | None = None,
+        parent_dismantled_unit_id: str | None = None,
+        effective_at_utc: int | None = None,
+        reason_code: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        identity = require_uuid4(physical_consequence_id)
+        if type(expected_revision) is not int or expected_revision <= 0:
+            raise ValidationError("expected_revision must be positive")
+        current_event = require_uuid4(expected_event_id)
+        if (
+            not isinstance(task_review_fingerprint, str)
+            or regex.fullmatch(r"[0-9a-f]{64}", task_review_fingerprint) is None
+        ):
+            raise ValidationError("task_review_fingerprint must be lowercase SHA-256 hex")
+        disposition = validate_disposition(physical_disposition)
+        installed = consequence_optional_uuid(
+            installed_spare_part_unit_id, "installed_spare_part_unit_id"
+        )
+        removed = consequence_optional_uuid(
+            removed_device_part_unit_id, "removed_device_part_unit_id"
+        )
+        inbound = consequence_optional_uuid(
+            inbound_spare_part_unit_id, "inbound_spare_part_unit_id"
+        )
+        parent = consequence_optional_uuid(
+            parent_dismantled_unit_id, "parent_dismantled_unit_id"
+        )
+        effective = validate_consequence_effective_at_utc(effective_at_utc)
+        selection = validate_consequence_shape(
+            disposition=disposition,
+            installed_spare_part_unit_id=installed,
+            removed_device_part_unit_id=removed,
+            inbound_spare_part_unit_id=inbound,
+            parent_dismantled_unit_id=parent,
+        )
+        reason = reason_code.strip() if isinstance(reason_code, str) else ""
+        if not reason or len(reason.encode("utf-8", errors="strict")) > 384:
+            raise ValidationError("reason_code is invalid")
+
+        with ReadSnapshot(self._factory) as snapshot:
+            current = self._projections.current_physical_consequence(
+                snapshot.connection, identity
+            )
+            if current is None:
+                raise SomaError("CORRECTION_TARGET_INVALID", "Physical consequence is missing")
+            task_id = str(current[1])
+            if int(current[10]) != expected_revision or str(current[12]) != current_event:
+                raise SomaError("INV_STALE", "Physical consequence changed")
+            if self._task_evidence.review_fingerprint(snapshot, task_id) != task_review_fingerprint:
+                raise SomaError("TASK_REVIEW_STALE", "Task review fingerprint changed")
+
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CorrectInventoryPhysicalConsequence",
+            target_type="inventory_physical_consequence",
+            target_id=identity,
+            semantic_payload={
+                "expected_event_id": current_event,
+                "physical_disposition": disposition,
+                "installed_spare_part_unit_id": installed,
+                "removed_device_part_unit_id": removed,
+                "inbound_spare_part_unit_id": inbound,
+                "parent_dismantled_unit_id": parent,
+                "effective_at_utc": effective,
+                "reason_code": reason,
+            },
+            base_revisions={"inventory_physical_consequence": expected_revision},
+            authorizing_fingerprints={"task_review": task_review_fingerprint},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            current = self._projections.current_physical_consequence(
+                uow.connection, identity
+            )
+            if (
+                current is None
+                or int(current[10]) != expected_revision
+                or str(current[12]) != current_event
+            ):
+                raise SomaError("INV_STALE", "Physical consequence changed")
+            task_id = str(current[1])
+            if self._task_evidence.review_fingerprint(uow, task_id) != task_review_fingerprint:
+                raise SomaError("TASK_REVIEW_STALE", "Task review fingerprint changed")
+            rma_id = None if current[3] is None else str(current[3])
+
+            def apply(inner: UnitOfWork):
+                result = self._projections.correct_physical_consequence(
+                    inner.connection,
+                    physical_consequence_id=identity,
+                    expected_revision=expected_revision,
+                    expected_event_id=current_event,
+                    task_review_fingerprint=task_review_fingerprint,
+                    disposition=disposition,
+                    installed_spare_part_unit_id=installed,
+                    removed_device_part_unit_id=removed,
+                    inbound_spare_part_unit_id=inbound,
+                    parent_dismantled_unit_id=parent,
+                    effective_at_utc=effective,
+                    selection=selection,
+                    reason_code=reason,
+                    command_id=command_id,
+                )
+                apply.result = result
+                refs = [AuditResultRef("inventory_physical_consequence", identity)]
+                if rma_id is not None and result["obligation_revision"] is not None:
+                    refs.append(AuditResultRef("rma_return_obligation", rma_id))
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.task_physical_consequence.accepted_or_corrected",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="task",
+                    target_id=task_id,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="PhysicalConsequenceAuditV1",
+                    payload_version=1,
+                    payload={
+                        "physical_consequence_id": identity,
+                        "task_id": task_id,
+                        "task_review_fingerprint": task_review_fingerprint,
+                        "event_kind": "CORRECT",
+                        "disposition": disposition,
+                        "return_obligation_id": (
+                            rma_id if result["obligation_revision"] is not None else None
+                        ),
+                        "resulting_revision": int(result["consequence_revision"]),
+                    },
+                    resulting_event_refs=tuple(refs),
+                )
+
+            apply.result = {
+                "consequence_revision": expected_revision + 1,
+                "obligation_revision": None,
+            }
+            return PreparedMutation(
+                no_change=False,
+                result_type="inventory_physical_consequence",
+                result_id=identity,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: self._response(
+                    [("inventory_physical_consequence", identity)]
+                    + (
+                        []
+                        if rma_id is None or apply.result["obligation_revision"] is None
+                        else [("rma_return_obligation", rma_id)]
+                    ),
+                    {
+                        f"inventory_physical_consequence:{identity}": int(
+                            apply.result["consequence_revision"]
+                        )
+                    }
+                    | (
+                        {}
+                        if rma_id is None or apply.result["obligation_revision"] is None
+                        else {
+                            f"rma_return_obligation:{rma_id}": int(
                                 apply.result["obligation_revision"]
                             )
                         }
