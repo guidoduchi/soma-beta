@@ -23,6 +23,8 @@ _CURSOR_FIELDS = frozenset(
 )
 _STOCK_QUERY_ID = "StockEligibilityQuery"
 _STOCK_SORT_ID = "INVENTORY_STOCK_COMPAT_LSU_ID_ASC_V1"
+_NEED_QUERY_ID = "InventoryNeedsQuery"
+_NEED_SORT_ID = "INVENTORY_NEED_SR_BOM_ID_ASC_V1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +71,13 @@ class StockEligibilityItem:
 @dataclass(frozen=True, slots=True)
 class StockEligibilityPage:
     items: tuple[StockEligibilityItem, ...]
+    continuation: dict[str, object] | None
+    exact_total: int
+
+
+@dataclass(frozen=True, slots=True)
+class InventoryNeedPage:
+    items: tuple[dict[str, object], ...]
     continuation: dict[str, object] | None
     exact_total: int
 
@@ -130,6 +139,231 @@ class InventoryNeedsQueryService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
         self._units = InventoryUnitsRepository()
+
+    @staticmethod
+    def _decode_need_cursor(
+        cursor: dict[str, object] | None,
+        *,
+        filter_fingerprint: str,
+    ) -> tuple[str, str, str] | None:
+        if cursor is None:
+            return None
+        if not isinstance(cursor, dict) or set(cursor) != _CURSOR_FIELDS:
+            raise ValidationError("Inventory Need cursor shape is invalid")
+        if (
+            cursor["version"] != 1
+            or cursor["query_id"] != _NEED_QUERY_ID
+            or cursor["sort_registry_id"] != _NEED_SORT_ID
+            or cursor["filter_fingerprint"] != filter_fingerprint
+            or cursor["null_order"] != "not_applicable"
+        ):
+            raise ValidationError("Inventory Need cursor contract is invalid")
+        key = cursor["last_key_tuple"]
+        if (
+            not isinstance(key, list)
+            or len(key) != 3
+            or any(not isinstance(value, str) for value in key)
+        ):
+            raise ValidationError("Inventory Need cursor key is invalid")
+        require_uuid4(key[0])
+        require_uuid4(key[2])
+        return str(key[0]), str(key[1]), str(key[2])
+
+    def inventory_needs(
+        self,
+        *,
+        service_request_id: str | None = None,
+        customer_org_id: str | None = None,
+        lifecycle_state: str | None = None,
+        bom_code: str | None = None,
+        cursor: dict[str, object] | None = None,
+        limit: int = 100,
+    ) -> InventoryNeedPage:
+        page_limit = _limit(limit)
+        sr_id = None if service_request_id is None else require_uuid4(service_request_id)
+        customer_id = None if customer_org_id is None else require_uuid4(customer_org_id)
+        if lifecycle_state is not None and lifecycle_state not in {
+            "active",
+            "resolved",
+            "cancelled",
+            "removed",
+        }:
+            raise ValidationError("Inventory Need lifecycle_state is invalid")
+        normalized_bom: str | None = None
+        bom_key: str | None = None
+        if bom_code is not None:
+            normalized_bom, bom_key = normalize_part_code(bom_code)
+        fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_INVENTORY_NEEDS_FILTER_V1",
+                "service_request_id": sr_id,
+                "customer_org_id": customer_id,
+                "lifecycle_state": lifecycle_state,
+                "bom_code": normalized_bom,
+                "bom_key": bom_key,
+            }
+        )
+        after = self._decode_need_cursor(cursor, filter_fingerprint=fingerprint)
+
+        with ReadSnapshot(self._factory) as snapshot:
+            clauses: list[str] = []
+            params: list[object] = []
+            if sr_id is not None:
+                clauses.append("n.service_request_id=?")
+                params.append(sr_id)
+            if customer_id is not None:
+                clauses.append(
+                    "EXISTS(SELECT 1 FROM sr_customer_relationships scr "
+                    "WHERE scr.service_request_id=n.service_request_id "
+                    "AND scr.relationship_state='active' AND scr.customer_org_id=?)"
+                )
+                params.append(customer_id)
+            if lifecycle_state is not None:
+                clauses.append("p.lifecycle_state=?")
+                params.append(lifecycle_state)
+            if bom_key is not None:
+                clauses.append("n.bom_key=?")
+                params.append(bom_key)
+            where = "" if not clauses else "WHERE " + " AND ".join(clauses)
+            rows = snapshot.connection.execute(
+                "SELECT n.spare_need_id,n.service_request_id,n.bom_code,n.bom_key,"
+                "n.description,p.lifecycle_state,p.planned_quantity,p.contributor_count,"
+                "p.revision,p.input_fingerprint "
+                "FROM spare_needs n JOIN spare_need_current_projection p "
+                "ON p.spare_need_id=n.spare_need_id "
+                f"{where} "
+                "ORDER BY n.service_request_id,n.bom_key,n.spare_need_id",
+                tuple(params),
+            ).fetchall()
+
+            projected: list[tuple[tuple[str, str, str], dict[str, object]]] = []
+            for row in rows:
+                need_id = str(row[0])
+                key = (str(row[1]), str(row[3]), need_id)
+                if after is not None and key <= after:
+                    continue
+                request_rows = snapshot.connection.execute(
+                    "SELECT a.spare_request_id,a.quantity,a.active_draft,"
+                    "p.lifecycle_state,p.current_sr7,p.revision "
+                    "FROM spare_request_need_allocations a "
+                    "JOIN spare_request_current_projection p "
+                    "ON p.spare_request_id=a.spare_request_id "
+                    "WHERE a.spare_need_id=? "
+                    "ORDER BY a.spare_request_id",
+                    (need_id,),
+                ).fetchall()
+                fulfillment_rows = snapshot.connection.execute(
+                    "SELECT f.local_fulfillment_event_id,f.spare_part_unit_id,f.task_id,"
+                    "f.event_kind,f.recorded_at_utc "
+                    "FROM local_need_fulfillment_events f "
+                    "WHERE f.spare_need_id=? "
+                    "ORDER BY f.recorded_at_utc,f.local_fulfillment_event_id",
+                    (need_id,),
+                ).fetchall()
+                history_rows = snapshot.connection.execute(
+                    "SELECT need_event_id,event_kind,planned_quantity,reason_code,"
+                    "effective_at_utc,recorded_at_utc "
+                    "FROM spare_need_lifecycle_events WHERE spare_need_id=? "
+                    "ORDER BY recorded_at_utc,need_event_id",
+                    (need_id,),
+                ).fetchall()
+                request_quantity = sum(int(item[1]) for item in request_rows)
+                current_local_selected = {
+                    str(item[1])
+                    for item in fulfillment_rows
+                    if str(item[3]) == "selected"
+                } - {
+                    str(item[1])
+                    for item in fulfillment_rows
+                    if str(item[3]) in {"released", "superseded"}
+                }
+                blockers: list[str] = []
+                if str(row[5]) != "active":
+                    blockers.append("need_not_active")
+                if any(
+                    str(item[3]) not in {"cancelled", "rejected"}
+                    for item in request_rows
+                ):
+                    blockers.append("nonterminal_request_dependency")
+                projected.append(
+                    (
+                        key,
+                        {
+                            "spare_need_id": need_id,
+                            "service_request_id": str(row[1]),
+                            "bom_code": str(row[2]),
+                            "description": None if row[4] is None else str(row[4]),
+                            "lifecycle_state": str(row[5]),
+                            "planned_quantity": int(row[6]),
+                            "contributor_count": int(row[7]),
+                            "revision": int(row[8]),
+                            "input_fingerprint": str(row[9]),
+                            "request_allocation_quantity": request_quantity,
+                            "request_count": len(request_rows),
+                            "local_selected_quantity": len(current_local_selected),
+                            "request_histories": [
+                                {
+                                    "spare_request_id": str(item[0]),
+                                    "quantity": int(item[1]),
+                                    "active_draft": bool(item[2]),
+                                    "lifecycle_state": str(item[3]),
+                                    "current_sr7": None
+                                    if item[4] is None
+                                    else str(item[4]),
+                                    "revision": int(item[5]),
+                                }
+                                for item in request_rows
+                            ],
+                            "local_fulfillment_history": [
+                                {
+                                    "local_fulfillment_event_id": str(item[0]),
+                                    "spare_part_unit_id": str(item[1]),
+                                    "task_id": None if item[2] is None else str(item[2]),
+                                    "event_kind": str(item[3]),
+                                    "recorded_at_utc": int(item[4]),
+                                }
+                                for item in fulfillment_rows
+                            ],
+                            "lifecycle_history": [
+                                {
+                                    "need_event_id": str(item[0]),
+                                    "event_kind": str(item[1]),
+                                    "planned_quantity": None
+                                    if item[2] is None
+                                    else int(item[2]),
+                                    "reason_code": None
+                                    if item[3] is None
+                                    else str(item[3]),
+                                    "effective_at_utc": None
+                                    if item[4] is None
+                                    else int(item[4]),
+                                    "recorded_at_utc": int(item[5]),
+                                }
+                                for item in history_rows
+                            ],
+                            "action_blockers": blockers,
+                        },
+                    )
+                )
+
+            exact_total = len(projected)
+            selected = projected[:page_limit]
+            continuation = None
+            if len(projected) > page_limit and selected:
+                last_key = selected[-1][0]
+                continuation = {
+                    "version": 1,
+                    "query_id": _NEED_QUERY_ID,
+                    "sort_registry_id": _NEED_SORT_ID,
+                    "last_key_tuple": list(last_key),
+                    "filter_fingerprint": fingerprint,
+                    "null_order": "not_applicable",
+                }
+            return InventoryNeedPage(
+                items=tuple(item for _key, item in selected),
+                continuation=continuation,
+                exact_total=exact_total,
+            )
 
     def preview_device_part_duplicates(
         self,
@@ -327,6 +561,7 @@ class InventoryNeedsQueryService:
 
 
 __all__ = [
+    "InventoryNeedPage",
     "DevicePartDuplicateCandidate",
     "InventoryNeedsQueryService",
     "SparePartDuplicateCandidate",
