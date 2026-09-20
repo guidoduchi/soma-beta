@@ -449,6 +449,36 @@ class InventoryConsequencesLogisticsService:
                         }
                     ),
                 )
+                child_audits = tuple(
+                    AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="inventory.spare_unit.registered_or_reserved",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="spare_part_unit",
+                        target_id=str(child["spare_part_unit_id"]),
+                        command_id=command_id,
+                        payload_schema="SpareUnitAuditV1",
+                        payload_version=1,
+                        payload={
+                            "spare_part_unit_id": str(child["spare_part_unit_id"]),
+                            "event_kind": "REGISTER",
+                            "task_id": task,
+                            "allocation_id": None,
+                            "spare_need_id": None,
+                            "resulting_revision": int(child["revision"]),
+                        },
+                        resulting_event_refs=(
+                            AuditResultRef(
+                                "spare_part_unit",
+                                str(child["spare_part_unit_id"]),
+                            ),
+                        ),
+                    )
+                    for child in result["extracted_units"]
+                )
+                return (consequence_audit, *child_audits)
 
             apply.result = {}
             return PreparedMutation(
