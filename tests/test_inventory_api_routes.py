@@ -65,3 +65,16 @@ def test_adapter_fails_closed_for_unassembled_owner_and_invalid_transport() -> N
         adapter.dispatch("GET", "/api/v1/inventory/stock", [])  # type: ignore[arg-type]
     with pytest.raises(ValidationError, match="without query"):
         resolve_inventory_route("GET", "/api/v1/inventory/stock?cursor=x")
+
+
+def test_fault_tag_false_submission_route_is_exactly_lowercase() -> None:
+    exact = resolve_fault_route(
+        "POST",
+        "/api/v1/inventory/fault-tags/00000000-0000-4000-8000-000000000001/submission/correct-false",
+    )
+    assert exact is not None
+    assert exact.spec.handler == "CorrectFalseFaultTagSubmission"
+    assert resolve_fault_route(
+        "POST",
+        "/api/v1/inventory/fault-tags/00000000-0000-4000-8000-000000000001/submission/correct-False",
+    ) is None
