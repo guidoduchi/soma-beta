@@ -773,7 +773,7 @@ class ObjectiveHardDeleteQueryService:
             tracking_id=tracking_id,
         )
 
-    def hard_delete_preview(
+    def preview(
         self,
         *,
         objective_id: str,
