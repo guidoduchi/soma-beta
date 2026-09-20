@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import hmac
 import re
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import Any
 
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
@@ -14,6 +13,16 @@ from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seco
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import ObjectContract, sha256_canonical_json
+from soma.tickets.queries.rfc_terminal_cascade import (
+    RfcTerminalCascadeImpactItem,
+    RfcTerminalCascadeImpactProviderPage,
+    RfcTerminalCascadeProposalSnapshot,
+)
+from soma.tickets.rfc_terminal_cascade import RfcTerminalCascadeWfmMember
+from soma.tickets.rfc_terminal_review import (
+    RfcTerminalCascadeExecutionCommandContext,
+    RfcTerminalCascadeParticipantApplyResult,
+)
 
 from ..audit_registry import build_objectives_tasks_audit_registry
 from ..contracts.objectives_tasks import TaskMutationResult, task_mutation_result_from_execution
@@ -431,39 +440,22 @@ class WfmSourceTerminalService:
         return task_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
 
-@dataclass(frozen=True, slots=True)
-class RfcTerminalCascadeExecutionCommandContext:
-    command_id: str
-    actor_kind: str
-    actor_id: str | None
-    reviewed_preview_fingerprint: str
-
-
-@dataclass(frozen=True, slots=True)
-class RfcTerminalCascadeParticipantApplyResult:
-    domain: str
-    result_ref_count: int
-    audit_event_count: int
-    result_fingerprint: str
-
-
 class RfcTerminalTaskParticipant:
     """LLD-03 same-UoW Task/Objective participant for RFC terminal cascades."""
 
     @staticmethod
-    def _proposal_id(proposal_snapshot: Mapping[str, object]) -> str:
-        if not isinstance(proposal_snapshot, Mapping):
-            raise ValidationError("proposal_snapshot must be an object")
-        value = proposal_snapshot.get("proposal_id")
-        if not isinstance(value, str):
-            raise ValidationError("proposal_snapshot.proposal_id must be UUID text")
-        return require_uuid4(value)
+    def _proposal_id(proposal_snapshot: RfcTerminalCascadeProposalSnapshot) -> str:
+        if not isinstance(proposal_snapshot, RfcTerminalCascadeProposalSnapshot):
+            raise ValidationError(
+                "proposal_snapshot must be RfcTerminalCascadeProposalSnapshot"
+            )
+        return require_uuid4(proposal_snapshot.proposal_id)
 
     @classmethod
     def _assert_snapshot_matches(
         cls,
-        preview: Mapping[str, object],
-        proposal_snapshot: Mapping[str, object],
+        preview: dict[str, object],
+        proposal_snapshot: RfcTerminalCascadeProposalSnapshot,
     ) -> None:
         proposal_id = cls._proposal_id(proposal_snapshot)
         if str(preview.get("proposal_id")) != proposal_id:
@@ -471,54 +463,38 @@ class RfcTerminalTaskParticipant:
                 "RFC_TERMINAL_CASCADE_STALE",
                 "RFC terminal cascade proposal identity changed",
             )
-        expected_revision = proposal_snapshot.get("proposal_revision")
-        expected_scope = proposal_snapshot.get("scope_fingerprint")
         if (
-            type(expected_revision) is not int
-            or expected_revision <= 0
-            or int(preview.get("proposal_revision", -1)) != expected_revision
-            or not isinstance(expected_scope, str)
-            or str(preview.get("scope_fingerprint")) != expected_scope
+            int(preview.get("proposal_revision", -1))
+            != proposal_snapshot.proposal_revision
+            or str(preview.get("scope_fingerprint"))
+            != proposal_snapshot.scope_fingerprint
         ):
             raise SomaError(
                 "RFC_TERMINAL_CASCADE_STALE",
                 "RFC terminal cascade proposal authority changed",
             )
-        supplied_wfms = proposal_snapshot.get("wfm_members")
-        if not isinstance(supplied_wfms, Sequence) or isinstance(
-            supplied_wfms, (str, bytes)
-        ):
-            raise ValidationError("proposal_snapshot.wfm_members must be an array")
-        normalized: list[tuple[str, str, int, str]] = []
-        for item in supplied_wfms:
-            if not isinstance(item, Mapping):
-                raise ValidationError("proposal WFM member must be an object")
-            task_id = require_uuid4(str(item.get("task_id")))
-            owning_rfc_id = require_uuid4(str(item.get("owning_rfc_id")))
-            revision = item.get("captured_task_revision")
-            task_no = item.get("captured_task_no")
-            if type(revision) is not int or revision <= 0:
-                raise ValidationError("captured_task_revision must be positive")
-            if (
-                not isinstance(task_no, str)
-                or len(task_no) != 16
-                or not task_no.startswith("TK")
-                or not task_no[2:].isascii()
-                or not task_no[2:].isdigit()
-            ):
-                raise ValidationError("captured_task_no is invalid")
-            normalized.append((task_id, owning_rfc_id, revision, task_no))
-        current = [
-            (
-                str(item["task_id"]),
-                str(item["owning_rfc_id"]),
-                int(item["task_revision"]),
-                str(item["task_no"]),
+        normalized = tuple(
+            sorted(
+                (
+                    member.task_id,
+                    member.owning_rfc_id,
+                    member.captured_task_revision,
+                    member.captured_task_no,
+                )
+                for member in proposal_snapshot.wfm_members
             )
-            for item in preview.get("captured_wfms", [])
-        ]
-        normalized.sort(key=lambda item: (item[1].encode("utf-8"), item[0].encode("utf-8")))
-        current.sort(key=lambda item: (item[1].encode("utf-8"), item[0].encode("utf-8")))
+        )
+        current = tuple(
+            sorted(
+                (
+                    str(item["task_id"]),
+                    str(item["owning_rfc_id"]),
+                    int(item["task_revision"]),
+                    str(item["task_no"]),
+                )
+                for item in preview.get("captured_wfms", [])
+            )
+        )
         if normalized != current:
             raise SomaError(
                 "RFC_TERMINAL_CASCADE_STALE",
@@ -526,17 +502,17 @@ class RfcTerminalTaskParticipant:
             )
 
     @staticmethod
-    def capture_applicable_wfms(
-        uow: UnitOfWork,
+    def _applicable_wfms(
+        connection: Any,
         rfc_ids: Sequence[str],
-    ) -> tuple[dict[str, object], ...]:
+    ) -> tuple[RfcTerminalCascadeWfmMember, ...]:
         if isinstance(rfc_ids, (str, bytes)) or not isinstance(rfc_ids, Sequence):
             raise ValidationError("rfc_ids must be a sequence")
         canonical = tuple(sorted({require_uuid4(value) for value in rfc_ids}))
         if not canonical:
             return ()
         placeholders = ",".join("?" for _ in canonical)
-        rows = uow.connection.execute(
+        rows = connection.execute(
             "SELECT t.task_id,w.current_rfc_id,t.revision,w.task_no "
             "FROM tasks t JOIN wfm_task_identities w ON w.task_id=t.task_id "
             "LEFT JOIN task_execution_projection e ON e.task_id=t.task_id "
@@ -548,63 +524,128 @@ class RfcTerminalTaskParticipant:
             canonical,
         ).fetchall()
         return tuple(
-            {
-                "task_id": str(row[0]),
-                "owning_rfc_id": str(row[1]),
-                "captured_task_revision": int(row[2]),
-                "captured_task_no": str(row[3]),
-            }
+            RfcTerminalCascadeWfmMember(
+                task_id=str(row[0]),
+                owning_rfc_id=str(row[1]),
+                captured_task_revision=int(row[2]),
+                captured_task_no=str(row[3]),
+            )
             for row in rows
         )
+
+    @classmethod
+    def capture_applicable_wfms(
+        cls,
+        uow: UnitOfWork,
+        rfc_ids: tuple[str, ...],
+    ) -> tuple[RfcTerminalCascadeWfmMember, ...]:
+        return cls._applicable_wfms(uow.connection, rfc_ids)
+
+    @classmethod
+    def snapshot_applicable_wfms(
+        cls,
+        snapshot: Any,
+        rfc_ids: tuple[str, ...],
+    ) -> tuple[RfcTerminalCascadeWfmMember, ...]:
+        connection = getattr(snapshot, "connection", snapshot)
+        return cls._applicable_wfms(connection, rfc_ids)
 
     @classmethod
     def preview_terminal_cascade(
         cls,
         snapshot: Any,
-        proposal_snapshot: Mapping[str, object],
-    ) -> dict[str, object]:
+        proposal_snapshot: RfcTerminalCascadeProposalSnapshot,
+        after_key: tuple[str, str] | None,
+        limit: int,
+    ) -> RfcTerminalCascadeImpactProviderPage:
+        if type(limit) is not int or not 1 <= limit <= 500:
+            raise ValidationError("terminal cascade participant page size must be 1..500")
+        if after_key is not None:
+            if (
+                not isinstance(after_key, tuple)
+                or len(after_key) != 2
+                or not isinstance(after_key[0], str)
+                or not isinstance(after_key[1], str)
+            ):
+                raise ValidationError("terminal cascade participant cursor key is invalid")
+            require_uuid4(after_key[1])
         connection = getattr(snapshot, "connection", snapshot)
         preview = RfcTerminalCascadeQueryService.preview_with_reader(
             connection,
             cls._proposal_id(proposal_snapshot),
         )
         if preview["status"] != "READY":
-            return {
-                "domain": "TASKS_OBJECTIVES",
-                "status": "INDETERMINATE",
-                "exact_count": None,
-                "provider_fingerprint": None,
-                "items": [],
-                "continuation_key": None,
-                "warning_code": preview["warning_code"],
-            }
+            return RfcTerminalCascadeImpactProviderPage(
+                domain="TASKS_OBJECTIVES",
+                status="INDETERMINATE",
+                exact_count=None,
+                provider_fingerprint=None,
+                items=(),
+                continuation_key=None,
+                warning_code=str(preview["warning_code"]),
+            )
         try:
             cls._assert_snapshot_matches(preview, proposal_snapshot)
         except SomaError:
-            return {
-                "domain": "TASKS_OBJECTIVES",
-                "status": "INDETERMINATE",
-                "exact_count": None,
-                "provider_fingerprint": None,
-                "items": [],
-                "continuation_key": None,
-                "warning_code": "CAPTURED_WFM_STALE",
-            }
-        return {
-            "domain": "TASKS_OBJECTIVES",
-            "status": "READY",
-            "exact_count": int(preview["exact_count"]),
-            "provider_fingerprint": str(preview["provider_fingerprint"]),
-            "items": list(preview["items"]),
-            "continuation_key": None,
-            "warning_code": None,
-        }
+            return RfcTerminalCascadeImpactProviderPage(
+                domain="TASKS_OBJECTIVES",
+                status="INDETERMINATE",
+                exact_count=None,
+                provider_fingerprint=None,
+                items=(),
+                continuation_key=None,
+                warning_code="CAPTURED_WFM_STALE",
+            )
+        ordered = tuple(
+            RfcTerminalCascadeImpactItem(
+                domain=str(item["domain"]),
+                impact_kind=str(item["impact_kind"]),
+                entity_type=str(item["entity_type"]),
+                entity_id=str(item["entity_id"]),
+                current_state=(
+                    None if item["current_state"] is None else str(item["current_state"])
+                ),
+                resulting_state=(
+                    None if item["resulting_state"] is None else str(item["resulting_state"])
+                ),
+                current_count=(
+                    None if item["current_count"] is None else int(item["current_count"])
+                ),
+                resulting_count=(
+                    None
+                    if item["resulting_count"] is None
+                    else int(item["resulting_count"])
+                ),
+                attention_code=(
+                    None if item["attention_code"] is None else str(item["attention_code"])
+                ),
+            )
+            for item in preview["items"]
+        )
+        remaining = tuple(
+            item
+            for item in ordered
+            if after_key is None or (item.impact_kind, item.entity_id) > after_key
+        )
+        page = remaining[:limit]
+        continuation = None
+        if len(remaining) > len(page) and page:
+            continuation = (page[-1].impact_kind, page[-1].entity_id)
+        return RfcTerminalCascadeImpactProviderPage(
+            domain="TASKS_OBJECTIVES",
+            status="READY",
+            exact_count=int(preview["exact_count"]),
+            provider_fingerprint=str(preview["provider_fingerprint"]),
+            items=page,
+            continuation_key=continuation,
+            warning_code=None,
+        )
 
     @classmethod
     def revalidate_terminal_cascade(
         cls,
         uow: UnitOfWork,
-        proposal_snapshot: Mapping[str, object],
+        proposal_snapshot: RfcTerminalCascadeProposalSnapshot,
         reviewed_exact_count: int,
         reviewed_provider_fingerprint: str,
     ) -> str:
@@ -638,7 +679,7 @@ class RfcTerminalTaskParticipant:
     def apply_terminal_cascade(
         cls,
         uow: UnitOfWork,
-        proposal_snapshot: Mapping[str, object],
+        proposal_snapshot: RfcTerminalCascadeProposalSnapshot,
         command_context: RfcTerminalCascadeExecutionCommandContext,
     ) -> RfcTerminalCascadeParticipantApplyResult:
         if not isinstance(
