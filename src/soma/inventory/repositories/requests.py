@@ -204,7 +204,7 @@ class InventoryRequestsRepository:
                 "requester_context_sha256": requester_context_sha256,
                 "allocations": [
                     {"spare_need_id": need_id, "quantity": quantity}
-                    for need_id, quantity in allocations
+                    for need_id, quantity in sorted(allocations)
                 ],
                 "logistics": {
                     "mode": mode,
