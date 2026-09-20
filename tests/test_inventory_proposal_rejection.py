@@ -137,3 +137,33 @@ def test_reject_inventory_proposal_fails_closed_on_stale_or_collision(
             reason_category="different",
         )
     assert collision.value.code == "IDEMPOTENCY_CONFLICT"
+
+
+def test_accept_inventory_proposal_fails_closed_for_unpinned_target_contract(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    proposal_id, fingerprint = _proposal(factory)
+    service = InventoryCorrectionsBulkService(factory)
+
+    with pytest.raises(SomaError) as excinfo:
+        service.accept_inventory_proposal(
+            command_id=new_uuid4(),
+            proposal_id=proposal_id,
+            expected_revision=1,
+            input_fingerprint=fingerprint,
+            explicit_confirmation=True,
+        )
+    assert excinfo.value.code == "DEPENDENCY_INDETERMINATE"
+
+    with ReadSnapshot(factory) as snapshot:
+        proposal = snapshot.connection.execute(
+            "SELECT state,revision,last_command_id FROM inventory_proposals "
+            "WHERE inventory_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()
+        assert tuple(proposal) == ("pending", 1, None)
+        tag = snapshot.connection.execute(
+            "SELECT state,revision FROM fault_tag_current_projection"
+        ).fetchone()
+        assert tuple(tag) == ("draft", 1)

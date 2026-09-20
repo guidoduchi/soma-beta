@@ -1284,14 +1284,17 @@ class InventoryFaultTagsRepository:
         connection: Any,
         *,
         batch_id: str,
+        batch_kind: str,
         target_count: int,
         command_id: str,
     ) -> None:
+        if batch_kind not in {"manual_bulk", "proposal_acceptance", "correction_bulk"}:
+            raise IntegrityFailure("Inventory lifecycle batch kind is invalid")
         connection.execute(
             "INSERT INTO inventory_lifecycle_batches("
             "inventory_batch_id,batch_kind,target_count,recorded_at_utc,command_id"
-            ") VALUES (?,'manual_bulk',?,?,?)",
-            (batch_id, target_count, utc_epoch_seconds(), command_id),
+            ") VALUES (?,?,?,?,?)",
+            (batch_id, batch_kind, target_count, utc_epoch_seconds(), command_id),
         )
 
     @classmethod
@@ -1319,6 +1322,7 @@ class InventoryFaultTagsRepository:
             cls.insert_lifecycle_batch(
                 connection,
                 batch_id=batch_id,
+                batch_kind="manual_bulk",
                 target_count=len(targets),
                 command_id=command_id,
             )
