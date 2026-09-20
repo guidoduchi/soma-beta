@@ -1720,4 +1720,371 @@ class InventoryFaultTagsRepository:
         }
 
 
+    @classmethod
+    def lineage_authority(cls, connection: Any, fault_tag_id: str) -> dict[str, object]:
+        current = cls.current_tag(connection, fault_tag_id)
+        if current is None:
+            raise SomaError("INV_STALE", "Fault Tag no longer exists")
+        rows = connection.execute(
+            "SELECT relation_type,predecessor_fault_tag_id,successor_fault_tag_id,"
+            "fault_tag_lineage_id FROM fault_tag_lineage "
+            "WHERE predecessor_fault_tag_id=? OR successor_fault_tag_id=? "
+            "ORDER BY relation_type,predecessor_fault_tag_id,successor_fault_tag_id,"
+            "fault_tag_lineage_id",
+            (fault_tag_id, fault_tag_id),
+        ).fetchall()
+        authority = {
+            "schema": "SOMA_FAULT_TAG_LINEAGE_AUTHORITY_V1",
+            "fault_tag_id": fault_tag_id,
+            "state": str(current[7]),
+            "projection_revision": int(current[15]),
+            "projection_fingerprint": str(current[16]),
+            "lineage": [
+                {
+                    "relation_type": str(row[0]),
+                    "predecessor_fault_tag_id": str(row[1]),
+                    "successor_fault_tag_id": str(row[2]),
+                    "fault_tag_lineage_id": str(row[3]),
+                }
+                for row in rows
+            ],
+        }
+        return authority | {"fingerprint": sha256_canonical_json(authority)}
+
+    @classmethod
+    def _supersede_for_replacement(
+        cls,
+        connection: Any,
+        *,
+        predecessor_fault_tag_id: str,
+        reason_code: str,
+        command_id: str,
+    ) -> int:
+        current = cls.current_tag(connection, predecessor_fault_tag_id)
+        if current is None:
+            raise SomaError("INV_STALE", "Fault Tag no longer exists")
+        if str(current[7]) not in {"submitted", "in_warehouse_review"}:
+            raise SomaError(
+                "REPLACEMENT_LINEAGE_CONFLICT",
+                "Fault Tag is not an active submitted replacement predecessor",
+            )
+        if connection.execute(
+            "SELECT 1 FROM fault_tag_lineage WHERE predecessor_fault_tag_id=? "
+            "AND relation_type='corrects_replaces' LIMIT 1",
+            (predecessor_fault_tag_id,),
+        ).fetchone() is not None:
+            raise SomaError(
+                "REPLACEMENT_LINEAGE_CONFLICT",
+                "Fault Tag already has a correction successor",
+            )
+
+        members = cls.current_members(connection, predecessor_fault_tag_id)
+        if any(member["state"] in {"accepted", "rejected"} for member in members):
+            raise SomaError(
+                "REPLACEMENT_LINEAGE_CONFLICT",
+                "Final warehouse history requires a later operational workflow, not submitted replacement",
+            )
+        now = utc_epoch_seconds()
+        for member in members:
+            if member["state"] not in {"submitted_awaiting_receipt", "warehouse_received"}:
+                continue
+            membership_id = str(member["fault_tag_membership_id"])
+            event_id = new_uuid4()
+            connection.execute(
+                "INSERT INTO fault_tag_membership_events("
+                "membership_event_id,fault_tag_membership_id,event_kind,effective_at_utc,"
+                "target_event_id,reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+                ") VALUES (?,?,'superseded',NULL,?,?,NULL,NULL,?,?)",
+                (
+                    event_id,
+                    membership_id,
+                    member["last_event_id"],
+                    reason_code,
+                    now,
+                    command_id,
+                ),
+            )
+            revision = int(member["revision"]) + 1
+            fingerprint = cls.membership_fingerprint(
+                membership_id=membership_id,
+                fault_tag_id=predecessor_fault_tag_id,
+                rma_id=str(member["rma_id"]),
+                device_part_unit_id=member["device_part_unit_id"],
+                spare_part_unit_id=member["spare_part_unit_id"],
+                state="superseded",
+                active_submitted=False,
+                revision=revision,
+                last_event_id=event_id,
+            )
+            updated = connection.execute(
+                "UPDATE fault_tag_membership_current SET state='superseded',"
+                "active_submitted=0,revision=?,input_fingerprint=?,last_event_id=?,"
+                "last_command_id=? WHERE fault_tag_membership_id=? AND revision=?",
+                (
+                    revision,
+                    fingerprint,
+                    event_id,
+                    command_id,
+                    membership_id,
+                    int(member["revision"]),
+                ),
+            )
+            if updated.rowcount != 1:
+                raise SomaError("INV_STALE", "Fault Tag membership changed during replacement")
+
+            rma = InventoryRmasRepository.current_rma(connection, str(member["rma_id"]))
+            if rma is None:
+                raise SomaError("INV_STALE", "RMA disappeared during Fault Tag replacement")
+            if rma[11] is not None and str(rma[11]) == membership_id:
+                rma_revision = int(rma[12]) + 1
+                rma_fp = InventoryRmasRepository.rma_lifecycle_fingerprint(
+                    rma_id=str(member["rma_id"]),
+                    current_c10=str(rma[4]),
+                    state="return_open",
+                    target_device_part_unit_id=None if rma[6] is None else str(rma[6]),
+                    direct_inbound_spare_part_unit_id=None if rma[7] is None else str(rma[7]),
+                    return_device_part_unit_id=None if rma[8] is None else str(rma[8]),
+                    return_spare_part_unit_id=None if rma[9] is None else str(rma[9]),
+                    return_obligation_open=True,
+                    active_fault_tag_membership_id=None,
+                )
+                changed_rma = connection.execute(
+                    "UPDATE rma_lifecycle_projection SET state='return_open',"
+                    "active_fault_tag_membership_id=NULL,revision=?,input_fingerprint=?,"
+                    "last_command_id=? WHERE rma_id=? AND revision=?",
+                    (
+                        rma_revision,
+                        rma_fp,
+                        command_id,
+                        str(member["rma_id"]),
+                        int(rma[12]),
+                    ),
+                )
+                if changed_rma.rowcount != 1:
+                    raise SomaError("INV_STALE", "RMA changed during Fault Tag replacement")
+            connection.execute(
+                "DELETE FROM inventory_attention_projection "
+                "WHERE target_kind='rma' AND target_id=? "
+                "AND attention_kind='warehouse_final_decision_pending'",
+                (str(member["rma_id"]),),
+            )
+
+        target_event_id = None
+        if current[9] is not None:
+            row = connection.execute(
+                "SELECT submission_event_id FROM fault_tag_submission_snapshots "
+                "WHERE fault_tag_submission_snapshot_id=?",
+                (str(current[9]),),
+            ).fetchone()
+            target_event_id = None if row is None else str(row[0])
+        lifecycle_event_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO fault_tag_lifecycle_events("
+            "fault_tag_event_id,fault_tag_id,event_kind,effective_at_utc,target_event_id,"
+            "reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+            ") VALUES (?,?,'superseded',NULL,?,?,NULL,NULL,?,?)",
+            (
+                lifecycle_event_id,
+                predecessor_fault_tag_id,
+                target_event_id,
+                reason_code,
+                now,
+                command_id,
+            ),
+        )
+        revision = int(current[15]) + 1
+        fingerprint = cls.tag_fingerprint(
+            connection,
+            fault_tag_id=predecessor_fault_tag_id,
+            state="superseded",
+            archived=bool(current[8]),
+            current_submission_snapshot_id=None if current[9] is None else str(current[9]),
+            submitted_member_count=int(current[10]),
+            awaiting_receipt_count=0,
+            awaiting_final_count=0,
+            accepted_count=int(current[13]),
+            rejected_count=int(current[14]),
+        )
+        updated_tag = connection.execute(
+            "UPDATE fault_tag_current_projection SET state='superseded',"
+            "awaiting_receipt_count=0,awaiting_final_count=0,revision=?,"
+            "input_fingerprint=?,last_command_id=? WHERE fault_tag_id=? AND revision=?",
+            (
+                revision,
+                fingerprint,
+                command_id,
+                predecessor_fault_tag_id,
+                int(current[15]),
+            ),
+        )
+        if updated_tag.rowcount != 1:
+            raise SomaError("INV_STALE", "Fault Tag changed during replacement")
+        return revision
+
+    @classmethod
+    def create_replacement(
+        cls,
+        connection: Any,
+        *,
+        predecessor_fault_tag_id: str,
+        expected_predecessor_revision: int,
+        expected_lineage_fingerprint: str,
+        successor_fault_tag_id: str,
+        return_method: str,
+        pickup_dispatch_location_id: str | None,
+        pickup_contact_id: str | None,
+        pickup_instructions: str | None,
+        memberships: tuple[FaultTagMembershipIntent, ...],
+        reason_code: str,
+        command_id: str,
+    ) -> dict[str, object]:
+        authority = cls.lineage_authority(connection, predecessor_fault_tag_id)
+        if (
+            int(authority["projection_revision"]) != expected_predecessor_revision
+            or str(authority["fingerprint"]) != expected_lineage_fingerprint
+        ):
+            raise SomaError("INV_STALE", "Fault Tag replacement authority changed")
+        predecessor_revision = cls._supersede_for_replacement(
+            connection,
+            predecessor_fault_tag_id=predecessor_fault_tag_id,
+            reason_code=reason_code,
+            command_id=command_id,
+        )
+        created = cls.create_draft(
+            connection,
+            fault_tag_id=successor_fault_tag_id,
+            return_method=return_method,
+            pickup_dispatch_location_id=pickup_dispatch_location_id,
+            pickup_contact_id=pickup_contact_id,
+            pickup_instructions=pickup_instructions,
+            memberships=memberships,
+            command_id=command_id,
+        )
+        lineage_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO fault_tag_lineage("
+            "fault_tag_lineage_id,relation_type,predecessor_fault_tag_id,"
+            "successor_fault_tag_id,reason_code,recorded_at_utc,command_id"
+            ") VALUES (?,'corrects_replaces',?,?,?,?,?)",
+            (
+                lineage_id,
+                predecessor_fault_tag_id,
+                successor_fault_tag_id,
+                reason_code,
+                utc_epoch_seconds(),
+                command_id,
+            ),
+        )
+        scope_fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_FAULT_TAG_LINEAGE_SCOPE_V1",
+                "relation_type": "corrects_replaces",
+                "predecessor_fault_tag_id": predecessor_fault_tag_id,
+                "successor_fault_tag_id": successor_fault_tag_id,
+                "rma_ids": [item.rma_id for item in memberships],
+            }
+        )
+        return {
+            **created,
+            "lineage_id": lineage_id,
+            "predecessor_revision": predecessor_revision,
+            "membership_scope_fingerprint": scope_fingerprint,
+        }
+
+    @classmethod
+    def create_resend(
+        cls,
+        connection: Any,
+        *,
+        predecessor_fault_tag_id: str,
+        expected_lineage_fingerprint: str,
+        successor_fault_tag_id: str,
+        return_method: str,
+        pickup_dispatch_location_id: str | None,
+        pickup_contact_id: str | None,
+        pickup_instructions: str | None,
+        memberships: tuple[FaultTagMembershipIntent, ...],
+        reason_code: str,
+        command_id: str,
+    ) -> dict[str, object]:
+        authority = cls.lineage_authority(connection, predecessor_fault_tag_id)
+        if str(authority["fingerprint"]) != expected_lineage_fingerprint:
+            raise SomaError("INV_STALE", "Fault Tag resend authority changed")
+        predecessor = cls.current_tag(connection, predecessor_fault_tag_id)
+        if predecessor is None:
+            raise SomaError("INV_STALE", "Fault Tag no longer exists")
+        selected_rmas = {item.rma_id for item in memberships}
+        if not selected_rmas:
+            raise SomaError("RESEND_NOT_ELIGIBLE", "Resend requires at least one rejected obligation")
+
+        rejected_rows = connection.execute(
+            "SELECT c.rma_id FROM fault_tag_membership_current c "
+            "WHERE c.fault_tag_id=? AND c.state='rejected'",
+            (predecessor_fault_tag_id,),
+        ).fetchall()
+        rejected_rmas = {str(row[0]) for row in rejected_rows}
+        if not selected_rmas.issubset(rejected_rmas):
+            raise SomaError(
+                "RESEND_NOT_ELIGIBLE",
+                "Selected resend scope is not rejected predecessor membership",
+            )
+        existing_scope = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT m.rma_id FROM fault_tag_lineage l "
+                "JOIN fault_tag_memberships m ON m.fault_tag_id=l.successor_fault_tag_id "
+                "WHERE l.predecessor_fault_tag_id=? AND l.relation_type='resend_of'",
+                (predecessor_fault_tag_id,),
+            ).fetchall()
+        }
+        if selected_rmas & existing_scope:
+            raise SomaError(
+                "RESEND_NOT_ELIGIBLE",
+                "Selected rejected obligation already belongs to a resend attempt",
+            )
+        for item in memberships:
+            cls.require_membership_available(connection, rma_id=item.rma_id)
+
+        created = cls.create_draft(
+            connection,
+            fault_tag_id=successor_fault_tag_id,
+            return_method=return_method,
+            pickup_dispatch_location_id=pickup_dispatch_location_id,
+            pickup_contact_id=pickup_contact_id,
+            pickup_instructions=pickup_instructions,
+            memberships=memberships,
+            command_id=command_id,
+        )
+        lineage_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO fault_tag_lineage("
+            "fault_tag_lineage_id,relation_type,predecessor_fault_tag_id,"
+            "successor_fault_tag_id,reason_code,recorded_at_utc,command_id"
+            ") VALUES (?,'resend_of',?,?,?,?,?)",
+            (
+                lineage_id,
+                predecessor_fault_tag_id,
+                successor_fault_tag_id,
+                reason_code,
+                utc_epoch_seconds(),
+                command_id,
+            ),
+        )
+        scope_fingerprint = sha256_canonical_json(
+            {
+                "schema": "SOMA_FAULT_TAG_LINEAGE_SCOPE_V1",
+                "relation_type": "resend_of",
+                "predecessor_fault_tag_id": predecessor_fault_tag_id,
+                "successor_fault_tag_id": successor_fault_tag_id,
+                "rma_ids": sorted(selected_rmas),
+            }
+        )
+        return {
+            **created,
+            "lineage_id": lineage_id,
+            "predecessor_revision": int(predecessor[15]),
+            "membership_scope_fingerprint": scope_fingerprint,
+        }
+
+
 __all__ = ["InventoryFaultTagsRepository"]
