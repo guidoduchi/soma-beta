@@ -1,38 +1,379 @@
 {
-  "schema":"SOMA-LLD-TYPE-LEAF-V2",
-  "lld_id":"LLD-05",
-  "family":"query_and_response_types",
-  "type_rules":["All query cursors use CURSOR_V1 with deterministic owner-defined ordering.","Client-supplied aggregate/envelope/outcome values are never authoritative."],
-  "types":{
-    "TaskListQueryV1":{"kind":"transport_query","query_fields":{"kind":"local|wfm|null","state":"closed filter|null","cursor":"CursorV1|null","limit":"int 1..500 default 100"},"unknown_fields":"reject"},
-    "TaskIdQueryV1":{"kind":"transport_query","path_fields":["task_id:uuid"],"query_fields":{},"unknown_fields":"reject"},
-    "ObjectiveListQueryV1":{"kind":"transport_query","query_fields":{"state":"closed filter|null","cursor":"CursorV1|null","limit":"int 1..500 default 100"},"unknown_fields":"reject"},
-    "ObjectiveIdQueryV1":{"kind":"transport_query","path_fields":["objective_id:uuid"],"query_fields":{"member_cursor":"CursorV1|null","member_limit":"int 1..500 default 100"},"unknown_fields":"reject"},
-    "GroupingProposalListQueryV1":{"kind":"transport_query","query_fields":{"state":"pending|rejected|accepted|null","cursor":"CursorV1|null","limit":"int 1..500 default 100"},"unknown_fields":"reject"},
-    "HistoricalObjectiveProposalListQueryV1":{"kind":"transport_query","query_fields":{"state":"pending|rejected|accepted|null","cursor":"CursorV1|null","limit":"int 1..500 default 100"},"unknown_fields":"reject"},
-    "ObjectiveTimezoneQueryV1":{"kind":"transport_query","query_fields":{},"unknown_fields":"reject"},
-    "TaskPlanCorrectionPreviewQueryV1":{"kind":"transport_query","path_fields":["task_id:uuid"],"body_fields":{"task_revision":"int>=1","current_plan_revision":"int>=1","current_plan_revision_id":"uuid","replacement_schedule":"complete accepted schedule input"},"unknown_fields":"reject"},
-    "WfmActivityRelationshipReviewPreviewQueryV1":{"kind":"transport_query","body_contract":"queries/task-activity-review.json#WfmActivityRelationshipReviewPreview.input","unknown_fields":"reject"},
-    "TaskHardDeletePreviewQueryV1":{"kind":"transport_query","path_fields":["task_id:uuid"],"body_fields":{"base_revision":"int>=1"},"unknown_fields":"reject"},
-    "ObjectiveCreationPreviewQueryV1":{"kind":"transport_query","body_contract":"queries/objectives-tasks.json#ObjectiveCreationPreview.input","unknown_fields":"reject"},
-    "ObjectiveHardDeletePreviewQueryV1":{"kind":"transport_query","path_fields":["objective_id:uuid"],"body_fields":{"base_revision":"int>=1"},"unknown_fields":"reject"},
-
-    "TaskPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<TaskSummaryV1>","continuation":"CursorV1|null"}},
-    "TaskDetailV1":{"kind":"object","required":["task_id","kind","revision","current_plan","execution","outcome","objective_membership"],"fields":{"task_id":"uuid","kind":"local|wfm","revision":"int>=1","current_plan":"TaskPlanProjectionV1|null","execution":"TaskExecutionProjectionV1","outcome":"TaskOutcomeProjectionV1|null","objective_membership":"ObjectiveMembershipProjectionV1|null"}},
-    "TaskExecutionProjectionV1":{"kind":"object","required":["execution_state","execution_revision","actual_start_utc","actual_end_utc","effective_termination_utc","termination_reason","last_event_id"],"fields":{"execution_state":"not_started|in_progress|ended|terminated","execution_revision":"int>=0","actual_start_utc":"utc whole second|null","actual_end_utc":"utc whole second|null","effective_termination_utc":"utc whole second|null","termination_reason":"string|null","last_event_id":"uuid|null"},"rule":"execution_revision=0 is the derived exact-absence transport state only: no task_execution_projection row, no task_execution_events, execution_state=not_started, all execution instants/reason null and last_event_id=null. Any execution history requires a persisted projection with execution_revision>=1 and last_event_id set, including corrected history whose logical state returns to not_started. The transport DTO never causes a revision-0 database row to be inserted."},
-    "TaskPlanCorrectionPreviewV1":{"kind":"object","required":["eligible","risk","fingerprint","risk_reasons","blockers"],"fields":{"eligible":"bool","risk":"LOW|HIGH","fingerprint":"sha256 hex","risk_reasons":"bounded array<EXPLICIT_PLAN_LOCK|EXECUTION_HISTORY|TASK_OUTCOME_HISTORY|TERMINAL_WFM_SOURCE|PROTECTED_OBJECTIVE_HISTORY>","blockers":"bounded array<SOURCE_TERMINAL_REVIEW_PENDING>"}},
-    "WfmActivityRelationshipReviewPreviewV1":{"kind":"object","required":["decision","review_fingerprint","seed_tasks","affected_task_count","affected_tasks","affected_continuation","current_lineages","retry_relation_id","semantic_no_change","projected_competing_attempt"],"fields":{"decision":"distinct_activity|same_activity|retry_lineage|unresolved_source_error","review_fingerprint":"sha256 hex","seed_tasks":"canonical task_id-sorted bounded array<task_id+task_revision>","affected_task_count":"int>=2","affected_tasks":"bounded task_id-sorted page<task_id+task_revision+lineage_revision+activity_lineage_id|null+last_decision|null>","affected_continuation":"CursorV1|null","current_lineages":"bounded deterministic array<activity_lineage_id+exact member count>","retry_relation_id":"uuid|null","semantic_no_change":"bool","projected_competing_attempt":"bool"},"rule":"affected_task_count/fingerprint always cover the complete touched-lineage closure even when affected_tasks is paged."},
-    "TaskMutationResultV1":{"kind":"object","required":["outcome","task_id","revision"],"fields":{"outcome":"APPLIED|NO_CHANGE","task_id":"uuid","revision":"int>=1","result_refs":"bounded array<typed ref>"}},
-    "WfmActivityRelationshipReviewResultV1":{"kind":"object","required":["outcome","decision","review_fingerprint","affected_task_count","result_refs"],"fields":{"outcome":"APPLIED|NO_CHANGE","decision":"distinct_activity|same_activity|retry_lineage|unresolved_source_error","review_fingerprint":"sha256 hex","affected_task_count":"int>=2","result_refs":"bounded array<task_activity_lineage_event|task_activity_lineage typed ref>"},"rule":"This multi-Task result intentionally has no singular task_id/revision. Exact per-Task resulting revisions are read from Task workbench/current lineage projection; replay returns this immutable original summary."},
-    "HardDeletePreviewV1":{"kind":"object","required":["eligible","fingerprint","blockers"],"fields":{"eligible":"bool","fingerprint":"sha256 hex","blockers":"bounded array<string>"}},
-    "ObjectivePageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<ObjectiveSummaryV1>","continuation":"CursorV1|null"}},
-    "ObjectiveDetailV1":{"kind":"object","required":["objective_id","tracking_handle","revision","membership","member_exact_count","member_continuation","derived_envelope","aggregate_state"],"fields":{"objective_id":"uuid","tracking_handle":"MW-########","revision":"int>=1","membership":"bounded ordered array<ObjectiveMembershipProjectionV1>","member_exact_count":"int>=1 for current nonsuperseded Objective; historical superseded projection may be 0","member_continuation":"CursorV1|null","derived_envelope":"interval|null","aggregate_state":"closed derived state"},"rule":"membership is one deterministic task_id-ordered page; transport paging never changes the complete authoritative membership used for envelope/aggregate/review guards."},
-    "ObjectiveCreationPreviewV1":{"kind":"object","required":["mode","fingerprint","prospective_members","derived_envelope"],"fields":{"mode":"CREATE|REGROUP_REQUIRED","fingerprint":"sha256 hex","prospective_members":"bounded array<task+plan revision>","derived_envelope":"interval"}},
-    "ObjectiveMutationResultV1":{"kind":"object","required":["outcome","objective_id","revision"],"fields":{"outcome":"APPLIED|NO_CHANGE","objective_id":"uuid","revision":"int>=1","result_refs":"bounded array<typed ref>"}},
-    "GroupingProposalPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<GroupingProposalV1>","continuation":"CursorV1|null"}},
-    "GroupingProposalV1":{"kind":"object","required":["proposal_id","revision","input_fingerprint","state","diff"],"fields":{"proposal_id":"uuid","revision":"int>=1","input_fingerprint":"sha256 hex","state":"pending|accepted|rejected|superseded","diff":"bounded deterministic grouping diff"}},
-    "HistoricalObjectiveProposalPageV1":{"kind":"object","required":["items","continuation"],"fields":{"items":"bounded array<HistoricalObjectiveProposalV1>","continuation":"CursorV1|null"}},
-    "ObjectiveTimezoneV1":{"kind":"object","required":["iana_timezone","source"],"fields":{"iana_timezone":"IANA TZ database identifier","source":"PERSISTED|DEFAULT"}},
-    "CursorV1":{"kind":"reference","contract":"spec/lld/_packet-contract-v2.json#cursor_contract"}
+  "schema": "SOMA-LLD-TYPE-LEAF-V2",
+  "lld_id": "LLD-05",
+  "family": "query_and_response_types",
+  "type_rules": [
+    "All query cursors use CURSOR_V1 with deterministic owner-defined ordering.",
+    "Client-supplied aggregate/envelope/outcome values are never authoritative."
+  ],
+  "types": {
+    "TaskListQueryV1": {
+      "kind": "transport_query",
+      "query_fields": {
+        "kind": "local|wfm|null",
+        "state": "closed filter|null",
+        "cursor": "CursorV1|null",
+        "limit": "int 1..500 default 100"
+      },
+      "unknown_fields": "reject"
+    },
+    "TaskIdQueryV1": {
+      "kind": "transport_query",
+      "path_fields": [
+        "task_id:uuid"
+      ],
+      "query_fields": {},
+      "unknown_fields": "reject"
+    },
+    "ObjectiveListQueryV1": {
+      "kind": "transport_query",
+      "query_fields": {
+        "state": "closed filter|null",
+        "cursor": "CursorV1|null",
+        "limit": "int 1..500 default 100"
+      },
+      "unknown_fields": "reject"
+    },
+    "ObjectiveIdQueryV1": {
+      "kind": "transport_query",
+      "path_fields": [
+        "objective_id:uuid"
+      ],
+      "query_fields": {
+        "member_cursor": "CursorV1|null",
+        "member_limit": "int 1..500 default 100"
+      },
+      "unknown_fields": "reject"
+    },
+    "GroupingProposalListQueryV1": {
+      "kind": "transport_query",
+      "query_fields": {
+        "state": "pending|rejected|accepted|null",
+        "cursor": "CursorV1|null",
+        "limit": "int 1..500 default 100"
+      },
+      "unknown_fields": "reject"
+    },
+    "HistoricalObjectiveProposalListQueryV1": {
+      "kind": "transport_query",
+      "query_fields": {
+        "state": "pending|rejected|accepted|null",
+        "cursor": "CursorV1|null",
+        "limit": "int 1..500 default 100"
+      },
+      "unknown_fields": "reject"
+    },
+    "ObjectiveTimezoneQueryV1": {
+      "kind": "transport_query",
+      "query_fields": {},
+      "unknown_fields": "reject"
+    },
+    "TaskPlanCorrectionPreviewQueryV1": {
+      "kind": "transport_query",
+      "path_fields": [
+        "task_id:uuid"
+      ],
+      "body_fields": {
+        "task_revision": "int>=1",
+        "current_plan_revision": "int>=1",
+        "current_plan_revision_id": "uuid",
+        "replacement_schedule": "complete accepted schedule input"
+      },
+      "unknown_fields": "reject"
+    },
+    "WfmActivityRelationshipReviewPreviewQueryV1": {
+      "kind": "transport_query",
+      "body_contract": "queries/task-activity-review.json#WfmActivityRelationshipReviewPreview.input",
+      "unknown_fields": "reject"
+    },
+    "TaskHardDeletePreviewQueryV1": {
+      "kind": "transport_query",
+      "path_fields": [
+        "task_id:uuid"
+      ],
+      "body_fields": {
+        "base_revision": "int>=1"
+      },
+      "unknown_fields": "reject"
+    },
+    "ObjectiveCreationPreviewQueryV1": {
+      "kind": "transport_query",
+      "body_contract": "queries/objectives-tasks.json#ObjectiveCreationPreview.input",
+      "unknown_fields": "reject"
+    },
+    "ObjectiveHardDeletePreviewQueryV1": {
+      "kind": "transport_query",
+      "path_fields": [
+        "objective_id:uuid"
+      ],
+      "body_fields": {
+        "base_revision": "int>=1"
+      },
+      "unknown_fields": "reject"
+    },
+    "TaskPageV1": {
+      "kind": "object",
+      "required": [
+        "items",
+        "continuation"
+      ],
+      "fields": {
+        "items": "bounded array<TaskSummaryV1>",
+        "continuation": "CursorV1|null"
+      }
+    },
+    "TaskDetailV1": {
+      "kind": "object",
+      "required": [
+        "task_id",
+        "kind",
+        "revision",
+        "current_plan",
+        "execution",
+        "outcome",
+        "objective_membership"
+      ],
+      "fields": {
+        "task_id": "uuid",
+        "kind": "local|wfm",
+        "revision": "int>=1",
+        "current_plan": "TaskPlanProjectionV1|null",
+        "execution": "TaskExecutionProjectionV1",
+        "outcome": "TaskOutcomeProjectionV1|null",
+        "objective_membership": "ObjectiveMembershipProjectionV1|null"
+      }
+    },
+    "TaskExecutionProjectionV1": {
+      "kind": "object",
+      "required": [
+        "execution_state",
+        "execution_revision",
+        "actual_start_utc",
+        "actual_end_utc",
+        "effective_termination_utc",
+        "termination_reason",
+        "last_event_id"
+      ],
+      "fields": {
+        "execution_state": "not_started|in_progress|ended|terminated",
+        "execution_revision": "int>=0",
+        "actual_start_utc": "utc whole second|null",
+        "actual_end_utc": "utc whole second|null",
+        "effective_termination_utc": "utc whole second|null",
+        "termination_reason": "string|null",
+        "last_event_id": "uuid|null"
+      },
+      "rule": "execution_revision=0 is the derived exact-absence transport state only: no task_execution_projection row, no task_execution_events, execution_state=not_started, all execution instants/reason null and last_event_id=null. Any execution history requires a persisted projection with execution_revision>=1 and last_event_id set, including corrected history whose logical state returns to not_started. The transport DTO never causes a revision-0 database row to be inserted."
+    },
+    "TaskPlanCorrectionPreviewV1": {
+      "kind": "object",
+      "required": [
+        "eligible",
+        "risk",
+        "fingerprint",
+        "risk_reasons",
+        "blockers"
+      ],
+      "fields": {
+        "eligible": "bool",
+        "risk": "LOW|HIGH",
+        "fingerprint": "sha256 hex",
+        "risk_reasons": "bounded array<EXPLICIT_PLAN_LOCK|EXECUTION_HISTORY|TASK_OUTCOME_HISTORY|TERMINAL_WFM_SOURCE|PROTECTED_OBJECTIVE_HISTORY>",
+        "blockers": "bounded array<SOURCE_TERMINAL_REVIEW_PENDING>"
+      }
+    },
+    "WfmActivityRelationshipReviewPreviewV1": {
+      "kind": "object",
+      "required": [
+        "decision",
+        "review_fingerprint",
+        "seed_tasks",
+        "affected_task_count",
+        "affected_tasks",
+        "affected_continuation",
+        "current_lineages",
+        "retry_relation_id",
+        "semantic_no_change",
+        "projected_competing_attempt"
+      ],
+      "fields": {
+        "decision": "distinct_activity|same_activity|retry_lineage|unresolved_source_error",
+        "review_fingerprint": "sha256 hex",
+        "seed_tasks": "canonical task_id-sorted bounded array<task_id+task_revision>",
+        "affected_task_count": "int>=2",
+        "affected_tasks": "bounded task_id-sorted page<task_id+task_revision+lineage_revision+activity_lineage_id|null+last_decision|null>",
+        "affected_continuation": "CursorV1|null",
+        "current_lineages": "bounded deterministic array<activity_lineage_id+exact member count>",
+        "retry_relation_id": "uuid|null",
+        "semantic_no_change": "bool",
+        "projected_competing_attempt": "bool"
+      },
+      "rule": "affected_task_count/fingerprint always cover the complete touched-lineage closure even when affected_tasks is paged."
+    },
+    "TaskMutationResultV1": {
+      "kind": "object",
+      "required": [
+        "outcome",
+        "task_id",
+        "revision"
+      ],
+      "fields": {
+        "outcome": "APPLIED|NO_CHANGE",
+        "task_id": "uuid",
+        "revision": "int>=1",
+        "result_refs": "bounded array<typed ref>"
+      }
+    },
+    "WfmActivityRelationshipReviewResultV1": {
+      "kind": "object",
+      "required": [
+        "outcome",
+        "decision",
+        "review_fingerprint",
+        "affected_task_count",
+        "result_refs"
+      ],
+      "fields": {
+        "outcome": "APPLIED|NO_CHANGE",
+        "decision": "distinct_activity|same_activity|retry_lineage|unresolved_source_error",
+        "review_fingerprint": "sha256 hex",
+        "affected_task_count": "int>=2",
+        "result_refs": "bounded array<task_activity_lineage_event|task_activity_lineage typed ref>"
+      },
+      "rule": "This multi-Task result intentionally has no singular task_id/revision. Exact per-Task resulting revisions are read from Task workbench/current lineage projection; replay returns this immutable original summary."
+    },
+    "HardDeletePreviewV1": {
+      "kind": "object",
+      "required": [
+        "eligible",
+        "fingerprint",
+        "blockers"
+      ],
+      "fields": {
+        "eligible": "bool",
+        "fingerprint": "sha256 hex",
+        "blockers": "bounded array<string>"
+      }
+    },
+    "ObjectivePageV1": {
+      "kind": "object",
+      "required": [
+        "items",
+        "continuation"
+      ],
+      "fields": {
+        "items": "bounded array<ObjectiveSummaryV1>",
+        "continuation": "CursorV1|null"
+      }
+    },
+    "ObjectiveDetailV1": {
+      "kind": "object",
+      "required": [
+        "objective_id",
+        "tracking_handle",
+        "revision",
+        "membership",
+        "member_exact_count",
+        "member_continuation",
+        "derived_envelope",
+        "aggregate_state"
+      ],
+      "fields": {
+        "objective_id": "uuid",
+        "tracking_handle": "MW-########",
+        "revision": "int>=1",
+        "membership": "bounded ordered array<ObjectiveMembershipProjectionV1>",
+        "member_exact_count": "int>=1 for current nonsuperseded Objective; historical superseded projection may be 0",
+        "member_continuation": "CursorV1|null",
+        "derived_envelope": "interval|null",
+        "aggregate_state": "closed derived state"
+      },
+      "rule": "membership is one deterministic task_id-ordered page; transport paging never changes the complete authoritative membership used for envelope/aggregate/review guards."
+    },
+    "ObjectiveCreationPreviewV1": {
+      "kind": "object",
+      "required": [
+        "mode",
+        "fingerprint",
+        "prospective_members",
+        "derived_envelope"
+      ],
+      "fields": {
+        "mode": "CREATE|REGROUP_REQUIRED",
+        "fingerprint": "sha256 hex",
+        "prospective_members": "bounded array<task+plan revision>",
+        "derived_envelope": "interval"
+      }
+    },
+    "ObjectiveMutationResultV1": {
+      "kind": "object",
+      "required": [
+        "outcome",
+        "objective_id",
+        "revision"
+      ],
+      "fields": {
+        "outcome": "APPLIED|NO_CHANGE",
+        "objective_id": "uuid",
+        "revision": "int>=1",
+        "result_refs": "bounded array<typed ref>"
+      }
+    },
+    "GroupingProposalPageV1": {
+      "kind": "object",
+      "required": [
+        "items",
+        "continuation"
+      ],
+      "fields": {
+        "items": "bounded array<GroupingProposalV1>",
+        "continuation": "CursorV1|null"
+      }
+    },
+    "GroupingProposalV1": {
+      "kind": "object",
+      "required": [
+        "proposal_id",
+        "revision",
+        "input_fingerprint",
+        "state",
+        "diff"
+      ],
+      "fields": {
+        "proposal_id": "uuid",
+        "revision": "int>=1",
+        "input_fingerprint": "sha256 hex",
+        "state": "pending|accepted|rejected|superseded",
+        "diff": "bounded deterministic grouping diff"
+      }
+    },
+    "HistoricalObjectiveProposalPageV1": {
+      "kind": "object",
+      "required": [
+        "items",
+        "continuation"
+      ],
+      "fields": {
+        "items": "bounded array<HistoricalObjectiveProposalV1>",
+        "continuation": "CursorV1|null"
+      }
+    },
+    "ObjectiveTimezoneV1": {
+      "kind": "object",
+      "required": [
+        "iana_timezone",
+        "source",
+        "revision"
+      ],
+      "fields": {
+        "iana_timezone": "IANA TZ database identifier",
+        "source": "PERSISTED|DEFAULT",
+        "revision": "int>=1|null; null iff source=DEFAULT"
+      }
+    },
+    "CursorV1": {
+      "kind": "reference",
+      "contract": "spec/lld/_packet-contract-v2.json#cursor_contract"
+    }
   }
 }
