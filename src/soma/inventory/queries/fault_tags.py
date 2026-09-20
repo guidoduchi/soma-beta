@@ -4,6 +4,7 @@ from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.strict_json import loads_canonical_json
 
 
 class InventoryFaultTagQueryService:
@@ -79,8 +80,12 @@ class InventoryFaultTagQueryService:
                 "t.draft_pickup_instructions,t.draft_revision,p.state,p.archived,"
                 "p.current_submission_snapshot_id,p.submitted_member_count,"
                 "p.awaiting_receipt_count,p.awaiting_final_count,p.accepted_count,"
-                "p.rejected_count,p.revision FROM fault_tags t "
+                "p.rejected_count,p.revision,"
+                "dl.name,dl.address_mode,dl.standalone_address_text,dl.revision "
+                "FROM fault_tags t "
                 "JOIN fault_tag_current_projection p ON p.fault_tag_id=t.fault_tag_id "
+                "LEFT JOIN dispatch_locations dl "
+                "ON dl.dispatch_location_id=t.draft_pickup_dispatch_location_id "
                 "WHERE t.fault_tag_id=?",
                 (identity,),
             ).fetchone()
@@ -89,9 +94,20 @@ class InventoryFaultTagQueryService:
             members=snapshot.connection.execute(
                 "SELECT m.fault_tag_membership_id,m.rma_id,m.physical_consequence_id,"
                 "m.device_part_unit_id,m.spare_part_unit_id,m.return_reason,"
-                "c.state,c.active_submitted,c.revision FROM fault_tag_memberships m "
+                "c.state,c.active_submitted,c.revision,"
+                "a.c10,r.promised_bom_code,"
+                "COALESCE(d.bom_code,s.bom_code),"
+                "sp.location_kind,sp.location_ref_id "
+                "FROM fault_tag_memberships m "
                 "JOIN fault_tag_membership_current c "
                 "ON c.fault_tag_membership_id=m.fault_tag_membership_id "
+                "JOIN rmas r ON r.rma_id=m.rma_id "
+                "JOIN rma_identifier_aliases a "
+                "ON a.rma_id=m.rma_id AND a.alias_kind='current' "
+                "LEFT JOIN device_part_units d ON d.device_part_unit_id=m.device_part_unit_id "
+                "LEFT JOIN spare_part_units s ON s.spare_part_unit_id=m.spare_part_unit_id "
+                "LEFT JOIN spare_part_current_projection sp "
+                "ON sp.spare_part_unit_id=m.spare_part_unit_id "
                 "WHERE m.fault_tag_id=? ORDER BY m.rma_id,m.fault_tag_membership_id",
                 (identity,),
             ).fetchall()
@@ -105,6 +121,38 @@ class InventoryFaultTagQueryService:
                 "ORDER BY recorded_at_utc,fault_tag_submission_snapshot_id",
                 (identity,),
             ).fetchall()
+            membership_snapshots=snapshot.connection.execute(
+                "SELECT s.fault_tag_submission_snapshot_id,"
+                "m.membership_snapshot_id,m.fault_tag_membership_id,m.rma_id,"
+                "m.device_part_unit_id,m.spare_part_unit_id,m.physical_consequence_id,"
+                "m.return_reason,m.display_snapshot_json "
+                "FROM fault_tag_submission_snapshots s "
+                "JOIN fault_tag_membership_submission_snapshots m "
+                "ON m.fault_tag_submission_snapshot_id=s.fault_tag_submission_snapshot_id "
+                "WHERE s.fault_tag_id=? "
+                "ORDER BY s.recorded_at_utc,s.fault_tag_submission_snapshot_id,"
+                "m.fault_tag_membership_id,m.membership_snapshot_id",
+                (identity,),
+            ).fetchall()
+            historical_members: dict[str, list[dict[str, object]]] = {}
+            for row in membership_snapshots:
+                historical_members.setdefault(str(row[0]), []).append(
+                    {
+                        "membership_snapshot_id": str(row[1]),
+                        "fault_tag_membership_id": str(row[2]),
+                        "rma_id": str(row[3]),
+                        "device_part_unit_id": None if row[4] is None else str(row[4]),
+                        "spare_part_unit_id": None if row[5] is None else str(row[5]),
+                        "physical_consequence_id": str(row[6]),
+                        "return_reason": str(row[7]),
+                        "historical_display": loads_canonical_json(
+                            str(row[8]),
+                            max_bytes=4096,
+                            max_depth=4,
+                            max_collection_items=32,
+                        ),
+                    }
+                )
             lineage=snapshot.connection.execute(
                 "SELECT fault_tag_lineage_id,relation_type,predecessor_fault_tag_id,"
                 "successor_fault_tag_id,reason_code,recorded_at_utc "
@@ -120,6 +168,17 @@ class InventoryFaultTagQueryService:
                 "draft_pickup_instructions":None if tag[5] is None else str(tag[5]),
                 "draft_revision":int(tag[6]),"state":str(tag[7]),
                 "archived":bool(int(tag[8])),
+                "current_pickup_location":(
+                    None
+                    if tag[3] is None
+                    else {
+                        "dispatch_location_id":str(tag[3]),
+                        "name":None if tag[16] is None else str(tag[16]),
+                        "address_mode":None if tag[17] is None else str(tag[17]),
+                        "address_text":None if tag[18] is None else str(tag[18]),
+                        "revision":None if tag[19] is None else int(tag[19]),
+                    }
+                ),
                 "current_submission_snapshot_id":None if tag[9] is None else str(tag[9]),
                 "counts":{"submitted":int(tag[10]),"awaiting_receipt":int(tag[11]),
                     "awaiting_final":int(tag[12]),"accepted":int(tag[13]),"rejected":int(tag[14])},
@@ -129,7 +188,12 @@ class InventoryFaultTagQueryService:
                     "device_part_unit_id":None if x[3] is None else str(x[3]),
                     "spare_part_unit_id":None if x[4] is None else str(x[4]),
                     "return_reason":str(x[5]),"state":str(x[6]),
-                    "active_submitted":bool(int(x[7])),"revision":int(x[8])} for x in members],
+                    "active_submitted":bool(int(x[7])),"revision":int(x[8]),
+                    "current_c10":str(x[9]),
+                    "promised_bom_code":str(x[10]),
+                    "current_unit_bom_code":str(x[11]),
+                    "current_unit_location_kind":None if x[12] is None else str(x[12]),
+                    "current_unit_location_ref_id":None if x[13] is None else str(x[13])} for x in members],
                 "submission_history":[{"snapshot_id":str(x[0]),"submission_event_id":str(x[1]),
                     "tracking_id":str(x[2]),"return_method":str(x[3]),
                     "pickup_dispatch_location_id":None if x[4] is None else str(x[4]),
@@ -139,7 +203,8 @@ class InventoryFaultTagQueryService:
                     "pickup_contact_snapshot_json":None if x[8] is None else str(x[8]),
                     "pickup_instructions_snapshot":None if x[9] is None else str(x[9]),
                     "effective_submission_at_utc":None if x[10] is None else int(x[10]),
-                    "recorded_at_utc":int(x[11]),"snapshot_hash":str(x[12])} for x in snapshots],
+                    "recorded_at_utc":int(x[11]),"snapshot_hash":str(x[12]),
+                    "members":historical_members.get(str(x[0]), [])} for x in snapshots],
                 "lineage":[{"lineage_id":str(x[0]),"relation_type":str(x[1]),
                     "predecessor_fault_tag_id":str(x[2]),"successor_fault_tag_id":str(x[3]),
                     "reason_code":str(x[4]),"recorded_at_utc":int(x[5])} for x in lineage],
