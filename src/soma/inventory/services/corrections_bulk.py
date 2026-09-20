@@ -795,6 +795,7 @@ class InventoryCorrectionsBulkService:
             "logistics_participant_relationship",
             "spare_part_rma_provenance",
             "false_fault_tag_submission",
+            "false_warehouse_receipt",
             "physical_consequence",
             "submitted_fault_tag_material",
             "genuine_later_development",
@@ -904,6 +905,26 @@ class InventoryCorrectionsBulkService:
             )
             base_revisions["spare_part_unit"] = expected_revision
             target_type = "spare_part_unit"
+        elif correction_kind == "false_warehouse_receipt":
+            self._reject_irrelevant_fields(
+                allowed=frozenset({"target_event_id", "expected_revision"}),
+                values=raw_values,
+            )
+            if target_event_id is None or expected_revision is None:
+                raise ValidationError(
+                    "false warehouse receipt correction requires target_event_id and expected_revision"
+                )
+            if type(expected_revision) is not int or expected_revision <= 0:
+                raise ValidationError("expected_revision must be positive")
+            target_event = require_uuid4(target_event_id)
+            semantic.update(
+                {
+                    "target_event_id": target_event,
+                    "expected_revision": expected_revision,
+                }
+            )
+            base_revisions["fault_tag_membership"] = expected_revision
+            target_type = "fault_tag_membership"
         elif correction_kind == "physical_consequence":
             self._reject_irrelevant_fields(
                 allowed=frozenset(
@@ -1004,6 +1025,98 @@ class InventoryCorrectionsBulkService:
                 raise SomaError(
                     "CORRECTION_TARGET_INVALID",
                     "Genuine later development must use its normal lifecycle command",
+                )
+
+            if correction_kind == "false_warehouse_receipt":
+                assert target_event is not None
+                expected = int(semantic["expected_revision"])
+                current = self._fault_tags.warehouse_membership_authority(
+                    uow.connection, identity
+                )
+                if current is None or int(current[7]) != expected:
+                    raise SomaError(
+                        "INV_STALE",
+                        "Fault Tag membership revision changed",
+                    )
+                if (
+                    str(current[5]) != "warehouse_received"
+                    or int(current[6]) != 1
+                    or current[8] is None
+                    or str(current[8]) != target_event
+                ):
+                    raise SomaError(
+                        "CORRECTION_TARGET_INVALID",
+                        "Target is not the current-effective warehouse receipt",
+                    )
+
+                def apply_false_receipt(inner: UnitOfWork):
+                    result = self._fault_tags.correct_false_warehouse_receipt(
+                        inner.connection,
+                        membership_id=identity,
+                        expected_revision=expected,
+                        target_event_id=target_event,
+                        reason_code=reason,
+                        command_id=command_id,
+                    )
+                    apply_false_receipt.result = result
+                    generic = self._correction_generic_audit(
+                        command_id=command_id,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        correction_kind=correction_kind,
+                        target_id=identity,
+                        target_event_id=target_event,
+                        reason=reason,
+                        result_kind="inventory_event",
+                        result_id=str(result["membership_event_id"]),
+                    )
+                    return (generic,)
+
+                apply_false_receipt.result = {
+                    "membership_event_id": "",
+                    "membership_revision": expected + 1,
+                    "fault_tag_id": "",
+                    "fault_tag_revision": 0,
+                    "rma_id": "",
+                    "rma_revision": 0,
+                }
+                return PreparedMutation(
+                    no_change=False,
+                    result_type="fault_tag_membership",
+                    result_id=identity,
+                    apply=apply_false_receipt,
+                    response_schema="InventoryMutationResultV1",
+                    response_factory=lambda _inner: {
+                        "outcome": "APPLIED",
+                        "target_refs": [
+                            {"type": "fault_tag_membership", "id": identity},
+                            {
+                                "type": "fault_tag_membership_event",
+                                "id": str(
+                                    apply_false_receipt.result["membership_event_id"]
+                                ),
+                            },
+                            {
+                                "type": "fault_tag",
+                                "id": str(apply_false_receipt.result["fault_tag_id"]),
+                            },
+                            {
+                                "type": "rma",
+                                "id": str(apply_false_receipt.result["rma_id"]),
+                            },
+                        ],
+                        "revisions": {
+                            f"fault_tag_membership:{identity}": int(
+                                apply_false_receipt.result["membership_revision"]
+                            ),
+                            f"fault_tag:{apply_false_receipt.result['fault_tag_id']}": int(
+                                apply_false_receipt.result["fault_tag_revision"]
+                            ),
+                            f"rma:{apply_false_receipt.result['rma_id']}": int(
+                                apply_false_receipt.result["rma_revision"]
+                            ),
+                        },
+                    },
                 )
 
             if correction_kind == "spare_part_rma_provenance":
