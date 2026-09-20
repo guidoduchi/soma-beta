@@ -253,6 +253,17 @@ class InventoryPreviewsQueryService:
         )
         if lineage:
             reasons.append("lineage_history")
+        proposal_targets = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM inventory_proposal_targets p "
+                "WHERE p.fault_tag_id=? OR p.fault_tag_membership_id IN "
+                "(SELECT fault_tag_membership_id FROM fault_tag_memberships "
+                "WHERE fault_tag_id=?)",
+                (identity, identity),
+            ).fetchone()[0]
+        )
+        if proposal_targets:
+            reasons.append("proposal_history")
         member_events = int(
             connection.execute(
                 "SELECT COUNT(*) FROM fault_tag_membership_events e "
