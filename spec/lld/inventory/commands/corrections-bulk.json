@@ -136,6 +136,7 @@
     "accept only the two typed owner actions pinned by INVENTORY_PROPOSAL_TARGET_V1",
     "warehouse_received reuses exact Fault Tag membership receipt reducer in the caller UoW",
     "warehouse_final_decision requires material_final risk and explicit_confirmation=true before any mutation",
-    "unsupported proposal kinds/actions fail DEPENDENCY_INDETERMINATE and leave proposal/Inventory unchanged"
+    "unsupported proposal kinds/actions fail DEPENDENCY_INDETERMINATE and leave proposal/Inventory unchanged",
+    "Beta 1.0 accepts the complete proposal target set atomically; partial selected scope fails DEPENDENCY_INDETERMINATE because target-level dispositions are not persisted by the current schema"
   ]
 }

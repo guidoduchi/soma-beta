@@ -45,6 +45,7 @@
       "transition proposal to accepted only after every selected target applies",
       "audit proposal decision with source evidence ref and accepted target count"
     ],
-    "unsupported": "Any other proposal kind/action is reviewable/rejectable only and fails acceptance with DEPENDENCY_INDETERMINATE."
+    "unsupported": "Any other proposal kind/action is reviewable/rejectable only and fails acceptance with DEPENDENCY_INDETERMINATE.",
+    "selection": "all-target atomic in Beta 1.0; partial selected scope fails DEPENDENCY_INDETERMINATE until target-level disposition persistence exists"
   }
 }

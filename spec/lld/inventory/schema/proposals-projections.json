@@ -132,6 +132,7 @@
         "explicit_confirmation": true
       }
     },
-    "unsupported_acceptance_rule": "Other persisted proposal_kind/proposed_action combinations remain reviewable/rejectable but AcceptInventoryProposal must fail closed with DEPENDENCY_INDETERMINATE until a later version adds an exact typed owner mapping."
+    "unsupported_acceptance_rule": "Other persisted proposal_kind/proposed_action combinations remain reviewable/rejectable but AcceptInventoryProposal must fail closed with DEPENDENCY_INDETERMINATE until a later version adds an exact typed owner mapping.",
+    "selection_rule": "Beta 1.0 acceptance is all-target atomic: selected target ids, when supplied, must equal the complete proposal target set. Partial acceptance/defer requires future target-disposition persistence and therefore fails DEPENDENCY_INDETERMINATE."
   }
 }
