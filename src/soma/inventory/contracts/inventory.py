@@ -10,6 +10,9 @@ _ALLOWED_REF_TYPES = frozenset(
     {
         "device_part_unit",
         "local_need_fulfillment",
+        "rma",
+        "rma_assignment",
+        "rma_identifier",
         "spare_need",
         "spare_need_contributor",
         "spare_need_event",
