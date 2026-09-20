@@ -368,6 +368,7 @@ _CORRECTION_KINDS = frozenset(
         "logistics_participant_relationship",
         "spare_part_rma_provenance",
         "false_fault_tag_submission",
+        "false_warehouse_receipt",
         "physical_consequence",
     }
 )
