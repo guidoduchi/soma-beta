@@ -12,7 +12,7 @@ _QUERY_AUTH = "LLD12_BROWSER_QUERY_V1"
 _MUTATION_AUTH = "LLD12_BROWSER_MUTATION_V1"
 _ALLOWED_METHODS = frozenset({"GET", "POST", "PATCH"})
 _ALLOWED_HANDLER_KINDS = frozenset({"query", "command"})
-_PARAMETER = re.compile(r"^\\{([a-z][a-z0-9_]*)\\}$")
+_PARAMETER = re.compile(r"^\{([a-z][a-z0-9_]*)\}$")
 
 
 @dataclass(frozen=True, slots=True)

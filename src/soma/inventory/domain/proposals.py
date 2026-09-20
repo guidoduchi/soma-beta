@@ -22,7 +22,7 @@ _TARGET_KINDS = frozenset(
     {"spare_request", "rma", "spare_part_unit", "fault_tag", "fault_tag_membership"}
 )
 _RISK_TIERS = frozenset({"normal", "high", "material_final"})
-_SHA256 = re.compile(r"[0-9a-f]{64}\\Z")
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def validate_positive_revision(value: int, field: str = "revision") -> int:
