@@ -312,6 +312,49 @@ def _validate_fault_tag_lineage(payload: dict[str, object]) -> None:
     _positive(payload.get("resulting_revision"), "resulting_revision")
 
 
+def _validate_inventory_proposal(payload: dict[str, object]) -> None:
+    _uuid(payload.get("proposal_id"), "proposal_id")
+    if payload.get("decision") not in {"ACCEPT", "REJECT"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory proposal decision is invalid")
+    _fingerprint(payload.get("input_fingerprint"), "input_fingerprint")
+    accepted = payload.get("accepted_target_count")
+    deferred = payload.get("deferred_or_rejected_count")
+    if type(accepted) is not int or accepted < 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "accepted_target_count is invalid")
+    if type(deferred) is not int or deferred < 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "deferred_or_rejected_count is invalid")
+    source_ref = payload.get("source_evidence_ref")
+    if (
+        not isinstance(source_ref, str)
+        or not source_ref
+        or len(source_ref.encode("utf-8", errors="strict")) > 1024
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "source_evidence_ref is invalid")
+    _reason(payload.get("reason_category"))
+
+
+_CORRECTION_KINDS = frozenset(
+    {
+        "false_spare_request_submission",
+        "rma_identifier_alias",
+        "logistics_participant_relationship",
+        "false_fault_tag_submission",
+        "physical_consequence",
+    }
+)
+
+
+def _validate_inventory_correction(payload: dict[str, object]) -> None:
+    if payload.get("target_type") not in {"inventory_event", "inventory_relationship"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory correction target type is invalid")
+    _uuid(payload.get("target_id"), "target_id")
+    _uuid(payload.get("correction_event_id"), "correction_event_id")
+    if payload.get("correction_kind") not in _CORRECTION_KINDS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory correction kind is invalid")
+    _positive(payload.get("resulting_revision"), "resulting_revision")
+    _reason(payload.get("reason_category"))
+
+
 def _validate_inventory_bulk(payload: dict[str, object]) -> None:
     _uuid(payload.get("batch_id"), "batch_id")
     if payload.get("action_kind") not in {
@@ -688,6 +731,51 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_fault_tag_lineage,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.proposal.decided",
+            action_version=1,
+            payload_schema="InventoryProposalAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "InventoryProposalAuditV1",
+                frozenset(
+                    {
+                        "proposal_id",
+                        "decision",
+                        "input_fingerprint",
+                        "accepted_target_count",
+                        "deferred_or_rejected_count",
+                        "source_evidence_ref",
+                        "reason_category",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_inventory_proposal,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.evidence.corrected",
+            action_version=1,
+            payload_schema="InventoryCorrectionAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "InventoryCorrectionAuditV1",
+                frozenset(
+                    {
+                        "target_type",
+                        "target_id",
+                        "correction_event_id",
+                        "correction_kind",
+                        "resulting_revision",
+                        "reason_category",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_inventory_correction,
         )
     )
     registry.register(
