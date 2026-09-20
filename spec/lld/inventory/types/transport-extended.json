@@ -228,6 +228,20 @@
       "kind": "closed_union",
       "discriminator": "action mapping from inventory_proposals.proposal_kind + inventory_proposal_targets.proposed_action",
       "variants": {
+        "spare_request_submission": {
+          "target_kind": "spare_request",
+          "required": [
+            "schema",
+            "expected_draft_fingerprint",
+            "effective_submission_at_utc"
+          ],
+          "fields": {
+            "schema": "literal INVENTORY_PROPOSAL_TARGET_V1",
+            "expected_draft_fingerprint": "lowercase sha256",
+            "effective_submission_at_utc": "int>=0|null"
+          },
+          "unknown_fields": "reject"
+        },
         "warehouse_received": {
           "target_kind": "fault_tag_membership",
           "required": [

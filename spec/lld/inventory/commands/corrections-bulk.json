@@ -133,7 +133,8 @@
   },
   "proposal_target_payload_contract": "schema/proposals-projections.json#proposal_target_payload_contract_v1",
   "proposal_acceptance_v1": [
-    "accept only the two typed owner actions pinned by INVENTORY_PROPOSAL_TARGET_V1",
+    "accept only the three typed owner actions pinned by INVENTORY_PROPOSAL_TARGET_V1",
+    "spare_request_submission requires indexed_sent proposal evidence, exact target request revision and exact reviewed draft fingerprint, then reuses the AcceptSpareRequestSubmission owner reducer in the caller UoW with no nested receipt",
     "warehouse_received reuses exact Fault Tag membership receipt reducer in the caller UoW",
     "warehouse_final_decision requires material_final risk and explicit_confirmation=true before any mutation",
     "unsupported proposal kinds/actions fail DEPENDENCY_INDETERMINATE and leave proposal/Inventory unchanged",

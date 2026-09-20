@@ -95,9 +95,34 @@
       "payload_json is strict canonical JSON object; unknown fields reject",
       "communication/message body text is forbidden",
       "proposal evidence_kind/evidence_id remains the immutable source evidence reference and is not duplicated into payload_json",
-      "target row expected_revision is authoritative optimistic-concurrency input"
+      "target row expected_revision is authoritative optimistic-concurrency input",
+      "spare_request_submission acceptance requires proposal evidence_kind='indexed_sent'; the evidence_id remains source evidence and is never copied into payload_json"
     ],
     "accepted_owner_actions": {
+      "spare_request_submission": {
+        "proposal_kind": "spare_request_submission",
+        "target_kind": "spare_request",
+        "proposed_action": "spare_request_submission",
+        "payload_required": [
+          "schema",
+          "expected_draft_fingerprint",
+          "effective_submission_at_utc"
+        ],
+        "payload_fields": {
+          "schema": "INVENTORY_PROPOSAL_TARGET_V1",
+          "expected_draft_fingerprint": "lowercase sha256 of exact current Spare Request draft projection",
+          "effective_submission_at_utc": "int>=0|null"
+        },
+        "owner_reducer": "AcceptSpareRequestSubmission",
+        "risk_tier": "normal|high",
+        "explicit_confirmation": false,
+        "rules": [
+          "target expected_revision and expected_draft_fingerprint must both match current draft authority inside the acceptance UoW",
+          "owner reducer receives evidence_kind='indexed_sent' plus the proposal evidence_id",
+          "accepted submission event/snapshot/audit are identical in authority shape to manual confirmation; only evidence provenance differs",
+          "proposal acceptance inserts no nested owner receipt"
+        ]
+      },
       "warehouse_received": {
         "proposal_kind": "warehouse_received",
         "target_kind": "fault_tag_membership",
@@ -135,7 +160,7 @@
         "explicit_confirmation": true
       }
     },
-    "unsupported_acceptance_rule": "Other persisted proposal_kind/proposed_action combinations remain reviewable/rejectable but AcceptInventoryProposal must fail closed with DEPENDENCY_INDETERMINATE until a later version adds an exact typed owner mapping.",
+    "unsupported_acceptance_rule": "Persisted proposal_kind/proposed_action combinations other than spare_request_submission, warehouse_received and warehouse_final_decision remain reviewable/rejectable but AcceptInventoryProposal must fail closed with DEPENDENCY_INDETERMINATE until a later version adds an exact typed owner mapping.",
     "selection_rule": "Beta 1.0 acceptance is all-target atomic: selected target ids, when supplied, must equal the complete proposal target set. Partial acceptance/defer requires future target-disposition persistence and therefore fails DEPENDENCY_INDETERMINATE."
   }
 }
