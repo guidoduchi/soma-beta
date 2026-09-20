@@ -1327,3 +1327,287 @@ def test_t046_fault_tag_submission_snapshots_survive_later_master_changes_and_re
             "WHERE dispatch_location_id=?",
             (location_id,),
         ).fetchone() == ("Changed Pickup Name", "Changed pickup address")
+
+
+def _submitted_fault_tag(
+    factory,
+    *,
+    rma_id: str,
+    return_method: str = "non_pickup",
+    pickup_dispatch_location_id: str | None = None,
+    pickup_contact_id: str | None = None,
+):
+    service = InventoryFaultTagService(factory)
+    draft = service.create_fault_tag_draft(
+        command_id=new_uuid4(),
+        return_method=return_method,
+        pickup_dispatch_location_id=pickup_dispatch_location_id,
+        pickup_contact_id=pickup_contact_id,
+        memberships=(
+            FaultTagMembershipIntent(
+                rma_id=rma_id,
+                return_reason="return for warehouse review",
+            ),
+        ),
+    )
+    submitted = service.accept_fault_tag_submission(
+        command_id=new_uuid4(),
+        fault_tag_id=str(draft["fault_tag_id"]),
+        base_revision=int(draft["revision"]),
+        expected_draft_fingerprint=str(draft["input_fingerprint"]),
+        effective_submission_at_utc=1_700_840_000,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        snapshot_row = snapshot.connection.execute(
+            "SELECT submission_event_id,fault_tag_submission_snapshot_id "
+            "FROM fault_tag_submission_snapshots WHERE fault_tag_id=? "
+            "ORDER BY recorded_at_utc,fault_tag_submission_snapshot_id DESC LIMIT 1",
+            (draft["fault_tag_id"],),
+        ).fetchone()
+    return draft, submitted, str(snapshot_row[0]), str(snapshot_row[1])
+
+
+def test_t047_submitted_fault_tag_rejects_direct_draft_edit_or_membership_remove(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200014",
+            suffix="T047",
+            promised_bom="BOM-T047",
+            c10_base=5600,
+        )
+    )
+    draft, submitted, _event_id, _snapshot_id = _submitted_fault_tag(
+        factory,
+        rma_id=rma_id,
+    )
+    membership_id = str(submitted["members"][0]["fault_tag_membership_id"])
+    attempted = new_uuid4()
+    with pytest.raises(SomaError) as blocked:
+        InventoryFaultTagService(factory).update_fault_tag_draft(
+            command_id=attempted,
+            fault_tag_id=str(draft["fault_tag_id"]),
+            base_revision=int(submitted["revision"]),
+            expected_draft_fingerprint=str(submitted["input_fingerprint"]),
+            return_method="non_pickup",
+            remove_membership_ids=(membership_id,),
+        )
+    assert blocked.value.code == "FAULT_TAG_NOT_DRAFT"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (attempted,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT state,active_submitted FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone() == ("submitted_awaiting_receipt", 1)
+
+
+def test_t048_false_fault_tag_submission_restores_same_tag_to_draft_preserving_s1(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200015",
+            suffix="T048",
+            promised_bom="BOM-T048",
+            c10_base=5700,
+        )
+    )
+    draft, submitted, submission_event_id, snapshot_id = _submitted_fault_tag(
+        factory,
+        rma_id=rma_id,
+    )
+    membership_id = str(submitted["members"][0]["fault_tag_membership_id"])
+    corrected = InventoryFaultTagService(factory).correct_false_fault_tag_submission(
+        command_id=new_uuid4(),
+        fault_tag_id=str(draft["fault_tag_id"]),
+        submission_event_id=submission_event_id,
+        reason_code="submission was recorded but never externally sent",
+        confirmed_no_real_send=True,
+    )
+    assert corrected["state"] == "draft"
+    assert corrected["fault_tag_id"] == draft["fault_tag_id"]
+
+    with ReadSnapshot(factory) as snapshot:
+        tag = snapshot.connection.execute(
+            "SELECT state,current_submission_snapshot_id,revision "
+            "FROM fault_tag_current_projection WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()
+        assert tuple(tag) == ("draft", None, 3)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_submission_snapshots "
+            "WHERE fault_tag_submission_snapshot_id=?",
+            (snapshot_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT event_kind,target_event_id FROM fault_tag_lifecycle_events "
+            "WHERE fault_tag_id=? AND event_kind='submission_corrected_false'",
+            (draft["fault_tag_id"],),
+        ).fetchone() == ("submission_corrected_false", submission_event_id)
+        assert snapshot.connection.execute(
+            "SELECT state,active_submitted,revision FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone() == ("draft", 0, 3)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_membership_submission_snapshots "
+            "WHERE fault_tag_membership_id=?",
+            (membership_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT state,active_fault_tag_membership_id,return_obligation_open "
+            "FROM rma_lifecycle_projection WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone() == ("return_open", None, 1)
+
+
+def test_rs003_false_corrected_fault_tag_can_resubmit_same_membership_without_erasing_s1(
+    initialized_database,
+) -> None:
+    factory, _receiver, _location_id, rma_id, _unit_id, _consequence_id = (
+        _open_return_obligation(
+            initialized_database,
+            official_sr="97200016",
+            suffix="RS003",
+            promised_bom="BOM-RS003",
+            c10_base=5800,
+        )
+    )
+    service = InventoryFaultTagService(factory)
+    draft, _submitted, submission_event_id, first_snapshot_id = _submitted_fault_tag(
+        factory,
+        rma_id=rma_id,
+    )
+    corrected = service.correct_false_fault_tag_submission(
+        command_id=new_uuid4(),
+        fault_tag_id=str(draft["fault_tag_id"]),
+        submission_event_id=submission_event_id,
+        reason_code="first send did not occur",
+        confirmed_no_real_send=True,
+    )
+    second = service.accept_fault_tag_submission(
+        command_id=new_uuid4(),
+        fault_tag_id=str(draft["fault_tag_id"]),
+        base_revision=int(corrected["revision"]),
+        expected_draft_fingerprint=str(corrected["input_fingerprint"]),
+        effective_submission_at_utc=1_700_841_000,
+    )
+    assert second["state"] == "submitted"
+
+    with ReadSnapshot(factory) as snapshot:
+        snapshots = snapshot.connection.execute(
+            "SELECT fault_tag_submission_snapshot_id FROM fault_tag_submission_snapshots "
+            "WHERE fault_tag_id=? ORDER BY recorded_at_utc,fault_tag_submission_snapshot_id",
+            (draft["fault_tag_id"],),
+        ).fetchall()
+        assert len(snapshots) == 2
+        assert first_snapshot_id in {str(row[0]) for row in snapshots}
+        member_id = str(second["members"][0]["fault_tag_membership_id"])
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_membership_submission_snapshots "
+            "WHERE fault_tag_membership_id=?",
+            (member_id,),
+        ).fetchone()[0] == 2
+        current_snapshot = snapshot.connection.execute(
+            "SELECT current_submission_snapshot_id FROM fault_tag_current_projection "
+            "WHERE fault_tag_id=?",
+            (draft["fault_tag_id"],),
+        ).fetchone()[0]
+        assert str(current_snapshot) != first_snapshot_id
+
+
+def test_rs004_false_corrected_fault_tag_s2_freezes_only_changed_current_memberships(
+    initialized_database,
+) -> None:
+    first = _open_return_obligation(
+        initialized_database,
+        official_sr="97200017",
+        suffix="RS004-A",
+        promised_bom="BOM-RS004-A",
+        c10_base=5900,
+    )
+    second = _open_return_obligation(
+        initialized_database,
+        official_sr="97200018",
+        suffix="RS004-B",
+        promised_bom="BOM-RS004-B",
+        c10_base=6000,
+    )
+    factory = first[0]
+    service = InventoryFaultTagService(factory)
+    draft, submitted, submission_event_id, first_snapshot_id = _submitted_fault_tag(
+        factory,
+        rma_id=first[3],
+    )
+    first_membership_id = str(submitted["members"][0]["fault_tag_membership_id"])
+    corrected = service.correct_false_fault_tag_submission(
+        command_id=new_uuid4(),
+        fault_tag_id=str(draft["fault_tag_id"]),
+        submission_event_id=submission_event_id,
+        reason_code="first send did not occur",
+        confirmed_no_real_send=True,
+    )
+    updated = service.update_fault_tag_draft(
+        command_id=new_uuid4(),
+        fault_tag_id=str(draft["fault_tag_id"]),
+        base_revision=int(corrected["revision"]),
+        expected_draft_fingerprint=str(corrected["input_fingerprint"]),
+        return_method="non_pickup",
+        remove_membership_ids=(first_membership_id,),
+        add_memberships=(
+            FaultTagMembershipIntent(
+                rma_id=second[3],
+                return_reason="replacement current draft membership",
+            ),
+        ),
+    )
+    assert {item["rma_id"] for item in updated["members"]} == {second[3]}
+    second_submission = service.accept_fault_tag_submission(
+        command_id=new_uuid4(),
+        fault_tag_id=str(draft["fault_tag_id"]),
+        base_revision=int(updated["revision"]),
+        expected_draft_fingerprint=str(updated["input_fingerprint"]),
+        effective_submission_at_utc=1_700_842_000,
+    )
+    assert second_submission["state"] == "submitted"
+
+    with ReadSnapshot(factory) as snapshot:
+        snapshots = snapshot.connection.execute(
+            "SELECT fault_tag_submission_snapshot_id FROM fault_tag_submission_snapshots "
+            "WHERE fault_tag_id=? ORDER BY recorded_at_utc,fault_tag_submission_snapshot_id",
+            (draft["fault_tag_id"],),
+        ).fetchall()
+        assert len(snapshots) == 2
+        second_snapshot_id = next(
+            str(row[0]) for row in snapshots if str(row[0]) != first_snapshot_id
+        )
+        s1_rmas = {
+            str(row[0])
+            for row in snapshot.connection.execute(
+                "SELECT rma_id FROM fault_tag_membership_submission_snapshots "
+                "WHERE fault_tag_submission_snapshot_id=?",
+                (first_snapshot_id,),
+            ).fetchall()
+        }
+        s2_rmas = {
+            str(row[0])
+            for row in snapshot.connection.execute(
+                "SELECT rma_id FROM fault_tag_membership_submission_snapshots "
+                "WHERE fault_tag_submission_snapshot_id=?",
+                (second_snapshot_id,),
+            ).fetchall()
+        }
+        assert s1_rmas == {first[3]}
+        assert s2_rmas == {second[3]}
+        assert snapshot.connection.execute(
+            "SELECT state FROM fault_tag_membership_current "
+            "WHERE fault_tag_membership_id=?",
+            (first_membership_id,),
+        ).fetchone()[0] == "cancelled"
