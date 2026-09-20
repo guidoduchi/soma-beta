@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.product_line_sla.algorithms.individual_sla import IndividualSlaCalculator
 from soma.product_line_sla.algorithms.warnings import SlaWarningCalculator
+from soma.product_line_sla.queries.sla import SlaWarningQueryService
 from soma.product_line_sla.services.catalog import ProductLineSlaCatalogService
 from soma.product_line_sla.services.classification import ProductLineSlaClassificationService
 from soma.product_line_sla.services.policy import ProductLineSlaPolicyService
@@ -503,3 +505,96 @@ def test_missing_suspension_planned_end_warns_without_inferred_pause_t037(
     assert [warning.warning_kind for warning in warnings] == [
         "suspension_end_missing_or_expired"
     ]
+
+
+def test_warning_query_preserves_multiple_exceeded_tiers_across_cursor(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    setup = _classified(factory, suffix="50")
+    report_date = 1_000_000
+    _apply_source(
+        factory,
+        setup.service_request_id,
+        _delta("report_date", value=report_date, chronology=100),
+        _delta("customer_severity", value="Major", chronology=100),
+    )
+    as_of = report_date + 31 * 86_400
+    query = SlaWarningQueryService(factory)
+
+    first = query.list_warnings(
+        customer_org_id=setup.customer_id,
+        warning_kind="individual_tier_exceeded",
+        as_of_utc=as_of,
+        limit=1,
+    )
+    assert len(first.items) == 1
+    assert first.next_cursor is not None
+    assert first.items[0].policy_tier_id is not None
+
+    second = query.list_warnings(
+        customer_org_id=setup.customer_id,
+        warning_kind="individual_tier_exceeded",
+        as_of_utc=as_of,
+        cursor=first.next_cursor,
+        limit=1,
+    )
+    assert len(second.items) == 1
+    assert second.next_cursor is None
+    assert second.items[0].policy_tier_id is not None
+    assert second.items[0].policy_tier_id != first.items[0].policy_tier_id
+    assert second.items[0].target_id == first.items[0].target_id
+
+
+def test_warning_query_applies_configured_suspension_ending_threshold(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    setup = _classified(factory, suffix="51")
+    as_of = 2_000_000
+    _apply_source(
+        factory,
+        setup.service_request_id,
+        _delta("status", value="Customer Agreed Suspend", chronology=100),
+        _delta("suspend_planned_end", value=as_of + 120, chronology=100),
+    )
+    page = SlaWarningQueryService(
+        factory,
+        suspension_ending_soon_threshold_seconds=300,
+    ).list_warnings(
+        customer_org_id=setup.customer_id,
+        warning_kind="suspension_ending_soon",
+        as_of_utc=as_of,
+    )
+
+    assert len(page.items) == 1
+    assert page.items[0].warning_kind == "suspension_ending_soon"
+    assert page.items[0].target_id == setup.service_request_id
+    assert page.next_cursor is None
+
+
+def test_warning_query_derives_cohort_warning_from_as_of_guayaquil_month(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    setup = _classified(factory, suffix="52")
+    report_date = int(datetime(2026, 9, 1, 5, tzinfo=UTC).timestamp())
+    as_of = report_date + 20 * 86_400
+    _apply_source(
+        factory,
+        setup.service_request_id,
+        _delta("report_date", value=report_date, chronology=100),
+        _delta("customer_severity", value="Major", chronology=100),
+    )
+
+    page = SlaWarningQueryService(factory).list_warnings(
+        customer_org_id=setup.customer_id,
+        warning_kind="cohort_breached",
+        as_of_utc=as_of,
+    )
+
+    assert len(page.items) == 1
+    assert page.items[0].warning_kind == "cohort_breached"
+    assert page.items[0].target_type == "sla_cohort"
+    assert page.items[0].policy_tier_id is not None
+    assert page.next_cursor is None
