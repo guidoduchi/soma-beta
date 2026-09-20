@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from soma.foundation.errors import SomaError, ValidationError
-from soma.foundation.identifiers import require_uuid4
+from soma.foundation.identifiers import require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import loads_canonical_json
@@ -12,6 +12,14 @@ from soma.foundation.strict_json import loads_canonical_json
 def _limit(value: int) -> int:
     if type(value) is not int or not 1 <= value <= 500:
         raise ValidationError("limit must be an integer from 1 through 500")
+    return value
+
+
+def _as_of(value: int | None) -> int:
+    if value is None:
+        return utc_epoch_seconds()
+    if type(value) is not int or value < 0:
+        raise ValidationError("as_of_utc must be a nonnegative whole-second UTC instant")
     return value
 
 
@@ -25,12 +33,14 @@ class InventoryRequestsRmaQueryService:
         service_request_id: str | None = None,
         lifecycle_state: str | None = None,
         response_warning_only: bool = False,
+        as_of_utc: int | None = None,
         after_id: str | None = None,
         limit: int = 100,
     ) -> dict[str, object]:
         page_limit = _limit(limit)
         sr_id = None if service_request_id is None else require_uuid4(service_request_id)
         after = None if after_id is None else require_uuid4(after_id)
+        effective_as_of = _as_of(as_of_utc)
         params: list[object] = []
         clauses: list[str] = []
         if sr_id is not None:
@@ -40,21 +50,32 @@ class InventoryRequestsRmaQueryService:
             clauses.append("p.lifecycle_state=?")
             params.append(lifecycle_state)
         if response_warning_only:
-            clauses.append("p.response_warning_start_utc IS NOT NULL")
+            clauses.extend(
+                [
+                    "p.lifecycle_state='submitted_awaiting_response'",
+                    "p.response_warning_start_utc IS NOT NULL",
+                    "(? - p.response_warning_start_utc)>=86400",
+                ]
+            )
+            params.append(effective_as_of)
         where = "" if not clauses else " WHERE " + " AND ".join(clauses)
         with ReadSnapshot(self._factory) as snapshot:
-            total = int(snapshot.connection.execute(
-                "SELECT COUNT(*) FROM spare_requests r "
-                "JOIN spare_request_current_projection p "
-                "ON p.spare_request_id=r.spare_request_id" + where,
-                tuple(params),
-            ).fetchone()[0])
+            total = int(
+                snapshot.connection.execute(
+                    "SELECT COUNT(*) FROM spare_requests r "
+                    "JOIN spare_request_current_projection p "
+                    "ON p.spare_request_id=r.spare_request_id" + where,
+                    tuple(params),
+                ).fetchone()[0]
+            )
             page_clauses = list(clauses)
             page_params = list(params)
             if after is not None:
                 page_clauses.append("r.spare_request_id>?")
                 page_params.append(after)
-            page_where = "" if not page_clauses else " WHERE " + " AND ".join(page_clauses)
+            page_where = (
+                "" if not page_clauses else " WHERE " + " AND ".join(page_clauses)
+            )
             rows = snapshot.connection.execute(
                 "SELECT r.spare_request_id,r.tracking_id,r.service_request_id,"
                 "r.requester_contact_id,r.requester_context_json,p.lifecycle_state,"
@@ -74,21 +95,34 @@ class InventoryRequestsRmaQueryService:
                     "service_request_id": str(row[2]),
                     "requester_contact_id": str(row[3]),
                     "requester_context": loads_canonical_json(
-                        str(row[4]), max_bytes=4096, max_depth=4, max_collection_items=32
+                        str(row[4]),
+                        max_bytes=4096,
+                        max_depth=4,
+                        max_collection_items=32,
                     ),
                     "lifecycle_state": str(row[5]),
                     "official_sr7": None if row[6] is None else str(row[6]),
                     "submitted_quantity": int(row[7]),
                     "authorized_rma_count": int(row[8]),
-                    "response_warning_start_utc": None if row[9] is None else int(row[9]),
+                    "response_warning_start_utc": (
+                        None if row[9] is None else int(row[9])
+                    ),
+                    "response_warning_age_seconds": (
+                        None
+                        if row[9] is None
+                        else max(0, effective_as_of - int(row[9]))
+                    ),
                     "revision": int(row[10]),
                 }
                 for row in page
             ]
             return {
                 "items": items,
-                "continuation": str(page[-1][0]) if len(rows) > page_limit and page else None,
+                "continuation": (
+                    str(page[-1][0]) if len(rows) > page_limit and page else None
+                ),
                 "exact_total": total,
+                "as_of_utc": effective_as_of,
             }
 
     def request_detail(self, request_id: str) -> dict[str, object]:
