@@ -525,19 +525,6 @@ class InventoryConsequencesLogisticsService:
                 "Actual logistics evidence validator is unavailable",
             )
 
-        with ReadSnapshot(self._factory) as snapshot:
-            reference_context = self._logistics.reference_context(
-                snapshot.connection,
-                dispatch_location_id=location_id,
-                receiver_contact_id=receiver_id,
-            )
-            self._logistics.require_participants(
-                snapshot.connection,
-                rma_ids=accepted_participants.rma_ids,
-                spare_part_unit_ids=accepted_participants.spare_part_unit_ids,
-                device_part_unit_ids=accepted_participants.device_part_unit_ids,
-            )
-
         event_id = new_uuid4()
         envelope = CommandEnvelope(
             command_id=command_id,
@@ -566,9 +553,10 @@ class InventoryConsequencesLogisticsService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
-            self._logistics.require_reference_context(
+            reference_context = self._logistics.reference_context(
                 uow.connection,
-                expected=reference_context,
+                dispatch_location_id=location_id,
+                receiver_contact_id=receiver_id,
             )
             self._logistics.require_participants(
                 uow.connection,
