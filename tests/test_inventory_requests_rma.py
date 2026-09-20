@@ -6,6 +6,7 @@ from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.inventory.domain.requests import SpareRequestAllocationIntent
+from soma.inventory.domain.rmas import RmaAuthorizationIntent
 from soma.inventory.queries.attention_history import InventoryAttentionQueryService
 from soma.inventory.queries.requests_rma import InventoryRequestsQueryService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
@@ -954,4 +955,481 @@ def test_t023_current_and_former_sr7_aliases_are_globally_non_reusable(
             "WHERE spare_request_id=?",
             (request_b,),
         ).fetchone()[0] == 0
+
+def _authorized_request_with_targets(
+    initialized_database,
+    *,
+    official_sr: str,
+    suffix: str,
+    target_count: int,
+    requested_quantity: int,
+    bom_code: str,
+):
+    factory = _factory(initialized_database)
+    sr = _sr(factory, official_sr)
+    device = _device(factory, sr.service_request_id, f"RMA-{suffix}")
+    inventory = InventoryNeedsStockService(factory)
+    need_id: str | None = None
+    target_ids: list[str] = []
+    for ordinal in range(target_count):
+        registered = inventory.register_device_part_unit(
+            command_id=new_uuid4(),
+            service_request_id=sr.service_request_id,
+            device_reference_id=device.device_reference_id,
+            bom_code=bom_code,
+            manufacturer_serial=f"{suffix}-FAULT-{ordinal:03d}",
+            condition_token="faulty",
+        )
+        target_ids.append(
+            next(
+                ref.result_id
+                for ref in registered.target_refs
+                if ref.result_type == "device_part_unit"
+            )
+        )
+        if need_id is None:
+            need_id = next(
+                ref.result_id
+                for ref in registered.target_refs
+                if ref.result_type == "spare_need"
+            )
+    assert need_id is not None
+
+    contacts = ContactReferenceService(factory)
+    requester = contacts.create_contact(
+        command_id=new_uuid4(),
+        name=f"RMA Requester {suffix}",
+    )
+    receiver = contacts.create_contact(
+        command_id=new_uuid4(),
+        name=f"RMA Receiver {suffix}",
+    )
+    location_id = _dispatch_location(factory, f"RMA-{suffix}")
+    service = InventoryRequestsRmaService(factory)
+    created = service.create_spare_request_draft(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        requester_contact_id=requester.contact_id,
+        allocations=(
+            SpareRequestAllocationIntent(need_id, requested_quantity),
+        ),
+        mode="delivery",
+        receiver_contact_id=receiver.contact_id,
+        dispatch_location_id=location_id,
+    )
+    request_id = str(created["spare_request_id"])
+    detail = InventoryRequestsQueryService(factory).get_spare_request(request_id)
+    service.accept_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        expected_draft_fingerprint=str(detail["input_fingerprint"]),
+        effective_submission_at_utc=1_700_500_000,
+    )
+    service.assign_or_correct_spare_request_official_id(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=2,
+        sr7=f"SR{int(official_sr[-7:]):07d}",
+        action="assign",
+    )
+    return factory, sr, need_id, target_ids, service, request_id
+
+
+def test_t024_rma_batch_requires_current_sr7_and_writes_nothing_on_failure(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _requester,
+        _receiver,
+        _location_id,
+        service,
+        created,
+    ) = _request_fixture(
+        initialized_database,
+        official_sr="97100013",
+        suffix="T024",
+    )
+    request_id = str(created["spare_request_id"])
+    detail = InventoryRequestsQueryService(factory).get_spare_request(request_id)
+    service.accept_spare_request_submission(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        base_revision=1,
+        expected_draft_fingerprint=str(detail["input_fingerprint"]),
+    )
+
+    with pytest.raises(SomaError) as excinfo:
+        service.accept_rma_authorization_batch(
+            command_id=new_uuid4(),
+            spare_request_id=request_id,
+            expected_request_revision=2,
+            rows=(
+                RmaAuthorizationIntent(
+                    c10="C0000000001",
+                    promised_bom_code="BOM-T024",
+                ),
+            ),
+        )
+    assert excinfo.value.code == "RMA_REQUIRES_SR7"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rma_authorization_batches"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rmas"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_part_units"
+        ).fetchone()[0] == 0
+
+
+def test_t025_t026_t027_deterministic_partial_rma_assignment_continues_across_batches(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _target_ids,
+        service,
+        request_id,
+    ) = _authorized_request_with_targets(
+        initialized_database,
+        official_sr="97100014",
+        suffix="T025",
+        target_count=60,
+        requested_quantity=60,
+        bom_code="BOM-RMA-60",
+    )
+
+    first_rows = tuple(
+        RmaAuthorizationIntent(
+            c10=f"C{ordinal:010d}",
+            promised_bom_code="BOM-RMA-60",
+        )
+        for ordinal in range(1, 31)
+    )
+    first = service.accept_rma_authorization_batch(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_request_revision=3,
+        rows=first_rows,
+        accepted_at_utc=1_700_500_100,
+    )
+    assert len(first["created_rmas"]) == 30
+    assert first["remaining_unassigned_quantity"] == 30
+
+    with ReadSnapshot(factory) as snapshot:
+        assigned = snapshot.connection.execute(
+            "SELECT r.response_ordinal,d.creation_sequence,a.c10 "
+            "FROM rmas r JOIN rma_current_assignment ca ON ca.rma_id=r.rma_id "
+            "JOIN device_part_units d ON d.device_part_unit_id=ca.device_part_unit_id "
+            "JOIN rma_identifier_aliases a ON a.rma_id=r.rma_id AND a.alias_kind='current' "
+            "WHERE r.spare_request_id=? ORDER BY r.response_ordinal",
+            (request_id,),
+        ).fetchall()
+        assert [
+            (int(row[0]), int(row[1]), str(row[2]))
+            for row in assigned
+        ] == [
+            (ordinal, ordinal, f"C{ordinal:010d}")
+            for ordinal in range(1, 31)
+        ]
+        projection = snapshot.connection.execute(
+            "SELECT lifecycle_state,authorized_rma_count,revision "
+            "FROM spare_request_current_projection WHERE spare_request_id=?",
+            (request_id,),
+        ).fetchone()
+        assert tuple(projection) == ("partially_authorized", 30, 4)
+        partial_attention = snapshot.connection.execute(
+            "SELECT attention_kind,severity FROM inventory_attention_projection "
+            "WHERE target_kind='spare_request' AND target_id=?",
+            (request_id,),
+        ).fetchall()
+        assert [tuple(row) for row in partial_attention] == [
+            ("partial_rma_authorization", "warning")
+        ]
+
+    second_rows = tuple(
+        RmaAuthorizationIntent(
+            c10=f"C{ordinal:010d}",
+            promised_bom_code="BOM-RMA-60",
+        )
+        for ordinal in range(31, 36)
+    )
+    second = service.accept_rma_authorization_batch(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_request_revision=4,
+        rows=second_rows,
+        accepted_at_utc=1_700_500_200,
+    )
+    assert second["remaining_unassigned_quantity"] == 25
+
+    with ReadSnapshot(factory) as snapshot:
+        later = snapshot.connection.execute(
+            "SELECT d.creation_sequence,a.c10 "
+            "FROM rmas r JOIN rma_current_assignment ca ON ca.rma_id=r.rma_id "
+            "JOIN device_part_units d ON d.device_part_unit_id=ca.device_part_unit_id "
+            "JOIN rma_identifier_aliases a ON a.rma_id=r.rma_id AND a.alias_kind='current' "
+            "WHERE r.spare_request_id=? AND r.authorization_batch_id=("
+            "SELECT authorization_batch_id FROM rma_authorization_batches "
+            "WHERE spare_request_id=? AND batch_ordinal=2"
+            ") ORDER BY r.response_ordinal",
+            (request_id, request_id),
+        ).fetchall()
+        assert [
+            (int(row[0]), str(row[1]))
+            for row in later
+        ] == [
+            (ordinal, f"C{ordinal:010d}")
+            for ordinal in range(31, 36)
+        ]
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_part_units"
+        ).fetchone()[0] == 0
+
+
+def test_t028_incompatible_promised_bom_keeps_rma_unassigned_with_attention(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _target_ids,
+        service,
+        request_id,
+    ) = _authorized_request_with_targets(
+        initialized_database,
+        official_sr="97100015",
+        suffix="T028",
+        target_count=2,
+        requested_quantity=2,
+        bom_code="BOM-COMPATIBLE",
+    )
+    result = service.accept_rma_authorization_batch(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_request_revision=3,
+        rows=(
+            RmaAuthorizationIntent(
+                c10="C0000001001",
+                promised_bom_code="BOM-INCOMPATIBLE",
+            ),
+        ),
+    )
+    rma_id = str(result["created_rmas"][0]["rma_id"])
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rma_current_assignment WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()[0] == 0
+        lifecycle = snapshot.connection.execute(
+            "SELECT state,current_target_device_part_unit_id "
+            "FROM rma_lifecycle_projection WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert tuple(lifecycle) == ("promised", None)
+        attention = snapshot.connection.execute(
+            "SELECT attention_kind,severity FROM inventory_attention_projection "
+            "WHERE target_kind='rma' AND target_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert tuple(attention) == ("rma_assignment_conflict", "action_required")
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_part_units"
+        ).fetchone()[0] == 0
+
+
+def test_t029_manual_rma_reassignment_preserves_prior_assignment_history(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        target_ids,
+        service,
+        request_id,
+    ) = _authorized_request_with_targets(
+        initialized_database,
+        official_sr="97100016",
+        suffix="T029",
+        target_count=3,
+        requested_quantity=2,
+        bom_code="BOM-REASSIGN",
+    )
+    result = service.accept_rma_authorization_batch(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_request_revision=3,
+        rows=(
+            RmaAuthorizationIntent(
+                c10="C0000002001",
+                promised_bom_code="BOM-REASSIGN",
+            ),
+        ),
+    )
+    rma_id = str(result["created_rmas"][0]["rma_id"])
+
+    with ReadSnapshot(factory) as snapshot:
+        current = snapshot.connection.execute(
+            "SELECT device_part_unit_id,revision FROM rma_current_assignment "
+            "WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        first_target = str(current[0])
+        assert int(current[1]) == 1
+        candidate = next(target for target in target_ids if target != first_target)
+
+    changed = service.set_rma_target_assignment(
+        command_id=new_uuid4(),
+        rma_id=rma_id,
+        expected_assignment_revision=1,
+        new_target_device_part_unit_id=candidate,
+        reason_code="operator reviewed alternate compatible target",
+    )
+    assert changed.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        current = snapshot.connection.execute(
+            "SELECT device_part_unit_id,revision FROM rma_current_assignment "
+            "WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert tuple(current) == (candidate, 2)
+        history = snapshot.connection.execute(
+            "SELECT event_kind,prior_device_part_unit_id,new_device_part_unit_id "
+            "FROM rma_assignment_events WHERE rma_id=? "
+            "ORDER BY recorded_at_utc,assignment_event_id",
+            (rma_id,),
+        ).fetchall()
+        assert len(history) == 2
+        assert {str(row[0]) for row in history} == {"auto_assign", "reassign"}
+        reassign = next(row for row in history if str(row[0]) == "reassign")
+        assert tuple(reassign[1:]) == (first_target, candidate)
+
+
+def test_t030_c10_correction_preserves_rma_identity_and_non_reusable_former_alias(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _target_ids,
+        service,
+        request_id,
+    ) = _authorized_request_with_targets(
+        initialized_database,
+        official_sr="97100017",
+        suffix="T030",
+        target_count=2,
+        requested_quantity=2,
+        bom_code="BOM-C10",
+    )
+    result = service.accept_rma_authorization_batch(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_request_revision=3,
+        rows=(
+            RmaAuthorizationIntent(
+                c10="C0000003001",
+                promised_bom_code="BOM-C10",
+            ),
+        ),
+    )
+    rma_id = str(result["created_rmas"][0]["rma_id"])
+
+    corrected = service.correct_rma_official_id(
+        command_id=new_uuid4(),
+        rma_id=rma_id,
+        current_c10="C0000003001",
+        new_c10="C0000003002",
+        reason_code="provider corrected RMA identifier",
+    )
+    assert corrected.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        aliases = snapshot.connection.execute(
+            "SELECT c10,alias_kind FROM rma_identifier_aliases WHERE rma_id=?",
+            (rma_id,),
+        ).fetchall()
+        assert {(str(row[0]), str(row[1])) for row in aliases} == {
+            ("C0000003001", "former"),
+            ("C0000003002", "current"),
+        }
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rmas WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()[0] == 1
+
+    second = service.accept_rma_authorization_batch
+    with pytest.raises(SomaError) as former_conflict:
+        second(
+            command_id=new_uuid4(),
+            spare_request_id=request_id,
+            expected_request_revision=4,
+            rows=(
+                RmaAuthorizationIntent(
+                    c10="C0000003001",
+                    promised_bom_code="BOM-C10",
+                ),
+            ),
+        )
+    assert former_conflict.value.code == "C10_CONFLICT"
+
+
+def test_t031_rma_authorization_never_fabricates_physical_spare_unit(
+    initialized_database,
+) -> None:
+    (
+        factory,
+        _sr_result,
+        _need_id,
+        _target_ids,
+        service,
+        request_id,
+    ) = _authorized_request_with_targets(
+        initialized_database,
+        official_sr="97100018",
+        suffix="T031",
+        target_count=1,
+        requested_quantity=1,
+        bom_code="BOM-NO-PLACEHOLDER",
+    )
+    result = service.accept_rma_authorization_batch(
+        command_id=new_uuid4(),
+        spare_request_id=request_id,
+        expected_request_revision=3,
+        rows=(
+            RmaAuthorizationIntent(
+                c10="C0000004001",
+                promised_bom_code="BOM-NO-PLACEHOLDER",
+            ),
+        ),
+    )
+    rma_id = str(result["created_rmas"][0]["rma_id"])
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_part_units"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rma_direct_inbound_units WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()[0] == 0
+        obligation = snapshot.connection.execute(
+            "SELECT obligation_state,device_part_unit_id,spare_part_unit_id,revision "
+            "FROM rma_return_obligation_current WHERE rma_id=?",
+            (rma_id,),
+        ).fetchone()
+        assert tuple(obligation) == ("not_established", None, None, 1)
 
