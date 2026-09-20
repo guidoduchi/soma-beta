@@ -188,6 +188,23 @@
         ],
         "owner": "CorrectLogisticsParticipant reducer"
       },
+      "spare_part_rma_provenance": {
+        "target_kind": "spare_part_unit",
+        "required": [
+          "target_id",
+          "expected_revision",
+          "origin_rma_id",
+          "reason_code"
+        ],
+        "rules": [
+          "target Spare Part Unit must already exist with origin_rma_id null",
+          "origin_rma_id must identify an existing RMA",
+          "the immutable spare_part_unit_id, LSU/local tracking id, creation_origin, BOM/serial and prior lifecycle history never change",
+          "adoption is provenance only and never creates rma_direct_inbound_units or claims physical receipt",
+          "append one spare_part_lifecycle_events correction event and advance only the Spare Part Unit current projection revision/current provenance"
+        ],
+        "owner": "SparePartUnitRepository.attach_origin_rma reducer"
+      },
       "false_fault_tag_submission": {
         "target_kind": "fault_tag",
         "required": [
