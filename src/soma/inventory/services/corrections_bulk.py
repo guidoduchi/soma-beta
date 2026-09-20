@@ -40,6 +40,7 @@ from ..repositories.logistics import InventoryLogisticsRepository
 from ..repositories.projections import InventoryProjectionsRepository
 from ..repositories.requests import InventoryRequestsRepository
 from ..repositories.rmas import InventoryRmasRepository
+from ..repositories.units import InventoryUnitsRepository
 
 
 class InventoryCorrectionsBulkService:
@@ -48,6 +49,7 @@ class InventoryCorrectionsBulkService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._requests = InventoryRequestsRepository()
         self._rmas = InventoryRmasRepository()
+        self._units = InventoryUnitsRepository()
         self._logistics = InventoryLogisticsRepository()
         self._fault_tags = InventoryFaultTagsRepository()
         self._projections = InventoryProjectionsRepository()
@@ -590,6 +592,7 @@ class InventoryCorrectionsBulkService:
         new_c10: str | None = None,
         replacement_kind: str | None = None,
         replacement_id: str | None = None,
+        origin_rma_id: str | None = None,
         expected_revision: int | None = None,
         task_review_fingerprint: str | None = None,
         physical_disposition: str | None = None,
@@ -605,6 +608,7 @@ class InventoryCorrectionsBulkService:
             "false_spare_request_submission",
             "rma_identifier_alias",
             "logistics_participant_relationship",
+            "spare_part_rma_provenance",
             "false_fault_tag_submission",
             "physical_consequence",
             "submitted_fault_tag_material",
@@ -620,6 +624,7 @@ class InventoryCorrectionsBulkService:
             "new_c10": new_c10,
             "replacement_kind": replacement_kind,
             "replacement_id": replacement_id,
+            "origin_rma_id": origin_rma_id,
             "expected_revision": expected_revision,
             "task_review_fingerprint": task_review_fingerprint,
             "physical_disposition": physical_disposition,
@@ -694,6 +699,26 @@ class InventoryCorrectionsBulkService:
                 }
             )
             target_type = "logistics_participant"
+        elif correction_kind == "spare_part_rma_provenance":
+            self._reject_irrelevant_fields(
+                allowed=frozenset({"origin_rma_id", "expected_revision"}),
+                values=raw_values,
+            )
+            if origin_rma_id is None or expected_revision is None:
+                raise ValidationError(
+                    "Spare Part Unit RMA provenance correction is incomplete"
+                )
+            if type(expected_revision) is not int or expected_revision <= 0:
+                raise ValidationError("expected_revision must be positive")
+            provenance_rma = require_uuid4(origin_rma_id)
+            semantic.update(
+                {
+                    "origin_rma_id": provenance_rma,
+                    "expected_revision": expected_revision,
+                }
+            )
+            base_revisions["spare_part_unit"] = expected_revision
+            target_type = "spare_part_unit"
         elif correction_kind == "physical_consequence":
             self._reject_irrelevant_fields(
                 allowed=frozenset(
@@ -794,6 +819,89 @@ class InventoryCorrectionsBulkService:
                 raise SomaError(
                     "CORRECTION_TARGET_INVALID",
                     "Genuine later development must use its normal lifecycle command",
+                )
+
+            if correction_kind == "spare_part_rma_provenance":
+                expected = int(semantic["expected_revision"])
+                provenance_rma = str(semantic["origin_rma_id"])
+                unit = self._units.current_unit(uow.connection, identity)
+                if unit is None or int(unit[14]) != expected:
+                    raise SomaError("INV_STALE", "Spare Part Unit revision changed")
+                if unit[7] is not None:
+                    raise SomaError(
+                        "CORRECTION_TARGET_INVALID",
+                        "Spare Part Unit already has RMA provenance",
+                    )
+                if self._rmas.current_rma(uow.connection, provenance_rma) is None:
+                    raise SomaError("INV_STALE", "RMA provenance no longer exists")
+                local_tracking_id = None if unit[1] is None else str(unit[1])
+
+                def apply(inner: UnitOfWork):
+                    event_id, resulting_revision = self._units.attach_origin_rma(
+                        inner.connection,
+                        spare_part_unit_id=identity,
+                        origin_rma_id=provenance_rma,
+                        expected_revision=expected,
+                        reason_code=reason,
+                        command_id=command_id,
+                    )
+                    apply.result_id = event_id
+                    apply.revision = resulting_revision
+                    owner = AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="inventory.spare_unit.registered_or_reserved",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="spare_part_unit",
+                        target_id=identity,
+                        command_id=command_id,
+                        reason_category=reason,
+                        payload_schema="SpareUnitAuditV1",
+                        payload_version=1,
+                        payload={
+                            "spare_part_unit_id": identity,
+                            "event_kind": "PROVENANCE_ATTACH",
+                            "local_tracking_id": local_tracking_id,
+                            "task_id": None,
+                            "allocation_id": None,
+                            "spare_need_id": None,
+                            "resulting_unit_revision": resulting_revision,
+                            "allocation_revision": None,
+                            "bom_fingerprint": None,
+                            "reason_category": reason,
+                        },
+                        resulting_event_refs=(
+                            AuditResultRef("spare_part_unit", identity),
+                            AuditResultRef("spare_part_unit_event", event_id),
+                        ),
+                    )
+                    generic = self._correction_generic_audit(
+                        command_id=command_id,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        correction_kind=correction_kind,
+                        target_id=identity,
+                        target_event_id=None,
+                        reason=reason,
+                        result_kind="inventory_event",
+                        result_id=event_id,
+                    )
+                    return (owner, generic)
+
+                apply.result_id = ""
+                apply.revision = expected + 1
+                return PreparedMutation(
+                    no_change=False,
+                    result_type="spare_part_unit",
+                    result_id=identity,
+                    apply=apply,
+                    response_schema="InventoryMutationResultV1",
+                    response_factory=lambda _inner: {
+                        "outcome": "APPLIED",
+                        "target_refs": [{"type": "spare_part_unit", "id": identity}],
+                        "revisions": {f"spare_part_unit:{identity}": apply.revision},
+                    },
                 )
 
             if correction_kind == "false_spare_request_submission":

@@ -209,6 +209,71 @@ class InventoryUnitsRepository:
             (spare_part_unit_id,),
         ).fetchone()
 
+    @classmethod
+    def attach_origin_rma(
+        cls,
+        connection,
+        *,
+        spare_part_unit_id: str,
+        origin_rma_id: str,
+        expected_revision: int,
+        reason_code: str,
+        command_id: str,
+    ) -> tuple[str, int]:
+        unit = cls.current_unit(connection, spare_part_unit_id)
+        if unit is None or int(unit[14]) != expected_revision:
+            raise SomaError("INV_STALE", "Spare Part Unit revision changed")
+        if unit[7] is not None:
+            raise SomaError(
+                "CORRECTION_TARGET_INVALID",
+                "Spare Part Unit already has RMA provenance",
+            )
+        if connection.execute(
+            "SELECT 1 FROM rmas WHERE rma_id=?",
+            (origin_rma_id,),
+        ).fetchone() is None:
+            raise SomaError("INV_STALE", "RMA provenance no longer exists")
+
+        now = utc_epoch_seconds()
+        event_id = new_uuid4()
+        connection.execute(
+            "INSERT INTO spare_part_lifecycle_events("
+            "unit_event_id,spare_part_unit_id,event_kind,condition_token,disposition_token,"
+            "location_kind,location_ref_id,custody_text,effective_at_utc,target_event_id,"
+            "reason_code,evidence_kind,evidence_id,recorded_at_utc,command_id"
+            ") VALUES (?,?,'correction',?,?,?,?,?,NULL,NULL,?,'rma_provenance',?,?,?)",
+            (
+                event_id,
+                spare_part_unit_id,
+                str(unit[8]),
+                str(unit[9]),
+                None if unit[10] is None else str(unit[10]),
+                None if unit[11] is None else str(unit[11]),
+                None if unit[12] is None else str(unit[12]),
+                reason_code,
+                origin_rma_id,
+                now,
+                command_id,
+            ),
+        )
+        changed_root = connection.execute(
+            "UPDATE spare_part_units SET origin_rma_id=? "
+            "WHERE spare_part_unit_id=? AND origin_rma_id IS NULL",
+            (origin_rma_id, spare_part_unit_id),
+        )
+        if changed_root.rowcount != 1:
+            raise SomaError("INV_STALE", "Spare Part Unit provenance changed")
+
+        revision = expected_revision + 1
+        changed_projection = connection.execute(
+            "UPDATE spare_part_current_projection SET revision=?,last_command_id=? "
+            "WHERE spare_part_unit_id=? AND revision=?",
+            (revision, command_id, spare_part_unit_id, expected_revision),
+        )
+        if changed_projection.rowcount != 1:
+            raise SomaError("INV_STALE", "Spare Part Unit projection changed")
+        return event_id, revision
+
     @staticmethod
     def stock_blockers(connection, spare_part_unit_id: str) -> list[str]:
         row = connection.execute(
