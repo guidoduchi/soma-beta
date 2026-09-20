@@ -93,10 +93,12 @@ def source_evidence_ref(evidence_kind: str, evidence_id: str) -> str:
 @dataclass(frozen=True, slots=True)
 class ParsedInventoryProposalTarget:
     proposal_target_id: str
-    membership_id: str
+    spare_request_id: str | None
+    membership_id: str | None
     expected_revision: int
     action: str
     effective_at_utc: int | None
+    expected_draft_fingerprint: str | None
     decision: str | None
     reason_code: str | None
 
@@ -115,6 +117,7 @@ def parse_inventory_proposal_target(
     proposal_kind: str,
     risk_tier: str,
     target_kind: str,
+    spare_request_id: str | None,
     membership_id: str | None,
     expected_revision: int,
     proposed_action: str,
@@ -122,9 +125,8 @@ def parse_inventory_proposal_target(
 ) -> ParsedInventoryProposalTarget:
     target_row_id = require_uuid4(proposal_target_id)
     revision = validate_positive_revision(expected_revision, "expected_revision")
-    if target_kind != "fault_tag_membership" or membership_id is None:
-        raise ValidationError("proposal target is not mapped to a supported Inventory owner")
-    membership = require_uuid4(membership_id)
+    request_id = None if spare_request_id is None else require_uuid4(spare_request_id)
+    membership = None if membership_id is None else require_uuid4(membership_id)
     payload = loads_canonical_json(
         payload_json,
         max_bytes=4096,
@@ -134,6 +136,41 @@ def parse_inventory_proposal_target(
     if not isinstance(payload, dict) or payload.get("schema") != "INVENTORY_PROPOSAL_TARGET_V1":
         raise ValidationError("proposal target payload schema is invalid")
 
+    if proposal_kind == "spare_request_submission":
+        if (
+            target_kind != "spare_request"
+            or request_id is None
+            or membership is not None
+            or proposed_action != "spare_request_submission"
+            or risk_tier not in {"normal", "high"}
+        ):
+            raise ValidationError("Spare Request submission proposal mapping is invalid")
+        if set(payload) != {
+            "schema",
+            "expected_draft_fingerprint",
+            "effective_submission_at_utc",
+        }:
+            raise ValidationError(
+                "Spare Request submission proposal payload has unknown or missing fields"
+            )
+        return ParsedInventoryProposalTarget(
+            proposal_target_id=target_row_id,
+            spare_request_id=request_id,
+            membership_id=None,
+            expected_revision=revision,
+            action="spare_request_submission",
+            effective_at_utc=_effective_at(payload["effective_submission_at_utc"]),
+            expected_draft_fingerprint=validate_fingerprint(
+                payload["expected_draft_fingerprint"],
+                "expected_draft_fingerprint",
+            ),
+            decision=None,
+            reason_code=None,
+        )
+
+    if target_kind != "fault_tag_membership" or membership is None or request_id is not None:
+        raise ValidationError("proposal target is not mapped to a supported Inventory owner")
+
     if proposal_kind == "warehouse_received":
         if proposed_action != "warehouse_received" or risk_tier not in {"normal", "high"}:
             raise ValidationError("warehouse receipt proposal mapping is invalid")
@@ -141,10 +178,12 @@ def parse_inventory_proposal_target(
             raise ValidationError("warehouse receipt proposal payload has unknown or missing fields")
         return ParsedInventoryProposalTarget(
             proposal_target_id=target_row_id,
+            spare_request_id=None,
             membership_id=membership,
             expected_revision=revision,
             action="warehouse_received",
             effective_at_utc=_effective_at(payload["effective_at_utc"]),
+            expected_draft_fingerprint=None,
             decision=None,
             reason_code=None,
         )
@@ -170,10 +209,12 @@ def parse_inventory_proposal_target(
             raise ValidationError("warehouse rejection proposal requires reason_code")
         return ParsedInventoryProposalTarget(
             proposal_target_id=target_row_id,
+            spare_request_id=None,
             membership_id=membership,
             expected_revision=revision,
             action="warehouse_final_decision",
             effective_at_utc=_effective_at(payload["effective_at_utc"]),
+            expected_draft_fingerprint=None,
             decision=str(decision),
             reason_code=reason,
         )
