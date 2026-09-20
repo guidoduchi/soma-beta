@@ -200,6 +200,378 @@ class InventoryPreviewsQueryService:
             )
 
     @staticmethod
+    def _hard_delete_missing(
+        *,
+        target_kind: str,
+        target_id: str,
+    ) -> dict[str, object]:
+        material = {
+            "schema": "SOMA_INVENTORY_HARD_DELETE_PREVIEW_V1",
+            "target_kind": target_kind,
+            "target_id": target_id,
+            "classification": "INDETERMINATE",
+            "reasons": ["target_missing"],
+        }
+        return {
+            "target_kind": target_kind,
+            "target_id": target_id,
+            "classification": "INDETERMINATE",
+            "reasons": ["target_missing"],
+            "reviewed_revision": None,
+            "removable_rows": [],
+            "retained_related_ids": [],
+            "eligibility_fingerprint": sha256_canonical_json(material),
+        }
+
+    @staticmethod
+    def _hard_delete_result(
+        *,
+        target_kind: str,
+        target_id: str,
+        reviewed_revision: int,
+        reasons: list[str],
+        removable_rows: list[dict[str, object]],
+        retained_related_ids: list[str],
+        material: dict[str, object],
+    ) -> dict[str, object]:
+        classification = "CLEAR" if not reasons else "BLOCKED"
+        material = dict(material) | {
+            "schema": "SOMA_INVENTORY_HARD_DELETE_PREVIEW_V1",
+            "target_kind": target_kind,
+            "target_id": target_id,
+            "classification": classification,
+            "reasons": list(reasons),
+            "reviewed_revision": reviewed_revision,
+            "retained_related_ids": list(retained_related_ids),
+        }
+        return {
+            "target_kind": target_kind,
+            "target_id": target_id,
+            "classification": classification,
+            "reasons": list(reasons),
+            "reviewed_revision": reviewed_revision,
+            "removable_rows": removable_rows if classification == "CLEAR" else [],
+            "retained_related_ids": list(retained_related_ids),
+            "eligibility_fingerprint": sha256_canonical_json(material),
+        }
+
+    @classmethod
+    def _hard_delete_spare_need_preview(
+        cls,
+        connection: Any,
+        spare_need_id: str,
+    ) -> dict[str, object]:
+        identity = require_uuid4(spare_need_id)
+        row = connection.execute(
+            "SELECT n.service_request_id,n.creation_origin,p.lifecycle_state,"
+            "p.planned_quantity,p.contributor_count,p.revision,p.input_fingerprint "
+            "FROM spare_needs n JOIN spare_need_current_projection p "
+            "ON p.spare_need_id=n.spare_need_id WHERE n.spare_need_id=?",
+            (identity,),
+        ).fetchone()
+        if row is None:
+            return cls._hard_delete_missing(
+                target_kind="spare_need",
+                target_id=identity,
+            )
+        reasons: list[str] = []
+        if str(row[1]) != "manual":
+            reasons.append("creation_origin_not_manual")
+        if str(row[2]) != "active" or int(row[5]) != 1:
+            reasons.append("need_not_creation_only")
+        if int(row[4]) != 0:
+            reasons.append("contributors_present")
+        lifecycle = connection.execute(
+            "SELECT need_event_id,event_kind FROM spare_need_lifecycle_events "
+            "WHERE spare_need_id=? ORDER BY recorded_at_utc,need_event_id",
+            (identity,),
+        ).fetchall()
+        if len(lifecycle) != 1 or str(lifecycle[0][1]) != "created":
+            reasons.append("need_lifecycle_history")
+        dependencies = {
+            "contributors": int(connection.execute(
+                "SELECT COUNT(*) FROM spare_need_contributors WHERE spare_need_id=?",
+                (identity,),
+            ).fetchone()[0]),
+            "request_allocations": int(connection.execute(
+                "SELECT COUNT(*) FROM spare_request_need_allocations WHERE spare_need_id=?",
+                (identity,),
+            ).fetchone()[0]),
+            "task_allocations": int(connection.execute(
+                "SELECT COUNT(*) FROM task_unit_allocation_events WHERE spare_need_id=?",
+                (identity,),
+            ).fetchone()[0]),
+            "local_fulfillment": int(connection.execute(
+                "SELECT COUNT(*) FROM local_need_fulfillment_events WHERE spare_need_id=?",
+                (identity,),
+            ).fetchone()[0]),
+        }
+        for key, count in dependencies.items():
+            if count:
+                reasons.append(f"{key}_history")
+        retained = [str(row[0])]
+        removable = [
+            {"table": "spare_need_active_keys", "ids": [identity]},
+            {"table": "spare_need_current_projection", "ids": [identity]},
+            {
+                "table": "spare_need_lifecycle_events",
+                "ids": [str(item[0]) for item in lifecycle],
+            },
+            {"table": "spare_needs", "ids": [identity]},
+        ]
+        return cls._hard_delete_result(
+            target_kind="spare_need",
+            target_id=identity,
+            reviewed_revision=int(row[5]),
+            reasons=reasons,
+            removable_rows=removable,
+            retained_related_ids=retained,
+            material={
+                "creation_origin": str(row[1]),
+                "state": str(row[2]),
+                "planned_quantity": int(row[3]),
+                "projection_fingerprint": str(row[6]),
+                "lifecycle_event_ids": [str(item[0]) for item in lifecycle],
+                "dependencies": dependencies,
+            },
+        )
+
+    @classmethod
+    def _hard_delete_spare_request_preview(
+        cls,
+        connection: Any,
+        spare_request_id: str,
+    ) -> dict[str, object]:
+        identity = require_uuid4(spare_request_id)
+        row = connection.execute(
+            "SELECT r.service_request_id,r.requester_contact_id,r.creation_origin,"
+            "p.lifecycle_state,p.current_sr7,p.current_submission_snapshot_id,"
+            "p.submitted_quantity,p.authorized_rma_count,p.revision,p.input_fingerprint "
+            "FROM spare_requests r JOIN spare_request_current_projection p "
+            "ON p.spare_request_id=r.spare_request_id WHERE r.spare_request_id=?",
+            (identity,),
+        ).fetchone()
+        if row is None:
+            return cls._hard_delete_missing(
+                target_kind="spare_request",
+                target_id=identity,
+            )
+        reasons: list[str] = []
+        if str(row[2]) != "soma_draft":
+            reasons.append("creation_origin_not_soma_draft")
+        if (
+            str(row[3]) != "draft"
+            or row[4] is not None
+            or row[5] is not None
+            or int(row[6]) != 0
+            or int(row[7]) != 0
+            or int(row[8]) != 1
+        ):
+            reasons.append("request_not_creation_only_draft")
+        lifecycle = connection.execute(
+            "SELECT request_event_id,event_kind FROM spare_request_lifecycle_events "
+            "WHERE spare_request_id=? ORDER BY recorded_at_utc,request_event_id",
+            (identity,),
+        ).fetchall()
+        if len(lifecycle) != 1 or str(lifecycle[0][1]) != "created":
+            reasons.append("request_lifecycle_history")
+        dependencies = {
+            "identifier_events": int(connection.execute(
+                "SELECT COUNT(*) FROM spare_request_identifier_events WHERE spare_request_id=?",
+                (identity,),
+            ).fetchone()[0]),
+            "identifier_aliases": int(connection.execute(
+                "SELECT COUNT(*) FROM spare_request_identifier_aliases WHERE spare_request_id=?",
+                (identity,),
+            ).fetchone()[0]),
+            "submission_snapshots": int(connection.execute(
+                "SELECT COUNT(*) FROM spare_request_submission_snapshots WHERE spare_request_id=?",
+                (identity,),
+            ).fetchone()[0]),
+            "rma_batches": int(connection.execute(
+                "SELECT COUNT(*) FROM rma_authorization_batches WHERE spare_request_id=?",
+                (identity,),
+            ).fetchone()[0]),
+            "rmas": int(connection.execute(
+                "SELECT COUNT(*) FROM rmas WHERE spare_request_id=?",
+                (identity,),
+            ).fetchone()[0]),
+            "proposals": int(connection.execute(
+                "SELECT COUNT(*) FROM inventory_proposal_targets WHERE spare_request_id=?",
+                (identity,),
+            ).fetchone()[0]),
+        }
+        for key, count in dependencies.items():
+            if count:
+                reasons.append(f"{key}_history")
+        allocation_rows = connection.execute(
+            "SELECT request_need_allocation_id,spare_need_id,revision,active_draft "
+            "FROM spare_request_need_allocations WHERE spare_request_id=? "
+            "ORDER BY request_need_allocation_id",
+            (identity,),
+        ).fetchall()
+        logistics = connection.execute(
+            "SELECT revision,receiver_contact_id,dispatch_location_id "
+            "FROM spare_request_draft_logistics WHERE spare_request_id=?",
+            (identity,),
+        ).fetchone()
+        if any(int(item[2]) != 1 or int(item[3]) != 1 for item in allocation_rows):
+            reasons.append("draft_allocation_history")
+        if logistics is None or int(logistics[0]) != 1:
+            reasons.append("draft_logistics_history")
+        retained = sorted(
+            {
+                str(row[0]),
+                str(row[1]),
+                *[str(item[1]) for item in allocation_rows],
+                *(
+                    []
+                    if logistics is None
+                    else [str(logistics[1]), str(logistics[2])]
+                ),
+            }
+        )
+        allocation_ids = [str(item[0]) for item in allocation_rows]
+        removable = [
+            {
+                "table": "spare_request_need_allocations",
+                "ids": allocation_ids,
+            },
+            {"table": "spare_request_draft_logistics", "ids": [identity]},
+            {"table": "spare_request_current_projection", "ids": [identity]},
+            {
+                "table": "spare_request_lifecycle_events",
+                "ids": [str(item[0]) for item in lifecycle],
+            },
+            {"table": "spare_requests", "ids": [identity]},
+        ]
+        return cls._hard_delete_result(
+            target_kind="spare_request",
+            target_id=identity,
+            reviewed_revision=int(row[8]),
+            reasons=reasons,
+            removable_rows=removable,
+            retained_related_ids=retained,
+            material={
+                "creation_origin": str(row[2]),
+                "state": str(row[3]),
+                "projection_fingerprint": str(row[9]),
+                "lifecycle_event_ids": [str(item[0]) for item in lifecycle],
+                "allocation_rows": [
+                    {
+                        "id": str(item[0]),
+                        "need_id": str(item[1]),
+                        "revision": int(item[2]),
+                        "active_draft": bool(item[3]),
+                    }
+                    for item in allocation_rows
+                ],
+                "draft_logistics_revision": (
+                    None if logistics is None else int(logistics[0])
+                ),
+                "dependencies": dependencies,
+            },
+        )
+
+    @classmethod
+    def _hard_delete_spare_part_unit_preview(
+        cls,
+        connection: Any,
+        spare_part_unit_id: str,
+    ) -> dict[str, object]:
+        identity = require_uuid4(spare_part_unit_id)
+        row = connection.execute(
+            "SELECT u.local_tracking_id,u.creation_origin,u.origin_rma_id,"
+            "u.parent_spare_part_unit_id,p.condition_token,p.disposition_token,"
+            "p.active_task_allocation_id,p.revision,p.input_fingerprint "
+            "FROM spare_part_units u JOIN spare_part_current_projection p "
+            "ON p.spare_part_unit_id=u.spare_part_unit_id WHERE u.spare_part_unit_id=?",
+            (identity,),
+        ).fetchone()
+        if row is None:
+            return cls._hard_delete_missing(
+                target_kind="spare_part_unit",
+                target_id=identity,
+            )
+        reasons: list[str] = []
+        if str(row[1]) != "manual_local" or row[2] is not None or row[3] is not None:
+            reasons.append("unit_not_manual_local_root")
+        if int(row[7]) != 1 or row[6] is not None:
+            reasons.append("unit_not_creation_only")
+        lifecycle = connection.execute(
+            "SELECT unit_event_id,event_kind FROM spare_part_lifecycle_events "
+            "WHERE spare_part_unit_id=? ORDER BY recorded_at_utc,unit_event_id",
+            (identity,),
+        ).fetchall()
+        if len(lifecycle) != 1 or str(lifecycle[0][1]) != "registered":
+            reasons.append("unit_lifecycle_history")
+        dependency_sql = {
+            "direct_rma": (
+                "SELECT COUNT(*) FROM rma_direct_inbound_units WHERE spare_part_unit_id=?"
+            ),
+            "task_allocations": (
+                "SELECT COUNT(*) FROM task_unit_allocation_events WHERE spare_part_unit_id=?"
+            ),
+            "local_fulfillment": (
+                "SELECT COUNT(*) FROM local_need_fulfillment_events WHERE spare_part_unit_id=?"
+            ),
+            "physical_consequences": (
+                "SELECT COUNT(*) FROM physical_consequence_events "
+                "WHERE installed_spare_part_unit_id=? OR inbound_spare_part_unit_id=? "
+                "OR parent_dismantled_unit_id=?"
+            ),
+            "return_selection": (
+                "SELECT COUNT(*) FROM rma_return_selection_events WHERE spare_part_unit_id=?"
+            ),
+            "return_obligation": (
+                "SELECT COUNT(*) FROM rma_return_obligation_current WHERE spare_part_unit_id=?"
+            ),
+            "logistics": (
+                "SELECT COUNT(*) FROM logistics_spare_unit_participants WHERE spare_part_unit_id=?"
+            ),
+            "fault_tags": (
+                "SELECT COUNT(*) FROM fault_tag_memberships WHERE spare_part_unit_id=?"
+            ),
+            "children": (
+                "SELECT COUNT(*) FROM spare_part_units WHERE parent_spare_part_unit_id=?"
+            ),
+            "proposals": (
+                "SELECT COUNT(*) FROM inventory_proposal_targets WHERE spare_part_unit_id=?"
+            ),
+        }
+        dependencies: dict[str, int] = {}
+        for key, sql in dependency_sql.items():
+            params = (identity, identity, identity) if key == "physical_consequences" else (identity,)
+            dependencies[key] = int(connection.execute(sql, params).fetchone()[0])
+            if dependencies[key]:
+                reasons.append(f"{key}_history")
+        removable = [
+            {"table": "spare_part_current_projection", "ids": [identity]},
+            {
+                "table": "spare_part_lifecycle_events",
+                "ids": [str(item[0]) for item in lifecycle],
+            },
+            {"table": "spare_part_units", "ids": [identity]},
+        ]
+        return cls._hard_delete_result(
+            target_kind="spare_part_unit",
+            target_id=identity,
+            reviewed_revision=int(row[7]),
+            reasons=reasons,
+            removable_rows=removable,
+            retained_related_ids=[],
+            material={
+                "tracking_id": None if row[0] is None else str(row[0]),
+                "creation_origin": str(row[1]),
+                "condition": str(row[4]),
+                "disposition": str(row[5]),
+                "projection_fingerprint": str(row[8]),
+                "lifecycle_event_ids": [str(item[0]) for item in lifecycle],
+                "dependencies": dependencies,
+            },
+        )
+
+    @staticmethod
     def _hard_delete_fault_tag_preview(
         connection: Any,
         fault_tag_id: str,
@@ -360,12 +732,18 @@ class InventoryPreviewsQueryService:
         target_kind: str,
         target_id: str,
     ) -> dict[str, object]:
-        if target_kind != "fault_tag":
-            raise ValidationError(
-                "This Inventory hard-delete preview currently supports fault_tag authority"
-            )
+        handlers = {
+            "spare_need": self._hard_delete_spare_need_preview,
+            "spare_request": self._hard_delete_spare_request_preview,
+            "spare_part_unit": self._hard_delete_spare_part_unit_preview,
+            "fault_tag": self._hard_delete_fault_tag_preview,
+        }
+        try:
+            handler = handlers[target_kind]
+        except KeyError as exc:
+            raise ValidationError("Inventory hard-delete target kind is invalid") from exc
         with ReadSnapshot(self._factory) as snapshot:
-            return self._hard_delete_fault_tag_preview(snapshot.connection, target_id)
+            return handler(snapshot.connection, target_id)
 
 
 __all__ = [
