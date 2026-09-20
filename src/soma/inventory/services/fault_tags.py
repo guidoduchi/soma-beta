@@ -1186,4 +1186,101 @@ class InventoryFaultTagService:
         return dict(execution.response)
 
 
+    def archive_or_restore_fault_tag(
+        self,
+        *,
+        command_id: str,
+        fault_tag_id: str,
+        base_revision: int,
+        action: str,
+        reason_code: str | None = None,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        tag_id = require_uuid4(fault_tag_id)
+        if type(base_revision) is not int or base_revision <= 0:
+            raise ValidationError("base_revision must be positive")
+        if action not in {"archive", "restore"}:
+            raise ValidationError("Fault Tag archive action must be archive or restore")
+        if action == "archive":
+            if reason_code is None:
+                raise ValidationError("Fault Tag archive requires reason_code")
+            reason = validate_reason_code(reason_code)
+        else:
+            if reason_code is not None:
+                raise ValidationError("Fault Tag restore does not accept reason_code")
+            reason = None
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="ArchiveOrRestoreFaultTag",
+            target_type="fault_tag",
+            target_id=tag_id,
+            semantic_payload={"action": action, "reason_code": reason},
+            base_revisions={"fault_tag": base_revision},
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            current = self._fault_tags.current_tag(uow.connection, tag_id)
+            if current is None or int(current[15]) != base_revision:
+                raise SomaError("INV_STALE", "Fault Tag revision changed")
+            target_archived = action == "archive"
+            if bool(current[8]) == target_archived:
+                return PreparedMutation(
+                    no_change=True,
+                    result_type=None,
+                    result_id=None,
+                    response_schema="FaultTagV1",
+                    response=self._fault_tags.response(uow.connection, tag_id),
+                )
+            tracking_id = str(current[1])
+
+            def apply(inner: UnitOfWork):
+                result = self._fault_tags.archive_or_restore(
+                    inner.connection,
+                    fault_tag_id=tag_id,
+                    expected_revision=base_revision,
+                    action=action,
+                    reason_code=reason,
+                    command_id=command_id,
+                )
+                apply.result = result
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.fault_tag.draft_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="fault_tag",
+                    target_id=tag_id,
+                    command_id=command_id,
+                    reason_category=reason,
+                    payload_schema="FaultTagAuditV1",
+                    payload_version=1,
+                    payload={
+                        "fault_tag_id": tag_id,
+                        "tracking_id": tracking_id,
+                        "event_kind": "ARCHIVE" if action == "archive" else "RESTORE",
+                        "member_count": len(self._fault_tags.current_members(inner.connection, tag_id)),
+                        "resulting_revision": int(result["revision"]),
+                        "reason_category": reason,
+                    },
+                    resulting_event_refs=(AuditResultRef("fault_tag", tag_id),),
+                )
+
+            apply.result = {}
+            return PreparedMutation(
+                no_change=False,
+                result_type="fault_tag",
+                result_id=tag_id,
+                apply=apply,
+                response_schema="FaultTagV1",
+                response_factory=lambda inner: self._fault_tags.response(inner.connection, tag_id),
+            )
+
+        execution = self._boundary.execute(envelope, prepare)
+        if not isinstance(execution.response, dict):
+            raise IntegrityFailure("Fault Tag archive response is not an object")
+        return dict(execution.response)
+
+
 __all__ = ["InventoryFaultTagService"]
