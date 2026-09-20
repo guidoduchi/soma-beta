@@ -312,6 +312,52 @@ def _validate_fault_tag_lineage(payload: dict[str, object]) -> None:
     _positive(payload.get("resulting_revision"), "resulting_revision")
 
 
+def _validate_inventory_bulk(payload: dict[str, object]) -> None:
+    _uuid(payload.get("batch_id"), "batch_id")
+    if payload.get("action_kind") not in {
+        "warehouse_receipt",
+        "warehouse_accept",
+        "warehouse_reject",
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory bulk action kind is invalid")
+    _fingerprint(payload.get("input_fingerprint"), "input_fingerprint")
+    _positive(payload.get("target_count"), "target_count")
+    if payload.get("result") != "APPLIED":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory bulk result is invalid")
+    refs = payload.get("result_refs")
+    if not isinstance(refs, list) or not refs or len(refs) > 2000:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory bulk result_refs are invalid")
+    for item in refs:
+        if not isinstance(item, dict) or set(item) != {"type", "id"}:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory bulk result ref is invalid")
+        if item["type"] not in {
+            "fault_tag_membership_event",
+            "rma_return_obligation",
+        }:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory bulk result ref type is invalid")
+        _uuid(item["id"], "result_ref.id")
+
+
+def _validate_inventory_hard_delete(payload: dict[str, object]) -> None:
+    if payload.get("target_type") not in {
+        "spare_need",
+        "spare_request",
+        "spare_part_unit",
+        "fault_tag",
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory hard-delete target type is invalid")
+    _uuid(payload.get("target_id"), "target_id")
+    _positive(payload.get("reviewed_revision"), "reviewed_revision")
+    _fingerprint(payload.get("eligibility_fingerprint"), "eligibility_fingerprint")
+    retained = payload.get("retained_related_ids")
+    if not isinstance(retained, list) or len(retained) > 10000:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "retained_related_ids are invalid")
+    for identity in retained:
+        _uuid(identity, "retained_related_id")
+    if payload.get("result") != "DELETED":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Inventory hard-delete result is invalid")
+
+
 def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
     return ObjectContract(
         name=name,
@@ -642,6 +688,50 @@ def build_inventory_audit_registry() -> AuditRegistry:
                 ),
             ),
             sensitivity_validator=_validate_fault_tag_lineage,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.bulk.accepted",
+            action_version=1,
+            payload_schema="InventoryBulkAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "InventoryBulkAuditV1",
+                frozenset(
+                    {
+                        "batch_id",
+                        "action_kind",
+                        "input_fingerprint",
+                        "target_count",
+                        "result_refs",
+                        "result",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_inventory_bulk,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="inventory.untouched_draft.hard_deleted",
+            action_version=1,
+            payload_schema="InventoryHardDeleteAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "InventoryHardDeleteAuditV1",
+                frozenset(
+                    {
+                        "target_type",
+                        "target_id",
+                        "reviewed_revision",
+                        "eligibility_fingerprint",
+                        "retained_related_ids",
+                        "result",
+                    }
+                ),
+            ),
+            sensitivity_validator=_validate_inventory_hard_delete,
         )
     )
     return registry
