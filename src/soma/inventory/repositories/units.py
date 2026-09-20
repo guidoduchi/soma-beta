@@ -28,12 +28,48 @@ class InventoryUnitsRepository:
         return sequence, f"LSU-{sequence:08d}"
 
     @staticmethod
-    def require_optional_rma_provenance(
+    def require_registration_provenance(
         connection,
         *,
         origin_rma_id: str | None,
         creation_origin: str,
+        parent_spare_part_unit_id: str | None,
     ) -> None:
+        if creation_origin == "extracted":
+            if origin_rma_id is None or parent_spare_part_unit_id is None:
+                raise SomaError(
+                    "INV_INVALID_ID",
+                    "Extracted Spare Part Unit requires parent and RMA provenance",
+                )
+            parent = connection.execute(
+                "SELECT origin_rma_id FROM spare_part_units WHERE spare_part_unit_id=?",
+                (parent_spare_part_unit_id,),
+            ).fetchone()
+            if (
+                parent is None
+                or parent[0] is None
+                or str(parent[0]) != origin_rma_id
+            ):
+                raise SomaError(
+                    "INV_INVALID_ID",
+                    "Extracted parent does not own the supplied RMA provenance",
+                )
+            direct = connection.execute(
+                "SELECT spare_part_unit_id FROM rma_direct_inbound_units WHERE rma_id=?",
+                (origin_rma_id,),
+            ).fetchone()
+            if direct is None or str(direct[0]) != parent_spare_part_unit_id:
+                raise SomaError(
+                    "INV_INVALID_ID",
+                    "Extracted parent is not the RMA direct inbound unit",
+                )
+            return
+
+        if parent_spare_part_unit_id is not None:
+            raise SomaError(
+                "INV_INVALID_ID",
+                "Only extracted Spare Part Units may name a parent",
+            )
         if origin_rma_id is None:
             return
         if creation_origin != "reviewed_reconciliation":
@@ -54,6 +90,21 @@ class InventoryUnitsRepository:
                 "STOCK_NOT_ELIGIBLE",
                 "RMA already owns a direct inbound physical unit",
             )
+
+    @classmethod
+    def require_optional_rma_provenance(
+        cls,
+        connection,
+        *,
+        origin_rma_id: str | None,
+        creation_origin: str,
+    ) -> None:
+        cls.require_registration_provenance(
+            connection,
+            origin_rma_id=origin_rma_id,
+            creation_origin=creation_origin,
+            parent_spare_part_unit_id=None,
+        )
 
     @staticmethod
     def projection_fingerprint(
@@ -93,6 +144,7 @@ class InventoryUnitsRepository:
         serial_key: str | None,
         creation_origin: str,
         origin_rma_id: str | None,
+        parent_spare_part_unit_id: str | None,
         condition_token: str,
         disposition_token: str,
         location_kind: str | None,
@@ -107,7 +159,7 @@ class InventoryUnitsRepository:
             "spare_part_unit_id,local_tracking_sequence,local_tracking_id,bom_code,bom_key,"
             "manufacturer_serial,serial_key,creation_origin,origin_rma_id,"
             "parent_spare_part_unit_id,created_at_utc,created_command_id"
-            ") VALUES (?,?,?,?,?,?,?,?,?,NULL,?,?)",
+            ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 spare_part_unit_id,
                 local_tracking_sequence,
@@ -118,6 +170,7 @@ class InventoryUnitsRepository:
                 serial_key,
                 creation_origin,
                 origin_rma_id,
+                parent_spare_part_unit_id,
                 now,
                 command_id,
             ),

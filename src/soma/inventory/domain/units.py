@@ -8,7 +8,9 @@ from soma.reference.domain.matching import trim_match_whitespace
 from .needs import normalize_optional_serial, normalize_part_code, validate_effective_at_utc
 
 _SPARE_CONDITIONS = frozenset({"new", "used", "faulty", "incompatible", "unknown"})
-_REGISTER_ORIGINS = frozenset({"manual_local", "legacy", "reviewed_reconciliation"})
+_REGISTER_ORIGINS = frozenset(
+    {"manual_local", "legacy", "reviewed_reconciliation", "extracted"}
+)
 _AVAILABLE_CONDITIONS = frozenset({"new", "used"})
 
 

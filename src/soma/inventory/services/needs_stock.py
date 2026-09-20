@@ -517,6 +517,7 @@ class InventoryNeedsStockService:
         location_ref_id: str | None = None,
         custody_text: str | None = None,
         origin_rma_id: str | None = None,
+        parent_spare_part_unit_id: str | None = None,
         effective_at_utc: int | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
@@ -533,6 +534,11 @@ class InventoryNeedsStockService:
         custody = normalize_custody_text(custody_text)
         effective = validate_unit_effective_at_utc(effective_at_utc)
         provenance = None if origin_rma_id is None else require_uuid4(origin_rma_id)
+        parent = (
+            None
+            if parent_spare_part_unit_id is None
+            else require_uuid4(parent_spare_part_unit_id)
+        )
 
         envelope = CommandEnvelope(
             command_id=command_id,
@@ -550,23 +556,26 @@ class InventoryNeedsStockService:
                 "location_ref_id": location_ref,
                 "custody_text": custody,
                 "origin_rma_id": provenance,
+                "parent_spare_part_unit_id": parent,
                 "effective_at_utc": effective,
             },
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
-            self._units.require_optional_rma_provenance(
+            self._units.require_registration_provenance(
                 uow.connection,
                 origin_rma_id=provenance,
                 creation_origin=creation_origin,
+                parent_spare_part_unit_id=parent,
             )
             spare_part_unit_id = new_uuid4()
 
             def apply(inner: UnitOfWork):
-                self._units.require_optional_rma_provenance(
+                self._units.require_registration_provenance(
                     inner.connection,
                     origin_rma_id=provenance,
                     creation_origin=creation_origin,
+                    parent_spare_part_unit_id=parent,
                 )
                 sequence, tracking_id = self._units.allocate_local_tracking_sequence(
                     inner.connection,
@@ -583,6 +592,7 @@ class InventoryNeedsStockService:
                     serial_key=serial_key,
                     creation_origin=creation_origin,
                     origin_rma_id=provenance,
+                    parent_spare_part_unit_id=parent,
                     condition_token=condition,
                     disposition_token=disposition,
                     location_kind=location_type,
