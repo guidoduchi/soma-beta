@@ -579,6 +579,7 @@ class InventoryNeedsStockService:
                     serial_key=serial_key,
                     creation_origin=creation_origin,
                     origin_rma_id=provenance,
+                    parent_spare_part_unit_id=None,
                     condition_token=condition,
                     disposition_token=disposition,
                     location_kind=location_type,
