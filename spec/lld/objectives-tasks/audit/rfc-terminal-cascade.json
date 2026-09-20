@@ -1,0 +1,46 @@
+{
+  "schema": "SOMA-LLD-AUDIT-ACTIONS-V2",
+  "lld_id": "LLD-05",
+  "payload_types": {
+    "TaskRfcTerminalCascadeAuditV1": {
+      "fields": [
+        "task_id",
+        "proposal_id",
+        "execution_event_id",
+        "prior_execution_revision",
+        "prior_execution_state",
+        "resulting_execution_revision",
+        "reviewed_preview_fingerprint"
+      ],
+      "constraints": [
+        "task_id/proposal_id/execution_event_id are UUIDs",
+        "prior_execution_revision is int>=0",
+        "prior_execution_state is not_started|in_progress",
+        "resulting_execution_revision is prior_execution_revision+1",
+        "reviewed_preview_fingerprint is lowercase sha256",
+        "no provider source text, RFC member array or Objective impact rows"
+      ]
+    }
+  },
+  "actions": [
+    {
+      "action_type": "task.rfc_terminal_cascade_applied",
+      "action_version": 1,
+      "payload_schema": "TaskRfcTerminalCascadeAuditV1",
+      "payload_version": 1,
+      "target_types": [
+        "task"
+      ],
+      "result_ref_types": [
+        "task_execution_event"
+      ],
+      "sensitive_fields": [],
+      "rule": "One row per WFM Task consequence written by RfcTerminalTaskParticipant.apply_terminal_cascade inside the caller LLD-03 UnitOfWork. It never copies RFC scope, provider source text or unbounded Objective impact rows."
+    }
+  ],
+  "payload_policy": {
+    "rule": "Audit payloads contain bounded immutable identifiers, exact plan/membership/review fingerprints, revisions, reason categories and result references. Immutable WFM source payloads stay in LLD-04 and physical Inventory facts stay in LLD-07.",
+    "no_change": "Semantic NO_CHANGE never fabricates a new Task/Objective lifecycle or audit event.",
+    "privacy_and_authority": "Audit JSON never becomes a competing Task plan, Objective envelope, Task execution/outcome, source-plan or Inventory authority."
+  }
+}

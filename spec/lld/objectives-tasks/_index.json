@@ -138,6 +138,7 @@
     "types/transport-commands.json",
     "types/transport-models.json",
     "audit/actions.json",
+    "audit/rfc-terminal-cascade.json",
     "settings/objective-timezone.json",
     "migrations/0006-objectives-tasks.json",
     "implementation/module-map.json",
