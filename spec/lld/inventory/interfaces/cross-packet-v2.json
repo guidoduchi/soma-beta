@@ -17,9 +17,10 @@
       "methods": [
         "classify_task_hard_delete_dependency(uow,task_id) -> CLEAR|BLOCKED|INDETERMINATE",
         "preview_retry_relationship_clone(snapshot,predecessor_task_id,selected_inventory_relationship_ids) -> Impact",
-        "apply_retry_relationship_clone(uow,preview,new_task_id) -> result refs"
+        "apply_retry_relationship_clone(uow,preview,new_task_id,command_context:InventoryRetryCloneCommandContextV1) -> result refs"
       ],
-      "rule": "Apply uses caller LLD-05 UnitOfWork and never clones physical-consequence history."
+      "rule": "Preview is read-only and exact. Apply consumes exact InventoryRetryCloneCommandContextV1 {command_id:uuid,actor_kind:string,actor_id:string|null}, revalidates every selected current allocation/revision and predecessor ownership in the caller UoW, appends only retry-cloned task allocation evidence for new_task_id under that outer command id, never clones physical-consequence history, and returns bounded result refs. Any stale/indeterminate dependency aborts the caller transaction.",
+      "transaction": "caller LLD-05 UnitOfWork for apply; no nested receipt/commit/rollback"
     },
     {
       "name": "RfcInventoryDependencyProvider",

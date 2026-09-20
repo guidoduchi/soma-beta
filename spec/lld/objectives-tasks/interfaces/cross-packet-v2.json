@@ -98,8 +98,10 @@
       "methods": [
         "classify_task_hard_delete_dependency(uow,task_id) -> CLEAR|BLOCKED|INDETERMINATE",
         "preview_retry_relationship_clone(snapshot,predecessor_task_id,selected_inventory_relationship_ids) -> Impact",
-        "apply_retry_relationship_clone(uow,preview,new_task_id) -> result refs"
-      ]
+        "apply_retry_relationship_clone(uow,preview,new_task_id,command_context:InventoryRetryCloneCommandContextV1) -> result refs"
+      ],
+      "transaction": "caller LLD-05 UnitOfWork; no nested receipt/commit/rollback",
+      "rule": "Preview is read-only. Apply consumes the exact preview in the caller-owned writer UoW after the outer CreateLocalTaskRetry receipt exists. InventoryRetryCloneCommandContextV1 is exact {command_id:uuid,actor_kind:string,actor_id:string|null}; it is provenance only and carries no proof/session secret. Apply revalidates selected allocation revisions/ownership, appends Inventory allocation history for the new Task under command_context.command_id, never clones physical-consequence history, and any failure aborts the caller transaction."
     }
   ],
   "rules": [
