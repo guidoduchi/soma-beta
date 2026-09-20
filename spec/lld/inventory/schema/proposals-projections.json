@@ -1,12 +1,137 @@
 {
-  "schema":"SOMA-LLD-SCHEMA-V1",
-  "lld_id":"LLD-07",
-  "tables":[
-    {"name":"inventory_lifecycle_batches","columns":["inventory_batch_id TEXT PRIMARY KEY","batch_kind TEXT NOT NULL CHECK(batch_kind IN ('manual_bulk','proposal_acceptance','correction_bulk'))","target_count INTEGER NOT NULL CHECK(target_count>0)","recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)","command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT"],"rules":["one independently addressable event/result per target remains mandatory","batch identity groups atomic intent but is never shared lifecycle truth"]},
-    {"name":"inventory_proposals","columns":["inventory_proposal_id TEXT PRIMARY KEY","proposal_kind TEXT NOT NULL CHECK(proposal_kind IN ('spare_request_submission','official_sr7','rma_authorization','dispatch','receipt','fault_tag_submission','warehouse_received','warehouse_final_decision'))","evidence_kind TEXT NOT NULL","evidence_id TEXT NOT NULL","source_proposal_key TEXT NOT NULL","state TEXT NOT NULL CHECK(state IN ('pending','accepted','rejected','superseded'))","input_fingerprint TEXT NOT NULL CHECK(length(input_fingerprint)=64)","risk_tier TEXT NOT NULL CHECK(risk_tier IN ('normal','high','material_final'))","created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)","revision INTEGER NOT NULL CHECK(revision>0)","last_command_id TEXT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT"],"rules":["proposal is non-authoritative until accepted","same evidence/source_proposal_key is idempotent","warehouse final decisions always material_final and require explicit operator confirmation"]},
-    {"name":"inventory_proposal_targets","columns":["inventory_proposal_target_id TEXT PRIMARY KEY","inventory_proposal_id TEXT NOT NULL REFERENCES inventory_proposals(inventory_proposal_id) ON DELETE CASCADE","target_kind TEXT NOT NULL CHECK(target_kind IN ('spare_request','rma','spare_part_unit','fault_tag','fault_tag_membership'))","spare_request_id TEXT NULL REFERENCES spare_requests(spare_request_id) ON DELETE RESTRICT","rma_id TEXT NULL REFERENCES rmas(rma_id) ON DELETE RESTRICT","spare_part_unit_id TEXT NULL REFERENCES spare_part_units(spare_part_unit_id) ON DELETE RESTRICT","fault_tag_id TEXT NULL REFERENCES fault_tags(fault_tag_id) ON DELETE RESTRICT","fault_tag_membership_id TEXT NULL REFERENCES fault_tag_memberships(fault_tag_membership_id) ON DELETE RESTRICT","expected_revision INTEGER NOT NULL CHECK(expected_revision>0)","proposed_action TEXT NOT NULL","payload_json TEXT NOT NULL CHECK(json_valid(payload_json))","CHECK((target_kind='spare_request' AND spare_request_id IS NOT NULL AND rma_id IS NULL AND spare_part_unit_id IS NULL AND fault_tag_id IS NULL AND fault_tag_membership_id IS NULL) OR (target_kind='rma' AND rma_id IS NOT NULL AND spare_request_id IS NULL AND spare_part_unit_id IS NULL AND fault_tag_id IS NULL AND fault_tag_membership_id IS NULL) OR (target_kind='spare_part_unit' AND spare_part_unit_id IS NOT NULL AND spare_request_id IS NULL AND rma_id IS NULL AND fault_tag_id IS NULL AND fault_tag_membership_id IS NULL) OR (target_kind='fault_tag' AND fault_tag_id IS NOT NULL AND spare_request_id IS NULL AND rma_id IS NULL AND spare_part_unit_id IS NULL AND fault_tag_membership_id IS NULL) OR (target_kind='fault_tag_membership' AND fault_tag_membership_id IS NOT NULL AND spare_request_id IS NULL AND rma_id IS NULL AND spare_part_unit_id IS NULL AND fault_tag_id IS NULL))"],"rules":["payload_json belongs to closed INVENTORY_PROPOSAL_TARGET_V1 and contains only proposed typed facts, not message bodies","each target independently reviewable even when one evidence item supports many targets"]},
-    {"name":"inventory_attention_projection","columns":["attention_id TEXT PRIMARY KEY","target_kind TEXT NOT NULL","target_id TEXT NOT NULL","attention_kind TEXT NOT NULL CHECK(attention_kind IN ('spare_request_response_overdue','partial_rma_authorization','rma_assignment_conflict','receipt_bom_mismatch','task_outcome_consequence_pending','return_obligation_open','warehouse_final_decision_pending','warehouse_rejected_resend_required','proposal_review_required','stock_conflict'))","severity TEXT NOT NULL CHECK(severity IN ('info','warning','action_required','high'))","input_fingerprint TEXT NOT NULL CHECK(length(input_fingerprint)=64)","last_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT"],"rules":["rebuildable safety/attention projection only","unknown or unresolved states stay visible rather than becoming generic completion"]}
+  "schema": "SOMA-LLD-SCHEMA-V1",
+  "lld_id": "LLD-07",
+  "tables": [
+    {
+      "name": "inventory_lifecycle_batches",
+      "columns": [
+        "inventory_batch_id TEXT PRIMARY KEY",
+        "batch_kind TEXT NOT NULL CHECK(batch_kind IN ('manual_bulk','proposal_acceptance','correction_bulk'))",
+        "target_count INTEGER NOT NULL CHECK(target_count>0)",
+        "recorded_at_utc INTEGER NOT NULL CHECK(recorded_at_utc>=0)",
+        "command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT"
+      ],
+      "rules": [
+        "one independently addressable event/result per target remains mandatory",
+        "batch identity groups atomic intent but is never shared lifecycle truth"
+      ]
+    },
+    {
+      "name": "inventory_proposals",
+      "columns": [
+        "inventory_proposal_id TEXT PRIMARY KEY",
+        "proposal_kind TEXT NOT NULL CHECK(proposal_kind IN ('spare_request_submission','official_sr7','rma_authorization','dispatch','receipt','fault_tag_submission','warehouse_received','warehouse_final_decision'))",
+        "evidence_kind TEXT NOT NULL",
+        "evidence_id TEXT NOT NULL",
+        "source_proposal_key TEXT NOT NULL",
+        "state TEXT NOT NULL CHECK(state IN ('pending','accepted','rejected','superseded'))",
+        "input_fingerprint TEXT NOT NULL CHECK(length(input_fingerprint)=64)",
+        "risk_tier TEXT NOT NULL CHECK(risk_tier IN ('normal','high','material_final'))",
+        "created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)",
+        "revision INTEGER NOT NULL CHECK(revision>0)",
+        "last_command_id TEXT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT"
+      ],
+      "rules": [
+        "proposal is non-authoritative until accepted",
+        "same evidence/source_proposal_key is idempotent",
+        "warehouse final decisions always material_final and require explicit operator confirmation"
+      ]
+    },
+    {
+      "name": "inventory_proposal_targets",
+      "columns": [
+        "inventory_proposal_target_id TEXT PRIMARY KEY",
+        "inventory_proposal_id TEXT NOT NULL REFERENCES inventory_proposals(inventory_proposal_id) ON DELETE CASCADE",
+        "target_kind TEXT NOT NULL CHECK(target_kind IN ('spare_request','rma','spare_part_unit','fault_tag','fault_tag_membership'))",
+        "spare_request_id TEXT NULL REFERENCES spare_requests(spare_request_id) ON DELETE RESTRICT",
+        "rma_id TEXT NULL REFERENCES rmas(rma_id) ON DELETE RESTRICT",
+        "spare_part_unit_id TEXT NULL REFERENCES spare_part_units(spare_part_unit_id) ON DELETE RESTRICT",
+        "fault_tag_id TEXT NULL REFERENCES fault_tags(fault_tag_id) ON DELETE RESTRICT",
+        "fault_tag_membership_id TEXT NULL REFERENCES fault_tag_memberships(fault_tag_membership_id) ON DELETE RESTRICT",
+        "expected_revision INTEGER NOT NULL CHECK(expected_revision>0)",
+        "proposed_action TEXT NOT NULL",
+        "payload_json TEXT NOT NULL CHECK(json_valid(payload_json))",
+        "CHECK((target_kind='spare_request' AND spare_request_id IS NOT NULL AND rma_id IS NULL AND spare_part_unit_id IS NULL AND fault_tag_id IS NULL AND fault_tag_membership_id IS NULL) OR (target_kind='rma' AND rma_id IS NOT NULL AND spare_request_id IS NULL AND spare_part_unit_id IS NULL AND fault_tag_id IS NULL AND fault_tag_membership_id IS NULL) OR (target_kind='spare_part_unit' AND spare_part_unit_id IS NOT NULL AND spare_request_id IS NULL AND rma_id IS NULL AND fault_tag_id IS NULL AND fault_tag_membership_id IS NULL) OR (target_kind='fault_tag' AND fault_tag_id IS NOT NULL AND spare_request_id IS NULL AND rma_id IS NULL AND spare_part_unit_id IS NULL AND fault_tag_membership_id IS NULL) OR (target_kind='fault_tag_membership' AND fault_tag_membership_id IS NOT NULL AND spare_request_id IS NULL AND rma_id IS NULL AND spare_part_unit_id IS NULL AND fault_tag_id IS NULL))"
+      ],
+      "rules": [
+        "payload_json belongs to closed INVENTORY_PROPOSAL_TARGET_V1 and contains only proposed typed facts, not message bodies",
+        "each target independently reviewable even when one evidence item supports many targets"
+      ]
+    },
+    {
+      "name": "inventory_attention_projection",
+      "columns": [
+        "attention_id TEXT PRIMARY KEY",
+        "target_kind TEXT NOT NULL",
+        "target_id TEXT NOT NULL",
+        "attention_kind TEXT NOT NULL CHECK(attention_kind IN ('spare_request_response_overdue','partial_rma_authorization','rma_assignment_conflict','receipt_bom_mismatch','task_outcome_consequence_pending','return_obligation_open','warehouse_final_decision_pending','warehouse_rejected_resend_required','proposal_review_required','stock_conflict'))",
+        "severity TEXT NOT NULL CHECK(severity IN ('info','warning','action_required','high'))",
+        "input_fingerprint TEXT NOT NULL CHECK(length(input_fingerprint)=64)",
+        "last_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON DELETE RESTRICT"
+      ],
+      "rules": [
+        "rebuildable safety/attention projection only",
+        "unknown or unresolved states stay visible rather than becoming generic completion"
+      ]
+    }
   ],
-  "required_indexes":["inventory_proposals(evidence_kind,evidence_id,source_proposal_key) UNIQUE","inventory_proposals(state,created_at_utc,inventory_proposal_id)","inventory_proposal_targets(inventory_proposal_id,inventory_proposal_target_id)","inventory_proposal_targets(spare_request_id,inventory_proposal_id)","inventory_proposal_targets(rma_id,inventory_proposal_id)","inventory_proposal_targets(fault_tag_membership_id,inventory_proposal_id)","inventory_attention_projection(attention_kind,severity,target_id)","all command/FK columns receive LLD-01 leading-prefix FK coverage"],
-  "projection_rule":"Current Need, Spare Request, Spare Part Unit, physical-consequence, return-obligation and Fault Tag projections remain owned by their corresponding schema packets. This packet owns only proposal/batch authority and cross-domain attention projection, avoiding duplicate current-state tables."
+  "required_indexes": [
+    "inventory_proposals(evidence_kind,evidence_id,source_proposal_key) UNIQUE",
+    "inventory_proposals(state,created_at_utc,inventory_proposal_id)",
+    "inventory_proposal_targets(inventory_proposal_id,inventory_proposal_target_id)",
+    "inventory_proposal_targets(spare_request_id,inventory_proposal_id)",
+    "inventory_proposal_targets(rma_id,inventory_proposal_id)",
+    "inventory_proposal_targets(fault_tag_membership_id,inventory_proposal_id)",
+    "inventory_attention_projection(attention_kind,severity,target_id)",
+    "all command/FK columns receive LLD-01 leading-prefix FK coverage"
+  ],
+  "projection_rule": "Current Need, Spare Request, Spare Part Unit, physical-consequence, return-obligation and Fault Tag projections remain owned by their corresponding schema packets. This packet owns only proposal/batch authority and cross-domain attention projection, avoiding duplicate current-state tables.",
+  "proposal_target_payload_contract_v1": {
+    "schema": "INVENTORY_PROPOSAL_TARGET_V1",
+    "common_rules": [
+      "payload_json is strict canonical JSON object; unknown fields reject",
+      "communication/message body text is forbidden",
+      "proposal evidence_kind/evidence_id remains the immutable source evidence reference and is not duplicated into payload_json",
+      "target row expected_revision is authoritative optimistic-concurrency input"
+    ],
+    "accepted_owner_actions": {
+      "warehouse_received": {
+        "proposal_kind": "warehouse_received",
+        "target_kind": "fault_tag_membership",
+        "proposed_action": "warehouse_received",
+        "payload_required": [
+          "schema",
+          "effective_at_utc"
+        ],
+        "payload_fields": {
+          "schema": "INVENTORY_PROPOSAL_TARGET_V1",
+          "effective_at_utc": "int>=0|null"
+        },
+        "owner_reducer": "RecordWarehouseReceipt",
+        "risk_tier": "normal|high",
+        "explicit_confirmation": false
+      },
+      "warehouse_final_decision": {
+        "proposal_kind": "warehouse_final_decision",
+        "target_kind": "fault_tag_membership",
+        "proposed_action": "warehouse_final_decision",
+        "payload_required": [
+          "schema",
+          "decision",
+          "reason_code",
+          "effective_at_utc"
+        ],
+        "payload_fields": {
+          "schema": "INVENTORY_PROPOSAL_TARGET_V1",
+          "decision": "accepted|rejected",
+          "reason_code": "bounded string|null; required when decision=rejected",
+          "effective_at_utc": "int>=0|null"
+        },
+        "owner_reducer": "RecordWarehouseFinalDecision",
+        "risk_tier": "material_final",
+        "explicit_confirmation": true
+      }
+    },
+    "unsupported_acceptance_rule": "Other persisted proposal_kind/proposed_action combinations remain reviewable/rejectable but AcceptInventoryProposal must fail closed with DEPENDENCY_INDETERMINATE until a later version adds an exact typed owner mapping."
+  }
 }
