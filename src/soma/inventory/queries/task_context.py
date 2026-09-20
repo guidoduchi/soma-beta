@@ -187,4 +187,91 @@ class TaskInventoryContextQueryService:
             return self._project(snapshot.connection, task_id)
 
 
-__all__ = ["TaskInventoryContextQueryService"]
+class ObjectiveInventoryContextQueryService:
+    """Derive Objective Inventory context only through current member Tasks."""
+
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
+
+    def get(self, objective_id: str) -> dict[str, object]:
+        canonical = require_uuid4(objective_id)
+        with ReadSnapshot(self._factory) as snapshot:
+            if snapshot.connection.execute(
+                "SELECT 1 FROM objectives WHERE objective_id=?",
+                (canonical,),
+            ).fetchone() is None:
+                raise IntegrityFailure("Objective does not exist")
+            task_rows = snapshot.connection.execute(
+                "SELECT task_id,membership_revision FROM objective_task_membership_current "
+                "WHERE objective_id=? ORDER BY task_id",
+                (canonical,),
+            ).fetchall()
+            task_contexts: list[dict[str, object]] = []
+            unit_refs: list[dict[str, object]] = []
+            seen_units: set[tuple[str, str, str]] = set()
+            for task_row in task_rows:
+                task_id = str(task_row[0])
+                context = TaskInventoryContextQueryService._project(
+                    snapshot.connection,
+                    task_id,
+                )
+                task_contexts.append(
+                    {
+                        "task_id": task_id,
+                        "membership_revision": int(task_row[1]),
+                        "inventory": context,
+                    }
+                )
+                for allocation in context["allocations"]["active"]:
+                    unit_id = str(allocation["spare_part_unit_id"])
+                    key = (task_id, "active_allocation", unit_id)
+                    if key not in seen_units:
+                        seen_units.add(key)
+                        unit_refs.append(
+                            {
+                                "source_task_id": task_id,
+                                "relationship": "active_allocation",
+                                "spare_part_unit_id": unit_id,
+                            }
+                        )
+                for consequence in context["physical_consequences"]:
+                    for field, relationship in (
+                        ("installed_spare_part_unit_id", "installed"),
+                        ("inbound_spare_part_unit_id", "inbound"),
+                        ("parent_dismantled_unit_id", "dismantled_parent"),
+                    ):
+                        value = consequence[field]
+                        if value is None:
+                            continue
+                        unit_id = str(value)
+                        key = (task_id, relationship, unit_id)
+                        if key in seen_units:
+                            continue
+                        seen_units.add(key)
+                        unit_refs.append(
+                            {
+                                "source_task_id": task_id,
+                                "relationship": relationship,
+                                "spare_part_unit_id": unit_id,
+                            }
+                        )
+            unit_refs.sort(
+                key=lambda item: (
+                    str(item["source_task_id"]),
+                    str(item["relationship"]),
+                    str(item["spare_part_unit_id"]),
+                )
+            )
+            return {
+                "objective_id": canonical,
+                "task_ids": [str(row[0]) for row in task_rows],
+                "task_contexts": task_contexts,
+                "unit_refs": unit_refs,
+                "ownership": "derived_through_tasks",
+            }
+
+
+__all__ = [
+    "ObjectiveInventoryContextQueryService",
+    "TaskInventoryContextQueryService",
+]
