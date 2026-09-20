@@ -68,6 +68,100 @@ class InventoryNeedsStockService:
             "revisions": dict(revisions),
         }
 
+    def create_spare_need_draft(
+        self,
+        *,
+        command_id: str,
+        service_request_id: str,
+        bom_code: str,
+        planned_quantity: int,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> InventoryMutationResult:
+        sr_id = require_uuid4(service_request_id)
+        stored_bom, bom_key = normalize_part_code(bom_code)
+        quantity = validate_planned_quantity(planned_quantity)
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="CreateSpareNeedDraft",
+            target_type="spare_need",
+            target_id=None,
+            semantic_payload={
+                "service_request_id": sr_id,
+                "bom_code": stored_bom,
+                "bom_key": bom_key,
+                "planned_quantity": quantity,
+            },
+        )
+
+        def prepare(uow: UnitOfWork) -> PreparedMutation:
+            self._repository.require_service_request(uow.connection, sr_id)
+            if self._repository.active_need_for(uow.connection, sr_id, bom_key) is not None:
+                raise SomaError(
+                    "INV_STALE",
+                    "Another active Need already owns this SR/BOM key",
+                )
+            spare_need_id = new_uuid4()
+
+            def apply(inner: UnitOfWork):
+                need_event_id, revision = self._repository.create_manual_need(
+                    inner.connection,
+                    spare_need_id=spare_need_id,
+                    service_request_id=sr_id,
+                    bom_code=stored_bom,
+                    bom_key=bom_key,
+                    planned_quantity=quantity,
+                    command_id=command_id,
+                )
+                apply.need_event_id = need_event_id
+                apply.revision = revision
+                return AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.spare_need.changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="spare_need",
+                    target_id=spare_need_id,
+                    command_id=command_id,
+                    payload_schema="SpareNeedAuditV1",
+                    payload_version=1,
+                    payload={
+                        "spare_need_id": spare_need_id,
+                        "service_request_id": sr_id,
+                        "event_kind": "CREATE",
+                        "planned_quantity": quantity,
+                        "contributor_id": None,
+                        "resulting_revision": revision,
+                        "reason_category": None,
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("spare_need", spare_need_id),
+                        AuditResultRef("spare_need_event", need_event_id),
+                    ),
+                )
+
+            apply.need_event_id = ""
+            apply.revision = 1
+            return PreparedMutation(
+                no_change=False,
+                result_type="spare_need",
+                result_id=spare_need_id,
+                apply=apply,
+                response_schema="InventoryMutationResultV1",
+                response_factory=lambda _inner: self._response(
+                    [
+                        ("spare_need", spare_need_id),
+                        ("spare_need_event", apply.need_event_id),
+                    ],
+                    {f"spare_need:{spare_need_id}": apply.revision},
+                ),
+            )
+
+        return inventory_mutation_result_from_execution(
+            self._boundary.execute(envelope, prepare)
+        )
+
     def register_device_part_unit(
         self,
         *,
