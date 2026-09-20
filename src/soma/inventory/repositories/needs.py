@@ -393,8 +393,8 @@ class InventoryNeedsRepository:
             "history_remove": "removed",
         }[action]
         if current_state == target:
-            raise IntegrityFailure("semantic NO_CHANGE must be handled before repository mutation")
-        if action in {"resolve", "cancel", "history_remove"} and current_state != "active":
+            raise IntegrityFailure("semantic NO_CHANGE must be rejected before repository mutation")
+        if action in {"resolve", "cancel"} and current_state != "active":
             raise SomaError("INV_STALE", "Need lifecycle action requires current active state")
         if action == "reactivate":
             if current_state not in {"resolved", "cancelled"}:
@@ -407,6 +407,11 @@ class InventoryNeedsRepository:
             if conflict is not None and str(conflict[0]) != spare_need_id:
                 raise SomaError("INV_STALE", "Another active Need owns this SR/BOM key")
         if action == "history_remove":
+            if current_state not in {"resolved", "cancelled"}:
+                raise SomaError(
+                    "INV_STALE",
+                    "Only resolved or cancelled Needs may be history removed",
+                )
             states = cls.request_dependency_states(connection, spare_need_id)
             if any(state not in {"cancelled", "rejected"} for state in states):
                 raise SomaError("NEED_DELETE_BLOCKED", "Need has a nonterminal Spare Request dependency")
