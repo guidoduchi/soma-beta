@@ -126,6 +126,7 @@ class InventoryLogisticsRepository:
             serial_key=serial_key,
             creation_origin="direct_rma_receipt",
             origin_rma_id=rma_id,
+            parent_spare_part_unit_id=None,
             condition_token=condition_token,
             disposition_token=disposition_token,
             location_kind=location_kind,
