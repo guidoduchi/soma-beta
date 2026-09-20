@@ -5,7 +5,9 @@ import pytest
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.inventory.queries.previews import InventoryPreviewsQueryService
 from soma.inventory.queries.stock_needs import InventoryNeedsQueryService
+from soma.inventory.services.corrections_bulk import InventoryCorrectionsBulkService
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
 from soma.objectives_tasks.services.task_planning import TaskPlanningService
 from soma.reference.application.contact_service import ContactReferenceService
@@ -443,6 +445,111 @@ def test_t005_history_remove_blocked_by_nonterminal_spare_request(
             "SELECT COUNT(*) FROM spare_need_active_keys WHERE spare_need_id=?",
             (need_id,),
         ).fetchone()[0] == 1
+
+
+
+
+def test_t006_untouched_manual_need_hard_delete_removes_only_draft_rows(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97000009")
+    create_command = new_uuid4()
+    need_id = new_uuid4()
+    event_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO command_receipts("
+            "command_id,command_type,request_hash,target_type,target_id,committed_at_utc,"
+            "result_type,result_id"
+            ") VALUES (?,?,?,?,?,?,?,?)",
+            (
+                create_command,
+                "TestCreateUntouchedManualNeed",
+                "d" * 64,
+                "spare_need",
+                need_id,
+                1,
+                "spare_need",
+                need_id,
+            ),
+        )
+        uow.connection.execute(
+            "INSERT INTO spare_needs("
+            "spare_need_id,service_request_id,bom_code,bom_key,description,"
+            "planned_quantity,creation_origin,created_at_utc,created_command_id"
+            ") VALUES (?,?,?,?,NULL,1,'manual',1,?)",
+            (need_id, sr.service_request_id, "BOM-T006", "bom-t006", create_command),
+        )
+        uow.connection.execute(
+            "INSERT INTO spare_need_lifecycle_events("
+            "need_event_id,spare_need_id,event_kind,planned_quantity,reason_code,"
+            "effective_at_utc,recorded_at_utc,command_id"
+            ") VALUES (?,?,'created',1,NULL,NULL,1,?)",
+            (event_id, need_id, create_command),
+        )
+        uow.connection.execute(
+            "INSERT INTO spare_need_current_projection("
+            "spare_need_id,lifecycle_state,planned_quantity,contributor_count,revision,"
+            "input_fingerprint,last_command_id"
+            ") VALUES (?,'active',1,0,1,?,?)",
+            (need_id, "e" * 64, create_command),
+        )
+        uow.connection.execute(
+            "INSERT INTO spare_need_active_keys(service_request_id,bom_key,spare_need_id) "
+            "VALUES (?,?,?)",
+            (sr.service_request_id, "bom-t006", need_id),
+        )
+
+    preview = InventoryPreviewsQueryService(factory).preview_hard_delete(
+        target_kind="spare_need",
+        target_id=need_id,
+    )
+    assert preview["classification"] == "CLEAR"
+    assert preview["reviewed_revision"] == 1
+
+    delete_command = new_uuid4()
+    deleted = InventoryCorrectionsBulkService(
+        factory
+    ).hard_delete_untouched_inventory_draft(
+        command_id=delete_command,
+        target_kind="spare_need",
+        target_id=need_id,
+        reviewed_revision=1,
+        eligibility_fingerprint=str(preview["eligibility_fingerprint"]),
+        deliberate_confirmation=True,
+    )
+    assert deleted.outcome == "APPLIED"
+    assert any(
+        ref.result_type == "hard_delete_evidence"
+        for ref in deleted.target_refs
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_needs WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM spare_need_lifecycle_events WHERE spare_need_id=?",
+            (need_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM service_requests WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id IN (?,?)",
+            (create_command, delete_command),
+        ).fetchone()[0] == 2
+        audit = snapshot.connection.execute(
+            "SELECT action_type,target_id FROM audit_events WHERE command_id=?",
+            (delete_command,),
+        ).fetchone()
+        assert tuple(audit) == (
+            "inventory.untouched_draft.hard_deleted",
+            need_id,
+        )
 
 
 def _spare_unit_projection(factory, spare_part_unit_id: str):
