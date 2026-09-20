@@ -14,6 +14,7 @@ from ._common import (
 INVENTORY_ROUTE_SPECS: tuple[InventoryRouteSpec, ...] = (
     route_spec("GET", "/api/v1/inventory/stock", "query", "StockEligibilityQuery", "StockEligibilityQueryV1", "StockEligibilityPageV1", 200, 4096, "LLD12_BROWSER_QUERY_V1", ["VALIDATION_FAILED"]),
     route_spec("GET", "/api/v1/inventory/needs", "query", "InventoryNeedsQuery", "InventoryNeedsQueryV1", "InventoryNeedPageV1", 200, 4096, "LLD12_BROWSER_QUERY_V1", ["VALIDATION_FAILED"]),
+    route_spec("POST", "/api/v1/inventory/needs", "command", "CreateSpareNeedDraft", "CreateSpareNeedDraftRequestV1", "InventoryMutationResultV1", 201, 4096, "LLD12_BROWSER_MUTATION_V1", ["INV_STALE","INV_INVALID_ID","IDEMPOTENCY_CONFLICT"]),
     route_spec("GET", "/api/v1/inventory/tasks/{task_id}", "query", "TaskInventoryContextQuery", "TaskInventoryContextQueryV1", "TaskInventoryContextV1", 200, 2048, "LLD12_BROWSER_QUERY_V1", ["NOT_FOUND"]),
     route_spec("GET", "/api/v1/inventory/attention", "query", "InventoryAttentionQuery", "InventoryAttentionQueryV1", "InventoryAttentionPageV1", 200, 4096, "LLD12_BROWSER_QUERY_V1", ["VALIDATION_FAILED"]),
     route_spec("GET", "/api/v1/inventory/history/{target_kind}/{target_id}", "query", "InventoryHistoryQuery", "InventoryHistoryQueryV1", "InventoryHistoryPageV1", 200, 4096, "LLD12_BROWSER_QUERY_V1", ["VALIDATION_FAILED"]),
