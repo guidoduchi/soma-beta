@@ -52,14 +52,6 @@ class InventoryFaultTagsService:
             raise IntegrityFailure("Fault Tag projection disappeared")
         members = InventoryFaultTagsRepository.current_members(connection, fault_tag_id)
         state = cls._transport_state(str(tag[7]))
-        if (
-            state == "draft"
-            and tag[9] is None
-            and InventoryFaultTagsRepository.latest_lifecycle_kind(
-                connection, fault_tag_id
-            ) == "submission_corrected_false"
-        ):
-            state = "corrected_false_submission"
         return {
             "fault_tag_id": str(tag[0]),
             "tracking_handle": str(tag[1]),
