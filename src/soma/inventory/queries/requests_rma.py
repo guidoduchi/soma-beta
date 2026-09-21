@@ -142,6 +142,17 @@ class InventoryRequestsRmaQueryService:
             ).fetchone()
             if row is None:
                 raise SomaError("NOT_FOUND", "Spare Request does not exist")
+            requester_current = snapshot.connection.execute(
+                "SELECT c.name,c.lifecycle_state,c.revision,"
+                "a.contact_affiliation_id,a.customer_org_id "
+                "FROM contacts c "
+                "LEFT JOIN contact_affiliations a "
+                "ON a.contact_id=c.contact_id AND a.is_current=1 "
+                "WHERE c.contact_id=?",
+                (str(row[3]),),
+            ).fetchone()
+            if requester_current is None:
+                raise SomaError("DEPENDENCY_INDETERMINATE", "Requester Contact no longer exists")
             allocations = snapshot.connection.execute(
                 "SELECT a.request_need_allocation_id,a.spare_need_id,a.quantity,a.revision,"
                 "a.active_draft,n.bom_code FROM spare_request_need_allocations a "
@@ -192,6 +203,21 @@ class InventoryRequestsRmaQueryService:
                     "creation_context": loads_canonical_json(
                         str(row[4]), max_bytes=4096, max_depth=4, max_collection_items=32
                     ),
+                    "current_context": {
+                        "display_name": str(requester_current[0]),
+                        "lifecycle_state": str(requester_current[1]),
+                        "revision": int(requester_current[2]),
+                        "affiliation_id": (
+                            None
+                            if requester_current[3] is None
+                            else str(requester_current[3])
+                        ),
+                        "customer_org_id": (
+                            None
+                            if requester_current[4] is None
+                            else str(requester_current[4])
+                        ),
+                    },
                 },
                 "creation_origin": str(row[5]),
                 "lifecycle_state": str(row[6]),
