@@ -515,7 +515,7 @@ def test_t030_retry_objective_context_is_derived_only_from_current_intervals(
     )
     matching = []
     query = ObjectiveGroupingQueryService(factory)
-    for item in page["items"]:
+    for item in page["proposals"]["items"]:
         detail = query.proposal_detail(str(item["proposal_id"]))
         changed = {
             str(row["task_id"])
