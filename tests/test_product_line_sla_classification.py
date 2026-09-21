@@ -5,7 +5,10 @@ import pytest
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.product_line_sla.services.catalog import ProductLineSlaCatalogService
-from soma.product_line_sla.services.classification import ProductLineSlaClassificationService
+from soma.product_line_sla.services.classification import (
+    ProductLineSlaClassificationService,
+    ServiceRequestCustomerClassificationParticipant,
+)
 from soma.reference.application.customer_service import CustomerReferenceService
 from soma.tickets.service_requests import ServiceRequestService
 from soma.tickets.sr_references import ServiceRequestReferenceService
@@ -113,6 +116,15 @@ def test_manual_classification_replay_no_change_and_customer_change_invalidation
     assert unchanged.classification_event_id == applied.classification_event_id
     assert unchanged.revision == 1
 
+    participant_results: list[object] = []
+    original_apply = classification.apply_customer_change
+
+    def capture_apply(uow, sr_id, new_customer_org_id, command_context):
+        result = original_apply(uow, sr_id, new_customer_org_id, command_context)
+        participant_results.append(result)
+        return result
+
+    classification.apply_customer_change = capture_apply
     customer_change_command = new_uuid4()
     set_b = references.set_customer(
         command_id=customer_change_command,
@@ -122,6 +134,10 @@ def test_manual_classification_replay_no_change_and_customer_change_invalidation
         reason_category="customer_correction",
     )
     assert set_b.revision == 3
+    assert len(participant_results) == 1
+    assert isinstance(participant_results[0], tuple)
+    assert participant_results[0][0][0] == "sr_classification_event"
+    assert ServiceRequestCustomerClassificationParticipant is ProductLineSlaClassificationService
 
     connection = factory.open_authoritative(read_only=True, require_wal=True)
     try:

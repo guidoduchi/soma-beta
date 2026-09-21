@@ -740,14 +740,18 @@ class ProductLineSlaClassificationService:
         return classification_result_from_execution(self._boundary.execute(envelope, prepare))
 
     def preview_customer_change(self, reader, sr_id: str, new_customer_org_id: str | None) -> object:
-        current = SrClassificationRepository.current(reader, sr_id)
+        service_request_id = require_uuid4(sr_id)
+        customer_org_id = (
+            None if new_customer_org_id is None else require_uuid4(new_customer_org_id)
+        )
+        current = SrClassificationRepository.current(reader, service_request_id)
         if current is None:
             return {"impact": "NO_CHANGE"}
         target = self._target(reader, current.contract_product_line_id)
         if target is None:
-            return {"impact": "INDETERMINATE"}
+            return "INDETERMINATE"
         return {
-            "impact": "NO_CHANGE" if target.customer_org_id == new_customer_org_id else "INVALIDATE",
+            "impact": "NO_CHANGE" if target.customer_org_id == customer_org_id else "INVALIDATE",
             "contract_product_line_id": current.contract_product_line_id,
         }
 
@@ -758,14 +762,12 @@ class ProductLineSlaClassificationService:
         new_customer_org_id: str | None,
         command_context: dict[str, object],
     ) -> object:
-        current = SrClassificationRepository.current(uow.connection, sr_id)
-        if current is None:
-            return "NO_CHANGE"
-        target = self._target(uow.connection, current.contract_product_line_id)
-        if target is None:
+        service_request_id = require_uuid4(sr_id)
+        customer_org_id = (
+            None if new_customer_org_id is None else require_uuid4(new_customer_org_id)
+        )
+        if not isinstance(command_context, dict):
             return "INDETERMINATE"
-        if target.customer_org_id == new_customer_org_id:
-            return "NO_CHANGE"
         command_id = command_context.get("command_id")
         if not isinstance(command_id, str):
             return "INDETERMINATE"
@@ -773,6 +775,20 @@ class ProductLineSlaClassificationService:
             require_uuid4(command_id)
         except ValidationError:
             return "INDETERMINATE"
+        if uow.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None:
+            return "INDETERMINATE"
+
+        current = SrClassificationRepository.current(uow.connection, service_request_id)
+        if current is None:
+            return "NO_CHANGE"
+        target = self._target(uow.connection, current.contract_product_line_id)
+        if target is None:
+            return "INDETERMINATE"
+        if target.customer_org_id == customer_org_id:
+            return "NO_CHANGE"
         reason_value = command_context.get("reason_category")
         reason = reason_value if isinstance(reason_value, str) and reason_value else "customer_change"
         event_id = new_uuid4()
@@ -780,17 +796,17 @@ class ProductLineSlaClassificationService:
         fingerprint = sha256_canonical_json(
             {
                 "schema": "SOMA_SLA_CUSTOMER_INVALIDATION_V1",
-                "service_request_id": sr_id,
+                "service_request_id": service_request_id,
                 "prior_contract_product_line_id": current.contract_product_line_id,
                 "classification_revision": current.revision,
                 "contract_customer_org_id": target.customer_org_id,
-                "new_customer_org_id": new_customer_org_id,
+                "new_customer_org_id": customer_org_id,
             }
         )
         SrClassificationRepository.append_event(
             uow,
             classification_event_id=event_id,
-            service_request_id=sr_id,
+            service_request_id=service_request_id,
             event_kind="invalidate_customer",
             prior_contract_product_line_id=current.contract_product_line_id,
             new_contract_product_line_id=None,
@@ -800,7 +816,7 @@ class ProductLineSlaClassificationService:
             recorded_at_utc=now,
             command_id=command_id,
         )
-        SrClassificationRepository.clear_current(uow, sr_id)
+        SrClassificationRepository.clear_current(uow, service_request_id)
         self._audit_writer.write(
             uow,
             AuditEventInput(
@@ -810,19 +826,19 @@ class ProductLineSlaClassificationService:
                 actor_kind=str(command_context.get("actor_kind") or "local_user"),
                 actor_id=command_context.get("actor_id") if isinstance(command_context.get("actor_id"), str) else None,
                 target_type="service_request",
-                target_id=sr_id,
+                target_id=service_request_id,
                 reason_category=reason,
                 command_id=command_id,
                 payload_schema="ServiceRequestClassificationAuditV1",
                 payload_version=1,
                 payload={
-                    "service_request_id": sr_id,
+                    "service_request_id": service_request_id,
                     "classification_event_id": event_id,
                     "event_kind": "INVALIDATE_CUSTOMER",
                     "prior_contract_product_line_id": current.contract_product_line_id,
                     "new_contract_product_line_id": None,
                     "policy_revision_id": target.current_policy_revision_id,
-                    "customer_org_id": new_customer_org_id,
+                    "customer_org_id": customer_org_id,
                     "input_fingerprint": fingerprint,
                     "origin": "customer_change",
                     "reason_category": reason,
@@ -830,7 +846,16 @@ class ProductLineSlaClassificationService:
                 resulting_event_refs=(AuditResultRef("sr_classification_event", event_id),),
             ),
         )
-        return {"outcome": "INVALIDATED", "classification_event_id": event_id}
+        return (("sr_classification_event", event_id),)
+
+    # Exact normative operation name for the same-UoW command participant.
+    invalidate_classification_for_customer_change = apply_customer_change
 
 
-__all__ = ["ProductLineSlaClassificationService"]
+ServiceRequestCustomerClassificationParticipant = ProductLineSlaClassificationService
+
+
+__all__ = [
+    "ProductLineSlaClassificationService",
+    "ServiceRequestCustomerClassificationParticipant",
+]

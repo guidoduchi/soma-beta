@@ -426,5 +426,8 @@ class ProductLineSlaReportQueryService:
                 raise SomaError("SLA_REPORT_SNAPSHOT_MISMATCH", "persisted report snapshot changed")
             return semantic
 
+    # Exact normative internal-query name used by the artifact writer contract.
+    read_sealed_report_snapshot_for_artifact = read_sealed_snapshot_for_artifact
+
 
 __all__ = ["ProductLineSlaReportQueryService", "ReportPage"]
