@@ -115,10 +115,10 @@ def test_grouping_sweep_is_transitive_and_exact_touch_separates(initialized_data
         command_id=new_uuid4(),
         origin="manual_request",
     )
-    assert len(response["items"]) == 2
+    assert len(response["proposals"]["items"]) == 2
     details = [
         ObjectiveGroupingQueryService(factory).proposal_detail(item["proposal_id"])
-        for item in response["items"]
+        for item in response["proposals"]["items"]
     ]
     counts = sorted(detail["task_change_exact_count"] for detail in details)
     assert counts == [1, 3]
@@ -135,8 +135,8 @@ def test_identical_rejected_grouping_input_is_suppressed_until_reconsidered(
         command_id=new_uuid4(),
         origin="manual_request",
     )
-    assert len(first["items"]) == 1
-    item = first["items"][0]
+    assert len(first["proposals"]["items"]) == 1
+    item = first["proposals"]["items"][0]
     proposal_id = str(item["proposal_id"])
     fingerprint = str(item["input_fingerprint"])
     rejected = service.reject_regroup_proposal(
@@ -151,7 +151,7 @@ def test_identical_rejected_grouping_input_is_suppressed_until_reconsidered(
         command_id=new_uuid4(),
         origin="manual_request",
     )
-    assert suppressed["items"] == []
+    assert suppressed["proposals"]["items"] == []
 
     with ReadSnapshot(factory) as snapshot:
         rejection_id = str(
@@ -172,7 +172,7 @@ def test_identical_rejected_grouping_input_is_suppressed_until_reconsidered(
         command_id=new_uuid4(),
         origin="manual_request",
     )
-    assert len(fresh["items"]) == 1
+    assert len(fresh["proposals"]["items"]) == 1
 
 
 def test_accept_create_grouping_proposal_creates_nonoverlapping_objective(
@@ -186,8 +186,8 @@ def test_accept_create_grouping_proposal_creates_nonoverlapping_objective(
         command_id=new_uuid4(),
         origin="manual_request",
     )
-    assert len(page["items"]) == 1
-    item = page["items"][0]
+    assert len(page["proposals"]["items"]) == 1
+    item = page["proposals"]["items"][0]
     accepted = service.accept_regroup_proposal(
         command_id=new_uuid4(),
         proposal_id=str(item["proposal_id"]),
@@ -226,8 +226,8 @@ def test_t009_bridging_task_consolidates_existing_objectives_with_lowest_trackin
         command_id=new_uuid4(),
         origin="manual_request",
     )
-    assert len(page["items"]) == 1
-    proposal_id = str(page["items"][0]["proposal_id"])
+    assert len(page["proposals"]["items"]) == 1
+    proposal_id = str(page["proposals"]["items"][0]["proposal_id"])
     detail = ObjectiveGroupingQueryService(factory).proposal_detail(proposal_id)
     assert detail["proposal_kind"] == "consolidate"
     assert detail["stale"] is False
@@ -327,8 +327,8 @@ def test_t010_grouping_is_global_and_multi_customer_context_is_explicit(
         command_id=new_uuid4(),
         origin="manual_request",
     )
-    assert len(page["items"]) == 1
-    proposal_id = str(page["items"][0]["proposal_id"])
+    assert len(page["proposals"]["items"]) == 1
+    proposal_id = str(page["proposals"]["items"][0]["proposal_id"])
     detail = ObjectiveGroupingQueryService(factory).proposal_detail(proposal_id)
     assert detail["proposal_kind"] == "create"
     assert detail["task_change_exact_count"] == 3
@@ -400,8 +400,8 @@ def test_t041_in_progress_regroup_requires_high_risk_and_blocks_started_consolid
         command_id=new_uuid4(),
         origin="manual_request",
     )
-    assert len(page["items"]) == 1
-    proposal_id = str(page["items"][0]["proposal_id"])
+    assert len(page["proposals"]["items"]) == 1
+    proposal_id = str(page["proposals"]["items"][0]["proposal_id"])
     detail = ObjectiveGroupingQueryService(factory).proposal_detail(proposal_id)
     assert detail["proposal_kind"] == "join"
     assert detail["risk_tier"] == "high"
@@ -461,7 +461,7 @@ def test_t041_in_progress_regroup_requires_high_risk_and_blocks_started_consolid
         command_id=new_uuid4(),
         origin="manual_request",
     )
-    for item in blocked["items"]:
+    for item in blocked["proposals"]["items"]:
         candidate = ObjectiveGroupingQueryService(factory).proposal_detail(
             str(item["proposal_id"])
         )
