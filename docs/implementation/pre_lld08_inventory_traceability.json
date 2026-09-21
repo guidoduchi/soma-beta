@@ -3,9 +3,9 @@
   "packet": "LLD-07",
   "design_sha": "e0924369170652be3a425d10210d14619f526a48",
   "implementation_parent_sha": "7556005955c4bc20d9967801bd6b185b1688af4b",
-  "includes": "LLD-07 acceptance T001-T068 semantically audited against current normative packet, including requester/current-context separation, exact RMA cardinality and alias non-reuse, protected hard-delete history with LLD-09 dependency seam, subset warehouse behavior, and minimized populated report contribution; final supported CI/promotion remains pending",
-  "certified": false,
-  "method": "Acceptance IDs T001-T068 were matched to focused assertions and reviewed against normative Given/When/Then semantics. Strengthening tests were added where prior assertions were weaker than the acceptance case. Certification remains false until the current closure SHA passes the supported implementation matrix and promotion checks.",
+  "includes": "LLD-07 acceptance T001-T068 semantically audited against the current normative packet, including requester/current-context separation, exact RMA cardinality and alias non-reuse, protected hard-delete history with the LLD-09 dependency seam, subset warehouse behavior, minimized populated report contribution, T046 owner-derived BOM authority, and the preserved Fault Tag archive/restore immutability regression; supported CI and promotion are complete.",
+  "certified": true,
+  "method": "Acceptance IDs T001-T068 were matched to focused assertions and reviewed against normative Given/When/Then semantics. Strengthening tests were added where prior assertions were weaker than the acceptance case. Final certification is bound to implementation SHA be36fdcf14911e5a7cae89bc35f33a2877c53d58 and Beta implementation CI #806; promotion to main completed at fe9a9c12c289d87ed11b863e0662e267cde6e1ad.",
   "cases": [
     {
       "id": "LLD07-T001",
@@ -18,7 +18,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t001_sixty_faulty_same_sr_bom_aggregate_one_need"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T002",
@@ -31,7 +31,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t002_same_bom_different_srs_never_cross_aggregate"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T003",
@@ -44,7 +44,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t003_contributor_growth_never_overwrites_planned_quantity"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T004",
@@ -57,7 +57,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t004_local_selection_preserves_active_need_and_optional_reservation"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T005",
@@ -70,7 +70,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t005_history_remove_blocked_by_nonterminal_spare_request"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T006",
@@ -85,7 +85,7 @@
       "focused_tests": [
         "tests/test_inventory_manual_need_hard_delete.py::test_t006_untouched_manual_need_hard_delete_preserves_audit_and_allocator_history"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T007",
@@ -99,7 +99,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t007_stock_query_recommends_without_reserving"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T008",
@@ -113,7 +113,7 @@
       "focused_tests": [
         "tests/test_inventory_external_request_despite_stock.py::test_t008_external_request_remains_allowed_despite_compatible_stock"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T009",
@@ -127,7 +127,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t009_t010_task_reservation_is_exclusive_planning_only_and_releaseable"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T010",
@@ -141,7 +141,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t009_t010_task_reservation_is_exclusive_planning_only_and_releaseable"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T011",
@@ -155,7 +155,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t011_manual_local_unit_allocates_lsu_and_preserves_duplicate_candidates"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T012",
@@ -169,7 +169,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t012_duplicate_candidate_never_silently_merges_identity"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T013",
@@ -183,7 +183,7 @@
       "focused_tests": [
         "tests/test_inventory_provenance_reconciliation.py::test_t013_local_unit_later_adopts_rma_provenance_without_identity_or_history_replacement"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T014",
@@ -196,7 +196,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t014_spare_request_draft_aggregates_same_sr_needs_and_freezes_requester_context"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T015",
@@ -209,7 +209,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t015_cross_sr_spare_request_draft_fails_before_identity_allocation"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T016",
@@ -222,7 +222,7 @@
       "focused_tests": [
         "tests/test_inventory_msg_non_authority.py::test_t016_msg_generate_export_open_is_not_spare_request_submission_authority"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T017",
@@ -235,7 +235,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t017_t019_submission_freezes_exact_snapshot_and_starts_warning_chronology"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T018",
@@ -248,7 +248,7 @@
       "focused_tests": [
         "tests/test_inventory_proposal_spare_request_submission.py::test_t018_indexed_sent_proposal_acceptance_uses_normal_submission_authority"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T019",
@@ -263,7 +263,7 @@
         "tests/test_inventory_attention_query.py::test_t019_response_overdue_attention_uses_exact_24_hour_boundary",
         "tests/test_inventory_requests_rma.py::test_t017_t019_submission_freezes_exact_snapshot_and_starts_warning_chronology"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T020",
@@ -276,7 +276,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t020_false_submission_correction_preserves_snapshot_and_restores_draft"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T021",
@@ -289,7 +289,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t021_t022_t023_sr7_assignment_correction_and_global_non_reuse"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T022",
@@ -302,7 +302,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t021_t022_t023_sr7_assignment_correction_and_global_non_reuse"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T023",
@@ -315,7 +315,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t021_t022_t023_sr7_assignment_correction_and_global_non_reuse"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T024",
@@ -328,7 +328,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t024_rma_batch_requires_current_sr7_and_creates_no_physical_unit"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T025",
@@ -341,7 +341,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserve_partial_progress"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T026",
@@ -354,7 +354,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserve_partial_progress"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T027",
@@ -367,7 +367,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserve_partial_progress"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T028",
@@ -382,7 +382,7 @@
         "tests/test_inventory_attention_cache.py::test_t028_unassigned_rma_attention_is_command_time_projection",
         "tests/test_inventory_requests_rma.py::test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T029",
@@ -395,7 +395,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T030",
@@ -408,7 +408,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T031",
@@ -421,7 +421,7 @@
       "focused_tests": [
         "tests/test_inventory_rma_pre_receipt.py::test_t031_authorized_rma_has_no_provisional_physical_unit_before_receipt"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T032",
@@ -434,7 +434,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t032_rma_receipt_creates_actual_direct_inbound_unit_without_overwriting_promise"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T033",
@@ -447,7 +447,7 @@
       "focused_tests": [
         "tests/test_inventory_extracted_units.py::test_t033_extracted_units_keep_parent_as_only_direct_inbound_and_logistics_unit"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T034",
@@ -460,7 +460,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t034_t035_shared_logistics_event_has_independently_correctable_participants"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T035",
@@ -473,7 +473,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t034_t035_shared_logistics_event_has_independently_correctable_participants"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T036",
@@ -486,7 +486,7 @@
       "focused_tests": [
         "tests/test_inventory_physical_consequence_acceptance.py::test_t036_successful_rma_replacement_records_installed_removed_and_return_target"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T037",
@@ -499,7 +499,7 @@
       "focused_tests": [
         "tests/test_inventory_physical_consequence_acceptance.py::test_t037_unused_rma_inbound_unit_becomes_open_return_obligation"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T038",
@@ -512,7 +512,7 @@
       "focused_tests": [
         "tests/test_inventory_physical_consequence_acceptance.py::test_t038_faulty_or_incompatible_inbound_preserves_state_and_becomes_return_obligation"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T039",
@@ -525,7 +525,7 @@
       "focused_tests": [
         "tests/test_inventory_physical_consequence_acceptance.py::test_t039_dismantled_rma_selects_direct_inbound_parent_not_child"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T040",
@@ -538,7 +538,7 @@
       "focused_tests": [
         "tests/test_inventory_physical_consequence_acceptance.py::test_t040_local_stock_replacement_records_physical_facts_without_fabricated_rma"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T041",
@@ -553,7 +553,7 @@
       "focused_tests": [
         "tests/test_inventory_attention_query.py::test_t041_task_review_change_is_read_only_attention_overlay"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T042",
@@ -566,7 +566,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tags.py::test_t042_fault_tag_draft_allocates_immutable_handle_and_allows_zero_members"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T043",
@@ -579,7 +579,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tags.py::test_t043_pickup_fault_tag_submission_requires_pickup_origin"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T044",
@@ -592,7 +592,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_acceptance_tail.py::test_t044_fault_tag_may_span_independent_sr_and_request_contexts"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T045",
@@ -605,7 +605,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_acceptance_tail.py::test_t045_second_submission_rejects_active_rma_membership_conflict"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T046",
@@ -618,7 +618,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_acceptance_tail.py::test_t046_submission_snapshots_remain_frozen_while_current_master_truth_changes"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T047",
@@ -631,7 +631,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_acceptance_tail.py::test_t047_submitted_fault_tag_cannot_be_directly_edited_or_remove_member"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T048",
@@ -644,7 +644,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_acceptance_tail.py::test_t048_false_submission_returns_same_fault_tag_to_draft_and_preserves_history"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T049",
@@ -657,7 +657,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_acceptance_tail.py::test_t049_material_membership_correction_creates_linear_replacement"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T050",
@@ -670,7 +670,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_warehouse_receipt_and_final_batches_replay_exactly_t050_t051"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T051",
@@ -683,7 +683,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_warehouse_receipt_and_final_batches_replay_exactly_t050_t051"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T052",
@@ -697,7 +697,7 @@
       "focused_tests": [
         "tests/test_inventory_attention_cache.py::test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T053",
@@ -710,7 +710,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_acceptance_tail.py::test_t053_rejected_open_obligation_resend_preserves_predecessor"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T054",
@@ -724,7 +724,7 @@
       "focused_tests": [
         "tests/test_inventory_attention_cache.py::test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T055",
@@ -737,7 +737,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_warehouse_final_decision_requires_explicit_confirmation_t055"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T056",
@@ -750,7 +750,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_manual_warehouse_transition_needs_no_uploaded_evidence_t056"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T057",
@@ -764,7 +764,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_bulk_receipt_preflight_partitions_incompatible_target_t057"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T058",
@@ -778,7 +778,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_bulk_drift_aborts_complete_selected_scope_t058"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T059",
@@ -792,7 +792,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_later_false_receipt_correction_isolated_from_successful_bulk_t059"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T060",
@@ -806,7 +806,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_hard_delete.py::test_untouched_fault_tag_delete_retains_allocator_and_replays_t060"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T061",
@@ -823,7 +823,7 @@
         "tests/test_inventory_fault_tag_hard_delete.py::test_t061_warehouse_and_lineage_history_block_fault_tag_hard_delete",
         "tests/test_inventory_fault_tag_hard_delete.py::test_t061_communication_generation_dependency_blocks_or_fails_closed"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T062",
@@ -836,7 +836,7 @@
       "focused_tests": [
         "tests/test_inventory_report_contributor.py::test_inventory_report_contributor_emits_exact_minimized_report_scope_t062"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T063",
@@ -849,7 +849,7 @@
       "focused_tests": [
         "tests/test_inventory_cross_packet_acceptance.py::test_t063_task_hard_delete_uses_real_inventory_consequence_provider"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T064",
@@ -862,7 +862,7 @@
       "focused_tests": [
         "tests/test_inventory_cross_packet_acceptance.py::test_t064_retry_reassigns_only_selected_planning_relation"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T065",
@@ -875,7 +875,7 @@
       "focused_tests": [
         "tests/test_inventory_cross_packet_acceptance.py::test_t065_objective_inventory_context_derives_only_through_member_task"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T066",
@@ -888,7 +888,7 @@
       "focused_tests": [
         "tests/test_inventory_attention_cache.py::test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T067",
@@ -902,7 +902,7 @@
       "focused_tests": [
         "tests/test_inventory_requester_support_acceptance.py::test_t067_requester_role_preserves_creation_context_and_shows_current_contact_separately"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     },
     {
       "id": "LLD07-T068",
@@ -916,7 +916,18 @@
       "focused_tests": [
         "tests/test_inventory_requester_support_acceptance.py::test_t068_active_requester_blocks_contact_archive_until_request_terminal"
       ],
-      "status": "semantically_audited_pending_supported_ci"
+      "status": "certified_supported_ci"
     }
-  ]
+  ],
+  "certified_implementation_sha": "be36fdcf14911e5a7cae89bc35f33a2877c53d58",
+  "promotion_main_sha": "fe9a9c12c289d87ed11b863e0662e267cde6e1ad",
+  "certifying_ci": {
+    "workflow": "Beta implementation CI",
+    "run_number": 806,
+    "run_id": 35595185873,
+    "result": "success",
+    "ubuntu_python_3_14": "1215 passed, 2 skipped",
+    "windows_python_3_13": "1217 passed; wheel/resources verified",
+    "windows_python_3_14": "1217 passed; wheel/resources verified"
+  }
 }
