@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -36,11 +37,18 @@ class GroupingRecomputeJobRunResult:
 class ObjectiveGroupingRecomputeWorker:
     """Durable T039 grouping calculator and non-authoritative proposal publisher."""
 
-    def __init__(self, connection_factory: ConnectionFactory) -> None:
+    def __init__(
+        self,
+        connection_factory: ConnectionFactory,
+        *,
+        clock: Callable[[], int] | None = None,
+    ) -> None:
         self._factory = connection_factory
+        coordinator_kwargs = {} if clock is None else {"clock": clock}
         self._jobs = DurableJobCoordinator(
             connection_factory,
             JobTypeRegistry(OBJECTIVES_TASKS_JOB_CONTRACTS),
+            **coordinator_kwargs,
         )
         self._audit = AuditWriter(build_objectives_tasks_audit_registry())
 
