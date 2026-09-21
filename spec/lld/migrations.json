@@ -1,23 +1,111 @@
 {
-  "schema":"SOMA-LLD-MIGRATION-ALLOCATION-V1",
-  "status":"design_allocation_not_runtime_manifest",
-  "runtime_contract":"LLD-01 AcceptedMigrationRunner; runtime accepted files/hashes live under src/soma/migrations only after reviewed implementation",
-  "allocations":[
-    {"sequence":1,"packet_id":"LLD-01","migration_id":"beta_0001_foundation","filename":"0001_foundation.sql"},
-    {"sequence":2,"packet_id":"LLD-02","migration_id":"beta_0002_identity_reference","filename":"0002_identity_reference.sql"},
-    {"sequence":3,"packet_id":"LLD-03","migration_id":"beta_0003_tickets_core","filename":"0003_tickets_core.sql"},
-    {"sequence":4,"packet_id":"LLD-04","migration_id":"beta_0004_ticket_import","filename":"0004_ticket_import.sql"},
-    {"sequence":5,"packet_id":"LLD-01","migration_id":"beta_0005_command_replay_results","filename":"0005_command_replay_results.sql"},
-    {"sequence":6,"packet_id":"LLD-05","migration_id":"beta_0006_objectives_tasks","filename":"0006_objectives_tasks.sql"},
-    {"sequence":7,"packet_id":"LLD-03","migration_id":"beta_0007_sr_source_presence","filename":"0007_sr_source_presence.sql"},
-    {"sequence":8,"packet_id":"LLD-01","migration_id":"beta_0008_durable_job_coalescing","filename":"0008_durable_job_coalescing.sql"},
-    {"sequence":9,"packet_id":"LLD-06","migration_id":"beta_0009_product_line_sla","filename":"0009_product_line_sla.sql"},
-    {"sequence":10,"packet_id":"LLD-07","migration_id":"beta_0010_inventory","filename":"0010_inventory.sql"},
-    {"sequence":11,"packet_id":"LLD-08","migration_id":"beta_0011_infrastructure","filename":"0011_infrastructure.sql"},
-    {"sequence":12,"packet_id":"LLD-09","migration_id":"beta_0012_communications","filename":"0012_communications.sql"},
-    {"sequence":13,"packet_id":"LLD-10","migration_id":"beta_0013_ui_workbenches","filename":"0013_ui_workbenches.sql"},
-    {"sequence":14,"packet_id":"LLD-11","migration_id":"beta_0014_overview","filename":"0014_overview.sql"},
-    {"sequence":15,"packet_id":"LLD-12","migration_id":"beta_0015_security_packaging","filename":"0015_security_packaging.sql"}
+  "schema": "SOMA-LLD-MIGRATION-ALLOCATION-V1",
+  "status": "design_allocation_not_runtime_manifest",
+  "runtime_contract": "LLD-01 AcceptedMigrationRunner; runtime accepted files/hashes live under src/soma/migrations only after reviewed implementation",
+  "allocations": [
+    {
+      "sequence": 1,
+      "packet_id": "LLD-01",
+      "migration_id": "beta_0001_foundation",
+      "filename": "0001_foundation.sql"
+    },
+    {
+      "sequence": 2,
+      "packet_id": "LLD-02",
+      "migration_id": "beta_0002_identity_reference",
+      "filename": "0002_identity_reference.sql"
+    },
+    {
+      "sequence": 3,
+      "packet_id": "LLD-03",
+      "migration_id": "beta_0003_tickets_core",
+      "filename": "0003_tickets_core.sql"
+    },
+    {
+      "sequence": 4,
+      "packet_id": "LLD-04",
+      "migration_id": "beta_0004_ticket_import",
+      "filename": "0004_ticket_import.sql"
+    },
+    {
+      "sequence": 5,
+      "packet_id": "LLD-01",
+      "migration_id": "beta_0005_command_replay_results",
+      "filename": "0005_command_replay_results.sql"
+    },
+    {
+      "sequence": 6,
+      "packet_id": "LLD-05",
+      "migration_id": "beta_0006_objectives_tasks",
+      "filename": "0006_objectives_tasks.sql"
+    },
+    {
+      "sequence": 7,
+      "packet_id": "LLD-03",
+      "migration_id": "beta_0007_sr_source_presence",
+      "filename": "0007_sr_source_presence.sql"
+    },
+    {
+      "sequence": 8,
+      "packet_id": "LLD-01",
+      "migration_id": "beta_0008_durable_job_coalescing",
+      "filename": "0008_durable_job_coalescing.sql"
+    },
+    {
+      "sequence": 9,
+      "packet_id": "LLD-06",
+      "migration_id": "beta_0009_product_line_sla",
+      "filename": "0009_product_line_sla.sql"
+    },
+    {
+      "sequence": 10,
+      "packet_id": "LLD-07",
+      "migration_id": "beta_0010_inventory",
+      "filename": "0010_inventory.sql"
+    },
+    {
+      "sequence": 11,
+      "packet_id": "LLD-07",
+      "migration_id": "beta_0011_inventory_draft_delete",
+      "filename": "0011_inventory_draft_delete.sql"
+    },
+    {
+      "sequence": 12,
+      "packet_id": "LLD-08",
+      "migration_id": "beta_0012_infrastructure",
+      "filename": "0012_infrastructure.sql"
+    },
+    {
+      "sequence": 13,
+      "packet_id": "LLD-09",
+      "migration_id": "beta_0013_communications",
+      "filename": "0013_communications.sql"
+    },
+    {
+      "sequence": 14,
+      "packet_id": "LLD-10",
+      "migration_id": "beta_0014_ui_workbenches",
+      "filename": "0014_ui_workbenches.sql"
+    },
+    {
+      "sequence": 15,
+      "packet_id": "LLD-11",
+      "migration_id": "beta_0015_overview",
+      "filename": "0015_overview.sql"
+    },
+    {
+      "sequence": 16,
+      "packet_id": "LLD-12",
+      "migration_id": "beta_0016_security_packaging",
+      "filename": "0016_security_packaging.sql"
+    }
   ],
-  "rules":["accepted runtime migrations are immutable: once present in the accepted runtime migration manifest, sequence, migration ID, filename, normalized SQL bytes and SHA-256 may never change","future design allocations are provisional and may be renumbered until accepted into the runtime migration manifest","runtime acceptance still requires a contiguous sequence, exact filename and file set, exact manifest hash, strict UTF-8/NFC/newline normalization and fail-closed validation","accepted runtime sequences 1 through 7 are historical facts and remain unchanged","sequence 8 is the next runtime migration and adds only Foundation durable-job semantic coalescing identity/index authority","future design allocations 9 through 15 remain provisional until individually accepted into the runtime manifest","future forward migration allocation begins at sequence 16 and requires explicit design update"]
+  "rules": [
+    "accepted runtime migrations are immutable: once present in the accepted runtime migration manifest, sequence, migration ID, filename, normalized SQL bytes and SHA-256 may never change",
+    "future design allocations are provisional and may be renumbered until accepted into the runtime migration manifest",
+    "runtime acceptance still requires a contiguous sequence, exact filename and file set, exact manifest hash, strict UTF-8/NFC/newline normalization and fail-closed validation",
+    "accepted runtime sequences 1 through 11 are historical facts and remain unchanged; sequence 11 is the forward-only LLD-07 Inventory untouched-draft deletion repair beta_0011_inventory_draft_delete",
+    "future design allocations 12 through 16 remain provisional until individually accepted into the runtime manifest",
+    "future forward migration allocation begins at sequence 17 and requires explicit design update"
+  ]
 }
