@@ -113,7 +113,7 @@ def test_t016_msg_generate_export_open_is_not_spare_request_submission_authority
         expected_fingerprint=str(before[5]),
         effective_submission_at_utc=4_000,
     )
-    assert accepted["state"] == "submitted_awaiting_response"
+    assert accepted["state"] == "submitted"
     after_submission = tuple(_request_projection(factory, request_id))
     assert after_submission[0] == "submitted_awaiting_response"
     assert after_submission[1] is not None
