@@ -6,8 +6,21 @@ from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditW
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
-from soma.foundation.strict_json import ObjectContract, sha256_canonical_json
+from soma.foundation.strict_json import (
+    ObjectContract,
+    canonical_json_bytes,
+    sha256_canonical_json,
+)
 from soma.inventory.audit_registry import build_inventory_audit_registry
+from soma.inventory.domain.proposals import (
+    ParsedInventoryProposalTarget,
+    parse_inventory_proposal_target,
+    source_evidence_ref,
+    validate_proposal_kind,
+    validate_risk_tier,
+)
+from soma.inventory.repositories.fault_tags import InventoryFaultTagsRepository
+from soma.inventory.repositories.requests import InventoryRequestsRepository
 from soma.inventory.repositories.units import InventoryUnitsRepository
 from soma.product_line_sla.report_sections import (
     ReportSectionDescriptor,
@@ -565,6 +578,407 @@ class InventoryCommunicationIdentityProvider:
             return "INDETERMINATE"
 
 
+class InventoryProposalTargetService:
+    """Typed LLD-09 proposal participant over LLD-07 owner reducers.
+
+    The caller owns the outer command receipt and transaction. This participant
+    validates only the three Beta 1.0 owner actions and never persists message
+    bodies or a second proposal authority.
+    """
+
+    _TARGET_FIELDS = frozenset(
+        {
+            "proposal_target_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "proposed_action",
+            "payload",
+        }
+    )
+    _EVIDENCE_FIELDS = frozenset({"evidence_kind", "evidence_id", "risk_tier"})
+    _ACCEPTED_FIELDS = frozenset(
+        {
+            "proposal_kind",
+            "target_refs",
+            "evidence_ref",
+            "base_token",
+            "preview_fingerprint",
+            "explicit_confirmation",
+        }
+    )
+    _COMMAND_FIELDS = frozenset({"command_id", "actor_kind", "actor_id"})
+
+    @classmethod
+    def _evidence(cls, evidence_ref: object) -> tuple[str, str, str]:
+        if not isinstance(evidence_ref, dict) or set(evidence_ref) != cls._EVIDENCE_FIELDS:
+            raise ValidationError("Inventory proposal evidence_ref is invalid")
+        evidence_kind = evidence_ref.get("evidence_kind")
+        evidence_id = evidence_ref.get("evidence_id")
+        risk_tier = evidence_ref.get("risk_tier")
+        if not isinstance(evidence_kind, str) or not isinstance(evidence_id, str):
+            raise ValidationError("Inventory proposal evidence reference is invalid")
+        source_evidence_ref(evidence_kind, evidence_id)
+        return evidence_kind, evidence_id, validate_risk_tier(risk_tier)
+
+    @classmethod
+    def _targets(
+        cls,
+        *,
+        proposal_kind: str,
+        target_refs: object,
+        risk_tier: str,
+    ) -> tuple[ParsedInventoryProposalTarget, ...]:
+        if not isinstance(target_refs, (tuple, list)) or not target_refs:
+            raise ValidationError("Inventory proposal requires one or more targets")
+        parsed: list[ParsedInventoryProposalTarget] = []
+        for raw in target_refs:
+            if not isinstance(raw, dict) or set(raw) != cls._TARGET_FIELDS:
+                raise ValidationError("Inventory proposal target fields are invalid")
+            target_id = raw.get("target_id")
+            payload = raw.get("payload")
+            if not isinstance(target_id, str) or not isinstance(payload, dict):
+                raise ValidationError("Inventory proposal target is invalid")
+            target_kind = raw.get("target_kind")
+            parsed.append(
+                parse_inventory_proposal_target(
+                    proposal_target_id=raw.get("proposal_target_id"),
+                    proposal_kind=proposal_kind,
+                    risk_tier=risk_tier,
+                    target_kind=target_kind,
+                    spare_request_id=target_id if target_kind == "spare_request" else None,
+                    membership_id=(
+                        target_id if target_kind == "fault_tag_membership" else None
+                    ),
+                    expected_revision=raw.get("expected_revision"),
+                    proposed_action=raw.get("proposed_action"),
+                    payload_json=canonical_json_bytes(payload).decode("utf-8"),
+                )
+            )
+        identities = tuple(item.proposal_target_id for item in parsed)
+        if len(set(identities)) != len(identities):
+            raise ValidationError("Inventory proposal target identities contain duplicates")
+        return tuple(sorted(parsed, key=lambda item: item.proposal_target_id))
+
+    @staticmethod
+    def _target_state(reader: Reader, target: ParsedInventoryProposalTarget) -> dict[str, object]:
+        if target.action == "spare_request_submission":
+            assert target.spare_request_id is not None
+            row = InventoryRequestsRepository.current_detail(
+                reader.connection,
+                target.spare_request_id,
+            )
+            if row is None:
+                raise SomaError("PROPOSAL_STALE", "Spare Request target is missing")
+            return {
+                "proposal_target_id": target.proposal_target_id,
+                "target_kind": "spare_request",
+                "target_id": target.spare_request_id,
+                "state": str(row[6]),
+                "revision": int(row[8]),
+                "input_fingerprint": str(row[9]),
+            }
+        assert target.membership_id is not None
+        required_state = (
+            "submitted_awaiting_receipt"
+            if target.action == "warehouse_received"
+            else "warehouse_received"
+        )
+        row, obligation = InventoryFaultTagsRepository._require_warehouse_target(
+            reader.connection,
+            membership_id=target.membership_id,
+            expected_revision=target.expected_revision,
+            required_state=required_state,
+        )
+        return {
+            "proposal_target_id": target.proposal_target_id,
+            "target_kind": "fault_tag_membership",
+            "target_id": target.membership_id,
+            "state": str(row[5]),
+            "active_submitted": int(row[6]),
+            "revision": int(row[7]),
+            "last_event_id": None if row[8] is None else str(row[8]),
+            "rma_id": str(row[2]),
+            "physical_consequence_id": str(row[9]),
+            "device_part_unit_id": None if row[3] is None else str(row[3]),
+            "spare_part_unit_id": None if row[4] is None else str(row[4]),
+            "obligation_state": str(obligation[0]),
+            "obligation_revision": int(obligation[4]),
+            "obligation_last_event_id": (
+                None if obligation[5] is None else str(obligation[5])
+            ),
+        }
+
+    @classmethod
+    def base_token(
+        cls,
+        snapshot: Reader,
+        proposal_kind: str,
+        target_refs: object,
+        evidence_ref: object | None = None,
+    ) -> str:
+        kind = validate_proposal_kind(proposal_kind)
+        if evidence_ref is None:
+            risk_tier = "material_final" if kind == "warehouse_final_decision" else "normal"
+        else:
+            _evidence_kind, _evidence_id, risk_tier = cls._evidence(evidence_ref)
+        targets = cls._targets(
+            proposal_kind=kind,
+            target_refs=target_refs,
+            risk_tier=risk_tier,
+        )
+        states = tuple(cls._target_state(snapshot, target) for target in targets)
+        return sha256_canonical_json(
+            {
+                "schema": "SOMA_INVENTORY_PROPOSAL_BASE_V1",
+                "proposal_kind": kind,
+                "targets": states,
+            }
+        )
+
+    @classmethod
+    def preview(
+        cls,
+        snapshot: Reader,
+        proposal_kind: str,
+        target_refs: object,
+        evidence_ref: object,
+    ) -> dict[str, object]:
+        try:
+            kind = validate_proposal_kind(proposal_kind)
+            evidence_kind, evidence_id, risk_tier = cls._evidence(evidence_ref)
+            targets = cls._targets(
+                proposal_kind=kind,
+                target_refs=target_refs,
+                risk_tier=risk_tier,
+            )
+            if kind == "spare_request_submission" and evidence_kind != "indexed_sent":
+                raise ValidationError(
+                    "Spare Request proposal requires indexed_sent evidence"
+                )
+            states = tuple(cls._target_state(snapshot, target) for target in targets)
+            for target, state in zip(targets, states, strict=True):
+                if target.action == "spare_request_submission" and (
+                    state["state"] != "draft"
+                    or state["revision"] != target.expected_revision
+                    or state["input_fingerprint"] != target.expected_draft_fingerprint
+                ):
+                    raise SomaError(
+                        "PROPOSAL_STALE",
+                        "Spare Request draft authority changed",
+                    )
+            base_token = sha256_canonical_json(
+                {
+                    "schema": "SOMA_INVENTORY_PROPOSAL_BASE_V1",
+                    "proposal_kind": kind,
+                    "targets": states,
+                }
+            )
+            impact = {
+                "schema": "SOMA_INVENTORY_PROPOSAL_IMPACT_V1",
+                "status": "READY",
+                "proposal_kind": kind,
+                "evidence_ref": {
+                    "evidence_kind": evidence_kind,
+                    "evidence_id": evidence_id,
+                    "risk_tier": risk_tier,
+                },
+                "base_token": base_token,
+                "target_count": len(targets),
+                "targets": states,
+                "requires_explicit_confirmation": kind == "warehouse_final_decision",
+            }
+            return {**impact, "input_fingerprint": sha256_canonical_json(impact)}
+        except (SomaError, ValidationError, IntegrityFailure) as exc:
+            return {
+                "schema": "SOMA_INVENTORY_PROPOSAL_IMPACT_V1",
+                "status": "INDETERMINATE",
+                "reason_code": getattr(exc, "code", "VALIDATION_FAILED"),
+            }
+
+    @classmethod
+    def apply(
+        cls,
+        uow: UnitOfWork,
+        accepted_proposal: object,
+        command_context: object,
+    ) -> tuple[dict[str, str], ...]:
+        if (
+            not isinstance(accepted_proposal, dict)
+            or set(accepted_proposal) != cls._ACCEPTED_FIELDS
+        ):
+            raise ValidationError("accepted Inventory proposal fields are invalid")
+        if not isinstance(command_context, dict) or set(command_context) != cls._COMMAND_FIELDS:
+            raise ValidationError("Inventory proposal command_context is invalid")
+        command_id = require_uuid4(command_context.get("command_id"))
+        actor_kind = command_context.get("actor_kind")
+        actor_id = command_context.get("actor_id")
+        if not isinstance(actor_kind, str) or not actor_kind:
+            raise ValidationError("Inventory proposal actor_kind is invalid")
+        if actor_id is not None and not isinstance(actor_id, str):
+            raise ValidationError("Inventory proposal actor_id is invalid")
+        if uow.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None:
+            raise SomaError(
+                "DEPENDENCY_INDETERMINATE",
+                "Inventory proposal participant requires the caller command receipt",
+            )
+
+        proposal_kind = accepted_proposal.get("proposal_kind")
+        target_refs = accepted_proposal.get("target_refs")
+        evidence_ref = accepted_proposal.get("evidence_ref")
+        expected_base = accepted_proposal.get("base_token")
+        expected_preview = accepted_proposal.get("preview_fingerprint")
+        explicit_confirmation = accepted_proposal.get("explicit_confirmation")
+        if not isinstance(expected_base, str) or not isinstance(expected_preview, str):
+            raise ValidationError("accepted Inventory proposal fingerprints are invalid")
+        impact = cls.preview(uow, proposal_kind, target_refs, evidence_ref)
+        if impact.get("status") != "READY":
+            raise SomaError("DEPENDENCY_INDETERMINATE", "Inventory proposal is indeterminate")
+        if (
+            impact.get("base_token") != expected_base
+            or impact.get("input_fingerprint") != expected_preview
+        ):
+            raise SomaError("PROPOSAL_STALE", "Inventory proposal target authority changed")
+        if impact["requires_explicit_confirmation"] and explicit_confirmation is not True:
+            raise SomaError(
+                "DEPENDENCY_INDETERMINATE",
+                "Material warehouse final decision requires explicit confirmation",
+            )
+
+        kind = validate_proposal_kind(proposal_kind)
+        evidence_kind, evidence_id, risk_tier = cls._evidence(evidence_ref)
+        targets = cls._targets(
+            proposal_kind=kind,
+            target_refs=target_refs,
+            risk_tier=risk_tier,
+        )
+        writer = AuditWriter(build_inventory_audit_registry())
+        refs: list[dict[str, str]] = []
+        if kind == "spare_request_submission":
+            for target in targets:
+                assert target.spare_request_id is not None
+                assert target.expected_draft_fingerprint is not None
+                event_id, snapshot_id, _revision, allocation_count, _snapshot_hash = (
+                    InventoryRequestsRepository.accept_submission(
+                        uow.connection,
+                        spare_request_id=target.spare_request_id,
+                        expected_fingerprint=target.expected_draft_fingerprint,
+                        effective_submission_at_utc=target.effective_at_utc,
+                        evidence_kind="indexed_sent",
+                        evidence_id=evidence_id,
+                        command_id=command_id,
+                    )
+                )
+                writer.write(
+                    uow,
+                    AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="inventory.spare_request.submitted",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="spare_request",
+                        target_id=target.spare_request_id,
+                        command_id=command_id,
+                        payload_schema="SpareRequestSubmissionAuditV1",
+                        payload_version=1,
+                        payload={
+                            "spare_request_id": target.spare_request_id,
+                            "submission_event_id": event_id,
+                            "submission_snapshot_id": snapshot_id,
+                            "event_kind": "ACCEPT",
+                            "allocation_count": allocation_count,
+                            "input_fingerprint": target.expected_draft_fingerprint,
+                            "effective_at_utc": target.effective_at_utc,
+                        },
+                        resulting_event_refs=(
+                            AuditResultRef("spare_request_submission_snapshot", snapshot_id),
+                        ),
+                    ),
+                )
+                refs.extend(
+                    (
+                        {"type": "spare_request_submission_event", "id": event_id},
+                        {"type": "spare_request_submission_snapshot", "id": snapshot_id},
+                    )
+                )
+            return tuple(refs)
+
+        batch_id = new_uuid4() if len(targets) > 1 else None
+        if batch_id is not None:
+            InventoryFaultTagsRepository.insert_lifecycle_batch(
+                uow.connection,
+                batch_id=batch_id,
+                batch_kind="proposal_acceptance",
+                target_count=len(targets),
+                command_id=command_id,
+            )
+            refs.append({"type": "inventory_lifecycle_batch", "id": batch_id})
+        for target in targets:
+            assert target.membership_id is not None
+            if target.action == "warehouse_received":
+                rows, _tag_revisions = InventoryFaultTagsRepository.record_warehouse_receipt(
+                    uow.connection,
+                    targets=((target.membership_id, target.expected_revision),),
+                    effective_at_utc=target.effective_at_utc,
+                    evidence_kind=evidence_kind,
+                    evidence_id=evidence_id,
+                    batch_id=None,
+                    command_id=command_id,
+                )
+                event_kind = "RECEIVED"
+            else:
+                rows, _tag_revisions = (
+                    InventoryFaultTagsRepository.record_warehouse_final_decision(
+                        uow.connection,
+                        targets=((target.membership_id, target.expected_revision),),
+                        decision=str(target.decision),
+                        reason_code=target.reason_code,
+                        effective_at_utc=target.effective_at_utc,
+                        evidence_kind=evidence_kind,
+                        evidence_id=evidence_id,
+                        batch_id=None,
+                        command_id=command_id,
+                    )
+                )
+                event_kind = "ACCEPTED" if target.decision == "accepted" else "REJECTED"
+            row = rows[0]
+            event_id = str(row["membership_event_id"])
+            writer.write(
+                uow,
+                AuditEventInput(
+                    audit_event_id=new_uuid4(),
+                    action_type="inventory.fault_tag.warehouse_state_changed",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="fault_tag_membership",
+                    target_id=target.membership_id,
+                    command_id=command_id,
+                    reason_category=target.reason_code,
+                    payload_schema="WarehouseDecisionAuditV1",
+                    payload_version=1,
+                    payload={
+                        "membership_id": target.membership_id,
+                        "event_kind": event_kind,
+                        "rma_id": str(row["rma_id"]),
+                        "return_obligation_id": str(row["rma_id"]),
+                        "batch_id": batch_id,
+                        "effective_at_utc": target.effective_at_utc,
+                        "explicit_confirmation": bool(explicit_confirmation),
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("fault_tag_membership_event", event_id),
+                    ),
+                ),
+            )
+            refs.append({"type": "fault_tag_membership_event", "id": event_id})
+        return tuple(refs)
+
+
 class InventoryOverviewProjectionProvider:
     @staticmethod
     def project_overview(
@@ -775,6 +1189,7 @@ __all__ = [
     "InventoryDevicePartReferenceReader",
     "InventoryOverviewProjectionProvider",
     "InventoryPhysicalConsequenceReader",
+    "InventoryProposalTargetService",
     "InventoryReportSectionContributor",
     "InventoryReferenceDependencyValidator",
     "InventorySiteDependencyValidator",
