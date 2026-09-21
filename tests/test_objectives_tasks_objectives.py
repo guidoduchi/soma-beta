@@ -772,6 +772,9 @@ def test_t048_objective_is_valid_without_ticket_device_or_inventory_context(
             (task.task_id,),
         ).fetchone() is None
         assert snapshot.connection.execute(
-            "SELECT COUNT(*) FROM physical_consequence_current WHERE task_id=?",
+            "SELECT COUNT(*) FROM physical_consequence_current pc "
+            "JOIN inventory_physical_consequences c "
+            "ON c.physical_consequence_id=pc.physical_consequence_id "
+            "WHERE c.task_id=?",
             (task.task_id,),
         ).fetchone()[0] == 0

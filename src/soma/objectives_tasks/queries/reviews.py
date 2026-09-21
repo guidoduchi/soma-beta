@@ -8,6 +8,7 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
 
+from ..repositories.objectives import ObjectiveProjectionRepository
 from ..repositories.tasks import TaskPlanRepository, TaskRepository, WfmTaskRepository
 from ..source_terminal_authority import current_source_projection
 
