@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from soma.foundation.application.command_boundary import (
     CommandBoundary,
@@ -9,7 +11,7 @@ from soma.foundation.application.command_boundary import (
     PreparedMutation,
 )
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import IntegrityFailure
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
@@ -20,6 +22,7 @@ from ..audit_registry import build_objectives_tasks_audit_registry
 from ..settings import (
     OBJECTIVE_TIMEZONE_KEY,
     build_objective_timezone_setting_registry,
+    validate_objective_timezone,
 )
 
 
@@ -47,6 +50,63 @@ class ObjectiveTimezoneService:
             connection_factory,
             AuditWriter(_audit_registry()),
         )
+
+    @staticmethod
+    def validate_local_input(
+        local_datetime: datetime,
+        iana_name: str,
+        fold_or_offset: int | None = None,
+    ) -> int:
+        """Resolve one naive local wall time to canonical UTC whole seconds.
+
+        Ambiguous wall times require explicit fold 0/1. Nonexistent wall
+        times fail closed; they are never shifted across the timezone gap.
+        """
+
+        if not isinstance(local_datetime, datetime):
+            raise ValidationError("local_datetime must be datetime")
+        if local_datetime.tzinfo is not None:
+            raise ValidationError("local_datetime must be naive local wall time")
+        if local_datetime.microsecond != 0:
+            raise ValidationError("local_datetime must resolve at whole-second precision")
+        if fold_or_offset not in {None, 0, 1}:
+            raise SomaError(
+                "TIMEZONE_AMBIGUOUS_LOCAL_TIME",
+                "local schedule occurrence selector must be fold 0 or 1",
+            )
+
+        canonical_name = validate_objective_timezone(iana_name)
+        zone = ZoneInfo(canonical_name)
+        epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        candidates: dict[int, int] = {}
+        for fold in (0, 1):
+            aware = local_datetime.replace(tzinfo=zone, fold=fold)
+            utc_value = aware.astimezone(timezone.utc)
+            roundtrip = utc_value.astimezone(zone)
+            if (
+                roundtrip.replace(tzinfo=None) != local_datetime
+                or roundtrip.fold != fold
+            ):
+                continue
+            delta = utc_value - epoch
+            candidates[fold] = delta.days * 86_400 + delta.seconds
+
+        if not candidates:
+            raise SomaError(
+                "TIMEZONE_NONEXISTENT_LOCAL_TIME",
+                "local schedule wall time does not exist in the selected timezone",
+            )
+
+        distinct_instants = set(candidates.values())
+        if len(distinct_instants) > 1:
+            if fold_or_offset is None or fold_or_offset not in candidates:
+                raise SomaError(
+                    "TIMEZONE_AMBIGUOUS_LOCAL_TIME",
+                    "local schedule wall time is ambiguous and requires explicit fold",
+                )
+            return candidates[fold_or_offset]
+
+        return next(iter(distinct_instants))
 
     @staticmethod
     def _from_execution(result: CommandExecutionResult) -> ObjectiveTimezoneMutationResult:

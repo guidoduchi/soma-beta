@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
@@ -108,3 +110,79 @@ def test_objective_timezone_rejects_unknown_and_never_rewrites_task_plan_utc(ini
             base_revision=1,
         )
     assert excinfo.value.code == "TIMEZONE_UNKNOWN"
+
+
+def _epoch_seconds(value: datetime) -> int:
+    assert value.tzinfo is timezone.utc and value.microsecond == 0
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    delta = value - epoch
+    return delta.days * 86_400 + delta.seconds
+
+
+def test_t031_local_time_validation_is_offline_dst_safe_and_path_safe() -> None:
+    galapagos = ObjectiveTimezoneService.validate_local_input(
+        datetime(2026, 1, 15, 12, 0, 0),
+        "Pacific/Galapagos",
+    )
+    assert galapagos == _epoch_seconds(
+        datetime(2026, 1, 15, 18, 0, 0, tzinfo=timezone.utc)
+    )
+
+    ambiguous = datetime(2026, 11, 1, 1, 30, 0)
+    with pytest.raises(SomaError) as missing_fold:
+        ObjectiveTimezoneService.validate_local_input(
+            ambiguous,
+            "America/New_York",
+        )
+    assert missing_fold.value.code == "TIMEZONE_AMBIGUOUS_LOCAL_TIME"
+
+    first = ObjectiveTimezoneService.validate_local_input(
+        ambiguous,
+        "America/New_York",
+        0,
+    )
+    second = ObjectiveTimezoneService.validate_local_input(
+        ambiguous,
+        "America/New_York",
+        1,
+    )
+    assert second - first == 3_600
+    assert first == _epoch_seconds(
+        datetime(2026, 11, 1, 5, 30, 0, tzinfo=timezone.utc)
+    )
+    assert second == _epoch_seconds(
+        datetime(2026, 11, 1, 6, 30, 0, tzinfo=timezone.utc)
+    )
+
+    with pytest.raises(SomaError) as invalid_fold:
+        ObjectiveTimezoneService.validate_local_input(
+            ambiguous,
+            "America/New_York",
+            2,
+        )
+    assert invalid_fold.value.code == "TIMEZONE_AMBIGUOUS_LOCAL_TIME"
+
+    with pytest.raises(SomaError) as nonexistent:
+        ObjectiveTimezoneService.validate_local_input(
+            datetime(2026, 3, 8, 2, 30, 0),
+            "America/New_York",
+        )
+    assert nonexistent.value.code == "TIMEZONE_NONEXISTENT_LOCAL_TIME"
+
+    with pytest.raises(SomaError) as path_like:
+        ObjectiveTimezoneService.validate_local_input(
+            datetime(2026, 1, 1, 0, 0, 0),
+            "../UTC",
+        )
+    assert path_like.value.code == "TIMEZONE_UNKNOWN"
+
+    with pytest.raises(ValidationError):
+        ObjectiveTimezoneService.validate_local_input(
+            datetime(2026, 1, 1, 0, 0, 0, 1),
+            "America/Guayaquil",
+        )
+    with pytest.raises(ValidationError):
+        ObjectiveTimezoneService.validate_local_input(
+            datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            "America/Guayaquil",
+        )
