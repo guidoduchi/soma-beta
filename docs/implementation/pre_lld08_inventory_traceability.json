@@ -1,7 +1,7 @@
 {
   "schema": "SOMA_IMPLEMENTATION_ACCEPTANCE_REVIEW_V1",
   "packet": "LLD-07",
-  "design_sha": "10409111ea448158e2d8f7c9ad3233fe5fd375b9",
+  "design_sha": "e0924369170652be3a425d10210d14619f526a48",
   "implementation_parent_sha": "7556005955c4bc20d9967801bd6b185b1688af4b",
   "includes": "LLD-07 acceptance T001-T068 semantically audited against current normative packet, including requester/current-context separation, exact RMA cardinality and alias non-reuse, protected hard-delete history with LLD-09 dependency seam, subset warehouse behavior, and minimized populated report contribution; final supported CI/promotion remains pending",
   "certified": false,
@@ -610,8 +610,8 @@
     {
       "id": "LLD07-T046",
       "given": "accepted Fault Tag submission",
-      "when": "master C10/BOM/location later changes",
-      "then": "submitted snapshots unchanged; current truth displayed separately",
+      "when": "current C10 or pickup-location master data later changes while current physical-unit BOM remains owner-derived",
+      "then": "submitted snapshots unchanged; current owner truth displayed separately",
       "production_owner": [
         "src/soma/inventory/services/fault_tags.py"
       ],
