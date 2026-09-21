@@ -16,7 +16,10 @@ from ..contracts.inventory import (
     InventoryMutationResult,
     inventory_mutation_result_from_execution,
 )
-from ..queries.previews import InventoryDestructivePreviewQuery
+from ..queries.previews import (
+    InventoryCommunicationDependencyProvider,
+    InventoryDestructivePreviewQuery,
+)
 
 _TARGET_KINDS = frozenset(
     {"spare_need", "spare_request", "spare_part_unit", "fault_tag"}
@@ -24,8 +27,13 @@ _TARGET_KINDS = frozenset(
 
 
 class InventoryHardDeleteService:
-    def __init__(self, connection_factory: ConnectionFactory) -> None:
+    def __init__(
+        self,
+        connection_factory: ConnectionFactory,
+        communication_dependency_provider: InventoryCommunicationDependencyProvider | None = None,
+    ) -> None:
         self._factory = connection_factory
+        self._communications = communication_dependency_provider
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_inventory_audit_registry()),
@@ -121,9 +129,10 @@ class InventoryHardDeleteService:
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
             preview = InventoryDestructivePreviewQuery.classify_hard_delete(
-                uow.connection,
+                uow,
                 target_kind=target_kind,
                 target_id=identity,
+                communication_dependency_provider=self._communications,
             )
             if preview["classification"] != "CLEAR":
                 raise SomaError(

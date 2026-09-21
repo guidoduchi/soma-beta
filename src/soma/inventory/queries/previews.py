@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 
 from ..domain.proposals import normalize_reason_category
@@ -14,11 +14,26 @@ from ..repositories.fault_tags import InventoryFaultTagsRepository
 _HARD_DELETE_KINDS = frozenset(
     {"spare_need", "spare_request", "spare_part_unit", "fault_tag"}
 )
+Reader = ReadSnapshot | UnitOfWork
+
+
+class InventoryCommunicationDependencyProvider(Protocol):
+    def classify_inventory_hard_delete_dependency(
+        self,
+        reader: Reader,
+        target_type: str,
+        target_id: str,
+    ) -> str: ...
 
 
 class InventoryDestructivePreviewQuery:
-    def __init__(self, connection_factory: ConnectionFactory) -> None:
+    def __init__(
+        self,
+        connection_factory: ConnectionFactory,
+        communication_dependency_provider: InventoryCommunicationDependencyProvider | None = None,
+    ) -> None:
         self._factory = connection_factory
+        self._communications = communication_dependency_provider
 
     @staticmethod
     def _count(connection: Any, sql: str, params: tuple[object, ...]) -> int:
@@ -28,14 +43,16 @@ class InventoryDestructivePreviewQuery:
     @classmethod
     def classify_hard_delete(
         cls,
-        connection: Any,
+        reader: Reader | Any,
         *,
         target_kind: str,
         target_id: str,
+        communication_dependency_provider: InventoryCommunicationDependencyProvider | None = None,
     ) -> dict[str, object]:
         if target_kind not in _HARD_DELETE_KINDS:
             raise ValidationError("unsupported Inventory hard-delete target kind")
         identity = require_uuid4(target_id)
+        connection = getattr(reader, "connection", reader)
         blockers: list[str] = []
         removable_rows: list[str] = []
         retained_related_ids: list[str] = []
@@ -240,9 +257,40 @@ class InventoryDestructivePreviewQuery:
         ):
             blockers.append("proposal_history")
 
+        local_blocked = bool(blockers)
+        communication_status = "NOT_APPLICABLE"
+        if revision is not None and target_kind in {"spare_request", "fault_tag"}:
+            communication_status = "CLEAR"
+            if communication_dependency_provider is not None:
+                if not hasattr(reader, "connection"):
+                    communication_status = "INDETERMINATE"
+                else:
+                    try:
+                        communication_status = (
+                            communication_dependency_provider
+                            .classify_inventory_hard_delete_dependency(
+                                reader, target_kind, identity
+                            )
+                        )
+                    except Exception:
+                        communication_status = "INDETERMINATE"
+                    if communication_status not in {
+                        "CLEAR", "BLOCKED", "INDETERMINATE"
+                    }:
+                        communication_status = "INDETERMINATE"
+            if communication_status == "BLOCKED":
+                blockers.append("communications_protected_history")
+            elif communication_status == "INDETERMINATE":
+                blockers.append("communications_dependency_indeterminate")
+
         normalized_blockers = sorted(set(blockers))
         retained = sorted(set(retained_related_ids))
-        classification = "CLEAR" if not normalized_blockers else "BLOCKED"
+        if local_blocked or communication_status == "BLOCKED":
+            classification = "BLOCKED"
+        elif communication_status == "INDETERMINATE":
+            classification = "INDETERMINATE"
+        else:
+            classification = "CLEAR"
         value = {
             "target_kind": target_kind,
             "target_id": identity,
@@ -255,7 +303,11 @@ class InventoryDestructivePreviewQuery:
         return {
             **value,
             "input_fingerprint": sha256_canonical_json(
-                {"schema": "SOMA_INVENTORY_HARD_DELETE_PREVIEW_V1", **value}
+                {
+                    "schema": "SOMA_INVENTORY_HARD_DELETE_PREVIEW_V1",
+                    **value,
+                    "communication_dependency_status": communication_status,
+                }
             ),
         }
 
@@ -267,9 +319,10 @@ class InventoryDestructivePreviewQuery:
     ) -> dict[str, object]:
         with ReadSnapshot(self._factory) as snapshot:
             return self.classify_hard_delete(
-                snapshot.connection,
+                snapshot,
                 target_kind=target_kind,
                 target_id=target_id,
+                communication_dependency_provider=self._communications,
             )
 
 
