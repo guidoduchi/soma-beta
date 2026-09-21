@@ -432,6 +432,9 @@ class ObjectiveGroupingQueryService:
         if origin is not None:
             clauses.append("origin=?")
             params.append(origin)
+        count_clauses = tuple(clauses)
+        count_params = tuple(params)
+        count_where = "" if not count_clauses else " WHERE " + " AND ".join(count_clauses)
         if (after_created_at_utc is None) != (after_proposal_id is None):
             raise ValidationError("grouping continuation requires both key fields")
         if after_created_at_utc is not None:
@@ -443,6 +446,16 @@ class ObjectiveGroupingQueryService:
             params.extend([after_created_at_utc, after_created_at_utc, after_id])
         where = "" if not clauses else " WHERE " + " AND ".join(clauses)
         with ReadSnapshot(self._factory) as snapshot:
+            count_row = snapshot.connection.execute(
+                "SELECT COUNT(*) FROM regroup_proposals" + count_where,
+                count_params,
+            ).fetchone()
+            if count_row is None:
+                raise SomaError(
+                    "INTEGRITY_FAILURE",
+                    "grouping proposal exact total is unavailable",
+                )
+            exact_total = int(count_row[0])
             rows = snapshot.connection.execute(
                 "SELECT p.regroup_proposal_id,p.proposal_kind,p.origin,p.risk_tier,"
                 "p.input_fingerprint,p.state,p.revision,p.created_at_utc,"
@@ -478,7 +491,11 @@ class ObjectiveGroupingQueryService:
                     "created_at_utc": int(page[-1][7]),
                     "proposal_id": str(page[-1][0]),
                 }
-            return {"items": items, "continuation": continuation}
+            return {
+                "items": items,
+                "continuation": continuation,
+                "exact_total": exact_total,
+            }
 
     def proposal_detail(
         self,
