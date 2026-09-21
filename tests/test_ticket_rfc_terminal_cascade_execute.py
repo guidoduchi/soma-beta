@@ -682,7 +682,7 @@ def test_t020_real_task_participant_terminates_exact_wfm_scope_inside_rfc_outer_
         )
         assert wfm_execution[0] == "terminated"
         assert wfm_execution[1] is None and wfm_execution[2] is None
-        assert wfm_execution[3] is not None
+        assert wfm_execution[3] is None
         assert wfm_execution[4] == "rfc_terminal_cascade"
         assert int(wfm_execution[5]) == 1
 

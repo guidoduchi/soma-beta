@@ -808,6 +808,35 @@ class GroupingService:
                 if len(actual_events) != len(membership_event_ids):
                     raise IntegrityFailure("regroup membership event cardinality drifted")
 
+                affected_objectives: list[str] = []
+                for row in objective_rows:
+                    objective_id = None if row[1] is None else str(row[1])
+                    action = str(row[2])
+                    if objective_id is None:
+                        continue
+                    expected_objective_revision = int(row[3])
+                    if action == "supersede":
+                        changed = inner.connection.execute(
+                            "UPDATE objectives SET superseded_by_objective_id=?,revision=revision+1 "
+                            "WHERE objective_id=? AND revision=? AND superseded_by_objective_id IS NULL",
+                            (survivor_id, objective_id, expected_objective_revision),
+                        )
+                    elif objective_id == survivor_id:
+                        changed = inner.connection.execute(
+                            "UPDATE objectives SET revision=revision+1 "
+                            "WHERE objective_id=? AND revision=? AND superseded_by_objective_id IS NULL",
+                            (objective_id, expected_objective_revision),
+                        )
+                    else:
+                        changed = None
+                    if changed is not None and changed.rowcount != 1:
+                        raise SomaError("GROUPING_PROPOSAL_STALE", "affected Objective revision changed")
+                    affected_objectives.append(objective_id)
+
+                # Superseded Objectives must stop participating in the current
+                # non-overlap constraint before the survivor envelope expands.
+                # This remains one atomic outer UoW, so any later failure rolls
+                # these revision/supersession writes back together.
                 expected_survivor_envelope_revision = None
                 if new_objective:
                     member_rows = inner.connection.execute(
@@ -839,31 +868,6 @@ class GroupingService:
                         expected_envelope_revision=expected_survivor_envelope_revision,
                         command_id=command_id,
                     )
-
-                affected_objectives: list[str] = []
-                for row in objective_rows:
-                    objective_id = None if row[1] is None else str(row[1])
-                    action = str(row[2])
-                    if objective_id is None:
-                        continue
-                    expected_objective_revision = int(row[3])
-                    if action == "supersede":
-                        changed = inner.connection.execute(
-                            "UPDATE objectives SET superseded_by_objective_id=?,revision=revision+1 "
-                            "WHERE objective_id=? AND revision=? AND superseded_by_objective_id IS NULL",
-                            (survivor_id, objective_id, expected_objective_revision),
-                        )
-                    elif objective_id == survivor_id:
-                        changed = inner.connection.execute(
-                            "UPDATE objectives SET revision=revision+1 "
-                            "WHERE objective_id=? AND revision=? AND superseded_by_objective_id IS NULL",
-                            (objective_id, expected_objective_revision),
-                        )
-                    else:
-                        changed = None
-                    if changed is not None and changed.rowcount != 1:
-                        raise SomaError("GROUPING_PROPOSAL_STALE", "affected Objective revision changed")
-                    affected_objectives.append(objective_id)
 
                 ObjectiveService._assert_no_overlap(inner.connection, survivor_id)
                 self._objectives.rebuild_aggregate(
