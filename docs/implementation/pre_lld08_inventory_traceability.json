@@ -818,7 +818,10 @@
         "src/soma/inventory/queries/previews.py"
       ],
       "focused_tests": [
-        "tests/test_inventory_fault_tag_hard_delete.py::test_submitted_fault_tag_history_blocks_hard_delete_t061"
+        "tests/test_inventory_fault_tag_hard_delete.py::test_submitted_fault_tag_history_blocks_hard_delete_t061",
+        "tests/test_inventory_fault_tag_hard_delete.py::test_t061_proposal_history_blocks_fault_tag_hard_delete",
+        "tests/test_inventory_fault_tag_hard_delete.py::test_t061_warehouse_and_lineage_history_block_fault_tag_hard_delete",
+        "tests/test_inventory_fault_tag_hard_delete.py::test_t061_communication_generation_dependency_blocks_or_fails_closed"
       ],
       "status": "semantically_audited_pending_supported_ci"
     },

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from soma.foundation.errors import ValidationError
+from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.inventory.queries.attention_history import InventoryAttentionHistoryQuery
@@ -152,6 +152,16 @@ def test_t041_task_review_change_is_read_only_attention_overlay(
     )
     assert before["items"] == []
 
+    with ReadSnapshot(factory) as snapshot:
+        accepted_projection = tuple(
+            snapshot.connection.execute(
+                "SELECT task_review_fingerprint,revision,last_event_id "
+                "FROM physical_consequence_current WHERE physical_consequence_id=?",
+                (consequence_id,),
+            ).fetchone()
+        )
+    assert accepted_projection[0] == fingerprint
+
     _correct_review(factory, task_id, reviewed)
     with ReadSnapshot(factory) as snapshot:
         receipt_count = int(
@@ -167,6 +177,21 @@ def test_t041_task_review_change_is_read_only_attention_overlay(
                 "SELECT COUNT(*) FROM inventory_attention_projection"
             ).fetchone()[0]
         )
+
+    stale_command = new_uuid4()
+    with pytest.raises(SomaError) as stale:
+        InventoryConsequencesLogisticsService(
+            factory
+        ).correct_inventory_physical_consequence(
+            command_id=stale_command,
+            physical_consequence_id=consequence_id,
+            expected_revision=int(accepted_projection[1]),
+            expected_event_id=str(accepted_projection[2]),
+            task_review_fingerprint=fingerprint,
+            physical_disposition="no_physical_change",
+            reason_code="upstream Task review changed",
+        )
+    assert stale.value.code == "TASK_REVIEW_STALE"
 
     after = query.attention(
         attention_kind="task_outcome_consequence_pending",
@@ -196,3 +221,14 @@ def test_t041_task_review_change_is_read_only_attention_overlay(
                 "SELECT COUNT(*) FROM inventory_attention_projection"
             ).fetchone()[0]
         ) == projection_count == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (stale_command,),
+        ).fetchone()[0] == 0
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT task_review_fingerprint,revision,last_event_id "
+                "FROM physical_consequence_current WHERE physical_consequence_id=?",
+                (consequence_id,),
+            ).fetchone()
+        ) == accepted_projection
