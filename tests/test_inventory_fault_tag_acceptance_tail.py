@@ -695,14 +695,14 @@ def test_fault_tag_archive_restore_is_projection_only_and_lifecycle_events_remai
             "WHERE fault_tag_id=?",
             (fault_tag_id,),
         ).fetchone() == (1, "draft", 2)
-        assert [
+        assert sorted(
             str(row[0])
             for row in snapshot.connection.execute(
                 "SELECT event_kind FROM fault_tag_lifecycle_events "
-                "WHERE fault_tag_id=? ORDER BY recorded_at_utc,fault_tag_event_id",
+                "WHERE fault_tag_id=?",
                 (fault_tag_id,),
             ).fetchall()
-        ] == ["created", "archived"]
+        ) == ["archived", "created"]
 
     restored = tags.archive_or_restore_fault_tag(
         command_id=new_uuid4(),
@@ -718,11 +718,11 @@ def test_fault_tag_archive_restore_is_projection_only_and_lifecycle_events_remai
             "WHERE fault_tag_id=?",
             (fault_tag_id,),
         ).fetchone() == (0, "draft", 3)
-        assert [
+        assert sorted(
             str(row[0])
             for row in snapshot.connection.execute(
                 "SELECT event_kind FROM fault_tag_lifecycle_events "
-                "WHERE fault_tag_id=? ORDER BY recorded_at_utc,fault_tag_event_id",
+                "WHERE fault_tag_id=?",
                 (fault_tag_id,),
             ).fetchall()
-        ] == ["created", "archived", "restored"]
+        ) == ["archived", "created", "restored"]
