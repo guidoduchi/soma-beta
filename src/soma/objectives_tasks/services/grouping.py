@@ -822,11 +822,25 @@ class GroupingService:
                             (survivor_id, objective_id, expected_objective_revision),
                         )
                     elif objective_id == survivor_id:
-                        changed = inner.connection.execute(
-                            "UPDATE objectives SET revision=revision+1 "
-                            "WHERE objective_id=? AND revision=? AND superseded_by_objective_id IS NULL",
-                            (objective_id, expected_objective_revision),
-                        )
+                        # The survivor Objective identity row is immutable unless
+                        # it itself becomes superseded. Regroup mutates its
+                        # membership/envelope/aggregate projections, each of
+                        # which owns its own guarded revision.
+                        current = inner.connection.execute(
+                            "SELECT revision,superseded_by_objective_id FROM objectives "
+                            "WHERE objective_id=?",
+                            (objective_id,),
+                        ).fetchone()
+                        if (
+                            current is None
+                            or int(current[0]) != expected_objective_revision
+                            or current[1] is not None
+                        ):
+                            raise SomaError(
+                                "GROUPING_PROPOSAL_STALE",
+                                "survivor Objective revision changed",
+                            )
+                        changed = None
                     else:
                         changed = None
                     if changed is not None and changed.rowcount != 1:
