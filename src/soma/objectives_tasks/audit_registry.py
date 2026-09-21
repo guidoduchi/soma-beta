@@ -552,6 +552,38 @@ _GROUPING_KINDS = frozenset(
 )
 
 
+def _validate_grouping_recompute_deferred(payload: dict[str, object]) -> None:
+    job_id = payload.get("job_id")
+    try:
+        if not isinstance(job_id, str):
+            raise ValidationError("job_id must be UUID text")
+        require_uuid4(job_id)
+    except ValidationError as exc:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "grouping deferred job identity is invalid",
+        ) from exc
+    if payload.get("origin") not in {
+        "task_created",
+        "task_plan_changed",
+        "source_plan_adopted",
+        "manual_request",
+        "retry_created",
+        "objective_edit",
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping deferred origin is invalid")
+    count = payload.get("workset_exact_count")
+    if type(count) is not int or count <= 100_000:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "grouping deferred workset must exceed the soft threshold",
+        )
+    if payload.get("soft_threshold") != 100_000:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping deferred threshold is invalid")
+    if payload.get("execution_mode") != "durable_job":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping deferred execution mode is invalid")
+
+
 def _validate_grouping_audit(payload: dict[str, object]) -> None:
     try:
         proposal_id = payload.get("proposal_id")
@@ -754,6 +786,29 @@ def build_objectives_tasks_audit_registry() -> AuditRegistry:
                 max_items=16,
             ),
             sensitivity_validator=_validate_task_count,
+        )
+    )
+    grouping_recompute_deferred_fields = frozenset(
+        {
+            "job_id",
+            "origin",
+            "workset_exact_count",
+            "soft_threshold",
+            "execution_mode",
+        }
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="grouping.recompute_deferred",
+            action_version=1,
+            payload_schema="GroupingRecomputeDeferredAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "GroupingRecomputeDeferredAuditV1",
+                grouping_recompute_deferred_fields,
+                max_items=12,
+            ),
+            sensitivity_validator=_validate_grouping_recompute_deferred,
         )
     )
     grouping_fields = frozenset(
