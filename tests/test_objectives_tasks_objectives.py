@@ -655,7 +655,6 @@ def test_t038_objective_archive_is_presentation_only_and_preserves_review_attent
 
     before_queue = queue.objective_review_queue(
         as_of_utc=2_720_000_300,
-        reason="due_unreviewed",
     )
     assert objective.objective_id in {
         str(item["objective_id"]) for item in before_queue["items"]
@@ -682,7 +681,6 @@ def test_t038_objective_archive_is_presentation_only_and_preserves_review_attent
 
     archived_queue = queue.objective_review_queue(
         as_of_utc=2_720_000_300,
-        reason="due_unreviewed",
     )
     assert objective.objective_id in {
         str(item["objective_id"]) for item in archived_queue["items"]
@@ -778,3 +776,119 @@ def test_t048_objective_is_valid_without_ticket_device_or_inventory_context(
             "WHERE c.task_id=?",
             (task.task_id,),
         ).fetchone()[0] == 0
+
+
+def test_t046_due_unreviewed_is_explicit_read_time_projection_only(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    task, objective = _create_single_task_objective(
+        factory,
+        name="Clock-derived due review",
+        start_utc=2_760_000_100,
+        end_utc=2_760_000_300,
+    )
+    query = ObjectiveQueryService(factory)
+    queue = OperationalReviewQueueQueryService(factory)
+
+    with ReadSnapshot(factory) as snapshot:
+        authority_before = {
+            "aggregate": tuple(
+                snapshot.connection.execute(
+                    "SELECT execution_state,aggregate_outcome,actual_start_utc,actual_end_utc,"
+                    "attention_reason,revision,last_command_id "
+                    "FROM objective_aggregate_projection WHERE objective_id=?",
+                    (objective.objective_id,),
+                ).fetchone()
+            ),
+            "task_revision": int(snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]),
+            "receipts": int(snapshot.connection.execute(
+                "SELECT COUNT(*) FROM command_receipts"
+            ).fetchone()[0]),
+            "audits": int(snapshot.connection.execute(
+                "SELECT COUNT(*) FROM audit_events"
+            ).fetchone()[0]),
+            "outcomes": int(snapshot.connection.execute(
+                "SELECT COUNT(*) FROM task_outcome_events WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]),
+            "execution": int(snapshot.connection.execute(
+                "SELECT COUNT(*) FROM task_execution_events WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]),
+        }
+
+    before = query.workbench(
+        objective.objective_id,
+        as_of_utc=2_760_000_300,
+    )
+    assert before["aggregate_state"]["execution_state"] == "planned"
+    assert before["read_time_projection"] == {
+        "as_of_utc": 2_760_000_300,
+        "effective_review_state": "planned",
+        "due_unreviewed": False,
+        "reason_codes": [],
+    }
+    assert queue.objective_review_queue(
+        as_of_utc=2_760_000_300,
+        reason="due_unreviewed",
+    )["exact_total"] == 0
+
+    after = query.workbench(
+        objective.objective_id,
+        as_of_utc=2_760_000_301,
+    )
+    assert after["aggregate_state"]["execution_state"] == "planned"
+    assert after["read_time_projection"] == {
+        "as_of_utc": 2_760_000_301,
+        "effective_review_state": "awaiting_review",
+        "due_unreviewed": True,
+        "reason_codes": ["due_unreviewed"],
+    }
+    listed = query.list_objectives(as_of_utc=2_760_000_301)
+    listed_item = next(
+        item for item in listed["items"]
+        if item["objective_id"] == objective.objective_id
+    )
+    assert listed["as_of_utc"] == 2_760_000_301
+    assert listed_item["aggregate_state"]["execution_state"] == "planned"
+    assert listed_item["read_time_projection"]["due_unreviewed"] is True
+
+    due_queue = queue.objective_review_queue(
+        as_of_utc=2_760_000_301,
+        reason="due_unreviewed",
+    )
+    assert due_queue["exact_total"] == 1
+    assert due_queue["items"][0]["objective_id"] == objective.objective_id
+    assert due_queue["items"][0]["read_time_projection"]["due_unreviewed"] is True
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,actual_start_utc,actual_end_utc,"
+                "attention_reason,revision,last_command_id "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        ) == authority_before["aggregate"]
+        assert int(snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0]) == authority_before["task_revision"]
+        assert int(snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts"
+        ).fetchone()[0]) == authority_before["receipts"]
+        assert int(snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events"
+        ).fetchone()[0]) == authority_before["audits"]
+        assert int(snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_outcome_events WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0]) == authority_before["outcomes"] == 0
+        assert int(snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_execution_events WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0]) == authority_before["execution"] == 0

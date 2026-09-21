@@ -11,6 +11,7 @@ from soma.foundation.strict_json import sha256_canonical_json
 from ..repositories.objectives import ObjectiveProjectionRepository
 from ..repositories.tasks import TaskPlanRepository, TaskRepository, WfmTaskRepository
 from ..source_terminal_authority import current_source_projection
+from .objectives import _objective_read_time_projection
 
 
 def _limit(value: int) -> int:
@@ -315,8 +316,24 @@ class OperationalReviewQueueQueryService:
                     "objective_review_event_id DESC LIMIT 1",
                     (objective_id,),
                 ).fetchone()
+                envelope = snapshot.connection.execute(
+                    "SELECT end_utc FROM objective_envelope_projection WHERE objective_id=?",
+                    (objective_id,),
+                ).fetchone()
+                if envelope is None:
+                    raise IntegrityFailure("Objective review queue lacks envelope authority")
+                read_time = _objective_read_time_projection(
+                    snapshot.connection,
+                    objective_id=objective_id,
+                    aggregate_state=aggregate.execution_state,
+                    attention_reason=aggregate.attention_reason,
+                    envelope_end_utc=int(envelope[0]),
+                    as_of_utc=as_of_utc,
+                )
                 queue_reason = None
-                if aggregate.execution_state == "awaiting_review":
+                if bool(read_time["due_unreviewed"]):
+                    queue_reason = "due_unreviewed"
+                elif aggregate.execution_state == "awaiting_review":
                     queue_reason = (
                         "mixed_outcomes"
                         if aggregate.attention_reason == "mixed_outcomes"
@@ -337,6 +354,7 @@ class OperationalReviewQueueQueryService:
                         "aggregate_revision": aggregate.revision,
                         "review_fingerprint": fingerprint,
                         "aggregate_state": aggregate.execution_state,
+                        "read_time_projection": read_time,
                     }
                 )
             if after is not None:

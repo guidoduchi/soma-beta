@@ -20,6 +20,58 @@ def _limit(value: int) -> int:
     return value
 
 
+def _objective_read_time_projection(
+    reader: Any,
+    *,
+    objective_id: str,
+    aggregate_state: str,
+    attention_reason: str | None,
+    envelope_end_utc: int,
+    as_of_utc: int,
+) -> dict[str, object]:
+    if type(as_of_utc) is not int or as_of_utc < 0:
+        raise ValidationError("as_of_utc must be a non-negative UTC whole second")
+    due_unreviewed = False
+    if aggregate_state == "planned" and envelope_end_utc < as_of_utc:
+        objective = reader.execute(
+            "SELECT revision,superseded_by_objective_id FROM objectives WHERE objective_id=?",
+            (objective_id,),
+        ).fetchone()
+        if objective is None:
+            raise IntegrityFailure("Objective read-time projection lacks identity authority")
+        if objective[1] is None:
+            members = ObjectiveProjectionRepository._load_members(reader, objective_id)
+            review_fingerprint = ObjectiveProjectionRepository._review_fingerprint(
+                objective_id=objective_id,
+                objective_revision=int(objective[0]),
+                superseded_by=None,
+                members=members,
+            )
+            due_unreviewed = (
+                ObjectiveProjectionRepository._current_review(
+                    reader,
+                    objective_id,
+                    review_fingerprint,
+                )
+                is None
+            )
+
+    if due_unreviewed:
+        return {
+            "as_of_utc": as_of_utc,
+            "effective_review_state": "awaiting_review",
+            "due_unreviewed": True,
+            "reason_codes": ["due_unreviewed"],
+        }
+    reasons = [] if attention_reason is None else [attention_reason]
+    return {
+        "as_of_utc": as_of_utc,
+        "effective_review_state": aggregate_state,
+        "due_unreviewed": False,
+        "reason_codes": reasons,
+    }
+
+
 class ObjectiveQueryService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
@@ -29,11 +81,14 @@ class ObjectiveQueryService:
         *,
         execution_state: str | None = None,
         archived: bool | None = None,
+        as_of_utc: int | None = None,
         after_start_utc: int | None = None,
         after_objective_id: str | None = None,
         limit: int = 100,
     ) -> dict[str, object]:
         page_limit = _limit(limit)
+        if as_of_utc is not None and (type(as_of_utc) is not int or as_of_utc < 0):
+            raise ValidationError("as_of_utc must be non-negative")
         if after_start_utc is not None and (type(after_start_utc) is not int or after_start_utc < 0):
             raise ValidationError("after_start_utc is invalid")
         after_id = None if after_objective_id is None else require_uuid4(after_objective_id)
@@ -84,9 +139,12 @@ class ObjectiveQueryService:
                 (*page_params, page_limit + 1),
             ).fetchall()
             page = rows[:page_limit]
-            items = [
-                {
-                    "objective_id": str(row[0]),
+            items: list[dict[str, object]] = []
+            for row in page:
+                objective_id = str(row[0])
+                attention = None if row[12] is None else str(row[12])
+                item: dict[str, object] = {
+                    "objective_id": objective_id,
                     "tracking_handle": str(row[1]),
                     "creation_origin": str(row[2]),
                     "revision": int(row[3]),
@@ -101,7 +159,7 @@ class ObjectiveQueryService:
                         "aggregate_outcome": None if row[9] is None else str(row[9]),
                         "actual_start_utc": None if row[10] is None else int(row[10]),
                         "actual_end_utc": None if row[11] is None else int(row[11]),
-                        "attention_reason": None if row[12] is None else str(row[12]),
+                        "attention_reason": attention,
                         "included_task_count": int(row[13]),
                         "excluded_task_count": int(row[14]),
                         "revision": int(row[15]),
@@ -109,8 +167,16 @@ class ObjectiveQueryService:
                     "archived": bool(row[16]),
                     "archive_revision": int(row[17]),
                 }
-                for row in page
-            ]
+                if as_of_utc is not None:
+                    item["read_time_projection"] = _objective_read_time_projection(
+                        snapshot.connection,
+                        objective_id=objective_id,
+                        aggregate_state=str(row[8]),
+                        attention_reason=attention,
+                        envelope_end_utc=int(row[5]),
+                        as_of_utc=as_of_utc,
+                    )
+                items.append(item)
             continuation = None
             if len(rows) > page_limit and page:
                 last = page[-1]
@@ -118,16 +184,26 @@ class ObjectiveQueryService:
                     "effective_start_utc": int(last[18]),
                     "objective_id": str(last[0]),
                 }
-            return {"items": items, "continuation": continuation, "exact_total": total}
+            result: dict[str, object] = {
+                "items": items,
+                "continuation": continuation,
+                "exact_total": total,
+            }
+            if as_of_utc is not None:
+                result["as_of_utc"] = as_of_utc
+            return result
 
     def workbench(
         self,
         objective_id: str,
         *,
+        as_of_utc: int | None = None,
         member_after_task_id: str | None = None,
         member_limit: int = 100,
     ) -> dict[str, object]:
         identity = require_uuid4(objective_id)
+        if as_of_utc is not None and (type(as_of_utc) is not int or as_of_utc < 0):
+            raise ValidationError("as_of_utc must be non-negative")
         after = None if member_after_task_id is None else require_uuid4(member_after_task_id)
         page_limit = _limit(member_limit)
         with ReadSnapshot(self._factory) as snapshot:
@@ -237,6 +313,16 @@ class ObjectiveQueryService:
                     "revision": aggregate.revision,
                     "aggregate_input_fingerprint": aggregate.aggregate_input_fingerprint,
                 },
+                "read_time_projection": None
+                if as_of_utc is None or aggregate is None or envelope is None
+                else _objective_read_time_projection(
+                    snapshot.connection,
+                    objective_id=identity,
+                    aggregate_state=aggregate.execution_state,
+                    attention_reason=aggregate.attention_reason,
+                    envelope_end_utc=int(envelope[1]),
+                    as_of_utc=as_of_utc,
+                ),
                 "archive": {
                     "archived": False if archive is None else bool(archive[0]),
                     "revision": 0 if archive is None else int(archive[1]),
