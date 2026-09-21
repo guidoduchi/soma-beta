@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import pytest
 
 from soma.foundation.errors import SomaError
@@ -14,6 +17,7 @@ from soma.objectives_tasks.queries.execution_review import TaskOutcomeReviewQuer
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.queries.hard_delete import ObjectiveHardDeleteQueryService
 from soma.objectives_tasks.queries.objectives import ObjectiveQueryService
+from soma.objectives_tasks.queries.reviews import OperationalReviewQueueQueryService
 from soma.objectives_tasks.services.hard_delete import ObjectiveHardDeleteService
 from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.task_execution import TaskExecutionService
@@ -44,6 +48,48 @@ def _existing_intent(factory, task_id: str) -> ObjectiveExistingTaskIntent:
         expected_plan_revision_id=str(row[2]),
     )
 
+
+
+def _create_single_task_objective(
+    factory,
+    *,
+    name: str,
+    start_utc: int,
+    end_utc: int,
+):
+    task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name=name,
+        schedule=AcceptedTaskSchedule(
+            start_utc=start_utc,
+            end_utc=end_utc,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intent = _existing_intent(factory, task.task_id)
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(intent,),
+    )
+    assert preview["mode"] == "CREATE"
+    objective = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=(intent,),
+    )
+    return task, objective
+
+
+def _local_epoch(year: int, month: int, day: int, hour: int, minute: int = 0) -> int:
+    return int(
+        datetime(
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            tzinfo=ZoneInfo(TZ),
+        ).timestamp()
+    )
 
 def test_objective_creation_preview_commit_replay_and_overlap(initialized_database) -> None:
     factory = _factory(initialized_database)
@@ -460,3 +506,272 @@ def test_t026_reviewed_at_is_never_execution_time_and_queries_keep_them_separate
     assert detail["aggregate_state"]["actual_end_utc"] == 2_700_000_200
     assert detail["review"]["latest"]["reviewed_at_utc"] == objective_reviewed_at
     assert detail["review"]["latest"]["derived_outcome"] == "completed"
+
+
+def test_t033_monthly_ordinal_is_derived_and_tracking_identity_never_changes(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    queries = ObjectiveQueryService(factory)
+
+    first_task, first = _create_single_task_objective(
+        factory,
+        name="Ordinal first",
+        start_utc=_local_epoch(2026, 1, 10, 10),
+        end_utc=_local_epoch(2026, 1, 10, 11),
+    )
+    second_task, second = _create_single_task_objective(
+        factory,
+        name="Ordinal second",
+        start_utc=_local_epoch(2026, 1, 10, 12),
+        end_utc=_local_epoch(2026, 1, 10, 13),
+    )
+    third_task, third = _create_single_task_objective(
+        factory,
+        name="Ordinal third",
+        start_utc=_local_epoch(2026, 1, 10, 14),
+        end_utc=_local_epoch(2026, 1, 10, 15),
+    )
+    _cross_task, cross = _create_single_task_objective(
+        factory,
+        name="Cross month",
+        start_utc=_local_epoch(2026, 1, 31, 23, 30),
+        end_utc=_local_epoch(2026, 2, 1, 0, 30),
+    )
+
+    first_before = queries.monthly_ordinal(first.objective_id, timezone_iana=TZ)
+    second_before = queries.monthly_ordinal(second.objective_id, timezone_iana=TZ)
+    third_before = queries.monthly_ordinal(third.objective_id, timezone_iana=TZ)
+    cross_before = queries.monthly_ordinal(cross.objective_id, timezone_iana=TZ)
+    assert (first_before["ordinal"], second_before["ordinal"], third_before["ordinal"]) == (1, 2, 3)
+    assert first_before["basis"] == "planned_start"
+    assert cross_before["year_month"] == "2026-01"
+    assert cross_before["basis"] == "planned_start"
+
+    first_tracking = queries.workbench(first.objective_id)["tracking_handle"]
+    executor = TaskExecutionService(factory)
+    first_started = executor.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=first_task.task_id,
+        task_revision=first_task.revision,
+        execution_revision=0,
+        effective_start_utc=_local_epoch(2026, 1, 10, 16),
+    )
+    assert first_started.outcome == "APPLIED"
+
+    first_after = queries.monthly_ordinal(first.objective_id, timezone_iana=TZ)
+    second_after = queries.monthly_ordinal(second.objective_id, timezone_iana=TZ)
+    third_after = queries.monthly_ordinal(third.objective_id, timezone_iana=TZ)
+    assert first_after["basis"] == "actual_start"
+    assert first_after["ordinal"] == 3
+    assert second_after["ordinal"] == 1
+    assert third_after["ordinal"] == 2
+    assert queries.workbench(first.objective_id)["tracking_handle"] == first_tracking
+
+    second_started = executor.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=second_task.task_id,
+        task_revision=second_task.revision,
+        execution_revision=0,
+        effective_start_utc=_local_epoch(2026, 1, 10, 17),
+    )
+    third_started = executor.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=third_task.task_id,
+        task_revision=third_task.revision,
+        execution_revision=0,
+        effective_start_utc=_local_epoch(2026, 1, 10, 17),
+    )
+    assert second_started.outcome == third_started.outcome == "APPLIED"
+    tied = sorted([second.objective_id, third.objective_id])
+    tied_ordinals = {
+        objective_id: queries.monthly_ordinal(objective_id, timezone_iana=TZ)["ordinal"]
+        for objective_id in tied
+    }
+    assert [tied_ordinals[objective_id] for objective_id in tied] == [2, 3]
+
+
+def test_t038_objective_archive_is_presentation_only_and_preserves_review_attention(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    task, objective = _create_single_task_objective(
+        factory,
+        name="Archive presentation only",
+        start_utc=2_720_000_000,
+        end_utc=2_720_003_600,
+    )
+    executor = TaskExecutionService(factory)
+    started = executor.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=task.revision,
+        execution_revision=0,
+        effective_start_utc=2_720_000_100,
+    )
+    ended = executor.end_task_execution(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=started.revision,
+        execution_revision=1,
+        effective_end_utc=2_720_000_200,
+    )
+    assert ended.outcome == "APPLIED"
+
+    queries = ObjectiveQueryService(factory)
+    queue = OperationalReviewQueueQueryService(factory)
+    before = queries.workbench(objective.objective_id)
+    assert before["aggregate_state"]["execution_state"] == "awaiting_review"
+    assert before["archive"]["archived"] is False
+    tracking = before["tracking_handle"]
+
+    with ReadSnapshot(factory) as snapshot:
+        membership_before = tuple(
+            snapshot.connection.execute(
+                "SELECT task_id,objective_id,accepted_plan_revision_id,membership_revision "
+                "FROM objective_task_membership_current WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        )
+        plan_before = tuple(
+            snapshot.connection.execute(
+                "SELECT plan_revision_id,revision FROM task_plan_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        )
+        execution_before = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,actual_start_utc,actual_end_utc,revision,last_event_id "
+                "FROM task_execution_projection WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        )
+        outcome_count_before = int(
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM task_outcome_events WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        )
+
+    before_queue = queue.objective_review_queue(
+        as_of_utc=2_720_000_300,
+        reason="due_unreviewed",
+    )
+    assert objective.objective_id in {
+        str(item["objective_id"]) for item in before_queue["items"]
+    }
+
+    service = ObjectiveService(factory)
+    archived = service.archive_objective(
+        command_id=new_uuid4(),
+        objective_id=objective.objective_id,
+        objective_revision=int(before["revision"]),
+        archive_revision=int(before["archive"]["revision"]),
+        aggregate_revision=int(before["aggregate_state"]["revision"]),
+        reason_category="presentation_archive",
+    )
+    assert archived.outcome == "APPLIED"
+
+    archived_detail = queries.workbench(objective.objective_id)
+    assert archived_detail["archive"]["archived"] is True
+    assert archived_detail["tracking_handle"] == tracking
+    assert queries.list_objectives(archived=False)["exact_total"] == 0
+    archived_list = queries.list_objectives(archived=True)
+    assert archived_list["exact_total"] == 1
+    assert archived_list["items"][0]["objective_id"] == objective.objective_id
+
+    archived_queue = queue.objective_review_queue(
+        as_of_utc=2_720_000_300,
+        reason="due_unreviewed",
+    )
+    assert objective.objective_id in {
+        str(item["objective_id"]) for item in archived_queue["items"]
+    }
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT task_id,objective_id,accepted_plan_revision_id,membership_revision "
+                "FROM objective_task_membership_current WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        ) == membership_before
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT plan_revision_id,revision FROM task_plan_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        ) == plan_before
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,actual_start_utc,actual_end_utc,revision,last_event_id "
+                "FROM task_execution_projection WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        ) == execution_before
+        assert int(
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM task_outcome_events WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        ) == outcome_count_before == 0
+
+    restored = service.restore_objective(
+        command_id=new_uuid4(),
+        objective_id=objective.objective_id,
+        objective_revision=int(archived_detail["revision"]),
+        archive_revision=int(archived_detail["archive"]["revision"]),
+        aggregate_revision=int(archived_detail["aggregate_state"]["revision"]),
+    )
+    assert restored.outcome == "APPLIED"
+    restored_detail = queries.workbench(objective.objective_id)
+    assert restored_detail["archive"]["archived"] is False
+    assert restored_detail["tracking_handle"] == tracking
+
+
+def test_t048_objective_is_valid_without_ticket_device_or_inventory_context(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    task, objective = _create_single_task_objective(
+        factory,
+        name="Pure local scheduled work",
+        start_utc=2_730_000_000,
+        end_utc=2_730_003_600,
+    )
+    queries = ObjectiveQueryService(factory)
+    detail = queries.workbench(objective.objective_id)
+    assert detail["member_exact_count"] == 1
+    assert detail["aggregate_state"]["execution_state"] == "planned"
+
+    context = queries.context_by_task_relationships(
+        objective.objective_id,
+        limit=100,
+    )
+    assert context == {
+        "items": [],
+        "continuation": None,
+        "exact_totals_by_context_type": {},
+    }
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_sr_links WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_rfc_links WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_device_links WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM wfm_task_identities WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM physical_consequence_current WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == 0
