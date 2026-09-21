@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.inventory.services.needs_stock import InventoryNeedsStockService
 from soma.inventory.services.participants import InventoryReportSectionContributor
 from soma.product_line_sla.algorithms.cohort_state import canonical_month_bounds
 from soma.product_line_sla.report_sections import ReportSectionContributorRegistry
@@ -83,6 +84,17 @@ def test_inventory_report_contributor_emits_exact_minimized_report_scope_t062(
     )
     _apply_report_date(factory, included.service_request_id, month_start + 60)
     _apply_report_date(factory, excluded.service_request_id, month_end + 60)
+    created_need = InventoryNeedsStockService(factory).create_spare_need_draft(
+        command_id=new_uuid4(),
+        service_request_id=included.service_request_id,
+        bom_code="REPORT-MINIMIZED-62",
+        planned_quantity=2,
+    )
+    need_id = next(
+        ref.result_id
+        for ref in created_need.target_refs
+        if ref.result_type == "spare_need"
+    )
 
     registry = ReportSectionContributorRegistry((InventoryReportSectionContributor(),))
     with ReadSnapshot(factory) as snapshot:
@@ -110,14 +122,16 @@ def test_inventory_report_contributor_emits_exact_minimized_report_scope_t062(
     assert emitted[0]["payload"] == {
         "service_request_id": included.service_request_id,
         "as_of_utc": month_end,
-        "spare_need_count": 0,
-        "active_spare_need_count": 0,
+        "spare_need_count": 1,
+        "active_spare_need_count": 1,
         "spare_request_count": 0,
         "open_rma_count": 0,
         "fault_tag_count": 0,
         "open_return_obligation_count": 0,
         "attention_count": 0,
     }
+    assert need_id not in repr(emitted[0]["payload"])
+    assert "REPORT-MINIMIZED-62" not in repr(emitted[0]["payload"])
     assert not any(
         "communication" in key or "lifecycle" in key or "evidence" in key
         for key in emitted[0]["payload"]
