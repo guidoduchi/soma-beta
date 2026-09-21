@@ -1,0 +1,846 @@
+from __future__ import annotations
+
+import re
+
+from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
+from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.identifiers import require_uuid4
+from soma.foundation.strict_json import ObjectContract
+
+
+_TASK_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "task_kind",
+        "creation_origin",
+        "resulting_revision",
+        "task_plan_revision_id",
+        "reason_category",
+    }
+)
+_TASK_RELATIONSHIP_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "relationship_kind",
+        "action",
+        "relationship_id",
+        "related_id",
+        "prior_related_id",
+        "resulting_revision",
+        "reason_category",
+    }
+)
+_TASK_PLAN_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "prior_plan_revision_id",
+        "new_plan_revision_id",
+        "resulting_task_revision",
+        "origin",
+        "reason_category",
+        "membership_plan_mismatch",
+    }
+)
+_TASK_PLAN_CORRECTION_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "prior_plan_revision_id",
+        "new_plan_revision_id",
+        "resulting_task_revision",
+        "reason_category",
+        "membership_plan_mismatch",
+        "review_risk",
+        "correction_review_fingerprint",
+    }
+)
+_TASK_LOCK_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "lock_event_id",
+        "lock_kind",
+        "action",
+        "resulting_task_revision",
+        "resulting_lock_revision",
+        "reason_category",
+    }
+)
+_OBJECTIVE_AUDIT_FIELDS = frozenset(
+    {
+        "objective_id",
+        "tracking_id",
+        "creation_origin",
+        "resulting_revision",
+        "membership_input_fingerprint",
+        "archive_action",
+        "reason_category",
+    }
+)
+_HISTORICAL_OBJECTIVE_AUDIT_FIELDS = frozenset(
+    {
+        "proposal_id",
+        "task_id",
+        "source_projection_revision",
+        "source_evidence_id",
+        "decision",
+        "objective_id",
+        "membership_plan_revision_id",
+        "review_fingerprint",
+        "reason_category",
+    }
+)
+_TASK_COUNT_AUDIT_FIELDS = frozenset(
+    {
+        "task_id",
+        "included",
+        "inclusion_event_id",
+        "resulting_revision",
+        "reason_category",
+    }
+)
+_OBJECTIVE_TIMEZONE_AUDIT_FIELDS = frozenset(
+    {
+        "setting_key",
+        "prior_revision",
+        "new_revision",
+        "iana_timezone",
+        "change_kind",
+    }
+)
+_OBJECTIVE_REVIEW_AUDIT_FIELDS = frozenset(
+    {
+        "objective_id",
+        "objective_review_event_id",
+        "review_fingerprint",
+        "derived_outcome",
+        "included_task_count",
+        "excluded_task_count",
+        "reason_category",
+    }
+)
+_OBJECTIVE_TRACKING_RE = re.compile(r"MW-[0-9]{8}\Z")
+
+_HARD_DELETE_AUDIT_FIELDS = frozenset(
+    {
+        "target_type",
+        "target_id",
+        "reviewed_revision",
+        "eligibility_fingerprint",
+        "confirmation_context_id",
+        "retained_related_ids",
+        "result",
+    }
+)
+_SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
+_TASK_PLAN_ORIGINS = frozenset(
+    {
+        "manual",
+        "objective_initialization",
+        "wfm_source_adoption",
+        "retry_clone",
+        "correction",
+        "historical_source_structure",
+    }
+)
+_WFM_REGISTRATION_ORIGINS = frozenset({"wfm_manual", "wfm_source_adoption", "historical_source"})
+
+
+def _validate_bounded_reason(reason: object, *, required: bool, label: str) -> None:
+    if reason is None and not required:
+        return
+    if not isinstance(reason, str):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{label} reason must be text")
+    try:
+        encoded = reason.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{label} reason is invalid Unicode") from exc
+    if not encoded or len(encoded) > 128 or "\x00" in reason or "\r" in reason or "\n" in reason:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", f"{label} reason violates its bound")
+
+
+def _validate_task_creation_payload(
+    payload: dict[str, object],
+    *,
+    expected_kind: str,
+    expected_origin: str | frozenset[str],
+) -> None:
+    task_id = payload.get("task_id")
+    plan_revision_id = payload.get("task_plan_revision_id")
+    try:
+        if not isinstance(task_id, str):
+            raise ValidationError("task_id must be UUID text")
+        require_uuid4(task_id)
+        if plan_revision_id is not None:
+            if not isinstance(plan_revision_id, str):
+                raise ValidationError("task_plan_revision_id must be UUID text")
+            require_uuid4(plan_revision_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit identity is invalid") from exc
+    origin = payload.get("creation_origin")
+    origin_valid = origin in expected_origin if isinstance(expected_origin, frozenset) else origin == expected_origin
+    if payload.get("task_kind") != expected_kind or not origin_valid:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit owner metadata is invalid")
+    revision = payload.get("resulting_revision")
+    if type(revision) is not int or revision != 1:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit revision must be one")
+    reason = payload.get("reason_category")
+    if reason is not None and not isinstance(reason, str):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task creation audit reason must be text or null")
+
+
+def _validate_task_created(payload: dict[str, object]) -> None:
+    _validate_task_creation_payload(payload, expected_kind="local", expected_origin="manual")
+
+
+def _validate_wfm_registered(payload: dict[str, object]) -> None:
+    _validate_task_creation_payload(payload, expected_kind="wfm", expected_origin=_WFM_REGISTRATION_ORIGINS)
+    if payload.get("reason_category") is not None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM registration audit reason must be null")
+
+
+def _validate_wfm_parent_reassigned(payload: dict[str, object]) -> None:
+    task_id = payload.get("task_id")
+    relationship_id = payload.get("relationship_id")
+    related_id = payload.get("related_id")
+    prior_related_id = payload.get("prior_related_id")
+    try:
+        for value in (task_id, relationship_id, related_id, prior_related_id):
+            if not isinstance(value, str):
+                raise ValidationError("relationship audit identity must be UUID text")
+            require_uuid4(value)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment audit identity is invalid") from exc
+    if related_id == prior_related_id:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment must change the owning RFC")
+    if payload.get("relationship_kind") != "wfm_parent" or payload.get("action") != "REASSIGN":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment audit action is invalid")
+    revision = payload.get("resulting_revision")
+    if type(revision) is not int or revision <= 1:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "WFM parent reassignment revision is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=True, label="WFM parent reassignment")
+
+
+def _validate_task_plan_changed(payload: dict[str, object]) -> None:
+    task_id = payload.get("task_id")
+    prior_plan_revision_id = payload.get("prior_plan_revision_id")
+    new_plan_revision_id = payload.get("new_plan_revision_id")
+    try:
+        if not isinstance(task_id, str) or not isinstance(new_plan_revision_id, str):
+            raise ValidationError("Task plan audit identities must be UUID text")
+        require_uuid4(task_id)
+        require_uuid4(new_plan_revision_id)
+        if prior_plan_revision_id is not None:
+            if not isinstance(prior_plan_revision_id, str):
+                raise ValidationError("prior plan identity must be UUID text or null")
+            require_uuid4(prior_plan_revision_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit identity is invalid") from exc
+    if prior_plan_revision_id == new_plan_revision_id:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit must reference a new plan revision")
+    revision = payload.get("resulting_task_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit Task revision is invalid")
+    if payload.get("origin") not in _TASK_PLAN_ORIGINS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit origin is invalid")
+    if type(payload.get("membership_plan_mismatch")) is not bool:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan audit membership mismatch flag is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=False, label="Task plan audit")
+
+
+def _validate_task_plan_corrected(payload: dict[str, object]) -> None:
+    task_id = payload.get("task_id")
+    prior_plan_revision_id = payload.get("prior_plan_revision_id")
+    new_plan_revision_id = payload.get("new_plan_revision_id")
+    try:
+        for value in (task_id, prior_plan_revision_id, new_plan_revision_id):
+            if not isinstance(value, str):
+                raise ValidationError("Task plan correction identities must be UUID text")
+            require_uuid4(value)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction audit identity is invalid") from exc
+    if prior_plan_revision_id == new_plan_revision_id:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction must reference a new plan revision")
+    revision = payload.get("resulting_task_revision")
+    if type(revision) is not int or revision <= 1:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction Task revision is invalid")
+    if type(payload.get("membership_plan_mismatch")) is not bool:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction membership mismatch flag is invalid")
+    if payload.get("review_risk") not in {"LOW", "HIGH"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction review risk is invalid")
+    fingerprint = payload.get("correction_review_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task plan correction review fingerprint is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=True, label="Task plan correction")
+
+
+def _validate_task_lock_changed(payload: dict[str, object]) -> None:
+    task_id = payload.get("task_id")
+    lock_event_id = payload.get("lock_event_id")
+    try:
+        for value in (task_id, lock_event_id):
+            if not isinstance(value, str):
+                raise ValidationError("Task lock audit identity must be UUID text")
+            require_uuid4(value)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit identity is invalid") from exc
+    if payload.get("lock_kind") not in {"plan", "membership"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit lock_kind is invalid")
+    if payload.get("action") not in {"lock", "unlock"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit action is invalid")
+    task_revision = payload.get("resulting_task_revision")
+    lock_revision = payload.get("resulting_lock_revision")
+    if type(task_revision) is not int or task_revision <= 1:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit Task revision is invalid")
+    if type(lock_revision) is not int or lock_revision <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Task lock audit lock revision is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=True, label="Task lock")
+
+
+def _validate_hard_delete(payload: dict[str, object]) -> None:
+    if payload.get("target_type") not in {"task", "objective"} or payload.get("result") != "deleted":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete audit target/result is invalid")
+    target_id = payload.get("target_id")
+    try:
+        if not isinstance(target_id, str):
+            raise ValidationError("target_id must be UUID text")
+        require_uuid4(target_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete target identity is invalid") from exc
+    revision = payload.get("reviewed_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete reviewed revision is invalid")
+    fingerprint = payload.get("eligibility_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete eligibility fingerprint is invalid")
+    confirmation = payload.get("confirmation_context_id")
+    if confirmation is not None:
+        if not isinstance(confirmation, str):
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete confirmation context must be text or null")
+        try:
+            encoded = confirmation.encode("utf-8", errors="strict")
+        except UnicodeEncodeError as exc:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete confirmation context is invalid Unicode") from exc
+        if not encoded or len(encoded) > 1024 or "\x00" in confirmation or "\r" in confirmation or "\n" in confirmation:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete confirmation context violates its bound")
+    retained = payload.get("retained_related_ids")
+    target_type = payload.get("target_type")
+    retained_limit = 32 if target_type == "task" else 100
+    if not isinstance(retained, list) or len(retained) > retained_limit:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete retained-related list is invalid")
+    seen: set[str] = set()
+    for value in retained:
+        try:
+            if not isinstance(value, str):
+                raise ValidationError("retained identity must be UUID text")
+            require_uuid4(value)
+        except ValidationError as exc:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete retained identity is invalid") from exc
+        if value in seen:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "hard-delete retained identities must be unique")
+        seen.add(value)
+
+
+
+def _validate_objective_audit(payload: dict[str, object]) -> None:
+    try:
+        objective_id = payload.get("objective_id")
+        if not isinstance(objective_id, str):
+            raise ValidationError("objective_id must be UUID text")
+        require_uuid4(objective_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective audit identity is invalid") from exc
+    tracking = payload.get("tracking_id")
+    if not isinstance(tracking, str) or _OBJECTIVE_TRACKING_RE.fullmatch(tracking) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective tracking identity is invalid")
+    if payload.get("creation_origin") not in {
+        "manual", "automatic_grouping", "historical_provider_complete"
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective creation origin is invalid")
+    revision = payload.get("resulting_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective audit revision is invalid")
+    fingerprint = payload.get("membership_input_fingerprint")
+    if fingerprint is not None and (
+        not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective membership fingerprint is invalid")
+    if payload.get("archive_action") not in {None, "archive", "restore"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective archive action is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=False, label="Objective")
+
+
+def _validate_objective_review(payload: dict[str, object]) -> None:
+    for field in ("objective_id", "objective_review_event_id"):
+        try:
+            value = payload.get(field)
+            if not isinstance(value, str):
+                raise ValidationError(f"{field} must be UUID text")
+            require_uuid4(value)
+        except ValidationError as exc:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective review identity is invalid") from exc
+    fingerprint = payload.get("review_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective review fingerprint is invalid")
+    if payload.get("derived_outcome") not in {
+        "completed", "incomplete", "cancelled", "mixed", "excluded_from_operational_counts"
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective review outcome is invalid")
+    for field in ("included_task_count", "excluded_task_count"):
+        value = payload.get(field)
+        if type(value) is not int or value < 0:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective review count is invalid")
+    _validate_bounded_reason(payload.get("reason_category"), required=False, label="Objective review")
+
+
+def _validate_objective_timezone(payload: dict[str, object]) -> None:
+    if payload.get("setting_key") != "OBJECTIVE_TIMEZONE_V1":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone setting key is invalid")
+    prior = payload.get("prior_revision")
+    new = payload.get("new_revision")
+    change = payload.get("change_kind")
+    if prior is not None and (type(prior) is not int or prior <= 0):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone prior revision is invalid")
+    if type(new) is not int or new <= 0:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone new revision is invalid")
+    if change == "CREATE":
+        if prior is not None or new != 1:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone CREATE revision is invalid")
+    elif change == "UPDATE":
+        if type(prior) is not int or new != prior + 1:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone UPDATE revision is invalid")
+    else:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone change kind is invalid")
+    timezone = payload.get("iana_timezone")
+    if not isinstance(timezone, str):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone value is invalid")
+    try:
+        encoded = timezone.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone is invalid Unicode") from exc
+    if (
+        not encoded
+        or len(encoded) > 255
+        or "\x00" in timezone
+        or "\r" in timezone
+        or "\n" in timezone
+    ):
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "Objective timezone violates its bound")
+
+
+def _validate_historical_objective(payload: dict[str, object]) -> None:
+    for field in ("proposal_id", "task_id"):
+        try:
+            value = payload.get(field)
+            if not isinstance(value, str):
+                raise ValidationError(f"{field} must be UUID text")
+            require_uuid4(value)
+        except ValidationError as exc:
+            raise SomaError(
+                "AUDIT_PAYLOAD_INVALID",
+                "historical Objective audit identity is invalid",
+            ) from exc
+    revision = payload.get("source_projection_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective source revision is invalid",
+        )
+    evidence = payload.get("source_evidence_id")
+    if not isinstance(evidence, str):
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective source evidence is invalid",
+        )
+    try:
+        encoded = evidence.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective source evidence is invalid Unicode",
+        ) from exc
+    if (
+        not encoded
+        or len(encoded) > 1024
+        or "\x00" in evidence
+        or "\r" in evidence
+        or "\n" in evidence
+    ):
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective source evidence violates its bound",
+        )
+    decision = payload.get("decision")
+    if decision not in {"ACCEPTED", "REJECTED"}:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective decision is invalid",
+        )
+    objective_id = payload.get("objective_id")
+    plan_id = payload.get("membership_plan_revision_id")
+    try:
+        if objective_id is not None:
+            if not isinstance(objective_id, str):
+                raise ValidationError("objective_id must be UUID text or null")
+            require_uuid4(objective_id)
+        if plan_id is not None:
+            if not isinstance(plan_id, str):
+                raise ValidationError(
+                    "membership_plan_revision_id must be UUID text or null"
+                )
+            require_uuid4(plan_id)
+    except ValidationError as exc:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective result identity is invalid",
+        ) from exc
+    if decision == "ACCEPTED" and (objective_id is None or plan_id is None):
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "accepted historical Objective decision lacks structure identity",
+        )
+    if decision == "REJECTED" and (objective_id is not None or plan_id is not None):
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "rejected historical Objective decision claims structure identity",
+        )
+    fingerprint = payload.get("review_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "historical Objective review fingerprint is invalid",
+        )
+    _validate_bounded_reason(
+        payload.get("reason_category"),
+        required=decision == "REJECTED",
+        label="historical Objective",
+    )
+
+
+def _validate_task_count(payload: dict[str, object]) -> None:
+    try:
+        task_id = payload.get("task_id")
+        event_id = payload.get("inclusion_event_id")
+        if not isinstance(task_id, str) or not isinstance(event_id, str):
+            raise ValidationError("Task count identities must be UUID text")
+        require_uuid4(task_id)
+        require_uuid4(event_id)
+    except ValidationError as exc:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "Task count audit identity is invalid",
+        ) from exc
+    if type(payload.get("included")) is not bool:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "Task count inclusion flag is invalid",
+        )
+    revision = payload.get("resulting_revision")
+    if type(revision) is not int or revision <= 0:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "Task count revision is invalid",
+        )
+    _validate_bounded_reason(
+        payload.get("reason_category"),
+        required=True,
+        label="Task count",
+    )
+
+
+_GROUPING_EVENTS = frozenset({"RECOMPUTED", "ACCEPTED", "REJECTED", "RECONSIDERED"})
+_GROUPING_KINDS = frozenset(
+    {"create", "join", "move", "repin", "consolidate", "manual_merge", "manual_split"}
+)
+
+
+def _validate_grouping_recompute_deferred(payload: dict[str, object]) -> None:
+    job_id = payload.get("job_id")
+    try:
+        if not isinstance(job_id, str):
+            raise ValidationError("job_id must be UUID text")
+        require_uuid4(job_id)
+    except ValidationError as exc:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "grouping deferred job identity is invalid",
+        ) from exc
+    if payload.get("origin") not in {
+        "task_created",
+        "task_plan_changed",
+        "source_plan_adopted",
+        "manual_request",
+        "retry_created",
+        "objective_edit",
+    }:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping deferred origin is invalid")
+    count = payload.get("workset_exact_count")
+    if type(count) is not int or count <= 100_000:
+        raise SomaError(
+            "AUDIT_PAYLOAD_INVALID",
+            "grouping deferred workset must exceed the soft threshold",
+        )
+    if payload.get("soft_threshold") != 100_000:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping deferred threshold is invalid")
+    if payload.get("execution_mode") != "durable_job":
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping deferred execution mode is invalid")
+
+
+def _validate_grouping_audit(payload: dict[str, object]) -> None:
+    try:
+        proposal_id = payload.get("proposal_id")
+        if not isinstance(proposal_id, str):
+            raise ValidationError("proposal_id must be UUID text")
+        require_uuid4(proposal_id)
+    except ValidationError as exc:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping proposal identity is invalid") from exc
+    if payload.get("event_kind") not in _GROUPING_EVENTS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping event_kind is invalid")
+    if payload.get("proposal_kind") not in _GROUPING_KINDS:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping proposal_kind is invalid")
+    if payload.get("risk_tier") not in {"normal", "high"}:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping risk_tier is invalid")
+    fingerprint = payload.get("input_fingerprint")
+    if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:
+        raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping fingerprint is invalid")
+    for field in ("task_change_count", "objective_change_count"):
+        value = payload.get(field)
+        if type(value) is not int or value < 0:
+            raise SomaError("AUDIT_PAYLOAD_INVALID", "grouping count is invalid")
+    required_reason = payload.get("event_kind") in {"REJECTED", "RECONSIDERED"}
+    _validate_bounded_reason(payload.get("reason_category"), required=required_reason, label="Grouping")
+
+def _contract(name: str, fields: frozenset[str], *, max_items: int = 32) -> ObjectContract:
+    return ObjectContract(
+        name=name,
+        version=1,
+        required_fields=fields,
+        allowed_fields=fields,
+        max_depth=4,
+        max_collection_items=max_items,
+        max_utf8_bytes=16_384,
+    )
+
+
+def build_objectives_tasks_audit_registry() -> AuditRegistry:
+    registry = AuditRegistry()
+    registry.register(
+        AuditActionContract(
+            action_type="task.created",
+            action_version=1,
+            payload_schema="TaskAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskAuditV1", _TASK_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_task_created,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.wfm_registered",
+            action_version=1,
+            payload_schema="TaskAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskAuditV1", _TASK_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_wfm_registered,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.wfm_parent_reassigned",
+            action_version=1,
+            payload_schema="TaskRelationshipAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskRelationshipAuditV1", _TASK_RELATIONSHIP_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_wfm_parent_reassigned,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.plan_changed",
+            action_version=1,
+            payload_schema="TaskPlanAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskPlanAuditV1", _TASK_PLAN_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_task_plan_changed,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.plan_corrected",
+            action_version=1,
+            payload_schema="TaskPlanCorrectionAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskPlanCorrectionAuditV1", _TASK_PLAN_CORRECTION_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_task_plan_corrected,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.lock_changed",
+            action_version=1,
+            payload_schema="TaskLockAuditV1",
+            payload_version=1,
+            payload_contract=_contract("TaskLockAuditV1", _TASK_LOCK_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_task_lock_changed,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.hard_deleted",
+            action_version=1,
+            payload_schema="HardDeleteAuditV1",
+            payload_version=1,
+            payload_contract=_contract("HardDeleteAuditV1", _HARD_DELETE_AUDIT_FIELDS, max_items=128),
+            sensitivity_validator=_validate_hard_delete,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.created",
+            action_version=1,
+            payload_schema="ObjectiveAuditV1",
+            payload_version=1,
+            payload_contract=_contract("ObjectiveAuditV1", _OBJECTIVE_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_objective_audit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.reviewed",
+            action_version=1,
+            payload_schema="ObjectiveReviewAuditV1",
+            payload_version=1,
+            payload_contract=_contract("ObjectiveReviewAuditV1", _OBJECTIVE_REVIEW_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_objective_review,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.archive_state_changed",
+            action_version=1,
+            payload_schema="ObjectiveAuditV1",
+            payload_version=1,
+            payload_contract=_contract("ObjectiveAuditV1", _OBJECTIVE_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_objective_audit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.cancelled",
+            action_version=1,
+            payload_schema="ObjectiveAuditV1",
+            payload_version=1,
+            payload_contract=_contract("ObjectiveAuditV1", _OBJECTIVE_AUDIT_FIELDS, max_items=16),
+            sensitivity_validator=_validate_objective_audit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.hard_deleted",
+            action_version=1,
+            payload_schema="HardDeleteAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "HardDeleteAuditV1",
+                _HARD_DELETE_AUDIT_FIELDS,
+                max_items=128,
+            ),
+            sensitivity_validator=_validate_hard_delete,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.timezone_changed",
+            action_version=1,
+            payload_schema="ObjectiveTimezoneAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "ObjectiveTimezoneAuditV1",
+                _OBJECTIVE_TIMEZONE_AUDIT_FIELDS,
+                max_items=16,
+            ),
+            sensitivity_validator=_validate_objective_timezone,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="objective.historical_proposal_decided",
+            action_version=1,
+            payload_schema="HistoricalObjectiveAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "HistoricalObjectiveAuditV1",
+                _HISTORICAL_OBJECTIVE_AUDIT_FIELDS,
+                max_items=24,
+            ),
+            sensitivity_validator=_validate_historical_objective,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="task.operational_count_inclusion_changed",
+            action_version=1,
+            payload_schema="TaskCountAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "TaskCountAuditV1",
+                _TASK_COUNT_AUDIT_FIELDS,
+                max_items=16,
+            ),
+            sensitivity_validator=_validate_task_count,
+        )
+    )
+    grouping_recompute_deferred_fields = frozenset(
+        {
+            "job_id",
+            "origin",
+            "workset_exact_count",
+            "soft_threshold",
+            "execution_mode",
+        }
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="grouping.recompute_deferred",
+            action_version=1,
+            payload_schema="GroupingRecomputeDeferredAuditV1",
+            payload_version=1,
+            payload_contract=_contract(
+                "GroupingRecomputeDeferredAuditV1",
+                grouping_recompute_deferred_fields,
+                max_items=12,
+            ),
+            sensitivity_validator=_validate_grouping_recompute_deferred,
+        )
+    )
+    grouping_fields = frozenset(
+        {
+            "proposal_id",
+            "event_kind",
+            "proposal_kind",
+            "risk_tier",
+            "input_fingerprint",
+            "task_change_count",
+            "objective_change_count",
+            "reason_category",
+        }
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="grouping.proposal_recomputed",
+            action_version=1,
+            payload_schema="GroupingAuditV1",
+            payload_version=1,
+            payload_contract=_contract("GroupingAuditV1", grouping_fields, max_items=16),
+            sensitivity_validator=_validate_grouping_audit,
+        )
+    )
+    registry.register(
+        AuditActionContract(
+            action_type="grouping.proposal_decided",
+            action_version=1,
+            payload_schema="GroupingAuditV1",
+            payload_version=1,
+            payload_contract=_contract("GroupingAuditV1", grouping_fields, max_items=16),
+            sensitivity_validator=_validate_grouping_audit,
+        )
+    )
+    return registry

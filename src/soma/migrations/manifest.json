@@ -1,0 +1,71 @@
+{
+  "schema": "SOMA-MIGRATION-MANIFEST-V1",
+  "migrations": [
+    {
+      "sequence": 1,
+      "migration_id": "beta_0001_foundation",
+      "filename": "0001_foundation.sql",
+      "sha256": "55fb2128a91fdb9e6851b43f88dd807a6f8050b78fe4f37d50069889b0c512b2"
+    },
+    {
+      "sequence": 2,
+      "migration_id": "beta_0002_identity_reference",
+      "filename": "0002_identity_reference.sql",
+      "sha256": "8fc0216adf7602b208e456f8c8996dcba1a65d1db8cac89c9a19afe308797e41"
+    },
+    {
+      "sequence": 3,
+      "migration_id": "beta_0003_tickets_core",
+      "filename": "0003_tickets_core.sql",
+      "sha256": "2ea24d491daa3ce564e8ee9f92d9e5a4d522c1941758d9646c505aeaaa875e56"
+    },
+    {
+      "sequence": 4,
+      "migration_id": "beta_0004_ticket_import",
+      "filename": "0004_ticket_import.sql",
+      "sha256": "50c73b844cf2cfeb6e7273ca1d4886cfd6992653dec3d1c7ca03d98cced607dd"
+    },
+    {
+      "sequence": 5,
+      "migration_id": "beta_0005_command_replay_results",
+      "filename": "0005_command_replay_results.sql",
+      "sha256": "2aa0b287431d72c47af0e89d5ad28b00e4f21667c40e407fea87390caf826ba7"
+    },
+    {
+      "sequence": 6,
+      "migration_id": "beta_0006_objectives_tasks",
+      "filename": "0006_objectives_tasks.sql",
+      "sha256": "af73f2551a5022e91a5b37f9cdb4b41e6ac79a85dde9c99480b1eff506cd361d"
+    },
+    {
+      "sequence": 7,
+      "migration_id": "beta_0007_sr_source_presence",
+      "filename": "0007_sr_source_presence.sql",
+      "sha256": "f1e3723eaeee67936c0b7f531b42d0d6e4e690c4e297078b07e2f63bbfd8097b"
+    },
+    {
+      "sequence": 8,
+      "migration_id": "beta_0008_durable_job_coalescing",
+      "filename": "0008_durable_job_coalescing.sql",
+      "sha256": "aab4126fbc9b1e29af3e6246798f837bfe681d3bde8fbe7b26962bd06b12c3e4"
+    },
+    {
+      "sequence": 9,
+      "migration_id": "beta_0009_product_line_sla",
+      "filename": "0009_product_line_sla.sql",
+      "sha256": "2ea6c47e1f3ffc1b8894a41e7b2b9f73481396703b543c10b0a7d06473811059"
+    },
+    {
+      "sequence": 10,
+      "migration_id": "beta_0010_inventory",
+      "filename": "0010_inventory.sql",
+      "sha256": "101465714bf01f5a458dc040e0f8c93d7e4450ee82aafdfd30e93a38bbb46628"
+    },
+    {
+      "sequence": 11,
+      "migration_id": "beta_0011_inventory_draft_delete",
+      "filename": "0011_inventory_draft_delete.sql",
+      "sha256": "fc147866937fc7433516035579596e420f415c17d53d5b12f802fe7400afb53a"
+    }
+  ]
+}

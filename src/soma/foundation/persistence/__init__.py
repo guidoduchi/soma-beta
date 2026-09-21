@@ -1,0 +1,1 @@
+"""Verified authoritative persistence boundary."""

@@ -1,0 +1,39 @@
+name: Generate UNICODE_MATCH_V1 asset
+
+on:
+  push:
+    branches:
+      - feat/beta-1.0-implementation
+    paths:
+      - tools/generate_unicode_match_v1.py
+      - .github/workflows/generate-unicode-match-v1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Generate pinned Unicode 17 asset
+        run: python tools/generate_unicode_match_v1.py
+      - name: Commit generated asset if changed
+        shell: bash
+        run: |
+          if git diff --quiet -- src/soma/reference/assets/unicode_match_v1.json && git ls-files --error-unmatch src/soma/reference/assets/unicode_match_v1.json >/dev/null 2>&1; then
+            echo "Asset already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/soma/reference/assets/unicode_match_v1.json
+          git commit -m "Generate pinned Unicode 17 match asset"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
