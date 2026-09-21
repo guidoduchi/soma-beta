@@ -42,7 +42,8 @@
     {"interface":"InventoryTaskDependencyProvider","provider":"LLD-07","consumer":"LLD-05"},
     {"interface":"read-only versioned ReportSectionContributor","provider":"LLD-07","consumer":"LLD-06"},
     {"interface":"optional Installed Component resolution","provider":"LLD-08","consumer":"LLD-07"},
-    {"interface":"InventoryProposalTargetService proposal/evidence context","provider":"LLD-09","consumer":"LLD-07"},
+    {"interface":"InventoryProposalTargetService","provider":"LLD-07","consumer":"LLD-09"},
+    {"interface":"InventoryCommunicationDependencyProvider","provider":"LLD-09","consumer":"LLD-07"},
     {"interface":"authenticated browser transport and mutation proof","provider":"LLD-12","consumer":"LLD-07"}
   ],
   "reverse_orphan_checks":[
@@ -57,6 +58,7 @@
     "Fault Tag first submission freezes exact membership and pickup-origin evidence; false submission correction preserves the original snapshot, material real-submission correction creates linear replacement lineage, and warehouse rejection resend is new operational history.",
     "Warehouse receipt and warehouse final decision are separate lifecycle stages; receipt leaves the RMA return obligation open, accepted final decision closes it, rejected final decision preserves it for further action.",
     "Every authoritative Inventory command has exact transaction/revision/audit/error/test/idempotency closure; every pure query has deterministic ordering, bounded point/cursor semantics, supporting index evidence and tests.",
-    "Hard deletion is limited to explicitly eligible untouched drafts after complete local/cross-domain CLEAR classification and deliberate confirmation; protected history, identities, surviving entities and exported artifacts never cascade."
+    "Hard deletion is limited to explicitly eligible untouched drafts after complete local/cross-domain CLEAR classification and deliberate confirmation; protected history, identities, surviving entities and exported artifacts never cascade.",
+    "Fault Tag/Spare Request hard-delete eligibility includes the read-only LLD-09 InventoryCommunicationDependencyProvider; generated/exported Communications history and other protected Communication dependencies block deletion without copying Communication authority into Inventory."
   ]
 }
