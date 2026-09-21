@@ -134,6 +134,11 @@ class InventoryHardDeleteService:
                 target_id=identity,
                 communication_dependency_provider=self._communications,
             )
+            if preview["classification"] == "INDETERMINATE":
+                raise SomaError(
+                    "DEPENDENCY_INDETERMINATE",
+                    "Inventory hard-delete dependency classification is indeterminate",
+                )
             if preview["classification"] != "CLEAR":
                 raise SomaError(
                     "HARD_DELETE_BLOCKED",

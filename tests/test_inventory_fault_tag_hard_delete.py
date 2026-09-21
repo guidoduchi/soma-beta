@@ -278,7 +278,11 @@ def test_t061_communication_generation_dependency_blocks_or_fails_closed(
     owner = InventoryHardDeleteService(factory, provider)
     with pytest.raises(SomaError) as blocked:
         owner.hard_delete_untouched_inventory_draft(**args)
-    assert blocked.value.code == "HARD_DELETE_BLOCKED"
+    assert blocked.value.code == (
+        "DEPENDENCY_INDETERMINATE"
+        if provider_status == "INDETERMINATE"
+        else "HARD_DELETE_BLOCKED"
+    )
     assert provider.calls == [("fault_tag", tag_id), ("fault_tag", tag_id)]
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute(
