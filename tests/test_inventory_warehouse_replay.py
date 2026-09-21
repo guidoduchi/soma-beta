@@ -100,8 +100,8 @@ def test_warehouse_receipt_and_final_batches_replay_exactly_t050_t051(initialize
 
     after_receipt = _current_members(factory, tag_id)
     by_id = {item.fault_tag_membership_id: item for item in after_receipt}
-    assert by_id[selected.fault_tag_membership_id].state == "warehouse_received"
-    assert by_id[sibling.fault_tag_membership_id].state == "submitted_awaiting_receipt"
+    assert _membership_state(factory, selected.fault_tag_membership_id)[0] == "warehouse_received"
+    assert _membership_state(factory, sibling.fault_tag_membership_id)[0] == "submitted_awaiting_receipt"
     sibling_after_receipt = _membership_state(factory, sibling.fault_tag_membership_id)
     assert [_obligation_state(factory, rma_id)[0] for rma_id in rmas] == ["open", "open"]
 

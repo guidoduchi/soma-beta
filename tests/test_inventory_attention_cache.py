@@ -106,7 +106,15 @@ def test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived(
             (rejected_rma,),
         ).fetchone()
     assert tuple(rejection_event) == ("warehouse_rejected", "warehouse rejection")
-    assert rejected_current.state == "warehouse_rejected"
+    with ReadSnapshot(factory) as snapshot:
+        rejected_state = str(
+            snapshot.connection.execute(
+                "SELECT state FROM fault_tag_membership_current "
+                "WHERE fault_tag_membership_id=?",
+                (rejected_id,),
+            ).fetchone()[0]
+        )
+    assert rejected_state == "warehouse_rejected"
     assert str(obligation[0]) == "open"
 
     remaining = tuple(
