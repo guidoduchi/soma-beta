@@ -10,6 +10,17 @@ from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
+from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
+from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
+from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
+from soma.objectives_tasks.services.objectives import ObjectiveService
+from soma.objectives_tasks.services.source_terminal import RfcTerminalTaskParticipant
+from soma.objectives_tasks.services.wfm_import import (
+    WfmImportBaseTarget,
+    WfmImportMutationParticipant,
+    WfmImportReader,
+    WfmSourceProjectionAcceptanceMutation,
+)
 from soma.tickets.queries.rfc_terminal_cascade import (
     RfcTerminalCascadeImpactItem,
     RfcTerminalCascadeImpactProviderPage,
@@ -468,3 +479,253 @@ def test_execute_rejects_wrong_domain_apply_summary_and_rolls_back(initialized_d
     assert exc_info.value.code == "RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED"
     assert _receipt_exists(factory, command_id) is False
     assert _proposal_state(factory, proposal_id) == ("pending", 1, None)
+
+
+def test_t020_real_task_participant_terminates_exact_wfm_scope_inside_rfc_outer_uow(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000009020",
+        creation_context="manual",
+    )
+    schedule = AcceptedTaskSchedule(
+        start_utc=2_640_000_000,
+        end_utc=2_640_003_600,
+        scheduling_timezone_iana="America/Guayaquil",
+    )
+    task_no = "TK00000000009020"
+    wfm = TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=task_no,
+        rfc_id=rfc.rfc_id,
+        schedule=schedule,
+    )
+    local = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Unrelated local survivor",
+        schedule=schedule,
+    )
+
+    def intent(task_id: str) -> ObjectiveExistingTaskIntent:
+        with ReadSnapshot(factory) as snapshot:
+            row = snapshot.connection.execute(
+                "SELECT t.revision,pc.revision,pc.plan_revision_id "
+                "FROM tasks t JOIN task_plan_current pc ON pc.task_id=t.task_id "
+                "WHERE t.task_id=?",
+                (task_id,),
+            ).fetchone()
+        assert row is not None
+        return ObjectiveExistingTaskIntent(
+            task_id=task_id,
+            expected_task_revision=int(row[0]),
+            expected_plan_revision=int(row[1]),
+            expected_plan_revision_id=str(row[2]),
+        )
+
+    grouping = ObjectiveGroupingQueryService(factory)
+    objective_intents = (intent(wfm.task_id), intent(local.task_id))
+    creation = grouping.creation_preview(existing_tasks=objective_intents)
+    assert creation["mode"] == "CREATE"
+    objective = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(creation["fingerprint"]),
+        existing_tasks=objective_intents,
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        base_token = WfmImportReader.source_acceptance_base_token(
+            snapshot.connection,
+            WfmImportBaseTarget("wfm_source_projection", task_no, wfm.task_id),
+        )
+    source_command = new_uuid4()
+    source_observation_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _insert_outer_receipt(uow, source_command, wfm.task_id)
+        source_result = WfmImportMutationParticipant.apply_wfm_source_projection(
+            uow,
+            WfmSourceProjectionAcceptanceMutation(
+                task_id=wfm.task_id,
+                task_no=task_no,
+                expected_source_projection_revision=0,
+                provider_status_token="Implementation",
+                provider_lifecycle_class="active",
+                source_plan_start_utc=None,
+                source_plan_end_utc=None,
+                accepted_source_observation_id=source_observation_id,
+                base_state_token=base_token,
+                accepted_command_id=source_command,
+            ),
+        )
+        assert source_result.source_projection_revision == 1
+
+    with ReadSnapshot(factory) as snapshot:
+        source_before = tuple(
+            snapshot.connection.execute(
+                "SELECT provider_status_token,provider_lifecycle_class,"
+                "source_plan_start_utc,source_plan_end_utc,accepted_source_observation_id,"
+                "source_projection_revision,source_base_token,last_command_id "
+                "FROM wfm_source_projection_cache WHERE task_id=?",
+                (wfm.task_id,),
+            ).fetchone()
+        )
+        local_revision_before = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (local.task_id,),
+            ).fetchone()[0]
+        )
+        aggregate_before = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,revision,aggregate_input_fingerprint "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        )
+
+    task_participant = RfcTerminalTaskParticipant()
+    capture = RfcTerminalCascadeCaptureService(task_participant)
+    source = RfcSourceProjectionService(
+        _AcceptingEvidenceProvider(),
+        terminal_capture_participant=capture,
+    )
+    terminal_command = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _insert_outer_receipt(uow, terminal_command, rfc.rfc_id)
+        applied = source.apply_accepted_field_deltas(
+            uow,
+            rfc_id=rfc.rfc_id,
+            accepted_command_id=terminal_command,
+            deltas=(_status(),),
+        )
+        assert applied.pending_cascade_proposal_id is not None
+        proposal_id = applied.pending_cascade_proposal_id
+
+    communication = _ExecutionParticipant(
+        domain="COMMUNICATIONS",
+        fingerprint=sha256_canonical_json(
+            {"schema": "T020_EMPTY_COMMUNICATIONS_V1"}
+        ),
+        apply_result=_apply_result(
+            "COMMUNICATIONS",
+            result_count=0,
+            audit_count=0,
+        ),
+    )
+    preview = RfcTerminalCascadePreviewService(
+        factory,
+        task_participant,
+        communication,
+    ).preview(proposal_id=proposal_id, limit=500)
+    assert preview.execution_ready is True
+    assert preview.execution_review is not None
+
+    task_impacts = [
+        item for item in preview.impacts if item.domain == "TASKS_OBJECTIVES"
+    ]
+    assert any(
+        item.impact_kind == "WFM_TERMINATION"
+        and item.entity_id == wfm.task_id
+        and item.current_state == "not_started"
+        and item.resulting_state == "terminated"
+        for item in task_impacts
+    )
+    objective_impact = next(
+        item
+        for item in task_impacts
+        if item.impact_kind == "OBJECTIVE_EXECUTABLE_COUNT"
+        and item.entity_id == objective.objective_id
+    )
+    assert objective_impact.current_count == 2
+    assert objective_impact.resulting_count == 1
+    assert objective_impact.attention_code is None
+
+    with ReadSnapshot(factory) as snapshot:
+        receipts_before = int(
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM command_receipts"
+            ).fetchone()[0]
+        )
+
+    proof = _ProofProvider()
+    execute = RfcTerminalCascadeExecutionService(
+        factory,
+        task_participant,
+        communication,
+        proof,
+    )
+    execute_command = new_uuid4()
+    result = execute.execute(
+        command_id=execute_command,
+        proposal_id=proposal_id,
+        proposal_revision=preview.proposal_revision,
+        execution_review=preview.execution_review,
+        deliberate_action_proof="proof-real-t020",
+    )
+    assert result.state == "executed"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert int(
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM command_receipts"
+            ).fetchone()[0]
+        ) == receipts_before + 1
+
+        wfm_execution = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,actual_start_utc,actual_end_utc,"
+                "effective_termination_utc,termination_reason,revision "
+                "FROM task_execution_projection WHERE task_id=?",
+                (wfm.task_id,),
+            ).fetchone()
+        )
+        assert wfm_execution[0] == "terminated"
+        assert wfm_execution[1] is None and wfm_execution[2] is None
+        assert wfm_execution[3] is not None
+        assert wfm_execution[4] == "rfc_terminal_cascade"
+        assert int(wfm_execution[5]) == 1
+
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM task_execution_projection WHERE task_id=?",
+            (local.task_id,),
+        ).fetchone() is None
+        assert int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (local.task_id,),
+            ).fetchone()[0]
+        ) == local_revision_before
+
+        source_after = tuple(
+            snapshot.connection.execute(
+                "SELECT provider_status_token,provider_lifecycle_class,"
+                "source_plan_start_utc,source_plan_end_utc,accepted_source_observation_id,"
+                "source_projection_revision,source_base_token,last_command_id "
+                "FROM wfm_source_projection_cache WHERE task_id=?",
+                (wfm.task_id,),
+            ).fetchone()
+        )
+        assert source_after == source_before
+
+        aggregate_after = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,revision,aggregate_input_fingerprint "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        )
+        assert aggregate_after[0] == "planned"
+        assert int(aggregate_after[1]) > int(aggregate_before[1])
+        assert str(aggregate_after[2]) != str(aggregate_before[2])
+
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events "
+            "WHERE command_id=? AND action_type='task.rfc_terminal_cascade_applied'",
+            (execute_command,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT executed_command_id FROM rfc_terminal_cascade_proposals "
+            "WHERE rfc_terminal_cascade_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()[0] == execute_command
