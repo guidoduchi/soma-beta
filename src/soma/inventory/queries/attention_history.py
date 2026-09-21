@@ -42,6 +42,47 @@ _ATTENTION_QUERY_ID = "InventoryAttentionQuery"
 _ATTENTION_SORT_ID = "INVENTORY_ATTENTION_CANONICAL_V1"
 _ATTENTION_NULL_ORDER = "not applicable"
 _RESPONSE_OVERDUE_SECONDS = 86_400
+_HISTORY_QUERY_ID = "InventoryHistoryQuery"
+_HISTORY_SORT_ID = "INVENTORY_HISTORY_CANONICAL_V1"
+_HISTORY_NULL_ORDER = "not applicable"
+_HISTORY_CURSOR_FIELDS = _CURSOR_FIELDS
+
+
+_HISTORY_EVENT_SPECS: dict[
+    str, tuple[tuple[str, str, str, str, str, str | None, str | None], ...]
+] = {
+    "device_part_unit": (
+        ("device_part_lifecycle_events", "device_part_unit_id", "device_part_event_id", "event_kind", "domain_lifecycle_event", "evidence_kind", "evidence_id"),
+    ),
+    "spare_need": (
+        ("spare_need_lifecycle_events", "spare_need_id", "need_event_id", "event_kind", "domain_lifecycle_event", None, None),
+        ("task_unit_allocation_events", "spare_need_id", "allocation_event_id", "event_kind", "relationship_change", None, None),
+        ("local_need_fulfillment_events", "spare_need_id", "local_fulfillment_event_id", "event_kind", "relationship_change", None, None),
+    ),
+    "spare_request": (
+        ("spare_request_lifecycle_events", "spare_request_id", "request_event_id", "event_kind", "domain_lifecycle_event", "evidence_kind", "evidence_id"),
+        ("spare_request_identifier_events", "spare_request_id", "identifier_event_id", "event_kind", "relationship_change", None, None),
+    ),
+    "rma": (
+        ("rma_identifier_events", "rma_id", "identifier_event_id", "event_kind", "relationship_change", None, None),
+        ("rma_assignment_events", "rma_id", "assignment_event_id", "event_kind", "relationship_change", None, None),
+        ("rma_return_selection_events", "rma_id", "return_selection_event_id", "event_kind", "relationship_change", None, None),
+    ),
+    "spare_part_unit": (
+        ("spare_part_lifecycle_events", "spare_part_unit_id", "unit_event_id", "event_kind", "domain_lifecycle_event", "evidence_kind", "evidence_id"),
+        ("task_unit_allocation_events", "spare_part_unit_id", "allocation_event_id", "event_kind", "relationship_change", None, None),
+        ("local_need_fulfillment_events", "spare_part_unit_id", "local_fulfillment_event_id", "event_kind", "relationship_change", None, None),
+    ),
+    "physical_consequence": (
+        ("physical_consequence_events", "physical_consequence_id", "consequence_event_id", "event_kind", "domain_lifecycle_event", None, None),
+    ),
+    "fault_tag": (
+        ("fault_tag_lifecycle_events", "fault_tag_id", "fault_tag_event_id", "event_kind", "domain_lifecycle_event", "evidence_kind", "evidence_id"),
+    ),
+    "fault_tag_membership": (
+        ("fault_tag_membership_events", "fault_tag_membership_id", "membership_event_id", "event_kind", "domain_lifecycle_event", "evidence_kind", "evidence_id"),
+    ),
+}
 
 
 def _limit(value: int) -> int:
@@ -182,6 +223,63 @@ def _cursor(
         ],
         "filter_fingerprint": filter_fingerprint,
         "null_order": _ATTENTION_NULL_ORDER,
+    }
+
+
+def _history_filter_fingerprint(*, target_kind: str, target_id: str) -> str:
+    return sha256_canonical_json(
+        {
+            "schema": "SOMA_INVENTORY_HISTORY_FILTER_V1",
+            "target_kind": target_kind,
+            "target_id": target_id,
+        }
+    )
+
+
+def _history_cursor_key(
+    cursor: dict[str, object] | None,
+    *,
+    filter_fingerprint: str,
+) -> tuple[int, str, str] | None:
+    if cursor is None:
+        return None
+    if not isinstance(cursor, dict) or set(cursor) != _HISTORY_CURSOR_FIELDS:
+        raise ValidationError("Inventory history cursor fields are invalid")
+    if (
+        cursor["version"] != 1
+        or cursor["query_id"] != _HISTORY_QUERY_ID
+        or cursor["sort_registry_id"] != _HISTORY_SORT_ID
+        or cursor["filter_fingerprint"] != filter_fingerprint
+        or cursor["null_order"] != _HISTORY_NULL_ORDER
+    ):
+        raise ValidationError("Inventory history cursor contract is invalid")
+    raw = cursor["last_key_tuple"]
+    if (
+        not isinstance(raw, list)
+        or len(raw) != 3
+        or type(raw[0]) is not int
+        or raw[0] < 0
+        or not isinstance(raw[1], str)
+        or not raw[1]
+        or not isinstance(raw[2], str)
+        or not raw[2]
+    ):
+        raise ValidationError("Inventory history cursor key is invalid")
+    return int(raw[0]), str(raw[1]), str(raw[2])
+
+
+def _history_cursor(
+    *,
+    row: tuple[object, ...],
+    filter_fingerprint: str,
+) -> dict[str, object]:
+    return {
+        "version": 1,
+        "query_id": _HISTORY_QUERY_ID,
+        "sort_registry_id": _HISTORY_SORT_ID,
+        "last_key_tuple": [int(row[0]), str(row[1]), str(row[2])],
+        "filter_fingerprint": filter_fingerprint,
+        "null_order": _HISTORY_NULL_ORDER,
     }
 
 
@@ -525,86 +623,170 @@ class InventoryAttentionHistoryQuery:
         *,
         target_kind: str,
         target_id: str,
-        after_recorded_at_utc: int | None = None,
+        cursor: dict[str, object] | None = None,
         limit: int = 100,
     ) -> dict[str, object]:
         identity = require_uuid4(target_id)
         if type(limit) is not int or not 1 <= limit <= 500:
             raise ValidationError("limit must be in 1..500")
-        if after_recorded_at_utc is not None and (
-            type(after_recorded_at_utc) is not int or after_recorded_at_utc < 0
-        ):
-            raise ValidationError("history cursor is invalid")
-        table_map = {
+        specs = _HISTORY_EVENT_SPECS.get(target_kind)
+        if specs is None:
+            raise ValidationError("unsupported Inventory history target kind")
+        filter_fingerprint = _history_filter_fingerprint(
+            target_kind=target_kind,
+            target_id=identity,
+        )
+        after = _history_cursor_key(cursor, filter_fingerprint=filter_fingerprint)
+
+        branches: list[str] = []
+        params: list[object] = []
+        for (
+            table,
+            id_column,
+            event_id_column,
+            event_kind_column,
+            authority_kind,
+            evidence_kind_column,
+            evidence_id_column,
+        ) in specs:
+            evidence_kind = "NULL" if evidence_kind_column is None else evidence_kind_column
+            evidence_id = "NULL" if evidence_id_column is None else evidence_id_column
+            branches.append(
+                f"SELECT recorded_at_utc,'{authority_kind}' AS authority_kind,"
+                f"{event_id_column} AS immutable_id,{event_kind_column} AS event_kind,"
+                f"command_id,{evidence_kind} AS source_kind,{evidence_id} AS source_id "
+                f"FROM {table} WHERE {id_column}=?"
+            )
+            params.append(identity)
+
+        custom: dict[str, tuple[str, ...]] = {
+            "device_part_unit": (
+                "SELECT e.recorded_at_utc,'relationship_change',e.logistics_event_id,e.event_kind,"
+                "e.command_id,e.evidence_kind,e.evidence_id FROM actual_logistics_events e "
+                "JOIN logistics_device_part_participants p ON p.logistics_event_id=e.logistics_event_id "
+                "WHERE p.device_part_unit_id=?",
+            ),
             "spare_need": (
-                "spare_need_lifecycle_events",
-                "spare_need_id",
-                "need_event_id",
-                "event_kind",
+                "SELECT c.opened_at_utc,'relationship_change',c.contributor_relationship_id||':opened',"
+                "'contributor_opened',c.opened_command_id,NULL,NULL FROM spare_need_contributors c "
+                "WHERE c.spare_need_id=?",
+                "SELECT c.closed_at_utc,'relationship_change',c.contributor_relationship_id||':closed',"
+                "'contributor_closed',c.closed_command_id,NULL,NULL FROM spare_need_contributors c "
+                "WHERE c.spare_need_id=? AND c.closed_at_utc IS NOT NULL",
             ),
             "spare_request": (
-                "spare_request_lifecycle_events",
-                "spare_request_id",
-                "request_event_id",
-                "event_kind",
+                "SELECT b.accepted_at_utc,'relationship_change',b.authorization_batch_id,"
+                "'rma_authorization_batch',b.command_id,b.evidence_kind,b.evidence_id "
+                "FROM rma_authorization_batches b WHERE b.spare_request_id=?",
+            ),
+            "rma": (
+                "SELECT r.committed_at_utc,'relationship_change',d.direct_inbound_relationship_id,"
+                "'direct_inbound_unit',d.opened_command_id,NULL,NULL FROM rma_direct_inbound_units d "
+                "JOIN command_receipts r ON r.command_id=d.opened_command_id WHERE d.rma_id=?",
+                "SELECT e.recorded_at_utc,'relationship_change',e.logistics_event_id,e.event_kind,"
+                "e.command_id,e.evidence_kind,e.evidence_id FROM actual_logistics_events e "
+                "JOIN logistics_rma_participants p ON p.logistics_event_id=e.logistics_event_id "
+                "WHERE p.rma_id=?",
+                "SELECT e.recorded_at_utc,'relationship_change',e.membership_event_id,e.event_kind,"
+                "e.command_id,e.evidence_kind,e.evidence_id FROM fault_tag_membership_events e "
+                "JOIN fault_tag_memberships m ON m.fault_tag_membership_id=e.fault_tag_membership_id "
+                "WHERE m.rma_id=?",
             ),
             "spare_part_unit": (
-                "spare_part_lifecycle_events",
-                "spare_part_unit_id",
-                "unit_event_id",
-                "event_kind",
+                "SELECT e.recorded_at_utc,'relationship_change',e.logistics_event_id,e.event_kind,"
+                "e.command_id,e.evidence_kind,e.evidence_id FROM actual_logistics_events e "
+                "JOIN logistics_spare_unit_participants p ON p.logistics_event_id=e.logistics_event_id "
+                "WHERE p.spare_part_unit_id=?",
+            ),
+            "physical_consequence": (
+                "SELECT e.recorded_at_utc,'relationship_change',e.return_selection_event_id,e.event_kind,"
+                "e.command_id,NULL,NULL FROM rma_return_selection_events e "
+                "WHERE e.physical_consequence_id=?",
             ),
             "fault_tag": (
-                "fault_tag_lifecycle_events",
-                "fault_tag_id",
-                "fault_tag_event_id",
-                "event_kind",
+                "SELECT e.recorded_at_utc,'relationship_change',e.membership_event_id,e.event_kind,"
+                "e.command_id,e.evidence_kind,e.evidence_id FROM fault_tag_membership_events e "
+                "JOIN fault_tag_memberships m ON m.fault_tag_membership_id=e.fault_tag_membership_id "
+                "WHERE m.fault_tag_id=?",
+                "SELECT l.recorded_at_utc,'relationship_change',l.fault_tag_lineage_id,l.relation_type,"
+                "l.command_id,NULL,NULL FROM fault_tag_lineage l "
+                "WHERE l.predecessor_fault_tag_id=? OR l.successor_fault_tag_id=?",
             ),
         }
-        spec = table_map.get(target_kind)
-        if spec is None:
-            raise ValidationError("unsupported Inventory history target kind")
-        table, id_column, event_id_column, event_kind_column = spec
-        params: list[object] = [identity]
-        cursor = ""
-        if after_recorded_at_utc is not None:
-            cursor = " AND recorded_at_utc>?"
-            params.append(after_recorded_at_utc)
+        for statement in custom.get(target_kind, ()):
+            branches.append(statement)
+            params.extend((identity, identity) if " OR " in statement else (identity,))
+
+        audit_target_kind = (
+            "inventory_physical_consequence"
+            if target_kind == "physical_consequence"
+            else target_kind
+        )
+        branches.append(
+            "SELECT recorded_at_utc,'application_audit_reference',audit_event_id,"
+            "action_type,command_id,NULL,NULL FROM audit_events "
+            "WHERE target_type=? AND target_id=?"
+        )
+        params.extend((audit_target_kind, identity))
+
+        proposal_column = {
+            "spare_request": "spare_request_id",
+            "rma": "rma_id",
+            "spare_part_unit": "spare_part_unit_id",
+            "fault_tag": "fault_tag_id",
+            "fault_tag_membership": "fault_tag_membership_id",
+        }.get(target_kind)
+        if proposal_column is not None:
+            branches.append(
+                "SELECT p.created_at_utc,'source_proposal_reference',"
+                "t.inventory_proposal_target_id,p.proposal_kind,p.last_command_id,"
+                "p.evidence_kind,p.evidence_id FROM inventory_proposal_targets t "
+                "JOIN inventory_proposals p ON p.inventory_proposal_id=t.inventory_proposal_id "
+                f"WHERE t.{proposal_column}=?"
+            )
+            params.append(identity)
+
+        union = " UNION ALL ".join(branches)
+        where = ""
+        if after is not None:
+            where = (
+                " WHERE (recorded_at_utc<? OR "
+                "(recorded_at_utc=? AND authority_kind>?) OR "
+                "(recorded_at_utc=? AND authority_kind=? AND immutable_id<?))"
+            )
+            params.extend((after[0], after[0], after[1], after[0], after[1], after[2]))
         with ReadSnapshot(self._factory) as snapshot:
             rows = snapshot.connection.execute(
-                f"SELECT {event_id_column},{event_kind_column},recorded_at_utc,command_id "
-                f"FROM {table} WHERE {id_column}=?{cursor} "
-                f"ORDER BY recorded_at_utc,{event_id_column} LIMIT ?",
+                "SELECT recorded_at_utc,authority_kind,immutable_id,event_kind,command_id,"
+                "source_kind,source_id FROM (" + union + ")" + where
+                + " ORDER BY recorded_at_utc DESC,authority_kind ASC,immutable_id DESC LIMIT ?",
                 (*params, limit + 1),
             ).fetchall()
             page = rows[:limit]
-            audit = snapshot.connection.execute(
-                "SELECT audit_event_id,action_type,command_id,recorded_at_utc "
-                "FROM audit_events WHERE target_id=? ORDER BY recorded_at_utc,audit_event_id",
-                (identity,),
-            ).fetchall()
             return {
-                "target_kind": target_kind,
-                "target_id": identity,
-                "domain_events": [
+                "items": [
                     {
-                        "event_id": str(x[0]),
-                        "event_kind": str(x[1]),
-                        "recorded_at_utc": int(x[2]),
-                        "command_id": str(x[3]),
+                        "recorded_at_utc": int(row[0]),
+                        "authority_kind": str(row[1]),
+                        "immutable_event_or_relation_id": str(row[2]),
+                        "event_kind": str(row[3]),
+                        "command_id": None if row[4] is None else str(row[4]),
+                        "source_ref": (
+                            None
+                            if row[5] is None
+                            else {"kind": str(row[5]), "id": str(row[6])}
+                        ),
                     }
-                    for x in page
+                    for row in page
                 ],
-                "audit_refs": [
-                    {
-                        "audit_event_id": str(x[0]),
-                        "action_type": str(x[1]),
-                        "command_id": str(x[2]),
-                        "recorded_at_utc": int(x[3]),
-                    }
-                    for x in audit
-                ],
-                "continuation": int(page[-1][2]) if len(rows) > limit and page else None,
+                "continuation": (
+                    _history_cursor(
+                        row=page[-1],
+                        filter_fingerprint=filter_fingerprint,
+                    )
+                    if len(rows) > limit and page
+                    else None
+                ),
             }
 
 
