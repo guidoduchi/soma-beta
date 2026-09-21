@@ -84,6 +84,31 @@ def test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived(
         reason_code="warehouse rejection",
     )
     current = _current_members(factory, tag_id)
+    rejected_current = next(
+        item for item in current if item.fault_tag_membership_id == rejected_id
+    )
+    with ReadSnapshot(factory) as snapshot:
+        rejection_event = snapshot.connection.execute(
+            "SELECT event_kind,reason_code FROM fault_tag_membership_events "
+            "WHERE membership_event_id=(SELECT last_event_id "
+            "FROM fault_tag_membership_current WHERE fault_tag_membership_id=?)",
+            (rejected_id,),
+        ).fetchone()
+        rejected_rma = str(
+            snapshot.connection.execute(
+                "SELECT rma_id FROM fault_tag_memberships "
+                "WHERE fault_tag_membership_id=?",
+                (rejected_id,),
+            ).fetchone()[0]
+        )
+        obligation = snapshot.connection.execute(
+            "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?",
+            (rejected_rma,),
+        ).fetchone()
+    assert tuple(rejection_event) == ("warehouse_rejected", "warehouse rejection")
+    assert rejected_current.state == "warehouse_rejected"
+    assert str(obligation[0]) == "open"
+
     remaining = tuple(
         item for item in current if item.fault_tag_membership_id != rejected_id
     )

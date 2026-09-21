@@ -70,42 +70,80 @@ def test_warehouse_receipt_and_final_batches_replay_exactly_t050_t051(initialize
     tags, submitted, rmas = _submitted_tag(factory)
     tag_id = submitted["fault_tag_id"]
     service = InventoryCorrectionsBulkService(factory) if bulk else tags
-    original_receipt = None
-    for action in ("warehouse_receipt", "warehouse_accept"):
-        members = _current_members(factory, tag_id)
-        command = new_uuid4()
-        if bulk:
-            preview = InventoryBulkPreviewQuery(factory).preview(
-                action_kind=action, targets=tuple((item.fault_tag_membership_id, item.revision) for item in members),
-            )
-            args = dict(command_id=command, preview_fingerprint=preview["input_fingerprint"],
-                        action_kind=action, memberships=members,
-                        explicit_confirmation=action == "warehouse_accept")
-            call = service.accept_inventory_bulk_action
-        elif action == "warehouse_receipt":
-            args = dict(command_id=command, memberships=members)
-            call = tags.record_warehouse_receipt
-        else:
-            args = dict(command_id=command, memberships=members, decision="accepted", explicit_confirmation=True)
-            call = tags.record_warehouse_final_decision
-        applied = call(**args)
-        replay = call(**args)
-        assert replay.replayed
-        assert replay.target_refs == applied.target_refs
-        assert replay.revisions == applied.revisions
-        if action == "warehouse_receipt":
-            original_receipt = (call, args, applied)
-        with ReadSnapshot(factory) as snapshot:
-            states = [snapshot.connection.execute(
-                "SELECT obligation_state FROM rma_return_obligation_current WHERE rma_id=?", (identity,),
-            ).fetchone()[0] for identity in rmas]
-        assert states == (["open", "open"] if action == "warehouse_receipt" else ["closed_accepted", "closed_accepted"])
-    # Replay the earlier receipt after the entire warehouse lifecycle advanced.
-    call, args, applied = original_receipt
-    replay = call(**args)
-    assert replay.replayed and replay.target_refs == applied.target_refs
-    assert replay.revisions == applied.revisions
+    original = _members(submitted)
+    selected = original[0]
+    sibling = original[1]
 
+    receipt_command = new_uuid4()
+    if bulk:
+        preview = InventoryBulkPreviewQuery(factory).preview(
+            action_kind="warehouse_receipt",
+            targets=((selected.fault_tag_membership_id, selected.revision),),
+        )
+        receipt_args = dict(
+            command_id=receipt_command,
+            preview_fingerprint=preview["input_fingerprint"],
+            action_kind="warehouse_receipt",
+            memberships=(selected,),
+            explicit_confirmation=False,
+        )
+        receipt_call = service.accept_inventory_bulk_action
+    else:
+        receipt_args = dict(command_id=receipt_command, memberships=(selected,))
+        receipt_call = tags.record_warehouse_receipt
+
+    receipt = receipt_call(**receipt_args)
+    receipt_replay = receipt_call(**receipt_args)
+    assert receipt_replay.replayed
+    assert receipt_replay.target_refs == receipt.target_refs
+    assert receipt_replay.revisions == receipt.revisions
+
+    after_receipt = _current_members(factory, tag_id)
+    by_id = {item.fault_tag_membership_id: item for item in after_receipt}
+    assert by_id[selected.fault_tag_membership_id].state == "warehouse_received"
+    assert by_id[sibling.fault_tag_membership_id].state == "submitted_awaiting_receipt"
+    sibling_after_receipt = _membership_state(factory, sibling.fault_tag_membership_id)
+    assert [_obligation_state(factory, rma_id)[0] for rma_id in rmas] == ["open", "open"]
+
+    accepted_target = by_id[selected.fault_tag_membership_id]
+    final_command = new_uuid4()
+    if bulk:
+        preview = InventoryBulkPreviewQuery(factory).preview(
+            action_kind="warehouse_accept",
+            targets=((accepted_target.fault_tag_membership_id, accepted_target.revision),),
+        )
+        final_args = dict(
+            command_id=final_command,
+            preview_fingerprint=preview["input_fingerprint"],
+            action_kind="warehouse_accept",
+            memberships=(accepted_target,),
+            explicit_confirmation=True,
+        )
+        final_call = service.accept_inventory_bulk_action
+    else:
+        final_args = dict(
+            command_id=final_command,
+            memberships=(accepted_target,),
+            decision="accepted",
+            explicit_confirmation=True,
+        )
+        final_call = tags.record_warehouse_final_decision
+
+    final = final_call(**final_args)
+    final_replay = final_call(**final_args)
+    assert final_replay.replayed
+    assert final_replay.target_refs == final.target_refs
+    assert final_replay.revisions == final.revisions
+
+    assert _obligation_state(factory, rmas[0])[0] == "closed_accepted"
+    assert _obligation_state(factory, rmas[1])[0] == "open"
+    assert _membership_state(factory, sibling.fault_tag_membership_id) == sibling_after_receipt
+
+    # Exact replay remains stable even after the selected member advanced further.
+    late_receipt_replay = receipt_call(**receipt_args)
+    assert late_receipt_replay.replayed
+    assert late_receipt_replay.target_refs == receipt.target_refs
+    assert late_receipt_replay.revisions == receipt.revisions
 
 def test_bulk_drift_aborts_complete_selected_scope_t058(initialized_database):
     factory = _factory(initialized_database)
@@ -131,19 +169,71 @@ def test_bulk_drift_aborts_complete_selected_scope_t058(initialized_database):
 
 def test_warehouse_final_decision_requires_explicit_confirmation_t055(initialized_database):
     factory = _factory(initialized_database)
-    tags, submitted, _ = _submitted_tag(factory)
+    tags, submitted, rmas = _submitted_tag(factory)
     members = _members(submitted)
     tags.record_warehouse_receipt(command_id=new_uuid4(), memberships=members)
+    current = _current_members(factory, submitted["fault_tag_id"])
+    with ReadSnapshot(factory) as snapshot:
+        membership_before = tuple(
+            tuple(row)
+            for row in snapshot.connection.execute(
+                "SELECT * FROM fault_tag_membership_current WHERE fault_tag_id=? "
+                "ORDER BY fault_tag_membership_id",
+                (submitted["fault_tag_id"],),
+            ).fetchall()
+        )
+        obligations_before = tuple(
+            tuple(row)
+            for row in snapshot.connection.execute(
+                "SELECT * FROM rma_return_obligation_current WHERE rma_id IN (?,?) "
+                "ORDER BY rma_id",
+                tuple(rmas),
+            ).fetchall()
+        )
+        projection_before = tuple(
+            snapshot.connection.execute(
+                "SELECT * FROM fault_tag_current_projection WHERE fault_tag_id=?",
+                (submitted["fault_tag_id"],),
+            ).fetchone()
+        )
+
     command = new_uuid4()
     with pytest.raises(SomaError) as rejected:
         tags.record_warehouse_final_decision(
-            command_id=command, memberships=_current_members(factory, submitted["fault_tag_id"]),
-            decision="accepted", explicit_confirmation=False,
-            evidence_kind="indexed_logistics", evidence_id="opaque-message-id",
+            command_id=command,
+            memberships=current,
+            decision="accepted",
+            explicit_confirmation=False,
+            evidence_kind="indexed_logistics",
+            evidence_id="opaque-message-id",
         )
     assert rejected.value.code == "WAREHOUSE_FINAL_CONFIRMATION_REQUIRED"
     with ReadSnapshot(factory) as snapshot:
-        assert snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts WHERE command_id=?", (command,)).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?", (command,),
+        ).fetchone()[0] == 0
+        assert tuple(
+            tuple(row)
+            for row in snapshot.connection.execute(
+                "SELECT * FROM fault_tag_membership_current WHERE fault_tag_id=? "
+                "ORDER BY fault_tag_membership_id",
+                (submitted["fault_tag_id"],),
+            ).fetchall()
+        ) == membership_before
+        assert tuple(
+            tuple(row)
+            for row in snapshot.connection.execute(
+                "SELECT * FROM rma_return_obligation_current WHERE rma_id IN (?,?) "
+                "ORDER BY rma_id",
+                tuple(rmas),
+            ).fetchall()
+        ) == obligations_before
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT * FROM fault_tag_current_projection WHERE fault_tag_id=?",
+                (submitted["fault_tag_id"],),
+            ).fetchone()
+        ) == projection_before
 
 def _membership_state(factory, membership_id):
     with ReadSnapshot(factory) as snapshot:

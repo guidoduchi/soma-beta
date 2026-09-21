@@ -135,6 +135,12 @@ def test_t064_retry_reassigns_only_selected_planning_relation(
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM fault_tag_memberships"
         ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM fault_tag_membership_events"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM inventory_lifecycle_batches"
+        ).fetchone()[0] == 0
 
 
 def test_t065_objective_inventory_context_derives_only_through_member_task(
