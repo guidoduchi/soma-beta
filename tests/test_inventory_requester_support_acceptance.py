@@ -127,7 +127,7 @@ def test_t067_requester_role_preserves_creation_context_and_shows_current_contac
         action="cancelled",
         reason_code="operator_cancelled",
     )
-    assert terminal["state"] == "cancelled"
+    assert terminal["state"] == "terminal"
 
     terminal_detail = query.request_detail(request_id)
     assert terminal_detail["lifecycle_state"] == "cancelled"
