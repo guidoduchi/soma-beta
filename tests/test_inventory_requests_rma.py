@@ -696,25 +696,23 @@ def test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserv
     sr, _need_id, service, request_id, revision = _prepare_submitted_request(
         factory,
         official_sr="97100010",
-        request_quantity=4,
-        target_count=4,
+        request_quantity=60,
+        target_count=60,
         bom="RMA-ORDER",
     )
+    first_c10s = [f"C{1000 + index:010d}" for index in range(30)]
     first = service.accept_rma_authorization_batch(
         command_id=new_uuid4(),
         spare_request_id=request_id,
         expected_request_revision=revision,
-        rows=(
-            RmaAuthorizationIntent("C0000000010", "RMA-ORDER"),
-            RmaAuthorizationIntent("C0000000011", "RMA-ORDER"),
+        rows=tuple(
+            RmaAuthorizationIntent(c10, "RMA-ORDER")
+            for c10 in first_c10s
         ),
         accepted_at_utc=2_200,
     )
-    assert first["remaining_unassigned_quantity"] == 2
-    assert [item["current_c10"] for item in first["created_rmas"]] == [
-        "C0000000010",
-        "C0000000011",
-    ]
+    assert first["remaining_unassigned_quantity"] == 30
+    assert [item["current_c10"] for item in first["created_rmas"]] == first_c10s
 
     with ReadSnapshot(factory) as snapshot:
         targets = [
@@ -727,6 +725,7 @@ def test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserv
                 (sr.service_request_id, sr.service_request_id),
             ).fetchall()
         ]
+        assert len(targets) == 60
         first_assignments = [
             str(row[0])
             for row in snapshot.connection.execute(
@@ -737,25 +736,27 @@ def test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserv
                 (request_id,),
             ).fetchall()
         ]
-        assert first_assignments == targets[:2]
+        assert first_assignments == targets[:30]
         request_projection = snapshot.connection.execute(
             "SELECT lifecycle_state,authorized_rma_count,revision "
             "FROM spare_request_current_projection WHERE spare_request_id=?",
             (request_id,),
         ).fetchone()
-        assert tuple(request_projection) == ("partially_authorized", 2, revision + 1)
+        assert tuple(request_projection) == ("partially_authorized", 30, revision + 1)
 
+    second_c10s = [f"C{1000 + index:010d}" for index in range(30, 60)]
     second = service.accept_rma_authorization_batch(
         command_id=new_uuid4(),
         spare_request_id=request_id,
         expected_request_revision=revision + 1,
-        rows=(
-            RmaAuthorizationIntent("C0000000012", "RMA-ORDER"),
-            RmaAuthorizationIntent("C0000000013", "RMA-ORDER"),
+        rows=tuple(
+            RmaAuthorizationIntent(c10, "RMA-ORDER")
+            for c10 in second_c10s
         ),
         accepted_at_utc=2_300,
     )
     assert second["remaining_unassigned_quantity"] == 0
+    assert [item["current_c10"] for item in second["created_rmas"]] == second_c10s
     with ReadSnapshot(factory) as snapshot:
         assignments = [
             str(row[0])
@@ -774,7 +775,7 @@ def test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserv
             "FROM spare_request_current_projection WHERE spare_request_id=?",
             (request_id,),
         ).fetchone()
-        assert tuple(projection) == ("authorized", 4, revision + 2)
+        assert tuple(projection) == ("authorized", 60, revision + 2)
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM spare_part_units WHERE origin_rma_id IS NOT NULL"
         ).fetchone()[0] == 0
@@ -822,6 +823,14 @@ def test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction(
                 (sr.service_request_id, assigned_id),
             ).fetchall()
         ]
+        rma_root_before = tuple(
+            snapshot.connection.execute(
+                "SELECT spare_request_id,authorization_batch_id,response_ordinal,"
+                "promised_bom_code,promised_bom_key,created_at_utc,created_command_id "
+                "FROM rmas WHERE rma_id=?",
+                (assigned_id,),
+            ).fetchone()
+        )
     alternate = next(item for item in candidates if item != first_target)
     reassigned = service.set_rma_target_assignment(
         command_id=new_uuid4(),
@@ -855,6 +864,14 @@ def test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction(
         assert str(auto_assign[0][1]) == first_target
         assert str(reassign[0][0]) == first_target
         assert str(reassign[0][1]) == alternate
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT spare_request_id,authorization_batch_id,response_ordinal,"
+                "promised_bom_code,promised_bom_key,created_at_utc,created_command_id "
+                "FROM rmas WHERE rma_id=?",
+                (assigned_id,),
+            ).fetchone()
+        ) == rma_root_before
         aliases = snapshot.connection.execute(
             "SELECT c10,alias_kind FROM rma_identifier_aliases WHERE rma_id=? ORDER BY c10",
             (assigned_id,),
@@ -867,6 +884,22 @@ def test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction(
             "SELECT COUNT(*) FROM spare_part_units WHERE origin_rma_id IN (?,?)",
             (assigned_id, unassigned_id),
         ).fetchone()[0] == 0
+
+    conflict_command = new_uuid4()
+    with pytest.raises(SomaError) as conflict:
+        service.correct_rma_official_id(
+            command_id=conflict_command,
+            rma_id=unassigned_id,
+            current_c10="C0000000021",
+            new_c10="C0000000020",
+            reason_code="attempt to reuse former C10",
+        )
+    assert conflict.value.code == "C10_CONFLICT"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (conflict_command,),
+        ).fetchone() is None
 
 
 def test_t032_rma_receipt_creates_actual_direct_inbound_unit_without_overwriting_promise(
