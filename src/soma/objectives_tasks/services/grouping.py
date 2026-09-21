@@ -4,13 +4,27 @@ from dataclasses import dataclass
 from typing import Any
 
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
+from soma.foundation.application.command_receipts import CommandReceiptStore
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.errors import (
+    IdempotencyResultUnavailable,
+    IntegrityFailure,
+    SomaError,
+    ValidationError,
+)
 from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
+from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import UnitOfWork
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 
 from ..audit_registry import build_objectives_tasks_audit_registry
+from ..jobs import (
+    GROUPING_ORIGINS,
+    GROUPING_RECOMPUTE_JOB_CONTRACT_VERSION,
+    GROUPING_RECOMPUTE_JOB_TYPE,
+    OBJECTIVES_TASKS_JOB_CONTRACTS,
+    derive_grouping_recompute_dedupe_key,
+)
 from ..domain.grouping import (
     GroupingObjectiveAuthority,
     GroupingObjectiveChange,
@@ -23,6 +37,9 @@ from ..repositories.grouping import RegroupProposalRepository
 from ..repositories.objectives import ObjectiveProjectionRepository
 from .objectives import ObjectiveService
 from .task_planning import validate_task_reason_category
+
+
+_GROUPING_WORKSET_SOFT_THRESHOLD = 100_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,11 +60,76 @@ def _fingerprint(value: str) -> str:
 
 class GroupingService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
         self._objectives = ObjectiveProjectionRepository()
+        self._receipt_store = CommandReceiptStore()
+        self._jobs = DurableJobCoordinator(
+            connection_factory,
+            JobTypeRegistry(OBJECTIVES_TASKS_JOB_CONTRACTS),
+        )
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_objectives_tasks_audit_registry()),
         )
+
+    @staticmethod
+    def _receipt_count(reader: Any) -> int:
+        row = reader.execute("SELECT COUNT(*) FROM command_receipts").fetchone()
+        if row is None:
+            raise IntegrityFailure("command receipt count is unavailable")
+        return int(row[0])
+
+    @staticmethod
+    def _eligible_workset_count(reader: Any) -> int:
+        invalid = reader.execute(
+            "SELECT 1 FROM objective_task_membership_current m "
+            "LEFT JOIN objectives o ON o.objective_id=m.objective_id "
+            "LEFT JOIN objective_envelope_projection e ON e.objective_id=m.objective_id "
+            "LEFT JOIN objective_aggregate_projection a ON a.objective_id=m.objective_id "
+            "WHERE o.objective_id IS NULL OR o.superseded_by_objective_id IS NOT NULL "
+            "OR e.objective_id IS NULL OR a.objective_id IS NULL LIMIT 1"
+        ).fetchone()
+        if invalid is not None:
+            raise IntegrityFailure(
+                "Task membership points to missing or noncurrent Objective authority"
+            )
+        row = reader.execute(
+            "SELECT COUNT(*) FROM tasks t "
+            "JOIN task_plan_current pc ON pc.task_id=t.task_id "
+            "JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
+            "LEFT JOIN objective_task_membership_current m ON m.task_id=t.task_id "
+            "LEFT JOIN task_lock_projection l ON l.task_id=t.task_id "
+            "LEFT JOIN task_execution_projection x ON x.task_id=t.task_id "
+            "LEFT JOIN task_outcome_current oc ON oc.task_id=t.task_id "
+            "LEFT JOIN objectives o ON o.objective_id=m.objective_id "
+            "LEFT JOIN objective_aggregate_projection a ON a.objective_id=m.objective_id "
+            "WHERE oc.accepted_outcome IS NULL "
+            "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
+            "AND COALESCE(l.explicit_membership_lock,0)=0 "
+            "AND (m.objective_id IS NULL OR ("
+            "o.superseded_by_objective_id IS NULL "
+            "AND o.creation_origin<>'historical_provider_complete' "
+            "AND a.execution_state NOT IN ('reviewed','superseded','historical_structure')"
+            "))"
+        ).fetchone()
+        if row is None:
+            raise IntegrityFailure("grouping workset count is unavailable")
+        return int(row[0])
+
+    def _probe_replay(self, envelope: CommandEnvelope) -> dict[str, object] | None:
+        request_hash = envelope.request_hash()
+        with ReadSnapshot(self._factory) as snapshot:
+            existing = self._receipt_store.get(snapshot, envelope.command_id)  # type: ignore[arg-type]
+            if existing is None:
+                return None
+            CommandBoundary._assert_replay_match(existing, envelope, request_hash)
+            exact = self._receipt_store.get_exact_result(snapshot, envelope.command_id)  # type: ignore[arg-type]
+            if exact is None:
+                raise IdempotencyResultUnavailable()
+            response = CommandBoundary._decode_stored_response(exact)
+            if not isinstance(response, dict):
+                raise IntegrityFailure("grouping recompute replay result is not an object")
+            return response
 
     @staticmethod
     def _load_snapshot(connection: Any) -> _GroupingSnapshot:
@@ -146,19 +228,47 @@ class GroupingService:
         snapshot = cls._load_snapshot(connection)
         components = strict_overlap_components(snapshot.tasks)
         split_objectives = cls._split_objectives(components)
+        ordered_objectives = sorted(
+            snapshot.objectives.values(),
+            key=lambda item: (
+                item.start_utc,
+                item.end_utc,
+                item.tracking_sequence,
+                item.objective_id,
+            ),
+        )
+        members_by_objective: dict[str, list[GroupingTaskAuthority]] = {}
+        task_by_id = {task.task_id: task for task in snapshot.tasks}
+        for task in snapshot.tasks:
+            if task.membership_objective_id is not None:
+                members_by_objective.setdefault(
+                    task.membership_objective_id,
+                    [],
+                ).append(task)
+        objective_cursor = 0
         candidates: list[RegroupCandidate] = []
         for component in components:
             start = min(task.start_utc for task in component)
             end = max(task.end_utc for task in component)
-            component_task_ids = {task.task_id for task in component}
             objective_ids = {
                 task.membership_objective_id
                 for task in component
                 if task.membership_objective_id is not None
             }
-            for objective in snapshot.objectives.values():
-                if objective.start_utc < end and objective.end_utc > start:
+            while (
+                objective_cursor < len(ordered_objectives)
+                and ordered_objectives[objective_cursor].end_utc <= start
+            ):
+                objective_cursor += 1
+            scan_index = objective_cursor
+            while (
+                scan_index < len(ordered_objectives)
+                and ordered_objectives[scan_index].start_utc < end
+            ):
+                objective = ordered_objectives[scan_index]
+                if objective.end_utc > start:
                     objective_ids.add(objective.objective_id)
+                scan_index += 1
             objective_ids.discard(None)
             affected = tuple(
                 sorted(
@@ -260,8 +370,8 @@ class GroupingService:
                 affected_ids = {item.objective_id for item in affected}
                 all_members = [
                     task
-                    for task in snapshot.tasks
-                    if task.membership_objective_id in affected_ids
+                    for objective_id in affected_ids
+                    for task in members_by_objective.get(objective_id, ())
                 ]
                 if {
                     task.membership_objective_id for task in all_members
@@ -308,13 +418,7 @@ class GroupingService:
 
             material_task_ids = {item.task_id for item in task_changes}
             material_tasks = tuple(
-                sorted(
-                    (
-                        task for task in snapshot.tasks
-                        if task.task_id in material_task_ids
-                    ),
-                    key=lambda item: item.task_id,
-                )
+                task_by_id[task_id] for task_id in sorted(material_task_ids)
             )
             candidate = RegroupCandidate(
                 proposal_kind=proposal_kind,
@@ -339,6 +443,23 @@ class GroupingService:
         )
         return tuple(candidates)
 
+    @staticmethod
+    def _recompute_response(
+        *,
+        execution_mode: str,
+        job_id: str | None,
+        items: list[dict[str, object]],
+    ) -> dict[str, object]:
+        return {
+            "execution_mode": execution_mode,
+            "job_id": job_id,
+            "proposals": {
+                "items": items,
+                "continuation": None,
+                "exact_total": len(items),
+            },
+        }
+
     def recompute_grouping_proposals(
         self,
         *,
@@ -347,10 +468,7 @@ class GroupingService:
         actor_kind: str = "local_user",
         actor_id: str | None = None,
     ) -> dict[str, object]:
-        if origin not in {
-            "task_created", "task_plan_changed", "source_plan_adopted",
-            "manual_request", "retry_created", "objective_edit"
-        }:
+        if origin not in GROUPING_ORIGINS:
             raise ValidationError("grouping origin is invalid")
         envelope = CommandEnvelope(
             command_id=command_id,
@@ -360,15 +478,101 @@ class GroupingService:
             semantic_payload={"origin": origin},
         )
 
+        replay = self._probe_replay(envelope)
+        if replay is not None:
+            return replay
+
+        with ReadSnapshot(self._factory) as snapshot:
+            workset_count = self._eligible_workset_count(snapshot.connection)
+            if workset_count > _GROUPING_WORKSET_SOFT_THRESHOLD:
+                snapshot_receipt_count = None
+                candidates: tuple[RegroupCandidate, ...] = ()
+            else:
+                snapshot_receipt_count = self._receipt_count(snapshot.connection)
+                candidates = self._candidates(snapshot.connection, origin=origin)
+
         def prepare(uow: UnitOfWork) -> PreparedMutation:
-            candidates = self._candidates(uow.connection, origin=origin)
+            current_count = self._eligible_workset_count(uow.connection)
+            if workset_count > _GROUPING_WORKSET_SOFT_THRESHOLD:
+                if current_count <= _GROUPING_WORKSET_SOFT_THRESHOLD:
+                    raise SomaError(
+                        "GROUPING_INDETERMINATE",
+                        "grouping workset crossed the durable threshold; recompute must retry",
+                    )
+
+                def apply_deferred(inner: UnitOfWork):
+                    payload = {
+                        "origin": origin,
+                        "requested_by_command_id": command_id,
+                    }
+                    dedupe_key = derive_grouping_recompute_dedupe_key(payload)
+                    job_id = self._jobs.enqueue_or_coalesce(
+                        inner,
+                        GROUPING_RECOMPUTE_JOB_TYPE,
+                        GROUPING_RECOMPUTE_JOB_CONTRACT_VERSION,
+                        payload,
+                        dedupe_key,
+                    )
+                    apply_deferred.job_id = job_id
+                    return AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="grouping.recompute_deferred",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="grouping",
+                        target_id=None,
+                        command_id=command_id,
+                        job_id=job_id,
+                        payload_schema="GroupingRecomputeDeferredAuditV1",
+                        payload_version=1,
+                        payload={
+                            "job_id": job_id,
+                            "origin": origin,
+                            "workset_exact_count": current_count,
+                            "soft_threshold": _GROUPING_WORKSET_SOFT_THRESHOLD,
+                            "execution_mode": "durable_job",
+                        },
+                        resulting_event_refs=(
+                            AuditResultRef("durable_job", job_id),
+                        ),
+                    )
+
+                apply_deferred.job_id = None
+                return PreparedMutation(
+                    False,
+                    "durable_job",
+                    None,
+                    apply_deferred,
+                    response_schema="GroupingRecomputeResultV1",
+                    response_factory=lambda _inner: self._recompute_response(
+                        execution_mode="durable_job",
+                        job_id=apply_deferred.job_id,
+                        items=[],
+                    ),
+                )
+
+            if (
+                current_count != workset_count
+                or snapshot_receipt_count is None
+                or self._receipt_count(uow.connection) != snapshot_receipt_count
+            ):
+                raise SomaError(
+                    "GROUPING_INDETERMINATE",
+                    "grouping authority changed after the stable read Snapshot",
+                )
+
             material = [
-                candidate for candidate in candidates
+                candidate
+                for candidate in candidates
                 if RegroupProposalRepository.exact_pending_by_fingerprint(
-                    uow.connection, candidate.input_fingerprint
-                ) is None
+                    uow.connection,
+                    candidate.input_fingerprint,
+                )
+                is None
                 and not RegroupProposalRepository.rejection_suppressed(
-                    uow.connection, candidate.input_fingerprint
+                    uow.connection,
+                    candidate.input_fingerprint,
                 )
             ]
             if not material:
@@ -376,18 +580,26 @@ class GroupingService:
                     True,
                     None,
                     None,
-                    response_schema="GroupingProposalPageV1",
+                    response_schema="GroupingRecomputeResultV1",
                     response_version=1,
-                    response={"items": [], "continuation": None},
+                    response=self._recompute_response(
+                        execution_mode="synchronous",
+                        job_id=None,
+                        items=[],
+                    ),
                 )
+
             proposal_ids = [new_uuid4() for _ in material]
             first_id = proposal_ids[0]
 
-            def apply(inner: UnitOfWork):
+            def apply_sync(inner: UnitOfWork):
                 audits: list[AuditEventInput] = []
                 items: list[dict[str, object]] = []
-                for proposal_id, candidate in zip(proposal_ids, material, strict=True):
-                    # Insert with prebound proposal identity for replay-safe receipt/result.
+                for proposal_id, candidate in zip(
+                    proposal_ids,
+                    material,
+                    strict=True,
+                ):
                     now = utc_epoch_seconds()
                     inner.connection.execute(
                         "INSERT INTO regroup_proposals("
@@ -413,11 +625,15 @@ class GroupingService:
                             "expected_membership_revision,change_kind"
                             ") VALUES (?,?,?,?,?,?,?,?,?)",
                             (
-                                new_uuid4(), proposal_id, change.task_id,
-                                change.from_objective_id, change.to_objective_id,
+                                new_uuid4(),
+                                proposal_id,
+                                change.task_id,
+                                change.from_objective_id,
+                                change.to_objective_id,
                                 change.expected_task_revision,
                                 change.expected_current_plan_revision_id,
-                                change.expected_membership_revision, change.change_kind,
+                                change.expected_membership_revision,
+                                change.change_kind,
                             ),
                         )
                     for change in candidate.objective_changes:
@@ -427,7 +643,10 @@ class GroupingService:
                             "expected_objective_revision,expected_envelope_revision"
                             ") VALUES (?,?,?,?,?,?)",
                             (
-                                new_uuid4(), proposal_id, change.objective_id, change.action,
+                                new_uuid4(),
+                                proposal_id,
+                                change.objective_id,
+                                change.action,
                                 change.expected_objective_revision,
                                 change.expected_envelope_revision,
                             ),
@@ -472,20 +691,21 @@ class GroupingService:
                             ),
                         )
                     )
-                apply.items = items
+                apply_sync.items = items
                 return tuple(audits)
 
-            apply.items = []
+            apply_sync.items = []
             return PreparedMutation(
                 False,
                 "grouping_proposal",
                 first_id,
-                apply,
-                response_schema="GroupingProposalPageV1",
-                response_factory=lambda _inner: {
-                    "items": list(apply.items),
-                    "continuation": None,
-                },
+                apply_sync,
+                response_schema="GroupingRecomputeResultV1",
+                response_factory=lambda _inner: self._recompute_response(
+                    execution_mode="synchronous",
+                    job_id=None,
+                    items=list(apply_sync.items),
+                ),
             )
 
         return self._boundary.execute(envelope, prepare).response
