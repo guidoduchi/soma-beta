@@ -5,6 +5,7 @@ import pytest
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.strict_json import loads_canonical_json
 from soma.inventory.domain.requests import SpareRequestAllocationIntent
 from soma.inventory.domain.rmas import RmaAuthorizationIntent
 from soma.inventory.services.needs_stock import InventoryNeedsStockService
@@ -468,7 +469,8 @@ def test_t017_t019_submission_freezes_exact_snapshot_and_starts_warning_chronolo
         snapshot_id = str(projection[1])
         frozen = snapshot.connection.execute(
             "SELECT temporary_tracking_id,mode,receiver_contact_id,dispatch_location_id,"
-            "location_name_snapshot,location_address_snapshot,effective_submission_at_utc "
+            "location_name_snapshot,location_address_snapshot,recipient_context_json,"
+            "effective_submission_at_utc "
             "FROM spare_request_submission_snapshots WHERE submission_snapshot_id=?",
             (snapshot_id,),
         ).fetchone()
@@ -480,7 +482,17 @@ def test_t017_t019_submission_freezes_exact_snapshot_and_starts_warning_chronolo
         )
         assert str(frozen[4]) == "Warehouse SUB"
         assert str(frozen[5]) == "SUB test address"
-        assert int(frozen[6]) == 1_000
+        assert loads_canonical_json(
+            str(frozen[6]),
+            max_bytes=4096,
+            max_depth=4,
+            max_collection_items=32,
+        ) == {
+            "contact_id": contact.contact_id,
+            "contact_revision_at_submission": 1,
+            "display_name_snapshot": "Submission Receiver",
+        }
+        assert int(frozen[7]) == 1_000
         allocation = snapshot.connection.execute(
             "SELECT spare_need_id,quantity,requested_bom_code "
             "FROM spare_request_submission_allocations WHERE submission_snapshot_id=?",
