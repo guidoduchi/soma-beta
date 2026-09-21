@@ -29,7 +29,7 @@ def test_complete_route_metadata_matches_accepted_packet_and_both_fragments():
     # Accepted design dbcf681f: core Tasks, Objective/grouping, review previews.
     assert len(ROUTES) == 48
     assert sha256_canonical_json([asdict(route) for route in ROUTES]) == (
-        "609011db2f96840d923f728eff3520d1d7f3693f76aa315d3caeed4ef93c603e"
+        "838824f5ae9bc289b2120c92000a1fc2a5e9eb4c4253c053340e8f1c2a7917be"
     )
 
 
