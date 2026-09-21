@@ -560,8 +560,26 @@ class GroupingService:
             for row in objective_rows
         ]
         expected_objectives = [item.value() for item in candidate.objective_changes]
-        if persisted_tasks != expected_tasks or persisted_objectives != expected_objectives:
-            raise SomaError("GROUPING_PROPOSAL_STALE", "persisted regroup diff disagrees with current material input")
+
+        task_key = lambda item: (
+            str(item["task_id"]),
+            "" if item["from_objective_id"] is None else str(item["from_objective_id"]),
+            "" if item["to_objective_id"] is None else str(item["to_objective_id"]),
+            str(item["change_kind"]),
+        )
+        objective_key = lambda item: (
+            "" if item["objective_id"] is None else str(item["objective_id"]),
+            str(item["action"]),
+        )
+        if (
+            sorted(persisted_tasks, key=task_key) != sorted(expected_tasks, key=task_key)
+            or sorted(persisted_objectives, key=objective_key)
+            != sorted(expected_objectives, key=objective_key)
+        ):
+            raise SomaError(
+                "GROUPING_PROPOSAL_STALE",
+                "persisted regroup diff disagrees with current material input",
+            )
 
     @staticmethod
     def _rebuild_survivor_envelope(

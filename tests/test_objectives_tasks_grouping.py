@@ -345,7 +345,16 @@ def test_t010_grouping_is_global_and_multi_customer_context_is_explicit(
         proposal_revision=1,
         input_fingerprint=str(detail["input_fingerprint"]),
     )
-    objective_id = str(accepted["objective_id"])
+    assert accepted["state"] == "accepted"
+    with ReadSnapshot(factory) as snapshot:
+        objective_rows = snapshot.connection.execute(
+            "SELECT objective_id FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?,?) ORDER BY objective_id",
+            (first.task_id, second.task_id, third.task_id),
+        ).fetchall()
+    assert len(objective_rows) == 3
+    assert len({str(row[0]) for row in objective_rows}) == 1
+    objective_id = str(objective_rows[0][0])
     context = ObjectiveQueryService(factory).context_by_task_relationships(
         objective_id,
         limit=100,
