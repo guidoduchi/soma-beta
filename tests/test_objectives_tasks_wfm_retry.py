@@ -5,7 +5,12 @@ import pytest
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
+from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
+from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.queries.task_activity_review import WfmActivityRelationshipReviewQueryService
+from soma.objectives_tasks.services.grouping import GroupingService
+from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.retries import TaskRetryService
 from soma.objectives_tasks.services.task_activity_review import WfmActivityRelationshipReviewService
 from soma.objectives_tasks.services.task_planning import TaskPlanningService
@@ -422,3 +427,159 @@ def test_local_retry_creates_new_task_plan_and_immutable_edge(
     assert tuple(edge) == (predecessor.task_id, retry.task_id)
     assert str(plan[0]) == "retry_clone"
     assert plan[1] is not None
+
+
+def _retry_objective_intent(factory, task_id: str) -> ObjectiveExistingTaskIntent:
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT t.revision,pc.revision,pc.plan_revision_id "
+            "FROM tasks t JOIN task_plan_current pc ON pc.task_id=t.task_id "
+            "WHERE t.task_id=?",
+            (task_id,),
+        ).fetchone()
+    assert row is not None
+    return ObjectiveExistingTaskIntent(
+        task_id=task_id,
+        expected_task_revision=int(row[0]),
+        expected_plan_revision=int(row[1]),
+        expected_plan_revision_id=str(row[2]),
+    )
+
+
+def _create_retry_predecessor_objective(factory, task_id: str) -> str:
+    intent = _retry_objective_intent(factory, task_id)
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(intent,),
+    )
+    assert preview["mode"] == "CREATE"
+    return ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=(intent,),
+    ).objective_id
+
+
+def test_t030_retry_objective_context_is_derived_only_from_current_intervals(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    planning = TaskPlanningService(factory)
+    first = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Retry predecessor one",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_710_000_000,
+            end_utc=2_710_000_100,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    second = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Retry predecessor two",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_710_000_300,
+            end_utc=2_710_000_400,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    first_objective = _create_retry_predecessor_objective(factory, first.task_id)
+    second_objective = _create_retry_predecessor_objective(factory, second.task_id)
+    assert first_objective != second_objective
+
+    retry_service = TaskRetryService(factory)
+    first_retry = retry_service.create_local_task_retry(
+        command_id=new_uuid4(),
+        predecessor_task_id=first.task_id,
+        predecessor_task_revision=first.revision,
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_710_001_000,
+            end_utc=2_710_001_300,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    second_retry = retry_service.create_local_task_retry(
+        command_id=new_uuid4(),
+        predecessor_task_id=second.task_id,
+        predecessor_task_revision=second.revision,
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_710_001_100,
+            end_utc=2_710_001_400,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+
+    grouping = GroupingService(factory)
+    page = grouping.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    matching = []
+    query = ObjectiveGroupingQueryService(factory)
+    for item in page["items"]:
+        detail = query.proposal_detail(str(item["proposal_id"]))
+        changed = {
+            str(row["task_id"])
+            for row in detail["task_changes"]
+            if str(row["change_kind"]) != "unchanged_context"
+        }
+        if changed == {first_retry.task_id, second_retry.task_id}:
+            matching.append(detail)
+    assert len(matching) == 1
+    proposal = matching[0]
+    assert proposal["proposal_kind"] == "create"
+    assert proposal["component_envelope"] == {
+        "start_utc": 2_710_001_000,
+        "end_utc": 2_710_001_400,
+    }
+
+    accepted = grouping.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(proposal["proposal_id"]),
+        proposal_revision=int(proposal["revision"]),
+        input_fingerprint=str(proposal["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+
+    with ReadSnapshot(factory) as snapshot:
+        retry_memberships = snapshot.connection.execute(
+            "SELECT task_id,objective_id FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?) ORDER BY task_id",
+            (first_retry.task_id, second_retry.task_id),
+        ).fetchall()
+        assert len(retry_memberships) == 2
+        retry_objective_ids = {str(row[1]) for row in retry_memberships}
+        assert len(retry_objective_ids) == 1
+        retry_objective = next(iter(retry_objective_ids))
+        assert retry_objective not in {first_objective, second_objective}
+
+        edges = snapshot.connection.execute(
+            "SELECT predecessor_task_id,successor_task_id FROM task_retry_relations "
+            "WHERE predecessor_task_id IN (?,?) ORDER BY predecessor_task_id",
+            (first.task_id, second.task_id),
+        ).fetchall()
+        assert {tuple(row) for row in edges} == {
+            (first.task_id, first_retry.task_id),
+            (second.task_id, second_retry.task_id),
+        }
+
+        objective_columns = {
+            str(row[1])
+            for row in snapshot.connection.execute(
+                "PRAGMA table_info(objectives)"
+            ).fetchall()
+        }
+        assert not any("predecessor" in column for column in objective_columns)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sqlite_master "
+            "WHERE type='table' AND name LIKE 'objective%retry%'"
+        ).fetchone()[0] == 0
+
+        original_memberships = snapshot.connection.execute(
+            "SELECT task_id,objective_id FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?) ORDER BY task_id",
+            (first.task_id, second.task_id),
+        ).fetchall()
+        assert {tuple(row) for row in original_memberships} == {
+            (first.task_id, first_objective),
+            (second.task_id, second_objective),
+        }

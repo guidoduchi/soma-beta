@@ -10,12 +10,14 @@ from soma.objectives_tasks.domain.objectives import (
     ObjectiveDraftLocalTaskIntent,
     ObjectiveExistingTaskIntent,
 )
+from soma.objectives_tasks.queries.execution_review import TaskOutcomeReviewQueryService
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.queries.hard_delete import ObjectiveHardDeleteQueryService
 from soma.objectives_tasks.queries.objectives import ObjectiveQueryService
 from soma.objectives_tasks.services.hard_delete import ObjectiveHardDeleteService
 from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.task_execution import TaskExecutionService
+from soma.objectives_tasks.services.task_review import TaskReviewService
 
 
 TZ = "America/Guayaquil"
@@ -339,3 +341,122 @@ def test_objective_hard_delete_retains_tasks_and_removes_only_baseline_membershi
             "SELECT 1 FROM task_plan_current WHERE task_id=?",
             (task.task_id,),
         ).fetchone() is not None
+
+
+def test_t026_reviewed_at_is_never_execution_time_and_queries_keep_them_separate(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    import soma.objectives_tasks.services.objectives as objective_service_module
+    import soma.objectives_tasks.services.task_review as task_review_module
+
+    factory = _factory(initialized_database)
+    planning = TaskPlanningService(factory)
+    task = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Review timestamp separation",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_700_000_000,
+            end_utc=2_700_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intent = _existing_intent(factory, task.task_id)
+    grouping = ObjectiveGroupingQueryService(factory)
+    creation = grouping.creation_preview(existing_tasks=(intent,))
+    objective = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(creation["fingerprint"]),
+        existing_tasks=(intent,),
+    )
+
+    execution = TaskExecutionService(factory)
+    started = execution.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=task.revision,
+        execution_revision=0,
+        effective_start_utc=2_700_000_100,
+    )
+    ended = execution.end_task_execution(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=started.revision,
+        execution_revision=1,
+        effective_end_utc=2_700_000_200,
+    )
+
+    task_reviewed_at = 2_700_010_000
+    monkeypatch.setattr(
+        task_review_module,
+        "utc_epoch_seconds",
+        lambda: task_reviewed_at,
+    )
+    preview = TaskOutcomeReviewQueryService(factory).preview(
+        task_id=task.task_id,
+        task_revision=ended.revision,
+        execution_revision=2,
+        outcome_revision=0,
+        current_outcome_event_id=None,
+        outcome="completed",
+        reason_category=None,
+    )
+    reviewed = TaskReviewService(factory).review_task_outcome(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=ended.revision,
+        execution_revision=2,
+        outcome_revision=0,
+        current_outcome_event_id=None,
+        outcome="completed",
+        reason_category=None,
+        outcome_review_fingerprint=preview.outcome_review_fingerprint,
+    )
+    assert reviewed.outcome == "APPLIED"
+
+    query = ObjectiveQueryService(factory)
+    before_objective_review = query.workbench(objective.objective_id)
+    assert before_objective_review["aggregate_state"]["actual_start_utc"] == 2_700_000_100
+    assert before_objective_review["aggregate_state"]["actual_end_utc"] == 2_700_000_200
+    assert before_objective_review["review"]["latest"] is None
+
+    objective_reviewed_at = 2_700_020_000
+    monkeypatch.setattr(
+        objective_service_module,
+        "utc_epoch_seconds",
+        lambda: objective_reviewed_at,
+    )
+    objective_review = ObjectiveService(factory).review_objective(
+        command_id=new_uuid4(),
+        objective_id=objective.objective_id,
+        review_fingerprint=str(
+            before_objective_review["review"]["review_fingerprint"]
+        ),
+    )
+    assert objective_review.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        execution_row = snapshot.connection.execute(
+            "SELECT actual_start_utc,actual_end_utc,effective_termination_utc "
+            "FROM task_execution_projection WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        outcome_row = snapshot.connection.execute(
+            "SELECT reviewed_at_utc FROM task_outcome_current WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        objective_review_row = snapshot.connection.execute(
+            "SELECT reviewed_at_utc FROM objective_review_events WHERE objective_id=?",
+            (objective.objective_id,),
+        ).fetchone()
+    assert tuple(execution_row) == (2_700_000_100, 2_700_000_200, None)
+    assert int(outcome_row[0]) == task_reviewed_at
+    assert int(objective_review_row[0]) == objective_reviewed_at
+    assert task_reviewed_at != 2_700_000_200
+    assert objective_reviewed_at not in {2_700_000_100, 2_700_000_200}
+
+    detail = query.workbench(objective.objective_id)
+    assert detail["aggregate_state"]["actual_start_utc"] == 2_700_000_100
+    assert detail["aggregate_state"]["actual_end_utc"] == 2_700_000_200
+    assert detail["review"]["latest"]["reviewed_at_utc"] == objective_reviewed_at
+    assert detail["review"]["latest"]["derived_outcome"] == "completed"
