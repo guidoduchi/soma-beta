@@ -135,8 +135,11 @@ def test_warehouse_receipt_and_final_batches_replay_exactly_t050_t051(initialize
     assert final_replay.target_refs == final.target_refs
     assert final_replay.revisions == final.revisions
 
-    assert _obligation_state(factory, rmas[0])[0] == "closed_accepted"
-    assert _obligation_state(factory, rmas[1])[0] == "open"
+    selected_rma = _membership_rma(factory, selected.fault_tag_membership_id)
+    sibling_rma = _membership_rma(factory, sibling.fault_tag_membership_id)
+    assert {selected_rma, sibling_rma} == set(rmas)
+    assert _obligation_state(factory, selected_rma)[0] == "closed_accepted"
+    assert _obligation_state(factory, sibling_rma)[0] == "open"
     assert _membership_state(factory, sibling.fault_tag_membership_id) == sibling_after_receipt
 
     # Exact replay remains stable even after the selected member advanced further.

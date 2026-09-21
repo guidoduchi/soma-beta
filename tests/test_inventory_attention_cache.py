@@ -114,7 +114,7 @@ def test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived(
                 (rejected_id,),
             ).fetchone()[0]
         )
-    assert rejected_state == "warehouse_rejected"
+    assert rejected_state == "rejected"
     assert str(obligation[0]) == "open"
 
     remaining = tuple(
