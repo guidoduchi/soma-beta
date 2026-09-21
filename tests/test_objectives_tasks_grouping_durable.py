@@ -14,7 +14,6 @@ from soma.objectives_tasks.jobs.grouping_recompute import ObjectiveGroupingRecom
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.repositories.grouping import RegroupProposalRepository
 from soma.objectives_tasks.services.grouping import GroupingService
-from soma.objectives_tasks.services import grouping as grouping_module
 
 
 TZ = "America/Guayaquil"
@@ -53,7 +52,11 @@ def test_t039_large_threshold_uses_durable_job_and_replay_precedes_owner_reads(
     factory = _factory(initialized_database)
     _task(factory, "Threshold A", 2_810_000_000, 2_810_000_100)
     _task(factory, "Threshold B", 2_810_000_200, 2_810_000_300)
-    monkeypatch.setattr(grouping_module, "_GROUPING_WORKSET_SOFT_THRESHOLD", 1)
+    monkeypatch.setattr(
+        GroupingService,
+        "_eligible_workset_count",
+        staticmethod(lambda _reader: 100_001),
+    )
 
     service = GroupingService(factory)
     command_id = new_uuid4()
@@ -103,7 +106,11 @@ def test_t039_active_recompute_requests_coalesce_by_origin(
 ) -> None:
     factory = _factory(initialized_database)
     _task(factory, "Coalesce", 2_811_000_000, 2_811_000_100)
-    monkeypatch.setattr(grouping_module, "_GROUPING_WORKSET_SOFT_THRESHOLD", 0)
+    monkeypatch.setattr(
+        GroupingService,
+        "_eligible_workset_count",
+        staticmethod(lambda _reader: 100_001),
+    )
     service = GroupingService(factory)
 
     first = service.recompute_grouping_proposals(
@@ -129,7 +136,11 @@ def test_t039_worker_can_publish_snapshot_candidate_that_becomes_stale_after_dri
 ) -> None:
     factory = _factory(initialized_database)
     _task(factory, "Snapshot A", 2_812_000_000, 2_812_000_200)
-    monkeypatch.setattr(grouping_module, "_GROUPING_WORKSET_SOFT_THRESHOLD", 0)
+    monkeypatch.setattr(
+        GroupingService,
+        "_eligible_workset_count",
+        staticmethod(lambda _reader: 100_001),
+    )
     service = GroupingService(factory)
     deferred = service.recompute_grouping_proposals(
         command_id=new_uuid4(),
@@ -178,7 +189,11 @@ def test_t039_cancelled_job_revokes_worker_claim_without_domain_mutation(
 ) -> None:
     factory = _factory(initialized_database)
     _task(factory, "Cancel durable grouping", 2_813_000_000, 2_813_000_100)
-    monkeypatch.setattr(grouping_module, "_GROUPING_WORKSET_SOFT_THRESHOLD", 0)
+    monkeypatch.setattr(
+        GroupingService,
+        "_eligible_workset_count",
+        staticmethod(lambda _reader: 100_001),
+    )
     deferred = GroupingService(factory).recompute_grouping_proposals(
         command_id=new_uuid4(),
         origin="manual_request",
@@ -210,7 +225,11 @@ def test_t039_publication_failure_rolls_back_and_retry_publishes_once(
 ) -> None:
     factory = _factory(initialized_database)
     _task(factory, "Retry durable grouping", 2_814_000_000, 2_814_000_100)
-    monkeypatch.setattr(grouping_module, "_GROUPING_WORKSET_SOFT_THRESHOLD", 0)
+    monkeypatch.setattr(
+        GroupingService,
+        "_eligible_workset_count",
+        staticmethod(lambda _reader: 100_001),
+    )
     deferred = GroupingService(factory).recompute_grouping_proposals(
         command_id=new_uuid4(),
         origin="manual_request",
