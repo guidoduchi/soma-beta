@@ -5,22 +5,25 @@
   "commands": [
     {
       "name": "RecomputeGroupingProposals",
-      "visibility": "pure/durable proposal calculation",
+      "visibility": "replay-safe command selecting synchronous or durable proposal calculation",
       "input": [
-        "trigger task/objective ids or full recompute request"
+        "origin closed enum",
+        "optional trigger task/objective scope",
+        "command_id"
       ],
       "steps": [
-        "under stable snapshot read compact eligible Task/current-plan/current membership/lock/objective tuples",
-        "run algorithms/overlap-grouping.json globally for affected temporal neighborhood or full workset",
-        "compare desired strict-overlap components/current accepted membership and plan pins",
-        "respect terminal/membership locks and accepted manual exceptions; produce exact create/join/move/repin/consolidate or conflict previews",
-        "suppress exact previously rejected material fingerprint unless explicitly reconsidered",
-        "persist non-authoritative proposal rows in bounded UoW/job transaction"
+        "perform command-receipt replay probe before any Task/Objective owner-state read",
+        "under a stable read Snapshot count/scan the exact eligible grouping workset using indexed compact Task/current-plan/current-membership/lock/objective tuples",
+        "when eligible Task count is at or below bounds.json grouping_workset_soft_threshold, run algorithms/overlap-grouping.json outside BEGIN IMMEDIATE and retain exact candidate material fingerprints/counts for writer revalidation",
+        "when eligible Task count exceeds the soft threshold, enter one short UnitOfWork, recheck replay and threshold precondition, insert the command receipt, enqueue-or-coalesce OBJECTIVE_GROUPING_RECOMPUTE_V1 through the LLD-01 DurableJobCoordinator, emit grouping.recompute_deferred audit, store exact GroupingRecomputeResultV1 and commit",
+        "for synchronous calculation enter one short UnitOfWork, recheck replay plus exact material candidate authority, suppress exact pending/rejected fingerprints as specified, persist non-authoritative proposal rows, audits and exact GroupingRecomputeResultV1",
+        "never mutate Task plan, membership, execution, outcome, Objective accepted topology or provider source authority during recompute"
       ],
       "rules": [
-        "never changes Task plan/membership",
-        "Customer/RFC/work-package partitions are warnings only",
-        "exact-touch alone creates no automatic overlap edge"
+        "Customer/RFC/work-package partitions are warnings only and never partition temporal overlap authority",
+        "exact-touch alone creates no automatic overlap edge",
+        "the 100000-Task threshold selects execution strategy only and is never a product/business maximum",
+        "durable and synchronous paths produce identical proposal/fingerprint semantics for the same stable accepted-state input"
       ]
     },
     {
@@ -141,8 +144,8 @@
     }
   ],
   "grouping_command_contract_v1": {
-    "recompute_result": "GroupingProposalPageV1 over proposals materially created by this invocation. If the current material workset produces no unsuppressed proposal rows, command is semantic NO_CHANGE with empty items/continuation=null and no grouping audit.",
-    "material_receipt": "When one-or-more proposal rows are created, receipt result_type=grouping_proposal and result_id is the first created proposal_id in deterministic fingerprint/proposal-kind order; response includes that proposal.",
+    "recompute_result": "GroupingRecomputeResultV1. execution_mode=synchronous carries job_id=null and the exact GroupingProposalPageV1 materially created by this invocation. execution_mode=durable_job carries the exact queued/coalesced job_id and an empty immediate proposal page; completed proposals are read through GroupingProposalList/Detail. Semantic synchronous no-change returns an empty page with exact_total=0.",
+    "material_receipt": "Synchronous material proposal publication stores result_type=grouping_proposal/result_id=first created proposal_id in deterministic fingerprint/proposal-kind order. Deferred large-workset publication stores result_type=durable_job/result_id=OBJECTIVE_GROUPING_RECOMPUTE_V1 job_id. Synchronous semantic NO_CHANGE stores NO_CHANGE. Exact replay returns the original saved result without owner-state reads.",
     "audit_payload": {
       "schema": "GroupingAuditV1",
       "required_fields": [
@@ -158,6 +161,18 @@
       "event_kind": "RECOMPUTED|ACCEPTED|REJECTED|RECONSIDERED",
       "reason_category": "bounded string|null; required for REJECTED and RECONSIDERED"
     },
-    "decision_response": "AcceptRegroupProposal, RejectRegroupProposal and ReconsiderRegroupInputs each return exact GroupingProposalV1 for the target proposal/rejection input authority; material receipt result_type=grouping_proposal/result_id=proposal_id."
+    "decision_response": "AcceptRegroupProposal, RejectRegroupProposal and ReconsiderRegroupInputs each return exact GroupingProposalV1 for the target proposal/rejection input authority; material receipt result_type=grouping_proposal/result_id=proposal_id.",
+    "deferred_audit_payload": {
+      "schema": "GroupingRecomputeDeferredAuditV1",
+      "required_fields": [
+        "job_id",
+        "origin",
+        "workset_exact_count",
+        "soft_threshold",
+        "execution_mode"
+      ],
+      "execution_mode": "durable_job",
+      "rule": "bounded metadata only; no Task ids, proposal diffs, Customer/RFC bodies or raw source content"
+    }
   }
 }

@@ -213,7 +213,7 @@
       "handler_kind": "command",
       "handler": "RecomputeGroupingProposals",
       "request_type": "RecomputeGroupingProposalsRequestV1",
-      "response_type": "GroupingProposalPageV1",
+      "response_type": "GroupingRecomputeResultV1",
       "success_status": 200,
       "max_request_bytes": 8192,
       "auth_policy": "LLD12_BROWSER_MUTATION_V1",

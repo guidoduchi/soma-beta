@@ -93,7 +93,8 @@
     "migrations",
     "implementation",
     "transitions",
-    "routes"
+    "routes",
+    "jobs"
   ],
   "packet_files": [
     "bounds.json",
@@ -105,6 +106,7 @@
     "routes.json",
     "routes/objectives-grouping.json",
     "technology.json",
+    "jobs/grouping-recompute.json",
     "schema/core.json",
     "schema/task-identity-plan.json",
     "schema/task-execution-outcome.json",
@@ -172,7 +174,8 @@
     "Task execution/outcome corrections append new evidence and rebuild projections atomically without updating prior evidence; Task execution correction that would invalidate a reviewed outcome requires explicit fingerprint-bound acknowledgement and preserves the old outcome evidence rather than silently clearing it; Objective review appends only after exact current member outcomes/inclusion fingerprint is revalidated.",
     "WFM activity-lineage review is one atomic multi-Task mutation: the complete touched-lineage closure and exact Task/source/plan/execution/retry/lineage authority are fingerprinted in preview, recomputed under the writer lock, and all per-Task lineage events/current projections/Task revisions/audit entries roll back together on failure.",
     "Historical Objective acceptance, source-plan-derived historical Task-plan creation when needed, Objective identity allocation and structure-only membership commit atomically and create no execution/outcome/Inventory facts.",
-    "RFC terminal-cascade Task/Objective consequences are all-or-nothing with the calling LLD-03 cascade transaction; any stale captured WFM identity/revision, participant failure or INDETERMINATE result aborts the complete outer transaction."
+    "RFC terminal-cascade Task/Objective consequences are all-or-nothing with the calling LLD-03 cascade transaction; any stale captured WFM identity/revision, participant failure or INDETERMINATE result aborts the complete outer transaction.",
+    "RecomputeGroupingProposals performs only replay/threshold checks under short writer authority. At or below the grouping soft threshold, broad sweep/diff calculation occurs first against one stable read Snapshot and the later writer revalidates exact candidate material before proposal publication. Above the threshold, the command enqueues/coalesces OBJECTIVE_GROUPING_RECOMPUTE_V1 in the same short UnitOfWork and the durable worker performs bounded-memory stable-snapshot sweeps with bounded proposal publication transactions."
   ],
   "failure_modes": [
     "invalid/partial Task intervals remain unscheduled or reject the requested mutation; timestamps are never invented, rounded or inferred from Objective/source chronology",
@@ -224,7 +227,9 @@
     "Objective workbench membership transport is deterministic and paged with exact count/continuation; transport paging never becomes authoritative membership for envelope/aggregate/review guards.",
     "V2 retrofit assigns every public route a canonical /api/v1 path, exact request/response contract, LLD-12 auth policy, request bound and stable error surface without shifting domain authority.",
     "Granularity split preserves all authoritative command names, all 48 acceptance scenario IDs, and every original Task/Objective/grouping schema table while turning aggregate files into normative indexes.",
-    "Formal Beta LLD Pass 1 and Pass 2 are both PASS; the corrected Pass-2 source passed the strengthened whole-repository gate with zero findings."
+    "Formal Beta LLD Pass 1 and Pass 2 are both PASS; the corrected Pass-2 source passed the strengthened whole-repository gate with zero findings.",
+    "Large grouping worksets above the 100000-Task soft threshold use the packet-owned OBJECTIVE_GROUPING_RECOMPUTE_V1 durable job and never fall back to pairwise overlap enumeration or impose a product component maximum.",
+    "Objective due/unreviewed visibility is an explicit as_of_utc read-time overlay returned separately from persisted objective_aggregate_projection; clock passage alone writes no aggregate, receipt, audit, Task actual time or outcome."
   ],
   "ai_implementation_ready": true,
   "owner_accepted": true,
