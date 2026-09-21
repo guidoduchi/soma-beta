@@ -48,7 +48,7 @@
     {"id":"LLD07-T043","given":"pickup Fault Tag ready to submit with no pickup origin","when":"submission attempted","then":"FAULT_TAG_PICKUP_ORIGIN_REQUIRED"},
     {"id":"LLD07-T044","given":"eligible open obligations from different SRs/requests","when":"added to one Fault Tag","then":"allowed and each membership retains independent identity/context"},
     {"id":"LLD07-T045","given":"same RMA obligation already active submitted elsewhere","when":"another submission attempts it","then":"FAULT_TAG_MEMBERSHIP_CONFLICT"},
-    {"id":"LLD07-T046","given":"accepted Fault Tag submission","when":"master C10/BOM/location later changes","then":"submitted snapshots unchanged; current truth displayed separately"},
+    {"id":"LLD07-T046","given":"accepted Fault Tag submission","when":"current C10 or pickup-location master data later changes while current physical-unit BOM remains owner-derived","then":"submitted snapshots unchanged; current owner truth displayed separately"},
     {"id":"LLD07-T047","given":"submitted membership","when":"direct edit/remove attempted","then":"FAULT_TAG_NOT_DRAFT; replacement workflow required"},
     {"id":"LLD07-T048","given":"false Fault Tag submission with no real send/downstream evidence","when":"corrected","then":"same FT returns draft while original event/snapshot preserved as corrected history"},
     {"id":"LLD07-T049","given":"actual submitted Fault Tag materially wrong memberships","when":"replacement accepted","then":"new FT/new memberships, original superseded, one linear corrects_replaces edge"},
