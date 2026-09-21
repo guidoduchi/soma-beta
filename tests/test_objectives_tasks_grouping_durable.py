@@ -155,17 +155,17 @@ def test_t039_worker_can_publish_snapshot_candidate_that_becomes_stale_after_dri
     assert len(frozen) == 1
 
     _task(factory, "Snapshot drift", 2_812_000_100, 2_812_000_300)
-    monkeypatch.setattr(
-        GroupingService,
-        "_candidates",
-        classmethod(lambda _cls, _reader, *, origin: frozen),
-    )
-
     coordinator = _coordinator(factory)
     claim = coordinator.claim_next(new_uuid4(), utc_epoch_seconds())
     assert claim is not None
     assert claim.job_id == deferred["job_id"]
-    result = ObjectiveGroupingRecomputeWorker(factory).run(claim)
+    with monkeypatch.context() as worker_patch:
+        worker_patch.setattr(
+            GroupingService,
+            "_candidates",
+            classmethod(lambda _cls, _reader, *, origin: frozen),
+        )
+        result = ObjectiveGroupingRecomputeWorker(factory).run(claim)
     assert result.published_proposal_count == 1
 
     page = ObjectiveGroupingQueryService(factory).list_proposals(limit=10)
