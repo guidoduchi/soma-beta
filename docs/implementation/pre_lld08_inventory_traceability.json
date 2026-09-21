@@ -1,11 +1,11 @@
 {
   "schema": "SOMA_IMPLEMENTATION_ACCEPTANCE_REVIEW_V1",
   "packet": "LLD-07",
-  "design_sha": "972f53da1f38a74592f8e6127e6e6013205bc3df",
-  "implementation_parent_sha": "7e477dc30cbe5853ec054dfcda0c65dec63f7ce4",
-  "includes": "Requester and Fault Tag lineage replay repairs; forward-only untouched-draft deletion guard migration; focused adversarial tests",
+  "design_sha": "dfa28306238f409921b16ac6e277ad87a7908879",
+  "implementation_parent_sha": "7556005955c4bc20d9967801bd6b185b1688af4b",
+  "includes": "LLD-07 acceptance mapping T001-T068 over current pre-LLD-08 closure implementation; all cases have focused test candidates; packet-wide semantic certification and final CI promotion remain pending",
   "certified": false,
-  "method": "Name-based test candidates plus explicitly inspected assertions. A mapped name is not acceptance certification; all cases require semantic review before promotion.",
+  "method": "Exact acceptance-ID-to-focused-test mapping inspected on closure authority. Test presence is evidence coverage, not certification; each case remains pending packet semantic audit and final supported CI promotion.",
   "cases": [
     {
       "id": "LLD07-T001",
@@ -18,7 +18,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t001_sixty_faulty_same_sr_bom_aggregate_one_need"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T002",
@@ -31,7 +31,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t002_same_bom_different_srs_never_cross_aggregate"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T003",
@@ -44,7 +44,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t003_contributor_growth_never_overwrites_planned_quantity"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T004",
@@ -57,7 +57,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t004_local_selection_preserves_active_need_and_optional_reservation"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T005",
@@ -70,7 +70,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t005_history_remove_blocked_by_nonterminal_spare_request"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T006",
@@ -82,8 +82,10 @@
         "src/soma/inventory/services/hard_delete.py",
         "src/soma/inventory/queries/previews.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_manual_need_hard_delete.py::test_t006_untouched_manual_need_hard_delete_preserves_audit_and_allocator_history"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T007",
@@ -97,7 +99,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t007_stock_query_recommends_without_reserving"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T008",
@@ -108,8 +110,10 @@
         "src/soma/inventory/services/needs_stock.py",
         "src/soma/inventory/queries/stock_needs.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_external_request_despite_stock.py::test_t008_external_request_remains_allowed_despite_compatible_stock"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T009",
@@ -123,7 +127,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t009_t010_task_reservation_is_exclusive_planning_only_and_releaseable"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T010",
@@ -137,7 +141,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t009_t010_task_reservation_is_exclusive_planning_only_and_releaseable"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T011",
@@ -151,7 +155,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t011_manual_local_unit_allocates_lsu_and_preserves_duplicate_candidates"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T012",
@@ -165,7 +169,7 @@
       "focused_tests": [
         "tests/test_inventory_needs_stock.py::test_t012_duplicate_candidate_never_silently_merges_identity"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T013",
@@ -176,8 +180,10 @@
         "src/soma/inventory/services/needs_stock.py",
         "src/soma/inventory/queries/stock_needs.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_provenance_reconciliation.py::test_t013_local_unit_later_adopts_rma_provenance_without_identity_or_history_replacement"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T014",
@@ -190,7 +196,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t014_spare_request_draft_aggregates_same_sr_needs_and_freezes_requester_context"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T015",
@@ -203,7 +209,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t015_cross_sr_spare_request_draft_fails_before_identity_allocation"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T016",
@@ -213,8 +219,10 @@
       "production_owner": [
         "src/soma/inventory/services/requests_rma.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_msg_non_authority.py::test_t016_msg_generate_export_open_is_not_spare_request_submission_authority"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T017",
@@ -227,7 +235,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t017_t019_submission_freezes_exact_snapshot_and_starts_warning_chronology"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T018",
@@ -237,8 +245,10 @@
       "production_owner": [
         "src/soma/inventory/services/requests_rma.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_proposal_spare_request_submission.py::test_t018_indexed_sent_proposal_acceptance_uses_normal_submission_authority"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T019",
@@ -250,10 +260,10 @@
         "src/soma/inventory/queries/attention_history.py"
       ],
       "focused_tests": [
+        "tests/test_inventory_attention_query.py::test_t019_response_overdue_attention_uses_exact_24_hour_boundary",
         "tests/test_inventory_requests_rma.py::test_t017_t019_submission_freezes_exact_snapshot_and_starts_warning_chronology"
       ],
-      "status": "open_verification_or_implementation_gap",
-      "note": "Mapped test proves timer origin, not the 24-hour attention boundary. No production writer of inventory_attention_projection was located."
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T020",
@@ -266,7 +276,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t020_false_submission_correction_preserves_snapshot_and_restores_draft"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T021",
@@ -279,7 +289,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t021_t022_t023_sr7_assignment_correction_and_global_non_reuse"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T022",
@@ -292,7 +302,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t021_t022_t023_sr7_assignment_correction_and_global_non_reuse"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T023",
@@ -305,7 +315,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t021_t022_t023_sr7_assignment_correction_and_global_non_reuse"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T024",
@@ -318,7 +328,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t024_rma_batch_requires_current_sr7_and_creates_no_physical_unit"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T025",
@@ -331,7 +341,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserve_partial_progress"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T026",
@@ -344,7 +354,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserve_partial_progress"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T027",
@@ -357,7 +367,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t025_t026_t027_ordered_rma_batches_assign_deterministically_and_preserve_partial_progress"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T028",
@@ -369,10 +379,10 @@
         "src/soma/inventory/queries/attention_history.py"
       ],
       "focused_tests": [
+        "tests/test_inventory_attention_cache.py::test_t028_unassigned_rma_attention_is_command_time_projection",
         "tests/test_inventory_requests_rma.py::test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction"
       ],
-      "status": "open_verification_or_implementation_gap",
-      "note": "Mapped test proves retained unassigned RMA and correction behavior; actionable review attention remains unproven."
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T029",
@@ -385,7 +395,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T030",
@@ -398,7 +408,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t028_t029_t030_rma_unassigned_review_reassignment_and_c10_correction"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T031",
@@ -408,8 +418,10 @@
       "production_owner": [
         "src/soma/inventory/services/consequences_logistics.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_rma_pre_receipt.py::test_t031_authorized_rma_has_no_provisional_physical_unit_before_receipt"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T032",
@@ -422,7 +434,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t032_rma_receipt_creates_actual_direct_inbound_unit_without_overwriting_promise"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T033",
@@ -432,8 +444,10 @@
       "production_owner": [
         "src/soma/inventory/services/consequences_logistics.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_extracted_units.py::test_t033_extracted_units_keep_parent_as_only_direct_inbound_and_logistics_unit"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T034",
@@ -446,7 +460,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t034_t035_shared_logistics_event_has_independently_correctable_participants"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T035",
@@ -459,7 +473,7 @@
       "focused_tests": [
         "tests/test_inventory_requests_rma.py::test_t034_t035_shared_logistics_event_has_independently_correctable_participants"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T036",
@@ -469,8 +483,10 @@
       "production_owner": [
         "src/soma/inventory/services/consequences_logistics.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_physical_consequence_acceptance.py::test_t036_successful_rma_replacement_records_installed_removed_and_return_target"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T037",
@@ -480,8 +496,10 @@
       "production_owner": [
         "src/soma/inventory/services/consequences_logistics.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_physical_consequence_acceptance.py::test_t037_unused_rma_inbound_unit_becomes_open_return_obligation"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T038",
@@ -491,8 +509,10 @@
       "production_owner": [
         "src/soma/inventory/services/consequences_logistics.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_physical_consequence_acceptance.py::test_t038_faulty_or_incompatible_inbound_preserves_state_and_becomes_return_obligation"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T039",
@@ -502,8 +522,10 @@
       "production_owner": [
         "src/soma/inventory/services/consequences_logistics.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_physical_consequence_acceptance.py::test_t039_dismantled_rma_selects_direct_inbound_parent_not_child"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T040",
@@ -513,8 +535,10 @@
       "production_owner": [
         "src/soma/inventory/services/consequences_logistics.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_physical_consequence_acceptance.py::test_t040_local_stock_replacement_records_physical_facts_without_fabricated_rma"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T041",
@@ -526,9 +550,10 @@
         "src/soma/inventory/queries/task_context.py",
         "src/soma/inventory/queries/attention_history.py"
       ],
-      "focused_tests": [],
-      "status": "open_verification_or_implementation_gap",
-      "note": "New tests cover stale acceptance and exact replay after upstream review changes. They do not prove that current read surfaces flag existing consequences for re-review."
+      "focused_tests": [
+        "tests/test_inventory_attention_query.py::test_t041_task_review_change_is_read_only_attention_overlay"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T042",
@@ -541,7 +566,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tags.py::test_t042_fault_tag_draft_allocates_immutable_handle_and_allows_zero_members"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T043",
@@ -554,7 +579,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tags.py::test_t043_pickup_fault_tag_submission_requires_pickup_origin"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T044",
@@ -564,8 +589,10 @@
       "production_owner": [
         "src/soma/inventory/services/fault_tags.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_fault_tag_acceptance_tail.py::test_t044_fault_tag_may_span_independent_sr_and_request_contexts"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T045",
@@ -575,8 +602,10 @@
       "production_owner": [
         "src/soma/inventory/services/fault_tags.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_fault_tag_acceptance_tail.py::test_t045_second_submission_rejects_active_rma_membership_conflict"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T046",
@@ -586,8 +615,10 @@
       "production_owner": [
         "src/soma/inventory/services/fault_tags.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_fault_tag_acceptance_tail.py::test_t046_submission_snapshots_remain_frozen_while_current_master_truth_changes"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T047",
@@ -597,8 +628,10 @@
       "production_owner": [
         "src/soma/inventory/services/fault_tags.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_fault_tag_acceptance_tail.py::test_t047_submitted_fault_tag_cannot_be_directly_edited_or_remove_member"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T048",
@@ -608,8 +641,10 @@
       "production_owner": [
         "src/soma/inventory/services/fault_tags.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_fault_tag_acceptance_tail.py::test_t048_false_submission_returns_same_fault_tag_to_draft_and_preserves_history"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T049",
@@ -620,9 +655,9 @@
         "src/soma/inventory/services/fault_tags.py"
       ],
       "focused_tests": [
-        "tests/test_inventory_fault_tag_lineage_replay.py::test_fault_tag_lineage_is_immutable_and_replays_after_successor_changes"
+        "tests/test_inventory_fault_tag_acceptance_tail.py::test_t049_material_membership_correction_creates_linear_replacement"
       ],
-      "status": "focused_assertions_locally_verified"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T050",
@@ -635,7 +670,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_warehouse_receipt_and_final_batches_replay_exactly_t050_t051"
       ],
-      "status": "focused_assertions_locally_verified"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T051",
@@ -648,7 +683,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_warehouse_receipt_and_final_batches_replay_exactly_t050_t051"
       ],
-      "status": "focused_assertions_locally_verified"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T052",
@@ -659,9 +694,10 @@
         "src/soma/inventory/services/fault_tags.py",
         "src/soma/inventory/queries/attention_history.py"
       ],
-      "focused_tests": [],
-      "status": "open_verification_or_implementation_gap",
-      "note": "Rejected-obligation attention cannot be certified while the attention projection has no maintenance path."
+      "focused_tests": [
+        "tests/test_inventory_attention_cache.py::test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T053",
@@ -672,9 +708,9 @@
         "src/soma/inventory/services/fault_tags.py"
       ],
       "focused_tests": [
-        "tests/test_inventory_fault_tag_lineage_replay.py::test_fault_tag_lineage_is_immutable_and_replays_after_successor_changes"
+        "tests/test_inventory_fault_tag_acceptance_tail.py::test_t053_rejected_open_obligation_resend_preserves_predecessor"
       ],
-      "status": "focused_assertions_locally_verified"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T054",
@@ -685,9 +721,10 @@
         "src/soma/inventory/services/fault_tags.py",
         "src/soma/inventory/queries/attention_history.py"
       ],
-      "focused_tests": [],
-      "status": "open_verification_or_implementation_gap",
-      "note": "Mixed terminal states and actionable rejected obligations need focused assertions."
+      "focused_tests": [
+        "tests/test_inventory_attention_cache.py::test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T055",
@@ -700,8 +737,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_warehouse_final_decision_requires_explicit_confirmation_t055"
       ],
-      "status": "open_verification_or_implementation_gap",
-      "note": "New test proves direct warehouse decision rejects unconfirmed indexed evidence. The cross-packet proposal participant remains unimplemented."
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T056",
@@ -711,8 +747,10 @@
       "production_owner": [
         "src/soma/inventory/services/fault_tags.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_warehouse_replay.py::test_manual_warehouse_transition_needs_no_uploaded_evidence_t056"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T057",
@@ -723,8 +761,10 @@
         "src/soma/inventory/queries/previews.py",
         "src/soma/inventory/services/corrections_bulk.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_warehouse_replay.py::test_bulk_receipt_preflight_partitions_incompatible_target_t057"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T058",
@@ -738,7 +778,7 @@
       "focused_tests": [
         "tests/test_inventory_warehouse_replay.py::test_bulk_drift_aborts_complete_selected_scope_t058"
       ],
-      "status": "focused_assertions_locally_verified"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T059",
@@ -749,8 +789,10 @@
         "src/soma/inventory/queries/previews.py",
         "src/soma/inventory/services/corrections_bulk.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_warehouse_replay.py::test_later_false_receipt_correction_isolated_from_successful_bulk_t059"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T060",
@@ -764,8 +806,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_hard_delete.py::test_untouched_fault_tag_delete_retains_allocator_and_replays_t060"
       ],
-      "status": "partial_focused_assertions_locally_verified",
-      "note": "Empty draft deletion, audit preservation and non-reuse verified; populated draft independence remains to be verified."
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T061",
@@ -779,8 +820,7 @@
       "focused_tests": [
         "tests/test_inventory_fault_tag_hard_delete.py::test_submitted_fault_tag_history_blocks_hard_delete_t061"
       ],
-      "status": "partial_focused_assertions_locally_verified",
-      "note": "Submitted history rejection verified; generation/proposal/warehouse/lineage variants remain to be verified."
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T062",
@@ -793,7 +833,7 @@
       "focused_tests": [
         "tests/test_inventory_report_contributor.py::test_inventory_report_contributor_emits_exact_minimized_report_scope_t062"
       ],
-      "status": "test_candidate_pending_semantic_audit"
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T063",
@@ -803,8 +843,10 @@
       "production_owner": [
         "src/soma/inventory/services/participants.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_cross_packet_acceptance.py::test_t063_task_hard_delete_uses_real_inventory_consequence_provider"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T064",
@@ -814,9 +856,10 @@
       "production_owner": [
         "src/soma/inventory/services/participants.py"
       ],
-      "focused_tests": [],
-      "status": "open_verification_or_implementation_gap",
-      "note": "Existing LLD-05 retry tests also exercise Inventory transfer; locate and audit those assertions before certification."
+      "focused_tests": [
+        "tests/test_inventory_cross_packet_acceptance.py::test_t064_retry_reassigns_only_selected_planning_relation"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T065",
@@ -826,8 +869,10 @@
       "production_owner": [
         "src/soma/inventory/queries/task_context.py"
       ],
-      "focused_tests": [],
-      "status": "focused_test_not_yet_mapped"
+      "focused_tests": [
+        "tests/test_inventory_cross_packet_acceptance.py::test_t065_objective_inventory_context_derives_only_through_member_task"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     },
     {
       "id": "LLD07-T066",
@@ -837,9 +882,38 @@
       "production_owner": [
         "src/soma/inventory/queries/attention_history.py"
       ],
-      "focused_tests": [],
-      "status": "open_verification_or_implementation_gap",
-      "note": "Attention query reads a projection with no production maintenance path; archived unresolved visibility is not proven."
+      "focused_tests": [
+        "tests/test_inventory_attention_cache.py::test_t052_t054_t066_rejected_return_stays_actionable_when_tag_archived"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
+    },
+    {
+      "id": "LLD07-T067",
+      "given": "Spare Request requester Contact changes descriptive or affiliation state after request creation",
+      "when": "Spare Request detail is queried before or after terminal transition",
+      "then": "immutable requester-at-creation evidence remains unchanged while current Contact context is displayed separately",
+      "production_owner": [
+        "src/soma/inventory/queries/requests_rma.py",
+        "src/soma/inventory/services/requests_rma.py"
+      ],
+      "focused_tests": [
+        "tests/test_inventory_requester_support_acceptance.py::test_t067_requester_role_preserves_creation_context_and_shows_current_contact_separately"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
+    },
+    {
+      "id": "LLD07-T068",
+      "given": "Contact is requester of a nonterminal Spare Request",
+      "when": "Reference archive preview or archive is requested and later retried after the request becomes terminal",
+      "then": "Inventory blocks archive while request is nonterminal, clears after terminal state, and preserved requester creation evidence remains readable",
+      "production_owner": [
+        "src/soma/inventory/services/participants.py",
+        "src/soma/inventory/queries/requests_rma.py"
+      ],
+      "focused_tests": [
+        "tests/test_inventory_requester_support_acceptance.py::test_t068_active_requester_blocks_contact_archive_until_request_terminal"
+      ],
+      "status": "focused_test_mapped_pending_packet_certification"
     }
   ]
 }
