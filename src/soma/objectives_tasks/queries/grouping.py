@@ -22,6 +22,96 @@ class ObjectiveGroupingQueryService:
         self._factory = connection_factory
 
     @staticmethod
+    def _explanatory_partitions(connection: Any, task_ids: Sequence[str]) -> dict[str, object]:
+        customer_sources: dict[str | None, set[str]] = {}
+        rfc_sources: dict[str, set[str]] = {}
+        lineage_sources: dict[str, set[str]] = {}
+
+        def add_customer(customer_org_id: str | None, task_id: str) -> None:
+            customer_sources.setdefault(customer_org_id, set()).add(task_id)
+
+        def add_rfc(rfc_id: str, task_id: str) -> None:
+            rfc_sources.setdefault(rfc_id, set()).add(task_id)
+
+        for task_id in sorted(set(task_ids)):
+            for row in connection.execute(
+                "SELECT service_request_id FROM task_sr_links "
+                "WHERE task_id=? AND active=1 ORDER BY service_request_id",
+                (task_id,),
+            ).fetchall():
+                sr_id = str(row[0])
+                customer = connection.execute(
+                    "SELECT customer_org_id FROM sr_customer_relationships "
+                    "WHERE service_request_id=? AND relationship_state='active'",
+                    (sr_id,),
+                ).fetchone()
+                add_customer(None if customer is None else str(customer[0]), task_id)
+
+            for row in connection.execute(
+                "SELECT rfc_id FROM task_rfc_links "
+                "WHERE task_id=? AND active=1 ORDER BY rfc_id",
+                (task_id,),
+            ).fetchall():
+                rfc_id = str(row[0])
+                add_rfc(rfc_id, task_id)
+                customer = connection.execute(
+                    "SELECT customer_org_id FROM rfcs WHERE rfc_id=?",
+                    (rfc_id,),
+                ).fetchone()
+                add_customer(
+                    None if customer is None or customer[0] is None else str(customer[0]),
+                    task_id,
+                )
+
+            wfm = connection.execute(
+                "SELECT current_rfc_id FROM wfm_task_identities WHERE task_id=?",
+                (task_id,),
+            ).fetchone()
+            if wfm is not None:
+                owning = str(wfm[0])
+                add_rfc(owning, task_id)
+                parent = connection.execute(
+                    "SELECT parent_rfc_id FROM rfc_hierarchy_edges "
+                    "WHERE child_rfc_id=? AND edge_state='active'",
+                    (owning,),
+                ).fetchone()
+                root = owning if parent is None else str(parent[0])
+                add_rfc(root, task_id)
+                customer = connection.execute(
+                    "SELECT customer_org_id FROM rfcs WHERE rfc_id=?",
+                    (root,),
+                ).fetchone()
+                add_customer(
+                    None if customer is None or customer[0] is None else str(customer[0]),
+                    task_id,
+                )
+                lineage = connection.execute(
+                    "SELECT activity_lineage_id FROM task_activity_lineage_current WHERE task_id=?",
+                    (task_id,),
+                ).fetchone()
+                if lineage is not None and lineage[0] is not None:
+                    lineage_sources.setdefault(str(lineage[0]), set()).add(task_id)
+
+        resolved_customers = sorted(key for key in customer_sources if key is not None)
+        return {
+            "customer_org_ids": resolved_customers,
+            "unresolved_customer_task_ids": sorted(customer_sources.get(None, set())),
+            "rfc_ids": sorted(rfc_sources),
+            "activity_lineage_ids": sorted(lineage_sources),
+            "multi_customer": len(resolved_customers) > 1,
+            "customer_sources": [
+                {
+                    "customer_org_id": customer_org_id,
+                    "source_task_ids": sorted(customer_sources[customer_org_id]),
+                }
+                for customer_org_id in sorted(
+                    customer_sources,
+                    key=lambda value: "" if value is None else value,
+                )
+            ],
+        }
+
+    @staticmethod
     def _require_relationship_targets(connection: Any, draft: ObjectiveDraftLocalTaskIntent) -> None:
         for values, table, column, field in (
             (draft.service_request_ids, "service_requests", "service_request_id", "service_request_ids"),
@@ -444,6 +534,59 @@ class ObjectiveGroupingQueryService:
                 ):
                     stale = True
                     break
+
+            if not stale:
+                for row in objective_rows:
+                    if row[1] is None:
+                        continue
+                    current = snapshot.connection.execute(
+                        "SELECT o.revision,e.revision FROM objectives o "
+                        "JOIN objective_envelope_projection e ON e.objective_id=o.objective_id "
+                        "WHERE o.objective_id=? AND o.superseded_by_objective_id IS NULL",
+                        (str(row[1]),),
+                    ).fetchone()
+                    if (
+                        current is None
+                        or row[3] is None
+                        or row[4] is None
+                        or int(current[0]) != int(row[3])
+                        or int(current[1]) != int(row[4])
+                    ):
+                        stale = True
+                        break
+
+            current_candidate = None
+            if not stale:
+                from ..services.grouping import GroupingService
+
+                current_candidate = next(
+                    (
+                        candidate
+                        for candidate in GroupingService._candidates(
+                            snapshot.connection,
+                            origin=proposal.origin,
+                        )
+                        if candidate.input_fingerprint == proposal.input_fingerprint
+                    ),
+                    None,
+                )
+                stale = current_candidate is None
+
+            context_task_ids = {str(row[1]) for row in task_rows}
+            for row in objective_rows:
+                if row[1] is None:
+                    continue
+                for member in snapshot.connection.execute(
+                    "SELECT task_id FROM objective_task_membership_current "
+                    "WHERE objective_id=? ORDER BY task_id",
+                    (str(row[1]),),
+                ).fetchall():
+                    context_task_ids.add(str(member[0]))
+            explanatory_partitions = self._explanatory_partitions(
+                snapshot.connection,
+                tuple(sorted(context_task_ids)),
+            )
+
             return {
                 "proposal_id": identity,
                 "proposal_kind": proposal.proposal_kind,
@@ -457,6 +600,13 @@ class ObjectiveGroupingQueryService:
                 "equivalent_rejection_suppressed": RegroupProposalRepository.rejection_suppressed(
                     snapshot.connection, proposal.input_fingerprint
                 ),
+                "component_envelope": None
+                if current_candidate is None
+                else {
+                    "start_utc": current_candidate.component_start_utc,
+                    "end_utc": current_candidate.component_end_utc,
+                },
+                "explanatory_partitions": explanatory_partitions,
                 "task_changes": [
                     {
                         "proposal_task_change_id": str(row[0]),

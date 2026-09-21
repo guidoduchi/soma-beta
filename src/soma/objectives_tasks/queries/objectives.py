@@ -291,6 +291,7 @@ class ObjectiveQueryService:
                 if kind_row is None:
                     raise IntegrityFailure("Objective member Task is missing")
                 kind = str(kind_row[0])
+                local_customer_contexts: set[str | None] = set()
                 for context_type, table, column in (
                     ("sr", "task_sr_links", "service_request_id"),
                     ("rfc", "task_rfc_links", "rfc_id"),
@@ -302,13 +303,49 @@ class ObjectiveQueryService:
                         f"{column},link_id",
                         (task_id,),
                     ).fetchall():
+                        related_id = str(rel[0])
                         rows.append(
                             {
                                 "context_type": context_type,
-                                "related_id": str(rel[0]),
+                                "related_id": related_id,
                                 "source_task_id": task_id,
                                 "provenance": f"direct_task_{context_type}_relationship",
                                 "resolution_state": "resolved",
+                            }
+                        )
+                        if kind == "local" and context_type == "sr":
+                            customer = snapshot.connection.execute(
+                                "SELECT customer_org_id FROM sr_customer_relationships "
+                                "WHERE service_request_id=? AND relationship_state='active'",
+                                (related_id,),
+                            ).fetchone()
+                            local_customer_contexts.add(
+                                None if customer is None else str(customer[0])
+                            )
+                        elif kind == "local" and context_type == "rfc":
+                            customer = snapshot.connection.execute(
+                                "SELECT customer_org_id FROM rfcs WHERE rfc_id=?",
+                                (related_id,),
+                            ).fetchone()
+                            local_customer_contexts.add(
+                                None
+                                if customer is None or customer[0] is None
+                                else str(customer[0])
+                            )
+                if kind == "local":
+                    for customer_org_id in sorted(
+                        local_customer_contexts,
+                        key=lambda value: "" if value is None else value,
+                    ):
+                        rows.append(
+                            {
+                                "context_type": "customer",
+                                "related_id": customer_org_id,
+                                "source_task_id": task_id,
+                                "provenance": "derived_from_direct_task_ticket_relationship",
+                                "resolution_state": (
+                                    "unresolved" if customer_org_id is None else "resolved"
+                                ),
                             }
                         )
                 if kind == "wfm":
