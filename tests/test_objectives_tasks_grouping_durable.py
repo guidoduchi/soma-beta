@@ -5,7 +5,7 @@ import inspect
 import pytest
 
 from soma.foundation.errors import JobClaimConflict, SomaError
-from soma.foundation.identifiers import new_uuid4
+from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
@@ -151,7 +151,7 @@ def test_t039_worker_can_publish_snapshot_candidate_that_becomes_stale_after_dri
     )
 
     coordinator = _coordinator(factory)
-    claim = coordinator.claim_next(new_uuid4(), 2_812_100_000)
+    claim = coordinator.claim_next(new_uuid4(), utc_epoch_seconds())
     assert claim is not None
     assert claim.job_id == deferred["job_id"]
     result = ObjectiveGroupingRecomputeWorker(factory).run(claim)
@@ -185,7 +185,7 @@ def test_t039_cancelled_job_revokes_worker_claim_without_domain_mutation(
     )
 
     coordinator = _coordinator(factory)
-    claim = coordinator.claim_next(new_uuid4(), 2_813_100_000)
+    claim = coordinator.claim_next(new_uuid4(), utc_epoch_seconds())
     assert claim is not None and claim.job_id == deferred["job_id"]
     with UnitOfWork(factory) as uow:
         cancelled = coordinator.cancel(
@@ -217,7 +217,7 @@ def test_t039_publication_failure_rolls_back_and_retry_publishes_once(
     )
 
     coordinator = _coordinator(factory)
-    claim = coordinator.claim_next(new_uuid4(), 2_814_100_000)
+    claim = coordinator.claim_next(new_uuid4(), utc_epoch_seconds())
     assert claim is not None and claim.job_id == deferred["job_id"]
     original_insert = RegroupProposalRepository.insert_candidate
 
@@ -243,13 +243,17 @@ def test_t039_publication_failure_rolls_back_and_retry_publishes_once(
             "SELECT COUNT(*) FROM regroup_proposals",
         ).fetchone()[0] == 0
 
-    failure_now = claim.claim_started_at_utc + 1
+    failure_now = max(utc_epoch_seconds(), claim.claim_started_at_utc)
+    retry_at = failure_now + 5
     failing = _coordinator(factory, clock=lambda: failure_now)
-    failing.fail(claim, "PERSISTENCE_BUSY", failure_now + 5)
-    retry_claim = coordinator.claim_next(new_uuid4(), failure_now + 5)
+    failing.fail(claim, "PERSISTENCE_BUSY", retry_at)
+    retry_claim = coordinator.claim_next(new_uuid4(), retry_at)
     assert retry_claim is not None
     assert retry_claim.job_id == claim.job_id
-    retried = ObjectiveGroupingRecomputeWorker(factory).run(retry_claim)
+    retried = ObjectiveGroupingRecomputeWorker(
+        factory,
+        clock=lambda: retry_at,
+    ).run(retry_claim)
     assert retried.published_proposal_count == 1
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute(
