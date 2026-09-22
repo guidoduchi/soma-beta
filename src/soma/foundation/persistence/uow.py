@@ -33,6 +33,30 @@ class UnitOfWork:
         self._token: Any | None = None
         self._committed = False
         self._write_admitted = False
+        self._write_admission_exit = None
+
+    def _enter_write_admission(self) -> None:
+        enter = getattr(self._factory, "enter_authoritative_write", None)
+        exit_write = getattr(self._factory, "exit_authoritative_write", None)
+        if enter is None and exit_write is None:
+            # Fault-injection/test factory adapters historically need only expose
+            # open_authoritative(). Runtime production paths pass the concrete
+            # ConnectionFactory, which installs and enforces HostRuntime's gate.
+            self._write_admitted = False
+            self._write_admission_exit = None
+            return
+        if not callable(enter) or not callable(exit_write):
+            raise PersistenceFailure("write admission factory contract is incomplete")
+        self._write_admitted = bool(enter())
+        self._write_admission_exit = exit_write
+
+    def _exit_write_admission(self) -> None:
+        exit_write = self._write_admission_exit
+        admitted = self._write_admitted
+        self._write_admission_exit = None
+        self._write_admitted = False
+        if exit_write is not None:
+            exit_write(admitted)
 
     @property
     def connection(self) -> Any:
@@ -43,7 +67,7 @@ class UnitOfWork:
     def __enter__(self) -> Self:
         if _active_uow.get():
             raise PersistenceFailure("nested authoritative UnitOfWork is forbidden")
-        self._write_admitted = self._factory.enter_authoritative_write()
+        self._enter_write_admission()
         self._token = _active_uow.set(True)
         try:
             self._connection = self._factory.open_authoritative(read_only=False)
@@ -56,8 +80,7 @@ class UnitOfWork:
             if self._token is not None:
                 _active_uow.reset(self._token)
                 self._token = None
-            self._factory.exit_authoritative_write(self._write_admitted)
-            self._write_admitted = False
+            self._exit_write_admission()
             if _is_busy_error(exc):
                 raise PersistenceBusy() from exc
             raise
@@ -108,8 +131,7 @@ class UnitOfWork:
             if self._token is not None:
                 _active_uow.reset(self._token)
                 self._token = None
-            self._factory.exit_authoritative_write(self._write_admitted)
-            self._write_admitted = False
+            self._exit_write_admission()
         return False
 
 
