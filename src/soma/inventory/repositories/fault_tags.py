@@ -1788,7 +1788,6 @@ class InventoryFaultTagsRepository:
         )
         for member in cls.current_members(connection, predecessor_fault_tag_id):
             membership_id = str(member[0])
-            state = str(member[6])
             active = int(member[7])
             if active != 1:
                 continue
