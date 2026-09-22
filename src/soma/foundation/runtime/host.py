@@ -201,6 +201,7 @@ class HostRuntime:
         self._security_started = False
         self._recent_error_codes: deque[str] = deque(maxlen=32)
         self._write_gate = WriteAdmissionGate()
+        self._write_gate.quiesce()
         self._factory.install_write_admission_gate(self._write_gate)
         self._shutdown_boundary = CommandBoundary(
             self._factory,
@@ -210,6 +211,10 @@ class HostRuntime:
     @property
     def state(self) -> str:
         return self._state
+
+    @property
+    def target_migration_sequence(self) -> int:
+        return len(self._manifest.entries)
 
     @property
     def connection_factory(self) -> ConnectionFactory:
@@ -346,6 +351,7 @@ class HostRuntime:
             return self.health()
         except BaseException as exc:
             self.record_error_code(exc.code if isinstance(exc, SomaError) else "INTERNAL_ERROR")
+            self._write_gate.quiesce()
             self._set_state("FAILED")
             self._unwind_failed_start()
             raise
