@@ -170,6 +170,7 @@ def build_manifest(repo_root: Path) -> dict[str, object]:
             factory_for_path=_factory,
             app_version="schema-manifest-generator",
             ownership_assertion=lambda: True,
+            verifier=lambda connection: None,
         )
         runner.initialize_or_migrate()
 
