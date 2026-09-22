@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sqlite3
 import tempfile
@@ -53,7 +54,11 @@ def _schema_objects(connection: sqlite3.Connection) -> list[dict[str, object]]:
             "type": str(row[0]),
             "name": str(row[1]),
             "table_name": str(row[2]),
-            "sql": None if row[3] is None else str(row[3]),
+            "sql_sha256": (
+                None
+                if row[3] is None
+                else hashlib.sha256(str(row[3]).encode("utf-8")).hexdigest()
+            ),
         }
         for row in rows
     ]
@@ -133,11 +138,11 @@ def _indexes(connection: sqlite3.Connection) -> list[dict[str, object]]:
                     "name": None if item[2] is None else str(item[2]),
                     "descending": bool(int(item[3])),
                     "collation": None if item[4] is None else str(item[4]),
-                    "key": bool(int(item[5])),
                 }
                 for item in connection.execute(
                     f"PRAGMA index_xinfo({json.dumps(index_name)})"
                 ).fetchall()
+                if bool(int(item[5]))
             ]
             result.append(
                 {
@@ -208,13 +213,25 @@ def main() -> int:
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
-    rendered = render_manifest(repo_root)
+    manifest = build_manifest(repo_root)
+    rendered = json.dumps(
+        manifest,
+        ensure_ascii=False,
+        sort_keys=True,
+        indent=2,
+    ) + "\n"
 
     if args.output is not None:
         args.output.write_text(rendered, encoding="utf-8", newline="\n")
     if args.stdout_markers:
+        compact = json.dumps(
+            manifest,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         print("SOMA_SCHEMA_MANIFEST_BEGIN")
-        print(rendered, end="")
+        print(compact)
         print("SOMA_SCHEMA_MANIFEST_END")
     if args.output is None and not args.stdout_markers:
         print(rendered, end="")
