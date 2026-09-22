@@ -10,6 +10,7 @@ from .instance_lock import DataInstanceLock
 from .loopback import BoundLoopbackSocket
 from .paths import InstancePaths
 from .registry import RuntimeRegistry, RuntimeRegistryRecord
+from .server import UvicornLoopbackServer
 
 __all__ = [
     "BoundLoopbackSocket",
@@ -21,4 +22,5 @@ __all__ = [
     "InstancePaths",
     "RuntimeRegistry",
     "RuntimeRegistryRecord",
+    "UvicornLoopbackServer",
 ]
