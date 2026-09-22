@@ -27,6 +27,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
+"soma" = ["schema_manifest.json", "fk_index_exceptions.json"]
 "soma.reference.assets" = ["*.json"]
 "soma.migrations" = ["*.sql", "manifest.json"]
 

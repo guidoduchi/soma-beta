@@ -209,6 +209,7 @@ def render_manifest(repo_root: Path) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--check", type=Path)
     parser.add_argument("--stdout-markers", action="store_true")
     args = parser.parse_args()
 
@@ -223,6 +224,11 @@ def main() -> int:
 
     if args.output is not None:
         args.output.write_text(rendered, encoding="utf-8", newline="\n")
+    if args.check is not None:
+        accepted = json.loads(args.check.read_text(encoding="utf-8"))
+        if accepted != manifest:
+            raise SystemExit("committed release schema manifest differs from generated authority")
+        print(f"Verified release schema manifest: {len(manifest['objects'])} authoritative objects")
     if args.stdout_markers:
         compact = json.dumps(
             manifest,
@@ -233,7 +239,7 @@ def main() -> int:
         print("SOMA_SCHEMA_MANIFEST_BEGIN")
         print(compact)
         print("SOMA_SCHEMA_MANIFEST_END")
-    if args.output is None and not args.stdout_markers:
+    if args.output is None and args.check is None and not args.stdout_markers:
         print(rendered, end="")
     return 0
 
