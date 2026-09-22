@@ -323,9 +323,13 @@ def test_parser_requires_preflight_for_the_exact_same_path(tmp_path: Path) -> No
     _write_workbook(first, ["SRNo"], [["12345678"]])
     _write_workbook(second, ["SRNo"], [["87654321"]])
 
+    preflight = preflight_xlsx(first)
     with pytest.raises(SomaError) as raised:
-        parse_advanced_search(second, preflight=preflight_xlsx(first))
+        parse_advanced_search(second, preflight=preflight)
     assert raised.value.code == "IMPORT_SOURCE_PROFILE_MISMATCH"
+    with pytest.raises(SomaError) as closed:
+        preflight.semantic_stream()
+    assert closed.value.code == "IMPORT_SOURCE_UNAVAILABLE"
 
 
 def test_advanced_search_parser_consumes_exact_preflighted_bytes_after_path_replacement(

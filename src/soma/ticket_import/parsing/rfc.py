@@ -330,9 +330,17 @@ def parse_rfc_enhanced(path: Path, *, preflight: XlsxPreflightResult) -> RfcPars
         requested_resolved = requested.resolve(strict=True)
         preflight_resolved = Path(preflight.path).resolve(strict=True)
     except OSError as exc:
-        raise _source_error("IMPORT_SOURCE_UNAVAILABLE", "preflighted workbook is no longer available") from exc
+        preflight.close()
+        raise _source_error(
+            "IMPORT_SOURCE_UNAVAILABLE",
+            "preflighted workbook is no longer available",
+        ) from exc
     if requested_resolved != preflight_resolved:
-        raise _source_error("IMPORT_SOURCE_PROFILE_MISMATCH", "parser path does not match preflighted workbook")
+        preflight.close()
+        raise _source_error(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "parser path does not match preflighted workbook",
+        )
 
     versions = require_profile_versions(_SOURCE_FAMILY)
     try:
