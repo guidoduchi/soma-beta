@@ -166,6 +166,7 @@ class TicketImportSourceCheckWorker:
                 "filename": candidate.filename,
                 "stable_size_bytes": candidate.stable_size_bytes,
                 "stable_mtime_ns": candidate.stable_mtime_ns,
+                "content_sha256": candidate.preflight.content_sha256,
                 "chronology_kind": candidate.chronology_kind,
                 "chronology_value": candidate.chronology_value,
             },
@@ -435,38 +436,42 @@ class TicketImportSourceCheckWorker:
         profiles = self._profiles(payload)
         checkpoint = self._checkpoint(claim)
         candidate = self._discover(payload)
-        if (
-            candidate.source_family != payload["source_family"]
-            or candidate.profile_id != profiles["source_profile_id"]
-        ):
-            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "discovered candidate uses the wrong source family/profile")
+        try:
+            if (
+                candidate.source_family != payload["source_family"]
+                or candidate.profile_id != profiles["source_profile_id"]
+            ):
+                raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "discovered candidate uses the wrong source family/profile")
 
-        if checkpoint is None:
-            _import_run_id, checkpoint = self._start_run(claim, payload, profiles, candidate)
-        else:
-            self._require_candidate_match(checkpoint, candidate)
+            if checkpoint is None:
+                _import_run_id, checkpoint = self._start_run(claim, payload, profiles, candidate)
+            else:
+                self._require_candidate_match(checkpoint, candidate)
 
-        phase = str(checkpoint["phase"])
-        if phase in {"validating", "staging"}:
-            checkpoint = self._stage(claim, checkpoint, candidate)
-            checkpoint, fingerprint = self._publishing_checkpoint(claim, checkpoint)
-        elif phase in {"publishing", "noop_checkpoint"}:
-            fingerprint = self._checkpoint_fingerprint(checkpoint)
-        else:
-            raise IntegrityFailure("source-check claim is in an unsupported execution phase")
+            phase = str(checkpoint["phase"])
+            if phase in {"validating", "staging"}:
+                checkpoint = self._stage(claim, checkpoint, candidate)
+                checkpoint, fingerprint = self._publishing_checkpoint(claim, checkpoint)
+            elif phase in {"publishing", "noop_checkpoint"}:
+                fingerprint = self._checkpoint_fingerprint(checkpoint)
+            else:
+                raise IntegrityFailure("source-check claim is in an unsupported execution phase")
 
-        if phase == "noop_checkpoint":
-            self._finalize_noop(
-                claim,
-                checkpoint,
-                source_family=str(payload["source_family"]),
-                fingerprint=fingerprint,
-                run_revision=int(checkpoint["run_revision"]),
-            )
-            self._jobs.complete(claim)
+            if phase == "noop_checkpoint":
+                self._finalize_noop(
+                    claim,
+                    checkpoint,
+                    source_family=str(payload["source_family"]),
+                    fingerprint=fingerprint,
+                    run_revision=int(checkpoint["run_revision"]),
+                )
+                self._jobs.complete(claim)
+                return str(checkpoint["import_run_id"])
+            self._publish_run(claim, checkpoint, profiles, fingerprint)
             return str(checkpoint["import_run_id"])
-        self._publish_run(claim, checkpoint, profiles, fingerprint)
-        return str(checkpoint["import_run_id"])
+
+        finally:
+            candidate.preflight.close()
 
 
 def run(claim: DurableJobClaim, connection_factory: ConnectionFactory) -> str:

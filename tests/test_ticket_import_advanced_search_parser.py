@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import zipfile
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -325,3 +326,27 @@ def test_parser_requires_preflight_for_the_exact_same_path(tmp_path: Path) -> No
     with pytest.raises(SomaError) as raised:
         parse_advanced_search(second, preflight=preflight_xlsx(first))
     assert raised.value.code == "IMPORT_SOURCE_PROFILE_MISMATCH"
+
+
+def test_advanced_search_parser_consumes_exact_preflighted_bytes_after_path_replacement(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "stale-preflight.xlsx"
+    _write_workbook(
+        path,
+        ["SRNo", "Problem Summary"],
+        [["12345678", "Original safe workbook"]],
+    )
+    preflight = preflight_xlsx(path)
+
+    with zipfile.ZipFile(path, "a") as archive:
+        archive.writestr("xl/embeddings/audit-marker.bin", b"harmless audit marker")
+
+    with pytest.raises(SomaError) as fresh:
+        preflight_xlsx(path)
+    assert fresh.value.code == "XLSX_UNSAFE_CONTAINER"
+
+    parsed = parse_advanced_search(path, preflight=preflight)
+    assert len(parsed.rows) == 1
+    assert parsed.rows[0].observation.canonical_primary_id == "12345678"
+    assert _field(parsed.rows[0], "problem_summary").normalized_text == "Original safe workbook"

@@ -100,6 +100,8 @@ def test_valid_minimal_inert_xlsx_passes_preflight(tmp_path: Path) -> None:
     assert result.entry_count == 5
     assert result.compressed_file_bytes == path.stat().st_size
     assert result.total_expanded_bytes > 0
+    assert len(result.content_sha256) == 64
+    result.close()
 
 
 @pytest.mark.parametrize(

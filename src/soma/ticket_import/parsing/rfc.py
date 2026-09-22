@@ -336,9 +336,18 @@ def parse_rfc_enhanced(path: Path, *, preflight: XlsxPreflightResult) -> RfcPars
 
     versions = require_profile_versions(_SOURCE_FAMILY)
     try:
-        workbook = load_workbook(requested_resolved, read_only=True, data_only=False, keep_links=False)
+        workbook = load_workbook(
+            preflight.semantic_stream(),
+            read_only=True,
+            data_only=False,
+            keep_links=False,
+        )
     except Exception as exc:
-        raise _source_error("IMPORT_SOURCE_PROFILE_MISMATCH", "preflighted workbook could not be opened semantically") from exc
+        preflight.close()
+        raise _source_error(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "preflighted workbook could not be opened semantically",
+        ) from exc
 
     try:
         matrix = _discover_matrix(workbook)
@@ -459,7 +468,10 @@ def parse_rfc_enhanced(path: Path, *, preflight: XlsxPreflightResult) -> RfcPars
             global_findings=global_findings,
         )
     finally:
-        workbook.close()
+        try:
+            workbook.close()
+        finally:
+            preflight.close()
 
 
 __all__ = ["ParsedRfcRow", "RfcParseResult", "parse_rfc_enhanced"]

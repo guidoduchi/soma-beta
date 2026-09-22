@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import posixpath
 import re
 import stat as stat_module
+import tempfile
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import BinaryIO
 from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 
@@ -18,6 +21,8 @@ MAX_TOTAL_EXPANDED_BYTES = 536_870_912
 MAX_SINGLE_PART_BYTES = 134_217_728
 MAX_ZIP_ENTRIES = 4_096
 MAX_EXPANSION_RATIO = 100
+_SPOOL_MEMORY_BYTES = 8_388_608
+_COPY_CHUNK_BYTES = 1_048_576
 
 _REQUIRED_PARTS = frozenset(
     {
@@ -70,6 +75,20 @@ class XlsxPreflightResult:
     entry_count: int
     compressed_file_bytes: int
     total_expanded_bytes: int
+    content_sha256: str
+    _validated_stream: BinaryIO = field(repr=False, compare=False)
+
+    def semantic_stream(self) -> BinaryIO:
+        if self._validated_stream.closed:
+            raise SomaError(
+                "IMPORT_SOURCE_UNAVAILABLE",
+                "preflighted workbook bytes are no longer available",
+            )
+        self._validated_stream.seek(0)
+        return self._validated_stream
+
+    def close(self) -> None:
+        self._validated_stream.close()
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,25 +264,83 @@ def _is_symlink_entry(info: zipfile.ZipInfo) -> bool:
     return stat_module.S_IFMT(unix_mode) == stat_module.S_IFLNK
 
 
-def preflight_xlsx(path: str | os.PathLike[str]) -> XlsxPreflightResult:
-    """Validate the XLSX ZIP/OOXML security boundary without extracting it.
+def _snapshot_candidate(path: Path) -> tuple[BinaryIO, int, str]:
+    stream = tempfile.SpooledTemporaryFile(
+        max_size=_SPOOL_MEMORY_BYTES,
+        mode="w+b",
+    )
+    try:
+        try:
+            with path.open("rb") as source:
+                before = os.fstat(source.fileno())
+                if not stat_module.S_ISREG(before.st_mode) or before.st_size <= 0:
+                    raise _unsafe(
+                        "selected workbook is not a nonempty regular ZIP-based XLSX file"
+                    )
+                if before.st_size > MAX_COMPRESSED_FILE_BYTES:
+                    raise _resource(
+                        "XLSX compressed file exceeds the configured ceiling"
+                    )
 
-    This function intentionally performs no workbook semantic parsing. A semantic reader may
-    only receive a file after this preflight succeeds.
+                digest = hashlib.sha256()
+                copied = 0
+                while True:
+                    chunk = source.read(_COPY_CHUNK_BYTES)
+                    if not chunk:
+                        break
+                    copied += len(chunk)
+                    if copied > MAX_COMPRESSED_FILE_BYTES:
+                        raise _resource(
+                            "XLSX compressed file exceeds the configured ceiling"
+                        )
+                    stream.write(chunk)
+                    digest.update(chunk)
+
+                after = os.fstat(source.fileno())
+        except OSError as exc:
+            raise SomaError(
+                "IMPORT_SOURCE_UNAVAILABLE",
+                "selected workbook cannot be safely inspected",
+            ) from exc
+
+        before_identity = (
+            int(before.st_dev),
+            int(before.st_ino),
+            int(before.st_size),
+            int(before.st_mtime_ns),
+        )
+        after_identity = (
+            int(after.st_dev),
+            int(after.st_ino),
+            int(after.st_size),
+            int(after.st_mtime_ns),
+        )
+        if before_identity != after_identity or copied != int(before.st_size):
+            raise SomaError(
+                "IMPORT_FILE_UNSTABLE",
+                "selected source file changed while immutable bytes were acquired",
+            )
+
+        stream.seek(0)
+        return stream, copied, digest.hexdigest()
+    except BaseException:
+        stream.close()
+        raise
+
+
+def preflight_xlsx(path: str | os.PathLike[str]) -> XlsxPreflightResult:
+    """Validate one immutable XLSX byte source without extracting it.
+
+    The filesystem path is provenance only after acquisition. ZIP/OOXML preflight and
+    the later semantic parser consume the exact same bounded seekable byte stream.
     """
 
     candidate = Path(path)
-    try:
-        stat_result = candidate.stat()
-    except OSError as exc:
-        raise SomaError("IMPORT_SOURCE_UNAVAILABLE", "selected workbook cannot be safely inspected") from exc
-    if not candidate.is_file() or stat_result.st_size <= 0:
-        raise _unsafe("selected workbook is not a nonempty regular ZIP-based XLSX file")
-    if stat_result.st_size > MAX_COMPRESSED_FILE_BYTES:
-        raise _resource("XLSX compressed file exceeds the configured ceiling")
+    validated_stream, compressed_file_bytes, content_sha256 = _snapshot_candidate(candidate)
 
     try:
-        with zipfile.ZipFile(candidate, "r") as zf:
+        validated_stream.seek(0)
+        with zipfile.ZipFile(validated_stream, "r") as zf:
             infos = zf.infolist()
             if len(infos) > MAX_ZIP_ENTRIES:
                 raise _resource("XLSX ZIP entry count exceeds the configured ceiling")
@@ -296,15 +373,22 @@ def preflight_xlsx(path: str | os.PathLike[str]) -> XlsxPreflightResult:
                 if total_expanded > MAX_TOTAL_EXPANDED_BYTES:
                     raise _resource("XLSX expanded content exceeds the configured ceiling")
                 if info.file_size:
-                    if info.compress_size == 0 or info.file_size > info.compress_size * MAX_EXPANSION_RATIO:
+                    if (
+                        info.compress_size == 0
+                        or info.file_size > info.compress_size * MAX_EXPANSION_RATIO
+                    ):
                         raise _resource("XLSX part exceeds the expansion-ratio ceiling")
                 lowered = name.lower()
                 if any(marker in lowered for marker in _ACTIVE_NAME_MARKERS):
-                    raise _unsafe("XLSX contains unsupported active or embedded package content")
+                    raise _unsafe(
+                        "XLSX contains unsupported active or embedded package content"
+                    )
 
             missing = _REQUIRED_PARTS.difference(normalized)
             if missing:
-                raise _unsafe("XLSX is missing required workbook/content-type relationship parts")
+                raise _unsafe(
+                    "XLSX is missing required workbook/content-type relationship parts"
+                )
 
             known_parts = frozenset(normalized)
             relationship_sets: dict[str, tuple[_Relationship, ...]] = {}
@@ -323,11 +407,20 @@ def preflight_xlsx(path: str | os.PathLike[str]) -> XlsxPreflightResult:
                         )
 
             _validate_required_relationship_graph(relationship_sets)
+            validated_stream.seek(0)
             return XlsxPreflightResult(
                 path=candidate,
                 entry_count=len(infos),
-                compressed_file_bytes=stat_result.st_size,
+                compressed_file_bytes=compressed_file_bytes,
                 total_expanded_bytes=total_expanded,
+                content_sha256=content_sha256,
+                _validated_stream=validated_stream,
             )
     except (zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
-        raise _unsafe("selected workbook is not a supported ZIP-based OOXML container") from exc
+        validated_stream.close()
+        raise _unsafe(
+            "selected workbook is not a supported ZIP-based OOXML container"
+        ) from exc
+    except BaseException:
+        validated_stream.close()
+        raise

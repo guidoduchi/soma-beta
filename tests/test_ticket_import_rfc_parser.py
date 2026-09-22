@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import zipfile
 from datetime import UTC, datetime
 
+import pytest
 from openpyxl import Workbook
+
+from soma.foundation.errors import SomaError
 
 from soma.ticket_import.parsing.rfc import parse_rfc_enhanced
 from soma.ticket_import.parsing.xlsx_security import preflight_xlsx
@@ -105,3 +109,26 @@ def test_rfc_parser_classifies_equivalent_duplicates_and_content_conflicts_per_i
     unrelated = by_id["NC33333333333333"][0]
     assert unrelated.classification == "UNIQUE"
     assert "SOURCE_IDENTITY_CONFLICT" not in {f.finding_code for f in unrelated.findings}
+
+
+def test_rfc_parser_consumes_exact_preflighted_bytes_after_path_replacement(tmp_path) -> None:
+    path = tmp_path / "stale-rfc.xlsx"
+    _save(
+        path,
+        [
+            ["Task ID", "Summary"],
+            ["NC12345678901234", "Original safe RFC"],
+        ],
+    )
+    preflight = preflight_xlsx(path)
+
+    with zipfile.ZipFile(path, "a") as archive:
+        archive.writestr("xl/embeddings/audit-marker.bin", b"harmless audit marker")
+
+    with pytest.raises(SomaError) as fresh:
+        preflight_xlsx(path)
+    assert fresh.value.code == "XLSX_UNSAFE_CONTAINER"
+
+    parsed = parse_rfc_enhanced(path, preflight=preflight)
+    assert len(parsed.rows) == 1
+    assert parsed.rows[0].observation.canonical_primary_id == "NC12345678901234"

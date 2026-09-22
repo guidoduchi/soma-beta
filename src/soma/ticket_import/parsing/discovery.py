@@ -292,6 +292,7 @@ def _preflight_stable(path: Path, stable: _StableFile) -> XlsxPreflightResult:
             raise _unstable()
         raise
     if _probe_stat(path) != stable:
+        preflight.close()
         raise _unstable()
     return preflight
 
