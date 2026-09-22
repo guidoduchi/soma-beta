@@ -32,6 +32,7 @@ class UnitOfWork:
         self._connection: Any | None = None
         self._token: Any | None = None
         self._committed = False
+        self._write_admitted = False
 
     @property
     def connection(self) -> Any:
@@ -42,6 +43,7 @@ class UnitOfWork:
     def __enter__(self) -> Self:
         if _active_uow.get():
             raise PersistenceFailure("nested authoritative UnitOfWork is forbidden")
+        self._write_admitted = self._factory.enter_authoritative_write()
         self._token = _active_uow.set(True)
         try:
             self._connection = self._factory.open_authoritative(read_only=False)
@@ -54,6 +56,8 @@ class UnitOfWork:
             if self._token is not None:
                 _active_uow.reset(self._token)
                 self._token = None
+            self._factory.exit_authoritative_write(self._write_admitted)
+            self._write_admitted = False
             if _is_busy_error(exc):
                 raise PersistenceBusy() from exc
             raise
@@ -104,6 +108,8 @@ class UnitOfWork:
             if self._token is not None:
                 _active_uow.reset(self._token)
                 self._token = None
+            self._factory.exit_authoritative_write(self._write_admitted)
+            self._write_admitted = False
         return False
 
 

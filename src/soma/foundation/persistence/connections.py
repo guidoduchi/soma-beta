@@ -3,10 +3,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from threading import Lock
+from threading import Condition, Lock
+from time import monotonic
 from typing import Any, Protocol
 
-from soma.foundation.errors import PersistenceConnectionUnsafe, SecurityNotReady
+from soma.foundation.errors import PersistenceConnectionUnsafe, SecurityNotReady, SomaError
 
 
 class SqlCipherConnectionSecurityProvider(Protocol):
@@ -35,6 +36,56 @@ def load_sqlcipher_driver() -> DbApiDriver:
     except ImportError as exc:  # pragma: no cover - depends on packaged runtime
         raise SecurityNotReady("sqlcipher3 authoritative provider is unavailable") from exc
     return sqlcipher3
+
+
+class WriteAdmissionGate:
+    """Atomically closes new writer admission while existing UnitOfWork instances drain."""
+
+    def __init__(self) -> None:
+        self._condition = Condition()
+        self._accepting = True
+        self._active = 0
+
+    def enter(self) -> None:
+        with self._condition:
+            if not self._accepting:
+                raise SomaError("HOST_QUIESCING", "new authoritative writes are disabled")
+            self._active += 1
+
+    def exit(self) -> None:
+        with self._condition:
+            if self._active <= 0:
+                raise RuntimeError("write admission gate underflow")
+            self._active -= 1
+            if self._active == 0:
+                self._condition.notify_all()
+
+    def quiesce(self) -> None:
+        with self._condition:
+            self._accepting = False
+            if self._active == 0:
+                self._condition.notify_all()
+
+    def reopen(self) -> None:
+        with self._condition:
+            if self._active:
+                raise RuntimeError("cannot reopen write admission with active writers")
+            self._accepting = True
+
+    def wait_for_drain(self, timeout_seconds: float) -> bool:
+        deadline = monotonic() + max(0.0, timeout_seconds)
+        with self._condition:
+            while self._active:
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    return False
+                self._condition.wait(remaining)
+            return True
+
+    @property
+    def active(self) -> int:
+        with self._condition:
+            return self._active
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +224,7 @@ class ConnectionFactory:
         self._security_provider = security_provider
         self._driver = driver
         self._metrics = PersistenceMetrics()
+        self._write_admission_gate: WriteAdmissionGate | None = None
 
     @property
     def database_path(self) -> Path:
@@ -181,6 +233,23 @@ class ConnectionFactory:
     @property
     def metrics(self) -> PersistenceMetrics:
         return self._metrics
+
+    def install_write_admission_gate(self, gate: WriteAdmissionGate) -> None:
+        if self._write_admission_gate is not None and self._write_admission_gate is not gate:
+            raise RuntimeError("ConnectionFactory write admission gate is already installed")
+        self._write_admission_gate = gate
+
+    def enter_authoritative_write(self) -> bool:
+        if self._write_admission_gate is None:
+            return False
+        self._write_admission_gate.enter()
+        return True
+
+    def exit_authoritative_write(self, admitted: bool) -> None:
+        if admitted:
+            if self._write_admission_gate is None:
+                raise RuntimeError("ConnectionFactory write admission gate disappeared")
+            self._write_admission_gate.exit()
 
     def _driver_or_runtime(self) -> DbApiDriver:
         return self._driver if self._driver is not None else load_sqlcipher_driver()

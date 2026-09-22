@@ -9,6 +9,7 @@ from soma.foundation.errors import SomaError
 from soma.foundation.migrations.manifest import MigrationManifest
 from soma.foundation.migrations.runner import MigrationRunner
 from soma.foundation.persistence.connections import ConnectionFactory
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.runtime import HostRuntime, InstancePaths, RuntimeRegistry
 
 
@@ -212,4 +213,61 @@ def test_host_executor_quiescence_rejects_new_work(
     with pytest.raises(SomaError) as raised:
         runtime.request_executor.submit(lambda: 8)
     assert raised.value.code == "HOST_QUIESCING"
+    runtime.shutdown(grace_seconds=1)
+
+
+
+def test_shutdown_request_commits_one_receipt_audit_then_closes_writer_admission(
+    tmp_path,
+    migration_directory,
+    security_provider,
+) -> None:
+    runtime, _paths, _server, _security, _reconciled = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+    )
+    health = runtime.start()
+    command_id = __import__("soma.foundation.identifiers", fromlist=["new_uuid4"]).new_uuid4()
+
+    accepted = runtime.request_shutdown(
+        command_id=command_id,
+        run_id=health.run_id,
+        data_instance_id=health.data_instance_id,
+    )
+    assert accepted.shutdown_state == "QUIESCING"
+    assert runtime.state == "QUIESCING"
+
+    with ReadSnapshot(runtime.connection_factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipt_results WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events "
+            "WHERE command_id=? AND action_type='foundation.runtime_shutdown_requested'",
+            (command_id,),
+        ).fetchone()[0] == 1
+
+    with pytest.raises(SomaError) as raised:
+        with UnitOfWork(runtime.connection_factory):
+            pass
+    assert raised.value.code == "HOST_QUIESCING"
+
+    repeated = runtime.request_shutdown(
+        command_id=command_id,
+        run_id=health.run_id,
+        data_instance_id=health.data_instance_id,
+    )
+    assert repeated.shutdown_state == "ALREADY_QUIESCING"
+    with ReadSnapshot(runtime.connection_factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 1
+
     runtime.shutdown(grace_seconds=1)

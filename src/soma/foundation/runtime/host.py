@@ -8,13 +8,21 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import Callable, Protocol
 
+from soma.foundation.application.command_boundary import (
+    CommandBoundary,
+    CommandEnvelope,
+    PreparedMutation,
+)
+from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
+from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.contracts.foundation import RuntimeHealth, ShutdownResult
 from soma.foundation.errors import IntegrityFailure, PersistenceFailure, SomaError
 from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.migrations.manifest import MigrationManifest
 from soma.foundation.migrations.runner import MigrationRunner
 from soma.foundation.migrations.verification import verify_foundation_schema
-from soma.foundation.persistence.connections import ConnectionFactory
+from soma.foundation.persistence.connections import ConnectionFactory, WriteAdmissionGate
+from soma.foundation.strict_json import ObjectContract
 
 from .instance_lock import DataInstanceLock
 from .loopback import BoundLoopbackSocket
@@ -57,6 +65,30 @@ class LoopbackServerAdapter(Protocol):
 
 MigrationRunnerFactory = Callable[[Callable[[], bool]], MigrationRunner]
 StartupReconciler = Callable[[str, int], None]
+
+
+def _runtime_audit_writer() -> AuditWriter:
+    registry = AuditRegistry()
+    registry.register(
+        AuditActionContract(
+            action_type="foundation.runtime_shutdown_requested",
+            action_version=1,
+            payload_schema="FoundationShutdownAuditV1",
+            payload_version=1,
+            payload_contract=ObjectContract(
+                name="FoundationShutdownAuditV1",
+                version=1,
+                required_fields=frozenset(
+                    {"run_id", "data_instance_id", "shutdown_state"}
+                ),
+                allowed_fields=frozenset(
+                    {"run_id", "data_instance_id", "shutdown_state"}
+                ),
+                max_utf8_bytes=4096,
+            ),
+        )
+    )
+    return AuditWriter(registry)
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +200,12 @@ class HostRuntime:
         self._server_started = False
         self._security_started = False
         self._recent_error_codes: deque[str] = deque(maxlen=32)
+        self._write_gate = WriteAdmissionGate()
+        self._factory.install_write_admission_gate(self._write_gate)
+        self._shutdown_boundary = CommandBoundary(
+            self._factory,
+            _runtime_audit_writer(),
+        )
 
     @property
     def state(self) -> str:
@@ -247,6 +285,7 @@ class HostRuntime:
     def start(self) -> RuntimeHealth:
         if self._state not in {"STOPPED", "FAILED"}:
             raise SomaError("INSTANCE_OWNED", "this HostRuntime is already active")
+        self._write_gate.reopen()
         self._set_state("STARTING")
         self._paths.prepare_for_start()
         self._run_id = new_uuid4()
@@ -314,6 +353,92 @@ class HostRuntime:
     def health(self) -> RuntimeHealth:
         return self._health_for_state(self._state)
 
+    def request_shutdown(
+        self,
+        *,
+        command_id: str,
+        run_id: str,
+        data_instance_id: str,
+        actor_kind: str = "local_user",
+        actor_id: str | None = None,
+    ) -> ShutdownResult:
+        require_uuid4(command_id)
+        require_uuid4(run_id)
+        require_uuid4(data_instance_id)
+        if run_id != self._run_id or data_instance_id != self._data_instance_id:
+            raise SomaError("FORBIDDEN", "shutdown run/data identity does not match current host")
+        if self._state == "QUIESCING":
+            return ShutdownResult("ALREADY_QUIESCING", run_id, data_instance_id)
+        if self._state not in {"READY", "LISTENING_NOT_READY"}:
+            raise SomaError("HOST_NOT_READY", "runtime is not available for shutdown")
+
+        envelope = CommandEnvelope(
+            command_id=command_id,
+            command_type="ShutdownHost",
+            target_type="runtime_run",
+            target_id=run_id,
+            semantic_payload={
+                "run_id": run_id,
+                "data_instance_id": data_instance_id,
+            },
+        )
+
+        def prepare(uow) -> PreparedMutation:
+            if self._state not in {"READY", "LISTENING_NOT_READY"}:
+                raise SomaError("HOST_QUIESCING", "runtime began quiescing before shutdown commit")
+            row = uow.connection.execute(
+                "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
+            ).fetchone()
+            if row is None or str(row[0]) != data_instance_id:
+                raise IntegrityFailure("shutdown data instance identity changed")
+            audit_event_id = new_uuid4()
+
+            def apply(inner):
+                return AuditEventInput(
+                    audit_event_id=audit_event_id,
+                    action_type="foundation.runtime_shutdown_requested",
+                    action_version=1,
+                    actor_kind=actor_kind,
+                    actor_id=actor_id,
+                    target_type="runtime_run",
+                    target_id=run_id,
+                    command_id=command_id,
+                    payload_schema="FoundationShutdownAuditV1",
+                    payload_version=1,
+                    payload={
+                        "run_id": run_id,
+                        "data_instance_id": data_instance_id,
+                        "shutdown_state": "QUIESCING",
+                    },
+                    resulting_event_refs=(
+                        AuditResultRef("runtime_run", run_id),
+                    ),
+                )
+
+            return PreparedMutation(
+                no_change=False,
+                result_type="runtime_shutdown",
+                result_id=run_id,
+                apply=apply,
+                response_schema="ShutdownHostAcceptedV1",
+                response_version=1,
+                response={
+                    "shutdown_state": "QUIESCING",
+                    "run_id": run_id,
+                    "data_instance_id": data_instance_id,
+                },
+            )
+
+        result = self._shutdown_boundary.execute(envelope, prepare)
+        if (
+            result.response_schema != "ShutdownHostAcceptedV1"
+            or result.response_version != 1
+            or not isinstance(result.response, dict)
+        ):
+            raise IntegrityFailure("shutdown replay result contract is invalid")
+        self.quiesce()
+        return ShutdownResult("QUIESCING", run_id, data_instance_id)
+
     def quiesce(self) -> ShutdownResult:
         if self._run_id is None or self._data_instance_id is None:
             raise SomaError("HOST_NOT_READY", "runtime is not active")
@@ -321,6 +446,7 @@ class HostRuntime:
             return ShutdownResult("ALREADY_QUIESCING", self._run_id, self._data_instance_id)
         if self._state not in {"READY", "LISTENING_NOT_READY"}:
             raise SomaError("HOST_NOT_READY", "runtime cannot quiesce from current state")
+        self._write_gate.quiesce()
         self._set_state("QUIESCING")
         if self._request_executor is not None:
             self._request_executor.quiesce()
@@ -338,6 +464,8 @@ class HostRuntime:
         if self._state != "QUIESCING":
             self.quiesce()
 
+        if not self._write_gate.wait_for_drain(grace_seconds):
+            raise SomaError("INTERNAL_ERROR", "active authoritative writes did not drain before shutdown deadline")
         request_drained = (
             True
             if self._request_executor is None
