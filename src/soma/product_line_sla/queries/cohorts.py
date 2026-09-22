@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ._cursor import cursor_envelope as _cursor
+
 from dataclasses import dataclass
 
 from soma.foundation.errors import ValidationError
@@ -60,23 +62,6 @@ def _cohort_key_tuple(cohort: CohortProjection) -> tuple[str, str, str, str, str
         cohort.severity,
         cohort.policy_tier_id,
     )
-
-
-def _cursor(
-    *,
-    query_id: str,
-    sort_id: str,
-    last_key: list[object],
-    filter_fingerprint: str,
-) -> dict[str, object]:
-    return {
-        "version": 1,
-        "query_id": query_id,
-        "sort_registry_id": sort_id,
-        "last_key_tuple": last_key,
-        "filter_fingerprint": filter_fingerprint,
-        "null_order": "none",
-    }
 
 
 def _validate_cursor(

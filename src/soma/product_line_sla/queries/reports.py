@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ._cursor import cursor_envelope as _cursor
+
 from dataclasses import asdict, dataclass
 
 from soma.foundation.errors import SomaError, ValidationError
@@ -40,23 +42,6 @@ def _limit(value: int) -> int:
     if type(value) is not int or not 1 <= value <= 500:
         raise ValidationError("report page size must be an integer from 1 through 500")
     return value
-
-
-def _cursor(
-    *,
-    query_id: str,
-    sort_id: str,
-    last_key: list[object],
-    filter_fingerprint: str,
-) -> dict[str, object]:
-    return {
-        "version": 1,
-        "query_id": query_id,
-        "sort_registry_id": sort_id,
-        "last_key_tuple": last_key,
-        "filter_fingerprint": filter_fingerprint,
-        "null_order": "none",
-    }
 
 
 def _cursor_key(
