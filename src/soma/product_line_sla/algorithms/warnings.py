@@ -8,7 +8,7 @@ from soma.foundation.strict_json import sha256_canonical_json
 from soma.tickets.service_request_sla_input import ServiceRequestSlaInputReader
 
 from .cohort_state import CohortProjection
-from .individual_sla import IndividualSlaCalculator
+from .individual_sla import IndividualSlaCalculator, IndividualSlaReadCache
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +63,7 @@ class SlaWarningCalculator:
         service_request_id: str,
         as_of_utc: int,
         suspension_ending_soon_threshold_seconds: int | None = None,
+        read_cache: IndividualSlaReadCache | None = None,
     ) -> tuple[SlaWarning, ...]:
         if type(as_of_utc) is not int or as_of_utc < 0:
             raise ValidationError("as_of_utc must be a nonnegative whole-second UTC instant")
@@ -78,7 +79,13 @@ class SlaWarningCalculator:
             )
 
         sla_input = ServiceRequestSlaInputReader.get(reader, service_request_id)
-        result = IndividualSlaCalculator.calculate(reader, service_request_id, as_of_utc)
+        result = IndividualSlaCalculator.calculate(
+            reader,
+            service_request_id,
+            as_of_utc,
+            sla_input=sla_input,
+            read_cache=read_cache,
+        )
         warnings: list[SlaWarning] = []
 
         if result.classification_state in {"unclassified", "incompatible"}:

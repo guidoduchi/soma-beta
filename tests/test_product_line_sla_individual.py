@@ -5,13 +5,17 @@ from datetime import UTC, datetime
 
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
-from soma.product_line_sla.algorithms.individual_sla import IndividualSlaCalculator
+from soma.product_line_sla.algorithms.individual_sla import (
+    IndividualSlaCalculator,
+    IndividualSlaReadCache,
+)
 from soma.product_line_sla.algorithms.warnings import SlaWarningCalculator
 from soma.product_line_sla.queries.sla import SlaWarningQueryService
 from soma.product_line_sla.services.catalog import ProductLineSlaCatalogService
 from soma.product_line_sla.services.classification import ProductLineSlaClassificationService
 from soma.product_line_sla.services.policy import ProductLineSlaPolicyService
 from soma.reference.application.customer_service import CustomerReferenceService
+from soma.tickets.service_request_sla_input import ServiceRequestSlaInputReader
 from soma.tickets.service_requests import ServiceRequestService
 from soma.tickets.sr_references import ServiceRequestReferenceService
 from soma.tickets.sr_source_projection import (
@@ -598,3 +602,99 @@ def test_warning_query_derives_cohort_warning_from_as_of_guayaquil_month(
     assert page.items[0].target_type == "sla_cohort"
     assert page.items[0].policy_tier_id is not None
     assert page.next_cursor is None
+
+
+def test_warning_query_reads_accepted_sla_input_once_per_service_request(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    setup = _classified(factory, suffix="90")
+    report_date = 1_000_000
+    _apply_source(
+        factory,
+        setup.service_request_id,
+        _delta("report_date", value=report_date, chronology=100),
+        _delta("customer_severity", value="Critical", chronology=100),
+    )
+
+    statements: list[str] = []
+
+    class _TracedFactory:
+        def open_authoritative(self, **kwargs):
+            connection = factory.open_authoritative(**kwargs)
+            connection.set_trace_callback(statements.append)
+            return connection
+
+    page = SlaWarningQueryService(_TracedFactory()).list_warnings(
+        customer_org_id=setup.customer_id,
+        warning_kind="individual_tier_exceeded",
+        as_of_utc=report_date + 8 * 86_400,
+        limit=10,
+    )
+    assert len(page.items) == 1
+    identity_reads = [
+        statement
+        for statement in statements
+        if statement.startswith(
+            "SELECT official_sr_no FROM service_requests WHERE service_request_id="
+        )
+    ]
+    assert len(identity_reads) == 1
+
+
+def test_individual_sla_read_cache_reuses_immutable_policy_reads(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    setup = _classified(factory, suffix="91")
+    report_date = 1_000_000
+    _apply_source(
+        factory,
+        setup.service_request_id,
+        _delta("report_date", value=report_date, chronology=100),
+        _delta("customer_severity", value="Critical", chronology=100),
+    )
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        sla_input = ServiceRequestSlaInputReader.get(
+            connection,
+            setup.service_request_id,
+        )
+        statements: list[str] = []
+        connection.set_trace_callback(statements.append)
+        cache = IndividualSlaReadCache()
+        first = IndividualSlaCalculator.calculate(
+            connection,
+            setup.service_request_id,
+            report_date + 86_400,
+            sla_input=sla_input,
+            read_cache=cache,
+        )
+        second = IndividualSlaCalculator.calculate(
+            connection,
+            setup.service_request_id,
+            report_date + 2 * 86_400,
+            sla_input=sla_input,
+            read_cache=cache,
+        )
+    finally:
+        connection.close()
+
+    assert first.policy_revision_id == second.policy_revision_id
+    policy_owner_reads = [
+        statement
+        for statement in statements
+        if statement.startswith(
+            "SELECT contract_product_line_id FROM sla_policy_revisions WHERE policy_revision_id="
+        )
+    ]
+    tier_reads = [
+        statement
+        for statement in statements
+        if statement.startswith(
+            "SELECT policy_tier_id,tier_ordinal,required_percentage_millionths,"
+        )
+    ]
+    assert len(policy_owner_reads) == 1
+    assert len(tier_reads) == 1

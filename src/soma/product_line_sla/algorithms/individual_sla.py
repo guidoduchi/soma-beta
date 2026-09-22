@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import Any
 
@@ -143,6 +143,17 @@ def _empty_result(
     )
 
 
+@dataclass(slots=True)
+class IndividualSlaReadCache:
+    """Immutable-policy read reuse scoped to one calculation/read snapshot."""
+
+    policy_owner_by_revision: dict[str, str | None] = field(default_factory=dict)
+    policy_tiers_by_revision_severity: dict[
+        tuple[str, str],
+        tuple[tuple[object, ...], ...],
+    ] = field(default_factory=dict)
+
+
 class IndividualSlaCalculator:
     """Pure INDIVIDUAL_SLA_V1 projection over accepted ticket and LLD-06 authority."""
 
@@ -152,11 +163,17 @@ class IndividualSlaCalculator:
         reader: Any,
         sr_id: str,
         as_of_utc: int,
+        *,
+        sla_input: ServiceRequestSlaInput | None = None,
+        read_cache: IndividualSlaReadCache | None = None,
     ) -> IndividualSlaResult:
         service_request_id = require_uuid4(sr_id)
         if type(as_of_utc) is not int or as_of_utc < 0:
             raise ValidationError("as_of_utc must be a nonnegative whole-second UTC instant")
-        sla_input = ServiceRequestSlaInputReader.get(reader, service_request_id)
+        if sla_input is None:
+            sla_input = ServiceRequestSlaInputReader.get(reader, service_request_id)
+        elif sla_input.service_request_id != service_request_id:
+            raise ValidationError("supplied SLA input belongs to a different Service Request")
         classification = _classification(reader, service_request_id)
 
         if classification is None:
@@ -190,14 +207,20 @@ class IndividualSlaCalculator:
                 classification=classification,
             )
 
-        policy_owner = reader.execute(
-            "SELECT contract_product_line_id FROM sla_policy_revisions WHERE policy_revision_id=?",
-            (policy_revision_id,),
-        ).fetchone()
         if (
-            policy_owner is None
-            or str(policy_owner[0]) != classification.contract_product_line_id
+            read_cache is not None
+            and policy_revision_id in read_cache.policy_owner_by_revision
         ):
+            policy_owner_id = read_cache.policy_owner_by_revision[policy_revision_id]
+        else:
+            policy_owner = reader.execute(
+                "SELECT contract_product_line_id FROM sla_policy_revisions WHERE policy_revision_id=?",
+                (policy_revision_id,),
+            ).fetchone()
+            policy_owner_id = None if policy_owner is None else str(policy_owner[0])
+            if read_cache is not None:
+                read_cache.policy_owner_by_revision[policy_revision_id] = policy_owner_id
+        if policy_owner_id != classification.contract_product_line_id:
             raise SomaError(
                 "SLA_INPUT_INDETERMINATE",
                 "current SLA policy does not belong to the classified Contract Product Line",
@@ -257,13 +280,25 @@ class IndividualSlaCalculator:
         )
         elapsed = max(raw_elapsed, Fraction(0, 1))
 
-        tier_rows = reader.execute(
-            "SELECT policy_tier_id,tier_ordinal,required_percentage_millionths,"
-            "maximum_duration_numerator_seconds,maximum_duration_denominator "
-            "FROM sla_policy_tiers WHERE policy_revision_id=? AND severity=? "
-            "ORDER BY tier_ordinal,policy_tier_id",
-            (policy_revision_id, sla_input.severity),
-        ).fetchall()
+        tier_cache_key = (policy_revision_id, sla_input.severity)
+        if (
+            read_cache is not None
+            and tier_cache_key in read_cache.policy_tiers_by_revision_severity
+        ):
+            tier_rows = read_cache.policy_tiers_by_revision_severity[tier_cache_key]
+        else:
+            tier_rows = tuple(
+                tuple(row)
+                for row in reader.execute(
+                    "SELECT policy_tier_id,tier_ordinal,required_percentage_millionths,"
+                    "maximum_duration_numerator_seconds,maximum_duration_denominator "
+                    "FROM sla_policy_tiers WHERE policy_revision_id=? AND severity=? "
+                    "ORDER BY tier_ordinal,policy_tier_id",
+                    (policy_revision_id, sla_input.severity),
+                ).fetchall()
+            )
+            if read_cache is not None:
+                read_cache.policy_tiers_by_revision_severity[tier_cache_key] = tier_rows
         if not tier_rows:
             raise SomaError(
                 "SLA_INPUT_INDETERMINATE",
@@ -351,6 +386,7 @@ class IndividualSlaCalculator:
 
 __all__ = [
     "IndividualSlaCalculator",
+    "IndividualSlaReadCache",
     "IndividualSlaResult",
     "IndividualTierResult",
 ]
