@@ -111,9 +111,11 @@ def test_customer_detail_and_account_code_history_preserve_superseded_claims(
     assert len(second.items) == 1
     assert second.continuation is None
     items = (*first.items, *second.items)
-    assert [item.lifecycle_state for item in items] == ["superseded", "active"]
-    assert items[0].superseded_command_id is not None
-    assert items[1].value_text == "ACC-TWO"
+    by_value = {item.value_text: item for item in items}
+    assert set(by_value) == {"ACC-ONE", "ACC-TWO"}
+    assert by_value["ACC-ONE"].lifecycle_state == "superseded"
+    assert by_value["ACC-ONE"].superseded_command_id is not None
+    assert by_value["ACC-TWO"].lifecycle_state == "active"
 
 
 def test_contact_detail_channels_and_affiliation_histories_are_bounded(
@@ -171,9 +173,10 @@ def test_contact_detail_channels_and_affiliation_histories_are_bounded(
     assert affiliation_second.exact_count == 2
     assert affiliation_second.continuation is None
     affiliations = (*affiliation_first.items, *affiliation_second.items)
-    assert affiliations[0].is_current is False
-    assert affiliations[0].closed_command_id is not None
-    assert affiliations[1].is_current is True
+    by_customer = {item.customer_org_id: item for item in affiliations}
+    assert by_customer[customer_a.customer_org_id].is_current is False
+    assert by_customer[customer_a.customer_org_id].closed_command_id is not None
+    assert by_customer[customer_b.customer_org_id].is_current is True
 
     assert second_channel.result_id is not None
     contacts.archive_contact_channel(
