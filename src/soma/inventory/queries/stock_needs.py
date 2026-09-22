@@ -243,74 +243,107 @@ class InventoryNeedsQueryService:
                 filter_fingerprint=fingerprint,
             )
 
-            rows = snapshot.connection.execute(
-                "SELECT u.spare_part_unit_id,u.local_tracking_id,u.bom_code,u.bom_key,"
-                "u.manufacturer_serial,p.condition_token,p.disposition_token,p.location_kind,"
-                "p.location_ref_id,p.custody_text,p.active_task_allocation_id "
+            exact_total_row = snapshot.connection.execute(
+                "SELECT COUNT(*) FROM spare_part_units u "
+                "JOIN spare_part_current_projection p "
+                "ON p.spare_part_unit_id=u.spare_part_unit_id"
+            ).fetchone()
+            exact_total = 0 if exact_total_row is None else int(exact_total_row[0])
+
+            if requested_bom_key is None:
+                rank_sql = "3"
+                rank_params: tuple[object, ...] = ()
+            else:
+                rank_sql = "CASE WHEN u.bom_key=? THEN 0 ELSE 2 END"
+                rank_params = (requested_bom_key,)
+
+            base_sql = (
+                "SELECT u.spare_part_unit_id,u.local_tracking_id,u.bom_code,"
+                "u.manufacturer_serial,p.condition_token,p.disposition_token,"
+                "p.location_kind,p.location_ref_id,p.custody_text,"
+                "p.active_task_allocation_id,"
+                + rank_sql
+                + " AS compatibility_rank,"
+                "COALESCE(u.local_tracking_id,'') AS sort_tracking "
                 "FROM spare_part_units u JOIN spare_part_current_projection p "
-                "ON p.spare_part_unit_id=u.spare_part_unit_id "
-                "ORDER BY COALESCE(u.local_tracking_id,''),u.spare_part_unit_id"
-            ).fetchall()
-
-            projected: list[tuple[tuple[int, str, str], StockEligibilityItem]] = []
-            for row in rows:
-                unit_bom_key = str(row[3])
-                if requested_bom_key is None:
-                    compatibility = "unknown"
-                elif unit_bom_key == requested_bom_key:
-                    compatibility = "exact"
-                else:
-                    compatibility = "incompatible"
-
-                local_tracking = None if row[1] is None else str(row[1])
-                unit_id = str(row[0])
-                sort_key = _stock_sort_key(
-                    compatibility,
-                    local_tracking,
+                "ON p.spare_part_unit_id=u.spare_part_unit_id"
+            )
+            where_sql = ""
+            page_params: tuple[object, ...] = rank_params
+            if after_key is not None:
+                rank, tracking, unit_id = after_key
+                where_sql = (
+                    " WHERE compatibility_rank>? OR "
+                    "(compatibility_rank=? AND "
+                    "(sort_tracking>? OR "
+                    "(sort_tracking=? AND spare_part_unit_id>?)))"
+                )
+                page_params = (
+                    *rank_params,
+                    rank,
+                    rank,
+                    tracking,
+                    tracking,
                     unit_id,
                 )
 
-                blockers = tuple(
-                    self._units.stock_blockers(
-                        snapshot.connection,
-                        unit_id,
-                    )
+            rows = snapshot.connection.execute(
+                "SELECT * FROM (" + base_sql + ") stock"
+                + where_sql
+                + " ORDER BY compatibility_rank,sort_tracking,spare_part_unit_id LIMIT ?",
+                (*page_params, page_limit + 1),
+            ).fetchall()
+
+            has_more = len(rows) > page_limit
+            page_rows = rows[:page_limit]
+            blocker_inputs = tuple(
+                (
+                    str(row[0]),
+                    str(row[4]),
+                    str(row[5]),
+                    None if row[9] is None else str(row[9]),
                 )
-                projected.append(
-                    (
-                        sort_key,
-                        StockEligibilityItem(
-                            spare_part_unit_id=unit_id,
-                            local_tracking_id=local_tracking,
-                            bom_code=str(row[2]),
-                            manufacturer_serial=None if row[4] is None else str(row[4]),
-                            condition_token=str(row[5]),
-                            disposition_token=str(row[6]),
-                            location_kind=None if row[7] is None else str(row[7]),
-                            location_ref_id=None if row[8] is None else str(row[8]),
-                            custody_text=None if row[9] is None else str(row[9]),
-                            active_task_allocation_id=None
-                            if row[10] is None
-                            else str(row[10]),
-                            compatibility_classification=compatibility,
-                            availability_blockers=blockers,
-                        ),
+                for row in page_rows
+            )
+            blockers_by_unit = self._units.stock_blockers_for_units(
+                snapshot.connection,
+                blocker_inputs,
+            )
+
+            items: list[StockEligibilityItem] = []
+            for row in page_rows:
+                unit_id = str(row[0])
+                compatibility_rank = int(row[10])
+                compatibility = {
+                    0: "exact",
+                    2: "incompatible",
+                    3: "unknown",
+                }.get(compatibility_rank)
+                if compatibility is None:
+                    raise ValidationError("Stock compatibility class is invalid")
+                items.append(
+                    StockEligibilityItem(
+                        spare_part_unit_id=unit_id,
+                        local_tracking_id=None if row[1] is None else str(row[1]),
+                        bom_code=str(row[2]),
+                        manufacturer_serial=None if row[3] is None else str(row[3]),
+                        condition_token=str(row[4]),
+                        disposition_token=str(row[5]),
+                        location_kind=None if row[6] is None else str(row[6]),
+                        location_ref_id=None if row[7] is None else str(row[7]),
+                        custody_text=None if row[8] is None else str(row[8]),
+                        active_task_allocation_id=None
+                        if row[9] is None
+                        else str(row[9]),
+                        compatibility_classification=compatibility,
+                        availability_blockers=blockers_by_unit[unit_id],
                     )
                 )
 
-            projected.sort(key=lambda item: item[0])
-            exact_total = len(projected)
-            remaining = (
-                projected
-                if after_key is None
-                else [item for item in projected if item[0] > after_key]
-            )
-            selected = remaining[: page_limit + 1]
-            has_more = len(selected) > page_limit
-            page_rows = selected[:page_limit]
             next_cursor: dict[str, object] | None = None
             if has_more and page_rows:
-                key = page_rows[-1][0]
+                last = page_rows[-1]
+                key = (int(last[10]), str(last[11]), str(last[0]))
                 next_cursor = {
                     "version": 1,
                     "query_id": _STOCK_QUERY_ID,
@@ -319,8 +352,9 @@ class InventoryNeedsQueryService:
                     "filter_fingerprint": fingerprint,
                     "null_order": "empty_before_text",
                 }
+
             return StockEligibilityPage(
-                items=tuple(item for _key, item in page_rows),
+                items=tuple(items),
                 continuation=next_cursor,
                 exact_total=exact_total,
             )

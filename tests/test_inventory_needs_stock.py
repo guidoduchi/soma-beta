@@ -854,3 +854,55 @@ def test_t004_local_selection_preserves_active_need_and_optional_reservation(
             "WHERE installed_spare_part_unit_id=?",
             (unit_id,),
         ).fetchone()[0] == 0
+
+
+def test_stock_eligibility_page_has_fixed_select_budget(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    service = InventoryNeedsStockService(factory)
+    for ordinal in range(50):
+        service.register_spare_part_unit(
+            command_id=new_uuid4(),
+            origin="manual_local",
+            bom_code="BOM-PAGE-BUDGET",
+            manufacturer_serial=f"BUDGET-{ordinal:03d}",
+            condition_token="new",
+        )
+
+    statements: list[str] = []
+
+    class _TracedFactory:
+        def open_authoritative(self, **kwargs):
+            connection = factory.open_authoritative(**kwargs)
+            connection.set_trace_callback(statements.append)
+            return connection
+
+    query_service = InventoryNeedsQueryService(_TracedFactory())
+    first = query_service.stock_eligibility(limit=10)
+    first_selects = [
+        statement
+        for statement in statements
+        if statement.lstrip().upper().startswith("SELECT")
+    ]
+    assert first.exact_total == 50
+    assert len(first.items) == 10
+    assert first.continuation is not None
+    assert len(first_selects) == 5
+
+    statements.clear()
+    second = query_service.stock_eligibility(
+        cursor=first.continuation,
+        limit=10,
+    )
+    second_selects = [
+        statement
+        for statement in statements
+        if statement.lstrip().upper().startswith("SELECT")
+    ]
+    assert second.exact_total == 50
+    assert len(second.items) == 10
+    assert len(second_selects) == 5
+    assert {
+        item.spare_part_unit_id for item in first.items
+    }.isdisjoint(item.spare_part_unit_id for item in second.items)

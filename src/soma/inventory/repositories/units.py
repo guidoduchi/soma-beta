@@ -328,7 +328,80 @@ class InventoryUnitsRepository:
         return event_id, revision
 
     @staticmethod
-    def stock_blockers(connection, spare_part_unit_id: str) -> list[str]:
+    def _compose_stock_blockers(
+        *,
+        condition: str,
+        disposition: str,
+        active_task_allocation_id: str | None,
+        has_task_allocation: bool,
+        has_open_return_obligation: bool,
+        has_installed_physical_consequence: bool,
+    ) -> tuple[str, ...]:
+        blockers: list[str] = []
+        if condition not in {"new", "used"}:
+            blockers.append(f"condition:{condition}")
+        if disposition != "available":
+            blockers.append(f"disposition:{disposition}")
+        if active_task_allocation_id is not None or has_task_allocation:
+            blockers.append("active_task_allocation")
+        if has_open_return_obligation:
+            blockers.append("open_return_obligation")
+        if has_installed_physical_consequence:
+            blockers.append("installed_physical_consequence")
+        return tuple(blockers)
+
+    @classmethod
+    def stock_blockers_for_units(
+        cls,
+        connection,
+        units: tuple[tuple[str, str, str, str | None], ...],
+    ) -> dict[str, tuple[str, ...]]:
+        if not units:
+            return {}
+        unit_ids = tuple(row[0] for row in units)
+        if len(set(unit_ids)) != len(unit_ids):
+            raise IntegrityFailure("Stock blocker batch contains duplicate Spare Part Unit ids")
+        placeholders = ",".join("?" for _ in unit_ids)
+
+        task_ids = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT DISTINCT spare_part_unit_id FROM task_unit_allocation_current "
+                f"WHERE spare_part_unit_id IN ({placeholders})",
+                unit_ids,
+            ).fetchall()
+        }
+        obligation_ids = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT DISTINCT spare_part_unit_id FROM rma_return_obligation_current "
+                f"WHERE obligation_state='open' AND spare_part_unit_id IN ({placeholders})",
+                unit_ids,
+            ).fetchall()
+        }
+        installed_ids = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT DISTINCT installed_spare_part_unit_id FROM physical_consequence_current "
+                f"WHERE installed_spare_part_unit_id IN ({placeholders})",
+                unit_ids,
+            ).fetchall()
+        }
+
+        return {
+            unit_id: cls._compose_stock_blockers(
+                condition=condition,
+                disposition=disposition,
+                active_task_allocation_id=active_task_allocation_id,
+                has_task_allocation=unit_id in task_ids,
+                has_open_return_obligation=unit_id in obligation_ids,
+                has_installed_physical_consequence=unit_id in installed_ids,
+            )
+            for unit_id, condition, disposition, active_task_allocation_id in units
+        }
+
+    @classmethod
+    def stock_blockers(cls, connection, spare_part_unit_id: str) -> list[str]:
         row = connection.execute(
             "SELECT condition_token,disposition_token,active_task_allocation_id "
             "FROM spare_part_current_projection WHERE spare_part_unit_id=?",
@@ -336,33 +409,19 @@ class InventoryUnitsRepository:
         ).fetchone()
         if row is None:
             return ["missing"]
-        condition = str(row[0])
-        disposition = str(row[1])
-        blockers: list[str] = []
-        if condition not in {"new", "used"}:
-            blockers.append(f"condition:{condition}")
-        if disposition != "available":
-            blockers.append(f"disposition:{disposition}")
-        if row[2] is not None:
-            blockers.append("active_task_allocation")
-        if connection.execute(
-            "SELECT 1 FROM task_unit_allocation_current WHERE spare_part_unit_id=?",
-            (spare_part_unit_id,),
-        ).fetchone() is not None and "active_task_allocation" not in blockers:
-            blockers.append("active_task_allocation")
-        if connection.execute(
-            "SELECT 1 FROM rma_return_obligation_current "
-            "WHERE spare_part_unit_id=? AND obligation_state='open'",
-            (spare_part_unit_id,),
-        ).fetchone() is not None:
-            blockers.append("open_return_obligation")
-        if connection.execute(
-            "SELECT 1 FROM physical_consequence_current "
-            "WHERE installed_spare_part_unit_id=? LIMIT 1",
-            (spare_part_unit_id,),
-        ).fetchone() is not None:
-            blockers.append("installed_physical_consequence")
-        return blockers
+        blockers = cls.stock_blockers_for_units(
+            connection,
+            (
+                (
+                    spare_part_unit_id,
+                    str(row[0]),
+                    str(row[1]),
+                    None if row[2] is None else str(row[2]),
+                ),
+            ),
+        )
+        return list(blockers[spare_part_unit_id])
+
 
     @staticmethod
     def require_task_revision(connection, task_id: str, expected_revision: int) -> None:
