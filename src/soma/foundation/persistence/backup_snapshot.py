@@ -230,6 +230,16 @@ class BackupSnapshotProvider:
             os.replace(stage, live)
             published = True
 
+            # Atomic replacement must publish the exact previously verified stage
+            # bytes. Prove that before reopening SQLite: the subsequent full
+            # verifier is allowed to perform rolled-back integrity probes and
+            # SQLite may legitimately rewrite internal file metadata while doing so.
+            published_digest = _sha256_file(live)
+            if published_digest != digest:
+                raise IntegrityFailure(
+                    "published restored database bytes differ from verified stage"
+                )
+
             factory = self._restore_factory_builder(live, key_context)
             connection = factory.open_authoritative(read_only=False, require_wal=False)
             try:
@@ -237,15 +247,16 @@ class BackupSnapshotProvider:
                 data_instance_id, _sequence, _migration_id = self._identity(connection)
             finally:
                 connection.close()
-            live_digest = _sha256_file(live)
-            if live_digest != digest or data_instance_id != stage_descriptor.data_instance_id:
-                raise IntegrityFailure("published restored database differs from verified stage")
+            if data_instance_id != stage_descriptor.data_instance_id:
+                raise IntegrityFailure(
+                    "published restored database identity differs from verified stage"
+                )
             self._verified_stages.pop(stage, None)
             return RestoreCommitResult(
                 live_database_path=live,
                 emergency_database_path=emergency,
                 data_instance_id=data_instance_id,
-                sha256=live_digest,
+                sha256=published_digest,
             )
         except BaseException:
             try:
