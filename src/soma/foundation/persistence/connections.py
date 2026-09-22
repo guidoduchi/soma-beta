@@ -108,6 +108,18 @@ class _TrackedConnection:
     def executescript(self, *args, **kwargs):
         return self._call_with_transaction_tracking("executescript", *args, **kwargs)
 
+    def backup(self, target, *args, **kwargs):
+        raw_target = (
+            object.__getattribute__(target, "_connection")
+            if isinstance(target, _TrackedConnection)
+            else target
+        )
+        return object.__getattribute__(self, "_connection").backup(
+            raw_target,
+            *args,
+            **kwargs,
+        )
+
     def commit(self) -> None:
         self._call_with_transaction_tracking("commit")
 
