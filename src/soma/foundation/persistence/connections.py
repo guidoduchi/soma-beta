@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from typing import Any, Protocol
 
 from soma.foundation.errors import PersistenceConnectionUnsafe, SecurityNotReady
@@ -35,6 +37,118 @@ def load_sqlcipher_driver() -> DbApiDriver:
     return sqlcipher3
 
 
+@dataclass(frozen=True, slots=True)
+class PersistenceMetricsSnapshot:
+    open_authoritative_connections: int
+    active_transactions: int
+
+
+class PersistenceMetrics:
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._open_connections = 0
+        self._active_transactions = 0
+
+    def _opened(self) -> None:
+        with self._lock:
+            self._open_connections += 1
+
+    def _closed(self, *, was_in_transaction: bool) -> None:
+        with self._lock:
+            if self._open_connections <= 0:
+                raise RuntimeError("persistence connection metric underflow")
+            self._open_connections -= 1
+            if was_in_transaction:
+                if self._active_transactions <= 0:
+                    raise RuntimeError("persistence transaction metric underflow")
+                self._active_transactions -= 1
+
+    def _transaction_transition(self, before: bool, after: bool) -> None:
+        if before == after:
+            return
+        with self._lock:
+            if after:
+                self._active_transactions += 1
+            else:
+                if self._active_transactions <= 0:
+                    raise RuntimeError("persistence transaction metric underflow")
+                self._active_transactions -= 1
+
+    def snapshot(self) -> PersistenceMetricsSnapshot:
+        with self._lock:
+            return PersistenceMetricsSnapshot(
+                open_authoritative_connections=self._open_connections,
+                active_transactions=self._active_transactions,
+            )
+
+
+class _TrackedConnection:
+    def __init__(self, connection: Any, metrics: PersistenceMetrics) -> None:
+        object.__setattr__(self, "_connection", connection)
+        object.__setattr__(self, "_metrics", metrics)
+        object.__setattr__(self, "_closed", False)
+        metrics._opened()
+
+    def _call_with_transaction_tracking(self, name: str, *args, **kwargs):
+        connection = object.__getattribute__(self, "_connection")
+        metrics = object.__getattribute__(self, "_metrics")
+        before = bool(getattr(connection, "in_transaction", False))
+        try:
+            return getattr(connection, name)(*args, **kwargs)
+        finally:
+            after = bool(getattr(connection, "in_transaction", False))
+            metrics._transaction_transition(before, after)
+
+    def execute(self, *args, **kwargs):
+        return self._call_with_transaction_tracking("execute", *args, **kwargs)
+
+    def executemany(self, *args, **kwargs):
+        return self._call_with_transaction_tracking("executemany", *args, **kwargs)
+
+    def executescript(self, *args, **kwargs):
+        return self._call_with_transaction_tracking("executescript", *args, **kwargs)
+
+    def commit(self) -> None:
+        self._call_with_transaction_tracking("commit")
+
+    def rollback(self) -> None:
+        self._call_with_transaction_tracking("rollback")
+
+    def close(self) -> None:
+        if object.__getattribute__(self, "_closed"):
+            return
+        connection = object.__getattribute__(self, "_connection")
+        metrics = object.__getattribute__(self, "_metrics")
+        was_in_transaction = bool(getattr(connection, "in_transaction", False))
+        try:
+            connection.close()
+        finally:
+            object.__setattr__(self, "_closed", True)
+            metrics._closed(was_in_transaction=was_in_transaction)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        connection = object.__getattribute__(self, "_connection")
+        before = bool(getattr(connection, "in_transaction", False))
+        try:
+            result = connection.__exit__(exc_type, exc, tb)
+        finally:
+            after = bool(getattr(connection, "in_transaction", False))
+            object.__getattribute__(self, "_metrics")._transaction_transition(before, after)
+        return bool(result)
+
+    def __getattr__(self, name: str):
+        return getattr(object.__getattribute__(self, "_connection"), name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name in {"_connection", "_metrics", "_closed"}:
+            object.__setattr__(self, name, value)
+            return
+        setattr(object.__getattribute__(self, "_connection"), name, value)
+
+
 class ConnectionFactory:
     def __init__(
         self,
@@ -46,10 +160,15 @@ class ConnectionFactory:
         self._database_path = Path(database_path)
         self._security_provider = security_provider
         self._driver = driver
+        self._metrics = PersistenceMetrics()
 
     @property
     def database_path(self) -> Path:
         return self._database_path
+
+    @property
+    def metrics(self) -> PersistenceMetrics:
+        return self._metrics
 
     def _driver_or_runtime(self) -> DbApiDriver:
         return self._driver if self._driver is not None else load_sqlcipher_driver()
@@ -83,7 +202,9 @@ class ConnectionFactory:
                 query_only = int(connection.execute("PRAGMA query_only").fetchone()[0])
                 if query_only != 1:
                     raise PersistenceConnectionUnsafe("read connection could not enable query_only")
-            return connection
+            tracked = _TrackedConnection(connection, self._metrics)
+            connection = None
+            return tracked
         except (SecurityNotReady, PersistenceConnectionUnsafe):
             if connection is not None:
                 connection.close()

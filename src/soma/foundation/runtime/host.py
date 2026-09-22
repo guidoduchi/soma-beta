@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import re
+from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from threading import Lock
@@ -165,10 +167,20 @@ class HostRuntime:
         self._registry_published = False
         self._server_started = False
         self._security_started = False
+        self._recent_error_codes: deque[str] = deque(maxlen=32)
 
     @property
     def state(self) -> str:
         return self._state
+
+    @property
+    def recent_error_codes(self) -> tuple[str, ...]:
+        return tuple(self._recent_error_codes)
+
+    def record_error_code(self, code: str) -> None:
+        if not isinstance(code, str) or re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", code) is None:
+            raise ValueError("runtime diagnostic error code is invalid")
+        self._recent_error_codes.append(code)
 
     @property
     def request_executor(self) -> HostExecutor:
@@ -289,7 +301,8 @@ class HostRuntime:
                 )
             self._set_state("READY")
             return self.health()
-        except BaseException:
+        except BaseException as exc:
+            self.record_error_code(exc.code if isinstance(exc, SomaError) else "INTERNAL_ERROR")
             self._set_state("FAILED")
             self._unwind_failed_start()
             raise

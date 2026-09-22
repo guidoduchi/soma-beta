@@ -366,7 +366,7 @@ def _verify_append_only_behavior(connection: Any) -> None:
             connection.execute("RELEASE SAVEPOINT soma_schema_verification_probe")
 
 
-def verify_foundation_schema(connection: Any) -> None:
+def verify_foundation_schema_readonly(connection: Any) -> bool:
     manifest = _load_release_manifest()
     verify_foreign_keys(connection)
     _verify_quick_check(connection)
@@ -378,12 +378,8 @@ def verify_foundation_schema(connection: Any) -> None:
     if len(rows) != 1 or int(rows[0][0]) != 1 or not str(rows[0][1]):
         raise _schema_error("instance_metadata must contain exactly one valid singleton row")
 
-    # Historical migration-prefix databases are valid inputs to the forward-only
-    # migration runner. Their ledger must be an exact prefix of the accepted
-    # release lineage, but the current-release structural manifest cannot be
-    # applied until the runner has brought them to the full accepted lineage.
     if not is_current_release:
-        return
+        return False
 
     _verify_exact_contract(
         label="authoritative schema objects",
@@ -400,9 +396,12 @@ def verify_foundation_schema(connection: Any) -> None:
         expected=manifest["indexes"],
         actual=_actual_indexes(connection),
     )
+    return True
 
-    _verify_append_only_behavior(connection)
 
+def verify_foundation_schema(connection: Any) -> None:
+    if verify_foundation_schema_readonly(connection):
+        _verify_append_only_behavior(connection)
 
 def verify_expected_objects(
     connection: Any,
