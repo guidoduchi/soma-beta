@@ -55,3 +55,24 @@ class DurableJobCancellationResult:
     resulting_state: Literal["cancelled", "completed", "failed"]
     claim_revoked: bool
     cancelled_attempt_ordinal: int | None = None
+
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeHealth:
+    protocol_version: str
+    run_id: str
+    data_instance_id: str
+    host_state: Literal["LISTENING_NOT_READY", "READY", "QUIESCING"]
+    app_version: str
+    migration_sequence: int
+    migration_id: str | None
+    integrity_state: str
+    started_at_utc: int
+
+
+@dataclass(frozen=True, slots=True)
+class ShutdownResult:
+    shutdown_state: Literal["QUIESCING", "ALREADY_QUIESCING", "STOPPED"]
+    run_id: str
+    data_instance_id: str
