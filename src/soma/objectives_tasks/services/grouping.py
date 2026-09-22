@@ -1233,7 +1233,7 @@ class GroupingService:
                     ),
                 )
 
-        result = self._boundary.execute(envelope, prepare)
+            result = self._boundary.execute(envelope, prepare)
             return result.response
         finally:
             observer.close()
