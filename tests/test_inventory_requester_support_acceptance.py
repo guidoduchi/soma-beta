@@ -160,14 +160,17 @@ def test_t068_active_requester_blocks_contact_archive_until_request_terminal(
 
     registry = ReferenceDependencyRegistry()
     registry.register(InventoryReferenceDependencyValidator())
+    registry.finalize(required_validator_ids=("inventory",))
     lifecycle = ReferenceLifecycleService(factory, registry)
 
     blocked_preview = lifecycle.preview(
         operation="archive",
         target_type="contact",
         target_id=requester.contact_id,
+        base_revision=1,
         limit=50,
     )
+    assert blocked_preview.revision == 1
     assert blocked_preview.would_be_eligible is False
     assert blocked_preview.exact_blocker_count == 1
     assert len(blocked_preview.blockers) == 1
@@ -198,8 +201,10 @@ def test_t068_active_requester_blocks_contact_archive_until_request_terminal(
         operation="archive",
         target_type="contact",
         target_id=requester.contact_id,
+        base_revision=1,
         limit=50,
     )
+    assert clear_preview.revision == 1
     assert clear_preview.would_be_eligible is True
     assert clear_preview.exact_blocker_count == 0
     assert clear_preview.blockers == ()

@@ -35,6 +35,7 @@ class LifecyclePreview:
     target_type: ReferenceType
     target_id: str
     operation: LifecycleOperation
+    revision: int
     exact_blocker_count: int
     blockers: tuple[PreviewBlocker, ...]
     continuation: str | None
@@ -53,8 +54,11 @@ class ReferenceLifecycleService:
         connection_factory: ConnectionFactory,
         dependency_registry: ReferenceDependencyRegistry | None = None,
     ) -> None:
+        if dependency_registry is None:
+            raise ValidationError("reference dependency registry is required")
+        dependency_registry.require_finalized()
         self._factory = connection_factory
-        self._dependencies = dependency_registry or ReferenceDependencyRegistry()
+        self._dependencies = dependency_registry
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_reference_audit_registry()),
@@ -287,17 +291,22 @@ class ReferenceLifecycleService:
         operation: LifecycleOperation,
         target_type: ReferenceType,
         target_id: str,
+        base_revision: int,
         after: str | None = None,
         limit: int = 50,
     ) -> LifecyclePreview:
         if operation not in ("archive", "reactivate"):
             raise ValidationError("unsupported lifecycle preview operation")
+        if type(base_revision) is not int or base_revision < 1:
+            raise ValidationError("reference preview base_revision must be a positive integer")
         if type(limit) is not int or limit < 1 or limit > 200:
             raise SomaError("FIELD_BOUND_EXCEEDED", "preview limit must be in 1..200")
         target = ReferenceTarget(target_type, target_id)
         validators = self._dependencies.ordered()
         with ReadSnapshot(self._factory) as snapshot:
-            state, _ = self._load(snapshot.connection, target)
+            state, revision = self._load(snapshot.connection, target)
+            if revision != base_revision:
+                raise SomaError("STALE_REVISION", "reference revision changed")
             if operation == "archive" and state != "active":
                 raise SomaError("REFERENCE_ARCHIVED", "reference is already archived")
             if operation == "reactivate" and state != "archived":
@@ -364,6 +373,7 @@ class ReferenceLifecycleService:
             target_type,
             target_id,
             operation,
+            revision,
             total,
             page_items,
             continuation,

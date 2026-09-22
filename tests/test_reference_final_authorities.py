@@ -138,11 +138,26 @@ class FakeDependencyValidator:
         return self._page(self.reactivate_blockers, cursor, limit)
 
 
+def test_lifecycle_service_requires_finalized_dependency_assembly(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    with pytest.raises(ValidationError, match="registry is required"):
+        ReferenceLifecycleService(factory)
+
+    unfinalized = ReferenceDependencyRegistry()
+    with pytest.raises(ValidationError, match="not finalized"):
+        ReferenceLifecycleService(factory, unfinalized)
+
+    missing_required = ReferenceDependencyRegistry()
+    with pytest.raises(ValidationError, match="required dependency validators are missing"):
+        missing_required.finalize(required_validator_ids=("inventory",))
+
+
 def test_archive_blocked_or_indeterminate_commits_nothing(initialized_database) -> None:
     factory = _factory(initialized_database)
     contact = ContactReferenceService(factory).create_contact(command_id=new_uuid4(), name="Blocked Contact")
     registry = ReferenceDependencyRegistry()
     registry.register(FakeDependencyValidator("inventory", archive_state="BLOCKED", archive_blockers=("sr7-1",)))
+    registry.finalize(required_validator_ids=("inventory",))
     service = ReferenceLifecycleService(factory, registry)
     command_id = new_uuid4()
     with pytest.raises(SomaError) as exc:
@@ -170,6 +185,7 @@ def test_archive_blocked_or_indeterminate_commits_nothing(initialized_database) 
 
     registry2 = ReferenceDependencyRegistry()
     registry2.register(FakeDependencyValidator("tickets", archive_state="INDETERMINATE"))
+    registry2.finalize(required_validator_ids=("tickets",))
     with pytest.raises(SomaError) as exc2:
         ReferenceLifecycleService(factory, registry2).archive_reference(
             command_id=new_uuid4(),
@@ -187,6 +203,7 @@ def test_archive_preview_exact_count_is_paged_and_read_only(initialized_database
     registry = ReferenceDependencyRegistry()
     registry.register(FakeDependencyValidator("a-owner", archive_blockers=("a1", "a2")))
     registry.register(FakeDependencyValidator("b-owner", archive_blockers=("b1",)))
+    registry.finalize(required_validator_ids=("a-owner", "b-owner"))
     service = ReferenceLifecycleService(factory, registry)
     connection = _read(initialized_database)
     try:
@@ -196,14 +213,22 @@ def test_archive_preview_exact_count_is_paged_and_read_only(initialized_database
         )
     finally:
         connection.close()
-    first = service.preview(operation="archive", target_type="contact", target_id=contact.contact_id, limit=2)
+    first = service.preview(
+        operation="archive",
+        target_type="contact",
+        target_id=contact.contact_id,
+        base_revision=1,
+        limit=2,
+    )
     second = service.preview(
         operation="archive",
         target_type="contact",
         target_id=contact.contact_id,
+        base_revision=1,
         after=first.continuation,
         limit=2,
     )
+    assert first.revision == second.revision == 1
     assert first.exact_blocker_count == second.exact_blocker_count == 3
     assert first.would_be_eligible is second.would_be_eligible is False
     assert len(first.blockers) == 2 and len(second.blockers) == 1
@@ -220,7 +245,10 @@ def test_archive_preview_exact_count_is_paged_and_read_only(initialized_database
 def test_archive_then_reactivate_preserves_append_only_history(initialized_database) -> None:
     factory = _factory(initialized_database)
     contact = ContactReferenceService(factory).create_contact(command_id=new_uuid4(), name="Lifecycle Contact")
-    service = ReferenceLifecycleService(factory)
+    service = ReferenceLifecycleService(
+        factory,
+        ReferenceDependencyRegistry.isolated_for_tests(),
+    )
     service.archive_reference(
         command_id=new_uuid4(), target_type="contact", target_id=contact.contact_id,
         base_revision=1, reason_category="operator_archive"

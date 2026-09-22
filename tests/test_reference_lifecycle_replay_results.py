@@ -5,6 +5,7 @@ import json
 from soma.foundation.identifiers import new_uuid4
 from soma.reference.application.contact_service import ContactReferenceService
 from soma.reference.application.lifecycle_service import ReferenceLifecycleService
+from soma.reference.domain.dependencies import ReferenceDependencyRegistry
 
 
 def _factory(initialized_database):
@@ -18,7 +19,10 @@ def test_archive_replay_returns_original_revision_after_later_reactivation(initi
         command_id=new_uuid4(),
         name="Lifecycle Replay Contact",
     )
-    service = ReferenceLifecycleService(factory)
+    service = ReferenceLifecycleService(
+        factory,
+        ReferenceDependencyRegistry.isolated_for_tests(),
+    )
     archive_command_id = new_uuid4()
 
     archived = service.archive_reference(
