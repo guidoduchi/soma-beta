@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from threading import Lock
 from typing import BinaryIO
+
+_PROCESS_LOCK = Lock()
+_PROCESS_HELD_PATHS: set[Path] = set()
 
 from soma.foundation.errors import SomaError, ValidationError
 
@@ -11,7 +15,7 @@ class DataInstanceLock:
     """Held first-byte OS lock proving canonical data-instance ownership."""
 
     def __init__(self, path: Path, handle: BinaryIO) -> None:
-        self.path = Path(path)
+        self.path = Path(path).resolve(strict=False)
         self._handle: BinaryIO | None = handle
         self._locked = True
 
@@ -55,9 +59,15 @@ class DataInstanceLock:
 
     @classmethod
     def acquire(cls, path: Path, *, create: bool = True) -> "DataInstanceLock":
-        target = Path(path)
+        target = Path(path).resolve(strict=False)
         if not target.is_absolute():
             raise ValidationError("instance lock path must be absolute")
+        with _PROCESS_LOCK:
+            if target in _PROCESS_HELD_PATHS:
+                raise SomaError(
+                    "INSTANCE_OWNED",
+                    "this process already owns the canonical data instance",
+                )
         if not target.parent.exists() or not target.parent.is_dir():
             raise ValidationError("instance lock parent directory is unavailable")
         mode = "r+b"
@@ -84,6 +94,14 @@ class DataInstanceLock:
                 handle.flush()
                 os.fsync(handle.fileno())
             cls._lock_byte(handle)
+            with _PROCESS_LOCK:
+                if target in _PROCESS_HELD_PATHS:
+                    cls._unlock_byte(handle)
+                    raise SomaError(
+                        "INSTANCE_OWNED",
+                        "this process already owns the canonical data instance",
+                    )
+                _PROCESS_HELD_PATHS.add(target)
             return cls(target, handle)
         except BaseException:
             handle.close()
@@ -107,6 +125,8 @@ class DataInstanceLock:
             if self._locked:
                 self._unlock_byte(handle)
         finally:
+            with _PROCESS_LOCK:
+                _PROCESS_HELD_PATHS.discard(self.path)
             self._locked = False
             handle.close()
 

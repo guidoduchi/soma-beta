@@ -174,6 +174,10 @@ class HostRuntime:
         return self._state
 
     @property
+    def connection_factory(self) -> ConnectionFactory:
+        return self._factory
+
+    @property
     def recent_error_codes(self) -> tuple[str, ...]:
         return tuple(self._recent_error_codes)
 

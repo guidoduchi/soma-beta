@@ -9,7 +9,7 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.queries.status import FoundationStatusQueries, MigrationStatusReader
 from soma.foundation.runtime import DataInstanceLock, InstancePaths
-from test_foundation_runtime_host import _runtime
+
 
 
 class _ImmutableSqliteInspector:
@@ -19,6 +19,65 @@ class _ImmutableSqliteInspector:
             uri=True,
             check_same_thread=True,
         )
+
+class _StatusServer:
+    def __init__(self) -> None:
+        self.started = False
+
+    def start(self, bound_socket) -> None:
+        bound_socket.listen(8)
+        self.started = True
+
+    def authenticated_self_health(self, expected) -> bool:
+        return True
+
+    def stop(self) -> None:
+        self.started = False
+
+
+class _StatusRunSecurity:
+    def prepare_run(self, **values) -> None:
+        return None
+
+    def close_run(self, **values) -> None:
+        return None
+
+
+def _runtime(tmp_path, migration_directory, security_provider):
+    from soma.foundation.migrations.runner import MigrationRunner
+    from soma.foundation.runtime import HostRuntime
+
+    paths = InstancePaths.from_root(tmp_path.resolve())
+    factory = ConnectionFactory(paths.database, security_provider, driver=sqlite3)
+    manifest = MigrationManifest.load(migration_directory)
+
+    def runner_factory(ownership_assertion):
+        return MigrationRunner(
+            canonical_database_path=paths.database,
+            manifest=manifest,
+            factory_for_path=lambda path: ConnectionFactory(
+                path,
+                security_provider,
+                driver=sqlite3,
+            ),
+            app_version="status-test",
+            ownership_assertion=ownership_assertion,
+        )
+
+    runtime = HostRuntime(
+        paths=paths,
+        connection_factory=factory,
+        migration_manifest=manifest,
+        migration_runner_factory=runner_factory,
+        server=_StatusServer(),
+        run_security=_StatusRunSecurity(),
+        startup_reconciler=lambda run_id, now: None,
+        app_version="test",
+        protocol_version="1",
+        process_birth_id="status-test-process",
+    )
+    return runtime, paths, runtime.connection_factory, None, []
+
 
 
 def test_persistence_metrics_follow_verified_connections_and_transactions(
@@ -136,7 +195,7 @@ def test_foundation_diagnostics_are_bounded_counts_only(
         security_provider,
     )
     health = runtime.start()
-    factory = runtime._factory
+    factory = runtime.connection_factory
     runtime.record_error_code("PERSISTENCE_BUSY")
     query = FoundationStatusQueries(runtime=runtime, connection_factory=factory)
     assert query.get_runtime_health() == health
