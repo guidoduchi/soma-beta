@@ -80,6 +80,13 @@ class GroupingService:
         return int(row[0])
 
     @staticmethod
+    def _data_version(connection: Any) -> int:
+        row = connection.execute("PRAGMA data_version").fetchone()
+        if row is None or type(row[0]) is not int or int(row[0]) < 0:
+            raise IntegrityFailure("SQLite data_version is unavailable")
+        return int(row[0])
+
+    @staticmethod
     def _eligible_workset_count(reader: Any) -> int:
         invalid = reader.execute(
             "SELECT 1 FROM objective_task_membership_current m "
@@ -959,219 +966,278 @@ class GroupingService:
             authorizing_fingerprints={"input_fingerprint": fingerprint},
         )
 
-        def prepare(uow: UnitOfWork) -> PreparedMutation:
-            proposal = RegroupProposalRepository.get(uow.connection, identity)
-            if proposal is None:
-                raise SomaError("GROUPING_PROPOSAL_NOT_FOUND", "grouping proposal does not exist")
-            if (
-                proposal.state != "pending"
-                or proposal.revision != proposal_revision
-                or proposal.input_fingerprint != fingerprint
-            ):
-                raise SomaError("GROUPING_PROPOSAL_STALE", "grouping proposal changed")
-            if proposal.risk_tier == "high" and not accept_high_risk:
-                raise SomaError(
-                    "OBJECTIVE_IN_PROGRESS_RESTRUCTURE_LIMIT",
-                    "high-risk in-progress regroup requires explicit acceptance",
+        replay = self._probe_replay(envelope)
+        if replay is not None:
+            return replay
+
+        observer = self._factory.open_authoritative(read_only=True)
+        try:
+            before_plan_version = self._data_version(observer)
+            with ReadSnapshot(self._factory) as snapshot:
+                planned_proposal = RegroupProposalRepository.get(
+                    snapshot.connection,
+                    identity,
                 )
-            candidate = self._candidate_for_proposal(uow.connection, proposal)
-            task_rows, objective_rows = self._persisted_changes(uow.connection, identity)
-            self._assert_persisted_diff(candidate, task_rows, objective_rows)
+                if planned_proposal is None:
+                    raise SomaError(
+                        "GROUPING_PROPOSAL_NOT_FOUND",
+                        "grouping proposal does not exist",
+                    )
+                if (
+                    planned_proposal.state != "pending"
+                    or planned_proposal.revision != proposal_revision
+                    or planned_proposal.input_fingerprint != fingerprint
+                ):
+                    raise SomaError(
+                        "GROUPING_PROPOSAL_STALE",
+                        "grouping proposal changed",
+                    )
+                if planned_proposal.risk_tier == "high" and not accept_high_risk:
+                    raise SomaError(
+                        "OBJECTIVE_IN_PROGRESS_RESTRUCTURE_LIMIT",
+                        "high-risk in-progress regroup requires explicit acceptance",
+                    )
+                candidate = self._candidate_for_proposal(
+                    snapshot.connection,
+                    planned_proposal,
+                )
+                planned_task_rows, planned_objective_rows = self._persisted_changes(
+                    snapshot.connection,
+                    identity,
+                )
+                self._assert_persisted_diff(
+                    candidate,
+                    planned_task_rows,
+                    planned_objective_rows,
+                )
+            planned_data_version = self._data_version(observer)
+            if planned_data_version != before_plan_version:
+                raise SomaError(
+                    "GROUPING_PROPOSAL_STALE",
+                    "grouping authority changed during planning snapshot",
+                )
 
-            new_objective = candidate.proposal_kind == "create"
-            survivor_id = proposal.survivor_objective_id
-            sequence = allocator_revision = None
-            tracking_id = None
-            if new_objective:
-                sequence, allocator_revision = ObjectiveService._tracking_allocator(uow.connection)
-                survivor_id = new_uuid4()
-                tracking_id = f"MW-{sequence:08d}"
-            if survivor_id is None:
-                raise IntegrityFailure("regroup proposal lacks survivor Objective authority")
-            membership_event_ids = [new_uuid4() for row in task_rows if str(row[7]) != "unchanged_context"]
-            next_proposal_revision = proposal_revision + 1
+            def prepare(uow: UnitOfWork) -> PreparedMutation:
+                proposal = RegroupProposalRepository.get(uow.connection, identity)
+                if proposal is None:
+                    raise SomaError("GROUPING_PROPOSAL_NOT_FOUND", "grouping proposal does not exist")
+                if (
+                    proposal.state != "pending"
+                    or proposal.revision != proposal_revision
+                    or proposal.input_fingerprint != fingerprint
+                ):
+                    raise SomaError("GROUPING_PROPOSAL_STALE", "grouping proposal changed")
+                if proposal.risk_tier == "high" and not accept_high_risk:
+                    raise SomaError(
+                        "OBJECTIVE_IN_PROGRESS_RESTRUCTURE_LIMIT",
+                        "high-risk in-progress regroup requires explicit acceptance",
+                    )
+                if self._data_version(observer) != planned_data_version:
+                    raise SomaError(
+                        "GROUPING_PROPOSAL_STALE",
+                        "grouping authority changed between planning snapshot and writer lock",
+                    )
+                task_rows, objective_rows = self._persisted_changes(uow.connection, identity)
+                self._assert_persisted_diff(candidate, task_rows, objective_rows)
 
-            def apply(inner: UnitOfWork):
-                nonlocal survivor_id
+                new_objective = candidate.proposal_kind == "create"
+                survivor_id = proposal.survivor_objective_id
+                sequence = allocator_revision = None
+                tracking_id = None
                 if new_objective:
-                    assert sequence is not None and allocator_revision is not None and tracking_id is not None
-                    ObjectiveService._advance_tracking_allocator(
-                        inner.connection,
-                        sequence=sequence,
-                        revision=allocator_revision,
-                        command_id=command_id,
-                    )
-                    inner.connection.execute(
-                        "INSERT INTO objectives("
-                        "objective_id,tracking_sequence,tracking_id,creation_origin,"
-                        "superseded_by_objective_id,revision,created_at_utc,created_command_id"
-                        ") VALUES (?,?,?,'automatic_grouping',NULL,1,?,?)",
-                        (survivor_id, sequence, tracking_id, utc_epoch_seconds(), command_id),
-                    )
-                    inner.connection.execute(
-                        "INSERT INTO objective_archive_projection("
-                        "objective_id,archived,revision,last_event_id) VALUES (?,0,1,NULL)",
-                        (survivor_id,),
-                    )
+                    sequence, allocator_revision = ObjectiveService._tracking_allocator(uow.connection)
+                    survivor_id = new_uuid4()
+                    tracking_id = f"MW-{sequence:08d}"
+                if survivor_id is None:
+                    raise IntegrityFailure("regroup proposal lacks survivor Objective authority")
+                membership_event_ids = [new_uuid4() for row in task_rows if str(row[7]) != "unchanged_context"]
+                next_proposal_revision = proposal_revision + 1
 
-                actual_events: list[str] = []
-                for row in task_rows:
-                    event_id = self._apply_membership_change(
+                def apply(inner: UnitOfWork):
+                    nonlocal survivor_id
+                    if new_objective:
+                        assert sequence is not None and allocator_revision is not None and tracking_id is not None
+                        ObjectiveService._advance_tracking_allocator(
+                            inner.connection,
+                            sequence=sequence,
+                            revision=allocator_revision,
+                            command_id=command_id,
+                        )
+                        inner.connection.execute(
+                            "INSERT INTO objectives("
+                            "objective_id,tracking_sequence,tracking_id,creation_origin,"
+                            "superseded_by_objective_id,revision,created_at_utc,created_command_id"
+                            ") VALUES (?,?,?,'automatic_grouping',NULL,1,?,?)",
+                            (survivor_id, sequence, tracking_id, utc_epoch_seconds(), command_id),
+                        )
+                        inner.connection.execute(
+                            "INSERT INTO objective_archive_projection("
+                            "objective_id,archived,revision,last_event_id) VALUES (?,0,1,NULL)",
+                            (survivor_id,),
+                        )
+
+                    actual_events: list[str] = []
+                    for row in task_rows:
+                        event_id = self._apply_membership_change(
+                            inner.connection,
+                            proposal_id=identity,
+                            task_row=row,
+                            survivor_objective_id=survivor_id,
+                            command_id=command_id,
+                        )
+                        if event_id is not None:
+                            actual_events.append(event_id)
+                    if len(actual_events) != len(membership_event_ids):
+                        raise IntegrityFailure("regroup membership event cardinality drifted")
+
+                    affected_objectives: list[str] = []
+                    for row in objective_rows:
+                        objective_id = None if row[1] is None else str(row[1])
+                        action = str(row[2])
+                        if objective_id is None:
+                            continue
+                        expected_objective_revision = int(row[3])
+                        if action == "supersede":
+                            changed = inner.connection.execute(
+                                "UPDATE objectives SET superseded_by_objective_id=?,revision=revision+1 "
+                                "WHERE objective_id=? AND revision=? AND superseded_by_objective_id IS NULL",
+                                (survivor_id, objective_id, expected_objective_revision),
+                            )
+                        elif objective_id == survivor_id:
+                            # The survivor Objective identity row is immutable unless
+                            # it itself becomes superseded. Regroup mutates its
+                            # membership/envelope/aggregate projections, each of
+                            # which owns its own guarded revision.
+                            current = inner.connection.execute(
+                                "SELECT revision,superseded_by_objective_id FROM objectives "
+                                "WHERE objective_id=?",
+                                (objective_id,),
+                            ).fetchone()
+                            if (
+                                current is None
+                                or int(current[0]) != expected_objective_revision
+                                or current[1] is not None
+                            ):
+                                raise SomaError(
+                                    "GROUPING_PROPOSAL_STALE",
+                                    "survivor Objective revision changed",
+                                )
+                            changed = None
+                        else:
+                            changed = None
+                        if changed is not None and changed.rowcount != 1:
+                            raise SomaError("GROUPING_PROPOSAL_STALE", "affected Objective revision changed")
+                        affected_objectives.append(objective_id)
+
+                    # Superseded Objectives must stop participating in the current
+                    # non-overlap constraint before the survivor envelope expands.
+                    # This remains one atomic outer UoW, so any later failure rolls
+                    # these revision/supersession writes back together.
+                    expected_survivor_envelope_revision = None
+                    if new_objective:
+                        member_rows = inner.connection.execute(
+                            "SELECT m.task_id,m.accepted_plan_revision_id,p.start_utc,p.end_utc "
+                            "FROM objective_task_membership_current m "
+                            "JOIN task_plan_revisions p ON p.plan_revision_id=m.accepted_plan_revision_id "
+                            "WHERE m.objective_id=? ORDER BY m.task_id",
+                            (survivor_id,),
+                        ).fetchall()
+                        ObjectiveService._insert_envelope(
+                            inner.connection,
+                            objective_id=survivor_id,
+                            members=tuple(
+                                (str(row[0]), str(row[1]), int(row[2]), int(row[3]))
+                                for row in member_rows
+                            ),
+                            command_id=command_id,
+                        )
+                    else:
+                        for row in objective_rows:
+                            if row[1] is not None and str(row[1]) == survivor_id:
+                                expected_survivor_envelope_revision = int(row[4])
+                                break
+                        if expected_survivor_envelope_revision is None:
+                            raise IntegrityFailure("regroup survivor envelope revision is absent")
+                        self._rebuild_survivor_envelope(
+                            inner.connection,
+                            objective_id=survivor_id,
+                            expected_envelope_revision=expected_survivor_envelope_revision,
+                            command_id=command_id,
+                        )
+
+                    ObjectiveService._assert_no_overlap(inner.connection, survivor_id)
+                    self._objectives.rebuild_aggregate(
+                        inner, objective_id=survivor_id, command_id=command_id
+                    )
+                    for objective_id in sorted(set(affected_objectives)):
+                        if objective_id != survivor_id:
+                            self._objectives.rebuild_aggregate(
+                                inner, objective_id=objective_id, command_id=command_id
+                            )
+                    actual_revision = RegroupProposalRepository.transition(
                         inner.connection,
                         proposal_id=identity,
-                        task_row=row,
-                        survivor_objective_id=survivor_id,
+                        expected_revision=proposal_revision,
+                        expected_fingerprint=fingerprint,
+                        new_state="accepted",
                         command_id=command_id,
                     )
-                    if event_id is not None:
-                        actual_events.append(event_id)
-                if len(actual_events) != len(membership_event_ids):
-                    raise IntegrityFailure("regroup membership event cardinality drifted")
-
-                affected_objectives: list[str] = []
-                for row in objective_rows:
-                    objective_id = None if row[1] is None else str(row[1])
-                    action = str(row[2])
-                    if objective_id is None:
-                        continue
-                    expected_objective_revision = int(row[3])
-                    if action == "supersede":
-                        changed = inner.connection.execute(
-                            "UPDATE objectives SET superseded_by_objective_id=?,revision=revision+1 "
-                            "WHERE objective_id=? AND revision=? AND superseded_by_objective_id IS NULL",
-                            (survivor_id, objective_id, expected_objective_revision),
-                        )
-                    elif objective_id == survivor_id:
-                        # The survivor Objective identity row is immutable unless
-                        # it itself becomes superseded. Regroup mutates its
-                        # membership/envelope/aggregate projections, each of
-                        # which owns its own guarded revision.
-                        current = inner.connection.execute(
-                            "SELECT revision,superseded_by_objective_id FROM objectives "
-                            "WHERE objective_id=?",
-                            (objective_id,),
-                        ).fetchone()
-                        if (
-                            current is None
-                            or int(current[0]) != expected_objective_revision
-                            or current[1] is not None
-                        ):
-                            raise SomaError(
-                                "GROUPING_PROPOSAL_STALE",
-                                "survivor Objective revision changed",
-                            )
-                        changed = None
-                    else:
-                        changed = None
-                    if changed is not None and changed.rowcount != 1:
-                        raise SomaError("GROUPING_PROPOSAL_STALE", "affected Objective revision changed")
-                    affected_objectives.append(objective_id)
-
-                # Superseded Objectives must stop participating in the current
-                # non-overlap constraint before the survivor envelope expands.
-                # This remains one atomic outer UoW, so any later failure rolls
-                # these revision/supersession writes back together.
-                expected_survivor_envelope_revision = None
-                if new_objective:
-                    member_rows = inner.connection.execute(
-                        "SELECT m.task_id,m.accepted_plan_revision_id,p.start_utc,p.end_utc "
-                        "FROM objective_task_membership_current m "
-                        "JOIN task_plan_revisions p ON p.plan_revision_id=m.accepted_plan_revision_id "
-                        "WHERE m.objective_id=? ORDER BY m.task_id",
-                        (survivor_id,),
-                    ).fetchall()
-                    ObjectiveService._insert_envelope(
-                        inner.connection,
-                        objective_id=survivor_id,
-                        members=tuple(
-                            (str(row[0]), str(row[1]), int(row[2]), int(row[3]))
-                            for row in member_rows
-                        ),
-                        command_id=command_id,
+                    apply.revision = actual_revision
+                    apply.membership_events = actual_events
+                    refs = [
+                        AuditResultRef("grouping_proposal", identity),
+                        AuditResultRef("objective", survivor_id),
+                    ]
+                    refs.extend(
+                        AuditResultRef("objective_membership", event_id)
+                        for event_id in actual_events
                     )
-                else:
-                    for row in objective_rows:
-                        if row[1] is not None and str(row[1]) == survivor_id:
-                            expected_survivor_envelope_revision = int(row[4])
-                            break
-                    if expected_survivor_envelope_revision is None:
-                        raise IntegrityFailure("regroup survivor envelope revision is absent")
-                    self._rebuild_survivor_envelope(
-                        inner.connection,
-                        objective_id=survivor_id,
-                        expected_envelope_revision=expected_survivor_envelope_revision,
+                    return AuditEventInput(
+                        audit_event_id=new_uuid4(),
+                        action_type="grouping.proposal_decided",
+                        action_version=1,
+                        actor_kind=actor_kind,
+                        actor_id=actor_id,
+                        target_type="grouping_proposal",
+                        target_id=identity,
                         command_id=command_id,
+                        payload_schema="GroupingAuditV1",
+                        payload_version=1,
+                        payload={
+                            "proposal_id": identity,
+                            "event_kind": "ACCEPTED",
+                            "proposal_kind": proposal.proposal_kind,
+                            "risk_tier": proposal.risk_tier,
+                            "input_fingerprint": fingerprint,
+                            "task_change_count": len(task_rows),
+                            "objective_change_count": len(objective_rows),
+                            "reason_category": None,
+                        },
+                        resulting_event_refs=tuple(refs),
                     )
 
-                ObjectiveService._assert_no_overlap(inner.connection, survivor_id)
-                self._objectives.rebuild_aggregate(
-                    inner, objective_id=survivor_id, command_id=command_id
-                )
-                for objective_id in sorted(set(affected_objectives)):
-                    if objective_id != survivor_id:
-                        self._objectives.rebuild_aggregate(
-                            inner, objective_id=objective_id, command_id=command_id
-                        )
-                actual_revision = RegroupProposalRepository.transition(
-                    inner.connection,
-                    proposal_id=identity,
-                    expected_revision=proposal_revision,
-                    expected_fingerprint=fingerprint,
-                    new_state="accepted",
-                    command_id=command_id,
-                )
-                apply.revision = actual_revision
-                apply.membership_events = actual_events
-                refs = [
-                    AuditResultRef("grouping_proposal", identity),
-                    AuditResultRef("objective", survivor_id),
-                ]
-                refs.extend(
-                    AuditResultRef("objective_membership", event_id)
-                    for event_id in actual_events
-                )
-                return AuditEventInput(
-                    audit_event_id=new_uuid4(),
-                    action_type="grouping.proposal_decided",
-                    action_version=1,
-                    actor_kind=actor_kind,
-                    actor_id=actor_id,
-                    target_type="grouping_proposal",
-                    target_id=identity,
-                    command_id=command_id,
-                    payload_schema="GroupingAuditV1",
-                    payload_version=1,
-                    payload={
-                        "proposal_id": identity,
-                        "event_kind": "ACCEPTED",
-                        "proposal_kind": proposal.proposal_kind,
-                        "risk_tier": proposal.risk_tier,
-                        "input_fingerprint": fingerprint,
-                        "task_change_count": len(task_rows),
-                        "objective_change_count": len(objective_rows),
-                        "reason_category": None,
-                    },
-                    resulting_event_refs=tuple(refs),
+                apply.revision = next_proposal_revision
+                apply.membership_events = []
+                return PreparedMutation(
+                    False,
+                    "grouping_proposal",
+                    identity,
+                    apply,
+                    response_schema="GroupingProposalV1",
+                    response_factory=lambda _inner: self._proposal_response(
+                        proposal,
+                        state="accepted",
+                        revision=apply.revision,
+                        task_change_count=len(task_rows),
+                        objective_change_count=len(objective_rows),
+                    ),
                 )
 
-            apply.revision = next_proposal_revision
-            apply.membership_events = []
-            return PreparedMutation(
-                False,
-                "grouping_proposal",
-                identity,
-                apply,
-                response_schema="GroupingProposalV1",
-                response_factory=lambda _inner: self._proposal_response(
-                    proposal,
-                    state="accepted",
-                    revision=apply.revision,
-                    task_change_count=len(task_rows),
-                    objective_change_count=len(objective_rows),
-                ),
-            )
+        result = self._boundary.execute(envelope, prepare)
+            return result.response
+        finally:
+            observer.close()
 
-        return self._boundary.execute(envelope, prepare).response
 
     def reject_regroup_proposal(
         self,

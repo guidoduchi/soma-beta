@@ -561,3 +561,88 @@ def test_t045_clock_passage_is_read_only_and_never_creates_a_grouping_lock(
     )
     assert after_explicit_execution["classification"] == "started_or_protected"
     assert after_explicit_execution["eligible"] is False
+
+
+
+def test_accept_regroup_plans_globally_only_on_read_snapshot(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    _task(factory, "A11 read A", 2_880_000_000, 2_880_000_200)
+    _task(factory, "A11 read B", 2_880_000_100, 2_880_000_300)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    item = page["proposals"]["items"][0]
+
+    original = GroupingService._load_snapshot
+    query_only_values: list[int] = []
+
+    def tracked(connection):
+        query_only_values.append(int(connection.execute("PRAGMA query_only").fetchone()[0]))
+        return original(connection)
+
+    monkeypatch.setattr(GroupingService, "_load_snapshot", staticmethod(tracked))
+    accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(item["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+    assert query_only_values == [1]
+
+
+def test_accept_regroup_detects_commit_between_planning_snapshot_and_writer(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    first = _task(factory, "A11 stale A", 2_881_000_000, 2_881_000_200)
+    second = _task(factory, "A11 stale B", 2_881_000_100, 2_881_000_300)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    item = page["proposals"]["items"][0]
+    command_id = new_uuid4()
+
+    original = GroupingService._candidate_for_proposal.__func__
+    injected = [False]
+
+    def with_intervening_commit(cls, connection, proposal):
+        candidate = original(cls, connection, proposal)
+        if not injected[0]:
+            injected[0] = True
+            _task(factory, "A11 unrelated commit", 2_990_000_000, 2_990_000_100)
+        return candidate
+
+    monkeypatch.setattr(
+        GroupingService,
+        "_candidate_for_proposal",
+        classmethod(with_intervening_commit),
+    )
+    with pytest.raises(SomaError) as raised:
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=str(item["proposal_id"]),
+            proposal_revision=1,
+            input_fingerprint=str(item["input_fingerprint"]),
+        )
+    assert raised.value.code == "GROUPING_PROPOSAL_STALE"
+    assert injected == [True]
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
