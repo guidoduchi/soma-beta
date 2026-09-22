@@ -281,3 +281,39 @@ def test_inventory_dependency_cursor_preserves_multi_role_blockers(
                 first.continuation[:-1] + ("A" if first.continuation[-1] != "A" else "B"),
                 1,
             )
+
+
+def test_inventory_dependency_guard_count_and_page_are_set_based(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Set Based Dependency Contact",
+    )
+    _create_request(
+        factory,
+        official_sr="97909998",
+        requester_contact_id=contact.contact_id,
+        receiver_contact_id=contact.contact_id,
+        bom="REQ-SET-BASED",
+    )
+    validator = InventoryReferenceDependencyValidator()
+    target = ReferenceTarget("contact", contact.contact_id)
+
+    statements: list[str] = []
+    with ReadSnapshot(factory) as snapshot:
+        snapshot.connection.set_trace_callback(statements.append)
+        assert validator.count_archive_blockers(snapshot, target) == 2
+        page = validator.list_archive_blockers(snapshot, target, None, 1)
+        assert len(page.blockers) == 1
+        assert page.continuation is not None
+
+    selects = [
+        statement
+        for statement in statements
+        if statement.lstrip().upper().startswith("SELECT")
+    ]
+    assert len(selects) == 2
+    assert "COUNT(*) FROM (" in selects[0]
+    assert "ORDER BY blocker_id,reason_code LIMIT 2" in selects[1]

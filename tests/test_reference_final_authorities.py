@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pytest
 
@@ -111,6 +111,8 @@ class FakeDependencyValidator:
     reactivate_state: str = "CLEAR"
     archive_blockers: tuple[str, ...] = ()
     reactivate_blockers: tuple[str, ...] = ()
+    archive_list_calls: list[tuple[str | None, int]] = field(default_factory=list)
+    reactivate_list_calls: list[tuple[str | None, int]] = field(default_factory=list)
 
     def guard_archive(self, uow, target: ReferenceTarget) -> DependencyGuard:
         return DependencyGuard(self.archive_state, "fake_archive_blocker" if self.archive_state != "CLEAR" else None)
@@ -129,12 +131,14 @@ class FakeDependencyValidator:
         return len(self.archive_blockers)
 
     def list_archive_blockers(self, snapshot, target: ReferenceTarget, cursor: str | None, limit: int) -> DependencyPage:
+        self.archive_list_calls.append((cursor, limit))
         return self._page(self.archive_blockers, cursor, limit)
 
     def count_reactivation_blockers(self, snapshot, target: ReferenceTarget) -> int:
         return len(self.reactivate_blockers)
 
     def list_reactivation_blockers(self, snapshot, target: ReferenceTarget, cursor: str | None, limit: int) -> DependencyPage:
+        self.reactivate_list_calls.append((cursor, limit))
         return self._page(self.reactivate_blockers, cursor, limit)
 
 
@@ -240,6 +244,67 @@ def test_archive_preview_exact_count_is_paged_and_read_only(initialized_database
         ) == before
     finally:
         connection.close()
+
+
+def test_archive_preview_fetches_only_requested_provider_pages(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Bounded Preview Contact",
+    )
+    first_provider = FakeDependencyValidator(
+        "a-owner",
+        archive_blockers=tuple(f"a{index:03d}" for index in range(250)),
+    )
+    second_provider = FakeDependencyValidator(
+        "b-owner",
+        archive_blockers=("b001", "b002", "b003"),
+    )
+    registry = ReferenceDependencyRegistry()
+    registry.register(first_provider)
+    registry.register(second_provider)
+    registry.finalize(required_validator_ids=("a-owner", "b-owner"))
+    service = ReferenceLifecycleService(factory, registry)
+
+    first = service.preview(
+        operation="archive",
+        target_type="contact",
+        target_id=contact.contact_id,
+        base_revision=1,
+        limit=10,
+    )
+    assert first.exact_blocker_count == 253
+    assert len(first.blockers) == 10
+    assert first.continuation is not None
+    assert first_provider.archive_list_calls == [(None, 10)]
+    assert second_provider.archive_list_calls == []
+
+    second = service.preview(
+        operation="archive",
+        target_type="contact",
+        target_id=contact.contact_id,
+        base_revision=1,
+        after=first.continuation,
+        limit=10,
+    )
+    assert len(second.blockers) == 10
+    assert first_provider.archive_list_calls[1][1] == 10
+    assert first_provider.archive_list_calls[1][0] is not None
+    assert second_provider.archive_list_calls == []
+
+    other = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Different Cursor Target",
+    )
+    with pytest.raises(ValidationError, match="preview cursor is invalid"):
+        service.preview(
+            operation="archive",
+            target_type="contact",
+            target_id=other.contact_id,
+            base_revision=1,
+            after=first.continuation,
+            limit=10,
+        )
 
 
 def test_archive_then_reactivate_preserves_append_only_history(initialized_database) -> None:

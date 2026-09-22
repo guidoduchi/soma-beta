@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -9,6 +10,7 @@ from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.strict_json import canonical_json_bytes_bounded, loads_canonical_json
 from soma.reference.audit_registry import build_reference_audit_registry
 from soma.reference.domain.dependencies import (
     DependencyBlocker,
@@ -43,6 +45,8 @@ class LifecyclePreview:
 
 
 class ReferenceLifecycleService:
+    _PREVIEW_CURSOR_PREFIX = "SOMA_REFERENCE_PREVIEW_CURSOR_V1."
+    _PREVIEW_CURSOR_MAX_BYTES = 8192
     _TABLES: dict[str, tuple[str, str]] = {
         "customer_organization": ("customer_organizations", "customer_org_id"),
         "contact": ("contacts", "contact_id"),
@@ -285,6 +289,92 @@ class ReferenceLifecycleService:
 
         return reference_mutation_result_from_execution(self._boundary.execute(envelope, prepare))
 
+    @classmethod
+    def _encode_preview_cursor(
+        cls,
+        *,
+        target: ReferenceTarget,
+        operation: LifecycleOperation,
+        validator_id: str,
+        inner_cursor: str | None,
+    ) -> str:
+        payload = {
+            "schema": "SOMA_REFERENCE_PREVIEW_CURSOR_V1",
+            "target_type": target.target_type,
+            "target_id": target.target_id,
+            "operation": operation,
+            "validator_id": validator_id,
+            "inner_cursor": inner_cursor,
+        }
+        raw = canonical_json_bytes_bounded(
+            payload,
+            max_bytes=cls._PREVIEW_CURSOR_MAX_BYTES,
+            max_depth=2,
+            max_collection_items=8,
+        )
+        token = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+        return cls._PREVIEW_CURSOR_PREFIX + token
+
+    @classmethod
+    def _decode_preview_cursor(
+        cls,
+        cursor: str,
+        *,
+        target: ReferenceTarget,
+        operation: LifecycleOperation,
+        validator_ids: tuple[str, ...],
+    ) -> tuple[int, str | None]:
+        try:
+            if not cursor.startswith(cls._PREVIEW_CURSOR_PREFIX):
+                raise ValueError("wrong preview cursor version")
+            token = cursor[len(cls._PREVIEW_CURSOR_PREFIX) :]
+            if not token or len(token) > cls._PREVIEW_CURSOR_MAX_BYTES * 2:
+                raise ValueError("preview cursor length is invalid")
+            encoded = token.encode("ascii")
+            encoded += b"=" * ((4 - len(encoded) % 4) % 4)
+            raw = base64.b64decode(encoded, altchars=b"-_", validate=True)
+            if len(raw) > cls._PREVIEW_CURSOR_MAX_BYTES:
+                raise ValueError("preview cursor payload is oversized")
+            payload = loads_canonical_json(
+                raw.decode("utf-8", errors="strict"),
+                max_bytes=cls._PREVIEW_CURSOR_MAX_BYTES,
+                max_depth=2,
+                max_collection_items=8,
+            )
+            if not isinstance(payload, dict) or set(payload) != {
+                "schema",
+                "target_type",
+                "target_id",
+                "operation",
+                "validator_id",
+                "inner_cursor",
+            }:
+                raise ValueError("preview cursor payload shape is invalid")
+            if payload["schema"] != "SOMA_REFERENCE_PREVIEW_CURSOR_V1":
+                raise ValueError("preview cursor schema is invalid")
+            if (
+                payload["target_type"] != target.target_type
+                or payload["target_id"] != target.target_id
+                or payload["operation"] != operation
+            ):
+                raise ValueError("preview cursor filter does not match")
+            validator_id = payload["validator_id"]
+            inner_cursor = payload["inner_cursor"]
+            if not isinstance(validator_id, str):
+                raise ValueError("preview cursor validator is invalid")
+            if inner_cursor is not None and not isinstance(inner_cursor, str):
+                raise ValueError("preview inner cursor is invalid")
+            matches = [
+                index
+                for index, current in enumerate(validator_ids)
+                if current == validator_id
+            ]
+            if len(matches) != 1:
+                raise ValueError("preview cursor validator is unavailable")
+            return matches[0], inner_cursor
+        except Exception as exc:
+            raise ValidationError("reference lifecycle preview cursor is invalid") from exc
+
     def preview(
         self,
         *,
@@ -303,6 +393,8 @@ class ReferenceLifecycleService:
             raise SomaError("FIELD_BOUND_EXCEEDED", "preview limit must be in 1..200")
         target = ReferenceTarget(target_type, target_id)
         validators = self._dependencies.ordered()
+        validator_ids = tuple(validator.validator_id for validator in validators)
+
         with ReadSnapshot(self._factory) as snapshot:
             state, revision = self._load(snapshot.connection, target)
             if revision != base_revision:
@@ -310,10 +402,12 @@ class ReferenceLifecycleService:
             if operation == "archive" and state != "active":
                 raise SomaError("REFERENCE_ARCHIVED", "reference is already archived")
             if operation == "reactivate" and state != "archived":
-                raise SomaError("VALIDATION_FAILED", "reference must be archived before reactivation")
+                raise SomaError(
+                    "VALIDATION_FAILED",
+                    "reference must be archived before reactivation",
+                )
 
-            total = 0
-            all_blockers: list[PreviewBlocker] = []
+            counts: list[int] = []
             for validator in validators:
                 try:
                     count = (
@@ -323,30 +417,7 @@ class ReferenceLifecycleService:
                     )
                     if type(count) is not int or count < 0:
                         raise ValueError("invalid blocker count")
-                    total += count
-                    cursor: str | None = None
-                    remaining_for_validator = count
-                    while remaining_for_validator > 0:
-                        page_limit = min(200, remaining_for_validator)
-                        page = (
-                            validator.list_archive_blockers(snapshot, target, cursor, page_limit)
-                            if operation == "archive"
-                            else validator.list_reactivation_blockers(snapshot, target, cursor, page_limit)
-                        )
-                        if not page.blockers:
-                            raise ValueError("validator count/list disagreement")
-                        for blocker in page.blockers:
-                            all_blockers.append(
-                                PreviewBlocker(
-                                    validator.validator_id,
-                                    blocker.blocker_id,
-                                    blocker.reason_code,
-                                )
-                            )
-                        remaining_for_validator -= len(page.blockers)
-                        if remaining_for_validator > 0 and page.continuation is None:
-                            raise ValueError("validator pagination ended before exact count")
-                        cursor = page.continuation
+                    counts.append(count)
                 except SomaError:
                     raise
                 except Exception as exc:
@@ -355,27 +426,125 @@ class ReferenceLifecycleService:
                         f"dependency validator {validator.validator_id} preview failed closed",
                     ) from exc
 
-        all_blockers.sort(key=lambda item: (item.validator_id, item.blocker_id, item.reason_code))
-        if len(all_blockers) != total:
-            raise SomaError("DEPENDENCY_VALIDATION_FAILED", "dependency blocker count/list mismatch")
-        start = 0
-        if after is not None:
-            tokens = [f"{item.validator_id}\x1f{item.blocker_id}\x1f{item.reason_code}" for item in all_blockers]
-            start = next((index + 1 for index, token in enumerate(tokens) if token == after), -1)
-            if start < 0:
-                raise SomaError("VALIDATION_FAILED", "preview continuation is invalid or stale")
-        page_items = tuple(all_blockers[start : start + limit])
-        continuation = None
-        if start + limit < len(all_blockers) and page_items:
-            last = page_items[-1]
-            continuation = f"{last.validator_id}\x1f{last.blocker_id}\x1f{last.reason_code}"
+            total = sum(counts)
+            start_index = 0
+            inner_cursor: str | None = None
+            if after is not None:
+                start_index, inner_cursor = self._decode_preview_cursor(
+                    after,
+                    target=target,
+                    operation=operation,
+                    validator_ids=validator_ids,
+                )
+
+            page_items: list[PreviewBlocker] = []
+            continuation: str | None = None
+            index = start_index
+            current_inner = inner_cursor
+
+            while index < len(validators) and len(page_items) < limit:
+                validator = validators[index]
+                count = counts[index]
+                if count == 0:
+                    if current_inner is not None:
+                        raise SomaError(
+                            "VALIDATION_FAILED",
+                            "reference lifecycle preview cursor is stale",
+                        )
+                    index += 1
+                    continue
+
+                remaining = limit - len(page_items)
+                try:
+                    page = (
+                        validator.list_archive_blockers(
+                            snapshot,
+                            target,
+                            current_inner,
+                            remaining,
+                        )
+                        if operation == "archive"
+                        else validator.list_reactivation_blockers(
+                            snapshot,
+                            target,
+                            current_inner,
+                            remaining,
+                        )
+                    )
+                except SomaError:
+                    raise
+                except Exception as exc:
+                    raise SomaError(
+                        "DEPENDENCY_VALIDATION_FAILED",
+                        f"dependency validator {validator.validator_id} preview failed closed",
+                    ) from exc
+
+                if len(page.blockers) > remaining:
+                    raise SomaError(
+                        "DEPENDENCY_VALIDATION_FAILED",
+                        "dependency validator exceeded requested page size",
+                    )
+                if not page.blockers:
+                    raise SomaError(
+                        "DEPENDENCY_VALIDATION_FAILED",
+                        "dependency validator count/list disagreement",
+                    )
+                if page.continuation is not None and len(page.blockers) < remaining:
+                    raise SomaError(
+                        "DEPENDENCY_VALIDATION_FAILED",
+                        "dependency validator returned a short page with continuation",
+                    )
+
+                page_items.extend(
+                    PreviewBlocker(
+                        validator.validator_id,
+                        blocker.blocker_id,
+                        blocker.reason_code,
+                    )
+                    for blocker in page.blockers
+                )
+
+                if page.continuation is not None:
+                    if len(page_items) != limit:
+                        raise SomaError(
+                            "DEPENDENCY_VALIDATION_FAILED",
+                            "dependency validator continuation did not fill requested page",
+                        )
+                    continuation = self._encode_preview_cursor(
+                        target=target,
+                        operation=operation,
+                        validator_id=validator.validator_id,
+                        inner_cursor=page.continuation,
+                    )
+                    break
+
+                index += 1
+                current_inner = None
+                if len(page_items) == limit:
+                    next_index = next(
+                        (
+                            candidate
+                            for candidate in range(index, len(validators))
+                            if counts[candidate] > 0
+                        ),
+                        None,
+                    )
+                    if next_index is not None:
+                        continuation = self._encode_preview_cursor(
+                            target=target,
+                            operation=operation,
+                            validator_id=validators[next_index].validator_id,
+                            inner_cursor=None,
+                        )
+                    break
+
         return LifecyclePreview(
             target_type,
             target_id,
             operation,
             revision,
             total,
-            page_items,
+            tuple(page_items),
             continuation,
             total == 0,
         )
