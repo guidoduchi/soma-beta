@@ -539,3 +539,79 @@ def test_migration_five_preserves_legacy_receipts(
         }
     finally:
         after.close()
+
+
+
+def test_rfc_branch_response_has_exact_reviewed_collection_allocation(
+    initialized_database,
+) -> None:
+    database_path, factory_for_path = initialized_database
+    factory = factory_for_path(database_path)
+    response = {
+        "root": {"rfc_id": "root"},
+        "subordinates": [
+            {"rfc_id": f"child-{index}", "revision": index + 1}
+            for index in range(220)
+        ],
+        "continuation": None,
+        "branch_fingerprint": "a" * 64,
+    }
+
+    accepted_command = new_uuid4()
+    accepted = CommandBoundary(factory, AuditWriter(AuditRegistry())).execute(
+        CommandEnvelope(
+            command_id=accepted_command,
+            command_type="ReviewedLargeRfcBranchProbe",
+            target_type="probe",
+            target_id=None,
+            semantic_payload={},
+        ),
+        lambda uow: PreparedMutation(
+            no_change=True,
+            result_type="NO_CHANGE",
+            result_id=None,
+            response_schema="RfcBranchV1",
+            response_version=1,
+            response=response,
+        ),
+    )
+    assert accepted.response == response
+    assert CommandBoundary(factory, AuditWriter(AuditRegistry())).execute(
+        CommandEnvelope(
+            command_id=accepted_command,
+            command_type="ReviewedLargeRfcBranchProbe",
+            target_type="probe",
+            target_id=None,
+            semantic_payload={},
+        ),
+        lambda uow: pytest.fail("replay invoked preparation"),
+    ).response == response
+
+    rejected_command = new_uuid4()
+    with pytest.raises(ValidationError, match="collection bound"):
+        CommandBoundary(factory, AuditWriter(AuditRegistry())).execute(
+            CommandEnvelope(
+                command_id=rejected_command,
+                command_type="DefaultLargeResponseProbe",
+                target_type="probe",
+                target_id=None,
+                semantic_payload={},
+            ),
+            lambda uow: PreparedMutation(
+                no_change=True,
+                result_type="NO_CHANGE",
+                result_id=None,
+                response_schema="DefaultLargeResponseV1",
+                response_version=1,
+                response=response,
+            ),
+        )
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        assert connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (rejected_command,),
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()

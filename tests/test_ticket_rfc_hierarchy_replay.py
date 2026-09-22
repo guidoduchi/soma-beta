@@ -277,3 +277,71 @@ def test_add_subordinate_no_change_replay_preserves_original_branch_snapshot(
             (no_change_command_id,),
         ).fetchone()
         assert tuple(result) == ("RfcBranchV1", 1)
+
+
+
+def test_add_subordinate_exceeds_legacy_38_child_response_ceiling_and_replays_exactly(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    root = _create_rfc(factory, 9000)
+    hierarchy = RfcHierarchyService(factory)
+
+    replay_command_id = None
+    replay_child_id = None
+    replay_response = None
+    root_revision = 1
+    last = None
+    for ordinal in range(1, 41):
+        child = _create_rfc(factory, 9000 + ordinal)
+        command_id = new_uuid4()
+        last = _add(
+            hierarchy,
+            command_id=command_id,
+            parent_id=root.rfc_id,
+            child_id=child.rfc_id,
+            parent_revision=root_revision,
+            child_revision=1,
+        )
+        root_revision += 1
+        if ordinal == 39:
+            replay_command_id = command_id
+            replay_child_id = child.rfc_id
+            replay_response = last.to_response()
+            assert len(last.subordinates) == 39
+
+    assert last is not None
+    assert len(last.subordinates) == 40
+    assert last.root.revision == 41
+    assert last.root.subordinate_count == 40
+
+    assert replay_command_id is not None
+    assert replay_child_id is not None
+    assert replay_response is not None
+    monkeypatch.setattr(
+        hierarchy._branch_query,
+        "get_from_connection",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("large-branch replay performed owner read")
+        ),
+    )
+    replay = _add(
+        hierarchy,
+        command_id=replay_command_id,
+        parent_id=root.rfc_id,
+        child_id=replay_child_id,
+        parent_revision=39,
+        child_revision=1,
+    )
+    assert replay.to_response() == replay_response
+    assert len(replay.subordinates) == 39
+
+    with ReadSnapshot(factory) as snapshot:
+        stored = snapshot.connection.execute(
+            "SELECT response_schema,response_version,length(response_json) "
+            "FROM command_receipt_results WHERE command_id=?",
+            (replay_command_id,),
+        ).fetchone()
+        assert tuple(stored[:2]) == ("RfcBranchV1", 1)
+        assert 0 < int(stored[2]) <= 524_288

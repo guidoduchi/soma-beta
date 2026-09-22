@@ -37,7 +37,32 @@ PrepareMutation = Callable[[UnitOfWork], "PreparedMutation"]
 _MAX_RESPONSE_JSON_BYTES = 524_288
 _MAX_RESPONSE_DEPTH = 8
 _MAX_RESPONSE_COLLECTION_ITEMS = 512
+_RFC_BRANCH_RESPONSE_COLLECTION_ITEMS = 8_192
 _DEFAULT_RESPONSE = object()
+
+
+@dataclass(frozen=True, slots=True)
+class _ResponseBounds:
+    max_bytes: int
+    max_depth: int
+    max_collection_items: int
+
+
+_DEFAULT_RESPONSE_BOUNDS = _ResponseBounds(
+    _MAX_RESPONSE_JSON_BYTES,
+    _MAX_RESPONSE_DEPTH,
+    _MAX_RESPONSE_COLLECTION_ITEMS,
+)
+_RESPONSE_BOUND_ALLOCATIONS: dict[tuple[str, int], _ResponseBounds] = {
+    # LLD-03 hierarchy mutations return the default 100-child RfcBranchV1 page.
+    # This exact contract needs more aggregate collection items than Foundation's
+    # ordinary replay ceiling while retaining the same byte and depth limits.
+    ("RfcBranchV1", 1): _ResponseBounds(
+        _MAX_RESPONSE_JSON_BYTES,
+        _MAX_RESPONSE_DEPTH,
+        _RFC_BRANCH_RESPONSE_COLLECTION_ITEMS,
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,24 +174,38 @@ class CommandBoundary:
         return events
 
     @staticmethod
-    def _encode_response(response: Any) -> tuple[str, str, Any]:
+    def _response_bounds(response_schema: str, response_version: int) -> _ResponseBounds:
+        return _RESPONSE_BOUND_ALLOCATIONS.get(
+            (response_schema, response_version),
+            _DEFAULT_RESPONSE_BOUNDS,
+        )
+
+    @classmethod
+    def _encode_response(
+        cls,
+        response: Any,
+        *,
+        response_schema: str,
+        response_version: int,
+    ) -> tuple[str, str, Any]:
+        bounds = cls._response_bounds(response_schema, response_version)
         encoded = canonical_json_bytes_bounded(
             response,
-            max_bytes=_MAX_RESPONSE_JSON_BYTES,
-            max_depth=_MAX_RESPONSE_DEPTH,
-            max_collection_items=_MAX_RESPONSE_COLLECTION_ITEMS,
+            max_bytes=bounds.max_bytes,
+            max_depth=bounds.max_depth,
+            max_collection_items=bounds.max_collection_items,
         )
         text = encoded.decode("utf-8", errors="strict")
         normalized = loads_canonical_json(
             text,
-            max_bytes=_MAX_RESPONSE_JSON_BYTES,
-            max_depth=_MAX_RESPONSE_DEPTH,
-            max_collection_items=_MAX_RESPONSE_COLLECTION_ITEMS,
+            max_bytes=bounds.max_bytes,
+            max_depth=bounds.max_depth,
+            max_collection_items=bounds.max_collection_items,
         )
         return text, hashlib.sha256(encoded).hexdigest(), normalized
 
-    @staticmethod
-    def _decode_stored_response(result: CommittedCommandResult) -> Any:
+    @classmethod
+    def _decode_stored_response(cls, result: CommittedCommandResult) -> Any:
         if (
             not result.response_schema
             or type(result.response_version) is not int
@@ -174,12 +213,16 @@ class CommandBoundary:
             or re.fullmatch(r"[0-9a-f]{64}", result.response_sha256) is None
         ):
             raise IntegrityFailure("committed command result metadata failed integrity validation")
+        bounds = cls._response_bounds(
+            result.response_schema,
+            result.response_version,
+        )
         try:
             value = loads_canonical_json(
                 result.response_json,
-                max_bytes=_MAX_RESPONSE_JSON_BYTES,
-                max_depth=_MAX_RESPONSE_DEPTH,
-                max_collection_items=_MAX_RESPONSE_COLLECTION_ITEMS,
+                max_bytes=bounds.max_bytes,
+                max_depth=bounds.max_depth,
+                max_collection_items=bounds.max_collection_items,
             )
             encoded = result.response_json.encode("utf-8", errors="strict")
         except (ValidationError, UnicodeError) as exc:
@@ -258,7 +301,11 @@ class CommandBoundary:
             else:
                 semantic_response = prepared.response
 
-            response_json, response_sha256, normalized_response = self._encode_response(semantic_response)
+            response_json, response_sha256, normalized_response = self._encode_response(
+                semantic_response,
+                response_schema=prepared.response_schema,
+                response_version=prepared.response_version,
+            )
             self._receipt_store.insert_exact_result(
                 uow,
                 CommittedCommandResult(

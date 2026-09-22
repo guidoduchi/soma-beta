@@ -492,3 +492,50 @@ def test_reparent_insert_failure_rolls_back_closed_edge_receipt_audit_and_revisi
     assert rows[0][0] == preview.old_edge_id
     assert rows[0][2] == "active"
     assert rows[0][4] is None and rows[0][5] is None
+
+
+
+def test_reparent_into_large_branch_exceeds_legacy_response_ceiling(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    old_parent = _create_rfc(factory, 9100)
+    moving_child = _create_rfc(factory, 9101)
+    _attach(factory, old_parent, moving_child)
+
+    new_parent = _create_rfc(factory, 9200)
+    hierarchy = RfcHierarchyService(factory)
+    new_parent_revision = 1
+    for ordinal in range(1, 40):
+        existing_child = _create_rfc(factory, 9200 + ordinal)
+        hierarchy.add_subordinate(
+            command_id=new_uuid4(),
+            parent_rfc_id=new_parent.rfc_id,
+            child_rfc_id=existing_child.rfc_id,
+            base_revisions={
+                new_parent.rfc_id: new_parent_revision,
+                existing_child.rfc_id: 1,
+            },
+            reason_category="manual_review",
+        )
+        new_parent_revision += 1
+
+    provider = _HistoryProvider(_ready("LOW", 0, "f" * 64))
+    preview = RfcHierarchyPreviewQueryService(factory, provider).preview(
+        action="reparent",
+        child_rfc_id=moving_child.rfc_id,
+        new_parent_rfc_id=new_parent.rfc_id,
+    )
+    result = RfcHierarchyService(factory, provider).reparent_subordinate(
+        command_id=new_uuid4(),
+        child_rfc_id=moving_child.rfc_id,
+        new_parent_rfc_id=new_parent.rfc_id,
+        base_revisions=preview.base_revisions,
+        reason_category="manual_review",
+        review_fingerprint=None,
+    )
+
+    assert result.root.rfc_id == new_parent.rfc_id
+    assert result.root.subordinate_count == 40
+    assert len(result.subordinates) == 40
+    assert any(item.rfc_id == moving_child.rfc_id for item in result.subordinates)
