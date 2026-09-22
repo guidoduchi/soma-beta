@@ -251,8 +251,10 @@ def _verify_exact_contract(
     raise _schema_error(f"{label} differs from release manifest")
 
 
-def _verify_migration_lineage(connection: Any, manifest: dict[str, object]) -> None:
+def _verify_migration_lineage(connection: Any, manifest: dict[str, object]) -> bool:
     expected = manifest["migration_lineage"]
+    if not isinstance(expected, list) or not expected:
+        raise _schema_error("release migration lineage contract is invalid")
     actual = [
         {
             "sequence": int(row[0]),
@@ -263,8 +265,9 @@ def _verify_migration_lineage(connection: Any, manifest: dict[str, object]) -> N
             "SELECT sequence,migration_id,sha256 FROM schema_migrations ORDER BY sequence"
         ).fetchall()
     ]
-    if expected != actual:
+    if not actual or len(actual) > len(expected) or actual != expected[: len(actual)]:
         raise _schema_error("database migration lineage differs from release manifest")
+    return len(actual) == len(expected)
 
 
 def _expect_rejected(
@@ -367,7 +370,20 @@ def verify_foundation_schema(connection: Any) -> None:
     manifest = _load_release_manifest()
     verify_foreign_keys(connection)
     _verify_quick_check(connection)
-    _verify_migration_lineage(connection, manifest)
+    is_current_release = _verify_migration_lineage(connection, manifest)
+
+    rows = connection.execute(
+        "SELECT singleton,data_instance_id FROM instance_metadata"
+    ).fetchall()
+    if len(rows) != 1 or int(rows[0][0]) != 1 or not str(rows[0][1]):
+        raise _schema_error("instance_metadata must contain exactly one valid singleton row")
+
+    # Historical migration-prefix databases are valid inputs to the forward-only
+    # migration runner. Their ledger must be an exact prefix of the accepted
+    # release lineage, but the current-release structural manifest cannot be
+    # applied until the runner has brought them to the full accepted lineage.
+    if not is_current_release:
+        return
 
     _verify_exact_contract(
         label="authoritative schema objects",
@@ -384,12 +400,6 @@ def verify_foundation_schema(connection: Any) -> None:
         expected=manifest["indexes"],
         actual=_actual_indexes(connection),
     )
-
-    rows = connection.execute(
-        "SELECT singleton,data_instance_id FROM instance_metadata"
-    ).fetchall()
-    if len(rows) != 1 or int(rows[0][0]) != 1 or not str(rows[0][1]):
-        raise _schema_error("instance_metadata must contain exactly one valid singleton row")
 
     _verify_append_only_behavior(connection)
 
