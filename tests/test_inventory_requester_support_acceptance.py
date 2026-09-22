@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
+from soma.foundation.persistence.uow import ReadSnapshot
 from soma.inventory.domain.requests import SpareRequestAllocationIntent
 from soma.inventory.queries.requests_rma import InventoryRequestsRmaQueryService
 from soma.inventory.services.participants import InventoryReferenceDependencyValidator
@@ -11,7 +12,7 @@ from soma.inventory.services.requests_rma import InventoryRequestsRmaService
 from soma.reference.application.contact_service import ContactReferenceService
 from soma.reference.application.customer_service import CustomerReferenceService
 from soma.reference.application.lifecycle_service import ReferenceLifecycleService
-from soma.reference.domain.dependencies import ReferenceDependencyRegistry
+from soma.reference.domain.dependencies import ReferenceDependencyRegistry, ReferenceTarget
 from test_inventory_requests_rma import _dispatch_location, _factory, _need, _sr
 
 
@@ -227,3 +228,51 @@ def test_t068_active_requester_blocks_contact_archive_until_request_terminal(
         "affiliation_id": None,
         "customer_org_id": None,
     }
+
+
+def test_inventory_dependency_cursor_preserves_multi_role_blockers(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Requester And Receiver",
+    )
+    _, request_id = _create_request(
+        factory,
+        official_sr="97909999",
+        requester_contact_id=contact.contact_id,
+        receiver_contact_id=contact.contact_id,
+        bom="REQ-CURSOR",
+    )
+    validator = InventoryReferenceDependencyValidator()
+    target = ReferenceTarget("contact", contact.contact_id)
+
+    with ReadSnapshot(factory) as snapshot:
+        assert validator.count_archive_blockers(snapshot, target) == 2
+        first = validator.list_archive_blockers(snapshot, target, None, 1)
+        assert len(first.blockers) == 1
+        assert first.continuation is not None
+
+        second = validator.list_archive_blockers(
+            snapshot,
+            target,
+            first.continuation,
+            1,
+        )
+        assert len(second.blockers) == 1
+        assert second.continuation is None
+        assert {first.blockers[0].reason_code, second.blockers[0].reason_code} == {
+            "active_spare_request_requester",
+            "active_spare_request_receiver",
+        }
+        assert first.blockers[0].blocker_id == request_id
+        assert second.blockers[0].blocker_id == request_id
+
+        with pytest.raises(ValidationError, match="cursor is invalid"):
+            validator.list_archive_blockers(
+                snapshot,
+                target,
+                first.continuation[:-1] + ("A" if first.continuation[-1] != "A" else "B"),
+                1,
+            )

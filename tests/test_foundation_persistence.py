@@ -14,7 +14,7 @@ from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditW
 from soma.foundation.errors import IdempotencyConflict, PersistenceFailure
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.migrations.runner import iter_migration_statements
-from soma.foundation.persistence.uow import UnitOfWork
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import ObjectContract
 
 
@@ -185,3 +185,31 @@ def test_audit_tables_are_append_only(initialized_database) -> None:
                 "UPDATE audit_events SET reason_category = 'changed' WHERE audit_event_id = ?",
                 (audit_id,),
             )
+
+
+def test_read_snapshot_closes_connection_when_begin_fails() -> None:
+    class FailingConnection:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def execute(self, statement: str):
+            assert statement == "BEGIN"
+            raise RuntimeError("injected BEGIN failure")
+
+        def close(self) -> None:
+            self.closed = True
+
+    connection = FailingConnection()
+
+    class FailingFactory:
+        @staticmethod
+        def open_authoritative(**kwargs):
+            assert kwargs == {"read_only": True}
+            return connection
+
+    snapshot = ReadSnapshot(FailingFactory())
+    with pytest.raises(RuntimeError, match="injected BEGIN failure"):
+        snapshot.__enter__()
+    assert connection.closed is True
+    with pytest.raises(RuntimeError, match="has not been entered"):
+        _ = snapshot.connection

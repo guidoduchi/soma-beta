@@ -41,7 +41,7 @@ def _validate_unicode(value: Any) -> None:
         elif isinstance(item, dict):
             pending.extend(item.keys())
             pending.extend(item.values())
-        elif isinstance(item, list):
+        elif isinstance(item, (list, tuple)):
             pending.extend(item)
 
 
@@ -109,7 +109,7 @@ def _measure(value: Any, *, depth: int = 0) -> tuple[int, int, int]:
                     raise ValidationError("JSON object keys must be strings")
                 string_bytes += len(key.encode("utf-8"))
                 pending.append((child, item_depth + 1))
-        elif isinstance(item, list):
+        elif isinstance(item, (list, tuple)):
             collection_items += len(item)
             pending.extend((child, item_depth + 1) for child in item)
     return max_depth, collection_items, string_bytes

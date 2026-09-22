@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from typing import Any, Iterator
 
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
@@ -9,6 +10,8 @@ from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import (
     ObjectContract,
     canonical_json_bytes,
+    canonical_json_bytes_bounded,
+    loads_canonical_json,
     sha256_canonical_json,
 )
 from soma.inventory.audit_registry import build_inventory_audit_registry
@@ -263,6 +266,85 @@ class RfcInventoryDependencyProvider:
 
 class InventoryReferenceDependencyValidator:
     validator_id = "inventory"
+    _CURSOR_PREFIX = "SOMA_INVENTORY_DEPENDENCY_CURSOR_V1."
+    _CURSOR_MAX_BYTES = 2048
+
+    @staticmethod
+    def _blocker_key(blocker: DependencyBlocker) -> tuple[str, str]:
+        return blocker.blocker_id, blocker.reason_code
+
+    @classmethod
+    def _encode_cursor(
+        cls,
+        target: ReferenceTarget,
+        blocker: DependencyBlocker,
+    ) -> str:
+        payload = {
+            "schema": "SOMA_INVENTORY_DEPENDENCY_CURSOR_V1",
+            "target_type": target.target_type,
+            "target_id": target.target_id,
+            "blocker_id": blocker.blocker_id,
+            "reason_code": blocker.reason_code,
+        }
+        raw = canonical_json_bytes_bounded(
+            payload,
+            max_bytes=cls._CURSOR_MAX_BYTES,
+            max_depth=2,
+            max_collection_items=8,
+        )
+        token = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+        return cls._CURSOR_PREFIX + token
+
+    @classmethod
+    def _decode_cursor(
+        cls,
+        target: ReferenceTarget,
+        cursor: str,
+    ) -> tuple[str, str]:
+        try:
+            if not cursor.startswith(cls._CURSOR_PREFIX):
+                raise ValueError("wrong cursor version")
+            token = cursor[len(cls._CURSOR_PREFIX) :]
+            if not token or len(token) > cls._CURSOR_MAX_BYTES * 2:
+                raise ValueError("cursor length is invalid")
+            encoded = token.encode("ascii")
+            encoded += b"=" * ((4 - len(encoded) % 4) % 4)
+            raw = base64.b64decode(encoded, altchars=b"-_", validate=True)
+            if len(raw) > cls._CURSOR_MAX_BYTES:
+                raise ValueError("cursor payload is oversized")
+            payload = loads_canonical_json(
+                raw.decode("utf-8", errors="strict"),
+                max_bytes=cls._CURSOR_MAX_BYTES,
+                max_depth=2,
+                max_collection_items=8,
+            )
+            if not isinstance(payload, dict) or set(payload) != {
+                "schema",
+                "target_type",
+                "target_id",
+                "blocker_id",
+                "reason_code",
+            }:
+                raise ValueError("cursor payload shape is invalid")
+            if payload["schema"] != "SOMA_INVENTORY_DEPENDENCY_CURSOR_V1":
+                raise ValueError("cursor schema is invalid")
+            if (
+                payload["target_type"] != target.target_type
+                or payload["target_id"] != target.target_id
+            ):
+                raise ValueError("cursor target does not match")
+            blocker_id = payload["blocker_id"]
+            reason_code = payload["reason_code"]
+            if (
+                not isinstance(blocker_id, str)
+                or not blocker_id
+                or not isinstance(reason_code, str)
+                or not reason_code
+            ):
+                raise ValueError("cursor ordering key is invalid")
+            return blocker_id, reason_code
+        except Exception as exc:
+            raise ValidationError("Inventory dependency cursor is invalid") from exc
 
     @staticmethod
     def _blockers(connection: Any, target: ReferenceTarget) -> tuple[DependencyBlocker, ...]:
@@ -374,16 +456,18 @@ class InventoryReferenceDependencyValidator:
         blockers = self._blockers(snapshot.connection, target)
         start = 0
         if cursor is not None:
+            cursor_key = self._decode_cursor(target, cursor)
             matches = [
-                index for index, item in enumerate(blockers)
-                if item.blocker_id == cursor
+                index
+                for index, item in enumerate(blockers)
+                if self._blocker_key(item) == cursor_key
             ]
             if len(matches) != 1:
                 raise ValidationError("Inventory dependency cursor is invalid")
             start = matches[0] + 1
         page = blockers[start : start + limit]
         continuation = (
-            page[-1].blocker_id
+            self._encode_cursor(target, page[-1])
             if start + len(page) < len(blockers) and page
             else None
         )

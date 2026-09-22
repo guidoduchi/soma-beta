@@ -121,9 +121,15 @@ class ReadSnapshot:
         return self._connection
 
     def __enter__(self) -> Self:
-        self._connection = self._factory.open_authoritative(read_only=True)
-        self._connection.execute("BEGIN")
-        return self
+        try:
+            self._connection = self._factory.open_authoritative(read_only=True)
+            self._connection.execute("BEGIN")
+            return self
+        except BaseException:
+            if self._connection is not None:
+                self._connection.close()
+                self._connection = None
+            raise
 
     def __exit__(
         self,
