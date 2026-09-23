@@ -21,7 +21,7 @@
     "last_green_run_id": 35837398042,
     "last_green_head": "ab26153f846e884be3cfbddf516623bfecce707f",
     "current_candidate_implementation_sha": "66144d0001d40690c44ed9b35c35a5c8c414144a",
-    "current_candidate_design_sha": "05aeda769be90d5e9b9741e8a12f7b9af8842da6",
+    "current_candidate_design_sha": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
     "current_candidate_result": "NOT_RUN",
     "note": "The last green commit predates the current P1/P2 changes; no semantic or CI success is claimed for the current candidate. Defer full supported CI until coherent checkpoint."
   },
@@ -399,7 +399,7 @@
         "scope": "LLD-02 37-case summary corrected to 26 reviewed, 6 pending-CI, 4 partial-cross-packet, 1 deferred. LLD02-T013 current warning failure has a proposed design clarification and implementation candidate; broader LLD03..06 and 2000-target release-schema evidence remain unclosed."
       }
     ],
-    "candidate_design_sha": "05aeda769be90d5e9b9741e8a12f7b9af8842da6",
+    "candidate_design_sha": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
     "candidate_implementation_sha": "66144d0001d40690c44ed9b35c35a5c8c414144a",
     "validation": "PENDING: no focused tests or supported CI have run for the current candidate."
   }

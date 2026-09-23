@@ -1,7 +1,7 @@
 {
   "schema": "SOMA_PRE_LLD08_REFERENCE_SEMANTIC_TRACEABILITY_V1",
   "lld_id": "LLD-02",
-  "design_sha": "05aeda769be90d5e9b9741e8a12f7b9af8842da6",
+  "design_sha": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
   "implementation_head_at_binding": "7a4cfe5b3960e2e7e577bd33bad2c39b4563900c",
   "source_acceptance": [
     "spec/lld/identity-reference/tests/acceptance.json"
@@ -808,7 +808,7 @@
   ],
   "recertification_checkpoint": {
     "candidate_head": "66144d0001d40690c44ed9b35c35a5c8c414144a",
-    "design_head": "05aeda769be90d5e9b9741e8a12f7b9af8842da6",
+    "design_head": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
     "prior_ci_run": 867,
     "prior_ci_run_id": 35840886594,
     "prior_ci_head": "4f3e30500d51962fe5fd68e435d0252692d5b010",
