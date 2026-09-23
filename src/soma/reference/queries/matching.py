@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.reference.domain.matching import normalize_match_key, require_persisted_matching_profile
@@ -25,14 +25,13 @@ class ReferenceMatcher:
 
     @staticmethod
     def _require_profile(connection: Any) -> None:
-        row = connection.execute(
-            "SELECT matching_profile_id FROM reference_metadata WHERE singleton_guard=1"
-        ).fetchone()
-        if row is None or str(row[0]) != PROFILE_ID:
+        try:
+            require_persisted_matching_profile(connection)
+        except ValidationError as exc:
             raise SomaError(
                 "MATCH_PROFILE_UNSUPPORTED",
                 "stored reference matching profile is not supported by this build",
-            )
+            ) from exc
 
     @staticmethod
     def _page(
