@@ -7726,6 +7726,52 @@
       "unique": false
     },
     {
+      "name": "idx_report_cohort_cpl_fk",
+      "table_name": "sla_report_cohort_snapshots",
+      "unique": false,
+      "origin": "c",
+      "partial": false,
+      "keys": [
+        {
+          "sequence": 0,
+          "cid": 6,
+          "name": "contract_product_line_id",
+          "descending": false,
+          "collation": "BINARY"
+        },
+        {
+          "sequence": 1,
+          "cid": 0,
+          "name": "report_cohort_snapshot_id",
+          "descending": false,
+          "collation": "BINARY"
+        }
+      ]
+    },
+    {
+      "name": "idx_report_cohort_customer_fk",
+      "table_name": "sla_report_cohort_snapshots",
+      "unique": false,
+      "origin": "c",
+      "partial": false,
+      "keys": [
+        {
+          "sequence": 0,
+          "cid": 4,
+          "name": "customer_org_id",
+          "descending": false,
+          "collation": "BINARY"
+        },
+        {
+          "sequence": 1,
+          "cid": 0,
+          "name": "report_cohort_snapshot_id",
+          "descending": false,
+          "collation": "BINARY"
+        }
+      ]
+    },
+    {
       "keys": [
         {
           "cid": 1,
@@ -7959,6 +8005,29 @@
       "partial": false,
       "table_name": "sla_report_member_snapshots",
       "unique": false
+    },
+    {
+      "name": "idx_report_member_service_request_fk",
+      "table_name": "sla_report_member_snapshots",
+      "unique": false,
+      "origin": "c",
+      "partial": false,
+      "keys": [
+        {
+          "sequence": 0,
+          "cid": 3,
+          "name": "service_request_id",
+          "descending": false,
+          "collation": "BINARY"
+        },
+        {
+          "sequence": 1,
+          "cid": 0,
+          "name": "report_member_snapshot_id",
+          "descending": false,
+          "collation": "BINARY"
+        }
+      ]
     },
     {
       "keys": [
@@ -11195,6 +11264,11 @@
       "sequence": 12,
       "migration_id": "beta_0012_inventory_query_indexes",
       "sha256": "670b19598841f1fb131aa5768f193e4e46de7eaf8af0560cf171cebb48f569c3"
+    },
+    {
+      "sequence": 13,
+      "migration_id": "beta_0013_fk_index_coverage",
+      "sha256": "5135e6ca649020a633d8169c111e25476bafdc2f4255997866618cff6ca23b81"
     }
   ],
   "objects": [
@@ -13479,6 +13553,18 @@
       "type": "index"
     },
     {
+      "type": "index",
+      "name": "idx_report_cohort_cpl_fk",
+      "table_name": "sla_report_cohort_snapshots",
+      "sql_sha256": "724307af6f71201253cd32d0cf0d2485ab6b2716f4cb515b2b1c461ea3c52f50"
+    },
+    {
+      "type": "index",
+      "name": "idx_report_cohort_customer_fk",
+      "table_name": "sla_report_cohort_snapshots",
+      "sql_sha256": "65f3e68378e0086c3f20eb5d673abf3d79d95fbbc5b997bb9da947afb19de4ee"
+    },
+    {
       "name": "idx_report_cohort_key",
       "sql_sha256": "0fa9bbce50a5dbd75e1bb7277171a33eed0ebe09ea4a4cfcc66b7f542a845364",
       "table_name": "sla_report_cohort_snapshots",
@@ -13531,6 +13617,12 @@
       "sql_sha256": "90bbe53b0d9313e2eda005e51d5fee431c1d9e6066632f418cdb7a18854073ea",
       "table_name": "sla_report_member_snapshots",
       "type": "index"
+    },
+    {
+      "type": "index",
+      "name": "idx_report_member_service_request_fk",
+      "table_name": "sla_report_member_snapshots",
+      "sql_sha256": "989fae3771645d43d10f3498482cf5f5520ca9dcfa6a3cc10304fe951e13a4d6"
     },
     {
       "name": "idx_report_tier_attempt_fk",
