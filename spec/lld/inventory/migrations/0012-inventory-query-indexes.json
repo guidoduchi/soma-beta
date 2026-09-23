@@ -1,0 +1,19 @@
+{
+  "schema": "SOMA-LLD-MIGRATION-V1",
+  "lld_id": "LLD-07",
+  "sequence": 12,
+  "migration_id": "beta_0012_inventory_query_indexes",
+  "filename": "0012_inventory_query_indexes.sql",
+  "status": "design_allocated_for_forward_runtime_acceptance",
+  "purpose": "Performance-only forward repair for measured StockEligibilityQuery pagination work; add seek-order indexes without changing authoritative Inventory state or query semantics.",
+  "objects": [
+    "idx_inv_069_spare_part_units_stock_order ON spare_part_units(COALESCE(local_tracking_id,''),spare_part_unit_id)",
+    "idx_inv_070_spare_part_units_stock_bom_order ON spare_part_units(bom_key,COALESCE(local_tracking_id,''),spare_part_unit_id)"
+  ],
+  "invariants": [
+    "runtime migrations 1 through 11 remain byte-for-byte historical and are never rewritten",
+    "migration creates indexes only; it adds no table, column, trigger, lifecycle fact, identity rule, compatibility rule, count approximation or business cardinality cap",
+    "StockEligibilityQuery keeps exact_total exact and preserves CURSOR_V1 ordering by compatibility class, empty-before-text display key and spare_part_unit_id",
+    "implementation acceptance requires EXPLAIN QUERY PLAN evidence that bounded Stock page partitions use the intended indexes without a temporary ORDER BY B-tree, plus sparse/dense and late-page regression evidence"
+  ]
+}
