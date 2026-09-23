@@ -55,6 +55,10 @@ class UvicornLoopbackServer:
     def start(self, bound_socket) -> None:
         if self._thread is not None:
             raise SomaError("INTERNAL_ERROR", "Uvicorn server adapter is already started")
+        self._failure = None
+        self._server.should_exit = False
+        self._server.force_exit = False
+        self._server.started = False
         self._thread = threading.Thread(
             target=self._serve,
             args=(bound_socket,),
@@ -80,17 +84,32 @@ class UvicornLoopbackServer:
         except BaseException:
             return False
 
-    def stop(self) -> None:
+    def is_stopped(self) -> bool:
+        thread = self._thread
+        return thread is None or not thread.is_alive()
+
+    def stop(self, timeout_seconds: float | None = None) -> None:
         thread = self._thread
         if thread is None:
             return
+        if timeout_seconds is not None and timeout_seconds < 0:
+            raise ValueError("timeout_seconds must be nonnegative")
+        budget = (
+            self._shutdown_timeout
+            if timeout_seconds is None
+            else timeout_seconds
+        )
+        deadline = time.monotonic() + budget
         self._server.should_exit = True
-        thread.join(self._shutdown_timeout)
+        thread.join(max(0.0, deadline - time.monotonic()))
         if thread.is_alive():
             self._server.force_exit = True
-            thread.join(self._shutdown_timeout)
+            thread.join(max(0.0, deadline - time.monotonic()))
         if thread.is_alive():
-            raise SomaError("INTERNAL_ERROR", "Uvicorn did not stop before shutdown deadline")
+            raise SomaError(
+                "INTERNAL_ERROR",
+                "Uvicorn did not stop before shutdown deadline",
+            )
         self._thread = None
         if self._failure is not None:
             failure = self._failure
