@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
+from pathlib import Path
 
 import pytest
 
@@ -106,3 +108,47 @@ def test_read_connection_verifies_all_required_settings(initialized_database):
             connection.execute('CREATE TABLE forbidden(value TEXT) STRICT')
     finally:
         connection.close()
+
+
+
+def test_authoritative_connection_cannot_cross_threads(initialized_database) -> None:
+    path, factory_for_path = initialized_database
+    connection = factory_for_path(path).open_authoritative(
+        read_only=True,
+        require_wal=True,
+    )
+    observed: list[BaseException] = []
+
+    def use_from_other_thread() -> None:
+        try:
+            connection.execute("SELECT 1").fetchone()
+        except BaseException as exc:
+            observed.append(exc)
+
+    thread = threading.Thread(target=use_from_other_thread)
+    thread.start()
+    thread.join(timeout=5)
+    try:
+        assert not thread.is_alive()
+        assert len(observed) == 1
+        assert isinstance(observed[0], sqlite3.ProgrammingError)
+        assert "thread" in str(observed[0]).lower()
+    finally:
+        connection.close()
+
+
+def test_production_authoritative_driver_connect_is_centralized() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    offenders: list[str] = []
+    for path in sorted((repo_root / "src" / "soma").rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        relative = path.relative_to(repo_root).as_posix()
+        if relative == "src/soma/foundation/persistence/connections.py":
+            continue
+        if (
+            "driver.connect(" in text
+            or "sqlite3.connect(" in text
+            or "sqlcipher3.connect(" in text
+        ):
+            offenders.append(relative)
+    assert offenders == []
