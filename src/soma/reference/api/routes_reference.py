@@ -8,7 +8,7 @@ from types import MappingProxyType
 from soma.foundation.errors import IntegrityFailure, ValidationError
 from soma.foundation.strict_json import canonical_json_bytes_bounded
 
-_PARAMETER = re.compile(r"^\\{([a-z][a-z0-9_]*)\\}$")
+_PARAMETER = re.compile(r"^\{([a-z][a-z0-9_]*)\}$")
 _REFERENCE_TYPES = frozenset(
     {"customer_organization", "contact", "dispatch_location"}
 )
