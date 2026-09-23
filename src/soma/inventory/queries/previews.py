@@ -407,6 +407,10 @@ class InventoryBulkPreviewQuery:
                 raise ValidationError("bulk target revision must be positive or null")
             normalized_targets.append((membership_id, raw_revision))
         normalized_targets.sort(key=lambda item: item[0])
+        authorities = repository.warehouse_membership_authority_set(
+            connection,
+            tuple(membership_id for membership_id, _revision in normalized_targets),
+        )
 
         for membership_id, expected_revision in normalized_targets:
             status = "eligible"
@@ -418,7 +422,8 @@ class InventoryBulkPreviewQuery:
                 status = "missing_input"
                 blocker = "expected_revision_required"
             else:
-                row = repository.warehouse_membership_authority(connection, membership_id)
+                pair = authorities.get(membership_id)
+                row, obligation = (None, None) if pair is None else pair
                 if row is None:
                     status = "stale"
                     blocker = "target_missing"
@@ -429,9 +434,9 @@ class InventoryBulkPreviewQuery:
                         blocker = "revision_changed"
                     else:
                         try:
-                            verified, obligation = repository._require_warehouse_target(
-                                connection,
-                                membership_id=membership_id,
+                            verified, obligation = repository._validate_warehouse_target_authority(
+                                row=row,
+                                obligation=obligation,
                                 expected_revision=expected_revision,
                                 required_state=required_state,
                             )
