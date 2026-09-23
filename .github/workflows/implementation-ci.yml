@@ -59,6 +59,11 @@ jobs:
         run: python -m pip install -e ".[test]"
       - name: Verify release schema manifest
         run: python tools/generate_schema_manifest.py --check src/soma/schema_manifest.json
+      - name: Emit pre-LLD-08 acceptance marker coverage
+        run: |
+          git fetch --no-tags --depth=1 origin design/beta-1.0-hld-lld
+          test "$(git rev-parse FETCH_HEAD)" = "e0924369170652be3a425d10210d14619f526a48"
+          python tools/acceptance_marker_coverage.py --design-ref FETCH_HEAD --json
       - name: Compile package
         run: python -m compileall -q src tests
       - name: Run complete implementation test suite
