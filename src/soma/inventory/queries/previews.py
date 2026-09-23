@@ -334,7 +334,7 @@ _BULK_ACTIONS = frozenset(
 class InventoryBulkPreviewQuery:
     """Pure stable-snapshot preflight for bounded warehouse bulk actions."""
 
-    _MAX_TARGETS = 200
+    _MAX_TARGETS = 2_000
 
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
