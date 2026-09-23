@@ -306,6 +306,15 @@ def test_contact_affiliation_mismatch_requires_fresh_review_preserves_affiliatio
     assert accepted.target_id == sr.service_request_id
     assert accepted.revision == 3
 
+    # An accepted reviewed mismatch remains valid; a read-time warning
+    # describes the current mismatch rather than undoing that review.
+    reviewed_context = queries.get(service_request_id=sr.service_request_id)
+    assert "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED" in reviewed_context["warnings"]
+    assert (
+        reviewed_context["contacts"]["customer_contact"]["customer_org_context_id"]
+        == customer_a.customer_org_id
+    )
+
     no_change = service.set_contact_reference(
         command_id=new_uuid4(),
         service_request_id=sr.service_request_id,
@@ -572,5 +581,179 @@ def test_contact_affiliation_change_does_not_rewrite_sr_organization_at_use_snap
             == customer_a.customer_org_id
         )
         assert "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED" in context["warnings"]
+    finally:
+        connection.close()
+
+
+def test_point_context_affiliation_warning_both_roles_unknown_and_stale_handler(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    customers = CustomerReferenceService(factory)
+    contacts = ContactReferenceService(factory)
+    org_a = customers.create_customer_organization(
+        command_id=new_uuid4(), name="Point Warning Customer A"
+    )
+    org_b = customers.create_customer_organization(
+        command_id=new_uuid4(), name="Point Warning Customer B"
+    )
+    contact = contacts.create_contact(
+        command_id=new_uuid4(),
+        name="Point Warning Contact",
+        initial_customer_org_id=org_a.customer_org_id,
+    )
+    create_sr_command = new_uuid4()
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=create_sr_command
+    )
+    participant = FakeClassificationParticipant()
+    service = ServiceRequestReferenceService(factory, participant)
+    queries = ServiceRequestReferenceQueryService(factory, participant)
+    service.set_customer(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=1,
+        customer_org_id=org_a.customer_org_id,
+        reason_category="affiliation_warning_context",
+    )
+    contact_preview = queries.preview_contact_reference(
+        service_request_id=sr.service_request_id,
+        reference_role="customer_contact",
+        contact_id=contact.contact_id,
+    )
+    assert contact_preview.eligible
+    service.set_contact_reference(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=2,
+        reference_role="customer_contact",
+        contact_id=contact.contact_id,
+        supporting_sr_source_field_observation_id=None,
+        reason_category="affiliation_warning_contact",
+        review_fingerprint=contact_preview.review_fingerprint,
+    )
+    h1 = _seed_handler_observation(
+        factory, sr.service_request_id, create_sr_command, "point-warning-handler-1"
+    )
+    handler_preview = queries.preview_contact_reference(
+        service_request_id=sr.service_request_id,
+        reference_role="current_handler_reference",
+        contact_id=contact.contact_id,
+        supporting_sr_source_field_observation_id=h1,
+    )
+    assert handler_preview.eligible
+    service.set_contact_reference(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=3,
+        reference_role="current_handler_reference",
+        contact_id=contact.contact_id,
+        supporting_sr_source_field_observation_id=h1,
+        reason_category="affiliation_warning_handler",
+        review_fingerprint=handler_preview.review_fingerprint,
+    )
+    initial = queries.get(service_request_id=sr.service_request_id)
+    assert "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED" not in initial["warnings"]
+    assert initial["contacts"]["current_handler_reference"]["alignment"] == "aligned"
+
+    contacts.change_contact_affiliation(
+        command_id=new_uuid4(),
+        contact_id=contact.contact_id,
+        base_revision=1,
+        new_customer_org_id=org_b.customer_org_id,
+        reason_category="later_affiliation_change",
+    )
+    changed = queries.get(service_request_id=sr.service_request_id)
+    assert changed["warnings"].count("SR_CONTACT_AFFILIATION_REVIEW_REQUIRED") == 1
+    for role in ("customer_contact", "current_handler_reference"):
+        assert changed["contacts"][role]["customer_org_context_id"] == org_a.customer_org_id
+        assert changed["contacts"][role]["current_affiliation_customer_org_id"] == org_b.customer_org_id
+    assert changed["contacts"]["current_handler_reference"]["alignment"] == "aligned"
+
+    # Once only the stale handler relation remains, it is historical context
+    # and must not independently claim to be the currently aligned Contact.
+    h2 = _seed_handler_observation(
+        factory, sr.service_request_id, create_sr_command, "point-warning-handler-2"
+    )
+    cleared = service.set_contact_reference(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=4,
+        reference_role="customer_contact",
+        contact_id=None,
+        supporting_sr_source_field_observation_id=None,
+        reason_category="clear_customer_contact",
+    )
+    assert cleared.revision == 5
+    stale = queries.get(service_request_id=sr.service_request_id)
+    assert stale["contacts"]["current_handler_reference"]["alignment"] == "stale"
+    assert "SR_HANDLER_REFERENCE_STALE" in stale["warnings"]
+    assert "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED" not in stale["warnings"]
+
+    contacts.change_contact_affiliation(
+        command_id=new_uuid4(),
+        contact_id=contact.contact_id,
+        base_revision=2,
+        new_customer_org_id=None,
+        reason_category="affiliation_becomes_unknown",
+    )
+    unknown = queries.get(service_request_id=sr.service_request_id)
+    assert "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED" not in unknown["warnings"]
+    assert unknown["contacts"]["current_handler_reference"]["current_affiliation_customer_org_id"] is None
+
+    refreshed_preview = queries.preview_contact_reference(
+        service_request_id=sr.service_request_id,
+        reference_role="current_handler_reference",
+        contact_id=contact.contact_id,
+        supporting_sr_source_field_observation_id=h2,
+    )
+    assert refreshed_preview.eligible
+    rebound = service.set_contact_reference(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=5,
+        reference_role="current_handler_reference",
+        contact_id=contact.contact_id,
+        supporting_sr_source_field_observation_id=h2,
+        reason_category="fresh_handler_observation",
+        review_fingerprint=refreshed_preview.review_fingerprint,
+    )
+    assert rebound.revision == 6
+
+    contacts.change_contact_affiliation(
+        command_id=new_uuid4(),
+        contact_id=contact.contact_id,
+        base_revision=3,
+        new_customer_org_id=org_b.customer_org_id,
+        reason_category="affiliation_known_again",
+    )
+    aligned = queries.get(service_request_id=sr.service_request_id)
+    assert aligned["contacts"]["current_handler_reference"]["alignment"] == "aligned"
+    assert "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED" in aligned["warnings"]
+
+    service.set_customer(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=6,
+        customer_org_id=None,
+        reason_category="customer_becomes_unresolved",
+    )
+    no_customer = queries.get(service_request_id=sr.service_request_id)
+    assert no_customer["customer"] is None
+    assert "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED" not in no_customer["warnings"]
+    assert (
+        no_customer["contacts"]["current_handler_reference"]["customer_org_context_id"]
+        == org_a.customer_org_id
+    )
+    connection = _read(initialized_database)
+    try:
+        historical = connection.execute(
+            "SELECT customer_org_context_id,relationship_state "
+            "FROM sr_contact_relationships "
+            "WHERE service_request_id=? AND reference_role='customer_contact'",
+            (sr.service_request_id,),
+        ).fetchall()
+        assert len(historical) == 1
+        assert tuple(historical[0]) == (org_a.customer_org_id, "superseded")
     finally:
         connection.close()
