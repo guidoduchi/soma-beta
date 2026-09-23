@@ -195,6 +195,64 @@ class InventoryNeedsQueryService:
             for row in rows
         )
 
+    @staticmethod
+    def _stock_partition_rows(
+        connection,
+        *,
+        requested_bom_key: str | None,
+        compatibility_rank: int,
+        after_tracking: str | None,
+        after_unit_id: str | None,
+        limit: int,
+    ):
+        if compatibility_rank == 0:
+            if requested_bom_key is None:
+                raise ValidationError("exact Stock partition requires a BOM key")
+            index_name = "idx_inv_070_spare_part_units_stock_bom_order"
+            predicate = "u.bom_key=?"
+            params: tuple[object, ...] = (requested_bom_key,)
+        elif compatibility_rank == 2:
+            if requested_bom_key is None:
+                raise ValidationError("incompatible Stock partition requires a BOM key")
+            index_name = "idx_inv_069_spare_part_units_stock_order"
+            predicate = "u.bom_key<>?"
+            params = (requested_bom_key,)
+        elif compatibility_rank == 3:
+            if requested_bom_key is not None:
+                raise ValidationError("unknown Stock partition cannot carry a BOM key")
+            index_name = "idx_inv_069_spare_part_units_stock_order"
+            predicate = "1=1"
+            params = ()
+        else:
+            raise ValidationError("Stock compatibility partition is invalid")
+
+        if (after_tracking is None) != (after_unit_id is None):
+            raise ValidationError("Stock partition continuation key is incomplete")
+        if after_tracking is not None and after_unit_id is not None:
+            require_uuid4(after_unit_id)
+            predicate += (
+                " AND (COALESCE(u.local_tracking_id,''),u.spare_part_unit_id)>(?,?)"
+            )
+            params = (*params, after_tracking, after_unit_id)
+
+        sql = (
+            "SELECT u.spare_part_unit_id,u.local_tracking_id,u.bom_code,"
+            "u.manufacturer_serial,p.condition_token,p.disposition_token,"
+            "p.location_kind,p.location_ref_id,p.custody_text,"
+            "p.active_task_allocation_id,? AS compatibility_rank,"
+            "COALESCE(u.local_tracking_id,'') AS sort_tracking "
+            "FROM spare_part_units u INDEXED BY "
+            + index_name
+            + " CROSS JOIN spare_part_current_projection p "
+            "WHERE p.spare_part_unit_id=u.spare_part_unit_id AND "
+            + predicate
+            + " ORDER BY COALESCE(u.local_tracking_id,''),u.spare_part_unit_id LIMIT ?"
+        )
+        return connection.execute(
+            sql,
+            (compatibility_rank, *params, limit),
+        ).fetchall()
+
     def stock_eligibility(
         self,
         *,
@@ -250,49 +308,62 @@ class InventoryNeedsQueryService:
             ).fetchone()
             exact_total = 0 if exact_total_row is None else int(exact_total_row[0])
 
+            target_rows = page_limit + 1
+            rows = []
             if requested_bom_key is None:
-                rank_sql = "3"
-                rank_params: tuple[object, ...] = ()
+                if after_key is not None and after_key[0] != 3:
+                    raise ValidationError("Stock cursor compatibility rank does not match filter")
+                after_tracking = None if after_key is None else after_key[1]
+                after_unit_id = None if after_key is None else after_key[2]
+                rows = list(
+                    self._stock_partition_rows(
+                        snapshot.connection,
+                        requested_bom_key=None,
+                        compatibility_rank=3,
+                        after_tracking=after_tracking,
+                        after_unit_id=after_unit_id,
+                        limit=target_rows,
+                    )
+                )
             else:
-                rank_sql = "CASE WHEN u.bom_key=? THEN 0 ELSE 2 END"
-                rank_params = (requested_bom_key,)
-
-            base_sql = (
-                "SELECT u.spare_part_unit_id,u.local_tracking_id,u.bom_code,"
-                "u.manufacturer_serial,p.condition_token,p.disposition_token,"
-                "p.location_kind,p.location_ref_id,p.custody_text,"
-                "p.active_task_allocation_id,"
-                + rank_sql
-                + " AS compatibility_rank,"
-                "COALESCE(u.local_tracking_id,'') AS sort_tracking "
-                "FROM spare_part_units u JOIN spare_part_current_projection p "
-                "ON p.spare_part_unit_id=u.spare_part_unit_id"
-            )
-            where_sql = ""
-            page_params: tuple[object, ...] = rank_params
-            if after_key is not None:
-                rank, tracking, unit_id = after_key
-                where_sql = (
-                    " WHERE compatibility_rank>? OR "
-                    "(compatibility_rank=? AND "
-                    "(sort_tracking>? OR "
-                    "(sort_tracking=? AND spare_part_unit_id>?)))"
-                )
-                page_params = (
-                    *rank_params,
-                    rank,
-                    rank,
-                    tracking,
-                    tracking,
-                    unit_id,
-                )
-
-            rows = snapshot.connection.execute(
-                "SELECT * FROM (" + base_sql + ") stock"
-                + where_sql
-                + " ORDER BY compatibility_rank,sort_tracking,spare_part_unit_id LIMIT ?",
-                (*page_params, page_limit + 1),
-            ).fetchall()
+                if after_key is not None and after_key[0] not in {0, 2}:
+                    raise ValidationError("Stock cursor compatibility rank does not match filter")
+                if after_key is None or after_key[0] == 0:
+                    exact_after_tracking = None if after_key is None else after_key[1]
+                    exact_after_unit_id = None if after_key is None else after_key[2]
+                    rows.extend(
+                        self._stock_partition_rows(
+                            snapshot.connection,
+                            requested_bom_key=requested_bom_key,
+                            compatibility_rank=0,
+                            after_tracking=exact_after_tracking,
+                            after_unit_id=exact_after_unit_id,
+                            limit=target_rows,
+                        )
+                    )
+                    remaining = target_rows - len(rows)
+                    if remaining > 0:
+                        rows.extend(
+                            self._stock_partition_rows(
+                                snapshot.connection,
+                                requested_bom_key=requested_bom_key,
+                                compatibility_rank=2,
+                                after_tracking=None,
+                                after_unit_id=None,
+                                limit=remaining,
+                            )
+                        )
+                else:
+                    rows = list(
+                        self._stock_partition_rows(
+                            snapshot.connection,
+                            requested_bom_key=requested_bom_key,
+                            compatibility_rank=2,
+                            after_tracking=after_key[1],
+                            after_unit_id=after_key[2],
+                            limit=target_rows,
+                        )
+                    )
 
             has_more = len(rows) > page_limit
             page_rows = rows[:page_limit]
