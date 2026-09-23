@@ -19,7 +19,7 @@ from soma.foundation.identifiers import require_uuid4
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
-from soma.foundation.strict_json import canonical_json_bytes_bounded, loads_canonical_json
+from soma.foundation.strict_json import canonical_json_bytes_bounded
 from soma.ticket_import.providers.sr_source_evidence import TicketImportSrSourceEvidenceProvider
 from soma.ticket_import.providers.sr_source_presence import TicketImportSrSourcePresenceEvidenceProvider
 from soma.tickets.audit_registry import build_tickets_audit_registry
