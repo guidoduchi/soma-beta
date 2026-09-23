@@ -62,7 +62,7 @@ jobs:
       - name: Emit pre-LLD-08 acceptance marker coverage
         run: |
           git fetch --no-tags --depth=1 origin design/beta-1.0-hld-lld
-          test "$(git rev-parse FETCH_HEAD)" = "92787e65d90b410d18088f844155b3557831085e"
+          test "$(git rev-parse FETCH_HEAD)" = "200619aaf8f54432bd0da1acfccb6fcc8b19f546"
           python tools/acceptance_marker_coverage.py --design-ref FETCH_HEAD --json
       - name: Compile package
         run: python -m compileall -q src tests
