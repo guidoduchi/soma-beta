@@ -10,6 +10,7 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
 
+from ..report_projection import report_attempt_response
 from ..repositories.reports import ReportRepository
 
 _CURSOR_FIELDS = {
@@ -68,32 +69,6 @@ def _cursor_key(
     if not isinstance(key, list) or len(key) != size:
         raise ValidationError("report cursor key is invalid")
     return key
-
-
-def _attempt_summary(attempt) -> dict[str, object]:
-    return {
-        "report_attempt_id": attempt.report_attempt_id,
-        "period_type": attempt.period_type,
-        "period_start_utc": attempt.period_start_utc,
-        "period_end_utc": attempt.period_end_utc,
-        "period_timezone": attempt.period_timezone,
-        "scope_kind": attempt.scope_kind,
-        "customer_org_id": attempt.customer_org_id,
-        "as_of_utc": attempt.as_of_utc,
-        "state": attempt.state,
-        "snapshot_hash": attempt.snapshot_hash,
-        "snapshot_member_count": attempt.snapshot_member_count,
-        "snapshot_cohort_count": attempt.snapshot_cohort_count,
-        "snapshot_section_row_count": attempt.snapshot_section_row_count,
-        "artifact_filename": attempt.artifact_filename,
-        "artifact_sha256": attempt.artifact_sha256,
-        "artifact_size_bytes": attempt.artifact_size_bytes,
-        "verified_at_utc": attempt.verified_at_utc,
-        "failure_code": attempt.failure_code,
-        "created_at_utc": attempt.created_at_utc,
-        "completed_at_utc": attempt.completed_at_utc,
-        "revision": attempt.revision,
-    }
 
 
 class ProductLineSlaReportQueryService:
@@ -164,7 +139,7 @@ class ProductLineSlaReportQueryService:
                 tuple(params),
             ).fetchall()
             values = [
-                _attempt_summary(
+                report_attempt_response(
                     ReportRepository.get_attempt(snapshot.connection, str(row[0]))
                     or (_ for _ in ()).throw(SomaError("SLA_REPORT_ATTEMPT_STATE", "report attempt disappeared"))
                 )
@@ -199,7 +174,7 @@ class ProductLineSlaReportQueryService:
             attempt = ReportRepository.get_attempt(snapshot.connection, report_id)
             if attempt is None:
                 raise SomaError("SLA_CATALOG_NOT_FOUND", "report attempt does not exist")
-            result = _attempt_summary(attempt)
+            result = report_attempt_response(attempt)
             sections = snapshot.connection.execute(
                 "SELECT section_kind,schema_name,schema_version,section_ordinal,COUNT(*) "
                 "FROM report_section_snapshots WHERE report_attempt_id=? "
