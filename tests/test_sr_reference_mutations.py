@@ -475,3 +475,102 @@ def test_current_handler_reference_binds_exact_current_source_observation(initia
         ).fetchone() is None
     finally:
         connection.close()
+
+
+
+def test_contact_affiliation_change_does_not_rewrite_sr_organization_at_use_snapshot(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    customers = CustomerReferenceService(factory)
+    contacts = ContactReferenceService(factory)
+    customer_a = customers.create_customer_organization(
+        command_id=new_uuid4(),
+        name="Snapshot Customer A",
+    )
+    customer_b = customers.create_customer_organization(
+        command_id=new_uuid4(),
+        name="Snapshot Customer B",
+    )
+    contact = contacts.create_contact(
+        command_id=new_uuid4(),
+        name="Snapshot Contact",
+        initial_customer_org_id=customer_a.customer_org_id,
+    )
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4()
+    )
+    participant = FakeClassificationParticipant()
+    service = ServiceRequestReferenceService(factory, participant)
+    queries = ServiceRequestReferenceQueryService(factory, participant)
+
+    service.set_customer(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=1,
+        customer_org_id=customer_a.customer_org_id,
+        reason_category="snapshot_customer_context",
+    )
+    preview = queries.preview_contact_reference(
+        service_request_id=sr.service_request_id,
+        reference_role="customer_contact",
+        contact_id=contact.contact_id,
+    )
+    assert preview.eligible is True
+    service.set_contact_reference(
+        command_id=new_uuid4(),
+        service_request_id=sr.service_request_id,
+        base_revision=2,
+        reference_role="customer_contact",
+        contact_id=contact.contact_id,
+        supporting_sr_source_field_observation_id=None,
+        reason_category="snapshot_contact_context",
+        review_fingerprint=preview.review_fingerprint,
+    )
+
+    contacts.change_contact_affiliation(
+        command_id=new_uuid4(),
+        contact_id=contact.contact_id,
+        base_revision=1,
+        new_customer_org_id=customer_b.customer_org_id,
+        reason_category="later_role_change",
+    )
+
+    connection = _read(initialized_database)
+    try:
+        relationship = connection.execute(
+            "SELECT contact_id,customer_org_context_id,relationship_state "
+            "FROM sr_contact_relationships "
+            "WHERE service_request_id=? AND reference_role='customer_contact' "
+            "AND relationship_state='active'",
+            (sr.service_request_id,),
+        ).fetchone()
+        assert tuple(relationship) == (
+            contact.contact_id,
+            customer_a.customer_org_id,
+            "active",
+        )
+
+        affiliations = connection.execute(
+            "SELECT customer_org_id,is_current,closed_command_id "
+            "FROM contact_affiliations WHERE contact_id=? "
+            "ORDER BY opened_at_utc,contact_affiliation_id",
+            (contact.contact_id,),
+        ).fetchall()
+        assert len(affiliations) == 2
+        historical = [row for row in affiliations if int(row[1]) == 0]
+        current = [row for row in affiliations if int(row[1]) == 1]
+        assert len(historical) == len(current) == 1
+        assert str(historical[0][0]) == customer_a.customer_org_id
+        assert historical[0][2] is not None
+        assert str(current[0][0]) == customer_b.customer_org_id
+
+        context = queries.get(service_request_id=sr.service_request_id)
+        customer_contact = context["contacts"]["customer_contact"]
+        assert (
+            customer_contact["customer_org_context_id"]
+            == customer_a.customer_org_id
+        )
+        assert "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED" in context["warnings"]
+    finally:
+        connection.close()
