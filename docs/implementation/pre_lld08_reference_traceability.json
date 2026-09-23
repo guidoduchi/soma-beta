@@ -2,7 +2,7 @@
   "schema": "SOMA_PRE_LLD08_REFERENCE_SEMANTIC_TRACEABILITY_V1",
   "lld_id": "LLD-02",
   "design_sha": "26b7ceb88af7d5ade73ad2be3b5c5e1faddb6370",
-  "implementation_head_at_binding": "a2681d3715a0c3c0e96cf8efae1816d7c670edcf",
+  "implementation_head_at_binding": "a0c18dbcc2eeeeb80d2efab9e90409c28e08001f",
   "source_acceptance": [
     "spec/lld/identity-reference/tests/acceptance.json"
   ],
@@ -18,8 +18,8 @@
   ],
   "summary": {
     "reviewed": 24,
-    "reviewed_pending_ci": 4,
-    "partial_evidence": 2,
+    "reviewed_pending_ci": 6,
+    "partial_evidence": 0,
     "partial_cross_packet": 6,
     "deferred_lld08": 1,
     "unbound": 0
@@ -676,11 +676,11 @@
       "tests": [
         "tests/test_reference_owner_queries.py::test_active_reference_lists_are_keyset_paged_and_archived_lookup_remains_available",
         "tests/test_reference_owner_queries.py::test_contact_detail_channels_and_affiliation_histories_are_bounded",
-        "tests/test_inventory_bulk_scaling.py::test_reference_dependency_guard_uses_bounded_indexed_probe"
+        "tests/test_reference_query_cost_acceptance.py::test_t032_contact_detail_select_budget_is_constant_and_pages_use_supporting_indexes"
       ],
-      "status": "partial_evidence",
-      "note": "Keyset query shape and indexed Inventory archive guard are bound; Contact detail set-based/N+1 and complete supporting-index plan evidence should be measured explicitly rather than inferred.",
-      "certification_status": "not_certified"
+      "status": "reviewed_pending_ci",
+      "note": "Contact detail performs a fixed five-SELECT set-based projection for both zero and 25 channels; list/channel/affiliation-history plans use their declared supporting indexes without temp sorting.",
+      "certification_status": "pending_exact_head_ci"
     },
     {
       "id": "LLD02-T033",
@@ -742,12 +742,11 @@
       ],
       "tests": [
         "tests/test_reference_customers.py::test_account_code_review_goes_stale_on_reference_generation_change",
-        "tests/test_reference_customers.py::test_reviewed_shared_claim_preserves_explicit_ambiguity",
-        "tests/test_reference_customers.py::test_reviewed_reassignment_supersedes_source_without_erasing_history"
+        "tests/test_reference_query_cost_acceptance.py::test_t035_review_commit_validation_uses_bounded_point_and_indexed_count_work"
       ],
-      "status": "partial_evidence",
-      "note": "Review hash freshness and stale-generation failure are proven; an explicit SQL-work assertion for O(1) metadata/point plus indexed COUNT under the writer lock remains to be bound.",
-      "certification_status": "not_certified"
+      "status": "reviewed_pending_ci",
+      "note": "Review freshness is generation-bound; commit validation is instrumented inside the writer transaction to require bounded metadata/point/COUNT work with no claimant-detail stream, and COUNT/point plans use the declared indexes.",
+      "certification_status": "pending_exact_head_ci"
     },
     {
       "id": "LLD02-T036",
@@ -794,11 +793,11 @@
     }
   ],
   "recertification_checkpoint": {
-    "candidate_head": "a2681d3715a0c3c0e96cf8efae1816d7c670edcf",
+    "candidate_head": "a0c18dbcc2eeeeb80d2efab9e90409c28e08001f",
     "prior_ci_run": 863,
     "prior_ci_head": "9704bec6dd4b0771bca1c3387c9b464b6e8cb9e5",
     "prior_ci_result": "failed_during_reference_transport_collection",
     "correction": "Reference route placeholder regex corrected; T001/T028/T029/T034 semantic proofs are included in this candidate.",
-    "status": "pending_supported_ci"
+    "status": "pending_exact_head_ci_after_query_cost_proofs"
   }
 }
