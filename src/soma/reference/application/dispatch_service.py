@@ -129,6 +129,7 @@ class DispatchLocationService:
         precomputed_match_key: str,
     ) -> str:
         """LLD-08 shared-UoW participant; never inserts a second receipt or commits."""
+        require_persisted_matching_profile(uow.connection)
         stored_name, computed_key = validate_dispatch_name(name)
         if computed_key != precomputed_match_key:
             raise ValidationError("precomputed Dispatch Location match key is stale or invalid")
