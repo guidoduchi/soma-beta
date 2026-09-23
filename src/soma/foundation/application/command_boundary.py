@@ -39,6 +39,7 @@ _MAX_RESPONSE_DEPTH = 8
 _MAX_RESPONSE_COLLECTION_ITEMS = 512
 _RFC_BRANCH_RESPONSE_JSON_BYTES = 33_554_432
 _RFC_BRANCH_RESPONSE_COLLECTION_ITEMS = 8_192
+_INVENTORY_MUTATION_RESPONSE_COLLECTION_ITEMS = 8_192
 _DEFAULT_RESPONSE = object()
 
 
@@ -65,6 +66,15 @@ _RESPONSE_BOUND_ALLOCATIONS: dict[tuple[str, int], _ResponseBounds] = {
         _RFC_BRANCH_RESPONSE_JSON_BYTES,
         _MAX_RESPONSE_DEPTH,
         _RFC_BRANCH_RESPONSE_COLLECTION_ITEMS,
+    ),
+    # Exact reviewed LLD-01/LLD-07 allocation. AcceptInventoryBulkAction may
+    # return one batch ref plus per-membership and per-Fault-Tag revisions for
+    # up to 2_000 reviewed targets. Bytes stay under the ordinary 512 KiB cap;
+    # only aggregate collection cardinality needs the reviewed expansion.
+    ("InventoryMutationResultV1", 1): _ResponseBounds(
+        _MAX_RESPONSE_JSON_BYTES,
+        _MAX_RESPONSE_DEPTH,
+        _INVENTORY_MUTATION_RESPONSE_COLLECTION_ITEMS,
     ),
 }
 _ALLOCATED_RESPONSE_SCHEMAS = frozenset(
