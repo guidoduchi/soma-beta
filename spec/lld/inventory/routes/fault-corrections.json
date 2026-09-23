@@ -266,7 +266,7 @@
       "request_type": "InventoryBulkPreviewQueryV1",
       "response_type": "InventoryBulkPreviewV1",
       "success_status": 200,
-      "max_request_bytes": 32768,
+      "max_request_bytes": 262144,
       "auth_policy": "LLD12_BROWSER_QUERY_V1",
       "error_codes": [
         "BULK_INCOMPATIBLE",
@@ -281,7 +281,7 @@
       "request_type": "AcceptInventoryBulkActionRequestV1",
       "response_type": "InventoryMutationResultV1",
       "success_status": 200,
-      "max_request_bytes": 32768,
+      "max_request_bytes": 262144,
       "auth_policy": "LLD12_BROWSER_MUTATION_V1",
       "error_codes": [
         "INV_STALE",
@@ -344,6 +344,7 @@
   "rules": [
     "Submitted Fault Tag membership is immutable; material corrections create replacement identities and genuine rejection retries create resend history.",
     "Warehouse receipt never closes an RMA return obligation; final accepted/rejected decision always requires explicit operator confirmation.",
-    "Communication evidence remains proposal-only and cannot directly execute any route in this fragment."
+    "Communication evidence remains proposal-only and cannot directly execute any route in this fragment.",
+    "The two Inventory bulk routes use the reviewed 262144-byte request ceiling so the accepted 2000-target atomic bulk contract remains representable; this larger ceiling is route-local and does not widen unrelated handlers."
   ]
 }
