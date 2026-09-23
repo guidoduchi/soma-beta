@@ -78,19 +78,31 @@ class AuditWriter:
             event.payload_schema,
             event.payload_version,
         )
-        max_payload_bytes = _AUDIT_PAYLOAD_BYTE_ALLOCATIONS.get(
-            allocation_key,
-            _DEFAULT_AUDIT_PAYLOAD_BYTES,
+        allocated_payload_bytes = _AUDIT_PAYLOAD_BYTE_ALLOCATIONS.get(
+            allocation_key
+        )
+        max_payload_bytes = (
+            _DEFAULT_AUDIT_PAYLOAD_BYTES
+            if allocated_payload_bytes is None
+            else allocated_payload_bytes
         )
         max_result_refs = _AUDIT_RESULT_REF_ALLOCATIONS.get(
             allocation_key,
             _DEFAULT_AUDIT_RESULT_REFS,
         )
-        if contract.payload_contract.max_utf8_bytes != max_payload_bytes:
+        contract_payload_bytes = contract.payload_contract.max_utf8_bytes
+        if (
+            allocated_payload_bytes is not None
+            and contract_payload_bytes != allocated_payload_bytes
+        ) or (
+            allocated_payload_bytes is None
+            and contract_payload_bytes > _DEFAULT_AUDIT_PAYLOAD_BYTES
+        ):
             raise SomaError(
                 "AUDIT_ACTION_INVALID",
                 "registered audit payload byte bound disagrees with Foundation allocation",
             )
+        max_payload_bytes = contract_payload_bytes
         if len(event.resulting_event_refs) > max_result_refs:
             raise SomaError(
                 "AUDIT_PAYLOAD_INVALID",
