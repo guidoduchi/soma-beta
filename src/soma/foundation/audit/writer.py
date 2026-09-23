@@ -81,7 +81,7 @@ class AuditWriter:
         allocated_payload_bytes = _AUDIT_PAYLOAD_BYTE_ALLOCATIONS.get(
             allocation_key
         )
-        max_payload_bytes = (
+        foundation_payload_ceiling = (
             _DEFAULT_AUDIT_PAYLOAD_BYTES
             if allocated_payload_bytes is None
             else allocated_payload_bytes
@@ -90,19 +90,14 @@ class AuditWriter:
             allocation_key,
             _DEFAULT_AUDIT_RESULT_REFS,
         )
-        contract_payload_bytes = contract.payload_contract.max_utf8_bytes
-        if (
-            allocated_payload_bytes is not None
-            and contract_payload_bytes != allocated_payload_bytes
-        ) or (
-            allocated_payload_bytes is None
-            and contract_payload_bytes > _DEFAULT_AUDIT_PAYLOAD_BYTES
-        ):
-            raise SomaError(
-                "AUDIT_ACTION_INVALID",
-                "registered audit payload byte bound disagrees with Foundation allocation",
-            )
-        max_payload_bytes = contract_payload_bytes
+        # Packet contracts may be stricter than Foundation, but never wider.
+        # For an unallocated tuple, Foundation's ordinary 16 KiB ceiling wins
+        # even when a generic ObjectContract default is larger. Exact reviewed
+        # tuples receive only their listed ceiling, never a global override.
+        max_payload_bytes = min(
+            contract.payload_contract.max_utf8_bytes,
+            foundation_payload_ceiling,
+        )
         if len(event.resulting_event_refs) > max_result_refs:
             raise SomaError(
                 "AUDIT_PAYLOAD_INVALID",
