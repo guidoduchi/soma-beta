@@ -316,7 +316,9 @@ def test_inventory_dependency_guard_count_and_page_are_set_based(
     ]
     assert len(selects) == 2
     assert "COUNT(*) FROM (" in selects[0]
+    assert "UNION ALL" in selects[0].upper()
     assert "ORDER BY blocker_id,reason_code LIMIT 2" in selects[1]
+    assert "UNION ALL" in selects[1].upper()
 
 
 
@@ -351,7 +353,7 @@ def test_inventory_dependency_write_guard_uses_bounded_source_probe_not_union_so
     assert guard.state == "BLOCKED"
     assert guard.reason_code == "active_spare_request_requester"
     assert len(selects) == 1
-    assert request_id in selects[0]
+    assert contact.contact_id in selects[0]
     assert "UNION" not in selects[0].upper()
     assert "ORDER BY" not in selects[0].upper()
     assert "LIMIT 1" in selects[0].upper()
