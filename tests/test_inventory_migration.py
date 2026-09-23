@@ -9,6 +9,7 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from test_foundation_durable_job_migration import _runner, _stage_prefix
 
 _SEQUENCE_TEN_SHA256 = "101465714bf01f5a458dc040e0f8c93d7e4450ee82aafdfd30e93a38bbb46628"
+_SEQUENCE_TWELVE_SHA256 = "670b19598841f1fb131aa5768f193e4e46de7eaf8af0560cf171cebb48f569c3"
 _OWNED_TABLES = [
     'inventory_tracking_allocators',
     'device_part_units',
@@ -77,7 +78,7 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
     security_provider,
 ) -> None:
     manifest = MigrationManifest.load(migration_directory)
-    assert [entry.sequence for entry in manifest.entries] == list(range(1, 12))
+    assert [entry.sequence for entry in manifest.entries] == list(range(1, 13))
     entry = manifest.entries[9]
     assert entry.migration_id == "beta_0010_inventory"
     assert entry.filename == "0010_inventory.sql"
@@ -94,7 +95,7 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
         app_version="test",
         ownership_assertion=lambda: True,
     )
-    assert runner.initialize_or_migrate() == 11
+    assert runner.initialize_or_migrate() == 12
 
     connection = sqlite3.connect(database)
     try:
@@ -125,7 +126,7 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         assert connection.execute(
             "SELECT sequence,migration_id FROM schema_migrations ORDER BY sequence DESC LIMIT 1"
-        ).fetchone() == (11, "beta_0011_inventory_draft_delete")
+        ).fetchone() == (12, "beta_0012_inventory_query_indexes")
     finally:
         connection.close()
 
@@ -140,7 +141,9 @@ def test_sequence_eleven_upgrades_existing_inventory_without_rewriting_prefix(
     connection = sqlite3.connect(database)
     before = connection.execute("SELECT * FROM schema_migrations ORDER BY sequence").fetchall()
     connection.close()
-    runner = _runner(database, migration_directory, security_provider)
+    sequence_eleven = tmp_path / "sequence-eleven"
+    _stage_prefix(migration_directory, sequence_eleven, 11)
+    runner = _runner(database, sequence_eleven, security_provider)
     assert runner.initialize_or_migrate() == 11
     assert runner.initialize_or_migrate() == 11
     connection = sqlite3.connect(database)
@@ -151,5 +154,60 @@ def test_sequence_eleven_upgrades_existing_inventory_without_rewriting_prefix(
             sql = connection.execute("SELECT sql FROM sqlite_master WHERE name=?", (f"inv_{name}_lifecycle_events_delete_guard",)).fetchone()[0]
             assert "HardDeleteUntouchedInventoryDraft" in sql
             assert "command_receipt_results" in sql
+    finally:
+        connection.close()
+
+
+
+def test_sequence_twelve_adds_stock_query_indexes_without_rewriting_prefix(
+    tmp_path,
+    migration_directory,
+    security_provider,
+) -> None:
+    prefix = tmp_path / "prefix-eleven"
+    _stage_prefix(migration_directory, prefix, 11)
+    database = tmp_path / "upgrade-query-indexes.db"
+    assert _runner(database, prefix, security_provider).initialize_or_migrate() == 11
+
+    connection = sqlite3.connect(database)
+    before = connection.execute(
+        "SELECT * FROM schema_migrations WHERE sequence<=11 ORDER BY sequence"
+    ).fetchall()
+    connection.close()
+
+    manifest = MigrationManifest.load(migration_directory)
+    entry = manifest.entries[11]
+    assert entry.sequence == 12
+    assert entry.migration_id == "beta_0012_inventory_query_indexes"
+    assert entry.filename == "0012_inventory_query_indexes.sql"
+    assert entry.sha256 == _SEQUENCE_TWELVE_SHA256
+    assert hashlib.sha256(
+        (migration_directory / entry.filename).read_bytes()
+    ).hexdigest() == _SEQUENCE_TWELVE_SHA256
+
+    runner = _runner(database, migration_directory, security_provider)
+    assert runner.initialize_or_migrate() == 12
+    assert runner.initialize_or_migrate() == 12
+
+    connection = sqlite3.connect(database)
+    try:
+        assert connection.execute(
+            "SELECT * FROM schema_migrations WHERE sequence<=11 ORDER BY sequence"
+        ).fetchall() == before
+        indexes = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='index' "
+                "AND name IN ("
+                "'idx_inv_069_spare_part_units_stock_order',"
+                "'idx_inv_070_spare_part_units_stock_bom_order'"
+                ")"
+            ).fetchall()
+        }
+        assert indexes == {
+            "idx_inv_069_spare_part_units_stock_order",
+            "idx_inv_070_spare_part_units_stock_bom_order",
+        }
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
     finally:
         connection.close()
