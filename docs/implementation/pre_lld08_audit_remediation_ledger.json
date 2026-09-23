@@ -2,26 +2,21 @@
   "schema": "SOMA_PRE_LLD08_AUDIT_REMEDIATION_LEDGER_V1",
   "audit_date": "2026-09-22",
   "repository": "guidoduchi/soma-beta",
-  "normative_design_sha": "e0924369170652be3a425d10210d14619f526a48",
+  "normative_design_sha": "92787e65d90b410d18088f844155b3557831085e",
   "audited_implementation_sha": "a6b52124c5e991509dcb8f6aba7caf332526daaa",
-  "remediation_head_sha": "ebe936e1c90a322e38b84706cbb682a692e8cc43",
+  "remediation_head_sha": "04d45f2b738f223f2e87342a8e2ce134a7d8ddb5",
   "disposition": {
-    "audit_findings": "A01-A14 all have implemented remediation at this checkpoint",
-    "certification_scope": "Closes the 2026-09-22 risk-based audit backlog. It does not by itself constitute an exhaustive proof of every LLD-01-07 normative assertion or production SQLCipher/LLD-12 release certification.",
+    "audit_findings": "The earlier A01-A14 remediation remains historical evidence, but the 2026-09-22 independent re-audit reopened proof/optimization obligations R01-R05. Current strengthened remediation is implemented through checkpoint 04d45f2b… and is pending exact-head recertification.",
+    "certification_scope": "Current work strengthens runtime failure safety, RFC replay bounds, Inventory dependency/Stock query work, real Foundation composition smoke proof, and semantic traceability reporting. It does not claim complete LLD-01-07 semantic certification or production SQLCipher/LLD-12 release integration.",
     "lld08_started": false
   },
   "supported_ci": {
     "workflow": "Beta implementation CI",
-    "run_number": 843,
-    "run_id": 35807574668,
-    "head_sha": "ebe936e1c90a322e38b84706cbb682a692e8cc43",
-    "conclusion": "success",
-    "ubuntu_python_3_14": "success",
-    "windows_python_3_13": "success",
-    "windows_python_3_14": "success",
-    "release_schema_manifest_gate": "success",
-    "windows_wheel_and_authority_resource_verification": "success",
-    "ubuntu_test_summary": "1273 passed, 2 skipped in 267.15s"
+    "run_number": 857,
+    "run_id": 35820144899,
+    "head_sha": "04d45f2b738f223f2e87342a8e2ce134a7d8ddb5",
+    "conclusion": "in_progress_at_ledger_update",
+    "note": "Do not promote current strengthened remediation to certified until all platform legs, release schema authority and wheel/resource verification pass at this exact checkpoint or a documented successor."
   },
   "findings": [
     {
@@ -50,28 +45,33 @@
     {
       "id": "A02",
       "priority": "P1",
-      "status": "remediated_ci_green",
+      "status": "strengthened_pending_current_ci",
       "finding": "Default Reference lifecycle construction could omit required dependency validators.",
       "remediation_commits": [
-        "982e38ffcca29eac3805bc4284c3697addd553fd"
+        "982e38ffcca29eac3805bc4284c3697addd553fd",
+        "495ecc26e1ccd0dede16291cc4ac3a716755063a",
+        "b4a30f419511cd58a3233cfa55b8dcfb5a43714f"
       ],
       "owners": [
         "src/soma/reference/domain/dependencies.py",
-        "src/soma/reference/application/lifecycle_service.py"
+        "src/soma/reference/application/lifecycle_service.py",
+        "src/soma/composition.py"
       ],
       "evidence": [
-        "Dependency registry must be explicitly finalized before lifecycle service construction.",
-        "Missing required validators fail closed; intentionally isolated tests use an explicit empty finalized registry."
+        "ReferenceDependencyRegistry still fails closed unless explicitly finalized.",
+        "The pre-LLD-08 application composition root now registers InventoryReferenceDependencyValidator and finalizes the exact required owner set; the empty registry remains an explicit test-only seam.",
+        "A composed ReferenceLifecycleService regression proves a real active Spare Request requester blocks Contact archival."
       ]
     },
     {
       "id": "A03",
       "priority": "P1",
-      "status": "remediated_ci_green",
+      "status": "strengthened_pending_current_ci",
       "finding": "RFC hierarchy mutation replay response failed at ordinary branch sizes.",
       "remediation_commits": [
         "4966549c778d7aa7fc59acbddb76e2020f2125ce",
-        "f7d04edc558adaad05a16676902349bc46f71a55"
+        "f7d04edc558adaad05a16676902349bc46f71a55",
+        "6e8bade787f631f16426032eface9c569ab1ca4c"
       ],
       "owners": [
         "src/soma/foundation/application/command_boundary.py",
@@ -79,8 +79,9 @@
       ],
       "evidence": [
         "Foundation default response bounds remain unchanged for ordinary schemas.",
-        "Only RfcBranchV1/v1 receives reviewed 8192-item and 8388608-byte replay allocations while retaining the ordinary depth ceiling.",
-        "Regression coverage includes the former 39th-child failure, exact replay after later branch growth, reparenting into a large branch, and default-schema rejection of equivalent oversized payloads."
+        "RfcBranchV1/v1 alone receives the reviewed 33554432-byte/depth-8/8192-item allocation. The normative conservative maximum-content construction is 23288983 bytes/depth-4/4151 items because accepted LLD-04 text may require six-byte canonical JSON escaping.",
+        "Future RfcBranch schema versions fail closed unless they receive their own exact reviewed allocation.",
+        "Regression coverage includes a real 101-child maximum-content mutation with continuation, exact immutable replay after later source drift, reparent capacity, byte/depth/item boundaries and unallocated-version rejection."
       ]
     },
     {
@@ -157,7 +158,7 @@
     {
       "id": "A08",
       "priority": "P1",
-      "status": "remediated_ci_green",
+      "status": "strengthened_pending_current_ci",
       "finding": "Foundation host lifecycle, readiness, diagnostics and status surfaces were absent.",
       "remediation_commits": [
         "005c7e5e50250f50889e1eecb3a5a4421e168bde",
@@ -168,7 +169,10 @@
         "cf3be28ce9ccaca64574a770d89f81580cc62819",
         "bb6fdc53e182859f358863b5cd292afe44a763d6",
         "b1e6b3ded3de97526edcc7b36ab5f52c761eb0af",
-        "de7998579221cb73835e72f82833920937ada8a9"
+        "de7998579221cb73835e72f82833920937ada8a9",
+        "81a2764dfcf2f2334111ce877a98df24ebf7d1b0",
+        "23266aace6c4be6319fe7e65216b865ecc5c48c9",
+        "51e5bbd768f8e20fa9ae26f66cfc02caf5f7de0b"
       ],
       "owners": [
         "src/soma/foundation/runtime",
@@ -177,9 +181,10 @@
         "src/soma/foundation/persistence/backup_snapshot.py"
       ],
       "evidence": [
-        "Runtime ownership, verified startup composition, health/status/diagnostics, backup snapshot mechanics, quiescent shutdown admission, authenticated route facade and a one-worker Uvicorn adapter are implemented.",
-        "Supported CI at the remediation head passes all platform legs.",
-        "Final production security-provider/SQLCipher release integration remains an LLD-12 responsibility rather than a plaintext fallback."
+        "HostRuntime cleanup now owns partially acquired security/server resources before provider calls return and retains instance ownership when stop/drain safety cannot be proven.",
+        "A single shutdown deadline is propagated through write/request/background drains and server stop; WAL checkpoint uses only the remaining busy budget.",
+        "A real Starlette/Uvicorn loopback smoke regression uses explicit test-only security seams, authenticated self-readiness, host-owned request executor dispatch, READY gating, HTTP shutdown, full cleanup and safe restart on the same data instance.",
+        "Production run/session security and SQLCipher provider integration remain LLD-12 obligations and are not claimed by the test seam."
       ]
     },
     {
@@ -205,18 +210,21 @@
     {
       "id": "A10",
       "priority": "P2",
-      "status": "remediated_ci_green",
+      "status": "strengthened_pending_current_ci",
       "finding": "Reference dependency guards and previews repeatedly materialized complete blocker sets.",
       "remediation_commits": [
-        "682e0aaa3675c6e593821fa44357b9e07b639379"
+        "682e0aaa3675c6e593821fa44357b9e07b639379",
+        "96383ea5defdfe6adf87e3e29b12d06ec54a6b49",
+        "fea88515bd8d2a54c1afd720556661b8a88a0606"
       ],
       "owners": [
         "src/soma/inventory/services/participants.py",
         "src/soma/reference/application/lifecycle_service.py"
       ],
       "evidence": [
-        "Guards use bounded existence/count/page operations instead of rebuilding every blocker list.",
-        "Preview continuation is target/operation/freshness-bound and does not restart full enumeration per page."
+        "Authoritative archive guards no longer execute a compound UNION plus global ORDER BY; they run fixed per-owner LIMIT 1 existence probes and stop at the first blocker.",
+        "Preview count/page enumeration remains exact and uses UNION ALL with deterministic blocker_id/reason_code ordering and target-bound continuation.",
+        "Regression coverage asserts guard SQL shape and the requester index plan rather than inferring constant work from SELECT count alone."
       ]
     },
     {
@@ -239,19 +247,26 @@
     {
       "id": "A12",
       "priority": "P2",
-      "status": "remediated_ci_green",
+      "status": "strengthened_pending_current_ci",
       "finding": "Stock page executed per-unit blocker queries before slicing.",
       "remediation_commits": [
-        "75bd019cb18db3f0037a00b133be67ce1de83221"
+        "75bd019cb18db3f0037a00b133be67ce1de83221",
+        "91f1ffe7e52ec4599daf4c8f30392f7cc59a9282",
+        "09c1708f0d123fa1cc9c1d38d8796e92309a1bd2",
+        "59e79c1536e5ff44dde66467247a74610e1b1c6a",
+        "3b6cbc4f7cdd13b08d2e0041f6b3d92a245bf843"
       ],
       "owners": [
         "src/soma/inventory/queries/stock_needs.py",
-        "src/soma/inventory/repositories/units.py"
+        "src/soma/inventory/repositories/units.py",
+        "src/soma/migrations/0012_inventory_query_indexes.sql",
+        "src/soma/schema_manifest.json"
       ],
       "evidence": [
-        "Stock eligibility is page-bounded before blocker projection.",
-        "Blocker state for the page is fetched with fixed set-based reads instead of four queries per total stock unit.",
-        "Regression coverage asserts a fixed SELECT budget for a fixed page."
+        "The earlier N+1 blocker projection repair is retained, but fixed SELECT count is no longer treated as a work-scaling proof.",
+        "Forward migration 12 adds only two expression/order indexes; historical migrations 1 through 11 remain byte-for-byte unchanged.",
+        "Stock page selection is partitioned by compatibility rank, preserves the exact compatibility/display/id cursor contract and exact_total, and uses direct index seeks rather than a temporary ORDER BY B-tree.",
+        "Dense and late-page VM-work regressions plus EXPLAIN QUERY PLAN assertions are now part of the current recertification candidate."
       ]
     },
     {
@@ -327,8 +342,52 @@
     }
   },
   "residual_limits": [
-    "This remediation ledger is finding-oriented, not a complete requirement-to-implementation-to-independent-proof ledger for every assertion in LLD-01 through LLD-07.",
-    "Production SQLCipher behavior and final LLD-12 secure host composition are not reclassified as proven by SQLite test-seam CI.",
+    "The finding ledger is not a substitute for the complete requirement/assertion-to-owner-to-test semantic ledger for LLD-01 through LLD-07; LLD-07 has a prior full case ledger, while LLD-01 through LLD-06 binding remains an R05 obligation.",
+    "Production SQLCipher behavior and final LLD-12 secure host composition are not reclassified as proven by SQLite/test-only security-seam CI.",
     "LLD-08 Infrastructure has not been started by this remediation campaign."
-  ]
+  ],
+  "prior_supported_ci": {
+    "workflow": "Beta implementation CI",
+    "run_number": 843,
+    "run_id": 35807574668,
+    "head_sha": "ebe936e1c90a322e38b84706cbb682a692e8cc43",
+    "conclusion": "success",
+    "ubuntu_python_3_14": "success",
+    "windows_python_3_13": "success",
+    "windows_python_3_14": "success",
+    "release_schema_manifest_gate": "success",
+    "windows_wheel_and_authority_resource_verification": "success",
+    "ubuntu_test_summary": "1273 passed, 2 skipped in 267.15s"
+  },
+  "current_reaudit": {
+    "design_sha": "92787e65d90b410d18088f844155b3557831085e",
+    "implementation_checkpoint_sha": "04d45f2b738f223f2e87342a8e2ce134a7d8ddb5",
+    "workstreams": [
+      {
+        "id": "R01",
+        "status": "implemented_pending_exact_head_ci",
+        "scope": "failed-start cleanup retains safe ownership until server/executors/security are proven stopped; partial security/server startup paths are regression-tested"
+      },
+      {
+        "id": "R02",
+        "status": "implemented_pending_exact_head_ci",
+        "scope": "POSIX instance ownership preserves the historical lockf byte-range protocol, closes same-process races and proves legacy/new interoperability"
+      },
+      {
+        "id": "R03",
+        "status": "implemented_pending_exact_head_ci",
+        "scope": "shutdown uses one decreasing deadline across drains/server stop/checkpoint; zero-grace still attempts nonblocking cleanup and failed drain retains ownership for retry"
+      },
+      {
+        "id": "R04",
+        "status": "implemented_pending_exact_head_ci",
+        "scope": "Inventory archive guard uses bounded indexed existence probes; Stock page uses sequence-12 seek indexes and rank-partition keyset seeks with exact totals preserved"
+      },
+      {
+        "id": "R05",
+        "status": "implemented_pending_exact_head_ci_and_semantic_ledger_completion",
+        "scope": "pre-LLD-08 Reference dependency composition and real Starlette/Uvicorn Foundation smoke are added; marker report includes LLD-07 but explicitly does not certify semantics"
+      }
+    ]
+  }
 }
