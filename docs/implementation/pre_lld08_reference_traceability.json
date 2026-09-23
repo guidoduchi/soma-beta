@@ -2,7 +2,7 @@
   "schema": "SOMA_PRE_LLD08_REFERENCE_SEMANTIC_TRACEABILITY_V1",
   "lld_id": "LLD-02",
   "design_sha": "26b7ceb88af7d5ade73ad2be3b5c5e1faddb6370",
-  "implementation_head_at_binding": "1abc1781e2012c2c8ea09d738541af9c1ecb3141",
+  "implementation_head_at_binding": "b7c84e4f51d38b6f0c0e04c29a46d2be2f5e09f3",
   "source_acceptance": [
     "spec/lld/identity-reference/tests/acceptance.json"
   ],
@@ -18,8 +18,8 @@
   ],
   "summary": {
     "reviewed": 24,
-    "reviewed_pending_ci": 1,
-    "partial_evidence": 5,
+    "reviewed_pending_ci": 4,
+    "partial_evidence": 2,
     "partial_cross_packet": 6,
     "deferred_lld08": 1,
     "unbound": 0
@@ -38,13 +38,11 @@
         "src/soma/reference/application/dispatch_service.py"
       ],
       "tests": [
-        "tests/test_reference_replay_results.py::test_dispatch_update_replay_returns_original_reference_mutation_result",
-        "tests/test_reference_customer_replay_results.py::test_customer_account_code_replay_keeps_original_customer_revision",
-        "tests/test_reference_contacts.py::test_affiliation_changes_close_history_and_keep_one_current"
+        "tests/test_reference_acceptance_closure.py::test_t001_descriptive_renames_preserve_reference_identity_and_relationship_resolution"
       ],
-      "status": "partial_evidence",
-      "note": "Owner identities are immutable through edits, but an explicit acceptance proving dependent relationships still resolve after a descriptive rename is not yet bound.",
-      "certification_status": "not_certified"
+      "status": "reviewed_pending_ci",
+      "note": "Customer, Contact and Dispatch descriptive renames preserve immutable IDs; the current Contact affiliation continues to resolve the same Contact and Customer IDs after both masters are renamed.",
+      "certification_status": "pending_exact_head_ci"
     },
     {
       "id": "LLD02-T002",
@@ -587,11 +585,12 @@
       ],
       "tests": [
         "tests/test_reference_final_authorities.py::test_archive_then_reactivate_preserves_append_only_history",
-        "tests/test_reference_schema_contract.py::test_release_schema_verifier_detects_missing_lld02_history_protection_trigger"
+        "tests/test_reference_schema_contract.py::test_release_schema_verifier_detects_missing_lld02_history_protection_trigger",
+        "tests/test_reference_acceptance_closure.py::test_t028_lifecycle_audit_failure_rolls_back_receipt_state_and_event"
       ],
-      "status": "partial_evidence",
-      "note": "Append-only lifecycle history and protection are proven; an LLD-02-specific injected audit failure rollback across lifecycle mutation/event remains to be bound explicitly.",
-      "certification_status": "not_certified"
+      "status": "reviewed_pending_ci",
+      "note": "Lifecycle history is append-only and an injected audit failure after attempted archive mutation rolls back receipt, master state, lifecycle event and audit evidence atomically.",
+      "certification_status": "pending_exact_head_ci"
     },
     {
       "id": "LLD02-T029",
@@ -607,12 +606,12 @@
         "src/soma/reference/application/dispatch_service.py"
       ],
       "tests": [
-        "tests/test_reference_contacts.py::test_channel_add_update_archive_and_stale_revision",
-        "tests/test_reference_final_authorities.py::test_local_profile_has_no_login_authority_and_display_edit_is_stale_safe"
+        "tests/test_reference_acceptance_closure.py::test_t029_second_editor_cannot_overwrite_fresh_descriptive_reference_edit",
+        "tests/test_reference_contacts.py::test_channel_add_update_archive_and_stale_revision"
       ],
-      "status": "partial_evidence",
-      "note": "Stale revision failure is covered on channel/profile authorities; explicit two-editor stale descriptive reference acceptance remains to be bound.",
-      "certification_status": "not_certified"
+      "status": "reviewed_pending_ci",
+      "note": "Two editors starting from the same descriptive reference revision are exercised directly; the second receives STALE_REVISION and cannot overwrite the first commit.",
+      "certification_status": "pending_exact_head_ci"
     },
     {
       "id": "LLD02-T030",
