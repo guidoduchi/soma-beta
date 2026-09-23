@@ -182,6 +182,16 @@ def normalize_match_key(
     return folded
 
 
+def require_persisted_matching_profile(connection: Any) -> None:
+    row = connection.execute(
+        "SELECT matching_profile_id FROM reference_metadata WHERE singleton_guard=1"
+    ).fetchone()
+    if row is None or str(row[0]) != PROFILE_ID:
+        raise ValidationError(
+            "stored matching profile is unsupported; migration/reindex is required"
+        )
+
+
 def unicode_match_asset_metadata() -> dict[str, Any]:
     asset = _asset()
     return {
