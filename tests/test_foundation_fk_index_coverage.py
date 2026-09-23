@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import json
+import shutil
 import sqlite3
+from pathlib import Path
 
 import pytest
 
 from soma.foundation.errors import MigrationError
-from soma.foundation.migrations.verification import verify_foreign_key_index_coverage
+from soma.foundation.migrations.manifest import MigrationManifest
+from soma.foundation.migrations.runner import MigrationRunner
+from soma.foundation.migrations.verification import (
+    verify_foreign_key_index_coverage,
+    verify_foundation_schema,
+)
+from soma.foundation.persistence.connections import ConnectionFactory
 
 
 def _connection() -> sqlite3.Connection:
@@ -217,5 +226,128 @@ def test_fk_index_coverage_rejects_stale_exception_without_matching_fk() -> None
                     },
                 ),
             )
+    finally:
+        connection.close()
+
+
+
+def _stage_prefix(source: Path, destination: Path, count: int) -> None:
+    manifest = MigrationManifest.load(source)
+    destination.mkdir()
+    entries = manifest.entries[:count]
+    for entry in entries:
+        shutil.copy2(source / entry.filename, destination / entry.filename)
+    (destination / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema": "SOMA-MIGRATION-MANIFEST-V1",
+                "migrations": [
+                    {
+                        "sequence": entry.sequence,
+                        "migration_id": entry.migration_id,
+                        "filename": entry.filename,
+                        "sha256": entry.sha256,
+                    }
+                    for entry in entries
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def _runner(path: Path, directory: Path, security_provider) -> MigrationRunner:
+    manifest = MigrationManifest.load(directory)
+    return MigrationRunner(
+        canonical_database_path=path,
+        manifest=manifest,
+        factory_for_path=lambda target: ConnectionFactory(
+            target,
+            security_provider,
+            driver=sqlite3,
+        ),
+        app_version="fk-index-coverage-test",
+        ownership_assertion=lambda: True,
+    )
+
+
+def test_sequence_thirteen_adds_only_missing_fk_lookup_indexes_and_preserves_prefix(
+    tmp_path,
+    migration_directory,
+    security_provider,
+) -> None:
+    prefix = tmp_path / "prefix-twelve"
+    _stage_prefix(migration_directory, prefix, 12)
+    database = tmp_path / "upgrade-fk-indexes.db"
+    assert _runner(database, prefix, security_provider).initialize_or_migrate() == 12
+
+    connection = sqlite3.connect(database)
+    try:
+        before = connection.execute(
+            "SELECT * FROM schema_migrations WHERE sequence<=12 ORDER BY sequence"
+        ).fetchall()
+    finally:
+        connection.close()
+
+    manifest = MigrationManifest.load(migration_directory)
+    entry = manifest.entries[12]
+    assert entry.sequence == 13
+    assert entry.migration_id == "beta_0013_fk_index_coverage"
+    assert entry.filename == "0013_fk_index_coverage.sql"
+    assert entry.sha256 == "5135e6ca649020a633d8169c111e25476bafdc2f4255997866618cff6ca23b81"
+
+    assert _runner(database, migration_directory, security_provider).initialize_or_migrate() == 13
+    assert _runner(database, migration_directory, security_provider).initialize_or_migrate() == 13
+
+    connection = sqlite3.connect(database)
+    try:
+        assert connection.execute(
+            "SELECT * FROM schema_migrations WHERE sequence<=12 ORDER BY sequence"
+        ).fetchall() == before
+        actual = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_schema WHERE type='index' AND name IN ("
+                "'idx_report_member_service_request_fk',"
+                "'idx_report_cohort_customer_fk',"
+                "'idx_report_cohort_cpl_fk'"
+                ")"
+            ).fetchall()
+        }
+        assert actual == {
+            "idx_report_member_service_request_fk",
+            "idx_report_cohort_customer_fk",
+            "idx_report_cohort_cpl_fk",
+        }
+        verify_foreign_key_index_coverage(connection, exceptions=())
+    finally:
+        connection.close()
+
+
+@pytest.mark.parametrize(
+    "index_name",
+    [
+        "idx_report_member_service_request_fk",
+        "idx_report_cohort_customer_fk",
+        "idx_report_cohort_cpl_fk",
+    ],
+)
+def test_current_release_fk_coverage_fails_if_required_forward_index_is_missing(
+    initialized_database,
+    index_name: str,
+) -> None:
+    database_path, factory_for_path = initialized_database
+    connection = factory_for_path(database_path).open_authoritative(
+        read_only=False,
+        require_wal=True,
+    )
+    try:
+        connection.execute(f'DROP INDEX "{index_name}"')
+        with pytest.raises(MigrationError) as raised:
+            verify_foundation_schema(connection)
+        assert raised.value.code == "MIGRATION_SCHEMA_MISMATCH"
     finally:
         connection.close()
