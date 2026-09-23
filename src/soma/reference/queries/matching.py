@@ -6,7 +6,7 @@ from typing import Any, Literal
 from soma.foundation.errors import SomaError
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
-from soma.reference.domain.matching import PROFILE_ID, normalize_match_key
+from soma.reference.domain.matching import normalize_match_key, require_persisted_matching_profile
 
 CandidateState = Literal["UNRESOLVED", "UNIQUE_CANDIDATE", "AMBIGUOUS"]
 
