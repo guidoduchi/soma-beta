@@ -1071,28 +1071,55 @@ class InventoryFaultTagsRepository:
             str(current[4]),
         )
 
-    @staticmethod
-    def warehouse_membership_authority(connection: Any, membership_id: str):
-        return connection.execute(
-            "SELECT c.fault_tag_membership_id,c.fault_tag_id,c.rma_id,"
-            "c.device_part_unit_id,c.spare_part_unit_id,c.state,c.active_submitted,"
-            "c.revision,c.last_event_id,m.physical_consequence_id "
-            "FROM fault_tag_membership_current c JOIN fault_tag_memberships m "
-            "ON m.fault_tag_membership_id=c.fault_tag_membership_id "
-            "WHERE c.fault_tag_membership_id=?",
-            (membership_id,),
-        ).fetchone()
+    _WAREHOUSE_AUTHORITY_CHUNK = 400
 
     @classmethod
-    def _require_warehouse_target(
+    def warehouse_membership_authority_set(
         cls,
         connection: Any,
+        membership_ids: tuple[str, ...],
+    ) -> dict[str, tuple[tuple[object, ...], tuple[object, ...] | None]]:
+        if not membership_ids:
+            return {}
+        result: dict[str, tuple[tuple[object, ...], tuple[object, ...] | None]] = {}
+        for offset in range(0, len(membership_ids), cls._WAREHOUSE_AUTHORITY_CHUNK):
+            chunk = membership_ids[offset : offset + cls._WAREHOUSE_AUTHORITY_CHUNK]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = connection.execute(
+                "SELECT c.fault_tag_membership_id,c.fault_tag_id,c.rma_id,"
+                "c.device_part_unit_id,c.spare_part_unit_id,c.state,c.active_submitted,"
+                "c.revision,c.last_event_id,m.physical_consequence_id,"
+                "o.obligation_state,o.device_part_unit_id,o.spare_part_unit_id,"
+                "o.physical_consequence_id,o.revision,o.last_event_id "
+                "FROM fault_tag_membership_current c "
+                "JOIN fault_tag_memberships m "
+                "ON m.fault_tag_membership_id=c.fault_tag_membership_id "
+                "LEFT JOIN rma_return_obligation_current o ON o.rma_id=c.rma_id "
+                "WHERE c.fault_tag_membership_id IN (" + placeholders + ")",
+                chunk,
+            ).fetchall()
+            for raw in rows:
+                row = tuple(raw[:10])
+                obligation = None if raw[10] is None else tuple(raw[10:16])
+                result[str(raw[0])] = (row, obligation)
+        return result
+
+    @classmethod
+    def warehouse_membership_authority(cls, connection: Any, membership_id: str):
+        pair = cls.warehouse_membership_authority_set(
+            connection,
+            (membership_id,),
+        ).get(membership_id)
+        return None if pair is None else pair[0]
+
+    @staticmethod
+    def _validate_warehouse_target_authority(
         *,
-        membership_id: str,
+        row: tuple[object, ...] | None,
+        obligation: tuple[object, ...] | None,
         expected_revision: int,
         required_state: str,
-    ):
-        row = cls.warehouse_membership_authority(connection, membership_id)
+    ) -> tuple[tuple[object, ...], tuple[object, ...]]:
         if row is None or int(row[7]) != expected_revision:
             raise SomaError("INV_STALE", "Fault Tag membership revision changed")
         if str(row[5]) != required_state or int(row[6]) != 1:
@@ -1105,12 +1132,6 @@ class InventoryFaultTagsRepository:
                 "BULK_INCOMPATIBLE",
                 "Fault Tag membership is not awaiting warehouse receipt",
             )
-        obligation = connection.execute(
-            "SELECT obligation_state,device_part_unit_id,spare_part_unit_id,"
-            "physical_consequence_id,revision,last_event_id "
-            "FROM rma_return_obligation_current WHERE rma_id=?",
-            (str(row[2]),),
-        ).fetchone()
         if obligation is None or str(obligation[0]) != "open":
             raise SomaError(
                 "INV_STALE",
@@ -1129,6 +1150,53 @@ class InventoryFaultTagsRepository:
                 "Fault Tag membership no longer matches current return obligation",
             )
         return row, obligation
+
+    @classmethod
+    def _require_warehouse_target(
+        cls,
+        connection: Any,
+        *,
+        membership_id: str,
+        expected_revision: int,
+        required_state: str,
+    ):
+        pair = cls.warehouse_membership_authority_set(
+            connection,
+            (membership_id,),
+        ).get(membership_id)
+        row, obligation = (None, None) if pair is None else pair
+        return cls._validate_warehouse_target_authority(
+            row=row,
+            obligation=obligation,
+            expected_revision=expected_revision,
+            required_state=required_state,
+        )
+
+    @classmethod
+    def _require_warehouse_targets(
+        cls,
+        connection: Any,
+        *,
+        targets: tuple[tuple[str, int], ...],
+        required_state: str,
+    ) -> tuple[tuple[tuple[object, ...], tuple[object, ...]], ...]:
+        authorities = cls.warehouse_membership_authority_set(
+            connection,
+            tuple(membership_id for membership_id, _revision in targets),
+        )
+        validated: list[tuple[tuple[object, ...], tuple[object, ...]]] = []
+        for membership_id, expected_revision in targets:
+            pair = authorities.get(membership_id)
+            row, obligation = (None, None) if pair is None else pair
+            validated.append(
+                cls._validate_warehouse_target_authority(
+                    row=row,
+                    obligation=obligation,
+                    expected_revision=expected_revision,
+                    required_state=required_state,
+                )
+            )
+        return tuple(validated)
 
     @staticmethod
     def _membership_state_fingerprint(
@@ -1311,15 +1379,11 @@ class InventoryFaultTagsRepository:
         batch_id: str | None,
         command_id: str,
     ) -> tuple[tuple[dict[str, object], ...], dict[str, int]]:
-        preflight = [
-            cls._require_warehouse_target(
-                connection,
-                membership_id=membership_id,
-                expected_revision=revision,
-                required_state="submitted_awaiting_receipt",
-            )
-            for membership_id, revision in targets
-        ]
+        preflight = cls._require_warehouse_targets(
+            connection,
+            targets=targets,
+            required_state="submitted_awaiting_receipt",
+        )
         if batch_id is not None:
             cls.insert_lifecycle_batch(
                 connection,
@@ -1415,15 +1479,11 @@ class InventoryFaultTagsRepository:
         batch_id: str | None,
         command_id: str,
     ) -> tuple[tuple[dict[str, object], ...], dict[str, int]]:
-        preflight = [
-            cls._require_warehouse_target(
-                connection,
-                membership_id=membership_id,
-                expected_revision=revision,
-                required_state="warehouse_received",
-            )
-            for membership_id, revision in targets
-        ]
+        preflight = cls._require_warehouse_targets(
+            connection,
+            targets=targets,
+            required_state="warehouse_received",
+        )
         if batch_id is not None:
             cls.insert_lifecycle_batch(
                 connection,
