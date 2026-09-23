@@ -228,14 +228,8 @@ class InventoryNeedsQueryService:
 
         if (after_tracking is None) != (after_unit_id is None):
             raise ValidationError("Stock partition continuation key is incomplete")
-        if after_tracking is not None and after_unit_id is not None:
-            require_uuid4(after_unit_id)
-            predicate += (
-                " AND (COALESCE(u.local_tracking_id,''),u.spare_part_unit_id)>(?,?)"
-            )
-            params = (*params, after_tracking, after_unit_id)
 
-        sql = (
+        select_sql = (
             "SELECT u.spare_part_unit_id,u.local_tracking_id,u.bom_code,"
             "u.manufacturer_serial,p.condition_token,p.disposition_token,"
             "p.location_kind,p.location_ref_id,p.custody_text,"
@@ -246,12 +240,52 @@ class InventoryNeedsQueryService:
             + " CROSS JOIN spare_part_current_projection p "
             "WHERE p.spare_part_unit_id=u.spare_part_unit_id AND "
             + predicate
-            + " ORDER BY COALESCE(u.local_tracking_id,''),u.spare_part_unit_id LIMIT ?"
         )
-        return connection.execute(
-            sql,
-            (compatibility_rank, *params, limit),
+        order_sql = (
+            " ORDER BY COALESCE(u.local_tracking_id,''),u.spare_part_unit_id LIMIT ?"
+        )
+
+        if after_tracking is None or after_unit_id is None:
+            return connection.execute(
+                select_sql + order_sql,
+                (compatibility_rank, *params, limit),
+            ).fetchall()
+
+        require_uuid4(after_unit_id)
+        # SQLite can use the expression index for ordering but does not reliably
+        # convert a row-value comparison over COALESCE(...) into a range seek.
+        # Split the lexicographic continuation into two disjoint ordered seeks:
+        # the remainder of the current display-key bucket, then later buckets.
+        # This also keeps potentially many NULL/empty display keys seekable by id.
+        same_tracking = connection.execute(
+            select_sql
+            + " AND COALESCE(u.local_tracking_id,'')=? "
+            + "AND u.spare_part_unit_id>?"
+            + order_sql,
+            (
+                compatibility_rank,
+                *params,
+                after_tracking,
+                after_unit_id,
+                limit,
+            ),
         ).fetchall()
+        if len(same_tracking) >= limit:
+            return same_tracking
+
+        remaining = limit - len(same_tracking)
+        later_tracking = connection.execute(
+            select_sql
+            + " AND COALESCE(u.local_tracking_id,'')>?"
+            + order_sql,
+            (
+                compatibility_rank,
+                *params,
+                after_tracking,
+                remaining,
+            ),
+        ).fetchall()
+        return [*same_tracking, *later_tracking]
 
     def stock_eligibility(
         self,
