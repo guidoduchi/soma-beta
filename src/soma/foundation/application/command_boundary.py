@@ -37,6 +37,7 @@ PrepareMutation = Callable[[UnitOfWork], "PreparedMutation"]
 _MAX_RESPONSE_JSON_BYTES = 524_288
 _MAX_RESPONSE_DEPTH = 8
 _MAX_RESPONSE_COLLECTION_ITEMS = 512
+_RFC_BRANCH_RESPONSE_JSON_BYTES = 8_388_608
 _RFC_BRANCH_RESPONSE_COLLECTION_ITEMS = 8_192
 _DEFAULT_RESPONSE = object()
 
@@ -55,10 +56,12 @@ _DEFAULT_RESPONSE_BOUNDS = _ResponseBounds(
 )
 _RESPONSE_BOUND_ALLOCATIONS: dict[tuple[str, int], _ResponseBounds] = {
     # LLD-03 hierarchy mutations return the default 100-child RfcBranchV1 page.
-    # This exact contract needs more aggregate collection items than Foundation's
-    # ordinary replay ceiling while retaining the same byte and depth limits.
+    # Accepted RFC source text can reach about 38.4 KiB per RFC before JSON and
+    # evidence-reference overhead, so the 100-child first page requires a reviewed
+    # byte allocation as well as a larger aggregate-item allocation. The depth limit
+    # remains Foundation's ordinary command-response limit.
     ("RfcBranchV1", 1): _ResponseBounds(
-        _MAX_RESPONSE_JSON_BYTES,
+        _RFC_BRANCH_RESPONSE_JSON_BYTES,
         _MAX_RESPONSE_DEPTH,
         _RFC_BRANCH_RESPONSE_COLLECTION_ITEMS,
     ),

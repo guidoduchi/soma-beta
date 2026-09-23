@@ -615,3 +615,59 @@ def test_rfc_branch_response_has_exact_reviewed_collection_allocation(
         ).fetchone()[0] == 0
     finally:
         connection.close()
+
+
+    byte_response = {
+        "root": {
+            "rfc_id": "root",
+            "source_projection": {"summary_text": "r" * 16_384},
+        },
+        "subordinates": [
+            {
+                "rfc_id": f"child-{index}",
+                "source_projection": {"summary_text": "x" * 16_384},
+            }
+            for index in range(100)
+        ],
+        "continuation": None,
+        "branch_fingerprint": "b" * 64,
+    }
+    byte_command = new_uuid4()
+    accepted_bytes = CommandBoundary(factory, AuditWriter(AuditRegistry())).execute(
+        CommandEnvelope(
+            command_id=byte_command,
+            command_type="ReviewedByteLargeRfcBranchProbe",
+            target_type="probe",
+            target_id=None,
+            semantic_payload={},
+        ),
+        lambda uow: PreparedMutation(
+            no_change=True,
+            result_type="NO_CHANGE",
+            result_id=None,
+            response_schema="RfcBranchV1",
+            response_version=1,
+            response=byte_response,
+        ),
+    )
+    assert accepted_bytes.response == byte_response
+
+    rejected_byte_command = new_uuid4()
+    with pytest.raises(ValidationError, match="byte bound"):
+        CommandBoundary(factory, AuditWriter(AuditRegistry())).execute(
+            CommandEnvelope(
+                command_id=rejected_byte_command,
+                command_type="DefaultByteLargeResponseProbe",
+                target_type="probe",
+                target_id=None,
+                semantic_payload={},
+            ),
+            lambda uow: PreparedMutation(
+                no_change=True,
+                result_type="NO_CHANGE",
+                result_id=None,
+                response_schema="DefaultByteLargeResponseV1",
+                response_version=1,
+                response=byte_response,
+            ),
+        )
