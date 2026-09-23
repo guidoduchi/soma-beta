@@ -227,14 +227,33 @@ def test_unlisted_audit_action_cannot_widen_foundation_payload_limit(
                 version=1,
                 required_fields=frozenset({"value"}),
                 allowed_fields=frozenset({"value"}),
-                max_utf8_bytes=16_385,
+                max_utf8_bytes=65_536,
             ),
         )
     )
-    command_id = new_uuid4()
+
+    accepted_command = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _receipt(uow, accepted_command, "TestUnreviewedAuditOrdinarySize")
+        AuditWriter(registry).write(
+            uow,
+            AuditEventInput(
+                audit_event_id=new_uuid4(),
+                action_type="test.unreviewed_large_audit",
+                action_version=1,
+                actor_kind="test",
+                target_type="test",
+                command_id=accepted_command,
+                payload_schema="UnreviewedLargeAuditV1",
+                payload_version=1,
+                payload={"value": "small"},
+            ),
+        )
+
+    rejected_command = new_uuid4()
     with pytest.raises(SomaError) as raised:
         with UnitOfWork(factory) as uow:
-            _receipt(uow, command_id, "TestUnreviewedAuditAllocation")
+            _receipt(uow, rejected_command, "TestUnreviewedAuditAllocation")
             AuditWriter(registry).write(
                 uow,
                 AuditEventInput(
@@ -243,18 +262,18 @@ def test_unlisted_audit_action_cannot_widen_foundation_payload_limit(
                     action_version=1,
                     actor_kind="test",
                     target_type="test",
-                    command_id=command_id,
+                    command_id=rejected_command,
                     payload_schema="UnreviewedLargeAuditV1",
                     payload_version=1,
-                    payload={"value": "small"},
+                    payload={"value": "x" * 16_384},
                 ),
             )
-    assert raised.value.code == "AUDIT_ACTION_INVALID"
+    assert raised.value.code == "AUDIT_PAYLOAD_INVALID"
 
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute(
             "SELECT 1 FROM command_receipts WHERE command_id=?",
-            (command_id,),
+            (rejected_command,),
         ).fetchone() is None
 
 
