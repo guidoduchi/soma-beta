@@ -14,7 +14,8 @@
   "known_limits": [
     "Production SQLCipher key-provider implementation remains LLD-12-owned; LLD-01 tests use the explicit provider seam and must not be cited as LLD-12 release certification.",
     "LLD-08 Infrastructure has not been started.",
-    "The separate mechanical acceptance-marker reporter remains report-only and is not semantic certification."
+    "The separate mechanical acceptance-marker reporter remains report-only and is not semantic certification.",
+    "Failed-start lifecycle proof has been reopened by a worker-survives-cancellation/lock-released reproducer. Candidate HostRuntime cleanup and pre-lock admission corrections plus new failure/rollback/cross-process tests exist at 6e4bcaef… and 24a4354b… but are not yet executed/certified at the current candidate head."
   ],
   "cases": [
     {

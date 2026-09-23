@@ -1,7 +1,7 @@
 {
   "schema": "SOMA_PRE_LLD08_REFERENCE_SEMANTIC_TRACEABILITY_V1",
   "lld_id": "LLD-02",
-  "design_sha": "26b7ceb88af7d5ade73ad2be3b5c5e1faddb6370",
+  "design_sha": "05aeda769be90d5e9b9741e8a12f7b9af8842da6",
   "implementation_head_at_binding": "7a4cfe5b3960e2e7e577bd33bad2c39b4563900c",
   "source_acceptance": [
     "spec/lld/identity-reference/tests/acceptance.json"
@@ -14,13 +14,14 @@
     "LLD-08 Site persistence/lifecycle is not started; Site-owned clauses are explicitly deferred or partial.",
     "Generated-artifact recipient/address snapshots remain consumer-owned and are not reclassified as LLD-02-owned merely because Reference history is preserved.",
     "Production SQLCipher/session security remains LLD-12-owned.",
-    "The mechanical acceptance-marker report is report-only and cannot promote partial cases."
+    "The mechanical acceptance-marker report is report-only and cannot promote partial cases.",
+    "LLD02-T013 current point warning candidate is unverified: #867 failed before the 2026-09-23 reconciliation. Do not infer T013 certification from the earlier snapshot-only assertions."
   ],
   "summary": {
-    "reviewed": 24,
+    "reviewed": 26,
     "reviewed_pending_ci": 6,
     "partial_evidence": 0,
-    "partial_cross_packet": 6,
+    "partial_cross_packet": 4,
     "deferred_lld08": 1,
     "unbound": 0
   },
@@ -806,11 +807,13 @@
     }
   ],
   "recertification_checkpoint": {
-    "candidate_head": "589a701b3ac76458c841e794b14f26e9508327d6",
-    "prior_ci_run": 864,
-    "prior_ci_head": "7f98692c04f5be27c749ae8204344b158a512b8e",
-    "prior_ci_result": "failed_during_reference_transport_collection",
-    "correction": "Stored route placeholder regex now contains exactly one escape before each literal brace; current candidate also includes T032/T035 SQL-cost evidence.",
-    "status": "pending_supported_ci"
+    "candidate_head": "66144d0001d40690c44ed9b35c35a5c8c414144a",
+    "design_head": "05aeda769be90d5e9b9741e8a12f7b9af8842da6",
+    "prior_ci_run": 867,
+    "prior_ci_run_id": 35840886594,
+    "prior_ci_head": "4f3e30500d51962fe5fd68e435d0252692d5b010",
+    "prior_ci_result": "failed_LLD02_T013_SR_contact_affiliation_point_warning",
+    "correction": "Point-query warning contract clarified on design branch and candidate implementation+cross-role/unknown/stale/reviewed-mismatch tests added. Not run or certified at current candidate head.",
+    "status": "pending_focused_and_supported_ci"
   }
 }

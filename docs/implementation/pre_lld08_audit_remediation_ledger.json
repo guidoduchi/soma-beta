@@ -4,19 +4,26 @@
   "repository": "guidoduchi/soma-beta",
   "normative_design_sha": "92787e65d90b410d18088f844155b3557831085e",
   "audited_implementation_sha": "a6b52124c5e991509dcb8f6aba7caf332526daaa",
-  "remediation_head_sha": "04d45f2b738f223f2e87342a8e2ce134a7d8ddb5",
+  "remediation_head_sha": "66144d0001d40690c44ed9b35c35a5c8c414144a",
   "disposition": {
-    "audit_findings": "The earlier A01-A14 remediation remains historical evidence, but the 2026-09-22 independent re-audit reopened proof/optimization obligations R01-R05. Current strengthened remediation is implemented through checkpoint 04d45f2b… and is pending exact-head recertification.",
-    "certification_scope": "Current work strengthens runtime failure safety, RFC replay bounds, Inventory dependency/Stock query work, real Foundation composition smoke proof, and semantic traceability reporting. It does not claim complete LLD-01-07 semantic certification or production SQLCipher/LLD-12 release integration.",
+    "audit_findings": "A01-A14 historical repairs remain preserved. Independent 2026-09-23 verification reproduced the open failed-start lifetime claim contradiction; the current unverified implementation candidate addresses worker ownership and known SR point warnings. R01-R05 proof/optimization closure remains pending.",
+    "certification_scope": "Current candidate carries bounded failed-start cleanup recovery, retained worker/instance ownership, pre-lock writer admission correction, and clarified SR point-query Contact mismatch warning plus tests. No current-head CI, SQL performance recertification or comprehensive LLD-01..07 semantic certification is claimed. Production SQLCipher and LLD-08 Site remain later-owner release obligations.",
     "lld08_started": false
   },
   "supported_ci": {
     "workflow": "Beta implementation CI",
-    "run_number": 857,
-    "run_id": 35820144899,
-    "head_sha": "04d45f2b738f223f2e87342a8e2ce134a7d8ddb5",
-    "conclusion": "in_progress_at_ledger_update",
-    "note": "Do not promote current strengthened remediation to certified until all platform legs, release schema authority and wheel/resource verification pass at this exact checkpoint or a documented successor."
+    "run_number": 867,
+    "run_id": 35840886594,
+    "head_sha": "4f3e30500d51962fe5fd68e435d0252692d5b010",
+    "conclusion": "failure",
+    "failure": "tests/test_sr_reference_mutations.py::test_contact_affiliation_change_does_not_rewrite_sr_organization_at_use_snapshot (missing point warning)",
+    "last_green_run_number": 866,
+    "last_green_run_id": 35837398042,
+    "last_green_head": "ab26153f846e884be3cfbddf516623bfecce707f",
+    "current_candidate_implementation_sha": "66144d0001d40690c44ed9b35c35a5c8c414144a",
+    "current_candidate_design_sha": "05aeda769be90d5e9b9741e8a12f7b9af8842da6",
+    "current_candidate_result": "NOT_RUN",
+    "note": "The last green commit predates the current P1/P2 changes; no semantic or CI success is claimed for the current candidate. Defer full supported CI until coherent checkpoint."
   },
   "findings": [
     {
@@ -158,7 +165,7 @@
     {
       "id": "A08",
       "priority": "P1",
-      "status": "strengthened_pending_current_ci",
+      "status": "reopened_candidate_patch_pending_failure_regressions_and_exact_head_ci",
       "finding": "Foundation host lifecycle, readiness, diagnostics and status surfaces were absent.",
       "remediation_commits": [
         "005c7e5e50250f50889e1eecb3a5a4421e168bde",
@@ -172,7 +179,9 @@
         "de7998579221cb73835e72f82833920937ada8a9",
         "81a2764dfcf2f2334111ce877a98df24ebf7d1b0",
         "23266aace6c4be6319fe7e65216b865ecc5c48c9",
-        "51e5bbd768f8e20fa9ae26f66cfc02caf5f7de0b"
+        "51e5bbd768f8e20fa9ae26f66cfc02caf5f7de0b",
+        "6e4bcaef057ce3f8e982b3f174fa47aad34c6193",
+        "24a4354b741a45f0128399e365f66434866fe102"
       ],
       "owners": [
         "src/soma/foundation/runtime",
@@ -184,7 +193,8 @@
         "HostRuntime cleanup now owns partially acquired security/server resources before provider calls return and retains instance ownership when stop/drain safety cannot be proven.",
         "A single shutdown deadline is propagated through write/request/background drains and server stop; WAL checkpoint uses only the remaining busy budget.",
         "A real Starlette/Uvicorn loopback smoke regression uses explicit test-only security seams, authenticated self-readiness, host-owned request executor dispatch, READY gating, HTTP shutdown, full cleanup and safe restart on the same data instance.",
-        "Production run/session security and SQLCipher provider integration remain LLD-12 obligations and are not claimed by the test seam."
+        "Production run/session security and SQLCipher provider integration remain LLD-12 obligations and are not claimed by the test seam.",
+        "2026-09-23 re-audit found the earlier failed-start ownership claim false: close(wait=False) let a running UoW outlive server/security/registry cleanup and OS lock release. The new candidate retains executor references and lock until server, worker and direct UoW drain is proven; current tests/CI have NOT yet been run."
       ]
     },
     {
@@ -365,8 +375,8 @@
     "workstreams": [
       {
         "id": "R01",
-        "status": "implemented_pending_exact_head_ci",
-        "scope": "failed-start cleanup retains safe ownership until server/executors/security are proven stopped; partial security/server startup paths are regression-tested"
+        "status": "reopened_candidate_fix_pending_execution_and_ci",
+        "scope": "Worker-survives-cancellation failure reopens historical R01/A08 closure. Current candidate gates pre-lock UoW and retains running requests/background workers, security, registry and instance lock pending bounded retry. Proof still requires executing the new regressions and platform suite."
       },
       {
         "id": "R02",
@@ -385,9 +395,12 @@
       },
       {
         "id": "R05",
-        "status": "implemented_pending_exact_head_ci_and_semantic_ledger_completion",
-        "scope": "pre-LLD-08 Reference dependency composition and real Starlette/Uvicorn Foundation smoke are added; marker report includes LLD-07 but explicitly does not certify semantics"
+        "status": "partial_pending_cross_packet_coverage_and_exact_head_ci",
+        "scope": "LLD-02 37-case summary corrected to 26 reviewed, 6 pending-CI, 4 partial-cross-packet, 1 deferred. LLD02-T013 current warning failure has a proposed design clarification and implementation candidate; broader LLD03..06 and 2000-target release-schema evidence remain unclosed."
       }
-    ]
+    ],
+    "candidate_design_sha": "05aeda769be90d5e9b9741e8a12f7b9af8842da6",
+    "candidate_implementation_sha": "66144d0001d40690c44ed9b35c35a5c8c414144a",
+    "validation": "PENDING: no focused tests or supported CI have run for the current candidate."
   }
 }
