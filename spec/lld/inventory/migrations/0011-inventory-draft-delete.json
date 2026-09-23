@@ -16,6 +16,6 @@
     "migrations 1 through 10 remain byte-for-byte historical and are never rewritten",
     "this migration grants no general Inventory lifecycle deletion authority",
     "the hard-delete command remains the sole owner of untouched-draft eligibility and same-UoW deletion authority",
-    "future packets must allocate sequence 12 or later according to spec/lld/migrations.json"
+    "the next forward runtime slot is sequence 12; current design allocates it to the LLD-07 Stock query-index repair without changing this historical migration"
   ]
 }
