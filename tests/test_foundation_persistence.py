@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
 import pytest
@@ -178,6 +179,11 @@ def test_audit_tables_are_append_only(initialized_database) -> None:
             "VALUES (?, 'test', 1, 1, 'local_user', 'test', ?, 'TestV1', 1, '{}')",
             (audit_id, command_id),
         )
+        uow.connection.execute(
+            "INSERT INTO audit_event_results(audit_event_id,ordinal,result_type,result_id) "
+            "VALUES (?,0,'test_result',?)",
+            (audit_id, new_uuid4()),
+        )
 
     with pytest.raises(Exception, match="AUDIT_APPEND_ONLY"):
         with UnitOfWork(factory) as uow:
@@ -185,6 +191,27 @@ def test_audit_tables_are_append_only(initialized_database) -> None:
                 "UPDATE audit_events SET reason_category = 'changed' WHERE audit_event_id = ?",
                 (audit_id,),
             )
+
+    with pytest.raises(Exception, match="AUDIT_APPEND_ONLY"):
+        with UnitOfWork(factory) as uow:
+            uow.connection.execute(
+                "DELETE FROM audit_events WHERE audit_event_id = ?",
+                (audit_id,),
+            )
+
+    with pytest.raises(Exception):
+        with UnitOfWork(factory) as uow:
+            uow.connection.execute(
+                "INSERT INTO audit_events(audit_event_id,action_type,action_version,recorded_at_utc,actor_kind,target_type,command_id,payload_schema,payload_version,payload_json) "
+                "VALUES (?, 'test', 1, 1, 'local_user', 'test', ?, 'TestV1', 1, '{}')",
+                (audit_id, command_id),
+            )
+
+    writer_source = inspect.getsource(AuditWriter.write).upper()
+    assert "OR IGNORE" not in writer_source
+    assert "OR REPLACE" not in writer_source
+    assert "UPDATE AUDIT_EVENTS" not in writer_source
+    assert "DELETE FROM AUDIT_EVENTS" not in writer_source
 
 
 def test_read_snapshot_closes_connection_when_begin_fails() -> None:
