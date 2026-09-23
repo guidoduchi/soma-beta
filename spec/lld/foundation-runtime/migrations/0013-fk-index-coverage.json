@@ -1,0 +1,29 @@
+{
+  "schema": "SOMA-LLD-MIGRATION-OBJECT-ALLOCATION-V2",
+  "lld_id": "LLD-01",
+  "sequence": 13,
+  "migration_id": "beta_0013_fk_index_coverage",
+  "runtime_filename": "0013_fk_index_coverage.sql",
+  "schema_sources": [
+    "schema/verification.json"
+  ],
+  "purpose": "Complete release-schema child foreign-key lookup coverage exposed by LLD01-T002 without rewriting accepted migrations or adding measured exceptions for ordinary lookup relationships.",
+  "objects": [
+    "index:idx_report_member_service_request_fk ON sla_report_member_snapshots(service_request_id,report_member_snapshot_id)",
+    "index:idx_report_cohort_customer_fk ON sla_report_cohort_snapshots(customer_org_id,report_cohort_snapshot_id)",
+    "index:idx_report_cohort_cpl_fk ON sla_report_cohort_snapshots(contract_product_line_id,report_cohort_snapshot_id)"
+  ],
+  "invariants": [
+    "runtime migrations 1 through 12 remain byte/hash/identity/sequence stable",
+    "the migration creates indexes only; no table, column, trigger, row, lifecycle state or domain cardinality changes",
+    "SQLite-owned PK/UNIQUE autoindexes continue to qualify when their ordered key leading prefix covers the child FK",
+    "closed nullable partial indexes qualify only under schema/verification.json nullable_partial_rule; this migration does not duplicate them with full indexes",
+    "the packaged measured-exception file remains empty because these three ordinary FKs receive direct usable indexes"
+  ],
+  "verification": [
+    "LLD01-T002 complete-schema analyser reports zero uncovered child FKs and zero stale/redundant measured exceptions",
+    "dropping any one of these three indexes causes current-release schema verification to fail closed",
+    "clean initialization and exact prefix-12 upgrade converge on the same release schema",
+    "migrations 1 through 12 retain their exact accepted ledger rows"
+  ]
+}
