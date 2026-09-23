@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Iterable
 from importlib.resources import files
 from typing import Any
@@ -220,6 +221,330 @@ def _normalized_tables(value: object) -> list[dict[str, object]]:
     return normalized
 
 
+def _quote_identifier(value: str) -> str:
+    return '"' + value.replace('"', '""') + '"'
+
+
+def _load_fk_index_exceptions() -> tuple[dict[str, object], ...]:
+    try:
+        raw = files("soma").joinpath("fk_index_exceptions.json").read_text(
+            encoding="utf-8"
+        )
+        parsed = json.loads(raw)
+    except Exception as exc:
+        raise _schema_error("FK index exception authority is unavailable or invalid") from exc
+    if (
+        not isinstance(parsed, dict)
+        or set(parsed) != {"schema", "exceptions"}
+        or parsed.get("schema") != "SOMA-FK-INDEX-EXCEPTIONS-V1"
+        or not isinstance(parsed.get("exceptions"), list)
+    ):
+        raise _schema_error("FK index exception authority contract is invalid")
+
+    normalized: list[dict[str, object]] = []
+    seen: set[tuple[str, int]] = set()
+    for item in parsed["exceptions"]:
+        if (
+            not isinstance(item, dict)
+            or set(item)
+            != {
+                "table",
+                "fk_id",
+                "measured_reason",
+                "accepted_lld_or_decision_reference",
+            }
+        ):
+            raise _schema_error("FK index exception entry is invalid")
+        table = item["table"]
+        fk_id = item["fk_id"]
+        measured_reason = item["measured_reason"]
+        reference = item["accepted_lld_or_decision_reference"]
+        if (
+            not isinstance(table, str)
+            or not table
+            or type(fk_id) is not int
+            or fk_id < 0
+            or not isinstance(measured_reason, str)
+            or not measured_reason.strip()
+            or not isinstance(reference, str)
+            or not reference.strip()
+        ):
+            raise _schema_error("FK index exception entry fields are invalid")
+        key = (table, fk_id)
+        if key in seen:
+            raise _schema_error("duplicate FK index exception entry")
+        seen.add(key)
+        normalized.append(
+            {
+                "table": table,
+                "fk_id": fk_id,
+                "measured_reason": measured_reason,
+                "accepted_lld_or_decision_reference": reference,
+            }
+        )
+    return tuple(normalized)
+
+
+def _fk_groups(connection: Any, table_name: str) -> tuple[tuple[int, tuple[str, ...]], ...]:
+    groups: dict[int, list[tuple[int, str]]] = {}
+    for row in connection.execute(
+        f"PRAGMA foreign_key_list({_quote_identifier(table_name)})"
+    ).fetchall():
+        fk_id = int(row[0])
+        sequence = int(row[1])
+        child_column = row[3]
+        if child_column is None:
+            raise _schema_error(
+                f"foreign key on {table_name!r} has no explicit child column"
+            )
+        groups.setdefault(fk_id, []).append((sequence, str(child_column)))
+    return tuple(
+        (
+            fk_id,
+            tuple(column for _sequence, column in sorted(parts)),
+        )
+        for fk_id, parts in sorted(groups.items())
+    )
+
+
+def _nullable_columns(connection: Any, table_name: str) -> frozenset[str]:
+    nullable: set[str] = set()
+    for row in connection.execute(
+        f"PRAGMA table_xinfo({_quote_identifier(table_name)})"
+    ).fetchall():
+        name = str(row[1])
+        not_null = bool(int(row[3]))
+        primary_key_ordinal = int(row[5])
+        if not not_null and primary_key_ordinal == 0:
+            nullable.add(name)
+    return frozenset(nullable)
+
+
+def _index_key_columns(connection: Any, index_name: str) -> tuple[str | None, ...]:
+    keys: list[tuple[int, str | None]] = []
+    for row in connection.execute(
+        f"PRAGMA index_xinfo({_quote_identifier(index_name)})"
+    ).fetchall():
+        if not bool(int(row[5])):
+            continue
+        keys.append(
+            (
+                int(row[0]),
+                None if row[2] is None else str(row[2]),
+            )
+        )
+    return tuple(name for _sequence, name in sorted(keys))
+
+
+_PARTIAL_TERM = re.compile(
+    r'^(?:"(?P<quoted>(?:[^"]|"")*)"|(?P<bare>[A-Za-z_][A-Za-z0-9_]*))'
+    r"\s+IS\s+NOT\s+NULL$",
+    flags=re.IGNORECASE,
+)
+
+
+def _strip_balanced_outer_parentheses(value: str) -> str:
+    value = value.strip()
+    while value.startswith("(") and value.endswith(")"):
+        depth = 0
+        balanced = True
+        for index, char in enumerate(value):
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0 and index != len(value) - 1:
+                    balanced = False
+                    break
+                if depth < 0:
+                    balanced = False
+                    break
+        if not balanced or depth != 0:
+            break
+        value = value[1:-1].strip()
+    return value
+
+
+def _nullable_fk_partial_predicate_columns(
+    *,
+    index_sql: str | None,
+    fk_columns: tuple[str, ...],
+    nullable_columns: frozenset[str],
+) -> frozenset[str] | None:
+    if index_sql is None:
+        return None
+    match = re.search(r"\bWHERE\b(?P<predicate>.+)$", index_sql, flags=re.IGNORECASE)
+    if match is None or not any(column in nullable_columns for column in fk_columns):
+        return None
+    predicate = _strip_balanced_outer_parentheses(match.group("predicate"))
+    if not predicate:
+        return None
+
+    # This is intentionally not a generic SQL implication parser. The accepted
+    # LLD-01 shape is a conjunction of exact child-column IS NOT NULL terms.
+    # Any OR/function/extra restriction falls through and is rejected.
+    terms = re.split(r"\s+AND\s+", predicate, flags=re.IGNORECASE)
+    referenced: set[str] = set()
+    for raw_term in terms:
+        term = _strip_balanced_outer_parentheses(raw_term)
+        parsed = _PARTIAL_TERM.fullmatch(term)
+        if parsed is None:
+            return None
+        column = parsed.group("quoted")
+        if column is not None:
+            column = column.replace('""', '"')
+        else:
+            column = parsed.group("bare")
+        assert column is not None
+        if column not in fk_columns:
+            return None
+        referenced.add(column)
+    if not referenced:
+        return None
+    return frozenset(referenced)
+
+
+def _index_supports_fk_lookup(
+    connection: Any,
+    *,
+    table_name: str,
+    index_name: str,
+    fk_columns: tuple[str, ...],
+    partial: bool,
+    nullable_columns: frozenset[str],
+) -> bool:
+    key_columns = _index_key_columns(connection, index_name)
+    if len(key_columns) < len(fk_columns):
+        return False
+    if tuple(key_columns[: len(fk_columns)]) != fk_columns:
+        return False
+    if any(column is None for column in key_columns[: len(fk_columns)]):
+        return False
+
+    if partial:
+        row = connection.execute(
+            "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?",
+            (index_name,),
+        ).fetchone()
+        index_sql = None if row is None or row[0] is None else str(row[0])
+        if (
+            _nullable_fk_partial_predicate_columns(
+                index_sql=index_sql,
+                fk_columns=fk_columns,
+                nullable_columns=nullable_columns,
+            )
+            is None
+        ):
+            return False
+
+    # Structural equality is necessary but not sufficient: a different
+    # collation can make an apparently matching index unusable for FK lookup.
+    # EXPLAIN QUERY PLAN depends only on schema/planner rules, not row contents.
+    where = " AND ".join(
+        f"{_quote_identifier(column)}=?" for column in fk_columns
+    )
+    sql = (
+        "EXPLAIN QUERY PLAN SELECT 1 FROM "
+        + _quote_identifier(table_name)
+        + " INDEXED BY "
+        + _quote_identifier(index_name)
+        + " WHERE "
+        + where
+        + " LIMIT 1"
+    )
+    try:
+        plan = connection.execute(sql, (None,) * len(fk_columns)).fetchall()
+    except Exception:
+        return False
+    details = tuple(str(row[3]).upper() for row in plan if len(row) >= 4)
+    upper_index = index_name.upper()
+    return any(
+        "SEARCH " in detail and upper_index in detail
+        for detail in details
+    )
+
+
+def verify_foreign_key_index_coverage(
+    connection: Any,
+    *,
+    exceptions: tuple[dict[str, object], ...] | None = None,
+) -> None:
+    """Verify every child FK has a usable leading-prefix lookup index.
+
+    Coverage is schema-only: no current row contents participate. SQLite-owned
+    autoindexes are valid candidates; partial indexes qualify only under the
+    closed nullable-FK IS NOT NULL predicate rule. Any other omission requires
+    one exact measured exception from the packaged authority file.
+    """
+
+    accepted_exceptions = (
+        _load_fk_index_exceptions() if exceptions is None else exceptions
+    )
+    exception_map: dict[tuple[str, int], dict[str, object]] = {}
+    for item in accepted_exceptions:
+        try:
+            table = str(item["table"])
+            fk_id = int(item["fk_id"])
+        except Exception as exc:
+            raise _schema_error("FK index exception entry is invalid") from exc
+        key = (table, fk_id)
+        if key in exception_map:
+            raise _schema_error("duplicate FK index exception entry")
+        exception_map[key] = item
+
+    observed_fk_keys: set[tuple[str, int]] = set()
+    covered_by_index: set[tuple[str, int]] = set()
+    table_names = [
+        str(row[0])
+        for row in connection.execute(
+            "SELECT name FROM sqlite_schema "
+            "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        ).fetchall()
+    ]
+    for table_name in table_names:
+        nullable_columns = _nullable_columns(connection, table_name)
+        index_rows = connection.execute(
+            f"PRAGMA index_list({_quote_identifier(table_name)})"
+        ).fetchall()
+        indexes = tuple(
+            (str(row[1]), bool(int(row[4])))
+            for row in index_rows
+        )
+        for fk_id, fk_columns in _fk_groups(connection, table_name):
+            key = (table_name, fk_id)
+            observed_fk_keys.add(key)
+            if any(
+                _index_supports_fk_lookup(
+                    connection,
+                    table_name=table_name,
+                    index_name=index_name,
+                    fk_columns=fk_columns,
+                    partial=partial,
+                    nullable_columns=nullable_columns,
+                )
+                for index_name, partial in indexes
+            ):
+                covered_by_index.add(key)
+                continue
+            if key not in exception_map:
+                joined = ",".join(fk_columns)
+                raise _schema_error(
+                    f"foreign key lacks usable leading-prefix index: "
+                    f"table={table_name!r} fk_id={fk_id} columns={joined!r}"
+                )
+
+    stale = set(exception_map) - observed_fk_keys
+    if stale:
+        raise _schema_error(
+            f"FK index exception references unknown foreign key: {sorted(stale)!r}"
+        )
+    redundant = set(exception_map) & covered_by_index
+    if redundant:
+        raise _schema_error(
+            f"FK index exception is redundant with usable index: {sorted(redundant)!r}"
+        )
+
+
 def _verify_exact_contract(
     *,
     label: str,
@@ -396,6 +721,7 @@ def verify_foundation_schema_readonly(connection: Any) -> bool:
         expected=manifest["indexes"],
         actual=_actual_indexes(connection),
     )
+    verify_foreign_key_index_coverage(connection)
     return True
 
 
