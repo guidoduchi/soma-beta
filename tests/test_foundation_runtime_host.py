@@ -52,7 +52,14 @@ class _RunSecurity:
         self.closed.append(values)
 
 
-def _runtime(tmp_path, migration_directory, security_provider, *, server=None):
+def _runtime(
+    tmp_path,
+    migration_directory,
+    security_provider,
+    *,
+    server=None,
+    run_security=None,
+):
     paths = InstancePaths.from_root(tmp_path.resolve())
     factory = ConnectionFactory(paths.database, security_provider, driver=sqlite3)
     manifest = MigrationManifest.load(migration_directory)
@@ -71,7 +78,7 @@ def _runtime(tmp_path, migration_directory, security_provider, *, server=None):
             ownership_assertion=ownership_assertion,
         )
 
-    security = _RunSecurity()
+    security = run_security or _RunSecurity()
     adapter = server or _Server()
     runtime = HostRuntime(
         paths=paths,
@@ -397,6 +404,171 @@ def test_failed_stop_retains_runtime_ownership_until_server_is_proved_stopped(
     assert server.stopped
     assert not paths.registry.exists()
     assert len(security.closed) == 1
+
+    replacement.start()
+    replacement.shutdown(grace_seconds=1)
+
+
+
+class _PartialRunSecurity(_RunSecurity):
+    def prepare_run(self, **values) -> None:
+        super().prepare_run(**values)
+        raise RuntimeError("injected partial security preparation failure")
+
+
+def test_partial_security_prepare_is_closed_and_releases_ownership(
+    tmp_path,
+    migration_directory,
+    security_provider,
+) -> None:
+    partial_security = _PartialRunSecurity()
+    runtime, paths, server, security, _ = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+        run_security=partial_security,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="injected partial security preparation failure",
+    ):
+        runtime.start()
+
+    assert runtime.state == "FAILED"
+    assert not server.started
+    assert len(security.prepared) == 1
+    assert len(security.closed) == 1
+    assert not paths.registry.exists()
+    assert runtime._lock is None
+
+    replacement, _paths, _adapter, _security, _reconciled = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+    )
+    replacement.start()
+    replacement.shutdown(grace_seconds=1)
+
+
+def test_shutdown_passes_one_decreasing_deadline_budget_to_all_waiting_stages(
+    tmp_path,
+    migration_directory,
+    security_provider,
+    monkeypatch,
+) -> None:
+    runtime, _paths, server, _security, _ = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+    )
+    runtime.start()
+
+    request_executor = runtime.request_executor
+    background_executor = runtime.background_executor
+    write_waits: list[float] = []
+    request_waits: list[float] = []
+    background_waits: list[float] = []
+    seen_deadlines: list[float] = []
+    remaining = iter((0.9, 0.8, 0.7, 0.6, 0.5))
+
+    def remaining_seconds(deadline: float) -> float:
+        seen_deadlines.append(deadline)
+        return next(remaining)
+
+    monkeypatch.setattr(
+        HostRuntime,
+        "_remaining_shutdown_seconds",
+        staticmethod(remaining_seconds),
+    )
+    monkeypatch.setattr(
+        runtime._write_gate,
+        "wait_for_drain",
+        lambda timeout: write_waits.append(timeout) or True,
+    )
+    monkeypatch.setattr(
+        request_executor,
+        "drain",
+        lambda timeout: request_waits.append(timeout) or True,
+    )
+    monkeypatch.setattr(
+        background_executor,
+        "drain",
+        lambda timeout: background_waits.append(timeout) or True,
+    )
+
+    stopped = runtime.shutdown(grace_seconds=1)
+
+    assert stopped.shutdown_state == "STOPPED"
+    assert write_waits == [0.9]
+    assert request_waits == [0.8]
+    assert background_waits == [0.7]
+    assert server.stop_timeouts == [0.5]
+    assert len(seen_deadlines) == 5
+    assert len(set(seen_deadlines)) == 1
+
+
+def test_zero_grace_still_attempts_nonblocking_checkpoint_and_cleanup_when_idle(
+    tmp_path,
+    migration_directory,
+    security_provider,
+) -> None:
+    runtime, paths, server, security, _ = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+    )
+    runtime.start()
+
+    stopped = runtime.shutdown(grace_seconds=0)
+
+    assert stopped.shutdown_state == "STOPPED"
+    assert runtime.state == "STOPPED"
+    assert server.stop_timeouts == [0.0]
+    assert not paths.registry.exists()
+    assert len(security.closed) == 1
+    assert runtime._lock is None
+
+
+def test_shutdown_drain_timeout_retains_ownership_and_can_be_retried(
+    tmp_path,
+    migration_directory,
+    security_provider,
+    monkeypatch,
+) -> None:
+    runtime, paths, _server, security, _ = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+    )
+    runtime.start()
+    request_executor = runtime.request_executor
+
+    monkeypatch.setattr(request_executor, "drain", lambda timeout: False)
+    with pytest.raises(SomaError) as raised:
+        runtime.shutdown(grace_seconds=0.01)
+    assert raised.value.code == "INTERNAL_ERROR"
+    assert runtime.state == "QUIESCING"
+    assert paths.registry.exists()
+    assert security.closed == []
+    assert runtime._lock is not None and runtime._lock.held
+
+    with pytest.raises(SomaError) as gated:
+        with UnitOfWork(runtime.connection_factory):
+            pass
+    assert gated.value.code == "HOST_QUIESCING"
+
+    replacement, _paths, _adapter, _security, _reconciled = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+    )
+    with pytest.raises(SomaError) as replacement_error:
+        replacement.start()
+    assert replacement_error.value.code == "INSTANCE_OWNED"
+
+    monkeypatch.setattr(request_executor, "drain", lambda timeout: True)
+    runtime.shutdown(grace_seconds=1)
 
     replacement.start()
     replacement.shutdown(grace_seconds=1)

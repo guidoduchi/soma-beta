@@ -515,12 +515,6 @@ class HostRuntime:
                 "INTERNAL_ERROR",
                 "runtime work did not drain before shutdown deadline",
             )
-        if self._remaining_shutdown_seconds(deadline) <= 0:
-            raise SomaError(
-                "INTERNAL_ERROR",
-                "shutdown deadline elapsed before WAL checkpoint",
-            )
-
         connection = self._factory.open_authoritative(read_only=False, require_wal=True)
         try:
             remaining_ms = max(
@@ -533,12 +527,6 @@ class HostRuntime:
                 raise PersistenceFailure("WAL checkpoint did not complete during shutdown")
         finally:
             connection.close()
-        if self._remaining_shutdown_seconds(deadline) <= 0:
-            raise SomaError(
-                "INTERNAL_ERROR",
-                "shutdown deadline elapsed during WAL checkpoint",
-            )
-
         self._close_runtime_resources(deadline=deadline)
         self._set_state("STOPPED")
         return ShutdownResult("STOPPED", run_id, data_instance_id)
