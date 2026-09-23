@@ -83,6 +83,24 @@ def test_verified_stage_replacement_restores_exact_snapshot_and_keeps_emergency_
     provider = _provider(database_path, security_provider)
     stage = tmp_path / "restore-stage.db"
 
+    audit_command = new_uuid4()
+    audit_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO command_receipts("
+            "command_id,command_type,request_hash,target_type,target_id,"
+            "committed_at_utc,result_type,result_id"
+            ") VALUES (?, 'BackupAuditEvidence', ?, 'test', NULL, ?, 'test', NULL)",
+            (audit_command, "c" * 64, utc_epoch_seconds()),
+        )
+        uow.connection.execute(
+            "INSERT INTO audit_events("
+            "audit_event_id,action_type,action_version,recorded_at_utc,actor_kind,"
+            "target_type,command_id,payload_schema,payload_version,payload_json"
+            ") VALUES (?, 'test.backup_preserved', 1, ?, 'test', 'test', ?, 'BackupAuditV1', 1, '{}')",
+            (audit_id, utc_epoch_seconds(), audit_command),
+        )
+
     with ReadSnapshot(factory) as snapshot:
         provider.create_consistent_backup_snapshot(snapshot, stage)
 
@@ -118,6 +136,10 @@ def test_verified_stage_replacement_restores_exact_snapshot_and_keeps_emergency_
         assert restored.execute(
             "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
         ).fetchone()[0] == verification.data_instance_id
+        assert restored.execute(
+            "SELECT action_type,payload_json FROM audit_events WHERE audit_event_id=?",
+            (audit_id,),
+        ).fetchone() == ("test.backup_preserved", "{}")
     finally:
         restored.close()
 
