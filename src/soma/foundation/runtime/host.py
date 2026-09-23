@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
@@ -60,7 +61,9 @@ class LoopbackServerAdapter(Protocol):
 
     def authenticated_self_health(self, expected: RuntimeHealth) -> bool: ...
 
-    def stop(self) -> None: ...
+    def stop(self, timeout_seconds: float | None = None) -> None: ...
+
+    def is_stopped(self) -> bool: ...
 
 
 MigrationRunnerFactory = Callable[[Callable[[], bool]], MigrationRunner]
@@ -290,12 +293,18 @@ class HostRuntime:
     def start(self) -> RuntimeHealth:
         if self._state not in {"STOPPED", "FAILED"}:
             raise SomaError("INSTANCE_OWNED", "this HostRuntime is already active")
+        if self._state == "FAILED" and self._has_runtime_resources():
+            raise SomaError(
+                "INSTANCE_OWNED",
+                "failed runtime still owns resources pending safe cleanup",
+            )
         self._write_gate.reopen()
         self._set_state("STARTING")
-        self._paths.prepare_for_start()
-        self._run_id = new_uuid4()
-        self._started_at_utc = utc_epoch_seconds()
         try:
+            self._paths.prepare_for_start()
+            self._run_id = new_uuid4()
+            self._started_at_utc = utc_epoch_seconds()
+
             self._lock = DataInstanceLock.acquire(self._paths.lock)
             runner = self._runner_factory(lambda: bool(self._lock and self._lock.held))
             self._set_state("MIGRATING")
@@ -317,15 +326,20 @@ class HostRuntime:
             self._background_executor = HostExecutor(2, "soma-background")
             self._loopback = BoundLoopbackSocket.bind()
             locator = f"http://127.0.0.1:{self._loopback.port}"
+            # A provider may acquire resources before prepare_run returns. Mark
+            # cleanup ownership before entering the provider call so partial
+            # preparation is always paired with close_run.
+            self._security_started = True
             self._run_security.prepare_run(
                 run_id=self._run_id,
                 data_instance_id=self._data_instance_id,
                 readiness_locator=locator,
             )
-            self._security_started = True
             self._set_state("LISTENING_NOT_READY")
-            self._server.start(self._loopback.socket)
+            # Likewise, start() may create a listening thread/socket before it
+            # raises. Cleanup ownership begins before the call, not after it.
             self._server_started = True
+            self._server.start(self._loopback.socket)
 
             RuntimeRegistry.publish(
                 self._paths.registry,
@@ -353,7 +367,7 @@ class HostRuntime:
             self.record_error_code(exc.code if isinstance(exc, SomaError) else "INTERNAL_ERROR")
             self._write_gate.quiesce()
             self._set_state("FAILED")
-            self._unwind_failed_start()
+            self._unwind_failed_start(exc)
             raise
 
     def health(self) -> RuntimeHealth:
@@ -460,6 +474,10 @@ class HostRuntime:
             self._background_executor.quiesce()
         return ShutdownResult("QUIESCING", self._run_id, self._data_instance_id)
 
+    @staticmethod
+    def _remaining_shutdown_seconds(deadline: float) -> float:
+        return max(0.0, deadline - time.monotonic())
+
     def shutdown(self, *, grace_seconds: float = 30.0) -> ShutdownResult:
         if grace_seconds < 0:
             raise ValueError("grace_seconds must be nonnegative")
@@ -470,77 +488,196 @@ class HostRuntime:
         if self._state != "QUIESCING":
             self.quiesce()
 
-        if not self._write_gate.wait_for_drain(grace_seconds):
-            raise SomaError("INTERNAL_ERROR", "active authoritative writes did not drain before shutdown deadline")
+        deadline = time.monotonic() + grace_seconds
+        if not self._write_gate.wait_for_drain(
+            self._remaining_shutdown_seconds(deadline)
+        ):
+            raise SomaError(
+                "INTERNAL_ERROR",
+                "active authoritative writes did not drain before shutdown deadline",
+            )
         request_drained = (
             True
             if self._request_executor is None
-            else self._request_executor.drain(grace_seconds)
+            else self._request_executor.drain(
+                self._remaining_shutdown_seconds(deadline)
+            )
         )
         background_drained = (
             True
             if self._background_executor is None
-            else self._background_executor.drain(grace_seconds)
+            else self._background_executor.drain(
+                self._remaining_shutdown_seconds(deadline)
+            )
         )
         if not request_drained or not background_drained:
-            raise SomaError("INTERNAL_ERROR", "runtime work did not drain before shutdown deadline")
+            raise SomaError(
+                "INTERNAL_ERROR",
+                "runtime work did not drain before shutdown deadline",
+            )
+        if self._remaining_shutdown_seconds(deadline) <= 0:
+            raise SomaError(
+                "INTERNAL_ERROR",
+                "shutdown deadline elapsed before WAL checkpoint",
+            )
 
         connection = self._factory.open_authoritative(read_only=False, require_wal=True)
         try:
+            remaining_ms = max(
+                0,
+                int(self._remaining_shutdown_seconds(deadline) * 1000),
+            )
+            connection.execute(f"PRAGMA busy_timeout={remaining_ms}")
             row = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
             if row is None or int(row[0]) != 0:
                 raise PersistenceFailure("WAL checkpoint did not complete during shutdown")
         finally:
             connection.close()
+        if self._remaining_shutdown_seconds(deadline) <= 0:
+            raise SomaError(
+                "INTERNAL_ERROR",
+                "shutdown deadline elapsed during WAL checkpoint",
+            )
 
-        self._close_runtime_resources()
+        self._close_runtime_resources(deadline=deadline)
         self._set_state("STOPPED")
         return ShutdownResult("STOPPED", run_id, data_instance_id)
 
-    def _close_runtime_resources(self) -> None:
+    def _has_runtime_resources(self) -> bool:
+        return any(
+            (
+                self._request_executor is not None,
+                self._background_executor is not None,
+                self._server_started,
+                self._loopback is not None,
+                self._registry_published,
+                self._security_started,
+                self._lock is not None,
+            )
+        )
+
+    def _server_is_stopped(self) -> bool:
+        probe = getattr(self._server, "is_stopped", None)
+        if probe is None:
+            return False
+        try:
+            return bool(probe())
+        except BaseException:
+            return False
+
+    def _close_runtime_resources(self, *, deadline: float | None = None) -> None:
         run_id = self._run_id
         data_instance_id = self._data_instance_id
+        failures: list[tuple[str, BaseException]] = []
+        retain_ownership = False
+
         if self._request_executor is not None:
-            self._request_executor.close()
-            self._request_executor = None
+            try:
+                self._request_executor.close()
+            except BaseException as exc:
+                failures.append(("request_executor.close", exc))
+                retain_ownership = True
+            else:
+                self._request_executor = None
         if self._background_executor is not None:
-            self._background_executor.close()
-            self._background_executor = None
+            try:
+                self._background_executor.close()
+            except BaseException as exc:
+                failures.append(("background_executor.close", exc))
+                retain_ownership = True
+            else:
+                self._background_executor = None
+
         if self._server_started:
             try:
-                self._server.stop()
-            finally:
+                timeout_seconds = (
+                    None
+                    if deadline is None
+                    else self._remaining_shutdown_seconds(deadline)
+                )
+                self._server.stop(timeout_seconds)
+            except BaseException as exc:
+                failures.append(("server.stop", exc))
+                if self._server_is_stopped():
+                    self._server_started = False
+                else:
+                    retain_ownership = True
+            else:
                 self._server_started = False
+
         if self._loopback is not None:
-            self._loopback.close()
-            self._loopback = None
+            try:
+                self._loopback.close()
+            except BaseException as exc:
+                failures.append(("loopback.close", exc))
+            else:
+                self._loopback = None
+
+        # Security and registry identity must remain live while an adapter or
+        # executor may still perform authoritative work. The process lock is the
+        # final ownership resource and is intentionally retained in that case.
         if (
-            self._registry_published
+            not retain_ownership
+            and self._security_started
             and run_id is not None
             and data_instance_id is not None
         ):
-            RuntimeRegistry.remove_owned(
-                self._paths.registry,
-                run_id=run_id,
-                data_instance_id=data_instance_id,
-            )
-            self._registry_published = False
-        if self._security_started and run_id is not None and data_instance_id is not None:
             try:
                 self._run_security.close_run(
                     run_id=run_id,
                     data_instance_id=data_instance_id,
                 )
-            finally:
+            except BaseException as exc:
+                failures.append(("run_security.close_run", exc))
+                retain_ownership = True
+            else:
                 self._security_started = False
-        if self._lock is not None:
-            self._lock.release()
-            self._lock = None
 
-    def _unwind_failed_start(self) -> None:
+        if (
+            not retain_ownership
+            and self._registry_published
+            and run_id is not None
+            and data_instance_id is not None
+        ):
+            try:
+                RuntimeRegistry.remove_owned(
+                    self._paths.registry,
+                    run_id=run_id,
+                    data_instance_id=data_instance_id,
+                )
+            except BaseException as exc:
+                failures.append(("runtime_registry.remove_owned", exc))
+            else:
+                self._registry_published = False
+
+        if not retain_ownership and self._lock is not None:
+            try:
+                self._lock.release()
+            except BaseException as exc:
+                failures.append(("instance_lock.release", exc))
+            else:
+                self._lock = None
+
+        if failures:
+            detail = "; ".join(
+                f"{stage}: {type(exc).__name__}: {exc}"
+                for stage, exc in failures
+            )
+            raise SomaError(
+                "INTERNAL_ERROR",
+                f"runtime cleanup incomplete: {detail}",
+            )
+
+    def _unwind_failed_start(self, primary_error: BaseException) -> None:
         try:
             self._close_runtime_resources()
-        except BaseException:
-            # Startup is already failed. Do not replace the original failure with
-            # best-effort cleanup details at this boundary.
-            pass
+        except BaseException as cleanup_error:
+            self.record_error_code(
+                cleanup_error.code
+                if isinstance(cleanup_error, SomaError)
+                else "INTERNAL_ERROR"
+            )
+            primary_error.add_note(
+                "failed-start cleanup also failed: "
+                f"{type(cleanup_error).__name__}: {cleanup_error}"
+            )
