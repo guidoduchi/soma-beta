@@ -1,11 +1,11 @@
 {
   "schema": "SOMA_IMPLEMENTATION_ACCEPTANCE_REVIEW_V1",
   "packet": "LLD-07",
-  "design_sha": "e0924369170652be3a425d10210d14619f526a48",
-  "implementation_parent_sha": "7556005955c4bc20d9967801bd6b185b1688af4b",
-  "includes": "LLD-07 acceptance T001-T068 semantically audited against the current normative packet, including requester/current-context separation, exact RMA cardinality and alias non-reuse, protected hard-delete history with the LLD-09 dependency seam, subset warehouse behavior, minimized populated report contribution, T046 owner-derived BOM authority, and the preserved Fault Tag archive/restore immutability regression; supported CI and promotion are complete.",
-  "certified": true,
-  "method": "Acceptance IDs T001-T068 were matched to focused assertions and reviewed against normative Given/When/Then semantics. Strengthening tests were added where prior assertions were weaker than the acceptance case. Final certification is bound to implementation SHA be36fdcf14911e5a7cae89bc35f33a2877c53d58 and Beta implementation CI #806; promotion to main completed at fe9a9c12c289d87ed11b863e0662e267cde6e1ad.",
+  "design_sha": "92787e65d90b410d18088f844155b3557831085e",
+  "implementation_parent_sha": "04d45f2b738f223f2e87342a8e2ce134a7d8ddb5",
+  "includes": "LLD-07 T001-T068 retains its prior semantic case ledger. Current design materially strengthens T007 Stock pagination/work-scaling proof and pre-LLD-08 Reference composition evidence for T068; those deltas are implemented and pending exact-head CI recertification.",
+  "certified": false,
+  "method": "Prior T001-T068 semantic review is preserved below. Current recertification reuses unchanged case bindings, reopens only materially changed acceptance/proof obligations, and must not become certified until the current design SHA and implementation checkpoint receive supported CI plus review of the strengthened cases.",
   "cases": [
     {
       "id": "LLD07-T001",
@@ -91,15 +91,21 @@
       "id": "LLD07-T007",
       "given": "compatible available unit",
       "when": "Stock query runs",
-      "then": "unit is recommended but not reserved",
+      "then": "unit is recommended but not reserved; fixed-size pages preserve exact compatibility/display/id order through seekable indexed partitions, return the required exact total separately, and avoid a temporary ORDER BY B-tree",
       "production_owner": [
         "src/soma/inventory/services/needs_stock.py",
-        "src/soma/inventory/queries/stock_needs.py"
+        "src/soma/inventory/queries/stock_needs.py",
+        "src/soma/migrations/0012_inventory_query_indexes.sql",
+        "src/soma/schema_manifest.json"
       ],
       "focused_tests": [
-        "tests/test_inventory_needs_stock.py::test_t007_stock_query_recommends_without_reserving"
+        "tests/test_inventory_needs_stock.py::test_t007_stock_query_recommends_without_reserving",
+        "tests/test_inventory_needs_stock.py::test_stock_seek_pagination_preserves_rank_order_across_partition_boundary",
+        "tests/test_inventory_needs_stock.py::test_stock_partition_plans_use_seek_indexes_without_temp_order_sort",
+        "tests/test_inventory_needs_stock.py::test_stock_partition_vm_work_stays_bounded_for_dense_and_late_pages",
+        "tests/test_inventory_migration.py::test_sequence_twelve_adds_stock_query_indexes_without_rewriting_prefix"
       ],
-      "status": "certified_supported_ci"
+      "status": "current_recertification_pending_ci"
     },
     {
       "id": "LLD07-T008",
@@ -911,23 +917,39 @@
       "then": "Inventory blocks archive while request is nonterminal, clears after terminal state, and preserved requester creation evidence remains readable",
       "production_owner": [
         "src/soma/inventory/services/participants.py",
-        "src/soma/inventory/queries/requests_rma.py"
+        "src/soma/inventory/queries/requests_rma.py",
+        "src/soma/composition.py"
       ],
       "focused_tests": [
-        "tests/test_inventory_requester_support_acceptance.py::test_t068_active_requester_blocks_contact_archive_until_request_terminal"
+        "tests/test_inventory_requester_support_acceptance.py::test_t068_active_requester_blocks_contact_archive_until_request_terminal",
+        "tests/test_application_composition.py::test_pre_lld08_composition_declares_inventory_reference_dependency"
       ],
-      "status": "certified_supported_ci"
+      "status": "current_recertification_pending_ci"
     }
   ],
-  "certified_implementation_sha": "be36fdcf14911e5a7cae89bc35f33a2877c53d58",
-  "promotion_main_sha": "fe9a9c12c289d87ed11b863e0662e267cde6e1ad",
-  "certifying_ci": {
-    "workflow": "Beta implementation CI",
-    "run_number": 806,
-    "run_id": 35595185873,
-    "result": "success",
-    "ubuntu_python_3_14": "1215 passed, 2 skipped",
-    "windows_python_3_13": "1217 passed; wheel/resources verified",
-    "windows_python_3_14": "1217 passed; wheel/resources verified"
+  "prior_certification": {
+    "design_sha": "e0924369170652be3a425d10210d14619f526a48",
+    "certified_implementation_sha": "be36fdcf14911e5a7cae89bc35f33a2877c53d58",
+    "promotion_main_sha": "fe9a9c12c289d87ed11b863e0662e267cde6e1ad",
+    "certifying_ci": {
+      "workflow": "Beta implementation CI",
+      "run_number": 806,
+      "run_id": 35595185873,
+      "result": "success",
+      "ubuntu_python_3_14": "1215 passed, 2 skipped",
+      "windows_python_3_13": "1217 passed; wheel/resources verified",
+      "windows_python_3_14": "1217 passed; wheel/resources verified"
+    },
+    "note": "Historical certification remains evidence for the prior accepted LLD-07 packet. Current design strengthens T007 performance/query-plan acceptance and adds migration 12, so current certification must be renewed."
+  },
+  "current_candidate": {
+    "design_sha": "92787e65d90b410d18088f844155b3557831085e",
+    "implementation_sha": "04d45f2b738f223f2e87342a8e2ce134a7d8ddb5",
+    "ci": {
+      "workflow": "Beta implementation CI",
+      "run_number": 857,
+      "run_id": 35820144899,
+      "status": "in_progress_at_ledger_update"
+    }
   }
 }
