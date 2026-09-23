@@ -906,3 +906,239 @@ def test_stock_eligibility_page_has_fixed_select_budget(
     assert {
         item.spare_part_unit_id for item in first.items
     }.isdisjoint(item.spare_part_unit_id for item in second.items)
+
+
+
+def _insert_synthetic_stock_rows(
+    factory,
+    *,
+    start_ordinal: int,
+    count: int,
+    bom_key: str,
+) -> tuple[str, ...]:
+    command_id = new_uuid4()
+    unit_ids: list[str] = []
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO command_receipts("
+            "command_id,command_type,request_hash,target_type,target_id,committed_at_utc,"
+            "result_type,result_id"
+            ") VALUES (?,?,?,?,?,?,?,?)",
+            (
+                command_id,
+                "TestSyntheticStockRows",
+                "f" * 64,
+                "spare_part_unit",
+                None,
+                1,
+                None,
+                None,
+            ),
+        )
+        for offset in range(count):
+            ordinal = start_ordinal + offset
+            unit_id = new_uuid4()
+            unit_ids.append(unit_id)
+            uow.connection.execute(
+                "INSERT INTO spare_part_units("
+                "spare_part_unit_id,local_tracking_sequence,local_tracking_id,bom_code,bom_key,"
+                "manufacturer_serial,serial_key,creation_origin,origin_rma_id,"
+                "parent_spare_part_unit_id,created_at_utc,created_command_id"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    unit_id,
+                    ordinal,
+                    f"LSU-{ordinal:08d}",
+                    bom_key,
+                    bom_key,
+                    None,
+                    None,
+                    "manual_local",
+                    None,
+                    None,
+                    ordinal,
+                    command_id,
+                ),
+            )
+            uow.connection.execute(
+                "INSERT INTO spare_part_current_projection("
+                "spare_part_unit_id,condition_token,disposition_token,location_kind,"
+                "location_ref_id,custody_text,active_task_allocation_id,revision,"
+                "input_fingerprint,last_command_id"
+                ") VALUES (?, 'new', 'available', NULL, NULL, NULL, NULL, 1, ?, ?)",
+                (unit_id, "a" * 64, command_id),
+            )
+    return tuple(unit_ids)
+
+
+def test_stock_seek_pagination_preserves_rank_order_across_partition_boundary(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    service = InventoryNeedsStockService(factory)
+    query = InventoryNeedsQueryService(factory)
+    exact_ids: list[str] = []
+    incompatible_ids: list[str] = []
+
+    for ordinal in range(12):
+        exact = ordinal in {0, 2, 5, 7, 10}
+        result = service.register_spare_part_unit(
+            command_id=new_uuid4(),
+            origin="manual_local",
+            bom_code="BOM-SEEK-EXACT" if exact else "BOM-SEEK-OTHER",
+            manufacturer_serial=f"SEEK-{ordinal:03d}",
+            condition_token="new",
+        )
+        unit_id = next(
+            ref.result_id
+            for ref in result.target_refs
+            if ref.result_type == "spare_part_unit"
+        )
+        (exact_ids if exact else incompatible_ids).append(unit_id)
+
+    seen_ids: list[str] = []
+    seen_classes: list[str] = []
+    cursor = None
+    page_count = 0
+    while True:
+        page = query.stock_eligibility(
+            bom_code="BOM-SEEK-EXACT",
+            cursor=cursor,
+            limit=3,
+        )
+        page_count += 1
+        assert page.exact_total == 12
+        seen_ids.extend(item.spare_part_unit_id for item in page.items)
+        seen_classes.extend(item.compatibility_classification for item in page.items)
+        if page.continuation is None:
+            break
+        cursor = page.continuation
+
+    assert page_count >= 4
+    assert seen_ids == exact_ids + incompatible_ids
+    assert seen_classes == (
+        ["exact"] * len(exact_ids)
+        + ["incompatible"] * len(incompatible_ids)
+    )
+    assert len(seen_ids) == len(set(seen_ids)) == 12
+
+
+def test_stock_partition_plans_use_seek_indexes_without_temp_order_sort(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    _insert_synthetic_stock_rows(
+        factory,
+        start_ordinal=1,
+        count=20,
+        bom_key="BOM-PLAN-EXACT",
+    )
+    _insert_synthetic_stock_rows(
+        factory,
+        start_ordinal=21,
+        count=8,
+        bom_key="BOM-PLAN-OTHER",
+    )
+    query = InventoryNeedsQueryService(factory)
+
+    probes = (
+        (0, "BOM-PLAN-EXACT", "IDX_INV_070_SPARE_PART_UNITS_STOCK_BOM_ORDER"),
+        (2, "BOM-PLAN-EXACT", "IDX_INV_069_SPARE_PART_UNITS_STOCK_ORDER"),
+        (3, None, "IDX_INV_069_SPARE_PART_UNITS_STOCK_ORDER"),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        for rank, bom_key, expected_index in probes:
+            statements: list[str] = []
+            snapshot.connection.set_trace_callback(statements.append)
+            rows = query._stock_partition_rows(
+                snapshot.connection,
+                requested_bom_key=bom_key,
+                compatibility_rank=rank,
+                after_tracking=None,
+                after_unit_id=None,
+                limit=5,
+            )
+            snapshot.connection.set_trace_callback(None)
+            assert rows
+            page_sql = next(
+                statement
+                for statement in statements
+                if "INDEXED BY idx_inv_" in statement
+            )
+            plan = snapshot.connection.execute(
+                "EXPLAIN QUERY PLAN " + page_sql
+            ).fetchall()
+            details = tuple(str(row[3]).upper() for row in plan)
+            assert any(expected_index in detail for detail in details)
+            assert all("TEMP B-TREE" not in detail for detail in details)
+
+
+def test_stock_partition_vm_work_stays_bounded_for_dense_and_late_pages(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    query = InventoryNeedsQueryService(factory)
+    first_batch = _insert_synthetic_stock_rows(
+        factory,
+        start_ordinal=1,
+        count=100,
+        bom_key="BOM-WORK",
+    )
+
+    def measured(
+        *,
+        after_tracking: str | None = None,
+        after_unit_id: str | None = None,
+    ) -> tuple[int, tuple[object, ...]]:
+        steps = [0]
+
+        def progress() -> int:
+            steps[0] += 1
+            return 0
+
+        with ReadSnapshot(factory) as snapshot:
+            snapshot.connection.set_progress_handler(progress, 1)
+            rows = tuple(
+                query._stock_partition_rows(
+                    snapshot.connection,
+                    requested_bom_key="BOM-WORK",
+                    compatibility_rank=0,
+                    after_tracking=after_tracking,
+                    after_unit_id=after_unit_id,
+                    limit=11,
+                )
+            )
+            snapshot.connection.set_progress_handler(None, 0)
+        return steps[0], rows
+
+    small_steps, small_rows = measured()
+    assert len(small_rows) == 11
+
+    _insert_synthetic_stock_rows(
+        factory,
+        start_ordinal=101,
+        count=4900,
+        bom_key="BOM-WORK",
+    )
+    dense_steps, dense_rows = measured()
+    assert len(dense_rows) == 11
+
+    with ReadSnapshot(factory) as snapshot:
+        late = snapshot.connection.execute(
+            "SELECT spare_part_unit_id FROM spare_part_units "
+            "WHERE local_tracking_id='LSU-00004900'"
+        ).fetchone()
+    assert late is not None
+    late_steps, late_rows = measured(
+        after_tracking="LSU-00004900",
+        after_unit_id=str(late[0]),
+    )
+    assert len(late_rows) == 11
+
+    # The page seek itself should remain logarithmic/bounded as population grows;
+    # exact_total is deliberately measured by the public query separately.
+    assert dense_steps <= small_steps * 3
+    assert late_steps <= small_steps * 3
+
+    public = query.stock_eligibility(bom_code="BOM-WORK", limit=10)
+    assert public.exact_total == 5000
