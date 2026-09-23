@@ -66,6 +66,12 @@
       "migration_id": "beta_0011_inventory_draft_delete",
       "filename": "0011_inventory_draft_delete.sql",
       "sha256": "fc147866937fc7433516035579596e420f415c17d53d5b12f802fe7400afb53a"
+    },
+    {
+      "sequence": 12,
+      "migration_id": "beta_0012_inventory_query_indexes",
+      "filename": "0012_inventory_query_indexes.sql",
+      "sha256": "670b19598841f1fb131aa5768f193e4e46de7eaf8af0560cf171cebb48f569c3"
     }
   ]
 }
