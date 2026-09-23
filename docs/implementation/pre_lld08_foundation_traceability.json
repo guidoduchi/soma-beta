@@ -1,0 +1,645 @@
+{
+  "schema": "SOMA_PRE_LLD08_FOUNDATION_SEMANTIC_TRACEABILITY_V1",
+  "lld_id": "LLD-01",
+  "design_sha": "50ee192b60a6c7a37bdac660acb927139a70b08c",
+  "implementation_head_at_binding": "b8e4f3d3aa7a4bf73cbcce7f937ffb3eaf47f2b6",
+  "source_acceptance": [
+    "spec/lld/foundation-runtime/tests/acceptance.json",
+    "spec/lld/foundation-runtime/tests/diagnostics-acceptance.json"
+  ],
+  "module_map": "spec/lld/foundation-runtime/implementation/module-map.json",
+  "method": "Each normative acceptance scenario is semantically reviewed against the current production owner path and named executable tests. This ledger does not infer correctness from marker presence. A case can be binding-complete while certification remains pending current supported CI.",
+  "certified": false,
+  "certification_rule": "Set certified=true only after the exact candidate implementation head is green on all supported implementation CI legs, including release-schema verification, design pin, wheel build and packaged authority-resource verification. Any later production/design change reopens affected cases.",
+  "known_limits": [
+    "Production SQLCipher key-provider implementation remains LLD-12-owned; LLD-01 tests use the explicit provider seam and must not be cited as LLD-12 release certification.",
+    "LLD-08 Infrastructure has not been started.",
+    "The separate mechanical acceptance-marker reporter remains report-only and is not semantic certification."
+  ],
+  "cases": [
+    {
+      "id": "LLD01-T001",
+      "owners": [
+        "src/soma/foundation/persistence/connections.py",
+        "src/soma/foundation/persistence/uow.py"
+      ],
+      "tests": [
+        "tests/test_foundation_connection_safety.py::test_ignored_safety_setting_blocks_authoritative_connection",
+        "tests/test_foundation_connection_safety.py::test_extension_disable_failure_blocks_and_closes_connection",
+        "tests/test_foundation_connection_safety.py::test_read_connection_verifies_all_required_settings",
+        "tests/test_foundation_connection_safety.py::test_authoritative_connection_cannot_cross_threads",
+        "tests/test_foundation_connection_safety.py::test_production_authoritative_driver_connect_is_centralized",
+        "tests/test_foundation_persistence.py::test_nested_authoritative_uow_is_rejected"
+      ],
+      "note": "ConnectionFactory is the authoritative DB boundary; required pragmas are verified per connection, check_same_thread remains enabled, unmanaged production connects are statically rejected and nested authoritative UoWs fail closed.",
+      "covers": [
+        "BETA-REQ-0003",
+        "BETA-REQ-0131"
+      ],
+      "scenario": "every authoritative connection path uses ConnectionFactory",
+      "prove": [
+        "foreign_keys=1",
+        "required connection pragmas verified",
+        "unmanaged/unsafe connection cannot enter repository/UoW",
+        "connection does not cross threads"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T002",
+      "owners": [
+        "src/soma/foundation/migrations/verification.py",
+        "src/soma/schema_manifest.json",
+        "src/soma/fk_index_exceptions.json",
+        "src/soma/migrations/0013_fk_index_coverage.sql"
+      ],
+      "tests": [
+        "tests/test_foundation_fk_index_coverage.py::test_fk_index_coverage_accepts_full_leading_prefix_and_wider_index",
+        "tests/test_foundation_fk_index_coverage.py::test_fk_index_coverage_accepts_sqlite_owned_primary_key_autoindex",
+        "tests/test_foundation_fk_index_coverage.py::test_fk_index_coverage_rejects_missing_or_dropped_index",
+        "tests/test_foundation_fk_index_coverage.py::test_fk_index_coverage_rejects_wrong_leading_order_and_expression_keys",
+        "tests/test_foundation_fk_index_coverage.py::test_fk_index_coverage_rejects_structural_match_with_unusable_collation",
+        "tests/test_foundation_fk_index_coverage.py::test_fk_index_coverage_accepts_closed_nullable_partial_shape",
+        "tests/test_foundation_fk_index_coverage.py::test_fk_index_coverage_rejects_unsafe_partial_predicates",
+        "tests/test_foundation_fk_index_coverage.py::test_sequence_thirteen_adds_only_missing_fk_lookup_indexes_and_preserves_prefix",
+        "tests/test_foundation_fk_index_coverage.py::test_current_release_fk_coverage_fails_if_required_forward_index_is_missing"
+      ],
+      "note": "Complete release-schema FK analysis is now runtime-enforced. Sequence 13 adds only the three ordinary missing lookup indexes; accepted PK/UNIQUE autoindexes and closed nullable IS NOT NULL partial indexes qualify without redundant full indexes.",
+      "covers": [
+        "BETA-REQ-0131"
+      ],
+      "scenario": "FK-to-index analyser over complete release schema",
+      "prove": [
+        "every child FK has usable leading-prefix index or accepted measured exception",
+        "disabled/missing index fails acceptance",
+        "explicitly allocated nullable-FK IS NOT NULL partial indexes pass without a redundant full index",
+        "lifecycle-filtered, unrelated-column, expression-key and wrong-leading-order indexes do not establish coverage",
+        "coverage proof does not depend on current row contents"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T003",
+      "owners": [
+        "src/soma/foundation/migrations/manifest.py",
+        "src/soma/foundation/migrations/runner.py",
+        "src/soma/foundation/migrations/verification.py",
+        "src/soma/migrations/manifest.json"
+      ],
+      "tests": [
+        "tests/test_foundation_persistence.py::test_manifest_and_clean_initialization_are_current",
+        "tests/test_foundation_durable_job_migration.py::test_exact_prefix_seven_upgrade_matches_fresh_current_schema_and_preserves_legacy_jobs",
+        "tests/test_foundation_durable_job_migration.py::test_failed_sequence_eight_upgrade_leaves_exact_prefix_seven",
+        "tests/test_foundation_replay_results.py::test_migration_five_preserves_legacy_receipts",
+        "tests/test_foundation_fk_index_coverage.py::test_sequence_thirteen_adds_only_missing_fk_lookup_indexes_and_preserves_prefix"
+      ],
+      "note": "Clean init and supported forward origins are exercised with ledger preservation and failure-safe prefix behavior. Later Foundation migrations remain forward-only and historical accepted rows are not rewritten.",
+      "covers": [
+        "BETA-REQ-0132"
+      ],
+      "scenario": "clean initialization and every supported migration origin",
+      "prove": [
+        "schema+ledger commit together",
+        "failure leaves last committed version",
+        "clean-init temp database is never published before full verification",
+        "retry applies each accepted migration exactly once",
+        "accepted 1..4 database advances through Foundation sequence 5 without rewriting prior migration rows or command receipts",
+        "accepted exact 1..7 database advances through Foundation sequence 8 without rewriting migrations 1..7 or changing any preexisting durable_jobs/job_attempts value inside the migration transaction except the new nullable dedupe_sha256 column reading NULL",
+        "post-migration startup reconciliation finishes before READY and leaves no nonterminal legacy row with dedupe_sha256 NULL claimable"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T004",
+      "owners": [
+        "src/soma/foundation/migrations/manifest.py",
+        "src/soma/foundation/migrations/runner.py",
+        "src/soma/foundation/migrations/verification.py"
+      ],
+      "tests": [
+        "tests/test_foundation_regressions.py::test_migration_drift_after_manifest_load_fails_before_database_creation",
+        "tests/test_foundation_regressions.py::test_migration_bytes_are_revalidated_before_execution",
+        "tests/test_foundation_regressions.py::test_migration_manifest_rejects_structural_and_byte_drift",
+        "tests/test_foundation_schema_verification.py::test_migration_ledger_drift_is_rejected"
+      ],
+      "note": "Missing/renamed/reordered/CRLF/BOM/content/hash/ledger drift is fail-closed; runtime does not rewrite accepted truth to match unexpected bytes.",
+      "covers": [
+        "BETA-REQ-0133"
+      ],
+      "scenario": "accepted migration drift matrix",
+      "prove": [
+        "missing/renamed/reordered/CRLF/BOM/content/hash/ledger changes block readiness",
+        "runtime never rewrites manifest or ledger to match unexpected bytes"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T005",
+      "owners": [
+        "src/soma/foundation/queries/status.py",
+        "src/soma/foundation/migrations/manifest.py"
+      ],
+      "tests": [
+        "tests/test_foundation_runtime_status.py::test_offline_migration_status_is_observational_and_requires_existing_layout",
+        "tests/test_foundation_runtime_status.py::test_offline_status_refuses_direct_inspection_while_instance_lock_is_held",
+        "tests/test_foundation_runtime_status.py::test_offline_status_detects_sidecars_without_opening_database"
+      ],
+      "note": "Offline migration/status reads remain observational: missing targets stay missing, ownership blocks direct inspection and sidecars are classified without opening a writer.",
+      "covers": [
+        "BETA-REQ-0134"
+      ],
+      "scenario": "migration status filesystem snapshot",
+      "prove": [
+        "missing target stays missing",
+        "no directory/database/WAL/SHM/journal/diagnostic/default is created",
+        "current offline target bytes/mtime are unchanged",
+        "unsafe offline sidecar state returns limited classification without touching writer"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T006",
+      "owners": [
+        "src/soma/foundation/application/command_boundary.py",
+        "src/soma/foundation/application/command_receipts.py",
+        "src/soma/foundation/persistence/uow.py",
+        "src/soma/foundation/audit/writer.py"
+      ],
+      "tests": [
+        "tests/test_foundation_multi_audit.py::test_second_required_audit_failure_rolls_back_receipt_first_audit_and_domain_mutation",
+        "tests/test_foundation_replay_results.py::test_result_insert_failure_rolls_back_receipt_domain_audit_and_snapshot",
+        "tests/test_foundation_response_factory.py::test_response_factory_failure_rolls_back_all_authoritative_writes",
+        "tests/test_foundation_regressions.py::test_commit_failure_explicitly_rolls_back_and_surfaces_rollback_failure"
+      ],
+      "note": "Material mutation, receipt, exact response snapshot and all required audits share one outer UoW. Required audit/result/commit failures cannot report success with partial authoritative state.",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0135",
+        "BETA-REQ-0143"
+      ],
+      "scenario": "accepted command atomicity",
+      "prove": [
+        "domain mutation + required lifecycle event + command receipt + exact replay-result snapshot + audit all commit or all rollback",
+        "constraint/audit/result-snapshot/disk failure never reports success"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T007",
+      "owners": [
+        "src/soma/foundation/audit/writer.py",
+        "src/soma/migrations/0001_foundation.sql",
+        "src/soma/foundation/persistence/backup_snapshot.py"
+      ],
+      "tests": [
+        "tests/test_foundation_persistence.py::test_audit_tables_are_append_only",
+        "tests/test_foundation_schema_verification.py::test_same_name_weakened_append_only_trigger_is_rejected",
+        "tests/test_foundation_backup_snapshot.py::test_verified_stage_replacement_restores_exact_snapshot_and_keeps_emergency_copy"
+      ],
+      "note": "Duplicate identity, UPDATE and DELETE are directly exercised; AuditWriter contains no ignore/replace/update/delete persistence path; verified backup/restore preserves audit evidence.",
+      "covers": [
+        "BETA-REQ-0143"
+      ],
+      "scenario": "audit append-only protection",
+      "prove": [
+        "plain duplicate audit insert fails",
+        "UPDATE fails",
+        "DELETE fails",
+        "OR IGNORE/REPLACE is absent from audit repository",
+        "backup/restore verification preserves audit rows"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T008",
+      "owners": [
+        "src/soma/foundation/audit/registry.py",
+        "src/soma/foundation/audit/writer.py",
+        "src/soma/foundation/strict_json.py",
+        "src/soma/tickets/audit_registry.py",
+        "src/soma/product_line_sla/audit_registry.py",
+        "src/soma/inventory/audit_registry.py"
+      ],
+      "tests": [
+        "tests/test_foundation_audit_allocations.py::test_sla_batch_allocation_accepts_500_audit_result_refs",
+        "tests/test_foundation_audit_allocations.py::test_sla_batch_allocation_rejects_501_audit_result_refs",
+        "tests/test_foundation_audit_allocations.py::test_inventory_bulk_allocation_accepts_2000_typed_payload_refs",
+        "tests/test_foundation_audit_allocations.py::test_unlisted_audit_action_cannot_widen_foundation_payload_limit",
+        "tests/test_foundation_audit_allocations.py::test_ordinary_audit_action_rejects_more_than_128_result_refs",
+        "tests/test_ticket_working_notes.py::test_working_note_bounds_reject_without_mutation_and_accept_maximum_bytes",
+        "tests/test_ticket_working_notes.py::test_working_note_edit_and_remove_allow_bounded_json_escape_expansion"
+      ],
+      "note": "Foundation now owns effective audit ceilings centrally. Exact reviewed exceptions cover Working Note history, LLD-06 500-ref batch classification and LLD-07 2000-ref bulk summary; unlisted actions remain at the ordinary Foundation ceilings.",
+      "covers": [
+        "BETA-REQ-0144"
+      ],
+      "scenario": "audit payload registry negative vectors",
+      "prove": [
+        "unknown field/duplicate key/nonfinite/oversized/deep/excessive/sensitive payload rejects",
+        "associated mutation rolls back",
+        "historical payload version remains readable without rewrite",
+        "ordinary audit payload over 16384 UTF-8 bytes or more than 128 audit result refs rejects",
+        "only exact listed action-schema-version tuples receive larger allocations; unlisted versions never inherit them",
+        "Working Note edit/removal receive 524288 payload bytes; 65536-byte note evidence including worst-case JSON escaping fits with bounded metadata and 65537-byte note evidence rejects without truncation",
+        "LLD-06 batch classification receives 32768 payload bytes and at most 500 immutable classification-event audit result refs, sufficient for its accepted 500-target batch without widening other actions",
+        "LLD-07 inventory.bulk.accepted receives 262144 payload bytes for its accepted 2000 typed payload refs; its audit_event_results remain under the ordinary 128-ref limit",
+        "exceptions do not admit unknown fields, secrets, excess nesting or unauthorized result refs; any audit failure rolls back receipt and owner mutation",
+        "AddWorkingNote and EditWorkingNote transport accept valid maximum-size escaped note bodies within their exact route ceiling; unrelated route ceilings remain unchanged"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T009",
+      "owners": [
+        "src/soma/foundation/strict_json.py"
+      ],
+      "tests": [
+        "tests/test_foundation_json.py::test_strict_json_rejects_duplicate_keys",
+        "tests/test_foundation_json.py::test_strict_json_rejects_nonfinite",
+        "tests/test_foundation_json.py::test_object_contract_rejects_unknown_and_missing_fields",
+        "tests/test_foundation_regressions.py::test_strict_json_rejects_invalid_unicode_and_overflow",
+        "tests/test_foundation_regressions.py::test_json_contract_enforces_declared_depth_without_recursion_error",
+        "tests/test_foundation_regressions.py::test_canonical_json_rejects_unpaired_surrogate_with_stable_error"
+      ],
+      "note": "Strict/canonical JSON rejects duplicate keys, nonfinite numbers, invalid Unicode, unknown/missing fields and bound violations without collapsing missing/null/empty semantics.",
+      "covers": [
+        "BETA-REQ-0136"
+      ],
+      "scenario": "strict JSON vectors",
+      "prove": [
+        "duplicate keys/NaN/Infinity/malformed UTF-8/unknown version follow contract",
+        "missing/null/empty remain distinguishable",
+        "failed upgrade preserves previous document"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T010",
+      "owners": [
+        "src/soma/foundation/runtime/instance_lock.py",
+        "src/soma/foundation/runtime/host.py"
+      ],
+      "tests": [
+        "tests/test_foundation_runtime_primitives.py::test_data_instance_lock_is_cross_process_exclusive",
+        "tests/test_foundation_runtime_instance_lock.py::test_same_process_contender_cannot_drop_winning_os_lock",
+        "tests/test_foundation_runtime_instance_lock.py::test_hard_link_alias_cannot_bypass_process_ownership",
+        "tests/test_foundation_runtime_host.py::test_host_reaches_ready_only_after_verified_migration_security_server_and_self_health"
+      ],
+      "note": "Canonical instance ownership is exclusive across processes, same-process races and hard-link aliases; competing ownership cannot progress into migration/host authority.",
+      "covers": [
+        "BETA-REQ-0140"
+      ],
+      "scenario": "two concurrent launches against same data instance",
+      "prove": [
+        "one holds instance lock",
+        "second never migrates or binds competing authoritative host",
+        "verified-existing-instance path is used or second exits safely"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T011",
+      "owners": [
+        "src/soma/foundation/runtime/loopback.py",
+        "src/soma/foundation/runtime/server.py",
+        "src/soma/foundation/runtime/registry.py"
+      ],
+      "tests": [
+        "tests/test_foundation_runtime_primitives.py::test_loopback_socket_is_prebound_only_to_ipv4_loopback",
+        "tests/test_foundation_runtime_primitives.py::test_runtime_registry_rejects_nonloopback_locator",
+        "tests/test_foundation_uvicorn_adapter.py::test_uvicorn_adapter_serves_on_prebound_loopback_socket",
+        "tests/test_foundation_uvicorn_adapter.py::test_uvicorn_adapter_disables_proxy_authority_and_uses_one_worker"
+      ],
+      "note": "Socket is pre-bound to 127.0.0.1, Windows exclusive-address-use is asserted when available, non-loopback/wildcard/LAN/localhost registry locators are rejected and Uvicorn proxy headers are disabled.",
+      "covers": [
+        "BETA-REQ-0140"
+      ],
+      "scenario": "loopback bind and port-race resistance",
+      "prove": [
+        "only 127.0.0.1 is bound",
+        "SO_EXCLUSIVEADDRUSE is applied on Windows",
+        "socket is pre-bound before Uvicorn receives it",
+        "wildcard/LAN/proxy-forwarded authority is rejected"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T012",
+      "owners": [
+        "src/soma/foundation/runtime/registry.py",
+        "src/soma/foundation/runtime/host.py",
+        "src/soma/foundation/api/routes_foundation.py"
+      ],
+      "tests": [
+        "tests/test_foundation_runtime_primitives.py::test_runtime_registry_is_atomic_exact_owned_and_contains_no_secret_fields",
+        "tests/test_foundation_runtime_routes.py::test_foundation_route_facade_rejects_mismatched_authenticated_run",
+        "tests/test_foundation_runtime_host.py::test_host_failure_after_registry_publication_unwinds_only_current_owned_resources"
+      ],
+      "note": "Registry removal binds exact run_id + data_instance_id, not PID/port presence; authenticated run mismatch is rejected and cleanup removes only current-owned registry state.",
+      "covers": [
+        "BETA-REQ-0140"
+      ],
+      "scenario": "runtime registry stale/PID/port reuse",
+      "prove": [
+        "file/PID/port alone never establishes identity",
+        "registry mismatch never causes unrelated shutdown",
+        "registry is removed only for exact current run/data identity"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T013",
+      "owners": [
+        "src/soma/foundation/application/command_boundary.py",
+        "src/soma/foundation/application/command_receipts.py",
+        "src/soma/migrations/0005_command_replay_results.sql"
+      ],
+      "tests": [
+        "tests/test_foundation_replay_results.py::test_exact_replay_result_is_state_independent",
+        "tests/test_foundation_replay_results.py::test_corrupt_or_noncanonical_result_snapshot_fails_closed",
+        "tests/test_foundation_response_factory.py::test_rfc_branch_reviewed_allocation_matches_normative_worst_case_derivation",
+        "tests/test_foundation_response_factory.py::test_rfc_branch_reviewed_allocation_enforces_exact_schema_version_and_bounds",
+        "tests/test_foundation_response_factory.py::test_inventory_mutation_reviewed_replay_allocation_covers_2000_target_batch",
+        "tests/test_foundation_response_factory.py::test_inventory_mutation_reviewed_allocation_is_exact_to_version"
+      ],
+      "note": "Replay returns immutable stored typed results before prepare/owner reads and fails closed on integrity damage. Elevated replay bounds are exact schema/version allocations for RFC branches and the reviewed Inventory 2000-target result.",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0143"
+      ],
+      "scenario": "command transport replay",
+      "prove": [
+        "same command_id + same command_type + same request_hash returns byte-equivalent prior typed result from immutable command_receipt_results",
+        "replay path performs no command prepare, owner repository/projection read, mutation, participant call or duplicate audit/event",
+        "later changes to target or unrelated state cannot change replay result",
+        "same command_id with different command_type or hash fails IDEMPOTENCY_CONFLICT",
+        "stored-result schema/hash/canonicalization corruption fails closed rather than falling back to current state",
+        "schema/version-specific replay allocations are exact: RfcBranchV1 v1 accepts the reviewed 32 MiB/depth-8/8192 allocation and InventoryMutationResultV1 v1 accepts 512 KiB/depth-8/8192 for the LLD-07 2000-target bulk response; unlisted versions cannot inherit elevated allocations, and replay applies the same exact tuple bounds used at commit"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T014",
+      "owners": [
+        "src/soma/foundation/persistence/uow.py",
+        "src/soma/foundation/persistence/connections.py"
+      ],
+      "tests": [
+        "tests/test_foundation_persistence.py::test_concurrent_writer_busy_is_retryable_while_reader_sees_consistent_snapshot",
+        "tests/test_foundation_runtime_status.py::test_persistence_metrics_follow_verified_connections_and_transactions"
+      ],
+      "note": "BEGIN IMMEDIATE contention maps to retryable PersistenceBusy while WAL readers retain a consistent snapshot; connection/transaction accounting remains verified.",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0131"
+      ],
+      "scenario": "concurrent bounded writers/readers",
+      "prove": [
+        "BEGIN IMMEDIATE contention returns retryable busy rather than partial write",
+        "readers remain consistent",
+        "no write transaction includes artificial wait/operator/file parsing"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T015",
+      "owners": [
+        "src/soma/foundation/runtime/host.py",
+        "src/soma/foundation/runtime/server.py",
+        "src/soma/foundation/persistence/connections.py"
+      ],
+      "tests": [
+        "tests/test_foundation_runtime_host.py::test_shutdown_request_commits_one_receipt_audit_then_closes_writer_admission",
+        "tests/test_foundation_runtime_host.py::test_shutdown_passes_one_decreasing_deadline_budget_to_all_waiting_stages",
+        "tests/test_foundation_runtime_host.py::test_zero_grace_still_attempts_nonblocking_checkpoint_and_cleanup_when_idle",
+        "tests/test_foundation_runtime_host.py::test_shutdown_drain_timeout_retains_ownership_and_can_be_retried",
+        "tests/test_foundation_uvicorn_adapter.py::test_uvicorn_stop_respects_zero_remaining_budget_and_can_retry",
+        "tests/test_foundation_starlette_smoke.py::test_real_starlette_uvicorn_foundation_flow_dispatches_through_host_and_restarts"
+      ],
+      "note": "Quiescence closes new writer/executor admission, drains under one decreasing deadline, checkpoints WAL, stops server and releases ownership only after cleanup is proven safe; failed drains/stops retain ownership for retry.",
+      "covers": [
+        "BETA-REQ-0140"
+      ],
+      "scenario": "graceful shutdown under idle and active work",
+      "prove": [
+        "new mutations stop at QUIESCING",
+        "active UoWs finish/rollback",
+        "WAL checkpoint/connection close/socket close/lock release occur in order",
+        "repeated shutdown is safe"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T016",
+      "owners": [
+        "src/soma/foundation/migrations/runner.py",
+        "src/soma/foundation/persistence/backup_snapshot.py",
+        "src/soma/foundation/runtime/host.py"
+      ],
+      "tests": [
+        "tests/test_foundation_persistence.py::test_data_instance_identity_survives_reopen_and_path_alias_and_new_instance_is_unique",
+        "tests/test_foundation_backup_snapshot.py::test_verified_stage_replacement_restores_exact_snapshot_and_keeps_emergency_copy",
+        "tests/test_foundation_starlette_smoke.py::test_real_starlette_uvicorn_foundation_flow_dispatches_through_host_and_restarts"
+      ],
+      "note": "Data-instance identity is persisted in the database, survives reopen/path-display aliases and restore, remains stable across runtime restart, and a new clean instance receives a distinct identity.",
+      "covers": [
+        "BETA-REQ-0003",
+        "BETA-REQ-0140"
+      ],
+      "scenario": "data-instance identity continuity",
+      "prove": [
+        "new clean instance gets one stable data_instance_id",
+        "restart/path display changes do not change it",
+        "restore preserves restored identity",
+        "new empty instance never reuses prior identity"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T017",
+      "owners": [
+        "src/soma/foundation/runtime/server.py",
+        "pyproject.toml",
+        ".github/workflows/implementation-ci.yml"
+      ],
+      "tests": [
+        "tests/test_foundation_uvicorn_adapter.py::test_uvicorn_adapter_serves_on_prebound_loopback_socket",
+        "tests/test_foundation_uvicorn_adapter.py::test_uvicorn_adapter_disables_proxy_authority_and_uses_one_worker",
+        "tests/test_foundation_starlette_smoke.py::test_real_starlette_uvicorn_foundation_flow_dispatches_through_host_and_restarts"
+      ],
+      "note": "Starlette/Uvicorn execute directly with one worker and no Node runtime dependency. Supported Python 3.13/3.14 Windows plus 3.14 Ubuntu evidence remains an exact-head CI certification requirement.",
+      "covers": [
+        "BETA-REQ-0138"
+      ],
+      "scenario": "dependency/runtime compatibility",
+      "prove": [
+        "Starlette/Uvicorn direct dependency set imports and executes startup/shutdown on both supported Python lines",
+        "no installed Node.js is needed at runtime",
+        "server uses one worker"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T018",
+      "owners": [
+        "src/soma/foundation/application/command_boundary.py",
+        "src/soma/foundation/application/command_receipts.py"
+      ],
+      "tests": [
+        "tests/test_foundation_replay_results.py::test_no_change_persists_exact_response_without_audit",
+        "tests/test_foundation_persistence.py::test_command_replay_mutates_and_audits_exactly_once"
+      ],
+      "note": "Accepted semantic NO_CHANGE persists one receipt plus exact immutable response, emits no fabricated domain audit/mutation and replays from stored result; command-id hash conflicts remain integrity failures.",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0143"
+      ],
+      "scenario": "accepted semantic no-op idempotency",
+      "prove": [
+        "fresh preconditions prove requested state already equals accepted target state",
+        "command_receipt commits with result_type=NO_CHANGE plus exact immutable NO_CHANGE response snapshot",
+        "no domain row/revision/lifecycle event/audit event is fabricated",
+        "lost-response retry with same command_id/type/hash returns the exact stored NO_CHANGE response even if unrelated state later changes",
+        "same command_id with different hash still fails integrity"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T019",
+      "owners": [
+        "src/soma/foundation/queries/status.py",
+        "src/soma/foundation/contracts/foundation.py"
+      ],
+      "tests": [
+        "tests/test_foundation_runtime_status.py::test_foundation_diagnostics_are_bounded_counts_only",
+        "tests/test_foundation_runtime_status.py::test_offline_migration_status_is_observational_and_requires_existing_layout"
+      ],
+      "note": "Diagnostics expose bounded technical counts/categories and sanitized codes only; reads remain observational and do not materialize durable-job payload/checkpoint bodies.",
+      "covers": [
+        "BETA-REQ-0140"
+      ],
+      "scenario": "Foundation diagnostics state is bounded, observational and non-sensitive",
+      "prove": [
+        "GetFoundationDiagnosticsState returns only bounded technical counts/categories and sanitized Foundation error codes",
+        "query performs no domain or technical mutation and creates no audit/diagnostic side effect merely because it was read",
+        "no domain body, customer data, SQLCipher key, session/run credential, raw exception, filesystem path or communication content is returned",
+        "durable-job counts are derived with bounded indexed reads and do not materialize job payload/checkpoint JSON"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T020",
+      "owners": [
+        "src/soma/migrations/0005_command_replay_results.sql",
+        "src/soma/foundation/migrations/runner.py",
+        "src/soma/foundation/application/command_receipts.py"
+      ],
+      "tests": [
+        "tests/test_foundation_replay_results.py::test_migration_five_preserves_legacy_receipts",
+        "tests/test_foundation_replay_results.py::test_replay_result_rows_are_append_only"
+      ],
+      "note": "Forward sequence 5 adds exact replay-result storage/guards without rewriting accepted 1..4 migration identities or legacy command receipts.",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0132"
+      ],
+      "scenario": "forward replay-result migration preserves legacy receipts",
+      "prove": [
+        "accepted/applied migrations 1..4 remain byte/identity/sequence stable",
+        "sequence 5 creates only command_receipt_results plus its append-only guards",
+        "all legacy command_receipts survive with identical columns/values/count",
+        "migration performs no current-domain reads or synthetic result backfill",
+        "historical migration-5 allocation repair changed only then-unimplemented future allocations and never rewrote migrations 1..4"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T021",
+      "owners": [
+        "src/soma/foundation/application/command_boundary.py",
+        "src/soma/foundation/application/command_receipts.py"
+      ],
+      "tests": [
+        "tests/test_foundation_replay_results.py::test_legacy_receipt_without_exact_result_never_prepares"
+      ],
+      "note": "A matching legacy receipt without an exact stored result returns IDEMPOTENCY_RESULT_UNAVAILABLE before prepare, rerun or owner-state reconstruction.",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0143"
+      ],
+      "scenario": "legacy committed replay result unavailable",
+      "prove": [
+        "matching legacy receipt without exact result companion returns IDEMPOTENCY_RESULT_UNAVAILABLE",
+        "prepare callback is never invoked",
+        "owner tables/projections are not read to fabricate the response",
+        "no receipt/domain/audit/history row is rewritten or duplicated",
+        "new command identity is not silently substituted and original command is never rerun"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD01-T022",
+      "owners": [
+        "src/soma/foundation/jobs/coordinator.py",
+        "src/soma/migrations/0008_durable_job_coalescing.sql",
+        "src/soma/foundation/runtime/host.py"
+      ],
+      "tests": [
+        "tests/test_foundation_durable_job_migration.py::test_exact_prefix_seven_upgrade_matches_fresh_current_schema_and_preserves_legacy_jobs",
+        "tests/test_foundation_durable_jobs.py::test_enqueue_coalesces_by_registered_semantic_key_without_persisting_raw_key",
+        "tests/test_foundation_durable_jobs.py::test_hash_candidate_payload_disagreement_and_duplicate_candidates_fail_closed",
+        "tests/test_foundation_durable_jobs.py::test_retry_wait_due_time_and_full_claim_token_reject_stale_attempt",
+        "tests/test_foundation_durable_jobs.py::test_startup_recovery_terminalizes_legacy_null_jobs_and_is_idempotent",
+        "tests/test_foundation_durable_jobs.py::test_stale_prior_run_recovery_records_interruption_before_retry",
+        "tests/test_foundation_durable_jobs.py::test_restore_reconciliation_cancels_all_nonterminal_jobs_without_touching_completed",
+        "tests/test_foundation_durable_job_claim_guard.py::test_owner_guard_fails_closed_on_current_checkpoint_payload_or_dedupe_corruption",
+        "tests/test_foundation_durable_job_terminal_cancel.py::test_terminal_cancellation_replay_precedes_packet_authorization"
+      ],
+      "note": "Durable-job dedupe identity, claim tokens, retry timing, cancellation, legacy-null recovery, prior-run interruption and restore reconciliation are all bound to indexed persisted authority and fail closed on contract/corruption ambiguity.",
+      "covers": [
+        "BETA-REQ-0131",
+        "BETA-REQ-0132",
+        "BETA-REQ-0140"
+      ],
+      "scenario": "durable-job indexed semantic coalescing, exact claims and recovery",
+      "prove": [
+        "sequence 8 adds only durable_jobs.dedupe_sha256 plus idx_jobs_dedupe_state and uq_jobs_active_dedupe while accepted 1..7 remain byte/identity/sequence stable",
+        "clean init and exact 1..7 upgrade converge on the same schema; migration itself preserves every legacy durable job/attempt value and gives legacy rows dedupe_sha256 NULL",
+        "before READY startup recovery terminalizes every nonterminal legacy-NULL job as failed with LEGACY_JOB_DEDUPE_UNAVAILABLE, never derives a semantic key from historical payload, records one interrupted attempt only for an unrepresented legacy running ordinal, and leaves terminal legacy rows unchanged",
+        "after startup recovery no queued/running/waiting_review/retry_wait row with dedupe_sha256 NULL is claimable",
+        "new enqueue validates registered payload and exact packet-derived semantic dedupe key before persisting only its bounded lowercase SHA-256 identity; raw dedupe key is not persisted merely for coalescing",
+        "same registered active semantic key coalesces to one job and concurrent duplicate active insertion is rejected by uq_jobs_active_dedupe",
+        "packet-declared completed-state coalescing is supported through indexed lookup without weakening the active uniqueness rule",
+        "dedupe hash collision, persisted payload/key disagreement, duplicate candidate matches, unknown contract/version, malformed/noncanonical/oversized payload or checkpoint fail closed without executing the job",
+        "claim ordering is deterministic and retry_wait is not claimable before next_attempt_at_utc",
+        "claim/checkpoint/complete/fail bind job_id + run_id + attempt_ordinal + claim_started_at_utc so a stale same-run prior attempt cannot mutate a newer attempt",
+        "one terminal/interrupted job_attempts row exists per ended running attempt ordinal and cancellation/recovery cannot duplicate it",
+        "stale prior-run recovery records interrupted evidence before applying the exact registered crash policy and is replay/idempotency safe",
+        "restore reconciliation invalidates restored nonterminal work before READY and never fabricates domain lifecycle state"
+      ],
+      "binding_status": "reviewed",
+      "certification_status": "pending_exact_head_ci"
+    }
+  ]
+}
