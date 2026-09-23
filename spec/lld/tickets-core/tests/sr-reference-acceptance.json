@@ -29,7 +29,7 @@
     {
       "id": "SRC005",
       "given": "reviewed existing Contact and current SR Customer",
-      "when": "customer_contact relationship opens",
+      "when": "customer_contact relationship opens, its Contact affiliation independently changes later, and the current SR point context is read",
       "then": "Contact identity is unchanged and customer_org_context_id records organization-at-use; a later independent LLD-02 Contact affiliation change preserves that snapshot, while the active SR point-query warning reports a known current Contact/SR Customer mismatch without altering either relationship"
     },
     {
@@ -41,7 +41,7 @@
     {
       "id": "SRC007",
       "given": "same affiliation mismatch with fresh explicit review",
-      "when": "relationship opens",
+      "when": "the mismatched relationship opens with fresh explicit review and the current SR point context is read",
       "then": "SR relationship records context while LLD-02 Contact affiliation is not rewritten; an accepted reviewed mismatch remains valid, and its current-state point-query warning describes a continuing mismatch without retroactively undoing review or altering the stored organization-at-use"
     },
     {
