@@ -37,6 +37,28 @@ def _child_lock_attempt(path: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _raw_posix_lock_attempt(path: Path) -> subprocess.CompletedProcess[str]:
+    script = (
+        "import fcntl, os, sys\n"
+        "handle = open(sys.argv[1], 'r+b')\n"
+        "try:\n"
+        "    fcntl.lockf(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB, 1, 0, os.SEEK_SET)\n"
+        "except OSError:\n"
+        "    print('INSTANCE_OWNED')\n"
+        "    raise SystemExit(3)\n"
+        "else:\n"
+        "    print('ACQUIRED')\n"
+        "    fcntl.lockf(handle.fileno(), fcntl.LOCK_UN, 1, 0, os.SEEK_SET)\n"
+    )
+    return subprocess.run(
+        [sys.executable, "-c", script, str(path)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+
 def test_same_process_contender_cannot_drop_winning_os_lock(tmp_path) -> None:
     path = (tmp_path / "instance.lock").resolve()
     path.write_bytes(b"\0")
@@ -85,10 +107,21 @@ def test_same_process_contender_cannot_drop_winning_os_lock(tmp_path) -> None:
     assert blocked.returncode == 3
     assert blocked.stdout.strip() == "INSTANCE_OWNED"
 
+    if os.name != "nt":
+        legacy_blocked = _raw_posix_lock_attempt(path)
+        assert legacy_blocked.returncode == 3
+        assert legacy_blocked.stdout.strip() == "INSTANCE_OWNED"
+
     held[0].release()
+
     reacquired = _child_lock_attempt(path)
     assert reacquired.returncode == 0
     assert reacquired.stdout.strip() == "ACQUIRED"
+
+    if os.name != "nt":
+        legacy_reacquired = _raw_posix_lock_attempt(path)
+        assert legacy_reacquired.returncode == 0
+        assert legacy_reacquired.stdout.strip() == "ACQUIRED"
 
 
 def test_hard_link_alias_cannot_bypass_process_ownership(tmp_path) -> None:
@@ -109,6 +142,11 @@ def test_hard_link_alias_cannot_bypass_process_ownership(tmp_path) -> None:
         blocked = _child_lock_attempt(alias)
         assert blocked.returncode == 3
         assert blocked.stdout.strip() == "INSTANCE_OWNED"
+
+        if os.name != "nt":
+            legacy_blocked = _raw_posix_lock_attempt(alias)
+            assert legacy_blocked.returncode == 3
+            assert legacy_blocked.stdout.strip() == "INSTANCE_OWNED"
     finally:
         owner.release()
 
