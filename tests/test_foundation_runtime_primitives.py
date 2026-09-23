@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+import socket
 from pathlib import Path
 
 import pytest
@@ -83,7 +84,12 @@ def test_loopback_socket_is_prebound_only_to_ipv4_loopback() -> None:
         assert bound.host == "127.0.0.1"
         assert 1 <= bound.port <= 65535
         assert bound.socket.family == __import__("socket").AF_INET
-        assert bound.socket.getsockopt(__import__("socket").SOL_SOCKET, __import__("socket").SO_REUSEADDR) == 0
+        assert bound.socket.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) == 0
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            assert bound.socket.getsockopt(
+                socket.SOL_SOCKET,
+                socket.SO_EXCLUSIVEADDRUSE,
+            ) == 1
 
 
 def test_runtime_registry_is_atomic_exact_owned_and_contains_no_secret_fields(tmp_path) -> None:
@@ -124,7 +130,16 @@ def test_runtime_registry_is_atomic_exact_owned_and_contains_no_secret_fields(tm
     assert not paths.registry.exists()
 
 
-def test_runtime_registry_rejects_nonloopback_locator(tmp_path) -> None:
+@pytest.mark.parametrize(
+    "locator",
+    [
+        "http://0.0.0.0:8080",
+        "http://192.168.1.10:8080",
+        "http://localhost:8080",
+        "https://127.0.0.1:8080",
+    ],
+)
+def test_runtime_registry_rejects_nonloopback_locator(tmp_path, locator) -> None:
     paths = InstancePaths.from_root(tmp_path.resolve())
     paths.prepare_for_start()
     with pytest.raises(ValidationError):
@@ -138,6 +153,6 @@ def test_runtime_registry_rejects_nonloopback_locator(tmp_path) -> None:
                 run_id=new_uuid4(),
                 protocol_version="1",
                 data_instance_id=new_uuid4(),
-                readiness_locator="http://0.0.0.0:8080",
+                readiness_locator=locator,
             ),
         )
