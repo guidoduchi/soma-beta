@@ -137,7 +137,7 @@
       "timestamps, audit ids, command ids, physical row order and generated presentation text"
     ],
     "mutation_rule": "The command recomputes the complete branch fingerprint under the same writer UnitOfWork after the material hierarchy write, or over the current branch for semantic NO_CHANGE. Client-supplied fingerprints are never trusted as the resulting fingerprint.",
-    "response_rule": "Every hierarchy mutation returns RfcBranchV1 projected inside the same UnitOfWork after the final hierarchy state is known. Because mutation requests have no page-size input, their response uses the RFC children default page size 100. Exact command replay returns the persisted original RfcBranchV1 snapshot and never rebuilds it from later state.",
+    "response_rule": "Every hierarchy mutation returns RfcBranchV1 projected inside the same UnitOfWork after the final hierarchy state is known. Because mutation requests have no page-size input, their response uses the RFC children default page size 100. Exact command replay returns the persisted original RfcBranchV1 snapshot and never rebuilds it from later state. Foundation allocates exactly RfcBranchV1 v1 up to 33554432 canonical UTF-8 bytes, depth 8 and 8192 aggregate collection items; the allocation is technical replay capacity, not a hierarchy cardinality cap.",
     "golden_vectors": [
       {
         "id": "SOMA_RFC_BRANCH_FINGERPRINT_V1-G001",
@@ -168,7 +168,30 @@
         "expected_canonical_utf8_bytes": 614,
         "expected_sha256": "3b05f958c5d8975244eb4dbaf8de1bf392915ad89fbbc9a1f691895f7a2e42d9"
       }
-    ]
+    ],
+    "response_bound_derivation": {
+      "response_schema": "RfcBranchV1",
+      "response_version": 1,
+      "returned_children_max": 100,
+      "total_children_cap": null,
+      "continuation": "present whenever an additional child exists after the returned 100-child page",
+      "source_text_authority": "LLD-04 RFC_ENHANCED_V1 field_bounds",
+      "conservative_escape_rule": "Treat every permitted bounded free-text input byte as capable of six canonical-JSON bytes because LLD-04 rejects NUL but does not globally reject every other C0 control character; do not assume the common quote/backslash two-byte expansion.",
+      "conservative_max_canonical_utf8_bytes": 23288983,
+      "conservative_max_depth": 4,
+      "conservative_max_collection_items": 4151,
+      "reviewed_allocation": {
+        "max_response_json_bytes": 33554432,
+        "max_response_depth": 8,
+        "max_collection_items": 8192
+      },
+      "rules": [
+        "the proof includes one fully populated root, 100 fully populated returned children, maximum-width governed evidence/customer/terminal identities and integers, longest closed warning/status forms, and a non-null continuation",
+        "a 101st or later child affects complete branch fingerprint/count authority and continuation but is not materialized into the fixed 100-child mutation response page",
+        "the command boundary rejects any response that exceeds the exact allocation; it never truncates, drops source fields, lowers page size or imposes a child-count business cap to fit",
+        "a future RfcBranch schema/version requires its own reviewed allocation rather than inheriting v1 capacity"
+      ]
+    }
   },
   "hierarchy_review_contract": "algorithms/rfc-hierarchy-review.json",
   "branch_cursor": {

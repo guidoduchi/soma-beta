@@ -1,29 +1,316 @@
 {
-  "schema":"SOMA-LLD-TESTS-V1",
-  "lld_id":"LLD-01",
-  "required_matrix":["Windows supported CI/desktop evidence on Python 3.13","Windows supported CI/desktop evidence on Python 3.14"],
-  "acceptance_tests":[
-    {"id":"LLD01-T001","covers":["BETA-REQ-0003","BETA-REQ-0131"],"scenario":"every authoritative connection path uses ConnectionFactory","prove":["foreign_keys=1","required connection pragmas verified","unmanaged/unsafe connection cannot enter repository/UoW","connection does not cross threads"]},
-    {"id":"LLD01-T002","covers":["BETA-REQ-0131"],"scenario":"FK-to-index analyser over complete release schema","prove":["every child FK has usable leading-prefix index or accepted measured exception","disabled/missing index fails acceptance","explicitly allocated nullable-FK IS NOT NULL partial indexes pass without a redundant full index","lifecycle-filtered, unrelated-column, expression-key and wrong-leading-order indexes do not establish coverage","coverage proof does not depend on current row contents"]},
-    {"id":"LLD01-T003","covers":["BETA-REQ-0132"],"scenario":"clean initialization and every supported migration origin","prove":["schema+ledger commit together","failure leaves last committed version","clean-init temp database is never published before full verification","retry applies each accepted migration exactly once","accepted 1..4 database advances through Foundation sequence 5 without rewriting prior migration rows or command receipts","accepted exact 1..7 database advances through Foundation sequence 8 without rewriting migrations 1..7 or changing any preexisting durable_jobs/job_attempts value inside the migration transaction except the new nullable dedupe_sha256 column reading NULL","post-migration startup reconciliation finishes before READY and leaves no nonterminal legacy row with dedupe_sha256 NULL claimable"]},
-    {"id":"LLD01-T004","covers":["BETA-REQ-0133"],"scenario":"accepted migration drift matrix","prove":["missing/renamed/reordered/CRLF/BOM/content/hash/ledger changes block readiness","runtime never rewrites manifest or ledger to match unexpected bytes"]},
-    {"id":"LLD01-T005","covers":["BETA-REQ-0134"],"scenario":"migration status filesystem snapshot","prove":["missing target stays missing","no directory/database/WAL/SHM/journal/diagnostic/default is created","current offline target bytes/mtime are unchanged","unsafe offline sidecar state returns limited classification without touching writer"]},
-    {"id":"LLD01-T006","covers":["BETA-REQ-0018","BETA-REQ-0135","BETA-REQ-0143"],"scenario":"accepted command atomicity","prove":["domain mutation + required lifecycle event + command receipt + exact replay-result snapshot + audit all commit or all rollback","constraint/audit/result-snapshot/disk failure never reports success"]},
-    {"id":"LLD01-T007","covers":["BETA-REQ-0143"],"scenario":"audit append-only protection","prove":["plain duplicate audit insert fails","UPDATE fails","DELETE fails","OR IGNORE/REPLACE is absent from audit repository","backup/restore verification preserves audit rows"]},
-    {"id":"LLD01-T008","covers":["BETA-REQ-0144"],"scenario":"audit payload registry negative vectors","prove":["unknown field/duplicate key/nonfinite/oversized/deep/excessive/sensitive payload rejects","associated mutation rolls back","historical payload version remains readable without rewrite","ordinary audit payload over 16384 UTF-8 bytes rejects","only the exact Working Note edit/removal action-schema-version tuples receive the 524288-byte exception","65536-byte note evidence including worst-case JSON escaping fits with bounded metadata; 65537-byte note evidence rejects without truncation","exception does not admit unknown fields, secrets, excess nesting or result refs; any audit failure rolls back the receipt and note mutation","AddWorkingNote and EditWorkingNote transport accept valid maximum-size escaped note bodies within their exact route ceiling; other route ceilings remain unchanged"]},
-    {"id":"LLD01-T009","covers":["BETA-REQ-0136"],"scenario":"strict JSON vectors","prove":["duplicate keys/NaN/Infinity/malformed UTF-8/unknown version follow contract","missing/null/empty remain distinguishable","failed upgrade preserves previous document"]},
-    {"id":"LLD01-T010","covers":["BETA-REQ-0140"],"scenario":"two concurrent launches against same data instance","prove":["one holds instance lock","second never migrates or binds competing authoritative host","verified-existing-instance path is used or second exits safely"]},
-    {"id":"LLD01-T011","covers":["BETA-REQ-0140"],"scenario":"loopback bind and port-race resistance","prove":["only 127.0.0.1 is bound","SO_EXCLUSIVEADDRUSE is applied on Windows","socket is pre-bound before Uvicorn receives it","wildcard/LAN/proxy-forwarded authority is rejected"]},
-    {"id":"LLD01-T012","covers":["BETA-REQ-0140"],"scenario":"runtime registry stale/PID/port reuse","prove":["file/PID/port alone never establishes identity","registry mismatch never causes unrelated shutdown","registry is removed only for exact current run/data identity"]},
-    {"id":"LLD01-T013","covers":["BETA-REQ-0018","BETA-REQ-0143"],"scenario":"command transport replay","prove":["same command_id + same command_type + same request_hash returns byte-equivalent prior typed result from immutable command_receipt_results","replay path performs no command prepare, owner repository/projection read, mutation, participant call or duplicate audit/event","later changes to target or unrelated state cannot change replay result","same command_id with different command_type or hash fails IDEMPOTENCY_CONFLICT","stored-result schema/hash/canonicalization corruption fails closed rather than falling back to current state"]},
-    {"id":"LLD01-T014","covers":["BETA-REQ-0018","BETA-REQ-0131"],"scenario":"concurrent bounded writers/readers","prove":["BEGIN IMMEDIATE contention returns retryable busy rather than partial write","readers remain consistent","no write transaction includes artificial wait/operator/file parsing"]},
-    {"id":"LLD01-T015","covers":["BETA-REQ-0140"],"scenario":"graceful shutdown under idle and active work","prove":["new mutations stop at QUIESCING","active UoWs finish/rollback","WAL checkpoint/connection close/socket close/lock release occur in order","repeated shutdown is safe"]},
-    {"id":"LLD01-T016","covers":["BETA-REQ-0003","BETA-REQ-0140"],"scenario":"data-instance identity continuity","prove":["new clean instance gets one stable data_instance_id","restart/path display changes do not change it","restore preserves restored identity","new empty instance never reuses prior identity"]},
-    {"id":"LLD01-T017","covers":["BETA-REQ-0138"],"scenario":"dependency/runtime compatibility","prove":["Starlette/Uvicorn direct dependency set imports and executes startup/shutdown on both supported Python lines","no installed Node.js is needed at runtime","server uses one worker"]},
-    {"id":"LLD01-T018","covers":["BETA-REQ-0018","BETA-REQ-0143"],"scenario":"accepted semantic no-op idempotency","prove":["fresh preconditions prove requested state already equals accepted target state","command_receipt commits with result_type=NO_CHANGE plus exact immutable NO_CHANGE response snapshot","no domain row/revision/lifecycle event/audit event is fabricated","lost-response retry with same command_id/type/hash returns the exact stored NO_CHANGE response even if unrelated state later changes","same command_id with different hash still fails integrity"]},
-    {"id":"LLD01-T020","covers":["BETA-REQ-0018","BETA-REQ-0132"],"scenario":"forward replay-result migration preserves legacy receipts","prove":["accepted/applied migrations 1..4 remain byte/identity/sequence stable","sequence 5 creates only command_receipt_results plus its append-only guards","all legacy command_receipts survive with identical columns/values/count","migration performs no current-domain reads or synthetic result backfill","historical migration-5 allocation repair changed only then-unimplemented future allocations and never rewrote migrations 1..4"]},
-    {"id":"LLD01-T021","covers":["BETA-REQ-0018","BETA-REQ-0143"],"scenario":"legacy committed replay result unavailable","prove":["matching legacy receipt without exact result companion returns IDEMPOTENCY_RESULT_UNAVAILABLE","prepare callback is never invoked","owner tables/projections are not read to fabricate the response","no receipt/domain/audit/history row is rewritten or duplicated","new command identity is not silently substituted and original command is never rerun"]},
-    {"id":"LLD01-T022","covers":["BETA-REQ-0131","BETA-REQ-0132","BETA-REQ-0140"],"scenario":"durable-job indexed semantic coalescing, exact claims and recovery","prove":["sequence 8 adds only durable_jobs.dedupe_sha256 plus idx_jobs_dedupe_state and uq_jobs_active_dedupe while accepted 1..7 remain byte/identity/sequence stable","clean init and exact 1..7 upgrade converge on the same schema; migration itself preserves every legacy durable job/attempt value and gives legacy rows dedupe_sha256 NULL","before READY startup recovery terminalizes every nonterminal legacy-NULL job as failed with LEGACY_JOB_DEDUPE_UNAVAILABLE, never derives a semantic key from historical payload, records one interrupted attempt only for an unrepresented legacy running ordinal, and leaves terminal legacy rows unchanged","after startup recovery no queued/running/waiting_review/retry_wait row with dedupe_sha256 NULL is claimable","new enqueue validates registered payload and exact packet-derived semantic dedupe key before persisting only its bounded lowercase SHA-256 identity; raw dedupe key is not persisted merely for coalescing","same registered active semantic key coalesces to one job and concurrent duplicate active insertion is rejected by uq_jobs_active_dedupe","packet-declared completed-state coalescing is supported through indexed lookup without weakening the active uniqueness rule","dedupe hash collision, persisted payload/key disagreement, duplicate candidate matches, unknown contract/version, malformed/noncanonical/oversized payload or checkpoint fail closed without executing the job","claim ordering is deterministic and retry_wait is not claimable before next_attempt_at_utc","claim/checkpoint/complete/fail bind job_id + run_id + attempt_ordinal + claim_started_at_utc so a stale same-run prior attempt cannot mutate a newer attempt","one terminal/interrupted job_attempts row exists per ended running attempt ordinal and cancellation/recovery cannot duplicate it","stale prior-run recovery records interrupted evidence before applying the exact registered crash policy and is replay/idempotency safe","restore reconciliation invalidates restored nonterminal work before READY and never fabricates domain lifecycle state"]}
+  "schema": "SOMA-LLD-TESTS-V1",
+  "lld_id": "LLD-01",
+  "required_matrix": [
+    "Windows supported CI/desktop evidence on Python 3.13",
+    "Windows supported CI/desktop evidence on Python 3.14"
   ],
-  "release_blockers":["any required test failure","unexplained skip","nondeterministic result","schema/FK/index drift","migration-origin not exercised","supported Python line missing current-head evidence"]
+  "acceptance_tests": [
+    {
+      "id": "LLD01-T001",
+      "covers": [
+        "BETA-REQ-0003",
+        "BETA-REQ-0131"
+      ],
+      "scenario": "every authoritative connection path uses ConnectionFactory",
+      "prove": [
+        "foreign_keys=1",
+        "required connection pragmas verified",
+        "unmanaged/unsafe connection cannot enter repository/UoW",
+        "connection does not cross threads"
+      ]
+    },
+    {
+      "id": "LLD01-T002",
+      "covers": [
+        "BETA-REQ-0131"
+      ],
+      "scenario": "FK-to-index analyser over complete release schema",
+      "prove": [
+        "every child FK has usable leading-prefix index or accepted measured exception",
+        "disabled/missing index fails acceptance",
+        "explicitly allocated nullable-FK IS NOT NULL partial indexes pass without a redundant full index",
+        "lifecycle-filtered, unrelated-column, expression-key and wrong-leading-order indexes do not establish coverage",
+        "coverage proof does not depend on current row contents"
+      ]
+    },
+    {
+      "id": "LLD01-T003",
+      "covers": [
+        "BETA-REQ-0132"
+      ],
+      "scenario": "clean initialization and every supported migration origin",
+      "prove": [
+        "schema+ledger commit together",
+        "failure leaves last committed version",
+        "clean-init temp database is never published before full verification",
+        "retry applies each accepted migration exactly once",
+        "accepted 1..4 database advances through Foundation sequence 5 without rewriting prior migration rows or command receipts",
+        "accepted exact 1..7 database advances through Foundation sequence 8 without rewriting migrations 1..7 or changing any preexisting durable_jobs/job_attempts value inside the migration transaction except the new nullable dedupe_sha256 column reading NULL",
+        "post-migration startup reconciliation finishes before READY and leaves no nonterminal legacy row with dedupe_sha256 NULL claimable"
+      ]
+    },
+    {
+      "id": "LLD01-T004",
+      "covers": [
+        "BETA-REQ-0133"
+      ],
+      "scenario": "accepted migration drift matrix",
+      "prove": [
+        "missing/renamed/reordered/CRLF/BOM/content/hash/ledger changes block readiness",
+        "runtime never rewrites manifest or ledger to match unexpected bytes"
+      ]
+    },
+    {
+      "id": "LLD01-T005",
+      "covers": [
+        "BETA-REQ-0134"
+      ],
+      "scenario": "migration status filesystem snapshot",
+      "prove": [
+        "missing target stays missing",
+        "no directory/database/WAL/SHM/journal/diagnostic/default is created",
+        "current offline target bytes/mtime are unchanged",
+        "unsafe offline sidecar state returns limited classification without touching writer"
+      ]
+    },
+    {
+      "id": "LLD01-T006",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0135",
+        "BETA-REQ-0143"
+      ],
+      "scenario": "accepted command atomicity",
+      "prove": [
+        "domain mutation + required lifecycle event + command receipt + exact replay-result snapshot + audit all commit or all rollback",
+        "constraint/audit/result-snapshot/disk failure never reports success"
+      ]
+    },
+    {
+      "id": "LLD01-T007",
+      "covers": [
+        "BETA-REQ-0143"
+      ],
+      "scenario": "audit append-only protection",
+      "prove": [
+        "plain duplicate audit insert fails",
+        "UPDATE fails",
+        "DELETE fails",
+        "OR IGNORE/REPLACE is absent from audit repository",
+        "backup/restore verification preserves audit rows"
+      ]
+    },
+    {
+      "id": "LLD01-T008",
+      "covers": [
+        "BETA-REQ-0144"
+      ],
+      "scenario": "audit payload registry negative vectors",
+      "prove": [
+        "unknown field/duplicate key/nonfinite/oversized/deep/excessive/sensitive payload rejects",
+        "associated mutation rolls back",
+        "historical payload version remains readable without rewrite",
+        "ordinary audit payload over 16384 UTF-8 bytes rejects",
+        "only the exact Working Note edit/removal action-schema-version tuples receive the 524288-byte exception",
+        "65536-byte note evidence including worst-case JSON escaping fits with bounded metadata; 65537-byte note evidence rejects without truncation",
+        "exception does not admit unknown fields, secrets, excess nesting or result refs; any audit failure rolls back the receipt and note mutation",
+        "AddWorkingNote and EditWorkingNote transport accept valid maximum-size escaped note bodies within their exact route ceiling; other route ceilings remain unchanged"
+      ]
+    },
+    {
+      "id": "LLD01-T009",
+      "covers": [
+        "BETA-REQ-0136"
+      ],
+      "scenario": "strict JSON vectors",
+      "prove": [
+        "duplicate keys/NaN/Infinity/malformed UTF-8/unknown version follow contract",
+        "missing/null/empty remain distinguishable",
+        "failed upgrade preserves previous document"
+      ]
+    },
+    {
+      "id": "LLD01-T010",
+      "covers": [
+        "BETA-REQ-0140"
+      ],
+      "scenario": "two concurrent launches against same data instance",
+      "prove": [
+        "one holds instance lock",
+        "second never migrates or binds competing authoritative host",
+        "verified-existing-instance path is used or second exits safely"
+      ]
+    },
+    {
+      "id": "LLD01-T011",
+      "covers": [
+        "BETA-REQ-0140"
+      ],
+      "scenario": "loopback bind and port-race resistance",
+      "prove": [
+        "only 127.0.0.1 is bound",
+        "SO_EXCLUSIVEADDRUSE is applied on Windows",
+        "socket is pre-bound before Uvicorn receives it",
+        "wildcard/LAN/proxy-forwarded authority is rejected"
+      ]
+    },
+    {
+      "id": "LLD01-T012",
+      "covers": [
+        "BETA-REQ-0140"
+      ],
+      "scenario": "runtime registry stale/PID/port reuse",
+      "prove": [
+        "file/PID/port alone never establishes identity",
+        "registry mismatch never causes unrelated shutdown",
+        "registry is removed only for exact current run/data identity"
+      ]
+    },
+    {
+      "id": "LLD01-T013",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0143"
+      ],
+      "scenario": "command transport replay",
+      "prove": [
+        "same command_id + same command_type + same request_hash returns byte-equivalent prior typed result from immutable command_receipt_results",
+        "replay path performs no command prepare, owner repository/projection read, mutation, participant call or duplicate audit/event",
+        "later changes to target or unrelated state cannot change replay result",
+        "same command_id with different command_type or hash fails IDEMPOTENCY_CONFLICT",
+        "stored-result schema/hash/canonicalization corruption fails closed rather than falling back to current state",
+        "schema/version-specific replay allocations are exact: RfcBranchV1 v1 accepts the reviewed 32 MiB/depth-8/8192 allocation, another RfcBranchV1 version cannot silently inherit it or the default bound, and replay applies the same exact tuple bounds used at commit"
+      ]
+    },
+    {
+      "id": "LLD01-T014",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0131"
+      ],
+      "scenario": "concurrent bounded writers/readers",
+      "prove": [
+        "BEGIN IMMEDIATE contention returns retryable busy rather than partial write",
+        "readers remain consistent",
+        "no write transaction includes artificial wait/operator/file parsing"
+      ]
+    },
+    {
+      "id": "LLD01-T015",
+      "covers": [
+        "BETA-REQ-0140"
+      ],
+      "scenario": "graceful shutdown under idle and active work",
+      "prove": [
+        "new mutations stop at QUIESCING",
+        "active UoWs finish/rollback",
+        "WAL checkpoint/connection close/socket close/lock release occur in order",
+        "repeated shutdown is safe"
+      ]
+    },
+    {
+      "id": "LLD01-T016",
+      "covers": [
+        "BETA-REQ-0003",
+        "BETA-REQ-0140"
+      ],
+      "scenario": "data-instance identity continuity",
+      "prove": [
+        "new clean instance gets one stable data_instance_id",
+        "restart/path display changes do not change it",
+        "restore preserves restored identity",
+        "new empty instance never reuses prior identity"
+      ]
+    },
+    {
+      "id": "LLD01-T017",
+      "covers": [
+        "BETA-REQ-0138"
+      ],
+      "scenario": "dependency/runtime compatibility",
+      "prove": [
+        "Starlette/Uvicorn direct dependency set imports and executes startup/shutdown on both supported Python lines",
+        "no installed Node.js is needed at runtime",
+        "server uses one worker"
+      ]
+    },
+    {
+      "id": "LLD01-T018",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0143"
+      ],
+      "scenario": "accepted semantic no-op idempotency",
+      "prove": [
+        "fresh preconditions prove requested state already equals accepted target state",
+        "command_receipt commits with result_type=NO_CHANGE plus exact immutable NO_CHANGE response snapshot",
+        "no domain row/revision/lifecycle event/audit event is fabricated",
+        "lost-response retry with same command_id/type/hash returns the exact stored NO_CHANGE response even if unrelated state later changes",
+        "same command_id with different hash still fails integrity"
+      ]
+    },
+    {
+      "id": "LLD01-T020",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0132"
+      ],
+      "scenario": "forward replay-result migration preserves legacy receipts",
+      "prove": [
+        "accepted/applied migrations 1..4 remain byte/identity/sequence stable",
+        "sequence 5 creates only command_receipt_results plus its append-only guards",
+        "all legacy command_receipts survive with identical columns/values/count",
+        "migration performs no current-domain reads or synthetic result backfill",
+        "historical migration-5 allocation repair changed only then-unimplemented future allocations and never rewrote migrations 1..4"
+      ]
+    },
+    {
+      "id": "LLD01-T021",
+      "covers": [
+        "BETA-REQ-0018",
+        "BETA-REQ-0143"
+      ],
+      "scenario": "legacy committed replay result unavailable",
+      "prove": [
+        "matching legacy receipt without exact result companion returns IDEMPOTENCY_RESULT_UNAVAILABLE",
+        "prepare callback is never invoked",
+        "owner tables/projections are not read to fabricate the response",
+        "no receipt/domain/audit/history row is rewritten or duplicated",
+        "new command identity is not silently substituted and original command is never rerun"
+      ]
+    },
+    {
+      "id": "LLD01-T022",
+      "covers": [
+        "BETA-REQ-0131",
+        "BETA-REQ-0132",
+        "BETA-REQ-0140"
+      ],
+      "scenario": "durable-job indexed semantic coalescing, exact claims and recovery",
+      "prove": [
+        "sequence 8 adds only durable_jobs.dedupe_sha256 plus idx_jobs_dedupe_state and uq_jobs_active_dedupe while accepted 1..7 remain byte/identity/sequence stable",
+        "clean init and exact 1..7 upgrade converge on the same schema; migration itself preserves every legacy durable job/attempt value and gives legacy rows dedupe_sha256 NULL",
+        "before READY startup recovery terminalizes every nonterminal legacy-NULL job as failed with LEGACY_JOB_DEDUPE_UNAVAILABLE, never derives a semantic key from historical payload, records one interrupted attempt only for an unrepresented legacy running ordinal, and leaves terminal legacy rows unchanged",
+        "after startup recovery no queued/running/waiting_review/retry_wait row with dedupe_sha256 NULL is claimable",
+        "new enqueue validates registered payload and exact packet-derived semantic dedupe key before persisting only its bounded lowercase SHA-256 identity; raw dedupe key is not persisted merely for coalescing",
+        "same registered active semantic key coalesces to one job and concurrent duplicate active insertion is rejected by uq_jobs_active_dedupe",
+        "packet-declared completed-state coalescing is supported through indexed lookup without weakening the active uniqueness rule",
+        "dedupe hash collision, persisted payload/key disagreement, duplicate candidate matches, unknown contract/version, malformed/noncanonical/oversized payload or checkpoint fail closed without executing the job",
+        "claim ordering is deterministic and retry_wait is not claimable before next_attempt_at_utc",
+        "claim/checkpoint/complete/fail bind job_id + run_id + attempt_ordinal + claim_started_at_utc so a stale same-run prior attempt cannot mutate a newer attempt",
+        "one terminal/interrupted job_attempts row exists per ended running attempt ordinal and cancellation/recovery cannot duplicate it",
+        "stale prior-run recovery records interrupted evidence before applying the exact registered crash policy and is replay/idempotency safe",
+        "restore reconciliation invalidates restored nonterminal work before READY and never fabricates domain lifecycle state"
+      ]
+    }
+  ],
+  "release_blockers": [
+    "any required test failure",
+    "unexplained skip",
+    "nondeterministic result",
+    "schema/FK/index drift",
+    "migration-origin not exercised",
+    "supported Python line missing current-head evidence"
+  ]
 }
