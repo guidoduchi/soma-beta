@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -12,9 +13,10 @@ from soma.foundation.application.command_boundary import (
 )
 from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import IdempotencyConflict, PersistenceFailure
+from soma.foundation.errors import IdempotencyConflict, PersistenceBusy, PersistenceFailure
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.migrations.runner import iter_migration_statements
+from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import ObjectContract
 
@@ -240,3 +242,122 @@ def test_read_snapshot_closes_connection_when_begin_fails() -> None:
     assert connection.closed is True
     with pytest.raises(RuntimeError, match="has not been entered"):
         _ = snapshot.connection
+
+
+
+def test_concurrent_writer_busy_is_retryable_while_reader_sees_consistent_snapshot(
+    initialized_database,
+) -> None:
+    database_path, factory_for_path = initialized_database
+    factory = factory_for_path(database_path)
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "CREATE TABLE contention_probe("
+            "probe_id INTEGER PRIMARY KEY,value_text TEXT NOT NULL"
+            ") STRICT"
+        )
+        uow.connection.execute(
+            "INSERT INTO contention_probe(probe_id,value_text) VALUES (1,'base')"
+        )
+
+    winning_writer = factory.open_authoritative(read_only=False, require_wal=True)
+    try:
+        winning_writer.execute("BEGIN IMMEDIATE")
+        winning_writer.execute(
+            "UPDATE contention_probe SET value_text='uncommitted' WHERE probe_id=1"
+        )
+
+        class FastBusyFactory:
+            @staticmethod
+            def open_authoritative(*, read_only: bool = False, require_wal: bool = True):
+                connection = factory.open_authoritative(
+                    read_only=read_only,
+                    require_wal=require_wal,
+                )
+                if not read_only:
+                    connection.execute("PRAGMA busy_timeout=0")
+                return connection
+
+        with pytest.raises(PersistenceBusy):
+            with UnitOfWork(FastBusyFactory()):
+                raise AssertionError("contending writer unexpectedly acquired BEGIN IMMEDIATE")
+
+        with ReadSnapshot(factory) as snapshot:
+            assert snapshot.connection.execute(
+                "SELECT value_text FROM contention_probe WHERE probe_id=1"
+            ).fetchone()[0] == "base"
+
+        winning_writer.execute("ROLLBACK")
+    finally:
+        winning_writer.close()
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE contention_probe SET value_text='committed' WHERE probe_id=1"
+        )
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT value_text FROM contention_probe WHERE probe_id=1"
+        ).fetchone()[0] == "committed"
+
+
+def test_data_instance_identity_survives_reopen_and_path_alias_and_new_instance_is_unique(
+    initialized_database,
+    migration_directory,
+    security_provider,
+    tmp_path,
+) -> None:
+    database_path, factory_for_path = initialized_database
+    factory = factory_for_path(database_path)
+    with ReadSnapshot(factory) as snapshot:
+        original_id = str(
+            snapshot.connection.execute(
+                "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
+            ).fetchone()[0]
+        )
+
+    alias_directory = database_path.parent / "identity-alias"
+    alias_directory.mkdir()
+    alias_path = alias_directory / ".." / database_path.name
+    alias_factory = ConnectionFactory(
+        alias_path,
+        security_provider,
+        driver=sqlite3,
+    )
+    with ReadSnapshot(alias_factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
+        ).fetchone()[0] == original_id
+
+    reopened_factory = factory_for_path(database_path)
+    with ReadSnapshot(reopened_factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
+        ).fetchone()[0] == original_id
+
+    second_database = tmp_path / "independent-instance.db"
+    manifest = MigrationManifest.load(migration_directory)
+    runner = MigrationRunner(
+        canonical_database_path=second_database,
+        manifest=manifest,
+        factory_for_path=lambda path: ConnectionFactory(
+            path,
+            security_provider,
+            driver=sqlite3,
+        ),
+        app_version="identity-continuity-test",
+        ownership_assertion=lambda: True,
+    )
+    assert runner.initialize_or_migrate() == manifest.entries[-1].sequence
+    second_factory = ConnectionFactory(
+        second_database,
+        security_provider,
+        driver=sqlite3,
+    )
+    with ReadSnapshot(second_factory) as snapshot:
+        second_id = str(
+            snapshot.connection.execute(
+                "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
+            ).fetchone()[0]
+        )
+    assert second_id != original_id
