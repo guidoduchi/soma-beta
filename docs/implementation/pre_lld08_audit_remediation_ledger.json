@@ -1,0 +1,334 @@
+{
+  "schema": "SOMA_PRE_LLD08_AUDIT_REMEDIATION_LEDGER_V1",
+  "audit_date": "2026-09-22",
+  "repository": "guidoduchi/soma-beta",
+  "normative_design_sha": "e0924369170652be3a425d10210d14619f526a48",
+  "audited_implementation_sha": "a6b52124c5e991509dcb8f6aba7caf332526daaa",
+  "remediation_head_sha": "ebe936e1c90a322e38b84706cbb682a692e8cc43",
+  "disposition": {
+    "audit_findings": "A01-A14 all have implemented remediation at this checkpoint",
+    "certification_scope": "Closes the 2026-09-22 risk-based audit backlog. It does not by itself constitute an exhaustive proof of every LLD-01-07 normative assertion or production SQLCipher/LLD-12 release certification.",
+    "lld08_started": false
+  },
+  "supported_ci": {
+    "workflow": "Beta implementation CI",
+    "run_number": 843,
+    "run_id": 35807574668,
+    "head_sha": "ebe936e1c90a322e38b84706cbb682a692e8cc43",
+    "conclusion": "success",
+    "ubuntu_python_3_14": "success",
+    "windows_python_3_13": "success",
+    "windows_python_3_14": "success",
+    "release_schema_manifest_gate": "success",
+    "windows_wheel_and_authority_resource_verification": "success",
+    "ubuntu_test_summary": "1273 passed, 2 skipped in 267.15s"
+  },
+  "findings": [
+    {
+      "id": "A01",
+      "priority": "P1",
+      "status": "remediated_ci_green",
+      "finding": "Runtime schema verification accepted weakened or missing guards.",
+      "remediation_commits": [
+        "8079713d358025773cde4f1855052bd5d212bf0f",
+        "5fc17b63df49aff3ab849cf67f4ad9ef9f9071da",
+        "a4f823d134aa78577720aef01c0584aff94a653a",
+        "e89c3a5d332de08957e569445611f696be6dbd44",
+        "178d6dc9d9e61816b4be6a77028f0403d767001b"
+      ],
+      "owners": [
+        "src/soma/foundation/migrations/verification.py",
+        "src/soma/schema_manifest.json",
+        "tools/generate_schema_manifest.py"
+      ],
+      "evidence": [
+        "Committed release schema authority is regenerated in CI and compared exactly.",
+        "Current-release startup verifies migration lineage, objects, tables, columns, foreign keys, indexes, quick_check and append-only behavior.",
+        "Exact accepted historical migration prefixes remain valid forward-migration inputs; divergent lineage fails closed."
+      ]
+    },
+    {
+      "id": "A02",
+      "priority": "P1",
+      "status": "remediated_ci_green",
+      "finding": "Default Reference lifecycle construction could omit required dependency validators.",
+      "remediation_commits": [
+        "982e38ffcca29eac3805bc4284c3697addd553fd"
+      ],
+      "owners": [
+        "src/soma/reference/domain/dependencies.py",
+        "src/soma/reference/application/lifecycle_service.py"
+      ],
+      "evidence": [
+        "Dependency registry must be explicitly finalized before lifecycle service construction.",
+        "Missing required validators fail closed; intentionally isolated tests use an explicit empty finalized registry."
+      ]
+    },
+    {
+      "id": "A03",
+      "priority": "P1",
+      "status": "remediated_ci_green",
+      "finding": "RFC hierarchy mutation replay response failed at ordinary branch sizes.",
+      "remediation_commits": [
+        "4966549c778d7aa7fc59acbddb76e2020f2125ce",
+        "f7d04edc558adaad05a16676902349bc46f71a55"
+      ],
+      "owners": [
+        "src/soma/foundation/application/command_boundary.py",
+        "src/soma/tickets/rfc_hierarchy.py"
+      ],
+      "evidence": [
+        "Foundation default response bounds remain unchanged for ordinary schemas.",
+        "Only RfcBranchV1/v1 receives reviewed 8192-item and 8388608-byte replay allocations while retaining the ordinary depth ceiling.",
+        "Regression coverage includes the former 39th-child failure, exact replay after later branch growth, reparenting into a large branch, and default-schema rejection of equivalent oversized payloads."
+      ]
+    },
+    {
+      "id": "A04",
+      "priority": "P1",
+      "status": "remediated_ci_green",
+      "finding": "XLSX semantic parsing could consume changed path bytes after an earlier safe preflight.",
+      "remediation_commits": [
+        "4122d78c2eb69f06164aec7ae1ebbc181eeda4b2",
+        "fc2b8311a1177563c894706b4bb28fe4af31a2aa",
+        "a62ad8a3649ce07ae843fe1891684da49a35f008"
+      ],
+      "owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "evidence": [
+        "Semantic parsers consume the immutable byte source produced by preflight rather than reopening the path.",
+        "Preflight identity includes SHA-256 over the retained bytes.",
+        "Immutable source resources close on success and parser rejection paths."
+      ]
+    },
+    {
+      "id": "A05",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "Inventory dependency continuation omitted part of the stable ordering key.",
+      "remediation_commits": [
+        "bb46215fd9e297181e839d8b5f75856cb427ef2f",
+        "682e0aaa3675c6e593821fa44357b9e07b639379"
+      ],
+      "owners": [
+        "src/soma/inventory/services/participants.py"
+      ],
+      "evidence": [
+        "Continuation is versioned, target-bound and carries blocker_id plus reason_code.",
+        "Multi-role requester/receiver blockers traverse without ambiguity."
+      ]
+    },
+    {
+      "id": "A06",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "Bounded JSON measurement skipped tuple contents.",
+      "remediation_commits": [
+        "bb46215fd9e297181e839d8b5f75856cb427ef2f"
+      ],
+      "owners": [
+        "src/soma/foundation/strict_json.py"
+      ],
+      "evidence": [
+        "Tuple contents now participate in Unicode, depth and aggregate-item measurement equivalently to serialized arrays."
+      ]
+    },
+    {
+      "id": "A07",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "ReadSnapshot leaked an acquired connection when BEGIN failed.",
+      "remediation_commits": [
+        "bb46215fd9e297181e839d8b5f75856cb427ef2f",
+        "5118cdb1883a2154f183c6209aaffeb5220eb506"
+      ],
+      "owners": [
+        "src/soma/foundation/persistence/uow.py"
+      ],
+      "evidence": [
+        "ReadSnapshot entry failure closes and clears the acquired connection before re-raising.",
+        "Later runtime/UoW hardening preserved the injectable factory seam used by failure-path tests."
+      ]
+    },
+    {
+      "id": "A08",
+      "priority": "P1",
+      "status": "remediated_ci_green",
+      "finding": "Foundation host lifecycle, readiness, diagnostics and status surfaces were absent.",
+      "remediation_commits": [
+        "005c7e5e50250f50889e1eecb3a5a4421e168bde",
+        "3e8f0989fd167c041f4b8a4fd867be521932c2bd",
+        "4bd553c2c165d83136c504b601e162e3ce191935",
+        "3286d99efd8dbaf0f27db481e37ecdaa27bc1e86",
+        "eecd6a97e8b56a52a784856f0f645c3ec32ae435",
+        "cf3be28ce9ccaca64574a770d89f81580cc62819",
+        "bb6fdc53e182859f358863b5cd292afe44a763d6",
+        "b1e6b3ded3de97526edcc7b36ab5f52c761eb0af",
+        "de7998579221cb73835e72f82833920937ada8a9"
+      ],
+      "owners": [
+        "src/soma/foundation/runtime",
+        "src/soma/foundation/queries/status.py",
+        "src/soma/foundation/api/routes_foundation.py",
+        "src/soma/foundation/persistence/backup_snapshot.py"
+      ],
+      "evidence": [
+        "Runtime ownership, verified startup composition, health/status/diagnostics, backup snapshot mechanics, quiescent shutdown admission, authenticated route facade and a one-worker Uvicorn adapter are implemented.",
+        "Supported CI at the remediation head passes all platform legs.",
+        "Final production security-provider/SQLCipher release integration remains an LLD-12 responsibility rather than a plaintext fallback."
+      ]
+    },
+    {
+      "id": "A09",
+      "priority": "P1",
+      "status": "remediated_ci_green",
+      "finding": "Required Reference point/list/history query surfaces were missing.",
+      "remediation_commits": [
+        "36f07c50e05730bc5104fcd727936b0ca319c1da",
+        "0990ee530632a114e3e6b7dcfd53d0de97db4ba2"
+      ],
+      "owners": [
+        "src/soma/reference/queries/references.py",
+        "src/soma/reference/queries/history.py",
+        "src/soma/reference/queries/_cursor.py"
+      ],
+      "evidence": [
+        "GetReferenceById, ListActiveReferences, Customer Account Code history, Contact channels and Contact affiliation history are implemented with bounded keyset continuations.",
+        "Site-derived Dispatch address resolution remains behind SiteDispatchAddressProvider and reports UNAVAILABLE when LLD-08 is not assembled rather than importing future private tables.",
+        "History regressions are robust to whole-second timestamp ties by using the complete stable ordering key."
+      ]
+    },
+    {
+      "id": "A10",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "Reference dependency guards and previews repeatedly materialized complete blocker sets.",
+      "remediation_commits": [
+        "682e0aaa3675c6e593821fa44357b9e07b639379"
+      ],
+      "owners": [
+        "src/soma/inventory/services/participants.py",
+        "src/soma/reference/application/lifecycle_service.py"
+      ],
+      "evidence": [
+        "Guards use bounded existence/count/page operations instead of rebuilding every blocker list.",
+        "Preview continuation is target/operation/freshness-bound and does not restart full enumeration per page."
+      ]
+    },
+    {
+      "id": "A11",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "Regroup acceptance recomputed global grouping candidates under the authoritative writer lock.",
+      "remediation_commits": [
+        "cff3086c47750ed83ba9f977d5e985812b352fd0",
+        "1ce09fedd8e099738584c475b9987abdfe7a6ddf"
+      ],
+      "owners": [
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "evidence": [
+        "Expensive candidate planning moved outside the writer transaction.",
+        "Acceptance retains authoritative in-writer freshness/conflict revalidation and atomic mutation semantics."
+      ]
+    },
+    {
+      "id": "A12",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "Stock page executed per-unit blocker queries before slicing.",
+      "remediation_commits": [
+        "75bd019cb18db3f0037a00b133be67ce1de83221"
+      ],
+      "owners": [
+        "src/soma/inventory/queries/stock_needs.py",
+        "src/soma/inventory/repositories/units.py"
+      ],
+      "evidence": [
+        "Stock eligibility is page-bounded before blocker projection.",
+        "Blocker state for the page is fetched with fixed set-based reads instead of four queries per total stock unit.",
+        "Regression coverage asserts a fixed SELECT budget for a fixed page."
+      ]
+    },
+    {
+      "id": "A13",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "SLA warnings/cohorts reread accepted inputs and immutable policy rows.",
+      "remediation_commits": [
+        "04679b808bcf1230054c45e2d66795ab85b2123f"
+      ],
+      "owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "src/soma/product_line_sla/algorithms/warnings.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "evidence": [
+        "Already validated ServiceRequestSlaInput can be reused in the same read snapshot.",
+        "Immutable policy-owner/tier reads use a snapshot-local exact-key cache, never a process-wide mutable cache.",
+        "Trace regressions prove one accepted-input read and one shared policy/tier read per exact snapshot key."
+      ]
+    },
+    {
+      "id": "A14",
+      "priority": "P3",
+      "status": "remediated_ci_green",
+      "finding": "Selected serializers/helpers and computed locals were duplicated or redundant.",
+      "remediation_commits": [
+        "825f571845299ee139515fcadac831b0d9db00e8",
+        "e74399a873f55f66fc1a65f0b77e1e7b9b8ced31",
+        "8fe60935bde71443c12ab1a3fd587acd5131bfe1",
+        "67cf54a6f50191d229fa4d92cbe7369613054d4d",
+        "65a3e6a2eac11ae6cad84c802f3599dd0da909de",
+        "ebe936e1c90a322e38b84706cbb682a692e8cc43"
+      ],
+      "owners": [
+        "src/soma/product_line_sla/queries/_cursor.py",
+        "src/soma/product_line_sla/report_projection.py",
+        "src/soma/ticket_import/commands/_proposal_writes.py",
+        "src/soma/ticket_import/jobs/_json.py"
+      ],
+      "evidence": [
+        "Proven unused computations were removed.",
+        "Product-Line/SLA cursor envelope construction is shared while query-specific validation remains local.",
+        "Report-attempt response projection is shared between query and worker.",
+        "Observed-row proposal draft conversion is shared without moving proposal authority.",
+        "Durable Ticket Import job JSON bounded decode is shared while job-specific validation remains local."
+      ]
+    }
+  ],
+  "structural_review": {
+    "module_map_result": {
+      "exact_file_parity": [
+        "LLD-04",
+        "LLD-05",
+        "LLD-06",
+        "LLD-07"
+      ],
+      "layout_divergence": [
+        {
+          "lld": "LLD-01",
+          "note": "The normative brace-family lists foundation/persistence/repositories.py, but no named command/query/service in the module map assigns authority to that generic file. Current Foundation persistence authority is implemented by specific connection/UoW/migration/job/runtime components. Recorded as layout divergence, not an audit blocker."
+        },
+        {
+          "lld": "LLD-02",
+          "note": "The normative map uses services/*, repositories/*, api/* and contracts/* filenames while the implementation retains earlier application/* owner modules plus focused query modules. Named behaviors audited here exist, including account-code review preview, channel-use validation, lifecycle preview, settings reads, profile setup participation, matching and the newly added owner queries. Filename parity was not manufactured with empty wrappers."
+        },
+        {
+          "lld": "LLD-03",
+          "note": "Several repositories remain internal to monolithic owner modules rather than the later repositories/* filenames. Named command/query/service behavior is present; this is source-layout traceability debt rather than evidence of missing authority."
+        }
+      ]
+    }
+  },
+  "residual_limits": [
+    "This remediation ledger is finding-oriented, not a complete requirement-to-implementation-to-independent-proof ledger for every assertion in LLD-01 through LLD-07.",
+    "Production SQLCipher behavior and final LLD-12 secure host composition are not reclassified as proven by SQLite test-seam CI.",
+    "LLD-08 Infrastructure has not been started by this remediation campaign."
+  ]
+}
