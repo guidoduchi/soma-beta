@@ -401,3 +401,65 @@ def test_stored_unallocated_rfc_branch_version_fails_as_integrity_error() -> Non
     )
     with pytest.raises(IntegrityFailure, match="response contract is unsupported"):
         CommandBoundary._decode_stored_response(result)
+
+
+
+def _max_inventory_bulk_response() -> dict[str, object]:
+    revision = 9_223_372_036_854_775_807
+    revisions: dict[str, int] = {}
+    for ordinal in range(2_000):
+        membership_id = f"{ordinal:08x}-0000-4000-8000-{ordinal:012x}"
+        fault_tag_id = f"{ordinal + 2_000:08x}-0000-4000-8000-{ordinal + 2_000:012x}"
+        revisions[f"fault_tag_membership:{membership_id}"] = revision
+        revisions[f"fault_tag:{fault_tag_id}"] = revision
+    return {
+        "outcome": "APPLIED",
+        "target_refs": [
+            {
+                "type": "inventory_batch",
+                "id": "ffffffff-ffff-4fff-bfff-ffffffffffff",
+            }
+        ],
+        "revisions": revisions,
+    }
+
+
+def test_inventory_mutation_reviewed_replay_allocation_covers_2000_target_batch() -> None:
+    response = _max_inventory_bulk_response()
+    text, _digest, normalized = CommandBoundary._encode_response(
+        response,
+        response_schema="InventoryMutationResultV1",
+        response_version=1,
+    )
+
+    assert len(text.encode("utf-8")) < 524_288
+    depth, items, _strings = _measure(normalized)
+    assert depth <= 8
+    assert items == 4_006
+    assert items > 512
+
+    bounds = CommandBoundary._response_bounds("InventoryMutationResultV1", 1)
+    assert (bounds.max_bytes, bounds.max_depth, bounds.max_collection_items) == (
+        524_288,
+        8,
+        8_192,
+    )
+
+
+def test_inventory_mutation_reviewed_allocation_is_exact_to_version() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="unsupported command response schema/version",
+    ):
+        CommandBoundary._response_bounds("InventoryMutationResultV1", 2)
+
+    response_json = "{}"
+    result = CommittedCommandResult(
+        command_id=new_uuid4(),
+        response_schema="InventoryMutationResultV1",
+        response_version=2,
+        response_json=response_json,
+        response_sha256=hashlib.sha256(response_json.encode("utf-8")).hexdigest(),
+    )
+    with pytest.raises(IntegrityFailure, match="response contract is unsupported"):
+        CommandBoundary._decode_stored_response(result)
