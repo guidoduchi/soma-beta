@@ -127,7 +127,10 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         assert connection.execute(
             "SELECT sequence,migration_id FROM schema_migrations ORDER BY sequence DESC LIMIT 1"
-        ).fetchone() == (12, "beta_0012_inventory_query_indexes")
+        ).fetchone() == (
+            manifest.entries[-1].sequence,
+            manifest.entries[-1].migration_id,
+        )
     finally:
         connection.close()
 
