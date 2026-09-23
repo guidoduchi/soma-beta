@@ -78,7 +78,8 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
     security_provider,
 ) -> None:
     manifest = MigrationManifest.load(migration_directory)
-    assert [entry.sequence for entry in manifest.entries] == list(range(1, 13))
+    assert [entry.sequence for entry in manifest.entries[:12]] == list(range(1, 13))
+    assert manifest.entries[11].migration_id == "beta_0012_inventory_query_indexes"
     entry = manifest.entries[9]
     assert entry.migration_id == "beta_0010_inventory"
     assert entry.filename == "0010_inventory.sql"
@@ -185,7 +186,9 @@ def test_sequence_twelve_adds_stock_query_indexes_without_rewriting_prefix(
         (migration_directory / entry.filename).read_bytes()
     ).hexdigest() == _SEQUENCE_TWELVE_SHA256
 
-    runner = _runner(database, migration_directory, security_provider)
+    prefix_twelve = tmp_path / "prefix-twelve"
+    _stage_prefix(migration_directory, prefix_twelve, 12)
+    runner = _runner(database, prefix_twelve, security_provider)
     assert runner.initialize_or_migrate() == 12
     assert runner.initialize_or_migrate() == 12
 
