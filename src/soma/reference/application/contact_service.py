@@ -10,6 +10,7 @@ from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.reference.audit_registry import build_reference_audit_registry
+from soma.reference.domain.matching import require_persisted_matching_profile
 from soma.reference.domain.validation import (
     validate_contact_name,
     validate_email_channel,
@@ -127,6 +128,7 @@ class ContactReferenceService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             if initial_customer_org_id is not None:
                 self._active_customer(uow.connection, initial_customer_org_id)
 
@@ -220,6 +222,7 @@ class ContactReferenceService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             row = self._active_contact(uow.connection, contact_id, base_revision=base_revision)
             if str(row[1]) == stored_name and str(row[2]) == name_key:
                 return PreparedMutation(
@@ -305,6 +308,7 @@ class ContactReferenceService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             contact = self._active_contact(uow.connection, contact_id, base_revision=contact_base_revision)
             prior_contact_revision = int(contact[4])
             channel_id = new_uuid4()
@@ -381,6 +385,7 @@ class ContactReferenceService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             contact = self._active_contact(uow.connection, contact_id, base_revision=contact_base_revision)
             channel = self._channel(
                 uow.connection,
