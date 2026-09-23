@@ -2,7 +2,7 @@
   "schema": "SOMA_PRE_LLD08_REFERENCE_SEMANTIC_TRACEABILITY_V1",
   "lld_id": "LLD-02",
   "design_sha": "26b7ceb88af7d5ade73ad2be3b5c5e1faddb6370",
-  "implementation_head_at_binding": "589a701b3ac76458c841e794b14f26e9508327d6",
+  "implementation_head_at_binding": "7a4cfe5b3960e2e7e577bd33bad2c39b4563900c",
   "source_acceptance": [
     "spec/lld/identity-reference/tests/acceptance.json"
   ],
@@ -12,7 +12,7 @@
   "certification_rule": "Certification requires every non-deferred LLD-02 clause to have inspectable semantic evidence and the exact final implementation head to pass the supported implementation CI matrix, release-schema gate, design pin, wheel build and packaged authority-resource verification.",
   "known_limits": [
     "LLD-08 Site persistence/lifecycle is not started; Site-owned clauses are explicitly deferred or partial.",
-    "Consumer-owned historical snapshots are not reclassified as LLD-02-owned merely because reference history is preserved.",
+    "Generated-artifact recipient/address snapshots remain consumer-owned and are not reclassified as LLD-02-owned merely because Reference history is preserved.",
     "Production SQLCipher/session security remains LLD-12-owned.",
     "The mechanical acceptance-marker report is report-only and cannot promote partial cases."
   ],
@@ -276,14 +276,18 @@
       ],
       "owners": [
         "src/soma/reference/application/contact_service.py",
-        "src/soma/reference/queries/history.py"
+        "src/soma/reference/queries/history.py",
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
       ],
       "tests": [
-        "tests/test_reference_owner_queries.py::test_contact_detail_channels_and_affiliation_histories_are_bounded"
+        "tests/test_reference_owner_queries.py::test_contact_detail_channels_and_affiliation_histories_are_bounded",
+        "tests/test_sr_reference_mutations.py::test_contact_affiliation_change_does_not_rewrite_sr_organization_at_use_snapshot",
+        "tests/test_reference_contacts.py::test_affiliation_changes_close_history_and_keep_one_current"
       ],
-      "status": "partial_cross_packet",
-      "note": "LLD-02 history remains queryable, but consumer-owned organization-at-use snapshot immutability requires explicit cross-packet evidence binding.",
-      "certification_status": "not_certified"
+      "status": "reviewed",
+      "note": "SR Contact history stores immutable customer_org_context_id at use time; a later Contact affiliation change leaves that consumer snapshot unchanged while Reference affiliation history remains queryable.",
+      "certification_status": "pending_exact_head_ci"
     },
     {
       "id": "LLD02-T014",
@@ -295,15 +299,24 @@
       ],
       "owners": [
         "src/soma/reference/application/contact_service.py",
-        "src/soma/reference/queries/channels.py"
+        "src/soma/reference/queries/channels.py",
+        "src/soma/tickets/sr_references.py",
+        "src/soma/objectives_tasks/services/task_planning.py",
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/inventory/services/requests.py"
       ],
       "tests": [
         "tests/test_reference_contacts.py::test_contacts_allow_duplicate_names_and_zero_channels",
-        "tests/test_reference_queries.py::test_channel_auto_select_one_or_none"
+        "tests/test_reference_queries.py::test_channel_auto_select_one_or_none",
+        "tests/test_sr_reference_mutations.py::test_contact_affiliation_mismatch_requires_fresh_review_preserves_affiliation_and_replays_exactly",
+        "tests/test_objectives_tasks_local_creation.py::test_create_local_task_minimum_is_unscheduled_and_exactly_replayable",
+        "tests/test_objectives_tasks_objectives.py::test_t048_objective_is_valid_without_ticket_device_or_inventory_context",
+        "tests/test_inventory_requester_support_acceptance.py::test_t067_requester_role_preserves_creation_context_and_shows_current_contact_separately",
+        "tests/test_reference_final_authorities.py::test_channel_use_validation_requires_active_valid_channel_only_at_use"
       ],
-      "status": "partial_cross_packet",
-      "note": "Zero-channel Contact and use-time channel prerequisite behavior are proven locally; unrelated Ticket/Task/Objective/Inventory operation independence is not yet bound here.",
-      "certification_status": "not_certified"
+      "status": "reviewed",
+      "note": "Contacts may exist with zero channels. Missing channel does not block SR Contact reference use, local Task/Objective work, or Inventory requester use; channel prerequisites are enforced only by recipient/channel-use validation.",
+      "certification_status": "pending_exact_head_ci"
     },
     {
       "id": "LLD02-T015",
