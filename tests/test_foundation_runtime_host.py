@@ -20,6 +20,7 @@ class _Server:
         self.started = False
         self.stopped = False
         self.health_calls = []
+        self.stop_timeouts = []
 
     def start(self, bound_socket) -> None:
         if self.fail_start:
@@ -31,8 +32,12 @@ class _Server:
         self.health_calls.append(expected)
         return self.self_health
 
-    def stop(self) -> None:
+    def stop(self, timeout_seconds=None) -> None:
+        self.stop_timeouts.append(timeout_seconds)
         self.stopped = True
+
+    def is_stopped(self) -> bool:
+        return self.stopped
 
 
 class _RunSecurity:
@@ -271,3 +276,127 @@ def test_shutdown_request_commits_one_receipt_audit_then_closes_writer_admission
         ).fetchone()[0] == 1
 
     runtime.shutdown(grace_seconds=1)
+
+
+class _PartialStartServer(_Server):
+    def start(self, bound_socket) -> None:
+        bound_socket.listen(8)
+        self.started = True
+        raise RuntimeError("injected failure after server resource acquisition")
+
+
+class _FailingStopServer(_Server):
+    def __init__(self, *, self_health: bool = False) -> None:
+        super().__init__(self_health=self_health)
+        self.stop_failures_remaining = 1
+
+    def stop(self, timeout_seconds=None) -> None:
+        self.stop_timeouts.append(timeout_seconds)
+        if self.stop_failures_remaining:
+            self.stop_failures_remaining -= 1
+            raise RuntimeError("injected server stop failure")
+        self.stopped = True
+
+
+def test_prepare_for_start_failure_requiesces_writer_gate(
+    tmp_path,
+    migration_directory,
+    security_provider,
+    monkeypatch,
+) -> None:
+    runtime, _paths, _server, _security, _ = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+    )
+    runtime.start()
+    runtime.shutdown(grace_seconds=1)
+
+    def fail_prepare(_self):
+        raise OSError("injected path preparation failure")
+
+    monkeypatch.setattr(InstancePaths, "prepare_for_start", fail_prepare)
+    with pytest.raises(OSError, match="injected path preparation failure"):
+        runtime.start()
+
+    assert runtime.state == "FAILED"
+    with pytest.raises(SomaError) as raised:
+        with UnitOfWork(runtime.connection_factory):
+            pass
+    assert raised.value.code == "HOST_QUIESCING"
+
+
+def test_partial_server_start_is_owned_and_stopped_during_failed_start(
+    tmp_path,
+    migration_directory,
+    security_provider,
+) -> None:
+    server = _PartialStartServer()
+    runtime, paths, _server, security, _ = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+        server=server,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="injected failure after server resource acquisition",
+    ):
+        runtime.start()
+
+    assert runtime.state == "FAILED"
+    assert server.started
+    assert server.stopped
+    assert not paths.registry.exists()
+    assert len(security.closed) == 1
+
+    replacement, _paths, _adapter, _security, _reconciled = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+    )
+    replacement.start()
+    replacement.shutdown(grace_seconds=1)
+
+
+def test_failed_stop_retains_runtime_ownership_until_server_is_proved_stopped(
+    tmp_path,
+    migration_directory,
+    security_provider,
+) -> None:
+    server = _FailingStopServer(self_health=False)
+    runtime, paths, _server, security, _ = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+        server=server,
+    )
+
+    with pytest.raises(SomaError) as raised:
+        runtime.start()
+    assert raised.value.code == "SECURITY_NOT_READY"
+    assert any(
+        "failed-start cleanup also failed" in note
+        for note in getattr(raised.value, "__notes__", ())
+    )
+    assert paths.registry.exists()
+    assert security.closed == []
+    assert runtime._lock is not None and runtime._lock.held
+
+    replacement, _paths, _adapter, _security, _reconciled = _runtime(
+        tmp_path,
+        migration_directory,
+        security_provider,
+    )
+    with pytest.raises(SomaError) as replacement_error:
+        replacement.start()
+    assert replacement_error.value.code == "INSTANCE_OWNED"
+
+    runtime._close_runtime_resources()
+    assert server.stopped
+    assert not paths.registry.exists()
+    assert len(security.closed) == 1
+
+    replacement.start()
+    replacement.shutdown(grace_seconds=1)
