@@ -100,3 +100,15 @@ def test_uvicorn_stop_respects_zero_remaining_budget_and_can_retry(
         release.set()
         adapter.stop(timeout_seconds=1)
         assert adapter.is_stopped()
+
+
+
+def test_uvicorn_adapter_disables_proxy_authority_and_uses_one_worker() -> None:
+    app = Starlette(routes=[Route("/", _hello, methods=["GET"])])
+    adapter = UvicornLoopbackServer(
+        app,
+        self_health_probe=lambda expected: True,
+    )
+    assert adapter._server.config.workers == 1
+    assert adapter._server.config.proxy_headers is False
+    assert adapter._server.config.reload is False
