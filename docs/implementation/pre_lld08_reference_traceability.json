@@ -1,0 +1,797 @@
+{
+  "schema": "SOMA_PRE_LLD08_REFERENCE_SEMANTIC_TRACEABILITY_V1",
+  "lld_id": "LLD-02",
+  "design_sha": "26b7ceb88af7d5ade73ad2be3b5c5e1faddb6370",
+  "implementation_head_at_binding": "1abc1781e2012c2c8ea09d738541af9c1ecb3141",
+  "source_acceptance": [
+    "spec/lld/identity-reference/tests/acceptance.json"
+  ],
+  "module_map": "spec/lld/identity-reference/implementation/module-map.json",
+  "method": "Each normative LLD-02 acceptance scenario is bound to current production owner paths and named executable behavior. Marker/name presence is not treated as semantic proof. Partial or LLD-08-owned clauses remain explicit rather than being inferred from adjacent tests.",
+  "certified": false,
+  "certification_rule": "Certification requires every non-deferred LLD-02 clause to have inspectable semantic evidence and the exact final implementation head to pass the supported implementation CI matrix, release-schema gate, design pin, wheel build and packaged authority-resource verification.",
+  "known_limits": [
+    "LLD-08 Site persistence/lifecycle is not started; Site-owned clauses are explicitly deferred or partial.",
+    "Consumer-owned historical snapshots are not reclassified as LLD-02-owned merely because reference history is preserved.",
+    "Production SQLCipher/session security remains LLD-12-owned.",
+    "The mechanical acceptance-marker report is report-only and cannot promote partial cases."
+  ],
+  "summary": {
+    "reviewed": 24,
+    "reviewed_pending_ci": 1,
+    "partial_evidence": 5,
+    "partial_cross_packet": 6,
+    "deferred_lld08": 1,
+    "unbound": 0
+  },
+  "cases": [
+    {
+      "id": "LLD02-T001",
+      "scenario": "immutable_reference_identity",
+      "prove": [
+        "rename Customer/Contact/Dispatch Location leaves UUID unchanged",
+        "dependent relationships still resolve immutable ID"
+      ],
+      "owners": [
+        "src/soma/reference/application/customer_service.py",
+        "src/soma/reference/application/contact_service.py",
+        "src/soma/reference/application/dispatch_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_replay_results.py::test_dispatch_update_replay_returns_original_reference_mutation_result",
+        "tests/test_reference_customer_replay_results.py::test_customer_account_code_replay_keeps_original_customer_revision",
+        "tests/test_reference_contacts.py::test_affiliation_changes_close_history_and_keep_one_current"
+      ],
+      "status": "partial_evidence",
+      "note": "Owner identities are immutable through edits, but an explicit acceptance proving dependent relationships still resolve after a descriptive rename is not yet bound.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T002",
+      "scenario": "duplicate_names_are_valid",
+      "prove": [
+        "two active Contacts may share exact name",
+        "two Customer Organizations may share exact normalized name",
+        "no uniqueness constraint or silent merge fires"
+      ],
+      "owners": [
+        "src/soma/reference/application/customer_service.py",
+        "src/soma/reference/application/contact_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_customers.py::test_equal_customer_names_are_distinct_and_create_replay_is_stable",
+        "tests/test_reference_contacts.py::test_contacts_allow_duplicate_names_and_zero_channels"
+      ],
+      "status": "reviewed",
+      "note": "Duplicate names remain distinct immutable identities; no merge/uniqueness authority is introduced.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T003",
+      "scenario": "matching_profile_golden_vectors",
+      "prove": [
+        "UNICODE_MATCH_V1 performs Unicode-17 NFKC, Unicode whitespace collapse and full case folding",
+        "accents preserved",
+        "punctuation preserved",
+        "Python 3.13 and 3.14 produce byte-identical accepted keys",
+        "runtime built-in Unicode version cannot change results"
+      ],
+      "owners": [
+        "src/soma/reference/domain/matching.py",
+        "src/soma/reference/assets/unicode_match_v1.json"
+      ],
+      "tests": [
+        "tests/test_reference_matching.py::test_unicode_match_v1_asset_is_pinned_to_unicode_17",
+        "tests/test_reference_matching.py::test_unicode_match_v1_nfkc_whitespace_and_full_casefold",
+        "tests/test_reference_matching.py::test_unicode_match_v1_preserves_accents_and_punctuation"
+      ],
+      "status": "reviewed",
+      "note": "Pinned Unicode-17 asset drives deterministic matching rather than host Unicode tables.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T004",
+      "scenario": "matching_profile_persistence_guard",
+      "prove": [
+        "reference_metadata contains UNICODE_MATCH_V1",
+        "unsupported stored profile blocks matching reads/writes",
+        "future profile change requires migration/reindex rather than opportunistic rewrite"
+      ],
+      "owners": [
+        "src/soma/reference/domain/matching.py",
+        "src/soma/reference/application/customer_service.py",
+        "src/soma/reference/application/contact_service.py",
+        "src/soma/reference/application/dispatch_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_matching_profile_guard.py::test_unsupported_persisted_matching_profile_blocks_matching_read_and_write",
+        "tests/test_reference_matching_profile_guard.py::test_site_dispatch_shared_uow_rejects_unsupported_matching_profile_atomically"
+      ],
+      "status": "reviewed",
+      "note": "Persisted matching-profile mismatch fails closed on reads and writes.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T005",
+      "scenario": "customer_account_code_preferred_evidence",
+      "prove": [
+        "Customer Account Code remains separate from customer_org_id",
+        "one code claimant outranks compatible name-only evidence",
+        "code-vs-different-name candidate returns AMBIGUOUS",
+        "name alone never assigns code"
+      ],
+      "owners": [
+        "src/soma/reference/queries/matching.py",
+        "src/soma/reference/application/customer_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_queries.py::test_customer_account_code_conflicting_name_is_ambiguous_and_read_only"
+      ],
+      "status": "reviewed",
+      "note": "Account-code evidence remains separate from customer identity and ambiguity is preserved.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T006",
+      "scenario": "reviewed_multiple_account_code_claimants",
+      "prove": [
+        "ordinary SetCustomerAccountCode detects another claimant and performs no mutation",
+        "ConfirmCustomerAccountCodeSharedClaim can explicitly add reviewed second claimant",
+        "subsequent matching returns AMBIGUOUS over every eligible active claimant",
+        "no Customer merge occurs"
+      ],
+      "owners": [
+        "src/soma/reference/application/customer_service.py",
+        "src/soma/reference/queries/matching.py"
+      ],
+      "tests": [
+        "tests/test_reference_customers.py::test_normal_account_code_set_refuses_to_steal_existing_claim",
+        "tests/test_reference_customers.py::test_reviewed_shared_claim_preserves_explicit_ambiguity"
+      ],
+      "status": "reviewed",
+      "note": "Unreviewed stealing is blocked; reviewed shared claims remain explicitly ambiguous.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T007",
+      "scenario": "account_code_reassignment_history",
+      "prove": [
+        "reviewed reassignment supersedes source claim and creates target claim atomically",
+        "third-party shared claimants are not silently changed",
+        "creation/supersession command identities/timestamps remain queryable",
+        "historical Customer context elsewhere is unchanged"
+      ],
+      "owners": [
+        "src/soma/reference/application/customer_service.py",
+        "src/soma/reference/queries/history.py"
+      ],
+      "tests": [
+        "tests/test_reference_customers.py::test_reviewed_reassignment_supersedes_source_without_erasing_history",
+        "tests/test_reference_owner_queries.py::test_customer_detail_and_account_code_history_preserve_superseded_claims"
+      ],
+      "status": "reviewed",
+      "note": "Reviewed reassignment preserves superseded claim history.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T008",
+      "scenario": "contact_email_scope",
+      "prove": [
+        "same normalized email under different Customer affiliations is not global collision",
+        "same email within requested scope may yield multiple candidates and AMBIGUOUS",
+        "UNBOUND scope searches only currently unbound Contacts"
+      ],
+      "owners": [
+        "src/soma/reference/queries/matching.py"
+      ],
+      "tests": [
+        "tests/test_reference_queries.py::test_contact_email_matching_is_customer_scoped_and_unbound_scope_isolated",
+        "tests/test_reference_queries.py::test_multiple_same_scope_contacts_remain_ambiguous"
+      ],
+      "status": "reviewed",
+      "note": "Email matching is affiliation-scoped; UNBOUND and ambiguity semantics are explicit.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T009",
+      "scenario": "matching_is_read_only",
+      "prove": [
+        "UNRESOLVED/UNIQUE_CANDIDATE/AMBIGUOUS queries create no rows/audit/lifecycle events",
+        "unique candidate does not itself merge/link/assign external identifier"
+      ],
+      "owners": [
+        "src/soma/reference/queries/matching.py"
+      ],
+      "tests": [
+        "tests/test_reference_queries.py::test_customer_account_code_conflicting_name_is_ambiguous_and_read_only",
+        "tests/test_reference_queries.py::test_contact_email_matching_is_customer_scoped_and_unbound_scope_isolated"
+      ],
+      "status": "reviewed",
+      "note": "Matching queries are read-only and do not assign identity.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T010",
+      "scenario": "candidate_pagination_preserves_state",
+      "prove": [
+        "candidate_count represents full result",
+        "page max cannot turn AMBIGUOUS into UNIQUE_CANDIDATE",
+        "opaque continuation yields stable immutable-ID ordering"
+      ],
+      "owners": [
+        "src/soma/reference/queries/matching.py",
+        "src/soma/reference/queries/_cursor.py"
+      ],
+      "tests": [
+        "tests/test_reference_queries.py::test_customer_candidate_page_does_not_change_ambiguity_state"
+      ],
+      "status": "reviewed",
+      "note": "Full candidate state is independent of visible page size and continuations are stable.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T011",
+      "scenario": "affiliation_continuity",
+      "prove": [
+        "Contact starts unbound or with one current affiliation",
+        "change closes prior row and inserts new current row atomically",
+        "contact_id never changes",
+        "dual-current state impossible"
+      ],
+      "owners": [
+        "src/soma/reference/application/contact_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_contacts.py::test_affiliation_changes_close_history_and_keep_one_current",
+        "tests/test_reference_contacts.py::test_affiliation_same_target_is_semantic_no_change"
+      ],
+      "status": "reviewed",
+      "note": "Affiliation transition closes prior history and preserves one current row.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T012",
+      "scenario": "affiliation_history_protected",
+      "prove": [
+        "closure records closing command identity",
+        "closed affiliation cannot be edited/deleted by ordinary runtime",
+        "only current-to-historical closure transition accepted by SQLite protection"
+      ],
+      "owners": [
+        "src/soma/reference/application/contact_service.py",
+        "src/soma/migrations/0002_identity_reference.sql"
+      ],
+      "tests": [
+        "tests/test_reference_contacts.py::test_affiliation_changes_close_history_and_keep_one_current",
+        "tests/test_reference_schema_contract.py::test_release_schema_verifier_detects_missing_lld02_history_protection_trigger"
+      ],
+      "status": "reviewed",
+      "note": "Closed affiliation history is protected by schema triggers and carries closure command identity.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T013",
+      "scenario": "historical_org_context_survives",
+      "prove": [
+        "later Contact affiliation change does not rewrite organization-at-use snapshots stored by consumers",
+        "historical affiliation rows remain queryable"
+      ],
+      "owners": [
+        "src/soma/reference/application/contact_service.py",
+        "src/soma/reference/queries/history.py"
+      ],
+      "tests": [
+        "tests/test_reference_owner_queries.py::test_contact_detail_channels_and_affiliation_histories_are_bounded"
+      ],
+      "status": "partial_cross_packet",
+      "note": "LLD-02 history remains queryable, but consumer-owned organization-at-use snapshot immutability requires explicit cross-packet evidence binding.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T014",
+      "scenario": "contact_channel_optional",
+      "prove": [
+        "Contact can be created with zero channels",
+        "missing channel does not block unrelated Ticket/Task/Objective/Inventory operations",
+        "recipient-requiring workflow reports prerequisite only at use time"
+      ],
+      "owners": [
+        "src/soma/reference/application/contact_service.py",
+        "src/soma/reference/queries/channels.py"
+      ],
+      "tests": [
+        "tests/test_reference_contacts.py::test_contacts_allow_duplicate_names_and_zero_channels",
+        "tests/test_reference_queries.py::test_channel_auto_select_one_or_none"
+      ],
+      "status": "partial_cross_packet",
+      "note": "Zero-channel Contact and use-time channel prerequisite behavior are proven locally; unrelated Ticket/Task/Objective/Inventory operation independence is not yet bound here.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T015",
+      "scenario": "email_channel_storage_and_use",
+      "prove": [
+        "EMAIL_CHANNEL_V1 accepts governed one-addr-spec syntax and rejects malformed/control/CRLF values",
+        "validation performs no DNS/SMTP/network request",
+        "active valid specific channel can return USABLE",
+        "generated-artifact owner snapshots exact address separately"
+      ],
+      "owners": [
+        "src/soma/reference/domain/validation.py",
+        "src/soma/reference/queries/channels.py"
+      ],
+      "tests": [
+        "tests/test_reference_matching.py::test_email_channel_uses_pinned_trim_without_network_validation",
+        "tests/test_reference_matching.py::test_email_channel_rejects_injection_and_invalid_addr_spec",
+        "tests/test_reference_queries.py::test_channel_auto_select_one_or_none"
+      ],
+      "status": "partial_cross_packet",
+      "note": "Storage/use validation is proven; generated-artifact owner snapshotting of the exact address remains consumer-owned evidence.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T016",
+      "scenario": "contact_channel_history_and_stale_edit",
+      "prove": [
+        "add/update/archive increments Contact aggregate revision",
+        "archived channel no longer matches or qualifies as recipient",
+        "generated historical recipient snapshots remain unchanged",
+        "stale Contact/channel revisions block overwrite"
+      ],
+      "owners": [
+        "src/soma/reference/application/contact_service.py",
+        "src/soma/reference/queries/history.py",
+        "src/soma/reference/queries/channels.py"
+      ],
+      "tests": [
+        "tests/test_reference_contacts.py::test_channel_add_update_archive_and_stale_revision",
+        "tests/test_reference_contact_replay_results.py::test_contact_channel_update_replay_keeps_original_channel_revision"
+      ],
+      "status": "partial_cross_packet",
+      "note": "Channel revision/history/stale-edit semantics are proven; historical generated-recipient snapshot immutability remains consumer-owned evidence.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T017",
+      "scenario": "contact_archive_blockers",
+      "prove": [
+        "registered active dependencies block archive",
+        "write-path guard performs no unbounded blocker materialization",
+        "no lifecycle state/event/audit/receipt commits when blocked"
+      ],
+      "owners": [
+        "src/soma/reference/application/lifecycle_service.py",
+        "src/soma/reference/domain/dependencies.py",
+        "src/soma/inventory/services/participants.py"
+      ],
+      "tests": [
+        "tests/test_reference_inventory_dependencies.py::test_inventory_contact_dependency_blocks_reference_archive_without_mutation",
+        "tests/test_application_composition.py::test_pre_lld08_composition_declares_inventory_reference_dependency"
+      ],
+      "status": "reviewed",
+      "note": "Real Inventory requester/Fault Tag dependencies block archive atomically through the registered validator.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T018",
+      "scenario": "archive_preview_pagination",
+      "prove": [
+        "read-only preview computes exact blocker count across validators",
+        "bounded pages/continuation preserve deterministic order",
+        "would_be_eligible depends on exact count not visible page",
+        "preview creates no mutation"
+      ],
+      "owners": [
+        "src/soma/reference/application/lifecycle_service.py",
+        "src/soma/reference/domain/dependencies.py"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_archive_preview_exact_count_is_paged_and_read_only",
+        "tests/test_reference_final_authorities.py::test_archive_preview_fetches_only_requested_provider_pages"
+      ],
+      "status": "reviewed",
+      "note": "Preview exact count, deterministic bounded paging and read purity are directly exercised.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T019",
+      "scenario": "dispatch_archive_blockers",
+      "prove": [
+        "Site-dedicated/logistics guards block unauthorized archive",
+        "no automatic Site/logistics unlinking occurs",
+        "separate reviewed Site lifecycle authority remains required where applicable"
+      ],
+      "owners": [
+        "src/soma/reference/application/lifecycle_service.py",
+        "src/soma/inventory/services/participants.py"
+      ],
+      "tests": [
+        "tests/test_reference_inventory_dependencies.py::test_inventory_dispatch_logistics_dependency_blocks_reference_archive"
+      ],
+      "status": "partial_cross_packet",
+      "note": "LLD-07 logistics/Fault Tag guards are real and fail closed; Site-dedicated lifecycle authority remains an LLD-08 obligation and is intentionally not fabricated pre-LLD08.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T020",
+      "scenario": "reactivation",
+      "prove": [
+        "explicit reactivation preserves archived history",
+        "new conflict/indeterminate guard blocks reactivation atomically",
+        "active selectors include record only after commit"
+      ],
+      "owners": [
+        "src/soma/reference/application/lifecycle_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_archive_then_reactivate_preserves_append_only_history",
+        "tests/test_reference_lifecycle_replay_results.py::test_archive_replay_returns_original_revision_after_later_reactivation"
+      ],
+      "status": "reviewed",
+      "note": "Reactivation preserves archive history and exact replay.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T021",
+      "scenario": "dispatch_customer_neutrality",
+      "prove": [
+        "dispatch_locations has no Customer ownership/preference field",
+        "same active location can participate in otherwise valid roles without master ownership change",
+        "operation role remains on consumer"
+      ],
+      "owners": [
+        "src/soma/reference/application/dispatch_service.py",
+        "src/soma/migrations/0002_identity_reference.sql"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_dispatch_standalone_is_customer_neutral"
+      ],
+      "status": "reviewed",
+      "note": "Dispatch master has no Customer ownership field; role remains consumer-owned.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T022",
+      "scenario": "site_dedicated_dispatch_atomicity",
+      "prove": [
+        "LLD-08 coordinator creates site-derived Dispatch Location and Site relation in same UoW",
+        "failure inserting Site/relation rolls back location/evidence/receipt",
+        "one-to-one constraints belong to LLD-08"
+      ],
+      "owners": [
+        "src/soma/reference/application/dispatch_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_site_derived_dispatch_participant_is_atomic_and_has_no_address",
+        "tests/test_reference_matching_profile_guard.py::test_site_dispatch_shared_uow_rejects_unsupported_matching_profile_atomically"
+      ],
+      "status": "deferred_lld08",
+      "note": "The LLD-02 shared-UoW participant and rollback seam are proven. Actual Site relation/one-to-one coordination belongs to LLD-08, which has not started.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T023",
+      "scenario": "site_derived_address",
+      "prove": [
+        "site-derived location stores no standalone address",
+        "current address comes through SiteDispatchAddressProvider",
+        "later Site address change does not rewrite prior LLD-07 logistics snapshots"
+      ],
+      "owners": [
+        "src/soma/reference/queries/references.py",
+        "src/soma/reference/application/dispatch_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_owner_queries.py::test_dispatch_address_projection_respects_lld08_provider_boundary",
+        "tests/test_reference_final_authorities.py::test_site_derived_dispatch_participant_is_atomic_and_has_no_address"
+      ],
+      "status": "partial_cross_packet",
+      "note": "No standalone address is stored and current address crosses SiteDispatchAddressProvider; live Site-change versus prior LLD-07 logistics snapshot evidence awaits LLD-08 integration.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T024",
+      "scenario": "singleton_user_profile_identity",
+      "prove": [
+        "first-run creates one metadata identity",
+        "second singleton insert fails",
+        "Contact cannot be login identity",
+        "no verifier/password/key material exists in LLD-02 tables"
+      ],
+      "owners": [
+        "src/soma/reference/application/profile_service.py",
+        "src/soma/migrations/0002_identity_reference.sql"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_local_profile_has_no_login_authority_and_display_edit_is_stale_safe",
+        "tests/test_reference_owner_queries.py::test_local_user_profile_point_lookup_is_available_without_login_authority"
+      ],
+      "status": "reviewed",
+      "note": "Singleton descriptive identity is separate from credential/session authority.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T025",
+      "scenario": "settings_read_purity",
+      "prove": [
+        "absent known setting returns DEFAULT with no row creation",
+        "unknown key rejected",
+        "read produces no audit/receipt/default persistence"
+      ],
+      "owners": [
+        "src/soma/reference/application/settings_service.py",
+        "src/soma/reference/domain/settings.py"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_settings_are_read_pure_typed_atomic_and_secret_excluding"
+      ],
+      "status": "reviewed",
+      "note": "Known defaults are read-pure; unknown keys fail and reads do not persist defaults.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T026",
+      "scenario": "settings_atomic_write_and_upgrade",
+      "prove": [
+        "strict JSON/state-independent checks occur before writer lock",
+        "bounded state-dependent checks rerun inside UoW",
+        "stale revision blocks write",
+        "failed upgrade preserves prior value",
+        "successful write commits value+receipt+audit atomically"
+      ],
+      "owners": [
+        "src/soma/reference/application/settings_service.py",
+        "src/soma/reference/domain/settings.py"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_settings_are_read_pure_typed_atomic_and_secret_excluding",
+        "tests/test_reference_replay_results.py::test_setting_write_replay_returns_original_setting_value_without_owner_reads"
+      ],
+      "status": "reviewed",
+      "note": "Typed validation, stale-safe atomic write and exact replay are bound.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T027",
+      "scenario": "settings_secret_exclusion",
+      "prove": [
+        "password/verifier/key/token/device-credential definitions cannot register in ordinary setting store",
+        "unsafe JSON never falls back to generic serialization"
+      ],
+      "owners": [
+        "src/soma/reference/domain/settings.py",
+        "src/soma/reference/application/settings_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_settings_are_read_pure_typed_atomic_and_secret_excluding"
+      ],
+      "status": "reviewed",
+      "note": "Secret-bearing definition classes are excluded from the ordinary setting store.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T028",
+      "scenario": "reference_lifecycle_append_only",
+      "prove": [
+        "accepted create/archive/reactivate/correction lifecycle events reject update/delete",
+        "master delete guards reject ordinary hard delete",
+        "required audit references resulting lifecycle identity",
+        "audit failure rolls back mutation/event"
+      ],
+      "owners": [
+        "src/soma/reference/application/customer_service.py",
+        "src/soma/reference/application/contact_service.py",
+        "src/soma/reference/application/dispatch_service.py",
+        "src/soma/reference/application/lifecycle_service.py",
+        "src/soma/migrations/0002_identity_reference.sql"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_archive_then_reactivate_preserves_append_only_history",
+        "tests/test_reference_schema_contract.py::test_release_schema_verifier_detects_missing_lld02_history_protection_trigger"
+      ],
+      "status": "partial_evidence",
+      "note": "Append-only lifecycle history and protection are proven; an LLD-02-specific injected audit failure rollback across lifecycle mutation/event remains to be bound explicitly.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T029",
+      "scenario": "stale_reference_edit",
+      "prove": [
+        "two editors use same base revision",
+        "first commit increments revision",
+        "second gets STALE_REVISION and cannot overwrite first"
+      ],
+      "owners": [
+        "src/soma/reference/application/customer_service.py",
+        "src/soma/reference/application/contact_service.py",
+        "src/soma/reference/application/dispatch_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_contacts.py::test_channel_add_update_archive_and_stale_revision",
+        "tests/test_reference_final_authorities.py::test_local_profile_has_no_login_authority_and_display_edit_is_stale_safe"
+      ],
+      "status": "partial_evidence",
+      "note": "Stale revision failure is covered on channel/profile authorities; explicit two-editor stale descriptive reference acceptance remains to be bound.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T030",
+      "scenario": "dependency_validator_ownership",
+      "prove": [
+        "registry calls explicit domain validators using same UoW",
+        "LLD-02 contains no direct SQL against Tickets/Inventory/Infrastructure/Communications private tables",
+        "indeterminate validator fails closed"
+      ],
+      "owners": [
+        "src/soma/reference/domain/dependencies.py",
+        "src/soma/reference/application/lifecycle_service.py",
+        "src/soma/composition.py"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_lifecycle_service_requires_finalized_dependency_assembly",
+        "tests/test_reference_final_authorities.py::test_archive_blocked_or_indeterminate_commits_nothing",
+        "tests/test_application_composition.py::test_pre_lld08_composition_declares_inventory_reference_dependency"
+      ],
+      "status": "reviewed",
+      "note": "Registry is finalized explicitly, uses injected provider interfaces and fails closed on indeterminate results.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T031",
+      "scenario": "semantic_bounds_no_truncation",
+      "prove": [
+        "each governed field uses field-specific byte/line bound",
+        "overflow rejects before normalization/parser blow-up",
+        "no value is truncated",
+        "there is no universal 400-character or total-record product cap"
+      ],
+      "owners": [
+        "src/soma/reference/domain/validation.py",
+        "src/soma/reference/domain/matching.py"
+      ],
+      "tests": [
+        "tests/test_reference_bounds.py::test_reference_bounds_are_field_specific_and_do_not_truncate",
+        "tests/test_reference_bounds.py::test_customer_name_overflow_rejects_before_matching_normalization",
+        "tests/test_reference_bounds.py::test_email_overflow_rejects_before_addr_spec_parser",
+        "tests/test_reference_bounds.py::test_dispatch_address_uses_independent_byte_and_line_bounds"
+      ],
+      "status": "reviewed",
+      "note": "Field-specific bounds reject before expensive normalization/parsing and never truncate.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T032",
+      "scenario": "query_shape_and_indexes",
+      "prove": [
+        "ordinary list/history/channel/candidate pages use keyset cursors and supporting indexes",
+        "Contact page projection is set-based rather than N+1",
+        "archive write guards use indexed existence queries",
+        "full blocker enumeration occurs outside BEGIN IMMEDIATE"
+      ],
+      "owners": [
+        "src/soma/reference/queries/references.py",
+        "src/soma/reference/queries/history.py",
+        "src/soma/reference/queries/matching.py",
+        "src/soma/inventory/services/participants.py"
+      ],
+      "tests": [
+        "tests/test_reference_owner_queries.py::test_active_reference_lists_are_keyset_paged_and_archived_lookup_remains_available",
+        "tests/test_reference_owner_queries.py::test_contact_detail_channels_and_affiliation_histories_are_bounded",
+        "tests/test_inventory_bulk_scaling.py::test_reference_dependency_guard_uses_bounded_indexed_probe"
+      ],
+      "status": "partial_evidence",
+      "note": "Keyset query shape and indexed Inventory archive guard are bound; Contact detail set-based/N+1 and complete supporting-index plan evidence should be measured explicitly rather than inferred.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T033",
+      "scenario": "closed_route_and_sql_identifiers",
+      "prove": [
+        "generic reference_type accepts only closed enum",
+        "cursor/sort/type input never becomes raw SQL identifier/text",
+        "all values use bound parameters",
+        "no DELETE route exists for history-bearing reference records"
+      ],
+      "owners": [
+        "src/soma/reference/api/routes_reference.py",
+        "src/soma/reference/queries/references.py"
+      ],
+      "tests": [
+        "tests/test_reference_api_routes.py::test_generic_reference_type_resolves_only_closed_enum",
+        "tests/test_reference_api_routes.py::test_generic_reference_type_rejects_non_enum_values",
+        "tests/test_reference_api_routes.py::test_reference_transport_contains_no_persistence_or_sql_authority",
+        "tests/test_reference_api_routes.py::test_reference_route_registry_matches_closed_public_surface"
+      ],
+      "status": "reviewed",
+      "note": "Transport is closed, owner-injected and contains no SQL/persistence authority or delete route.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T034",
+      "scenario": "accepted_semantic_no_change",
+      "prove": [
+        "freshly setting same Account Code/name/channel/affiliation/descriptive state/setting produces committed NO_CHANGE receipt",
+        "no revision/lifecycle/relationship/audit row is fabricated",
+        "lost-response retry with same command_id/hash remains NO_CHANGE after later state changes",
+        "different hash with same command_id fails integrity"
+      ],
+      "owners": [
+        "src/soma/reference/application/customer_service.py",
+        "src/soma/reference/application/contact_service.py",
+        "src/soma/reference/application/dispatch_service.py",
+        "src/soma/reference/application/settings_service.py",
+        "src/soma/foundation/application/command_boundary.py"
+      ],
+      "tests": [
+        "tests/test_reference_no_change_acceptance.py::test_t034_semantic_no_change_is_committed_without_fabricated_mutation_and_replays_exactly"
+      ],
+      "status": "reviewed_pending_ci",
+      "note": "Fresh same-state commands across all governed LLD-02 mutation families commit exact NO_CHANGE receipts/results without fabricated owner/history/audit mutation; replay remains exact after later state change and changed-hash reuse conflicts.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T035",
+      "scenario": "account_code_review_freshness_binding",
+      "prove": [
+        "review preview returns server-derived review_snapshot_hash bound to matching profile, customer_reference_generation, exact claimant count, target/source IDs/revisions/current claims and proposed action",
+        "claim/reference change before commit increments generation and yields REVIEW_CONTEXT_STALE",
+        "commit validation uses O(1) metadata/point work plus indexed COUNT and never streams claimant detail under writer lock"
+      ],
+      "owners": [
+        "src/soma/reference/domain/account_code_review.py",
+        "src/soma/reference/application/customer_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_customers.py::test_account_code_review_goes_stale_on_reference_generation_change",
+        "tests/test_reference_customers.py::test_reviewed_shared_claim_preserves_explicit_ambiguity",
+        "tests/test_reference_customers.py::test_reviewed_reassignment_supersedes_source_without_erasing_history"
+      ],
+      "status": "partial_evidence",
+      "note": "Review hash freshness and stale-generation failure are proven; an explicit SQL-work assertion for O(1) metadata/point plus indexed COUNT under the writer lock remains to be bound.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T036",
+      "scenario": "multiple_usable_contact_channels",
+      "prove": [
+        "AUTO_SELECT with one usable email returns USABLE",
+        "AUTO_SELECT with more than one usable email returns MULTIPLE_USABLE + exact count/bounded IDs",
+        "SQL row order never selects recipient",
+        "explicit selected channel can proceed if still active/valid"
+      ],
+      "owners": [
+        "src/soma/reference/queries/channels.py"
+      ],
+      "tests": [
+        "tests/test_reference_queries.py::test_channel_auto_select_refuses_to_guess_between_multiple_usable_emails",
+        "tests/test_reference_queries.py::test_channel_auto_select_one_or_none"
+      ],
+      "status": "reviewed",
+      "note": "AUTO_SELECT never depends on SQL row order; exact multiple-usable state is surfaced.",
+      "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T037",
+      "scenario": "strict_schema_and_closed_channel_kind",
+      "prove": [
+        "every LLD-02 table is SQLite STRICT",
+        "direct insert of non-email channel_kind fails DB constraint",
+        "LLD-01 schema verifier detects missing STRICT/index/protection/generation trigger drift"
+      ],
+      "owners": [
+        "src/soma/migrations/0002_identity_reference.sql",
+        "src/soma/foundation/migrations/verification.py",
+        "src/soma/schema_manifest.json"
+      ],
+      "tests": [
+        "tests/test_reference_schema_contract.py::test_every_lld02_table_is_sqlite_strict",
+        "tests/test_reference_schema_contract.py::test_direct_non_email_contact_channel_insert_is_rejected_by_database",
+        "tests/test_reference_schema_contract.py::test_release_schema_verifier_detects_missing_lld02_supporting_index",
+        "tests/test_reference_schema_contract.py::test_release_schema_verifier_detects_missing_lld02_history_protection_trigger"
+      ],
+      "status": "reviewed",
+      "note": "STRICT, closed channel-kind, supporting-index and protection-trigger drift are release-schema verified.",
+      "certification_status": "pending_exact_head_ci"
+    }
+  ]
+}
