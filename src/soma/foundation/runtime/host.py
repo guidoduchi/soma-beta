@@ -298,7 +298,7 @@ class HostRuntime:
                 "INSTANCE_OWNED",
                 "failed runtime still owns resources pending safe cleanup",
             )
-        self._write_gate.reopen()
+        # Never admit a writer before the canonical instance is exclusively held.
         self._set_state("STARTING")
         try:
             self._paths.prepare_for_start()
@@ -320,6 +320,9 @@ class HostRuntime:
             if self._migration_sequence != expected_sequence:
                 raise IntegrityFailure("runtime migration sequence is not current")
             self._integrity_state = "VERIFIED"
+            # Reconciliation may use an authoritative UoW; by this point
+            # ownership and schema integrity have both been established.
+            self._write_gate.reopen()
             self._startup_reconciler(self._run_id, utc_epoch_seconds())
 
             self._request_executor = HostExecutor(4, "soma-request")
@@ -553,57 +556,100 @@ class HostRuntime:
         except BaseException:
             return False
 
+    def retry_failed_cleanup(self, *, grace_seconds: float = 30.0) -> bool:
+        """Retry failed-start cleanup boundedly; preserve the FAILED state."""
+        if grace_seconds < 0:
+            raise ValueError("grace_seconds must be nonnegative")
+        if self._state != "FAILED":
+            raise SomaError("HOST_NOT_READY", "only a failed runtime can retry cleanup")
+        self._close_runtime_resources(deadline=time.monotonic() + grace_seconds)
+        return not self._has_runtime_resources()
+
     def _close_runtime_resources(self, *, deadline: float | None = None) -> None:
-        run_id = self._run_id
-        data_instance_id = self._data_instance_id
+        # Cancellation is not termination. A failed start gets a short,
+        # shared cleanup budget; retained owners can retry explicitly.
+        if deadline is None:
+            deadline = time.monotonic() + 1.0
+        run_id, data_instance_id = self._run_id, self._data_instance_id
         failures: list[tuple[str, BaseException]] = []
         retain_ownership = False
 
-        if self._request_executor is not None:
-            try:
-                self._request_executor.close()
-            except BaseException as exc:
-                failures.append(("request_executor.close", exc))
-                retain_ownership = True
-            else:
-                self._request_executor = None
-        if self._background_executor is not None:
-            try:
-                self._background_executor.close()
-            except BaseException as exc:
-                failures.append(("background_executor.close", exc))
-                retain_ownership = True
-            else:
-                self._background_executor = None
+        # Quiesce all admission before trying to stop the server.
+        self._write_gate.quiesce()
+        for name in ("_request_executor", "_background_executor"):
+            executor = getattr(self, name)
+            if executor is not None:
+                try:
+                    executor.quiesce()
+                except BaseException as exc:
+                    failures.append((f"{name}.quiesce", exc))
+                    retain_ownership = True
 
+        # Non-UoW requests also retain runtime and security references.
         if self._server_started:
             try:
-                timeout_seconds = (
-                    None
-                    if deadline is None
-                    else self._remaining_shutdown_seconds(deadline)
-                )
-                self._server.stop(timeout_seconds)
+                self._server.stop(self._remaining_shutdown_seconds(deadline))
             except BaseException as exc:
                 failures.append(("server.stop", exc))
-                if self._server_is_stopped():
-                    self._server_started = False
-                else:
-                    retain_ownership = True
-            else:
+            if self._server_is_stopped():
                 self._server_started = False
+            else:
+                failures.append(
+                    ("server.drain", TimeoutError("server termination is unproven"))
+                )
+                retain_ownership = True
 
+        # Stop listening even when the server could not yet stop.
         if self._loopback is not None:
             try:
                 self._loopback.close()
             except BaseException as exc:
                 failures.append(("loopback.close", exc))
+                retain_ownership = True
             else:
                 self._loopback = None
 
-        # Security and registry identity must remain live while an adapter or
-        # executor may still perform authoritative work. The process lock is the
-        # final ownership resource and is intentionally retained in that case.
+        # shutdown(wait=False) cancels queued futures, never running ones.
+        # Preserve each executor reference until its entire set is drained.
+        for name in ("_request_executor", "_background_executor"):
+            executor = getattr(self, name)
+            if executor is None:
+                continue
+            try:
+                executor.close()
+            except BaseException as exc:
+                failures.append((f"{name}.close", exc))
+                retain_ownership = True
+                continue
+            try:
+                drained = executor.drain(self._remaining_shutdown_seconds(deadline))
+            except BaseException as exc:
+                failures.append((f"{name}.drain", exc))
+                retain_ownership = True
+            else:
+                if drained:
+                    setattr(self, name, None)
+                else:
+                    failures.append(
+                        (f"{name}.drain", TimeoutError("running workers remain active"))
+                    )
+                    retain_ownership = True
+
+        # A directly admitted UoW need not belong to either executor.
+        try:
+            writes_drained = self._write_gate.wait_for_drain(
+                self._remaining_shutdown_seconds(deadline)
+            )
+        except BaseException as exc:
+            failures.append(("write_gate.drain", exc))
+            retain_ownership = True
+        else:
+            if not writes_drained:
+                failures.append(
+                    ("write_gate.drain", TimeoutError("authoritative writers remain active"))
+                )
+                retain_ownership = True
+
         if (
             not retain_ownership
             and self._security_started
@@ -612,8 +658,7 @@ class HostRuntime:
         ):
             try:
                 self._run_security.close_run(
-                    run_id=run_id,
-                    data_instance_id=data_instance_id,
+                    run_id=run_id, data_instance_id=data_instance_id
                 )
             except BaseException as exc:
                 failures.append(("run_security.close_run", exc))
@@ -635,6 +680,7 @@ class HostRuntime:
                 )
             except BaseException as exc:
                 failures.append(("runtime_registry.remove_owned", exc))
+                retain_ownership = True
             else:
                 self._registry_published = False
 
@@ -651,10 +697,7 @@ class HostRuntime:
                 f"{stage}: {type(exc).__name__}: {exc}"
                 for stage, exc in failures
             )
-            raise SomaError(
-                "INTERNAL_ERROR",
-                f"runtime cleanup incomplete: {detail}",
-            )
+            raise SomaError("INTERNAL_ERROR", f"runtime cleanup incomplete: {detail}")
 
     def _unwind_failed_start(self, primary_error: BaseException) -> None:
         try:
