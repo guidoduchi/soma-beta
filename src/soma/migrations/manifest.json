@@ -72,6 +72,12 @@
       "migration_id": "beta_0012_inventory_query_indexes",
       "filename": "0012_inventory_query_indexes.sql",
       "sha256": "670b19598841f1fb131aa5768f193e4e46de7eaf8af0560cf171cebb48f569c3"
+    },
+    {
+      "sequence": 13,
+      "migration_id": "beta_0013_fk_index_coverage",
+      "filename": "0013_fk_index_coverage.sql",
+      "sha256": "5135e6ca649020a633d8169c111e25476bafdc2f4255997866618cff6ca23b81"
     }
   ]
 }
