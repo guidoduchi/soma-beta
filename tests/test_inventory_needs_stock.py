@@ -902,7 +902,9 @@ def test_stock_eligibility_page_has_fixed_select_budget(
     ]
     assert second.exact_total == 50
     assert len(second.items) == 10
-    assert len(second_selects) == 5
+    # Cursor continuation uses two direct index-range seeks (same display-key
+    # bucket, then later buckets) instead of one scan/sort query.
+    assert len(second_selects) == 6
     assert {
         item.spare_part_unit_id for item in first.items
     }.isdisjoint(item.spare_part_unit_id for item in second.items)
