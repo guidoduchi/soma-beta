@@ -31,8 +31,11 @@ class _StatusServer:
     def authenticated_self_health(self, expected) -> bool:
         return True
 
-    def stop(self) -> None:
+    def stop(self, timeout_seconds: float | None = None) -> None:
         self.started = False
+
+    def is_stopped(self) -> bool:
+        return not self.started
 
 
 class _StatusRunSecurity:

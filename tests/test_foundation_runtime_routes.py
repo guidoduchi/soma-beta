@@ -38,8 +38,11 @@ class _RouteServer:
     def authenticated_self_health(self, expected) -> bool:
         return True
 
-    def stop(self) -> None:
+    def stop(self, timeout_seconds: float | None = None) -> None:
         return None
+
+    def is_stopped(self) -> bool:
+        return True
 
 
 class _RouteRunSecurity:
