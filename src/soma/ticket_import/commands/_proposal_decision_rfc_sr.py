@@ -24,14 +24,14 @@ from soma.tickets.service_request_import_reader import ServiceRequestImportReade
 
 from ._proposal_decision_public_core import *  # noqa: F401,F403
 from ._proposal_decision_public_core import ProposalDecisionService as _CoreProposalDecisionService
+from ._proposal_writes import pending_write_from_draft
 from ._proposal_decision_core import (
     _REVIEWED_SR_SOURCE_CORRECTION_KINDS,
     _SR_CONTACT_PROPOSAL_ROLES,
     _validate_fingerprint,
     _validate_optional_reason,
 )
-from ..repositories.proposals import PendingProposalWrite, ProposalChangeRecord, ProposalRecord
-from ..reconciliation.engine import ReconciliationProposalDraft
+from ..repositories.proposals import ProposalRecord
 from ..reconciliation.rfc_follow_on import build_rfc_identity_follow_on_proposals
 
 
@@ -50,36 +50,6 @@ _RFC_CURRENT_VALUE_COLUMNS = {
     "last_update": "last_update_utc",
 }
 _RFC_TERMINAL_CLASSES = frozenset({"terminal_closed", "terminal_cancelled"})
-
-
-def _rfc_follow_on_pending_write(draft: ReconciliationProposalDraft) -> PendingProposalWrite:
-    return PendingProposalWrite(
-        import_run_id=draft.import_run_id,
-        evidence_mode=draft.evidence_mode,
-        source_observation_id=draft.source_observation_id,
-        prior_source_observation_id=None,
-        proposal_kind=draft.proposal_kind,
-        target_kind=draft.target_kind,
-        target_internal_id=draft.target_internal_id,
-        target_business_id=draft.target_business_id,
-        risk_class=draft.risk_class,
-        base_state_token=draft.base_state_token_sha256,
-        proposal_fingerprint=draft.proposal_fingerprint_sha256,
-        changes=tuple(
-            ProposalChangeRecord(
-                ordinal=change.ordinal,
-                field_key=change.field_key,
-                change_kind=change.change_kind,
-                value_kind=change.value_kind,
-                before_text=change.before_text,
-                after_text=change.after_text,
-                before_integer=change.before_integer,
-                after_integer=change.after_integer,
-                source_observation_field_id=change.source_observation_field_id,
-            )
-            for change in draft.changes
-        ),
-    )
 
 
 class ProposalDecisionService(_CoreProposalDecisionService):
@@ -175,7 +145,7 @@ class ProposalDecisionService(_CoreProposalDecisionService):
                 import_run_id=proposal.import_run_id,
                 source_observation_id=proposal.source_observation_id,
             )
-            follow_on_writes = tuple(_rfc_follow_on_pending_write(draft) for draft in follow_on_drafts)
+            follow_on_writes = tuple(pending_write_from_draft(draft) for draft in follow_on_drafts)
             self._repository.transition_accept(
                 inner,
                 proposal=proposal,
