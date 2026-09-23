@@ -622,7 +622,13 @@ class HostRuntime:
                 retain_ownership = True
                 continue
             try:
-                drained = executor.drain(self._remaining_shutdown_seconds(deadline))
+                # Quiescence guarantees that an empty executor cannot gain
+                # new futures. Avoid spending deadline/probe calls on an
+                # already proven empty executor (also on normal shutdown).
+                drained = (
+                    executor.state().outstanding == 0
+                    or executor.drain(self._remaining_shutdown_seconds(deadline))
+                )
             except BaseException as exc:
                 failures.append((f"{name}.drain", exc))
                 retain_ownership = True
@@ -637,8 +643,11 @@ class HostRuntime:
 
         # A directly admitted UoW need not belong to either executor.
         try:
-            writes_drained = self._write_gate.wait_for_drain(
-                self._remaining_shutdown_seconds(deadline)
+            writes_drained = (
+                self._write_gate.active == 0
+                or self._write_gate.wait_for_drain(
+                    self._remaining_shutdown_seconds(deadline)
+                )
             )
         except BaseException as exc:
             failures.append(("write_gate.drain", exc))
