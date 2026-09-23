@@ -2,7 +2,7 @@
   "schema": "SOMA_PRE_LLD08_REFERENCE_SEMANTIC_TRACEABILITY_V1",
   "lld_id": "LLD-02",
   "design_sha": "26b7ceb88af7d5ade73ad2be3b5c5e1faddb6370",
-  "implementation_head_at_binding": "b7c84e4f51d38b6f0c0e04c29a46d2be2f5e09f3",
+  "implementation_head_at_binding": "a2681d3715a0c3c0e96cf8efae1816d7c670edcf",
   "source_acceptance": [
     "spec/lld/identity-reference/tests/acceptance.json"
   ],
@@ -792,5 +792,13 @@
       "note": "STRICT, closed channel-kind, supporting-index and protection-trigger drift are release-schema verified.",
       "certification_status": "pending_exact_head_ci"
     }
-  ]
+  ],
+  "recertification_checkpoint": {
+    "candidate_head": "a2681d3715a0c3c0e96cf8efae1816d7c670edcf",
+    "prior_ci_run": 863,
+    "prior_ci_head": "9704bec6dd4b0771bca1c3387c9b464b6e8cb9e5",
+    "prior_ci_result": "failed_during_reference_transport_collection",
+    "correction": "Reference route placeholder regex corrected; T001/T028/T029/T034 semantic proofs are included in this candidate.",
+    "status": "pending_supported_ci"
+  }
 }
