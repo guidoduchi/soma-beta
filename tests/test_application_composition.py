@@ -8,6 +8,7 @@ from soma.composition import (
 )
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
+from soma.foundation.persistence.uow import ReadSnapshot
 from soma.reference.application.contact_service import ContactReferenceService
 from test_inventory_requester_support_acceptance import _create_request, _factory
 
@@ -55,7 +56,10 @@ def test_pre_lld08_composition_declares_inventory_reference_dependency(
 
     # The failed guard remains atomic: no archive event or state transition can
     # slip through merely because the provider is assembled at composition time.
-    detail = contacts.get_contact(requester.contact_id)
-    assert detail.contact_id == requester.contact_id
-    assert detail.lifecycle_state == "active"
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT lifecycle_state,revision FROM contacts WHERE contact_id=?",
+            (requester.contact_id,),
+        ).fetchone()
+    assert tuple(row) == ("active", 1)
     assert request_id
