@@ -31,17 +31,13 @@ from soma.ticket_import.profiles.registry import require_profile_versions
 from soma.ticket_import.reconciliation.staged import verify_staged_logical_run
 from soma.ticket_import.repositories.runs import ImportRunRepository, SourceCheckpointRepository
 
+from ._json import load_persisted_job_object
 from . import (
     SOURCE_CHECK_JOB_TYPE,
     TICKET_IMPORT_JOB_CONTRACTS,
     validate_source_check_checkpoint,
     validate_source_check_payload,
 )
-
-
-_JOB_JSON_BYTES = 65_536
-_JOB_JSON_DEPTH = 8
-_JOB_JSON_ITEMS = 512
 
 
 class TicketImportSourceCheckWorker:
@@ -57,26 +53,11 @@ class TicketImportSourceCheckWorker:
         self._publish = PublishStagedImportRunService(connection_factory)
         self._finalize = ImportRunFinalizationService(connection_factory)
 
-    @staticmethod
-    def _load_json(text: str, *, label: str) -> dict[str, Any]:
-        try:
-            value = loads_canonical_json(
-                text,
-                max_bytes=_JOB_JSON_BYTES,
-                max_depth=_JOB_JSON_DEPTH,
-                max_collection_items=_JOB_JSON_ITEMS,
-            )
-        except ValidationError as exc:
-            raise IntegrityFailure(f"persisted {label} is not canonical JSON") from exc
-        if not isinstance(value, dict):
-            raise IntegrityFailure(f"persisted {label} must be an object")
-        return value
-
     @classmethod
     def _payload(cls, claim: DurableJobClaim) -> dict[str, Any]:
         if claim.job_type != SOURCE_CHECK_JOB_TYPE or claim.contract_version != 1:
             raise ValidationError("claim is not ticket_import.source_check v1")
-        payload = cls._load_json(claim.payload_json, label="source-check payload")
+        payload = load_persisted_job_object(claim.payload_json, label="source-check payload")
         try:
             validate_source_check_payload(payload)
         except ValidationError as exc:
@@ -87,7 +68,7 @@ class TicketImportSourceCheckWorker:
     def _checkpoint(cls, claim: DurableJobClaim) -> dict[str, Any] | None:
         if claim.checkpoint_json is None:
             return None
-        checkpoint = cls._load_json(claim.checkpoint_json, label="source-check checkpoint")
+        checkpoint = load_persisted_job_object(claim.checkpoint_json, label="source-check checkpoint")
         try:
             validate_source_check_checkpoint(checkpoint)
         except ValidationError as exc:

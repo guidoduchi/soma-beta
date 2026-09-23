@@ -28,6 +28,12 @@ from soma.tickets.service_request_import_reader import ServiceRequestImportReade
 from soma.tickets.sr_source_presence import SrSourceReappearanceMutation
 from soma.tickets.validation import validate_official_sr_no
 
+from ._json import (
+    JOB_JSON_MAX_BYTES,
+    JOB_JSON_MAX_COLLECTION_ITEMS,
+    JOB_JSON_MAX_DEPTH,
+    load_persisted_job_object,
+)
 from . import (
     SR_REAPPEARANCE_JOB_TYPE,
     TICKET_IMPORT_JOB_CONTRACTS,
@@ -42,9 +48,6 @@ _PUBLISHED_NON_NOOP_STATES = frozenset(
 _COMMAND_SCHEMA = "SOMA_SR_REAPPEARANCE_COMMAND_ID_V1"
 _RESPONSE_SCHEMA = "SrSourceReappearanceCommandResultV1"
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
-_JOB_JSON_BYTES = 65_536
-_JOB_JSON_DEPTH = 8
-_JOB_JSON_ITEMS = 512
 _DEFAULT_PAGE_SIZE = 500
 
 
@@ -94,34 +97,19 @@ class AdvancedSearchSrReappearanceWorker:
         )
 
     @staticmethod
-    def _load_json(text: str, *, label: str) -> dict[str, Any]:
-        try:
-            value = loads_canonical_json(
-                text,
-                max_bytes=_JOB_JSON_BYTES,
-                max_depth=_JOB_JSON_DEPTH,
-                max_collection_items=_JOB_JSON_ITEMS,
-            )
-        except ValidationError as exc:
-            raise IntegrityFailure(f"persisted {label} is not canonical JSON") from exc
-        if not isinstance(value, dict):
-            raise IntegrityFailure(f"persisted {label} must be an object")
-        return value
-
-    @staticmethod
     def _canonical_json(value: dict[str, Any]) -> str:
         return canonical_json_bytes_bounded(
             value,
-            max_bytes=_JOB_JSON_BYTES,
-            max_depth=_JOB_JSON_DEPTH,
-            max_collection_items=_JOB_JSON_ITEMS,
+            max_bytes=JOB_JSON_MAX_BYTES,
+            max_depth=JOB_JSON_MAX_DEPTH,
+            max_collection_items=JOB_JSON_MAX_COLLECTION_ITEMS,
         ).decode("utf-8")
 
     @classmethod
     def _payload(cls, claim: DurableJobClaim) -> dict[str, Any]:
         if claim.job_type != SR_REAPPEARANCE_JOB_TYPE or claim.contract_version != 1:
             raise ValidationError("claim is not ticket_import.sr_reappearance_reconcile v1")
-        payload = cls._load_json(claim.payload_json, label="reappearance payload")
+        payload = load_persisted_job_object(claim.payload_json, label="reappearance payload")
         try:
             validate_reappearance_payload(payload)
         except ValidationError as exc:
@@ -144,7 +132,7 @@ class AdvancedSearchSrReappearanceWorker:
                 "processed_exact_count": 0,
             }
             return value, None
-        value = cls._load_json(claim.checkpoint_json, label="reappearance checkpoint")
+        value = load_persisted_job_object(claim.checkpoint_json, label="reappearance checkpoint")
         try:
             validate_reappearance_checkpoint(value)
         except ValidationError as exc:
