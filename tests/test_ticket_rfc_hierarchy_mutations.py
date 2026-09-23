@@ -520,14 +520,24 @@ def test_reparent_into_large_branch_exceeds_legacy_response_ceiling(
         )
         new_parent_revision += 1
 
+    _install_large_rfc_summary_projection(
+        factory,
+        (new_parent.rfc_id, moving_child.rfc_id)
+        + tuple(
+            row[0]
+            for row in _all_active_children(factory, new_parent.rfc_id)
+        ),
+    )
+
     provider = _HistoryProvider(_ready("LOW", 0, "f" * 64))
     preview = RfcHierarchyPreviewQueryService(factory, provider).preview(
         action="reparent",
         child_rfc_id=moving_child.rfc_id,
         new_parent_rfc_id=new_parent.rfc_id,
     )
+    reparent_command_id = new_uuid4()
     result = RfcHierarchyService(factory, provider).reparent_subordinate(
-        command_id=new_uuid4(),
+        command_id=reparent_command_id,
         child_rfc_id=moving_child.rfc_id,
         new_parent_rfc_id=new_parent.rfc_id,
         base_revisions=preview.base_revisions,
@@ -539,3 +549,36 @@ def test_reparent_into_large_branch_exceeds_legacy_response_ceiling(
     assert result.root.subordinate_count == 40
     assert len(result.subordinates) == 40
     assert any(item.rfc_id == moving_child.rfc_id for item in result.subordinates)
+    with ReadSnapshot(factory) as snapshot:
+        stored_bytes = int(
+            snapshot.connection.execute(
+                "SELECT length(CAST(response_json AS BLOB)) "
+                "FROM command_receipt_results WHERE command_id=?",
+                (reparent_command_id,),
+            ).fetchone()[0]
+        )
+    assert 524_288 < stored_bytes <= 33_554_432
+
+
+
+def _all_active_children(factory, parent_rfc_id: str):
+    with ReadSnapshot(factory) as snapshot:
+        return snapshot.connection.execute(
+            "SELECT child_rfc_id FROM rfc_hierarchy_edges "
+            "WHERE parent_rfc_id=? AND edge_state='active' ORDER BY child_rfc_id",
+            (parent_rfc_id,),
+        ).fetchall()
+
+
+def _install_large_rfc_summary_projection(
+    factory,
+    rfc_ids: tuple[str, ...],
+) -> None:
+    with UnitOfWork(factory) as uow:
+        for rfc_id in rfc_ids:
+            uow.connection.execute(
+                "INSERT INTO rfc_current_source_projection("
+                "rfc_id,summary_text,summary_evidence_id"
+                ") VALUES (?,?,?)",
+                (rfc_id, chr(1) * 16_384, new_uuid4()),
+            )

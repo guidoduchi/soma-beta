@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 from soma.tickets.queries.rfc_branches import RfcBranchQueryService
 from soma.tickets.rfc_hierarchy import RfcHierarchyService
@@ -345,3 +345,155 @@ def test_add_subordinate_exceeds_legacy_38_child_response_ceiling_and_replays_ex
         ).fetchone()
         assert tuple(stored[:2]) == ("RfcBranchV1", 1)
         assert 0 < int(stored[2]) <= 524_288
+
+
+
+def _install_max_content_rfc_source_projections(factory, rfc_ids: tuple[str, ...]) -> None:
+    columns = (
+        "rfc_id",
+        "summary_text",
+        "summary_evidence_id",
+        "external_created_at_utc",
+        "external_created_evidence_id",
+        "creator_text",
+        "creator_evidence_id",
+        "customer_account_number_text",
+        "customer_account_number_evidence_id",
+        "customer_account_name_text",
+        "customer_account_name_evidence_id",
+        "severity_text",
+        "severity_evidence_id",
+        "status_text",
+        "status_class",
+        "status_authority",
+        "status_evidence_id",
+        "terminal_epoch_id",
+        "owner_external_id_text",
+        "owner_external_id_evidence_id",
+        "owner_name_text",
+        "owner_name_evidence_id",
+        "l1_handler_name_text",
+        "l1_handler_name_evidence_id",
+        "l2_handler_name_text",
+        "l2_handler_name_evidence_id",
+        "last_update_utc",
+        "last_update_evidence_id",
+        "revision",
+    )
+    sql = (
+        f"INSERT INTO rfc_current_source_projection({','.join(columns)}) "
+        f"VALUES ({','.join('?' for _ in columns)})"
+    )
+    max_integer = 9_223_372_036_854_775_807
+    control = chr(1)
+
+    with UnitOfWork(factory) as uow:
+        for rfc_id in rfc_ids:
+            evidence = tuple(new_uuid4() for _ in range(12))
+            values = (
+                rfc_id,
+                control * 16_384,
+                evidence[0],
+                max_integer,
+                evidence[1],
+                control * 2_048,
+                evidence[2],
+                control * 1_024,
+                evidence[3],
+                control * 4_096,
+                evidence[4],
+                control * 256,
+                evidence[5],
+                "Cancelled",
+                "terminal_cancelled",
+                "wfm_provisional",
+                evidence[6],
+                new_uuid4(),
+                control * 2_048,
+                evidence[7],
+                control * 4_096,
+                evidence[8],
+                control * 4_096,
+                evidence[9],
+                control * 4_096,
+                evidence[10],
+                max_integer,
+                evidence[11],
+                max_integer,
+            )
+            uow.connection.execute(sql, values)
+
+
+def test_add_101st_subordinate_persists_max_content_100_child_page_and_replays_exactly(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    root = _create_rfc(factory, 11_000)
+    hierarchy = RfcHierarchyService(factory)
+    children = tuple(_create_rfc(factory, 12_000 + ordinal) for ordinal in range(1, 102))
+
+    root_revision = 1
+    for child in children[:100]:
+        _add(
+            hierarchy,
+            command_id=new_uuid4(),
+            parent_id=root.rfc_id,
+            child_id=child.rfc_id,
+            parent_revision=root_revision,
+            child_revision=1,
+        )
+        root_revision += 1
+
+    _install_max_content_rfc_source_projections(
+        factory,
+        (root.rfc_id,) + tuple(child.rfc_id for child in children),
+    )
+
+    command_id = new_uuid4()
+    original = _add(
+        hierarchy,
+        command_id=command_id,
+        parent_id=root.rfc_id,
+        child_id=children[100].rfc_id,
+        parent_revision=root_revision,
+        child_revision=1,
+    )
+    original_response = original.to_response()
+
+    assert original.root.subordinate_count == 101
+    assert len(original.subordinates) == 100
+    assert original.continuation is not None
+
+    with ReadSnapshot(factory) as snapshot:
+        stored = snapshot.connection.execute(
+            "SELECT response_schema,response_version,length(CAST(response_json AS BLOB)) "
+            "FROM command_receipt_results WHERE command_id=?",
+            (command_id,),
+        ).fetchone()
+    assert tuple(stored[:2]) == ("RfcBranchV1", 1)
+    assert 8_388_608 < int(stored[2]) <= 33_554_432
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE rfc_current_source_projection SET summary_text='later source state' "
+            "WHERE rfc_id=?",
+            (root.rfc_id,),
+        )
+
+    monkeypatch.setattr(
+        hierarchy._branch_query,
+        "get_from_connection",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("max-content replay rebuilt branch from current state")
+        ),
+    )
+    replayed = _add(
+        hierarchy,
+        command_id=command_id,
+        parent_id=root.rfc_id,
+        child_id=children[100].rfc_id,
+        parent_revision=root_revision,
+        child_revision=1,
+    )
+    assert replayed.to_response() == original_response

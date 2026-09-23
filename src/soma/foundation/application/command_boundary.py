@@ -37,7 +37,7 @@ PrepareMutation = Callable[[UnitOfWork], "PreparedMutation"]
 _MAX_RESPONSE_JSON_BYTES = 524_288
 _MAX_RESPONSE_DEPTH = 8
 _MAX_RESPONSE_COLLECTION_ITEMS = 512
-_RFC_BRANCH_RESPONSE_JSON_BYTES = 8_388_608
+_RFC_BRANCH_RESPONSE_JSON_BYTES = 33_554_432
 _RFC_BRANCH_RESPONSE_COLLECTION_ITEMS = 8_192
 _DEFAULT_RESPONSE = object()
 
@@ -55,17 +55,21 @@ _DEFAULT_RESPONSE_BOUNDS = _ResponseBounds(
     _MAX_RESPONSE_COLLECTION_ITEMS,
 )
 _RESPONSE_BOUND_ALLOCATIONS: dict[tuple[str, int], _ResponseBounds] = {
-    # LLD-03 hierarchy mutations return the default 100-child RfcBranchV1 page.
-    # Accepted RFC source text can reach about 38.4 KiB per RFC before JSON and
-    # evidence-reference overhead, so the 100-child first page requires a reviewed
-    # byte allocation as well as a larger aggregate-item allocation. The depth limit
-    # remains Foundation's ordinary command-response limit.
+    # Exact reviewed LLD-01/LLD-03 allocation. A mutation returns one root plus
+    # the default page of at most 100 children and an optional continuation.
+    # LLD-04 rejects NUL but does not forbid every other C0 control character, so
+    # the conservative bound must allow six-byte canonical JSON escapes rather
+    # than assuming only quote/backslash two-byte expansion. The normative
+    # maximum-content construction is 23_288_983 bytes, depth 4 and 4_151 items.
     ("RfcBranchV1", 1): _ResponseBounds(
         _RFC_BRANCH_RESPONSE_JSON_BYTES,
         _MAX_RESPONSE_DEPTH,
         _RFC_BRANCH_RESPONSE_COLLECTION_ITEMS,
     ),
 }
+_ALLOCATED_RESPONSE_SCHEMAS = frozenset(
+    schema for schema, _version in _RESPONSE_BOUND_ALLOCATIONS
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,10 +182,14 @@ class CommandBoundary:
 
     @staticmethod
     def _response_bounds(response_schema: str, response_version: int) -> _ResponseBounds:
-        return _RESPONSE_BOUND_ALLOCATIONS.get(
-            (response_schema, response_version),
-            _DEFAULT_RESPONSE_BOUNDS,
-        )
+        allocated = _RESPONSE_BOUND_ALLOCATIONS.get((response_schema, response_version))
+        if allocated is not None:
+            return allocated
+        if response_schema in _ALLOCATED_RESPONSE_SCHEMAS:
+            raise ValidationError(
+                "unsupported command response schema/version for reviewed allocation"
+            )
+        return _DEFAULT_RESPONSE_BOUNDS
 
     @classmethod
     def _encode_response(
@@ -216,10 +224,15 @@ class CommandBoundary:
             or re.fullmatch(r"[0-9a-f]{64}", result.response_sha256) is None
         ):
             raise IntegrityFailure("committed command result metadata failed integrity validation")
-        bounds = cls._response_bounds(
-            result.response_schema,
-            result.response_version,
-        )
+        try:
+            bounds = cls._response_bounds(
+                result.response_schema,
+                result.response_version,
+            )
+        except ValidationError as exc:
+            raise IntegrityFailure(
+                "committed command result response contract is unsupported"
+            ) from exc
         try:
             value = loads_canonical_json(
                 result.response_json,

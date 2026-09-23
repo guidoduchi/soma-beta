@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
+from soma.foundation.application.command_receipts import CommittedCommandResult
 from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import PersistenceFailure, ValidationError
+from soma.foundation.errors import IntegrityFailure, PersistenceFailure, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
-from soma.foundation.strict_json import ObjectContract
+from soma.foundation.strict_json import ObjectContract, _measure
 
 
 def _writer() -> AuditWriter:
@@ -242,3 +245,159 @@ def test_response_factory_failure_rolls_back_all_authoritative_writes(initialize
         ).fetchone()[0] == 0
     finally:
         connection.close()
+
+
+
+def _conservative_max_rfc_branch_response() -> dict[str, object]:
+    max_integer = 9_223_372_036_854_775_807
+    uuid_value = "ffffffff-ffff-4fff-bfff-ffffffffffff"
+    control = chr(1)
+
+    source_projection = {
+        "summary_text": control * 16_384,
+        "summary_evidence_id": uuid_value,
+        "external_created_at_utc": max_integer,
+        "external_created_evidence_id": uuid_value,
+        "creator_text": control * 2_048,
+        "creator_evidence_id": uuid_value,
+        "customer_account_number_text": control * 1_024,
+        "customer_account_number_evidence_id": uuid_value,
+        "customer_account_name_text": control * 4_096,
+        "customer_account_name_evidence_id": uuid_value,
+        "severity_text": control * 256,
+        "severity_evidence_id": uuid_value,
+        "status_text": "Cancelled",
+        "status_class": "terminal_cancelled",
+        "status_authority": "wfm_provisional",
+        "status_evidence_id": uuid_value,
+        "terminal_epoch_id": uuid_value,
+        "owner_external_id_text": control * 2_048,
+        "owner_external_id_evidence_id": uuid_value,
+        "owner_name_text": control * 4_096,
+        "owner_name_evidence_id": uuid_value,
+        "l1_handler_name_text": control * 4_096,
+        "l1_handler_name_evidence_id": uuid_value,
+        "l2_handler_name_text": control * 4_096,
+        "l2_handler_name_evidence_id": uuid_value,
+        "last_update_utc": max_integer,
+        "last_update_evidence_id": uuid_value,
+        "revision": max_integer,
+    }
+
+    def detail(role: str, subordinate_count: int) -> dict[str, object]:
+        return {
+            "rfc_id": uuid_value,
+            "rfc_no": "NC" + ("9" * 14),
+            "revision": max_integer,
+            "hierarchy_role": role,
+            "customer_org_id": uuid_value,
+            "local_archive_state": "archived",
+            "source_projection": source_projection,
+            "direct_service_request_count": max_integer,
+            "device_reference_count": max_integer,
+            "subordinate_count": subordinate_count,
+            "warnings": ["RFC_CUSTOMER_REFERENCE_ARCHIVED"],
+        }
+
+    continuation = {
+        "version": 1,
+        "query_id": "GetRfcBranch",
+        "sort_registry_id": "RFC_BRANCH_CHILD_ID_ASC_V1",
+        "last_key_tuple": [uuid_value],
+        "filter_fingerprint": "f" * 64,
+        "null_order": "not_applicable",
+    }
+    return {
+        "root": detail("root", max_integer),
+        "subordinates": [detail("subordinate", 0) for _ in range(100)],
+        "continuation": continuation,
+        "branch_fingerprint": "f" * 64,
+    }
+
+
+def test_rfc_branch_reviewed_allocation_matches_normative_worst_case_derivation() -> None:
+    response = _conservative_max_rfc_branch_response()
+    text, _digest, normalized = CommandBoundary._encode_response(
+        response,
+        response_schema="RfcBranchV1",
+        response_version=1,
+    )
+
+    assert len(text.encode("utf-8")) == 23_288_983
+    assert _measure(normalized)[:2] == (4, 4_151)
+
+
+def test_rfc_branch_reviewed_allocation_enforces_exact_schema_version_and_bounds() -> None:
+    bounds = CommandBoundary._response_bounds("RfcBranchV1", 1)
+    assert (bounds.max_bytes, bounds.max_depth, bounds.max_collection_items) == (
+        33_554_432,
+        8,
+        8_192,
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="unsupported command response schema/version",
+    ):
+        CommandBoundary._response_bounds("RfcBranchV1", 2)
+
+    default_bounds = CommandBoundary._response_bounds("CommandExecutionResultV1", 1)
+    assert (
+        default_bounds.max_bytes,
+        default_bounds.max_depth,
+        default_bounds.max_collection_items,
+    ) == (524_288, 8, 512)
+
+    exact_byte_payload = {"x": "a" * (33_554_432 - 8)}
+    encoded, _digest, _normalized = CommandBoundary._encode_response(
+        exact_byte_payload,
+        response_schema="RfcBranchV1",
+        response_version=1,
+    )
+    assert len(encoded.encode("utf-8")) == 33_554_432
+    with pytest.raises(ValidationError, match="byte bound"):
+        CommandBoundary._encode_response(
+            {"x": "a" * (33_554_432 - 7)},
+            response_schema="RfcBranchV1",
+            response_version=1,
+        )
+
+    CommandBoundary._encode_response(
+        {"items": [None] * 8_191},
+        response_schema="RfcBranchV1",
+        response_version=1,
+    )
+    with pytest.raises(ValidationError, match="collection bound"):
+        CommandBoundary._encode_response(
+            {"items": [None] * 8_192},
+            response_schema="RfcBranchV1",
+            response_version=1,
+        )
+
+    depth_eight: object = None
+    for _ in range(8):
+        depth_eight = [depth_eight]
+    CommandBoundary._encode_response(
+        depth_eight,
+        response_schema="RfcBranchV1",
+        response_version=1,
+    )
+    with pytest.raises(ValidationError, match="depth bound"):
+        CommandBoundary._encode_response(
+            [depth_eight],
+            response_schema="RfcBranchV1",
+            response_version=1,
+        )
+
+
+def test_stored_unallocated_rfc_branch_version_fails_as_integrity_error() -> None:
+    response_json = "{}"
+    result = CommittedCommandResult(
+        command_id=new_uuid4(),
+        response_schema="RfcBranchV1",
+        response_version=2,
+        response_json=response_json,
+        response_sha256=hashlib.sha256(response_json.encode("utf-8")).hexdigest(),
+    )
+    with pytest.raises(IntegrityFailure, match="response contract is unsupported"):
+        CommandBoundary._decode_stored_response(result)
