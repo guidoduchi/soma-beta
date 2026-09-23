@@ -96,7 +96,7 @@ def test_sequence_ten_inventory_manifest_and_full_backbone(
         app_version="test",
         ownership_assertion=lambda: True,
     )
-    assert runner.initialize_or_migrate() == 12
+    assert runner.initialize_or_migrate() == manifest.entries[-1].sequence
 
     connection = sqlite3.connect(database)
     try:
