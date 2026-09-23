@@ -10,6 +10,29 @@ from soma.foundation.persistence.uow import UnitOfWork
 from .registry import AuditRegistry
 
 
+_DEFAULT_AUDIT_PAYLOAD_BYTES = 16_384
+_DEFAULT_AUDIT_RESULT_REFS = 128
+_AUDIT_PAYLOAD_BYTE_ALLOCATIONS: dict[tuple[str, int, str, int], int] = {
+    ("ticket.working_note.edited", 1, "WorkingNoteAuditV1", 1): 524_288,
+    ("ticket.working_note.removed", 1, "WorkingNoteAuditV1", 1): 524_288,
+    (
+        "sla.service_request.batch_classification_applied",
+        1,
+        "BatchClassificationAuditV1",
+        1,
+    ): 32_768,
+    ("inventory.bulk.accepted", 1, "InventoryBulkAuditV1", 1): 262_144,
+}
+_AUDIT_RESULT_REF_ALLOCATIONS: dict[tuple[str, int, str, int], int] = {
+    (
+        "sla.service_request.batch_classification_applied",
+        1,
+        "BatchClassificationAuditV1",
+        1,
+    ): 500,
+}
+
+
 @dataclass(frozen=True, slots=True)
 class AuditResultRef:
     result_type: str
@@ -49,6 +72,31 @@ class AuditWriter:
         if contract.allowed_reason_categories is not None:
             if event.reason_category not in contract.allowed_reason_categories:
                 raise SomaError("AUDIT_PAYLOAD_INVALID", "audit reason category is not allowed")
+        allocation_key = (
+            event.action_type,
+            event.action_version,
+            event.payload_schema,
+            event.payload_version,
+        )
+        max_payload_bytes = _AUDIT_PAYLOAD_BYTE_ALLOCATIONS.get(
+            allocation_key,
+            _DEFAULT_AUDIT_PAYLOAD_BYTES,
+        )
+        max_result_refs = _AUDIT_RESULT_REF_ALLOCATIONS.get(
+            allocation_key,
+            _DEFAULT_AUDIT_RESULT_REFS,
+        )
+        if contract.payload_contract.max_utf8_bytes != max_payload_bytes:
+            raise SomaError(
+                "AUDIT_ACTION_INVALID",
+                "registered audit payload byte bound disagrees with Foundation allocation",
+            )
+        if len(event.resulting_event_refs) > max_result_refs:
+            raise SomaError(
+                "AUDIT_PAYLOAD_INVALID",
+                "audit result reference count exceeds its action allocation",
+            )
+
         payload = contract.payload_contract.validate(event.payload)
         if contract.sensitivity_validator is not None:
             contract.sensitivity_validator(payload)
@@ -62,7 +110,6 @@ class AuditWriter:
             )
         except (TypeError, ValueError) as exc:
             raise SomaError("AUDIT_PAYLOAD_INVALID", "audit payload cannot be serialized") from exc
-        max_payload_bytes = contract.payload_contract.max_utf8_bytes
         if len(payload_json.encode("utf-8")) > max_payload_bytes:
             raise SomaError(
                 "AUDIT_PAYLOAD_INVALID",
