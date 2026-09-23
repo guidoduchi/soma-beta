@@ -125,6 +125,12 @@ def test_runtime_registry_is_atomic_exact_owned_and_contains_no_secret_fields(tm
     assert RuntimeRegistry.remove_owned(
         paths.registry,
         run_id=run_id,
+        data_instance_id=new_uuid4(),
+    ) is False
+    assert paths.registry.exists()
+    assert RuntimeRegistry.remove_owned(
+        paths.registry,
+        run_id=run_id,
         data_instance_id=data_instance_id,
     ) is True
     assert not paths.registry.exists()
