@@ -347,57 +347,90 @@ class InventoryReferenceDependencyValidator:
             raise ValidationError("Inventory dependency cursor is invalid") from exc
 
     @staticmethod
-    def _source_query(target: ReferenceTarget) -> tuple[str, tuple[object, ...]]:
+    def _source_queries(
+        target: ReferenceTarget,
+    ) -> tuple[tuple[str, tuple[object, ...]], ...]:
         target_id = target.target_id
         if target.target_type == "contact":
             return (
-                "SELECT r.spare_request_id AS blocker_id,"
-                "'active_spare_request_requester' AS reason_code "
-                "FROM spare_requests r "
-                "JOIN spare_request_current_projection p "
-                "ON p.spare_request_id=r.spare_request_id "
-                "WHERE r.requester_contact_id=? "
-                "AND p.lifecycle_state NOT IN ('cancelled','rejected') "
-                "UNION "
-                "SELECT l.spare_request_id AS blocker_id,"
-                "'active_spare_request_receiver' AS reason_code "
-                "FROM spare_request_draft_logistics l "
-                "JOIN spare_request_current_projection p "
-                "ON p.spare_request_id=l.spare_request_id "
-                "WHERE l.receiver_contact_id=? AND p.lifecycle_state='draft' "
-                "UNION "
-                "SELECT t.fault_tag_id AS blocker_id,"
-                "'active_fault_tag_pickup_contact' AS reason_code "
-                "FROM fault_tags t "
-                "JOIN fault_tag_current_projection p ON p.fault_tag_id=t.fault_tag_id "
-                "WHERE t.draft_pickup_contact_id=? AND p.state='draft'",
-                (target_id, target_id, target_id),
+                (
+                    "SELECT r.spare_request_id AS blocker_id,"
+                    "'active_spare_request_requester' AS reason_code "
+                    "FROM spare_requests r "
+                    "JOIN spare_request_current_projection p "
+                    "ON p.spare_request_id=r.spare_request_id "
+                    "WHERE r.requester_contact_id=? "
+                    "AND p.lifecycle_state NOT IN ('cancelled','rejected')",
+                    (target_id,),
+                ),
+                (
+                    "SELECT l.spare_request_id AS blocker_id,"
+                    "'active_spare_request_receiver' AS reason_code "
+                    "FROM spare_request_draft_logistics l "
+                    "JOIN spare_request_current_projection p "
+                    "ON p.spare_request_id=l.spare_request_id "
+                    "WHERE l.receiver_contact_id=? AND p.lifecycle_state='draft'",
+                    (target_id,),
+                ),
+                (
+                    "SELECT t.fault_tag_id AS blocker_id,"
+                    "'active_fault_tag_pickup_contact' AS reason_code "
+                    "FROM fault_tags t "
+                    "JOIN fault_tag_current_projection p "
+                    "ON p.fault_tag_id=t.fault_tag_id "
+                    "WHERE t.draft_pickup_contact_id=? AND p.state='draft'",
+                    (target_id,),
+                ),
             )
         if target.target_type == "dispatch_location":
             return (
-                "SELECT l.spare_request_id AS blocker_id,"
-                "'active_spare_request_dispatch_location' AS reason_code "
-                "FROM spare_request_draft_logistics l "
-                "JOIN spare_request_current_projection p "
-                "ON p.spare_request_id=l.spare_request_id "
-                "WHERE l.dispatch_location_id=? AND p.lifecycle_state='draft' "
-                "UNION "
-                "SELECT t.fault_tag_id AS blocker_id,"
-                "'active_fault_tag_pickup_origin' AS reason_code "
-                "FROM fault_tags t "
-                "JOIN fault_tag_current_projection p ON p.fault_tag_id=t.fault_tag_id "
-                "WHERE t.draft_pickup_dispatch_location_id=? AND p.state='draft'",
-                (target_id, target_id),
+                (
+                    "SELECT l.spare_request_id AS blocker_id,"
+                    "'active_spare_request_dispatch_location' AS reason_code "
+                    "FROM spare_request_draft_logistics l "
+                    "JOIN spare_request_current_projection p "
+                    "ON p.spare_request_id=l.spare_request_id "
+                    "WHERE l.dispatch_location_id=? AND p.lifecycle_state='draft'",
+                    (target_id,),
+                ),
+                (
+                    "SELECT t.fault_tag_id AS blocker_id,"
+                    "'active_fault_tag_pickup_origin' AS reason_code "
+                    "FROM fault_tags t "
+                    "JOIN fault_tag_current_projection p "
+                    "ON p.fault_tag_id=t.fault_tag_id "
+                    "WHERE t.draft_pickup_dispatch_location_id=? AND p.state='draft'",
+                    (target_id,),
+                ),
             )
         if target.target_type == "customer_organization":
-            # Inventory customer scope is derived through LLD-03 Service Request authority;
-            # there is no direct mutable Inventory-owned Customer relationship.
+            # Inventory customer scope is derived through LLD-03 Service Request
+            # authority. The empty source still proves the provider/schema query
+            # path is available when guards are used only as an availability probe.
             return (
-                "SELECT CAST(NULL AS TEXT) AS blocker_id,"
-                "CAST(NULL AS TEXT) AS reason_code WHERE 0",
-                (),
+                (
+                    "SELECT CAST(NULL AS TEXT) AS blocker_id,"
+                    "CAST(NULL AS TEXT) AS reason_code WHERE 0",
+                    (),
+                ),
             )
-        raise ValidationError("reference target_type is outside Inventory dependency scope")
+        raise ValidationError(
+            "reference target_type is outside Inventory dependency scope"
+        )
+
+    @classmethod
+    def _source_query(
+        cls,
+        target: ReferenceTarget,
+    ) -> tuple[str, tuple[object, ...]]:
+        sources = cls._source_queries(target)
+        # Blocker identity + reason is unique inside each source and reason codes
+        # differ across sources, so UNION ALL preserves exact blocker semantics
+        # without paying UNION's duplicate-elimination sort.
+        return (
+            " UNION ALL ".join(sql for sql, _params in sources),
+            tuple(value for _sql, params in sources for value in params),
+        )
 
     @classmethod
     def _first_blocker(
@@ -405,15 +438,15 @@ class InventoryReferenceDependencyValidator:
         connection: Any,
         target: ReferenceTarget,
     ) -> DependencyBlocker | None:
-        source, params = cls._source_query(target)
-        row = connection.execute(
-            "SELECT blocker_id,reason_code FROM (" + source + ") blockers "
-            "ORDER BY blocker_id,reason_code LIMIT 1",
-            params,
-        ).fetchone()
-        if row is None:
-            return None
-        return DependencyBlocker(str(row[0]), str(row[1]))
+        # A write-path guard needs existence, not the globally smallest blocker.
+        # Probe each owner source independently so indexed target predicates can
+        # stop at the first match instead of materializing/sorting a compound UNION.
+        # Source order is fixed only to make the reported blocking reason stable.
+        for source, params in cls._source_queries(target):
+            row = connection.execute(source + " LIMIT 1", params).fetchone()
+            if row is not None:
+                return DependencyBlocker(str(row[0]), str(row[1]))
+        return None
 
     @classmethod
     def _count_blockers(cls, connection: Any, target: ReferenceTarget) -> int:
