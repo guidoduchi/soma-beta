@@ -15,7 +15,8 @@ from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
 from soma.foundation.errors import IdempotencyConflict, PersistenceBusy, PersistenceFailure
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.migrations.runner import iter_migration_statements
+from soma.foundation.migrations.manifest import MigrationManifest
+from soma.foundation.migrations.runner import MigrationRunner, iter_migration_statements
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import ObjectContract
