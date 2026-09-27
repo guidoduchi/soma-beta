@@ -453,3 +453,62 @@ def test_batch_audit_failure_rolls_back_all_selected_writes_and_aggregate(initia
             "SELECT execution_state,aggregate_input_fingerprint,revision,last_command_id "
             "FROM objective_aggregate_projection WHERE objective_id=?", (objective_id,)
         ).fetchone()) == before_aggregate
+
+def test_lld05_f010_mid_batch_selected_start_failure_rolls_back_first_task(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    rows = [_create_task(factory, ordinal=index) for index in (19, 20, 21)]
+    objective_id = _seed_objective(factory, task_rows=rows)
+    service = TaskExecutionService(factory)
+    command_id = new_uuid4()
+    original_increment = service._tasks.increment_revision
+    calls = 0
+
+    def fail_after_first_increment(*args, **kwargs):
+        nonlocal calls
+        result = original_increment(*args, **kwargs)
+        calls += 1
+        if calls == 1:
+            raise IntegrityFailure("LLD05-F010 injected after first selected Task start")
+        return result
+
+    monkeypatch.setattr(service._tasks, "increment_revision", fail_after_first_increment)
+    with pytest.raises(IntegrityFailure, match="LLD05-F010"):
+        service.start_selected_objective_tasks(
+            command_id=command_id,
+            objective_id=objective_id,
+            objective_revision=1,
+            objective_envelope_revision=1,
+            selected_tasks=_selection(*rows),
+            effective_start_utc=1_960_007_000,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipt_results WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        for row in rows:
+            assert snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (row[1],),
+            ).fetchone()[0] == 1
+            assert snapshot.connection.execute(
+                "SELECT COUNT(*) FROM task_execution_events WHERE task_id=?",
+                (row[1],),
+            ).fetchone()[0] == 0
+            assert snapshot.connection.execute(
+                "SELECT 1 FROM task_execution_projection WHERE task_id=?",
+                (row[1],),
+            ).fetchone() is None
+
