@@ -2,28 +2,34 @@
   "schema": "SOMA_PRE_LLD08_AUDIT_REMEDIATION_LEDGER_V1",
   "audit_date": "2026-09-22",
   "repository": "guidoduchi/soma-beta",
-  "normative_design_sha": "cd314606db2df4a70137993d540f96a54289793a",
+  "normative_design_sha": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
   "audited_implementation_sha": "a6b52124c5e991509dcb8f6aba7caf332526daaa",
-  "remediation_head_sha": "580366eb895a2dff5160f697f23919844834e00b",
+  "remediation_head_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
   "disposition": {
-    "audit_findings": "A01-A14 historical repairs remain preserved. The failed-start lifetime and SR point-warning corrections passed the exact P1/P2 CI checkpoint #868. R01-R04 implementation regression gates are green at that checkpoint; R05 full assertion-to-owner-to-test semantic proof, cross-packet evidence and additional measured-work recertification remain pending.",
-    "certification_scope": "Checkpoint #868 validates Windows Python 3.13/3.14, Ubuntu Python 3.14, schema manifest, wheel and packaged authority resources at 4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36. Green CI is not comprehensive LLD-01..07 semantic certification; later traceability/test edits need their own exact-head CI. Production SQLCipher and LLD-08 Site remain later-owner release obligations.",
-    "lld08_started": false
+    "audit_findings": "A01-A14 historical repairs remain preserved. Exact implementation CI #875 is green at 3acecc04 against exact design 9d1a4268 / Spec Integrity #931. R01-R04 regression evidence remains preserved; R05 now has LLD-01/02/03/04/07 semantic ledgers, with eight LLD-04 failure/race proofs still open and LLD-05/06 semantic ledgers still pending.",
+    "certification_scope": "CI #875 validates Windows Python 3.13/3.14, Ubuntu Python 3.14, release-schema manifest, wheel and packaged authority resources at 3acecc04294f8658336c87806b92690f6dc0aefb with design pin 9d1a4268658ab0f48020a4f5f148ff4cec90f9b2. This is strong exact-pair evidence, not comprehensive LLD-01..07 certification while R05/R04 residual obligations remain. Production SQLCipher and final LLD-12 secure-host composition remain separate release obligations.",
+    "lld08_started": true,
+    "lld08_authority_status": "An isolated feat/lld-08-infrastructure branch exists, but it is not part of the active pre-LLD-08 remediation authority and must not be promoted into the certified baseline until closure completes."
   },
   "supported_ci": {
     "workflow": "Beta implementation CI",
-    "run_number": 873,
-    "run_id": 36301920409,
-    "head_sha": "580366eb895a2dff5160f697f23919844834e00b",
+    "run_number": 875,
+    "run_id": 36343766788,
+    "head_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
     "conclusion": "success",
-    "last_green_run_number": 873,
-    "last_green_run_id": 36301920409,
-    "last_green_head": "580366eb895a2dff5160f697f23919844834e00b",
-    "current_candidate_implementation_sha": "580366eb895a2dff5160f697f23919844834e00b",
-    "current_candidate_design_sha": "cd314606db2df4a70137993d540f96a54289793a",
-    "tested_design_pin": "cd314606db2df4a70137993d540f96a54289793a",
-    "current_candidate_result": "SUCCESS_EXACT_PAIR_PARENT_CHECKPOINT",
-    "note": "CI #873 is green at exact implementation 580366eb with exact design pin cd314606. Ubuntu: 1400 passed, 2 skipped. Windows 3.13 and 3.14 both succeeded including wheel/resource verification. This checkpoint contains the LLD-04 parser/query repairs from 68c56143 plus header/fixture corrections through 580366eb."
+    "last_green_run_number": 875,
+    "last_green_run_id": 36343766788,
+    "last_green_head": "3acecc04294f8658336c87806b92690f6dc0aefb",
+    "current_candidate_implementation_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
+    "current_candidate_design_sha": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
+    "tested_design_pin": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
+    "current_candidate_result": "SUCCESS_EXACT_PAIR",
+    "ubuntu_python_3_14": "1404 passed, 2 skipped",
+    "windows_python_3_13": "1406 passed",
+    "windows_python_3_14": "1406 passed",
+    "release_schema_manifest": "success (920 authoritative objects)",
+    "windows_wheel_and_authority_resource_verification": "success (13 migrations + manifest + schema authority + FK exceptions + Unicode asset)",
+    "note": "CI #875 is green at the exact implementation/design pair. It includes F011 nested-UoW rollback, F019 independent selected-target failure isolation, and F020 proposal-equivalence V2 regressions."
   },
   "findings": [
     {
@@ -352,9 +358,9 @@
     }
   },
   "residual_limits": [
-    "The finding ledger is not a substitute for semantic case traceability. LLD-01, LLD-02, LLD-03, LLD-04 and LLD-07 now have inspectable semantic ledgers. LLD-04 still has 10 explicitly open failure/race proofs (F001-F005, F017-F020, F022); LLD-05 and LLD-06 semantic binding remains an R05 obligation. Cross-packet clauses and measured-work limits stay explicit.",
+    "The finding ledger is not a substitute for semantic case traceability. LLD-01, LLD-02, LLD-03, LLD-04 and LLD-07 now have inspectable semantic ledgers. LLD-04 still has eight explicitly open failure/race proofs (F001-F005, F017-F018, F022); LLD-05 and LLD-06 semantic binding remains an R05 obligation. Cross-packet clauses and measured-work limits stay explicit.",
     "Production SQLCipher behavior and final LLD-12 secure host composition are not reclassified as proven by SQLite/test-only security-seam CI.",
-    "LLD-08 Infrastructure has not been started by this remediation campaign."
+    "LLD-08 Infrastructure has begun only on an isolated branch; that branch is not the active remediation authority and does not close or bypass the remaining pre-LLD-08 certification obligations."
   ],
   "prior_supported_ci": {
     "workflow": "Beta implementation CI",
@@ -370,8 +376,8 @@
     "ubuntu_test_summary": "1273 passed, 2 skipped in 267.15s"
   },
   "current_reaudit": {
-    "design_sha": "cd314606db2df4a70137993d540f96a54289793a",
-    "implementation_checkpoint_sha": "580366eb895a2dff5160f697f23919844834e00b",
+    "design_sha": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
+    "implementation_checkpoint_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
     "workstreams": [
       {
         "id": "R01",
@@ -395,12 +401,12 @@
       },
       {
         "id": "R05",
-        "status": "lld04_bound_10_open_evidence_cases_lld05_06_pending",
-        "scope": "LLD-02 and LLD-03 have semantic ledgers; LLD-04 now binds all 92 unique normative cases against design cd314606. At parent checkpoint 580366eb / CI #873, 81 cases are supported directly or through implemented cross-packet owners, F011 gains a dedicated nested-UoW rollback canary in the next candidate, and 10 exact failure/race obligations remain open: F001-F005, F017-F020 and F022. LLD-05 and LLD-06 semantic ledgers remain open."
+        "status": "lld04_bound_8_open_evidence_cases_lld05_06_pending",
+        "scope": "LLD-01, LLD-02, LLD-03, LLD-04 and LLD-07 have inspectable semantic ledgers. LLD-04 binds all 92 unique normative cases against design 9d1a4268; F011, F019 and F020 are now directly supported by exact-head CI #875. Eight exact failure/race obligations remain open: F001-F005, F017-F018 and F022. LLD-05 and LLD-06 semantic ledgers remain open."
       }
     ],
-    "candidate_design_sha": "cd314606db2df4a70137993d540f96a54289793a",
-    "candidate_implementation_sha": "580366eb895a2dff5160f697f23919844834e00b",
-    "validation": "CI #873 SUCCESS at exact implementation 580366eb and exact design cd314606 (Ubuntu 1400 passed, 2 skipped; Windows 3.13/3.14 and wheel/resources green). LLD-04 design Spec Integrity #929 is SUCCESS. The next candidate adds only the F011 nested-UoW adversarial regression plus semantic ledger/audit bookkeeping and therefore requires a fresh exact-head matrix."
+    "candidate_design_sha": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
+    "candidate_implementation_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
+    "validation": "CI #875 SUCCESS at exact implementation 3acecc04 and exact design 9d1a4268: Ubuntu Python 3.14 1404 passed, 2 skipped; Windows Python 3.13 and 3.14 each 1406 passed; release-schema manifest and wheel/resources green. LLD Spec Integrity #931 is SUCCESS at exact design head."
   }
 }

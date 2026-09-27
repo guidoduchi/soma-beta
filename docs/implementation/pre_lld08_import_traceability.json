@@ -1,27 +1,29 @@
 {
   "schema": "SOMA-PRE-LLD08-SEMANTIC-TRACEABILITY-V1",
   "lld_id": "LLD-04",
-  "design_sha": "cd314606db2df4a70137993d540f96a54289793a",
+  "design_sha": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
   "design_gate": {
     "workflow": "LLD Spec Integrity",
-    "run_number": 929,
-    "run_id": 36300397753,
+    "run_number": 931,
+    "run_id": 36340822569,
     "conclusion": "success"
   },
-  "implementation_parent_sha": "580366eb895a2dff5160f697f23919844834e00b",
+  "implementation_parent_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
   "supported_parent_ci": {
     "workflow": "Beta implementation CI",
-    "run_number": 873,
-    "run_id": 36301920409,
+    "run_number": 875,
+    "run_id": 36343766788,
     "conclusion": "success",
-    "ubuntu_python_3_14": "1400 passed, 2 skipped",
-    "windows_python_3_13": "success including wheel/resource verification",
-    "windows_python_3_14": "success including wheel/resource verification"
+    "ubuntu_python_3_14": "1404 passed, 2 skipped",
+    "windows_python_3_13": "1406 passed; wheel/resource verification success",
+    "windows_python_3_14": "1406 passed; wheel/resource verification success",
+    "release_schema_manifest": "success (920 authoritative objects)",
+    "tested_design_pin": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2"
   },
   "certified": false,
   "certification_rule": "LLD-04 remains non-certified while any exact failure-injection/race obligation is open or a newly added regression has not passed the full supported matrix.",
   "method": [
-    "All 92 unique normative LLD-04 scenarios are enumerated from the accepted design at cd314606.",
+    "All 92 unique normative LLD-04 scenarios are enumerated from the accepted design at 9d1a4268.",
     "Bindings point to production owner modules and concrete executable tests after semantic inspection; green CI is not used as a substitute for missing fault cuts.",
     "Cross-packet owner calls into implemented LLD-03/05/06 are marked explicitly rather than treated as local-only behavior.",
     "Crash/recovery cases without their exact cut/reclaim proof remain open even when adjacent happy-path or atomicity tests pass."
@@ -33,11 +35,9 @@
       "reviewed_supported_ci_873": 73,
       "reviewed_cross_packet_supported_ci_873": 7,
       "needs_exact_failure_injection": 7,
-      "pending_candidate_ci": 1,
       "reviewed_structural_atomicity_supported_ci_873": 1,
-      "needs_multi_selection_failure_proof": 1,
-      "needs_rejected_material_change_proof": 1,
-      "needs_per_sr_reappearance_failure_reclaim_proof": 1
+      "needs_per_sr_reappearance_failure_reclaim_proof": 1,
+      "reviewed_supported_ci_875": 3
     }
   },
   "open_evidence_case_ids": [
@@ -48,13 +48,9 @@
     "LLD04-F005",
     "LLD04-F017",
     "LLD04-F018",
-    "LLD04-F019",
-    "LLD04-F020",
     "LLD04-F022"
   ],
-  "candidate_pending_case_ids": [
-    "LLD04-F011"
-  ],
+  "candidate_pending_case_ids": [],
   "cases": [
     {
       "id": "LLD04-T001",
@@ -1491,10 +1487,10 @@
       "executable_tests": [
         "tests/test_ticket_import_sr_source_acceptance.py::test_lld04_f011_nested_cross_domain_uow_is_rejected_and_outer_acceptance_rolls_back"
       ],
-      "observed_assertions": "Cross-domain participant opening a nested authoritative UoW is rejected and outer proposal acceptance rolls back.",
-      "status": "pending_candidate_ci",
-      "note": null,
-      "certification_status": "pending_next_candidate_ci"
+      "observed_assertions": "A cross-domain participant that attempts to open a nested authoritative UnitOfWork is rejected; the outer proposal acceptance rolls back without committing proposal/domain authority.",
+      "status": "reviewed_supported_ci_875",
+      "note": "Exact-head CI #875 passed this regression on Ubuntu 3.14 and Windows 3.13/3.14.",
+      "certification_status": "supported_ci_875"
     },
     {
       "id": "LLD04-F012",
@@ -1637,19 +1633,19 @@
       "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
       "normative_claim": {
         "id": "LLD04-F019",
-        "cut": "one target in multi-selection accept fails",
-        "prove": "each independently safe proposal has its own atomic result; failed target does not roll back already committed unrelated target and UI reports every target; no silent skip"
+        "cut": "one target in client-orchestrated multi-selection accept fails",
+        "prove": "LLD-04 has no bulk accept transaction: each selected target is an independent AcceptReconciliationProposal command with its own command_id, receipt, UnitOfWork and result; a failed target cannot roll back an already committed unrelated target and no target is silently skipped by LLD-04 command orchestration. Presentation of every per-target result is owned by the later UI/workbench packet."
       },
       "production_owners": [
         "src/soma/ticket_import/commands/decide_proposal.py"
       ],
       "executable_tests": [
-        "tests/test_ticket_import_proposal_decisions.py::test_defer_is_independent_smallest_scope_and_other_proposal_stays_pending"
+        "tests/test_ticket_import_sr_source_acceptance.py::test_lld04_f019_independent_selected_accepts_keep_committed_success_when_later_target_stales"
       ],
-      "observed_assertions": "Per-proposal isolation exists, but the explicit multi-selection one-success/one-failure orchestration proof is missing.",
-      "status": "needs_multi_selection_failure_proof",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "observed_assertions": "Two selected proposals are exercised as independent AcceptReconciliationProposal commands: the first commit remains durable when the later target becomes stale and fails, demonstrating no LLD-04 bulk transaction or rollback across targets.",
+      "status": "reviewed_supported_ci_875",
+      "note": "UI presentation of every per-target result remains a later workbench responsibility exactly as the normative claim states.",
+      "certification_status": "supported_ci_875"
     },
     {
       "id": "LLD04-F020",
@@ -1657,20 +1653,20 @@
       "normative_claim": {
         "id": "LLD04-F020",
         "race": "a formerly equivalent rejected proposal becomes materially different",
-        "prove": "material-input fingerprint differs so suppression no longer applies; new current-state proposal may be reviewed while old rejection remains immutable"
+        "prove": "IMPORT_PROPOSAL_EQUIVALENCE_V2 ignores chronology/observation UUID churn but binds semantic change, profiles, risk and base target state; an exactly equivalent prior rejected/deferred candidate is suppressed, while any included material-input change yields a different digest so suppression no longer applies and a new current-state proposal may be reviewed; the old decision remains immutable."
       },
       "production_owners": [
         "src/soma/ticket_import/repositories/proposals.py",
-        "src/soma/ticket_import/reconciliation/engine.py"
+        "src/soma/ticket_import/commands/publish_staged_run.py"
       ],
       "executable_tests": [
-        "tests/test_ticket_import_proposal_persistence.py::test_insert_then_exact_reuse_preserves_one_immutable_proposal",
-        "tests/test_ticket_import_proposal_persistence.py::test_exact_metadata_with_different_change_evidence_fails_closed"
+        "tests/test_ticket_import_proposal_persistence.py::test_lld04_f020_v2_suppresses_observation_churn_but_reopens_material_change",
+        "tests/test_ticket_import_publish_transaction_boundary.py::test_material_equivalence_suppression_is_revalidated_without_rebuilding_proposals"
       ],
-      "observed_assertions": "Proposal identity/evidence are immutable, but the exact rejected-equivalent→materially-different regeneration race lacks a dedicated regression.",
-      "status": "needs_rejected_material_change_proof",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "observed_assertions": "IMPORT_PROPOSAL_EQUIVALENCE_V2 suppresses a rejected/deferred candidate across observation/proposal-fingerprint churn when material inputs are unchanged, produces a different digest for material change, preserves the old rejected proposal, and revalidates suppression inside the publication writer UnitOfWork.",
+      "status": "reviewed_supported_ci_875",
+      "note": "Exact design gate #931 and exact implementation CI #875 both passed.",
+      "certification_status": "supported_ci_875"
     },
     {
       "id": "LLD04-F021",
