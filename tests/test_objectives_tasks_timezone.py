@@ -212,7 +212,7 @@ def test_lld05_f027_timezone_audit_failure_rolls_back_setting_and_preserves_task
             ).fetchone()
         )
         assert snapshot.connection.execute(
-            "SELECT 1 FROM settings WHERE setting_key='OBJECTIVE_TIMEZONE_V1'",
+            "SELECT 1 FROM setting_values WHERE setting_key='OBJECTIVE_TIMEZONE_V1'",
         ).fetchone() is None
 
     service = ObjectiveTimezoneService(factory)
@@ -240,7 +240,7 @@ def test_lld05_f027_timezone_audit_failure_rolls_back_setting_and_preserves_task
 
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute(
-            "SELECT 1 FROM settings WHERE setting_key='OBJECTIVE_TIMEZONE_V1'",
+            "SELECT 1 FROM setting_values WHERE setting_key='OBJECTIVE_TIMEZONE_V1'",
         ).fetchone() is None
         assert tuple(
             snapshot.connection.execute(

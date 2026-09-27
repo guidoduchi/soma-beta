@@ -452,6 +452,7 @@ def test_lld05_f025_different_operational_plan_after_proposal_stales_acceptance(
     conflicting_plan_id = new_uuid4()
     conflicting_command = new_uuid4()
     with UnitOfWork(factory) as uow:
+        _outer_receipt(uow, conflicting_command)
         TaskPlanRepository.insert_initial(
             uow,
             TaskPlanRecord(
