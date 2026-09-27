@@ -34,13 +34,15 @@
     "status_counts": {
       "reviewed_supported_ci_873": 73,
       "reviewed_cross_packet_supported_ci_873": 7,
-      "needs_exact_failure_injection": 7,
       "reviewed_structural_atomicity_supported_ci_873": 1,
-      "needs_per_sr_reappearance_failure_reclaim_proof": 1,
-      "reviewed_supported_ci_875": 3
-    }
+      "reviewed_supported_ci_875": 3,
+      "candidate_pending_ci": 8
+    },
+    "candidate_pending_ci": 8,
+    "open_evidence_gaps": 0
   },
-  "open_evidence_case_ids": [
+  "open_evidence_case_ids": [],
+  "candidate_pending_case_ids": [
     "LLD04-F001",
     "LLD04-F002",
     "LLD04-F003",
@@ -50,7 +52,6 @@
     "LLD04-F018",
     "LLD04-F022"
   ],
-  "candidate_pending_case_ids": [],
   "cases": [
     {
       "id": "LLD04-T001",
@@ -1288,11 +1289,13 @@
         "src/soma/ticket_import/commands/finalize_run.py",
         "src/soma/ticket_import/commands/decide_proposal.py"
       ],
-      "executable_tests": [],
-      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
-      "status": "needs_exact_failure_injection",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "executable_tests": [
+        "tests/test_ticket_import_source_check_failure_injection.py::test_f001_discovery_failure_keeps_durable_job_retryable_without_import_authority"
+      ],
+      "observed_assertions": "Injected discovery failure after durable enqueue/claim leaves zero import/source/checkpoint authority; registered retry policy reclaims the same job as attempt 2 with no checkpoint.",
+      "status": "candidate_pending_ci",
+      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "certification_status": "candidate_pending_ci"
     },
     {
       "id": "LLD04-F002",
@@ -1308,11 +1311,13 @@
         "src/soma/ticket_import/commands/finalize_run.py",
         "src/soma/ticket_import/commands/decide_proposal.py"
       ],
-      "executable_tests": [],
-      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
-      "status": "needs_exact_failure_injection",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "executable_tests": [
+        "tests/test_ticket_import_source_check_failure_injection.py::test_f002_failure_after_validating_creation_retains_only_unpublished_run_checkpoint"
+      ],
+      "observed_assertions": "Injected failure immediately after validating-run creation proves only the validating run plus durable validating checkpoint survive; no rows, proposals, or source checkpoint exist, and retry reclaims the exact checkpoint.",
+      "status": "candidate_pending_ci",
+      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "certification_status": "candidate_pending_ci"
     },
     {
       "id": "LLD04-F003",
@@ -1328,11 +1333,13 @@
         "src/soma/ticket_import/commands/finalize_run.py",
         "src/soma/ticket_import/commands/decide_proposal.py"
       ],
-      "executable_tests": [],
-      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
-      "status": "needs_exact_failure_injection",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "executable_tests": [
+        "tests/test_ticket_import_source_check_failure_injection.py::test_f003_mid_batch_failure_cannot_advance_cursor_past_rolled_back_rows"
+      ],
+      "observed_assertions": "A 2,001-row source forces two batches; failure after second-batch writes rolls that batch back while the durable cursor remains at 2,000. Retry resumes from that cursor, reaches 2,001 exactly, and only then records the publishing fingerprint checkpoint.",
+      "status": "candidate_pending_ci",
+      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "certification_status": "candidate_pending_ci"
     },
     {
       "id": "LLD04-F004",
@@ -1348,11 +1355,13 @@
         "src/soma/ticket_import/commands/finalize_run.py",
         "src/soma/ticket_import/commands/decide_proposal.py"
       ],
-      "executable_tests": [],
-      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
-      "status": "needs_exact_failure_injection",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "executable_tests": [
+        "tests/test_ticket_import_source_check_failure_injection.py::test_f004_failure_after_eof_before_publish_is_restart_safe"
+      ],
+      "observed_assertions": "Failure after EOF verification/publishing checkpoint but before PublishStagedImportRun leaves the run validating with unpublished rows and no proposals/source checkpoint; retry from the persisted publishing checkpoint finishes publication safely.",
+      "status": "candidate_pending_ci",
+      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "certification_status": "candidate_pending_ci"
     },
     {
       "id": "LLD04-F005",
@@ -1368,11 +1377,13 @@
         "src/soma/ticket_import/commands/finalize_run.py",
         "src/soma/ticket_import/commands/decide_proposal.py"
       ],
-      "executable_tests": [],
-      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
-      "status": "needs_exact_failure_injection",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "executable_tests": [
+        "tests/test_ticket_import_publish_staged_run.py::test_f005_exact_replay_cleanup_failure_rolls_back_and_retry_is_safe"
+      ],
+      "observed_assertions": "Exact-replay cleanup is allowed to delete staged evidence and then fails inside the same command UoW; run state, observations, receipt and audit all roll back, and retry of the same command commits one noop result with no surviving unpublished rows.",
+      "status": "candidate_pending_ci",
+      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "certification_status": "candidate_pending_ci"
     },
     {
       "id": "LLD04-F006",
@@ -1602,12 +1613,13 @@
         "src/soma/ticket_import/jobs/sr_reappearance.py"
       ],
       "executable_tests": [
-        "tests/test_ticket_import_finalize_backbone.py::test_equal_chronology_recovery_replaces_checkpoint_and_enqueues_reappearance"
+        "tests/test_ticket_import_finalize_backbone.py::test_equal_chronology_recovery_replaces_checkpoint_and_enqueues_reappearance",
+        "tests/test_ticket_import_finalize_backbone.py::test_f017_equal_chronology_recovery_enqueue_failure_rolls_back_all_finalization_authority"
       ],
-      "observed_assertions": "Successful equal-chronology recovery commits replacement/event/finalization/enqueue together, but an explicit late-failure rollback canary is still missing.",
-      "status": "needs_exact_failure_injection",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "observed_assertions": "Equal-chronology recovery injects failure at reappearance enqueue after checkpoint replacement/run finalization/recovery-event work; the command UoW restores the prior checkpoint and recovery_required run with no event/job/receipt/audit, then exact retry commits one replacement/event/job.",
+      "status": "candidate_pending_ci",
+      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "certification_status": "candidate_pending_ci"
     },
     {
       "id": "LLD04-F018",
@@ -1621,12 +1633,13 @@
         "src/soma/ticket_import/commands/finalize_run.py"
       ],
       "executable_tests": [
-        "tests/test_ticket_import_finalize_backbone.py::test_older_authorized_recovery_finalizes_without_replacing_checkpoint"
+        "tests/test_ticket_import_finalize_backbone.py::test_older_authorized_recovery_finalizes_without_replacing_checkpoint",
+        "tests/test_ticket_import_finalize_backbone.py::test_f018_older_recovery_audit_failure_rolls_back_event_and_retry_is_exactly_once"
       ],
-      "observed_assertions": "Older recovery preserves checkpoint monotonicity and emits one recovery event, but exact failure/retry injection is not separately proven.",
-      "status": "needs_exact_failure_injection",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "observed_assertions": "Older recovery injects failure at audit emission after recovery-event insertion; the event/receipt/run transition roll back while checkpoint chronology remains unchanged. Same-command retry commits exactly one recovery event and never enqueues reappearance work.",
+      "status": "candidate_pending_ci",
+      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "certification_status": "candidate_pending_ci"
     },
     {
       "id": "LLD04-F019",
@@ -1704,12 +1717,14 @@
       ],
       "executable_tests": [
         "tests/test_ticket_import_sr_reappearance_worker.py::test_reappearance_worker_closes_warning_and_completes_claim",
-        "tests/test_ticket_import_sr_reappearance_worker.py::test_reappearance_command_id_is_deterministic_and_observation_scoped"
+        "tests/test_ticket_import_sr_reappearance_worker.py::test_reappearance_command_id_is_deterministic_and_observation_scoped",
+        "tests/test_ticket_import_sr_reappearance_worker.py::test_f022_per_sr_late_failure_rolls_back_receipt_event_audit_and_exact_replay_skips_claim_reads",
+        "tests/test_ticket_import_sr_reappearance_worker.py::test_f022_reclaimed_claim_resumes_after_committed_cursor_without_touching_next_sr"
       ],
-      "observed_assertions": "Deterministic per-SR commands and worker completion are covered, but exact post-receipt/event rollback plus reclaimed-claim checkpoint-resume fault injection is still missing.",
-      "status": "needs_per_sr_reappearance_failure_reclaim_proof",
-      "note": null,
-      "certification_status": "open_evidence_gap"
+      "observed_assertions": "Per-SR failure after owner event creation but before audit/result commit rolls back receipt/event/audit with no cursor advance; successful retry commits once and exact command replay succeeds even after the job is terminal, proving replay precedes mutable claim reads. A second two-SR test reclaims the worker immediately after the first committed cursor; the stale claim is rejected before the next SR receipt/mutation, and attempt 2 resumes from the cursor and completes only the untouched SR.",
+      "status": "candidate_pending_ci",
+      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "certification_status": "candidate_pending_ci"
     },
     {
       "id": "LLD04-F025",
