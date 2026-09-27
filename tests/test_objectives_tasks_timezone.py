@@ -6,7 +6,7 @@ import pytest
 
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.queries.timezone import ObjectiveTimezoneQueryService
 from soma.objectives_tasks.services.timezone import ObjectiveTimezoneService
@@ -259,4 +259,45 @@ def test_lld05_f027_timezone_audit_failure_rolls_back_setting_and_preserves_task
             "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
             (command_id,),
         ).fetchone()[0] == 0
+
+def test_lld05_f035_invalid_dst_input_rejects_before_writer_uow(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    with ReadSnapshot(factory) as snapshot:
+        before = (
+            snapshot.connection.execute("SELECT COUNT(*) FROM tasks").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM task_plan_revisions").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0],
+        )
+
+    def writer_uow_must_not_start(_self):
+        raise AssertionError("LLD05-F035 invalid local input entered writer UnitOfWork")
+
+    monkeypatch.setattr(UnitOfWork, "__enter__", writer_uow_must_not_start)
+
+    with pytest.raises(SomaError) as nonexistent:
+        ObjectiveTimezoneService.validate_local_input(
+            datetime(2026, 3, 8, 2, 30, 0),
+            "America/New_York",
+        )
+    assert nonexistent.value.code == "TIMEZONE_NONEXISTENT_LOCAL_TIME"
+
+    with pytest.raises(SomaError) as ambiguous:
+        ObjectiveTimezoneService.validate_local_input(
+            datetime(2026, 11, 1, 1, 30, 0),
+            "America/New_York",
+        )
+    assert ambiguous.value.code == "TIMEZONE_AMBIGUOUS_LOCAL_TIME"
+
+    with ReadSnapshot(factory) as snapshot:
+        after = (
+            snapshot.connection.execute("SELECT COUNT(*) FROM tasks").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM task_plan_revisions").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0],
+        )
+    assert after == before
 
