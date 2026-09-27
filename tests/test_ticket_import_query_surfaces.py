@@ -40,7 +40,7 @@ def _run(
         "warning_count,proposal_count,pending_proposal_count,revision) VALUES (?,'advanced_search_sr','manual',"
         "'ADVANCED_SEARCH_SR_V1','ADVANCED_SEARCH_HEADERS_V1','ADVANCED_SEARCH_VOCAB_V1',"
         "'ADVANCED_SEARCH_PARSER_V1','source.xlsx',1,1,'embedded_filename_timestamp_utc',"
-        "?,?,?,?,?,?,?,?,?,?,?,1)",
+        "?,?,?,?,?,?,?,?,?,?,?,?,1)",
         (
             run_id,
             chronology,
