@@ -95,6 +95,35 @@ class HistoricalObjectiveQueryService:
             "FROM task_outcome_current WHERE task_id=?",
             (identity,),
         ).fetchone()
+        overlap_rows: list[dict[str, object]] = []
+        if (
+            source is not None
+            and type(source.source_plan_start_utc) is int
+            and type(source.source_plan_end_utc) is int
+            and source.source_plan_start_utc >= 0
+            and source.source_plan_end_utc > source.source_plan_start_utc
+        ):
+            rows = reader.execute(
+                "SELECT e.objective_id,e.start_utc,e.end_utc,e.member_count,"
+                "e.membership_input_fingerprint,e.revision "
+                "FROM objective_envelope_projection e "
+                "JOIN objectives o ON o.objective_id=e.objective_id "
+                "WHERE o.superseded_by_objective_id IS NULL "
+                "AND e.start_utc<? AND e.end_utc>? "
+                "ORDER BY e.start_utc,e.end_utc,e.objective_id",
+                (source.source_plan_end_utc, source.source_plan_start_utc),
+            ).fetchall()
+            overlap_rows = [
+                {
+                    "objective_id": str(row[0]),
+                    "start_utc": int(row[1]),
+                    "end_utc": int(row[2]),
+                    "member_count": int(row[3]),
+                    "membership_input_fingerprint": str(row[4]),
+                    "revision": int(row[5]),
+                }
+                for row in rows
+            ]
         return sha256_canonical_json(
             {
                 "schema": "SOMA_HISTORICAL_OBJECTIVE_PROPOSAL_INPUT_V1",
@@ -109,6 +138,7 @@ class HistoricalObjectiveQueryService:
                     "assignment_revision": wfm.assignment_revision,
                 },
                 "source": source_value,
+                "overlapping_objectives": overlap_rows,
                 "operational_plan": plan_value,
                 "membership": None
                 if membership is None
