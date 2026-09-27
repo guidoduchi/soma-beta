@@ -24,16 +24,23 @@ def _run(
     chronology: int = 100,
     fingerprint: str | None = "a" * 64,
     started: int = 1,
+    observed: int = 0,
+    valid_identity: int = 0,
+    invalid: int = 0,
+    warning: int = 0,
+    proposal: int = 0,
+    pending: int = 0,
 ) -> None:
     uow.connection.execute(
         "INSERT INTO import_runs(import_run_id,source_family,invocation_kind,source_profile_id,"
         "header_registry_id,vocabulary_registry_id,parser_profile_id,candidate_filename,"
         "candidate_file_size_bytes,candidate_stable_mtime_ns,candidate_chronology_kind,"
         "candidate_chronology_value,logical_fingerprint_sha256,run_state,started_at_utc,"
-        "staged_at_utc,completed_at_utc,revision) VALUES (?,'advanced_search_sr','manual',"
+        "staged_at_utc,completed_at_utc,observed_row_count,valid_identity_count,invalid_row_count,"
+        "warning_count,proposal_count,pending_proposal_count,revision) VALUES (?,'advanced_search_sr','manual',"
         "'ADVANCED_SEARCH_SR_V1','ADVANCED_SEARCH_HEADERS_V1','ADVANCED_SEARCH_VOCAB_V1',"
         "'ADVANCED_SEARCH_PARSER_V1','source.xlsx',1,1,'embedded_filename_timestamp_utc',"
-        "?,?,?,?,?,?,1)",
+        "?,?,?,?,?,?,?,?,?,?,?,1)",
         (
             run_id,
             chronology,
@@ -42,6 +49,12 @@ def _run(
             started,
             started if state not in {"discovering", "validating", "failed"} else None,
             started if state in {"accepted", "rejected", "partially_accepted", "noop", "failed"} else None,
+            observed,
+            valid_identity,
+            invalid,
+            warning,
+            proposal,
+            pending,
         ),
     )
 
@@ -310,7 +323,15 @@ def test_t032_more_than_500_items_preserve_keyset_and_exact_filtered_totals(
     proposal_ids = [new_uuid4() for _ in range(501)]
 
     with UnitOfWork(factory) as uow:
-        _run(uow, run_id=run_id)
+        _run(
+            uow,
+            run_id=run_id,
+            observed=501,
+            valid_identity=501,
+            warning=251,
+            proposal=501,
+            pending=501,
+        )
         uow.connection.executemany(
             "INSERT INTO source_observations(source_observation_id,import_run_id,source_family,entity_kind,"
             "identity_state,canonical_primary_id,canonical_parent_rfc_no,row_ordinal,sheet_ordinal,"
@@ -363,12 +384,6 @@ def test_t032_more_than_500_items_preserve_keyset_and_exact_filtered_totals(
                 for index in range(501)
             ],
         )
-        uow.connection.execute(
-            "UPDATE import_runs SET observed_row_count=501,valid_identity_count=501,invalid_row_count=0,"
-            "warning_count=251,proposal_count=501,pending_proposal_count=501 WHERE import_run_id=?",
-            (run_id,),
-        )
-
     run_service = ImportRunQueryService(factory)
     proposal_service = ProposalQueryService(factory)
 

@@ -221,6 +221,13 @@ def _header_key(raw: object) -> str | None:
     )
 
 
+def _candidate_header_key(raw: object) -> tuple[str | None, bool]:
+    source_text = raw if isinstance(raw, str) else _scalar_source_text(raw)
+    if source_text is not None and len(source_text.encode("utf-8", errors="strict")) > _MAX_HEADER_UTF8_BYTES:
+        return None, True
+    return _header_key(raw), False
+
+
 def _build_alias_registry() -> tuple[dict[str, str], set[str]]:
     aliases: dict[str, str] = {}
     for field_key, values in _HEADER_ALIASES.items():
@@ -599,10 +606,12 @@ def _resolve_header_row(
     row_ordinal: int,
 ) -> dict[str, int] | None:
     resolved: dict[str, int] = {}
+    oversized_header_cell = False
     for column_ordinal, cell in enumerate(row, start=1):
         if column_ordinal > _MAX_PHYSICAL_COLUMNS:
             raise _source_error("XLSX_RESOURCE_LIMIT", "worksheet exceeds the physical-column ceiling")
-        key = _header_key(cell.value)
+        key, oversized = _candidate_header_key(cell.value)
+        oversized_header_cell = oversized_header_cell or oversized
         if key is None or key in _DISCARDED_HEADER_KEYS:
             continue
         field_key = _HEADER_KEYS.get(key)
@@ -614,7 +623,11 @@ def _resolve_header_row(
                 f"worksheet {sheet_ordinal} row {row_ordinal} repeats semantic header {field_key}",
             )
         resolved[field_key] = column_ordinal
-    return resolved if "sr_no" in resolved else None
+    if "sr_no" not in resolved:
+        return None
+    if oversized_header_cell:
+        raise _source_error("XLSX_RESOURCE_LIMIT", "semantic header row exceeds the UTF-8 byte ceiling")
+    return resolved
 
 
 def _discover_matrix(workbook) -> _Matrix:
