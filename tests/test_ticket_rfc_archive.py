@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 
@@ -434,3 +435,58 @@ def test_large_archive_and_restore_are_cardinality_safe_and_provenance_scoped(
             "SELECT count(*) FROM audit_events WHERE command_id=?",
             (restore_command_id,),
         ).fetchone()[0] == 1
+
+
+def test_lld03_fi006_archive_mid_member_failure_rolls_back_entire_operation(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    root_id, child_ids = _seed_branch(factory, child_count=1, serial_base=9000)
+    child_id = child_ids[0]
+    query = RfcArchiveQueryService(factory)
+    preview = query.preview(rfc_id=root_id, scope_kind="reviewed_branch")
+    command_id = new_uuid4()
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "CREATE TRIGGER test_lld03_fi006_second_archive_event "
+            "BEFORE INSERT ON rfc_archive_events "
+            "WHEN NEW.event_type='archived' "
+            "AND (SELECT COUNT(*) FROM rfc_archive_events WHERE command_id=NEW.command_id)=1 "
+            "BEGIN SELECT RAISE(ABORT,'injected archive member failure'); END"
+        )
+
+    with pytest.raises((sqlite3.IntegrityError, SomaError)):
+        RfcArchiveService(factory).archive(
+            command_id=command_id,
+            rfc_id=root_id,
+            scope_kind="reviewed_branch",
+            reviewed_scope_fingerprint=preview.scope_fingerprint,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        rows = snapshot.connection.execute(
+            "SELECT rfc_id,local_archive_state,revision FROM rfcs "
+            "WHERE rfc_id IN (?, ?) ORDER BY rfc_id",
+            (root_id, child_id),
+        ).fetchall()
+        assert {tuple(row) for row in rows} == {
+            (root_id, "active", 2),
+            (child_id, "active", 2),
+        }
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rfc_archive_operations WHERE created_command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM rfc_archive_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0

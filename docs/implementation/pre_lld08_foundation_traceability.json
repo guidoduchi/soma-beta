@@ -15,7 +15,7 @@
     "Production SQLCipher key-provider implementation remains LLD-12-owned; LLD-01 tests use the explicit provider seam and must not be cited as LLD-12 release certification.",
     "LLD-08 Infrastructure has not been started.",
     "The separate mechanical acceptance-marker reporter remains report-only and is not semantic certification.",
-    "Failed-start lifecycle proof has been reopened by a worker-survives-cancellation/lock-released reproducer. Candidate HostRuntime cleanup and pre-lock admission corrections plus new failure/rollback/cross-process tests exist at 6e4bcaef… and 24a4354b… but are not yet executed/certified at the current candidate head."
+    "Failed-start lifecycle ownership/drain regressions are now supported by CI #868 and again by exact-parent CI #869. This closes the prior 'unexecuted' bookkeeping gap but does not certify production SQLCipher or LLD-12 security composition."
   ],
   "cases": [
     {
@@ -642,5 +642,27 @@
       "binding_status": "reviewed",
       "certification_status": "pending_exact_head_ci"
     }
-  ]
+  ],
+  "current_design_authority": {
+    "sha": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
+    "gate_run_number": 928,
+    "gate_run_id": 36298063308,
+    "conclusion": "success",
+    "note": "The c9b43e24 design repairs do not modify the LLD-01 packet."
+  },
+  "recertification_checkpoint": {
+    "workflow": "Beta implementation CI",
+    "run_number": 869,
+    "run_id": 36296583209,
+    "implementation_sha": "dd043b904931fa82f2e1db57992741bb55d3f4bf",
+    "tested_design_pin": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
+    "current_design_authority": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
+    "conclusion": "success",
+    "ubuntu_python_3_14": "success (1383 passed, 2 skipped)",
+    "windows_python_3_13": "success",
+    "windows_python_3_14": "success",
+    "windows_wheel_and_authority_resources": "success",
+    "release_schema_manifest": "success",
+    "certification_effect": "Regression evidence only; complete LLD-01 semantic/prod-provider certification remains open."
+  }
 }

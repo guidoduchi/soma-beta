@@ -2,7 +2,7 @@
   "schema": "SOMA_PRE_LLD08_REFERENCE_SEMANTIC_TRACEABILITY_V1",
   "lld_id": "LLD-02",
   "design_sha": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
-  "implementation_head_at_binding": "7a4cfe5b3960e2e7e577bd33bad2c39b4563900c",
+  "implementation_head_at_binding": "dd043b904931fa82f2e1db57992741bb55d3f4bf",
   "source_acceptance": [
     "spec/lld/identity-reference/tests/acceptance.json",
     "spec/lld/identity-reference/tests/local-user-profile-acceptance.json"
@@ -17,11 +17,11 @@
     "Production SQLCipher/session security remains LLD-12-owned.",
     "The mechanical acceptance-marker report is report-only and cannot promote partial cases.",
     "LLD-12 authentication, verifier, session and setup coordination are not implemented by LLD-02 profile metadata tests; LLD02-T038/T039 retain explicit cross-packet limits.",
-    "CI #868 passed at 4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36 after the LLD02-T013 point-warning repair; later traceability/test edits require their own exact-head validation."
+    "CI #869 passed at exact implementation parent dd043b904931fa82f2e1db57992741bb55d3f4bf: Ubuntu Python 3.14 and Windows Python 3.13/3.14 succeeded; both Windows wheel/resource gates and the Ubuntu release-schema/marker steps succeeded. This closes the six reviewed-at-binding pending-CI cases, but partial cross-packet and LLD-08-owned clauses remain non-certified."
   ],
   "summary": {
-    "reviewed": 26,
-    "reviewed_pending_ci": 6,
+    "reviewed": 32,
+    "reviewed_pending_ci": 0,
     "partial_evidence": 0,
     "partial_cross_packet": 6,
     "deferred_lld08": 1,
@@ -43,9 +43,9 @@
       "tests": [
         "tests/test_reference_acceptance_closure.py::test_t001_descriptive_renames_preserve_reference_identity_and_relationship_resolution"
       ],
-      "status": "reviewed_pending_ci",
+      "status": "reviewed",
       "note": "Customer, Contact and Dispatch descriptive renames preserve immutable IDs; the current Contact affiliation continues to resolve the same Contact and Customer IDs after both masters are renamed.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "supported_ci_869_parent"
     },
     {
       "id": "LLD02-T002",
@@ -604,9 +604,9 @@
         "tests/test_reference_schema_contract.py::test_release_schema_verifier_detects_missing_lld02_history_protection_trigger",
         "tests/test_reference_acceptance_closure.py::test_t028_lifecycle_audit_failure_rolls_back_receipt_state_and_event"
       ],
-      "status": "reviewed_pending_ci",
+      "status": "reviewed",
       "note": "Lifecycle history is append-only and an injected audit failure after attempted archive mutation rolls back receipt, master state, lifecycle event and audit evidence atomically.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "supported_ci_869_parent"
     },
     {
       "id": "LLD02-T029",
@@ -625,9 +625,9 @@
         "tests/test_reference_acceptance_closure.py::test_t029_second_editor_cannot_overwrite_fresh_descriptive_reference_edit",
         "tests/test_reference_contacts.py::test_channel_add_update_archive_and_stale_revision"
       ],
-      "status": "reviewed_pending_ci",
+      "status": "reviewed",
       "note": "Two editors starting from the same descriptive reference revision are exercised directly; the second receives STALE_REVISION and cannot overwrite the first commit.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "supported_ci_869_parent"
     },
     {
       "id": "LLD02-T030",
@@ -694,9 +694,9 @@
         "tests/test_reference_owner_queries.py::test_contact_detail_channels_and_affiliation_histories_are_bounded",
         "tests/test_reference_query_cost_acceptance.py::test_t032_contact_detail_select_budget_is_constant_and_pages_use_supporting_indexes"
       ],
-      "status": "reviewed_pending_ci",
+      "status": "reviewed",
       "note": "Contact detail performs a fixed five-SELECT set-based projection for both zero and 25 channels; list/channel/affiliation-history plans use their declared supporting indexes without temp sorting.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "supported_ci_869_parent"
     },
     {
       "id": "LLD02-T033",
@@ -740,9 +740,9 @@
       "tests": [
         "tests/test_reference_no_change_acceptance.py::test_t034_semantic_no_change_is_committed_without_fabricated_mutation_and_replays_exactly"
       ],
-      "status": "reviewed_pending_ci",
+      "status": "reviewed",
       "note": "Fresh same-state commands across all governed LLD-02 mutation families commit exact NO_CHANGE receipts/results without fabricated owner/history/audit mutation; replay remains exact after later state change and changed-hash reuse conflicts.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "supported_ci_869_parent"
     },
     {
       "id": "LLD02-T035",
@@ -760,9 +760,9 @@
         "tests/test_reference_customers.py::test_account_code_review_goes_stale_on_reference_generation_change",
         "tests/test_reference_query_cost_acceptance.py::test_t035_review_commit_validation_uses_bounded_point_and_indexed_count_work"
       ],
-      "status": "reviewed_pending_ci",
+      "status": "reviewed",
       "note": "Review freshness is generation-bound; commit validation is instrumented inside the writer transaction to require bounded metadata/point/COUNT work with no claimant-detail stream, and COUNT/point plans use the declared indexes.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "supported_ci_869_parent"
     },
     {
       "id": "LLD02-T036",
@@ -851,13 +851,25 @@
     }
   ],
   "recertification_checkpoint": {
-    "candidate_head": "4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36",
-    "design_head": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
-    "prior_ci_run": 868,
-    "prior_ci_run_id": 35913764498,
-    "prior_ci_head": "4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36",
-    "prior_ci_result": "success_supported_matrix_and_packaging",
-    "correction": "The reconciled LLD02-T013 warning and failed-start lifecycle checkpoint passed the supported CI matrix; T038/T039 are now separately bound without claiming LLD-12 security integration.",
-    "status": "ci_green_checkpoint_not_full_semantic_certification"
+    "workflow": "Beta implementation CI",
+    "run_number": 869,
+    "run_id": 36296583209,
+    "implementation_sha": "dd043b904931fa82f2e1db57992741bb55d3f4bf",
+    "tested_design_pin": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
+    "current_design_authority": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
+    "conclusion": "success",
+    "ubuntu_python_3_14": "success (1383 passed, 2 skipped)",
+    "windows_python_3_13": "success",
+    "windows_python_3_14": "success",
+    "windows_wheel_and_authority_resources": "success",
+    "release_schema_manifest": "success",
+    "note": "The later current design authority does not change the LLD-02 packet; the next implementation checkpoint repins CI to c9b43e24 for exact-pair evidence."
+  },
+  "current_design_authority": {
+    "sha": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
+    "gate_run_number": 928,
+    "gate_run_id": 36298063308,
+    "conclusion": "success",
+    "note": "The design repair changed LLD-03/LLD-04 test identifiers and the global uniqueness gate; the LLD-02 normative packet is unchanged."
   }
 }
