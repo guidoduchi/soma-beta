@@ -1566,3 +1566,78 @@ def test_t018_objective_outcome_matrix_is_derived_from_member_task_facts(
             ),
         ).fetchone()[0] == 0
 
+def test_lld05_f032_preview_then_concurrent_start_returns_cancel_after_execution(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    planning = TaskPlanningService(factory)
+    first = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F032 preview member A",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_311_000_000,
+            end_utc=2_311_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    second = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F032 preview member B",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_311_001_000,
+            end_utc=2_311_004_000,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intents = (
+        _existing_intent(factory, first.task_id),
+        _existing_intent(factory, second.task_id),
+    )
+    grouping = ObjectiveGroupingQueryService(factory)
+    queries = ObjectiveQueryService(factory)
+    preview = grouping.creation_preview(existing_tasks=intents)
+    service = ObjectiveService(factory)
+    created = service.create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=intents,
+    )
+    cancel_preview = queries.workbench(created.objective_id)
+    preview_aggregate_revision = int(cancel_preview["aggregate_state"]["revision"])
+
+    started = TaskExecutionService(factory).start_task_execution(
+        command_id=new_uuid4(),
+        task_id=first.task_id,
+        task_revision=1,
+        execution_revision=0,
+        effective_start_utc=2_311_000_100,
+    )
+    assert started.outcome == "APPLIED"
+
+    cancel_command = new_uuid4()
+    with pytest.raises(SomaError) as excinfo:
+        service.cancel_objective_before_execution(
+            command_id=cancel_command,
+            objective_id=created.objective_id,
+            objective_revision=1,
+            aggregate_revision=preview_aggregate_revision,
+            effective_cancel_utc=2_311_000_200,
+            reason_category="f032_concurrent_start",
+        )
+    assert excinfo.value.code == "OBJECTIVE_CANCEL_AFTER_EXECUTION"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT execution_state,actual_start_utc FROM task_execution_projection "
+            "WHERE task_id=?",
+            (first.task_id,),
+        ).fetchone() == ("in_progress", 2_311_000_100)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM task_outcome_current WHERE task_id=?",
+            (second.task_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (cancel_command,),
+        ).fetchone() is None
+
