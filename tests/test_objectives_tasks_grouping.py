@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
@@ -645,4 +645,149 @@ def test_accept_regroup_detects_commit_between_planning_snapshot_and_writer(
             "SELECT COUNT(*) FROM objective_task_membership_current "
             "WHERE task_id IN (?,?)",
             (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+
+
+def test_lld05_f006_regroup_failure_after_first_membership_rolls_back_whole_create(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    first = _task(factory, "F006 first", 2_323_000_000, 2_323_000_300)
+    second = _task(factory, "F006 second", 2_323_000_100, 2_323_000_400)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    item = page["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    command_id = new_uuid4()
+    original = service._apply_membership_change
+    calls = [0]
+
+    def fail_after_first_membership(connection, **kwargs):
+        event_id = original(connection, **kwargs)
+        calls[0] += 1
+        if calls[0] == 1:
+            raise IntegrityFailure("LLD05-F006 injected after first regroup membership")
+        return event_id
+
+    monkeypatch.setattr(
+        service,
+        "_apply_membership_change",
+        fail_after_first_membership,
+    )
+    with pytest.raises(IntegrityFailure, match="LLD05-F006"):
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=str(item["input_fingerprint"]),
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objectives"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_membership_events "
+            "WHERE grouping_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()[0] == 0
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT state,revision FROM regroup_proposals "
+                "WHERE regroup_proposal_id=?",
+                (proposal_id,),
+            ).fetchone()
+        ) == ("pending", 1)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_lld05_f007_consolidation_failure_after_all_memberships_rolls_back_original_objectives(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    left = _task(factory, "F007 left", 2_324_000_000, 2_324_000_200)
+    right = _task(factory, "F007 right", 2_324_000_300, 2_324_000_500)
+    left_objective = _objective(factory, left.task_id)
+    right_objective = _objective(factory, right.task_id)
+    bridge = _task(factory, "F007 bridge", 2_324_000_150, 2_324_000_350)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    item = page["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    detail = ObjectiveGroupingQueryService(factory).proposal_detail(proposal_id)
+    original = service._apply_membership_change
+    calls = [0]
+
+    def fail_before_supersession(connection, **kwargs):
+        event_id = original(connection, **kwargs)
+        calls[0] += 1
+        if calls[0] == len(detail["task_changes"]):
+            raise IntegrityFailure("LLD05-F007 injected before Objective supersession")
+        return event_id
+
+    monkeypatch.setattr(
+        service,
+        "_apply_membership_change",
+        fail_before_supersession,
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F007"):
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=str(detail["input_fingerprint"]),
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        memberships = {
+            str(row[0]): str(row[1])
+            for row in snapshot.connection.execute(
+                "SELECT task_id,objective_id FROM objective_task_membership_current "
+                "WHERE task_id IN (?,?,?)",
+                (left.task_id, right.task_id, bridge.task_id),
+            ).fetchall()
+        }
+        assert memberships == {
+            left.task_id: left_objective,
+            right.task_id: right_objective,
+        }
+        objective_rows = snapshot.connection.execute(
+            "SELECT objective_id,superseded_by_objective_id "
+            "FROM objectives WHERE objective_id IN (?,?)",
+            (left_objective, right_objective),
+        ).fetchall()
+        assert len(objective_rows) == 2
+        assert all(row[1] is None for row in objective_rows)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_membership_events "
+            "WHERE grouping_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()[0] == 0
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT state,revision FROM regroup_proposals "
+                "WHERE regroup_proposal_id=?",
+                (proposal_id,),
+            ).fetchone()
+        ) == ("pending", 1)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
         ).fetchone()[0] == 0

@@ -4,10 +4,11 @@ import json
 
 import pytest
 
-from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
+from soma.objectives_tasks.repositories.tasks import TaskPlanRepository
 from soma.tickets.rfcs import RfcService
 
 
@@ -758,3 +759,108 @@ def test_set_task_plan_exact_replay_returns_original_result_before_newer_plan_re
     assert current is not None
     assert str(current[0]) == second.result_refs[0].result_id
     assert int(current[1]) == 2
+
+
+def test_lld05_f004_plan_revision_insert_failure_before_current_pointer_rolls_back_exactly(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    creation_command, task = _create_local(
+        factory,
+        name="F004 plan target",
+        schedule=_schedule(2_322_000_000, 2_322_003_600),
+    )
+    objective_id, pinned_plan_id = _attach_planned_objective(
+        factory,
+        task_id=task.task_id,
+        creation_command_id=creation_command,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        before_plan = tuple(
+            snapshot.connection.execute(
+                "SELECT plan_revision_id,revision,last_command_id "
+                "FROM task_plan_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        )
+        before_envelope = tuple(
+            snapshot.connection.execute(
+                "SELECT start_utc,end_utc,member_count,membership_input_fingerprint,"
+                "revision,last_command_id FROM objective_envelope_projection "
+                "WHERE objective_id=?",
+                (objective_id,),
+            ).fetchone()
+        )
+        before_task_revision = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        )
+        before_revision_count = int(
+            snapshot.connection.execute(
+                "SELECT count(*) FROM task_plan_revisions WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        )
+
+    original = TaskPlanRepository._insert_revision
+
+    def insert_then_fail(cls, uow, row):
+        original(uow, row)
+        raise IntegrityFailure("LLD05-F004 injected after plan revision insert")
+
+    monkeypatch.setattr(
+        TaskPlanRepository,
+        "_insert_revision",
+        classmethod(insert_then_fail),
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F004"):
+        TaskPlanningService(factory).set_task_plan(
+            command_id=command_id,
+            task_id=task.task_id,
+            task_revision=before_task_revision,
+            current_plan_revision=int(before_plan[1]),
+            schedule=_schedule(2_322_000_600, 2_322_004_200),
+            reason_category="f004_failure_cut",
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT plan_revision_id,revision,last_command_id "
+                "FROM task_plan_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        ) == before_plan
+        assert str(before_plan[0]) == pinned_plan_id
+        assert int(
+            snapshot.connection.execute(
+                "SELECT count(*) FROM task_plan_revisions WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        ) == before_revision_count
+        assert int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        ) == before_task_revision
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT start_utc,end_utc,member_count,membership_input_fingerprint,"
+                "revision,last_command_id FROM objective_envelope_projection "
+                "WHERE objective_id=?",
+                (objective_id,),
+            ).fetchone()
+        ) == before_envelope
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0

@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
@@ -892,3 +892,150 @@ def test_t046_due_unreviewed_is_explicit_read_time_projection_only(
             "SELECT COUNT(*) FROM task_execution_events WHERE task_id=?",
             (task.task_id,),
         ).fetchone()[0]) == authority_before["execution"] == 0
+
+
+def test_lld05_f002_objective_creation_failure_before_first_membership_rolls_back_allocator_and_retries(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F002 allocator rollback",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_320_000_000,
+            end_utc=2_320_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intent = _existing_intent(factory, task.task_id)
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(intent,),
+    )
+    service = ObjectiveService(factory)
+    command_id = new_uuid4()
+    with ReadSnapshot(factory) as snapshot:
+        allocator_before = tuple(
+            snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()
+        )
+
+    original = service._insert_membership
+
+    def fail_before_first_membership(*_args, **_kwargs):
+        raise IntegrityFailure("LLD05-F002 injected before first membership")
+
+    monkeypatch.setattr(service, "_insert_membership", fail_before_first_membership)
+    with pytest.raises(IntegrityFailure, match="LLD05-F002"):
+        service.create_objective_from_preview(
+            command_id=command_id,
+            preview_fingerprint=str(preview["fingerprint"]),
+            existing_tasks=(intent,),
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()
+        ) == allocator_before
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objectives"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_task_membership_current WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+    monkeypatch.setattr(service, "_insert_membership", original)
+    retried = service.create_objective_from_preview(
+        command_id=command_id,
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=(intent,),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        tracking = snapshot.connection.execute(
+            "SELECT tracking_sequence FROM objectives WHERE objective_id=?",
+            (retried.objective_id,),
+        ).fetchone()
+    assert tracking is not None and int(tracking[0]) == int(allocator_before[0])
+
+
+def test_lld05_f003_second_membership_failure_rolls_back_first_membership_and_objective(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    first = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F003 first",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_321_000_000,
+            end_utc=2_321_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    second = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F003 second",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_321_001_800,
+            end_utc=2_321_005_400,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intents = (
+        _existing_intent(factory, first.task_id),
+        _existing_intent(factory, second.task_id),
+    )
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=intents,
+    )
+    service = ObjectiveService(factory)
+    command_id = new_uuid4()
+    original = service._insert_membership
+    calls = [0]
+
+    def fail_on_second_membership(connection, **kwargs):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise IntegrityFailure("LLD05-F003 injected after first membership")
+        return original(connection, **kwargs)
+
+    monkeypatch.setattr(service, "_insert_membership", fail_on_second_membership)
+    with pytest.raises(IntegrityFailure, match="LLD05-F003"):
+        service.create_objective_from_preview(
+            command_id=command_id,
+            preview_fingerprint=str(preview["fingerprint"]),
+            existing_tasks=intents,
+        )
+    assert calls == [2]
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objectives"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_membership_events "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
