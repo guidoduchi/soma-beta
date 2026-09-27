@@ -4,26 +4,26 @@
   "repository": "guidoduchi/soma-beta",
   "normative_design_sha": "92787e65d90b410d18088f844155b3557831085e",
   "audited_implementation_sha": "a6b52124c5e991509dcb8f6aba7caf332526daaa",
-  "remediation_head_sha": "66144d0001d40690c44ed9b35c35a5c8c414144a",
+  "remediation_head_sha": "4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36",
   "disposition": {
-    "audit_findings": "A01-A14 historical repairs remain preserved. Independent 2026-09-23 verification reproduced the open failed-start lifetime claim contradiction; the current unverified implementation candidate addresses worker ownership and known SR point warnings. R01-R05 proof/optimization closure remains pending.",
-    "certification_scope": "Current candidate carries bounded failed-start cleanup recovery, retained worker/instance ownership, pre-lock writer admission correction, and clarified SR point-query Contact mismatch warning plus tests. No current-head CI, SQL performance recertification or comprehensive LLD-01..07 semantic certification is claimed. Production SQLCipher and LLD-08 Site remain later-owner release obligations.",
+    "audit_findings": "A01-A14 historical repairs remain preserved. The failed-start lifetime and SR point-warning corrections passed the exact P1/P2 CI checkpoint #868. R01-R04 implementation regression gates are green at that checkpoint; R05 full assertion-to-owner-to-test semantic proof, cross-packet evidence and additional measured-work recertification remain pending.",
+    "certification_scope": "Checkpoint #868 validates Windows Python 3.13/3.14, Ubuntu Python 3.14, schema manifest, wheel and packaged authority resources at 4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36. Green CI is not comprehensive LLD-01..07 semantic certification; later traceability/test edits need their own exact-head CI. Production SQLCipher and LLD-08 Site remain later-owner release obligations.",
     "lld08_started": false
   },
   "supported_ci": {
     "workflow": "Beta implementation CI",
-    "run_number": 867,
-    "run_id": 35840886594,
-    "head_sha": "4f3e30500d51962fe5fd68e435d0252692d5b010",
-    "conclusion": "failure",
-    "failure": "tests/test_sr_reference_mutations.py::test_contact_affiliation_change_does_not_rewrite_sr_organization_at_use_snapshot (missing point warning)",
-    "last_green_run_number": 866,
-    "last_green_run_id": 35837398042,
-    "last_green_head": "ab26153f846e884be3cfbddf516623bfecce707f",
-    "current_candidate_implementation_sha": "66144d0001d40690c44ed9b35c35a5c8c414144a",
+    "run_number": 868,
+    "run_id": 35913764498,
+    "head_sha": "4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36",
+    "conclusion": "success",
+    "failure": null,
+    "last_green_run_number": 868,
+    "last_green_run_id": 35913764498,
+    "last_green_head": "4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36",
+    "current_candidate_implementation_sha": "4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36",
     "current_candidate_design_sha": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
-    "current_candidate_result": "NOT_RUN",
-    "note": "The last green commit predates the current P1/P2 changes; no semantic or CI success is claimed for the current candidate. Defer full supported CI until coherent checkpoint."
+    "current_candidate_result": "SUCCESS_CHECKPOINT_NOT_FINAL_CERTIFICATION",
+    "note": "All three matrix jobs, both Windows wheel/resource gates, release-schema manifest and acceptance marker reporting succeeded; Ubuntu reported 1381 passed, 2 skipped. Direct markers are not semantic proof. Subsequent test/ledger changes require a new exact-head run."
   },
   "findings": [
     {
@@ -165,7 +165,7 @@
     {
       "id": "A08",
       "priority": "P1",
-      "status": "reopened_candidate_patch_pending_failure_regressions_and_exact_head_ci",
+      "status": "regression_ci_green_pending_full_semantic_certification",
       "finding": "Foundation host lifecycle, readiness, diagnostics and status surfaces were absent.",
       "remediation_commits": [
         "005c7e5e50250f50889e1eecb3a5a4421e168bde",
@@ -194,7 +194,7 @@
         "A single shutdown deadline is propagated through write/request/background drains and server stop; WAL checkpoint uses only the remaining busy budget.",
         "A real Starlette/Uvicorn loopback smoke regression uses explicit test-only security seams, authenticated self-readiness, host-owned request executor dispatch, READY gating, HTTP shutdown, full cleanup and safe restart on the same data instance.",
         "Production run/session security and SQLCipher provider integration remain LLD-12 obligations and are not claimed by the test seam.",
-        "2026-09-23 re-audit found the earlier failed-start ownership claim false: close(wait=False) let a running UoW outlive server/security/registry cleanup and OS lock release. The new candidate retains executor references and lock until server, worker and direct UoW drain is proven; current tests/CI have NOT yet been run."
+        "2026-09-23 re-audit found the earlier failed-start ownership claim false: close(wait=False) let a running UoW outlive server/security/registry cleanup and OS lock release. The repaired ownership and drain regressions passed supported CI #868 at 4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36; this does not certify all LLD-01 semantics."
       ]
     },
     {
@@ -352,7 +352,7 @@
     }
   },
   "residual_limits": [
-    "The finding ledger is not a substitute for the complete requirement/assertion-to-owner-to-test semantic ledger for LLD-01 through LLD-07; LLD-07 has a prior full case ledger, while LLD-01 through LLD-06 binding remains an R05 obligation.",
+    "The finding ledger is not a substitute for the complete requirement/assertion-to-owner-to-test semantic ledger for LLD-01 through LLD-07; LLD-01, LLD-02 and LLD-07 have case ledgers, while LLD-03 through LLD-06 binding remains an R05 obligation. Cross-packet clauses and missing measured-work evidence stay explicit.",
     "Production SQLCipher behavior and final LLD-12 secure host composition are not reclassified as proven by SQLite/test-only security-seam CI.",
     "LLD-08 Infrastructure has not been started by this remediation campaign."
   ],
@@ -375,32 +375,32 @@
     "workstreams": [
       {
         "id": "R01",
-        "status": "reopened_candidate_fix_pending_execution_and_ci",
-        "scope": "Worker-survives-cancellation failure reopens historical R01/A08 closure. Current candidate gates pre-lock UoW and retains running requests/background workers, security, registry and instance lock pending bounded retry. Proof still requires executing the new regressions and platform suite."
+        "status": "regression_ci_green_pending_semantic_review",
+        "scope": "Worker-survives-cancellation, pre-lock UoW admission and retained request/background worker, security, registry and instance-lock ownership passed #868. Complete semantic certification remains pending."
       },
       {
         "id": "R02",
-        "status": "implemented_pending_exact_head_ci",
+        "status": "regression_ci_green_pending_semantic_review",
         "scope": "POSIX instance ownership preserves the historical lockf byte-range protocol, closes same-process races and proves legacy/new interoperability"
       },
       {
         "id": "R03",
-        "status": "implemented_pending_exact_head_ci",
+        "status": "regression_ci_green_pending_semantic_review",
         "scope": "shutdown uses one decreasing deadline across drains/server stop/checkpoint; zero-grace still attempts nonblocking cleanup and failed drain retains ownership for retry"
       },
       {
         "id": "R04",
-        "status": "implemented_pending_exact_head_ci",
+        "status": "regression_ci_green_pending_measured_work_review",
         "scope": "Inventory archive guard uses bounded indexed existence probes; Stock page uses sequence-12 seek indexes and rank-partition keyset seeks with exact totals preserved"
       },
       {
         "id": "R05",
-        "status": "partial_pending_cross_packet_coverage_and_exact_head_ci",
-        "scope": "LLD-02 37-case summary corrected to 26 reviewed, 6 pending-CI, 4 partial-cross-packet, 1 deferred. LLD02-T013 current warning failure has a proposed design clarification and implementation candidate; broader LLD03..06 and 2000-target release-schema evidence remain unclosed."
+        "status": "partial_pending_cross_packet_coverage_and_final_ci",
+        "scope": "LLD-02 now binds 39 normative cases: 26 reviewed, 6 originally pending-CI now green at #868, 6 partial cross-packet including profile/LLD-12 clauses, and 1 deferred LLD-08. The T013 point warning is green at #868; LLD03..06 case ledgers, cross-packet assertions and final 2000-target release-schema evidence remain unclosed."
       }
     ],
     "candidate_design_sha": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
-    "candidate_implementation_sha": "66144d0001d40690c44ed9b35c35a5c8c414144a",
-    "validation": "PENDING: no focused tests or supported CI have run for the current candidate."
+    "candidate_implementation_sha": "4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36",
+    "validation": "SUPPORTED CI #868 SUCCESS at this exact P1/P2 checkpoint (Ubuntu 1381 passed, 2 skipped; Windows 3.13/3.14, wheel/resources, manifest green). The final semantic release proof is not yet complete."
   }
 }

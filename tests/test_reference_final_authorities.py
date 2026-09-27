@@ -461,3 +461,83 @@ def test_local_profile_has_no_login_authority_and_display_edit_is_stale_safe(ini
         assert "Operations Administrator" not in payload and "Stale overwrite" not in payload
     finally:
         connection.close()
+
+
+def test_t038_first_run_profile_requires_parent_receipt_and_rolls_back_with_setup(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = LocalUserProfileService(factory)
+    missing_parent = new_uuid4()
+    with pytest.raises(SomaError) as missing:
+        with UnitOfWork(factory) as uow:
+            service.ensure_singleton_local_administrator(uow, parent_command_id=missing_parent)
+    assert missing.value.code == "PERSISTENCE_FAILURE"
+
+    parent = new_uuid4()
+    with pytest.raises(RuntimeError, match="setup failure"):
+        with UnitOfWork(factory) as uow:
+            _parent_receipt(uow, parent, "FirstRunSetup")
+            service.ensure_singleton_local_administrator(uow, parent_command_id=parent)
+            raise RuntimeError("setup failure")
+
+    assert service.get_singleton() is None
+    connection = _read(initialized_database)
+    try:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id IN (?,?)",
+            (missing_parent, parent),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE action_type='local_user_profile.created'"
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+
+def test_t039_display_name_edit_preserves_identity_and_rejects_command_collision(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = LocalUserProfileService(factory)
+    with UnitOfWork(factory) as uow:
+        parent = new_uuid4()
+        _parent_receipt(uow, parent, "FirstRunSetup")
+        profile_id = service.ensure_singleton_local_administrator(uow, parent_command_id=parent)
+
+    command_id = new_uuid4()
+    changed = service.update_display_name(
+        command_id=command_id,
+        base_revision=1,
+        display_name="Operations Administrator",
+        actor_id=profile_id,
+    )
+    assert (changed.local_user_profile_id, changed.revision, changed.no_change) == (profile_id, 2, False)
+
+    with pytest.raises(SomaError) as collision:
+        service.update_display_name(
+            command_id=command_id,
+            base_revision=1,
+            display_name="Forged different command",
+            actor_id=profile_id,
+        )
+    assert collision.value.code == "IDEMPOTENCY_CONFLICT"
+
+    unchanged = service.update_display_name(
+        command_id=new_uuid4(),
+        base_revision=2,
+        display_name="Operations Administrator",
+        actor_id=profile_id,
+    )
+    assert (unchanged.local_user_profile_id, unchanged.revision, unchanged.no_change) == (profile_id, 2, True)
+    profile = service.get_singleton()
+    assert profile is not None
+    assert (profile.local_user_profile_id, profile.display_name, profile.revision) == (
+        profile_id, "Operations Administrator", 2
+    )
+    connection = _read(initialized_database)
+    try:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE action_type='local_user_profile.display_name_updated'"
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?", (command_id,)
+        ).fetchone()[0] == 1
+    finally:
+        connection.close()

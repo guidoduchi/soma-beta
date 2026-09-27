@@ -4,7 +4,8 @@
   "design_sha": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
   "implementation_head_at_binding": "7a4cfe5b3960e2e7e577bd33bad2c39b4563900c",
   "source_acceptance": [
-    "spec/lld/identity-reference/tests/acceptance.json"
+    "spec/lld/identity-reference/tests/acceptance.json",
+    "spec/lld/identity-reference/tests/local-user-profile-acceptance.json"
   ],
   "module_map": "spec/lld/identity-reference/implementation/module-map.json",
   "method": "Each normative LLD-02 acceptance scenario is bound to current production owner paths and named executable behavior. Marker/name presence is not treated as semantic proof. Partial or LLD-08-owned clauses remain explicit rather than being inferred from adjacent tests.",
@@ -15,13 +16,14 @@
     "Generated-artifact recipient/address snapshots remain consumer-owned and are not reclassified as LLD-02-owned merely because Reference history is preserved.",
     "Production SQLCipher/session security remains LLD-12-owned.",
     "The mechanical acceptance-marker report is report-only and cannot promote partial cases.",
-    "LLD02-T013 current point warning candidate is unverified: #867 failed before the 2026-09-23 reconciliation. Do not infer T013 certification from the earlier snapshot-only assertions."
+    "LLD-12 authentication, verifier, session and setup coordination are not implemented by LLD-02 profile metadata tests; LLD02-T038/T039 retain explicit cross-packet limits.",
+    "CI #868 passed at 4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36 after the LLD02-T013 point-warning repair; later traceability/test edits require their own exact-head validation."
   ],
   "summary": {
     "reviewed": 26,
     "reviewed_pending_ci": 6,
     "partial_evidence": 0,
-    "partial_cross_packet": 4,
+    "partial_cross_packet": 6,
     "deferred_lld08": 1,
     "unbound": 0
   },
@@ -804,16 +806,58 @@
       "status": "reviewed",
       "note": "STRICT, closed channel-kind, supporting-index and protection-trigger drift are release-schema verified.",
       "certification_status": "pending_exact_head_ci"
+    },
+    {
+      "id": "LLD02-T038",
+      "scenario": "first_run_profile_has_no_login_name_authority",
+      "prove": [
+        "first-run profile defaults its display name to Local Administrator under a caller-owned setup receipt and UnitOfWork",
+        "profile persistence has no username or login-name or credential field",
+        "missing parent receipt fails closed, and parent setup rollback removes profile, audit and receipt",
+        "password-only authentication remains LLD-12 owned"
+      ],
+      "owners": [
+        "src/soma/reference/application/profile_service.py",
+        "src/soma/migrations/0002_identity_reference.sql"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_local_profile_has_no_login_authority_and_display_edit_is_stale_safe",
+        "tests/test_reference_final_authorities.py::test_t038_first_run_profile_requires_parent_receipt_and_rolls_back_with_setup"
+      ],
+      "status": "partial_cross_packet",
+      "note": "LLD-02 metadata/default/parent-receipt and rollback authority is exercised. The actual credential/setup DTO and password-only login policy belong to unassembled LLD-12 and are not asserted here.",
+      "certification_status": "not_certified"
+    },
+    {
+      "id": "LLD02-T039",
+      "scenario": "display_name_edit_is_descriptive_only",
+      "prove": [
+        "fresh base metadata revision edits only display name and increments profile metadata revision",
+        "profile/actor identity is retained, and stale revision or conflicting command hash fails closed",
+        "same-value command commits NO_CHANGE without fabricated update audit",
+        "password verifier, session, auto-login, security revision and encryption material remain LLD-12 owned"
+      ],
+      "owners": [
+        "src/soma/reference/application/profile_service.py"
+      ],
+      "tests": [
+        "tests/test_reference_final_authorities.py::test_local_profile_has_no_login_authority_and_display_edit_is_stale_safe",
+        "tests/test_reference_final_authorities.py::test_t039_display_name_edit_preserves_identity_and_rejects_command_collision",
+        "tests/test_reference_replay_results.py::test_local_profile_replay_returns_original_profile_without_owner_reads"
+      ],
+      "status": "partial_cross_packet",
+      "note": "LLD-02 metadata edit, identity, stale/collision/no-change and replay semantics are tested. LLD-12 credential/session/security state does not yet exist, so end-to-end non-mutation of those future owners is deferred.",
+      "certification_status": "not_certified"
     }
   ],
   "recertification_checkpoint": {
-    "candidate_head": "66144d0001d40690c44ed9b35c35a5c8c414144a",
+    "candidate_head": "4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36",
     "design_head": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
-    "prior_ci_run": 867,
-    "prior_ci_run_id": 35840886594,
-    "prior_ci_head": "4f3e30500d51962fe5fd68e435d0252692d5b010",
-    "prior_ci_result": "failed_LLD02_T013_SR_contact_affiliation_point_warning",
-    "correction": "Point-query warning contract clarified on design branch and candidate implementation+cross-role/unknown/stale/reviewed-mismatch tests added. Not run or certified at current candidate head.",
-    "status": "pending_focused_and_supported_ci"
+    "prior_ci_run": 868,
+    "prior_ci_run_id": 35913764498,
+    "prior_ci_head": "4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36",
+    "prior_ci_result": "success_supported_matrix_and_packaging",
+    "correction": "The reconciled LLD02-T013 warning and failed-start lifecycle checkpoint passed the supported CI matrix; T038/T039 are now separately bound without claiming LLD-12 security integration.",
+    "status": "ci_green_checkpoint_not_full_semantic_certification"
   }
 }
