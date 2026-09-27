@@ -414,6 +414,39 @@ def flatten_test_ids(docs: dict[str, Any]) -> Iterable[str]:
                     if isinstance(item, dict) and isinstance(item.get("id"), str):
                         yield item["id"]
 
+def check_test_id_uniqueness(repo: Path, packet: dict[str, Any],
+                             packet_root: Path, docs: dict[str, Any],
+                             findings: list[Finding]) -> None:
+    """Fail closed when two normative test scenarios share one identifier."""
+    packet_id = str(packet["id"])
+    seen: dict[str, str] = {}
+    definition_keys = ("cases", "scenarios", "tests", "failure_cases")
+    for path, doc in docs.items():
+        if (not path.startswith("tests/")
+                or path.startswith("tests/traceability")
+                or not isinstance(doc, dict)):
+            continue
+        for key in definition_keys:
+            value = doc.get(key)
+            if not isinstance(value, list):
+                continue
+            for ordinal, item in enumerate(value, 1):
+                test_id: str | None = None
+                if isinstance(item, dict) and isinstance(item.get("id"), str):
+                    test_id = item["id"].strip()
+                elif isinstance(item, list) and item and isinstance(item[0], str):
+                    test_id = item[0].strip()
+                if not test_id:
+                    continue
+                location = f"{path}:{key}[{ordinal}]"
+                previous = seen.get(test_id)
+                if previous is not None:
+                    add(findings, "SIG-010", "HIGH", packet_id, packet_root / path,
+                        f"duplicate normative test id {test_id}: {location}; first defined at {previous}", repo)
+                else:
+                    seen[test_id] = location
+
+
 def check_command_closure(repo: Path, packet: dict[str, Any],
                           packet_root: Path, docs: dict[str, Any],
                           contract: dict[str, Any], findings: list[Finding]) -> None:
@@ -1057,6 +1090,7 @@ def main() -> int:
 
         check_json_and_manifest(repo, packet, packet_root, index, findings)
         check_required_paths(repo, packet, packet_root, index, contract, findings)
+        check_test_id_uniqueness(repo, packet, packet_root, docs, findings)
         check_route_resolution(repo, packet, packet_root, docs, contract, findings)
         check_command_closure(repo, packet, packet_root, docs, contract, findings)
         check_audit_closure(repo, packet, packet_root, docs, findings)

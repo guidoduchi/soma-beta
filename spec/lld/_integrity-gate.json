@@ -115,7 +115,8 @@
       "name": "requirement_normative_coverage",
       "prove": [
         "every governing requirement ID in packet index maps to at least one normative leaf and test",
-        "supporting requirements do not silently become governing authority"
+        "supporting requirements do not silently become governing authority",
+        "every normative acceptance/failure scenario identifier is unique within its packet"
       ],
       "automation": "traceability graph"
     },
