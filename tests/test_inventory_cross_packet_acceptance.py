@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from soma.foundation.errors import IntegrityFailure
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.inventory.queries.task_context import TaskInventoryContextQuery
@@ -209,3 +212,128 @@ def test_t065_objective_inventory_context_derives_only_through_member_task(
         and item["spare_part_unit_id"] == unit_id
         for item in context["allocation_history"]
     )
+
+def test_lld05_f016_inventory_retry_participant_failure_rolls_back_both_packets(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    predecessor = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F016 Inventory retry predecessor",
+    )
+    unit_id, unit_revision = _register_unit(factory, "F016-RETRY-BOM")
+    reserved = InventoryNeedsStockService(factory).reserve_spare_part_unit_for_task(
+        command_id=new_uuid4(),
+        task_id=predecessor.task_id,
+        spare_part_unit_id=unit_id,
+        unit_revision=unit_revision,
+        task_revision=predecessor.revision,
+    )
+    allocation_id = next(
+        ref.result_id
+        for ref in reserved.target_refs
+        if ref.result_type == "task_unit_allocation"
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        allocation_before = tuple(
+            snapshot.connection.execute(
+                "SELECT task_id,spare_part_unit_id,revision,last_event_id "
+                "FROM task_unit_allocation_current WHERE allocation_id=?",
+                (allocation_id,),
+            ).fetchone()
+        )
+        event_count_before = int(
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM task_unit_allocation_events WHERE allocation_id=?",
+                (allocation_id,),
+            ).fetchone()[0]
+        )
+
+    original = InventoryTaskDependencyProvider.apply_retry_relationship_clone
+    observed_successor = {"task_id": None}
+
+    def apply_then_fail(
+        cls,
+        uow,
+        preview,
+        new_task_id,
+        command_context,
+    ):
+        refs = original(
+            uow,
+            preview,
+            new_task_id,
+            command_context,
+        )
+        observed_successor["task_id"] = new_task_id
+        moved = uow.connection.execute(
+            "SELECT task_id,revision FROM task_unit_allocation_current "
+            "WHERE allocation_id=?",
+            (allocation_id,),
+        ).fetchone()
+        assert moved is not None
+        assert str(moved[0]) == new_task_id
+        assert int(moved[1]) == int(allocation_before[2]) + 1
+        assert refs
+        raise IntegrityFailure(
+            "LLD05-F016 injected after Inventory retry participant mutation"
+        )
+
+    monkeypatch.setattr(
+        InventoryTaskDependencyProvider,
+        "apply_retry_relationship_clone",
+        classmethod(apply_then_fail),
+    )
+
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F016"):
+        TaskRetryService(factory).create_local_task_retry(
+            command_id=command_id,
+            predecessor_task_id=predecessor.task_id,
+            predecessor_task_revision=predecessor.revision,
+            schedule=AcceptedTaskSchedule(
+                start_utc=2_601_000_000,
+                end_utc=2_601_003_600,
+                scheduling_timezone_iana=TZ,
+            ),
+            selected_inventory_relationship_ids=(allocation_id,),
+        )
+
+    assert observed_successor["task_id"] is not None
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT task_id,spare_part_unit_id,revision,last_event_id "
+                "FROM task_unit_allocation_current WHERE allocation_id=?",
+                (allocation_id,),
+            ).fetchone()
+        ) == allocation_before
+        assert int(
+            snapshot.connection.execute(
+                "SELECT COUNT(*) FROM task_unit_allocation_events WHERE allocation_id=?",
+                (allocation_id,),
+            ).fetchone()[0]
+        ) == event_count_before
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM tasks WHERE created_command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_plan_revisions WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_retry_relations WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
