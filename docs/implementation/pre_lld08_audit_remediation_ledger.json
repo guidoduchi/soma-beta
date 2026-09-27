@@ -358,7 +358,7 @@
     }
   },
   "residual_limits": [
-    "The finding ledger is not a substitute for semantic case traceability. LLD-01, LLD-02, LLD-03, LLD-04 and LLD-07 now have inspectable semantic ledgers. LLD-04 still has eight explicitly open failure/race proofs (F001-F005, F017-F018, F022); LLD-05 and LLD-06 semantic binding remains an R05 obligation. Cross-packet clauses and measured-work limits stay explicit.",
+    "LLD-01, LLD-02, LLD-03, LLD-04, LLD-06 and LLD-07 now have inspectable semantic ledgers. LLD-04 still has eight open failure/race proofs (F001-F005, F017-F018, F022); LLD-05 semantic binding remains the principal R05 ledger obligation. Cross-packet clauses and measured-work limits stay explicit.",
     "Production SQLCipher behavior and final LLD-12 secure host composition are not reclassified as proven by SQLite/test-only security-seam CI.",
     "LLD-08 Infrastructure has begun only on an isolated branch; that branch is not the active remediation authority and does not close or bypass the remaining pre-LLD-08 certification obligations."
   ],
@@ -401,12 +401,12 @@
       },
       {
         "id": "R05",
-        "status": "lld04_bound_8_open_evidence_cases_lld05_06_pending",
-        "scope": "LLD-01, LLD-02, LLD-03, LLD-04 and LLD-07 have inspectable semantic ledgers. LLD-04 binds all 92 unique normative cases against design 9d1a4268; F011, F019 and F020 are now directly supported by exact-head CI #875. Eight exact failure/race obligations remain open: F001-F005, F017-F018 and F022. LLD-05 and LLD-06 semantic ledgers remain open."
+        "status": "lld06_semantic_ledger_complete_lld04_8_open_lld05_pending",
+        "scope": "LLD-01, LLD-02, LLD-03, LLD-04, LLD-06 and LLD-07 now have inspectable semantic ledgers. LLD-06 binds all 72 acceptance/failure scenarios to production owners and executable evidence green at exact code CI #875. LLD-04 retains eight open exact failure/race proofs (F001-F005, F017-F018, F022). LLD-05 remains the major missing semantic ledger."
       }
     ],
     "candidate_design_sha": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
-    "candidate_implementation_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
-    "validation": "CI #875 SUCCESS at exact implementation 3acecc04 and exact design 9d1a4268: Ubuntu Python 3.14 1404 passed, 2 skipped; Windows Python 3.13 and 3.14 each 1406 passed; release-schema manifest and wheel/resources green. LLD Spec Integrity #931 is SUCCESS at exact design head."
+    "candidate_implementation_sha": "c9d16f8a817fca1d3b25735136b4f77cbcfedaa1",
+    "validation": "Exact code checkpoint 3acecc04 / design 9d1a4268 is green in CI #875 and Spec Integrity #931. Documentation-only c9d16f8a CI #876 was in progress while this ledger was assembled; later documentation heads require their own exact-head CI before final certification."
   }
 }
