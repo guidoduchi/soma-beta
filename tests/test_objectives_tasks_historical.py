@@ -10,6 +10,7 @@ from soma.objectives_tasks import TaskPlanningService
 from soma.objectives_tasks.audit_registry import build_objectives_tasks_audit_registry
 from soma.objectives_tasks.queries.reviews import HistoricalObjectiveQueryService
 from soma.objectives_tasks.repositories.reviews import HistoricalObjectiveProposalRepository
+from soma.objectives_tasks.repositories.tasks import TaskPlanRecord, TaskPlanRepository
 from soma.objectives_tasks.services.historical import HistoricalObjectiveService
 from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.wfm_import import (
@@ -438,6 +439,151 @@ def test_lld05_f023_historical_membership_failure_rolls_back_objective_plan_and_
         ).fetchone()[0] == 0
         assert snapshot.connection.execute(
             "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+def test_lld05_f025_different_operational_plan_after_proposal_stales_acceptance(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    task, observation_id, start, end = _historical_wfm(factory, 707)
+    proposal = _proposal(factory, task.task_id, observation_id, start, end)
+
+    conflicting_plan_id = new_uuid4()
+    conflicting_command = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        TaskPlanRepository.insert_initial(
+            uow,
+            TaskPlanRecord(
+                plan_revision_id=conflicting_plan_id,
+                task_id=task.task_id,
+                start_utc=start + 600,
+                end_utc=end + 600,
+                origin="failure_injection_conflict",
+                scheduling_timezone_iana="America/Guayaquil",
+                source_observation_id=None,
+                predecessor_plan_revision_id=None,
+                reason_code="lld05_f025",
+                accepted_at_utc=100,
+                command_id=conflicting_command,
+            ),
+        )
+        uow.connection.execute(
+            "UPDATE tasks SET revision=revision+1 WHERE task_id=? AND revision=?",
+            (task.task_id, task.revision),
+        )
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as stale:
+        HistoricalObjectiveService(factory).accept_proposal(
+            command_id=command_id,
+            proposal_id=proposal.proposal_id,
+            proposal_revision=proposal.revision,
+            input_fingerprint=proposal.input_fingerprint,
+        )
+    assert stale.value.code == "HISTORICAL_PROPOSAL_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        current = snapshot.connection.execute(
+            "SELECT c.plan_revision_id,c.revision,p.start_utc,p.end_utc,p.origin "
+            "FROM task_plan_current c JOIN task_plan_revisions p "
+            "ON p.plan_revision_id=c.plan_revision_id WHERE c.task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        assert current is not None
+        assert str(current[0]) == conflicting_plan_id
+        assert tuple(current[2:4]) == (start + 600, end + 600)
+        assert str(current[4]) == "failure_injection_conflict"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objectives WHERE created_command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_plan_revisions WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        current_proposal = HistoricalObjectiveProposalRepository.get(
+            snapshot.connection,
+            proposal.proposal_id,
+        )
+        assert current_proposal is not None
+        assert current_proposal.state == "pending"
+        assert current_proposal.revision == proposal.revision
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_lld05_f026_operational_count_failure_before_aggregate_rebuild_rolls_back(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    task, observation_id, start, end = _historical_wfm(factory, 708)
+    proposal = _proposal(factory, task.task_id, observation_id, start, end)
+    accepted = HistoricalObjectiveService(factory).accept_proposal(
+        command_id=new_uuid4(),
+        proposal_id=proposal.proposal_id,
+        proposal_revision=proposal.revision,
+        input_fingerprint=proposal.input_fingerprint,
+    )
+    assert accepted.objective_id is not None
+
+    service = HistoricalObjectiveService(factory)
+    with ReadSnapshot(factory) as snapshot:
+        aggregate_before = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,attention_reason,included_task_count,"
+                "excluded_task_count,revision,last_command_id,aggregate_input_fingerprint "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (accepted.objective_id,),
+            ).fetchone()
+        )
+
+    def fail_rebuild(*_args, **_kwargs):
+        raise IntegrityFailure(
+            "LLD05-F026 injected after inclusion current write before aggregate rebuild"
+        )
+
+    monkeypatch.setattr(
+        service._objectives,
+        "rebuild_aggregate",
+        fail_rebuild,
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F026"):
+        service.set_operational_count_inclusion(
+            command_id=command_id,
+            task_id=task.task_id,
+            expected_inclusion_revision=0,
+            included=False,
+            reason_category="f026_atomicity_cut",
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_operational_count_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM task_operational_count_current WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone() is None
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,attention_reason,included_task_count,"
+                "excluded_task_count,revision,last_command_id,aggregate_input_fingerprint "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (accepted.objective_id,),
+            ).fetchone()
+        ) == aggregate_before
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
             (command_id,),
         ).fetchone()[0] == 0
 
