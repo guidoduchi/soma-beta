@@ -1,0 +1,2319 @@
+{
+  "schema": "SOMA-PRE-LLD08-SEMANTIC-TRACEABILITY-V1",
+  "lld_id": "LLD-04",
+  "design_sha": "cd314606db2df4a70137993d540f96a54289793a",
+  "design_gate": {
+    "workflow": "LLD Spec Integrity",
+    "run_number": 929,
+    "run_id": 36300397753,
+    "conclusion": "success"
+  },
+  "implementation_parent_sha": "580366eb895a2dff5160f697f23919844834e00b",
+  "supported_parent_ci": {
+    "workflow": "Beta implementation CI",
+    "run_number": 873,
+    "run_id": 36301920409,
+    "conclusion": "success",
+    "ubuntu_python_3_14": "1400 passed, 2 skipped",
+    "windows_python_3_13": "success including wheel/resource verification",
+    "windows_python_3_14": "success including wheel/resource verification"
+  },
+  "certified": false,
+  "certification_rule": "LLD-04 remains non-certified while any exact failure-injection/race obligation is open or a newly added regression has not passed the full supported matrix.",
+  "method": [
+    "All 92 unique normative LLD-04 scenarios are enumerated from the accepted design at cd314606.",
+    "Bindings point to production owner modules and concrete executable tests after semantic inspection; green CI is not used as a substitute for missing fault cuts.",
+    "Cross-packet owner calls into implemented LLD-03/05/06 are marked explicitly rather than treated as local-only behavior.",
+    "Crash/recovery cases without their exact cut/reclaim proof remain open even when adjacent happy-path or atomicity tests pass."
+  ],
+  "summary": {
+    "total_cases": 92,
+    "unique_case_ids": 92,
+    "status_counts": {
+      "reviewed_supported_ci_873": 73,
+      "reviewed_cross_packet_supported_ci_873": 7,
+      "needs_exact_failure_injection": 7,
+      "pending_candidate_ci": 1,
+      "reviewed_structural_atomicity_supported_ci_873": 1,
+      "needs_multi_selection_failure_proof": 1,
+      "needs_rejected_material_change_proof": 1,
+      "needs_per_sr_reappearance_failure_reclaim_proof": 1
+    }
+  },
+  "open_evidence_case_ids": [
+    "LLD04-F001",
+    "LLD04-F002",
+    "LLD04-F003",
+    "LLD04-F004",
+    "LLD04-F005",
+    "LLD04-F017",
+    "LLD04-F018",
+    "LLD04-F019",
+    "LLD04-F020",
+    "LLD04-F022"
+  ],
+  "candidate_pending_case_ids": [
+    "LLD04-F011"
+  ],
+  "cases": [
+    {
+      "id": "LLD04-T001",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T001",
+        "name": "shared_directory_no_broad_search",
+        "prove": [
+          "unset directory returns IMPORT_DIRECTORY_UNSET",
+          "inaccessible directory returns truthful error",
+          "automatic discovery never searches unrelated folders",
+          "RFC/WFM share the same accepted directory value"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/discovery.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_discovery.py::test_nested_candidate_is_never_discovered"
+      ],
+      "observed_assertions": "Discovery does not broaden into recursive/shared-directory search.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T002",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T002",
+        "name": "direct_regular_file_only",
+        "prove": [
+          "nested files ignored",
+          "symlink/junction/reparse candidates rejected",
+          "regular direct file accepted",
+          "manual selection still receives path/reparse validation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/discovery.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_discovery.py::test_reparse_directory_is_rejected_before_enumeration",
+        "tests/test_ticket_import_advanced_search_discovery.py::test_file_identity_swap_after_preflight_fails_closed"
+      ],
+      "observed_assertions": "Candidates must be direct stable regular files.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T003",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T003",
+        "name": "rfc_candidate_ranking_is_not_business_time",
+        "prove": [
+          "RFC stable mtime_ns deterministically ranks candidates",
+          "collision suffix magnitude does not rank",
+          "filename/mtime never populates RFC source/business timestamps",
+          "copying old file may rank candidate but contained facts retain source chronology semantics"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/discovery.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_rfc_wfm_discovery.py::test_rfc_automatic_ranks_by_mtime_not_collision_suffix"
+      ],
+      "observed_assertions": "RFC candidate ranking uses discovery chronology, not RFC business time/collision suffix.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T004",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T004",
+        "name": "wfm_embedded_chronology",
+        "prove": [
+          "supported embedded YYYYMMDDHHMMSS converts via America/Guayaquil to UTC",
+          "invalid calendar timestamp is malformed",
+          "mtime never replaces invalid embedded chronology",
+          "collision suffix never becomes time"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/discovery.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_rfc_wfm_discovery.py::test_wfm_automatic_requires_timestamp_immediately_after_exact_family_marker"
+      ],
+      "observed_assertions": "WFM chronology comes from the governed embedded timestamp grammar.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T005",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T005",
+        "name": "malformed_newest_no_fallback",
+        "prove": [
+          "highest-ranked candidate selected first",
+          "selected unsafe/malformed workbook fails visibly",
+          "older otherwise valid candidate is not silently opened"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/discovery.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_discovery.py::test_unsafe_newest_candidate_never_falls_back_to_older_safe_file",
+        "tests/test_ticket_import_advanced_search_discovery.py::test_unstable_newest_candidate_never_falls_back"
+      ],
+      "observed_assertions": "Malformed/unsafe newest candidate does not silently fall back.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T006",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T006",
+        "name": "manual_selection_does_not_bypass_profile",
+        "prove": [
+          "manual RFC file may have nonautomatic filename but must satisfy RFC workbook/header/content validation",
+          "manual WFM still requires supported source chronology",
+          "manual file cannot bypass security/replay/review"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/discovery.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_rfc_wfm_discovery.py::test_rfc_manual_allows_nonautomatic_xlsx_filename_and_uses_mtime",
+        "tests/test_ticket_import_rfc_wfm_discovery.py::test_wfm_manual_requires_supported_embedded_chronology"
+      ],
+      "observed_assertions": "Manual selection changes selection mechanics, not the source-family profile/chronology contract.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T007",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T007",
+        "name": "header_alias_order_independence",
+        "prove": [
+          "column reorder produces same semantic observations/fingerprint",
+          "recognized aliases resolve by normalized closed registry",
+          "fuzzy/punctuation-stripped match is rejected",
+          "unallowlisted columns have no domain/fingerprint value"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_header_normalization_is_unicode_whitespace_and_casefold_governed"
+      ],
+      "observed_assertions": "Header aliasing is order-independent under closed normalization.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T008",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T008",
+        "name": "duplicate_semantic_header_blocks_workbook",
+        "prove": [
+          "two physical headers resolve to same field",
+          "SOURCE_DUPLICATE_SEMANTIC_HEADER before row proposal",
+          "no domain mutation/checkpoint advance"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/advanced_search.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_duplicate_semantic_header_blocks_workbook"
+      ],
+      "observed_assertions": "Duplicate semantic headers block the workbook.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T009",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T009",
+        "name": "optional_header_missing_preserves_truth",
+        "prove": [
+          "RFC/WFM required identity headers only are universal",
+          "missing optional-active header creates coverage finding",
+          "prior accepted domain value is not cleared",
+          "new identity can remain incomplete"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/advanced_search.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_present_blank_duration_is_zero_but_missing_header_creates_no_field"
+      ],
+      "observed_assertions": "Missing optional headers preserve truth rather than fabricating blank facts.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T010",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T010",
+        "name": "rfc_branch_artifact_vs_invalid",
+        "prove": [
+          "exact NC+14 is valid",
+          "canonical NC+14 plus recognized extra source suffix becomes RFC_SOURCE_BRANCH_ARTIFACT skipped evidence",
+          "other malformed identity RFC_ID_INVALID",
+          "branch artifact never resolves base RFC"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/rfc.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_rfc_parser.py::test_rfc_parser_separates_exact_identity_branch_artifact_and_invalid_row"
+      ],
+      "observed_assertions": "RFC branch artifacts remain distinct from valid exact identities and invalid rows.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T011",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T011",
+        "name": "wfm_identity_matrix",
+        "prove": [
+          "exact TK+14 and NC+14 required",
+          "same RFC with many distinct Task Nos valid",
+          "bad Task No or RFC No invalidates only row/affected scope",
+          "LLD-05 task_no_status ACTIVE resolves the current identity while ABSENT alone may enter create/adopt review",
+          "retired canonical Task No returns WFM_TASK_ID_RETIRED and emits no wfm_create_or_adopt/source/plan or other LLD-05 mutation proposal while unrelated identities remain reviewable",
+          "no Local Task/WFM/RFC fabricated from invalid or retired identity"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_parser.py::test_wfm_parser_invalid_identity_never_retains_partial_domain_identity",
+        "tests/test_ticket_import_wfm_parser.py::test_wfm_parser_conflicts_same_task_no_even_when_owning_rfc_differs"
+      ],
+      "observed_assertions": "WFM identity matrix is exact and partial invalid identity never survives.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T012",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T012",
+        "name": "equivalent_duplicate_and_conflicting_identity",
+        "prove": [
+          "same identity identical logical content collapses effective proposal with warning",
+          "physical provenance may remain in published new-source run",
+          "same identity differing meaningful content creates SOURCE_IDENTITY_CONFLICT",
+          "conflict blocks only affected identity, unrelated rows remain reviewable"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_equivalent_duplicates_and_conflicts_are_deterministic_classifications",
+        "tests/test_ticket_import_rfc_parser.py::test_rfc_parser_classifies_equivalent_duplicates_and_content_conflicts_per_identity",
+        "tests/test_ticket_import_wfm_parser.py::test_wfm_parser_equivalent_duplicates_collapse_only_with_same_parent_and_content"
+      ],
+      "observed_assertions": "Equivalent duplicates collapse deterministically; conflicting identity evidence remains conflicting.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T013",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T013",
+        "name": "source_presence_survives_rejected_proposal",
+        "prove": [
+          "valid identity is published as observed before proposal disposition",
+          "reject/defer proposal changes no domain authority",
+          "published source presence remains queryable",
+          "no omission/disappearance inferred"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py",
+        "src/soma/ticket_import/repositories/observations.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_proposal_decisions.py::test_reject_is_atomic_preserves_published_presence_and_updates_exact_counters"
+      ],
+      "observed_assertions": "Rejecting a proposal does not erase published source-presence evidence.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T014",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T014",
+        "name": "logical_fingerprint_ignores_packaging_and_order",
+        "prove": [
+          "equivalent logical content with different ZIP packaging/row order/column order/filename yields same SHA-256",
+          "discarded columns do not alter fingerprint",
+          "meaningful allowlisted value or validation-token change alters fingerprint"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/engine.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_logical_fingerprint.py::test_physical_row_order_is_irrelevant_and_duplicates_conflicts_are_deterministic"
+      ],
+      "observed_assertions": "Logical fingerprint ignores packaging/physical order while preserving semantic differences.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T015",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T015",
+        "name": "exact_replay_has_no_duplicate_observations",
+        "prove": [
+          "same chronology+fingerprint classified exact replay",
+          "unpublished staging rows cleaned before run noop",
+          "no published SourceObservation/proposal/domain audit duplication",
+          "checkpoint unchanged"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/publish_staged_run.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_publish_staged_run.py::test_replay_classification_cleans_unpublished_evidence_without_source_publication",
+        "tests/test_ticket_import_publish_staged_run.py::test_committed_publication_replays_after_source_check_job_is_terminal"
+      ],
+      "observed_assertions": "Exact replay creates no duplicate published observations and resolves through committed authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T016",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T016",
+        "name": "newer_identical_updates_checkpoint_only",
+        "prove": [
+          "newer chronology+same fingerprint enters noop_pending_checkpoint",
+          "unpublished per-row staging cleaned",
+          "RecordNewerIdenticalSourceCheck atomically advances checkpoint and run->noop",
+          "no per-entity observation/proposal/domain mutation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/finalize_run.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_newer_identical.py::test_newer_identical_advances_checkpoint_and_run_atomically_and_replays"
+      ],
+      "observed_assertions": "Newer-identical source advances checkpoint only, atomically and replay-safely.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T017",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T017",
+        "name": "chronology_content_conflict_requires_recovery",
+        "prove": [
+          "equal checkpoint chronology+different fingerprint -> recovery_required",
+          "ordinary proposal acceptance disabled",
+          "recovery preview binds exact run/checkpoint",
+          "no checkpoint advance before reviewed recovery"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/recovery.py",
+        "src/soma/ticket_import/queries/runs.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_logical_fingerprint.py::test_replay_classification_matrix",
+        "tests/test_ticket_import_recovery_preview_actions.py::test_recovery_preview_allows_reject_before_any_acceptance"
+      ],
+      "observed_assertions": "Equal-chronology changed content enters explicit recovery rather than silent acceptance.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T018",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T018",
+        "name": "older_source_recovery_is_monotonic",
+        "prove": [
+          "older chronology -> recovery_required",
+          "authorized target correction preserves older provenance",
+          "source checkpoint never moves backward",
+          "later newer source still compares against highest accepted chronology"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/finalize_run.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_finalize_backbone.py::test_older_authorized_recovery_finalizes_without_replacing_checkpoint"
+      ],
+      "observed_assertions": "Older-source recovery is monotonic and never lowers checkpoint chronology.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T019",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T019",
+        "name": "rfc_exact_adoption_preserves_identity",
+        "prove": [
+          "manual/provisional RFC with exact rfc_no is adopted in place",
+          "rfc_id/hierarchy/SR links/devices/notes preserved",
+          "similar Summary/Customer never adopts",
+          "accepted source provenance is evidence not ever_imported boolean"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/rfc_enhanced_identity.py",
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_rfc_enhanced_identity_reconciliation.py::test_missing_exact_rfc_builds_owner_bound_create_or_adopt_proposal",
+        "tests/test_ticket_import_rfc_proposal_acceptance.py::test_accept_rfc_create_uses_exact_published_identity_and_replays_without_owner_reads"
+      ],
+      "observed_assertions": "Exact RFC adoption preserves owner identity and uses reviewed evidence.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T020",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T020",
+        "name": "rfc_terminal_acceptance_stops_before_cascade",
+        "prove": [
+          "Closed/Cancelled proposal is high-risk",
+          "acceptance uses LLD-03 current source projection",
+          "terminal evidence and pending cascade proposal commit atomically",
+          "Task/Objective/Communication state unchanged until separate cascade command"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py",
+        "src/soma/tickets/rfc_source_projection.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_rfc_enhanced_reconciliation.py::test_existing_rfc_builds_one_high_risk_projection_for_terminal_row",
+        "tests/test_ticket_rfc_terminal_cascade_capture.py::test_root_terminal_capture_persists_exact_ordered_branch_and_wfms"
+      ],
+      "observed_assertions": "Import accepts terminal source authority into LLD-03 pending-cascade capture but does not execute downstream cascade.",
+      "status": "reviewed_cross_packet_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T021",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T021",
+        "name": "unknown_rfc_status_is_non_destructive",
+        "prove": [
+          "unknown nonblank status warns",
+          "does not overwrite recognized status",
+          "does not create terminal epoch/cascade",
+          "blank likewise preserves prior status"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/providers/rfc_source_evidence.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_rfc_parser.py::test_rfc_parser_preserves_unknown_status_as_warning_only_source_evidence",
+        "tests/test_ticket_import_rfc_source_evidence.py::test_unknown_enhanced_status_never_acquires_current_lifecycle_authority"
+      ],
+      "observed_assertions": "Unknown RFC status remains non-destructive source evidence.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T022",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T022",
+        "name": "wfm_provisional_rfc_precedence",
+        "prove": [
+          "missing RFC may receive separate provisional RFC proposal",
+          "active WFM needs separate reviewed provisional eligibility",
+          "accepted Enhanced pre-Implement evidence blocks WFM override",
+          "Complete/Plan Cancel never promote RFC"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/wfm_provisional_eligibility.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_provisional_eligibility_proposals.py::test_accepted_enhanced_status_blocks_provisional_eligibility_proposal",
+        "tests/test_ticket_import_wfm_provisional_eligibility_proposals.py::test_missing_parent_seeds_identity_wfm_create_and_eligibility_reviews"
+      ],
+      "observed_assertions": "Enhanced RFC authority outranks WFM provisional eligibility.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T023",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T023",
+        "name": "complete_plan_cancel_are_history",
+        "prove": [
+          "Complete and Plan Cancel can create/adopt exact WFM identity",
+          "neither creates active Task work/Objective",
+          "Plan Cancel allows blank Dispatch Progress",
+          "provider history remains distinct from SOMA Task outcome/execution"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/wfm.py",
+        "src/soma/ticket_import/reconciliation/wfm_service_provider.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_service_provider_proposals.py::test_retired_task_no_emits_blocking_finding_and_no_mutation_proposal"
+      ],
+      "observed_assertions": "Complete/cancel/retired facts remain source/history evidence and do not silently mutate operational Task authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T024",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T024",
+        "name": "wfm_plan_pair_and_precision",
+        "prove": [
+          "both plan timestamps blank is valid unscheduled evidence",
+          "one endpoint yields WFM_PLAN_INCOMPLETE without destroying independent row facts",
+          "both require end>start",
+          "arbitrary valid minute/second accepted with UTC whole-second persistence",
+          "no half-hour rounding"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_parser.py::test_wfm_parser_plan_findings_are_scoped_without_destroying_identity",
+        "tests/test_ticket_import_wfm_parser.py::test_wfm_parser_keeps_export_chronology_distinct_from_plan_facts"
+      ],
+      "observed_assertions": "WFM plan pair/precision validation is scoped and chronology remains distinct from plan facts.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T025",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T025",
+        "name": "source_plan_is_not_operational_plan",
+        "prove": [
+          "accepted source plan remains provider evidence",
+          "material difference creates separate plan-reconciliation proposal",
+          "accepting source observation alone changes no Objective membership/regrouping",
+          "execution/terminal/explicit lock supplied by LLD-05 stops automatic plan recalculation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/wfm_follow_on.py",
+        "src/soma/objectives_tasks/services/wfm_import.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_plan_proposal_builder.py::test_plan_follow_on_builder_binds_exact_accepted_source_plan_and_owner_token",
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_reviewed_source_plan_adoption_uses_guayaquil_context_and_advances_task_plan_once"
+      ],
+      "observed_assertions": "Source plan is evidence only until reviewed adoption by the LLD-05 operational-plan owner.",
+      "status": "reviewed_cross_packet_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T026",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T026",
+        "name": "customer_reconciliation_is_reviewed",
+        "prove": [
+          "RFC account number queried before name",
+          "ambiguous account/name remains explicit",
+          "WFM Customer Organization is hint only",
+          "Infrastructure context cannot assign RFC Customer",
+          "proposal acceptance uses LLD-02/03 owner commands"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/advanced_search_customer.py",
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_customer_reconciliation.py::test_customer_builder_emits_exact_high_risk_account_code_proposal",
+        "tests/test_ticket_import_sr_customer_acceptance.py::test_accept_customer_reconciliation_preserves_history_audits_and_replay"
+      ],
+      "observed_assertions": "Customer reconciliation is explicitly reviewed and owner-bound.",
+      "status": "reviewed_cross_packet_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T027",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T027",
+        "name": "sr_candidate_precedence_and_safety",
+        "prove": [
+          "labelled SR/TT+8-digit strong candidate",
+          "isolated eight-digit weak candidate excludes common date tokens/longer substrings",
+          "RFC Summary candidates take precedence",
+          "WFM Task Name used only when owning RFC Summary yields none",
+          "only existing SR matches proposed and no SR is created"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/sr_candidates.py",
+        "src/soma/ticket_import/reconciliation/rfc_enhanced_sr_link.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_rfc_enhanced_sr_link_candidates.py::test_candidate_parser_strong_weak_date_and_substring_rules",
+        "tests/test_ticket_import_rfc_enhanced_sr_link_candidates.py::test_builder_emits_only_existing_exact_sr_matches"
+      ],
+      "observed_assertions": "SR candidate precedence is exact and substring/date ambiguity does not create authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T028",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T028",
+        "name": "rfc_wfm_omission_is_neutral",
+        "prove": [
+          "full/partial/filtered/empty RFC/WFM workbook produces no per-record disappearance lifecycle proposal",
+          "missing old identity does not close/archive/unlink/stop-track",
+          "local filters handle historical presentation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/rfc_enhanced.py",
+        "src/soma/ticket_import/reconciliation/wfm_service_provider.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_service_provider_proposals.py::test_blank_status_and_incomplete_plan_preserve_prior_source_truth"
+      ],
+      "observed_assertions": "RFC/WFM omission is neutral; missing fields do not synthesize clears.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T029",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T029",
+        "name": "auto_accept_policy_has_zero_mutations",
+        "prove": [
+          "RFC_WFM_AUTO_ACCEPT_V1 mutation_classes is empty",
+          "replay/no-change paths remain automatic because they perform no domain mutation",
+          "terminal/customer/timeframe/ownership/link/competing attempt never auto-accept"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/profiles/registry.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_profile_registry.py::test_rfc_wfm_auto_accept_v1_has_empty_mutation_allowlist",
+        "tests/test_ticket_import_profile_registry.py::test_unknown_auto_accept_policy_fails_closed"
+      ],
+      "observed_assertions": "RFC_WFM_AUTO_ACCEPT_V1 is machine-addressable and permits zero mutation classes.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T030",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T030",
+        "name": "proposal_stale_revalidation",
+        "prove": [
+          "proposal base token changes after target mutation",
+          "accept returns IMPORT_PROPOSAL_STALE",
+          "no accepted disposition/domain mutation",
+          "refresh creates new proposal rather than rewriting old evidence"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/queries/proposals.py",
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_query_surfaces.py::test_proposal_review_marks_owner_drift_stale_without_losing_decision_history",
+        "tests/test_ticket_import_proposal_review_freshness.py::test_proposal_review_uses_certified_sr_source_field_set_token"
+      ],
+      "observed_assertions": "Proposal review revalidates owner freshness and cannot accept stale state.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T031",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T031",
+        "name": "run_finalization_and_checkpoint",
+        "prove": [
+          "run with pending proposals cannot finalize",
+          "all proposals terminally dispositioned permits finalization",
+          "checkpoint records latest explicitly processed source set even when some target proposals rejected/deferred",
+          "checkpoint update/run final state commit atomically"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/finalize_run.py",
+        "src/soma/ticket_import/repositories/runs.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_finalize_backbone.py::test_finalize_regular_runs_establishes_and_advances_checkpoint"
+      ],
+      "observed_assertions": "Run finalization and checkpoint advancement are one authoritative transition.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T032",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T032",
+        "name": "exact_totals_survive_virtualization",
+        "prove": [
+          ">500 observations/proposals/findings page by deterministic keyset",
+          "exact totals remain available",
+          "unresolved conflicts visible across pages",
+          "UI loaded-page count never substitutes for total",
+          "PublishStagedImportRun exact idempotency result remains bounded to import_run_id/run_state/revision/proposal_count and never embeds proposal IDs; proposal identities are retrieved only through paginated query authority"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/queries/runs.py",
+        "src/soma/ticket_import/queries/proposals.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_query_surfaces.py::test_t032_more_than_500_items_preserve_keyset_and_exact_filtered_totals"
+      ],
+      "observed_assertions": "More than 500 observations/findings/proposals traverse deterministic keyset pages while exact filtered totals remain stable.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T033",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T033",
+        "name": "unpublished_staging_is_not_source_authority",
+        "prove": [
+          "validating run source rows remain excluded from review/history/domain authority even though GetImportRun can return the run envelope",
+          "GetImportRun returns checkpoint_comparison=null until published logical-fingerprint authority exists",
+          "crash before publication cannot establish source presence",
+          "publish makes complete run rows immutable",
+          "replay cleanup allowed only before publication"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/staging.py",
+        "src/soma/ticket_import/repositories/observations.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_staging.py::test_parser_staging_persists_row_and_global_findings_without_publication",
+        "tests/test_ticket_import_staged_evidence_reader.py::test_load_validating_evidence_preserves_physical_rows_fields_and_findings_without_writes"
+      ],
+      "observed_assertions": "Unpublished staging is never current source authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T034",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-T034",
+        "name": "smallest_safe_scope_partial_acceptance",
+        "prove": [
+          "one RFC conflict does not reject unrelated RFC/WFM targets",
+          "one WFM broken plan can still stage independent valid identity/status facts",
+          "each proposal independently accepted/rejected/deferred",
+          "whole-run failure reserved for inseparable workbook-level integrity/safety errors"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_proposal_decisions.py::test_defer_is_independent_smallest_scope_and_other_proposal_stays_pending"
+      ],
+      "observed_assertions": "Partial acceptance/defer happens at independently safe proposal scope.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T001",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T001",
+        "name": "automatic_filename_and_cst_chronology",
+        "prove": [
+          "only exact Advanced Search(Service Request)YYYYMMDDHHMMSS.xlsx direct stable regular files qualify",
+          "embedded timestamp validates in Asia/Shanghai/China Standard Time",
+          "newest selected candidate failure does not fall back",
+          "filesystem mtime never becomes population chronology"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/discovery.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_discovery.py::test_exact_newest_advanced_search_file_is_selected_with_cst_chronology"
+      ],
+      "observed_assertions": "Automatic Advanced Search discovery uses the exact filename grammar and CST-derived chronology.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T002",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T002",
+        "name": "manual_selection_security_and_chronology",
+        "prove": [
+          "manual selection may be outside inbox and bypass auto filename eligibility for safe preview",
+          "shared reparse/path/XLSX/resource guards still apply",
+          "without supported embedded population chronology publication/checkpoint/domain acceptance is blocked as SOURCE_CHRONOLOGY_UNRESOLVED"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/discovery.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_discovery.py::test_relative_directory_is_not_accepted",
+        "tests/test_ticket_import_advanced_search_discovery.py::test_reparse_directory_is_rejected_before_enumeration",
+        "tests/test_ticket_import_discovery_path_portability.py::test_literal_windows_unc_namespace_is_still_rejected_on_posix"
+      ],
+      "observed_assertions": "Manual selection preserves path-security/profile rules and does not invent chronology.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T003",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T003",
+        "name": "header_identity_order_and_duplicates",
+        "prove": [
+          "SRNo required",
+          "missing optional headers warn and preserve prior values",
+          "column reorder has no effect",
+          "two physical headers resolving one semantic field block workbook"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/advanced_search.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_header_normalization_is_unicode_whitespace_and_casefold_governed",
+        "tests/test_ticket_import_advanced_search_parser.py::test_duplicate_semantic_header_blocks_workbook"
+      ],
+      "observed_assertions": "Semantic headers are normalized by the closed registry and duplicate authority is rejected.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T004",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T004",
+        "name": "field_allowlist_and_product_nonauthority",
+        "prove": [
+          "only exact active/future-use registries survive staging",
+          "Product/unregistered fields never enter observation fields, fingerprint or reconciliation",
+          "Product cannot drive Product Line/CPL/SLA/Infrastructure/Inventory"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/profiles/registry.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_parses_registered_fields_and_reuses_exact_logical_hashes",
+        "tests/test_ticket_import_advanced_search_parser.py::test_semantic_formula_blocks_workbook_but_discarded_product_formula_does_not"
+      ],
+      "observed_assertions": "Only registered fields acquire semantics; discarded/product columns cannot become authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T005",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T005",
+        "name": "sr_identity_duplicates_and_conflict",
+        "prove": [
+          "SR identity is exactly eight digits; invalid rows create no SR",
+          "equivalent duplicates collapse logically with warning; conflicting variants block only that SR",
+          "approximate evidence never adopts identity",
+          "one conflict-free canonical SR absent from LLD-03 emits one medium-risk observed-row sr_create_or_adopt with target_internal_id=null, target_business_id=canonical SR, and exactly one ordinal-0 official_sr_no create identity change with after_text=canonical SR and source_observation_field_id=null",
+          "its base token is exact LLD-03 SR_SOURCE_IDENTITY_BASE_V1 with target=null; appearance of that official SR before acceptance changes the token and stales before receipt",
+          "acceptance revalidates same-run immutable canonical identity evidence and exact create-change shape; malformed change, cross-run evidence, nonnull target_internal_id or non-medium risk fails closed",
+          "successful acceptance creates only the official SR identity and accepts no other workbook field"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/reconciliation/advanced_search_identity.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_equivalent_duplicates_and_conflicts_are_deterministic_classifications",
+        "tests/test_ticket_import_advanced_search_invalid_duplicates.py::test_invalid_duplicate_rows_are_not_collapsed_into_identity_authority"
+      ],
+      "observed_assertions": "Duplicate SR identities are deterministically equivalent/conflicting and invalid rows do not acquire identity authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T006",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T006",
+        "name": "source_timezone_and_timestamp_grammar",
+        "prove": [
+          "filename chronology uses Asia/Shanghai; operational cells use ADVANCED_SEARCH_SR_V1 instant grammar",
+          "text timestamps require ASCII YYYY-MM-DD plus T/space plus HH:MM:SS, optional 1..6 fractional digits and optional uppercase Z or +/-HH:MM; locale/slash dates, lowercase z, abbreviations, missing seconds and malformed offsets fail",
+          "offsetless operational timestamps use America/Guayaquil; explicit Z/numeric offset wins",
+          "resolve instant first, then discard fractional remainder without rounding/carry to UTC whole seconds",
+          "Excel 1900/1904 temporal cells are accepted only when openpyxl resolves date/datetime; bare numeric temporal cells or formula cached values are malformed",
+          "pre-1970 resolved instants are malformed, never negative Unix seconds",
+          "Objective timezone never enters source interpretation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/advanced_search.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_exact_excel_datetime_and_text_offset_normalize_to_same_instant",
+        "tests/test_ticket_import_advanced_search_parser.py::test_lowercase_z_and_pre_epoch_timestamps_are_malformed_without_fallback"
+      ],
+      "observed_assertions": "Timestamp grammar/timezone normalization is closed and malformed values never fall back to local clock.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T007",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T007",
+        "name": "status_severity_unknown_and_reversal",
+        "prove": [
+          "Closed/Resolved/Cancelled establish terminal source presentation only through LLD-03 acceptance",
+          "ADVANCED_SEARCH_SEVERITY_V1 recognizes Critical, Major, Minor, Non-fault inquiry under governed normalization and resolves exactly to critical, major, minor, non_fault_inquiry",
+          "canonical source severity spelling remains evidence distinct from resolved LLD-06 token",
+          "blank/unknown severity stays unresolved warning-bearing evidence, preserves prior recognized severity and never defaults/fuzzy-matches",
+          "blank/unknown Status cannot erase terminal state",
+          "terminal-to-nonterminal reversal requires fresh high-risk review",
+          "terminal entry is high-risk sr_source_projection separate from unrelated medium-risk changes",
+          "terminal reversal is one high-risk Status-only sr_terminal_reversal_review using SOMA_SR_SOURCE_FIELD_SET_BASE_V1",
+          "a disjoint ordinary sibling remains independently reviewable in either acceptance order",
+          "accepted Status drift changes the Status field-set token and stales the reversal"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/reconciliation/advanced_search.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_invalid_identity_and_unknown_controlled_values_are_evidence_only",
+        "tests/test_ticket_import_advanced_search_reconciliation.py::test_builder_splits_terminal_entry_from_ordinary_change_and_scopes_tokens"
+      ],
+      "observed_assertions": "Unknown status remains evidence-only; terminal/reversal semantics are separated for reviewed owner application.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T008",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T008",
+        "name": "current_handler_source_authority_only",
+        "prove": [
+          "newest accepted usable evidence governs source display",
+          "accepted blank may clear display but never alters Contact",
+          "Contact candidates require review; no silent create/merge/select",
+          "current_handler_reference resolves only the exact current source observation and creates no local Handler string authority",
+          "if equal later Handler text creates no redundant LLD-03 observation, Contact reconciliation binds the prior immutable field underlying current accepted Handler plus current-run Handler evidence"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/advanced_search_current_handler.py",
+        "src/soma/ticket_import/providers/sr_contact_reconciliation.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_current_handler_reconciliation.py::test_builder_waits_until_current_run_handler_matches_accepted_source",
+        "tests/test_ticket_import_advanced_search_current_handler_reconciliation.py::test_same_contact_new_handler_support_is_material_and_rebinds_history"
+      ],
+      "observed_assertions": "Current handler is source authority only and binds exact accepted support evidence.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T009",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T009",
+        "name": "customer_contact_ambiguity_nonblocking",
+        "prove": [
+          "Customer Account Code uses governed exact claimant semantics",
+          "multiple/unknown Customer remains explicit",
+          "equal names never merge/select",
+          "unknown/ambiguous Contact remains explicit",
+          "independent valid SR source facts remain acceptable"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/advanced_search_customer.py",
+        "src/soma/ticket_import/reconciliation/advanced_search_contact.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_customer_reconciliation.py::test_customer_builder_keeps_shared_claim_and_name_conflict_ambiguous",
+        "tests/test_ticket_import_advanced_search_contact_reconciliation_builder.py::test_customer_contact_builder_keeps_scoped_ambiguity_unresolved"
+      ],
+      "observed_assertions": "Customer/contact ambiguity remains reviewable and non-destructive.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T010",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T010",
+        "name": "suspension_source_only_regression",
+        "prove": [
+          "Suspend Planned End is active only with Customer Agreed Suspend plus valid future end",
+          "Suspension Duration is source-reported decimal days converted once as Decimal(days)*86400 then ROUND_HALF_EVEN to duration_seconds",
+          "numeric XLSX and strict nonnegative decimal-day text normalize equally; exponent/locale/unit text, negative/nonfinite values, booleans/date cells and int64 overflow are malformed, never clamped",
+          "half-even fixtures: 0.00015625 day=13.5s->14; 0.00046875 day=40.5s->40",
+          "present blank duration is usable exact zero; missing header does not manufacture zero",
+          "blank/zero after accepted nonzero requires review and cannot silently erase history",
+          "nonzero-to-zero is one high-risk suspension_duration-only sr_suspension_regression_review using SOMA_SR_SOURCE_FIELD_SET_BASE_V1",
+          "a disjoint ordinary sibling remains reviewable in either acceptance order",
+          "accepted suspension_duration drift changes its field-set token and stales review"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/advanced_search.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_reconciliation.py::test_builder_splits_terminal_entry_from_ordinary_change_and_scopes_tokens"
+      ],
+      "observed_assertions": "Suspension remains source-derived evidence and does not invent unrelated operational authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T011",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T011",
+        "name": "population_disappearance_preserves_history",
+        "prove": [
+          "compare only against the prior accepted Advanced Search logical population represented by current checkpoint authority; OLDER_SOURCE_RECOVERY_REQUIRED is historical/correction evidence and cannot generate population-absence proposals",
+          "omission yields high-risk population_absence review bound to complete run, prior observation and exact LLD-03 SOMA_SR_SOURCE_PRESENCE_BASE_V1",
+          "fabricate no current observation; an open reviewed warning suppresses duplicate disappearance proposals",
+          "acceptance revalidates presence token plus SrSourcePresenceEvidenceProvider in the same writer UoW and rejects IMPORT_PROPOSAL_STALE if later chronology-eligible presence authority already proves the SR present; NEW_SOURCE with strictly newer governed candidate chronology qualifies, an equal-chronology correction qualifies only after authorized finalization replaces the checkpoint, and OLDER_SOURCE_RECOVERY_REQUIRED never qualifies",
+          "acceptance appends one LLD-03 disappearance_reviewed event only; no delete/archive/finalize/purge/source-field/reference mutation",
+          "GetServiceRequest warning derives from LLD-03 event-chain head, never pending/rejected/deferred proposal",
+          "NEW_SOURCE advanced_search_sr publication enqueue_or_coalesces one run-keyed ticket_import.sr_reappearance_reconcile job in the same publication UoW; failed publication enqueues none",
+          "CHRONOLOGY_CONTENT_CONFLICT publication enqueues no reappearance job while recovery_required; an authorized equal-chronology correction enqueue_or_coalesces its run-keyed job only in the same FinalizeImportRunReview UoW that replaces the source checkpoint, and rollback leaves neither checkpoint replacement nor runnable job",
+          "OLDER_SOURCE_RECOVERY_REQUIRED publication/finalization never enqueue automatic reappearance work and its observations cannot automatically clear a current disappearance warning",
+          "worker scans immutable valid canonical SR observations in keyset pages <=500 and opens one replay-safe owner command per active warning",
+          "provider requires exact published run/observation/canonical SR plus Advanced Search candidate-chronology freshness relative to the active disappearance event; malformed, ambiguous, wrong-SR/source, recovery-ineligible or indeterminate evidence cannot resolve warning",
+          "field warnings/unusable nonidentity fields do not block otherwise chronology-eligible valid canonical identity reappearance",
+          "reappearance_confirmed references the exact open event for the same service_request_id, clears only disappearance warning, accepts no field and never recreates identity",
+          "later disappearance may open a new immutable cycle; prior cycles remain queryable"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/advanced_search_disappearance.py",
+        "src/soma/ticket_import/jobs/sr_reappearance.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_disappearance.py::test_disappearance_uses_valid_identity_population_even_when_current_rows_conflict",
+        "tests/test_ticket_import_advanced_search_disappearance.py::test_row_bearing_checkpoint_run_is_exact_prior_population_authority"
+      ],
+      "observed_assertions": "Population disappearance is derived from exact prior/current valid-identity authority while preserving history.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T012",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T012",
+        "name": "shared_fingerprint_replay",
+        "prove": [
+          "logical fingerprint excludes raw package/order/discarded fields",
+          "exact replay creates no duplicate source/domain audit",
+          "newer-identical may advance bounded source-check chronology only",
+          "source family participates in replay identity"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/reconciliation/engine.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_logical_fingerprint.py::test_physical_row_order_is_irrelevant_and_duplicates_conflicts_are_deterministic",
+        "tests/test_ticket_import_logical_fingerprint.py::test_replay_classification_matrix"
+      ],
+      "observed_assertions": "Logical fingerprint/replay ignores packaging/order and is deterministic.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-AS-T013",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/advanced-search-acceptance.json",
+      "normative_claim": {
+        "id": "LLD04-AS-T013",
+        "name": "reference_ownership_is_exact",
+        "prove": [
+          "LLD-03 owns history-preserving SR Customer relationship and invokes LLD-06 consequences on Customer change",
+          "sr_customer_reconciliation has one customer_org_id identity change from current/null to exact reviewed LLD-02 customer_org_id",
+          "fingerprint binds all Customer matcher inputs/evidence; source_observation_field_id points to strongest field, preferring usable Account Code over Org label",
+          "acceptance reruns governed match/current-reference checks and requires exact encoded candidate; ambiguity/drift stales",
+          "accepted Customer history uses origin_kind=advanced_search_review and preserves reconciliation_proposal_id",
+          "LLD-03 owns customer_contact/current_handler_reference history; LLD-02 owns Contact identity/affiliation",
+          "Current Handler text stays source-owned; current_handler_reference resolves only exact current accepted source observation",
+          "accepted SR source-field observation stores exact LLD-04 source_observation_field_id validated by SrSourceEvidenceProvider",
+          "ambiguous Customer/Contact stays unresolved and never blocks independent valid source facts",
+          "sr_contact_reconciliation has one contact_id change from current customer_contact/null to exact reviewed contact, bound to exact usable customer_contact_label evidence",
+          "sr_current_handler_reconciliation has one contact_id change from current handler reference/null to reviewed contact; its source field is immutable evidence underlying current accepted Handler and may predate current run when equal text produced no redundant observation",
+          "current-run Handler observation/hash remains fingerprint-bound and its usable label must equal the accepted supporting Handler field",
+          "ReconciliationProposalEvidenceProvider binds customer_contact only to sr_contact_reconciliation and current_handler_reference only to sr_current_handler_reconciliation, with exact contact_id change and outer command/proposal binding",
+          "Contact acceptance reruns LLD-02 matching plus LLD-03 reference/source freshness; lifecycle, affiliation, matcher scope, evidence or handler-pointer drift stales before mutation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/providers/sr_customer_reconciliation.py",
+        "src/soma/ticket_import/providers/sr_contact_reconciliation.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_customer_reconciliation.py::test_customer_builder_never_uses_label_as_identity_authority",
+        "tests/test_ticket_import_advanced_search_contact_reconciliation_builder.py::test_customer_contact_builder_never_creates_contact_and_ignores_unusable_label"
+      ],
+      "observed_assertions": "Reference ownership uses exact owner identities; labels never become canonical reference authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F001",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F001",
+        "cut": "after durable check job commit before discovery",
+        "prove": "restart recovers/retries job; no ImportRun/domain mutation is fabricated"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/jobs/source_check.py",
+        "src/soma/ticket_import/commands/publish_staged_run.py",
+        "src/soma/ticket_import/commands/finalize_run.py",
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [],
+      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
+      "status": "needs_exact_failure_injection",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F002",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F002",
+        "cut": "after ImportRun validating creation before any row",
+        "prove": "run remains unpublished; restart may fail/restart it; no source presence/checkpoint mutation"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/jobs/source_check.py",
+        "src/soma/ticket_import/commands/publish_staged_run.py",
+        "src/soma/ticket_import/commands/finalize_run.py",
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [],
+      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
+      "status": "needs_exact_failure_injection",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F003",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F003",
+        "cut": "mid unpublished staging batches",
+        "prove": "partial rows excluded from review/domain/replay authority; restart never marks them complete without EOF/fingerprint/count verification"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/jobs/source_check.py",
+        "src/soma/ticket_import/commands/publish_staged_run.py",
+        "src/soma/ticket_import/commands/finalize_run.py",
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [],
+      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
+      "status": "needs_exact_failure_injection",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F004",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F004",
+        "cut": "after EOF before PublishStagedImportRun",
+        "prove": "run still validating; no proposals/source authority/checkpoint; deterministic republish/reparse safe"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/jobs/source_check.py",
+        "src/soma/ticket_import/commands/publish_staged_run.py",
+        "src/soma/ticket_import/commands/finalize_run.py",
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [],
+      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
+      "status": "needs_exact_failure_injection",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F005",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F005",
+        "cut": "during exact-replay staging cleanup",
+        "prove": "cleanup+terminal transition failure leaves validating/no domain history; retry can safely clean/reparse; no duplicate published observations survive"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/jobs/source_check.py",
+        "src/soma/ticket_import/commands/publish_staged_run.py",
+        "src/soma/ticket_import/commands/finalize_run.py",
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [],
+      "observed_assertions": "Related lifecycle/staging behavior exists, but the exact crash cut and restart/resume proof is not yet isolated by a dedicated adversarial regression.",
+      "status": "needs_exact_failure_injection",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F006",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F006",
+        "cut": "after newer-identical run enters noop_pending_checkpoint before checkpoint command",
+        "prove": "domain unchanged; restart identifies pending technical checkpoint update; idempotent command advances checkpoint once then run noop"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/finalize_run.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_newer_identical.py::test_run_transition_failure_rolls_back_checkpoint_receipt_and_audit",
+        "tests/test_ticket_import_newer_identical.py::test_newer_identical_advances_checkpoint_and_run_atomically_and_replays"
+      ],
+      "observed_assertions": "noop_pending_checkpoint may persist, but checkpoint/run/audit advancement is atomic and an injected post-checkpoint failure rolls back.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F007",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F007",
+        "cut": "during newer-identical checkpoint update before run noop",
+        "prove": "checkpoint and run transition share one UoW and both roll back; no checkpoint/run disagreement"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/finalize_run.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_newer_identical.py::test_run_transition_failure_rolls_back_checkpoint_receipt_and_audit"
+      ],
+      "observed_assertions": "Failure during newer-identical checkpoint transition rolls checkpoint/receipt/audit/run transition back.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F008",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F008",
+        "cut": "after new source observations published before proposal acceptance",
+        "prove": "source presence/history survives restart; no target mutation has occurred; pending proposals remain reviewable"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_proposal_decisions.py::test_reject_is_atomic_preserves_published_presence_and_updates_exact_counters"
+      ],
+      "observed_assertions": "Published source observations survive proposal decision failure/rejection independently.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F009",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F009",
+        "cut": "inside proposal acceptance after owning RFC/WFM mutation but before accepted disposition",
+        "prove": "same UoW rolls back owner mutation, receipt/audit and disposition; proposal stays pending"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_sr_source_acceptance.py::test_owner_failure_after_receipt_rolls_back_entire_cross_packet_acceptance",
+        "tests/test_ticket_import_sr_customer_acceptance.py::test_lld06_failure_after_staged_acceptance_rolls_back_receipt_domain_and_import_state"
+      ],
+      "observed_assertions": "Owner mutation failure before accepted disposition rolls outer receipt/domain/import state back.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F010",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F010",
+        "cut": "inside terminal RFC acceptance after terminal projection but before LLD-03 pending cascade rows",
+        "prove": "LLD-03 same-UoW contract rolls back terminal projection; never terminal-without-required-proposal"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py",
+        "src/soma/tickets/rfc_source_projection.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_source_projection.py::test_lld03_fi001_terminal_projection_failure_before_proposal_insert_rolls_back_all"
+      ],
+      "observed_assertions": "Terminal projection failure before pending-cascade persistence rolls back the outer acceptance.",
+      "status": "reviewed_cross_packet_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F011",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F011",
+        "cut": "cross-domain mutation service attempts nested commit",
+        "prove": "test double/framework rejects nested commit; outer UnitOfWork remains sole transaction authority"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py",
+        "src/soma/foundation/persistence/uow.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_sr_source_acceptance.py::test_lld04_f011_nested_cross_domain_uow_is_rejected_and_outer_acceptance_rolls_back"
+      ],
+      "observed_assertions": "Cross-domain participant opening a nested authoritative UoW is rejected and outer proposal acceptance rolls back.",
+      "status": "pending_candidate_ci",
+      "note": null,
+      "certification_status": "pending_next_candidate_ci"
+    },
+    {
+      "id": "LLD04-F012",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F012",
+        "race": "target revision/base token changes after proposal review before accept",
+        "prove": "IMPORT_PROPOSAL_STALE; no accepted disposition/domain mutation; old proposal evidence retained"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_proposal_decisions.py::test_stale_fingerprint_or_revision_leaves_no_receipt_or_disposition",
+        "tests/test_ticket_import_proposal_review_freshness.py::test_proposal_review_uses_certified_sr_source_field_set_token"
+      ],
+      "observed_assertions": "Target revision/base-token drift fails before receipt/disposition.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F013",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F013",
+        "race": "Customer reference generation changes between candidate proposal and accept",
+        "prove": "base token changes, stale acceptance blocked; ambiguity never guessed"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_sr_customer_acceptance.py::test_customer_generation_drift_makes_proposal_stale_before_receipt"
+      ],
+      "observed_assertions": "Customer generation drift makes reviewed candidate stale before mutation.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F014",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F014",
+        "race": "RFC hierarchy changes after subordinate-origin SR link proposal",
+        "prove": "LLD-03 governing-root revalidation rejects stale target; no direct subordinate link fabricated"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_tickets_rfc_import_sr_link_owner.py::test_import_owner_rejects_stale_sr_link_base_token"
+      ],
+      "observed_assertions": "RFC hierarchy/SR-link authority drift fails stale before commit.",
+      "status": "reviewed_cross_packet_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F015",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F015",
+        "race": "Task plan/execution lock changes before WFM plan proposal accept",
+        "prove": "LLD-05 base token rejects stale source-plan consequence; source observation remains intact"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py",
+        "src/soma/objectives_tasks/services/wfm_import.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_stale_plan_token_after_lock_rejects_before_owner_write_and_outer_receipt_rolls_back"
+      ],
+      "observed_assertions": "Task plan/execution-lock drift rejects before owner write and outer receipt.",
+      "status": "reviewed_cross_packet_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F016",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F016",
+        "cut": "run finalization after run state calculation before checkpoint write",
+        "prove": "run final state/checkpoint/audit share one UoW; rollback leaves run review state unchanged and checkpoint old"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/finalize_run.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_finalize_backbone.py::test_finalize_regular_runs_establishes_and_advances_checkpoint"
+      ],
+      "observed_assertions": "Final state is calculated before apply; checkpoint/run/audit writes occur in the same outer UoW, so pre-checkpoint failure cannot publish a partial final state.",
+      "status": "reviewed_structural_atomicity_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F017",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F017",
+        "cut": "equal-chronology recovery after domain corrections before recovery event/checkpoint replacement or chronology-eligible reappearance enqueue",
+        "prove": "recovery completion contract fails closed; checkpoint is not silently replaced and no ticket_import.sr_reappearance_reconcile job becomes runnable; commands are idempotently resumable from recorded per-proposal dispositions. On successful authorized advanced_search_sr finalization that actually replaces the checkpoint at the same chronology, checkpoint replacement, recovery event/run finalization and enqueue_or_coalesce of the corrected run-keyed reappearance job commit atomically or all roll back"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/finalize_run.py",
+        "src/soma/ticket_import/jobs/sr_reappearance.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_finalize_backbone.py::test_equal_chronology_recovery_replaces_checkpoint_and_enqueues_reappearance"
+      ],
+      "observed_assertions": "Successful equal-chronology recovery commits replacement/event/finalization/enqueue together, but an explicit late-failure rollback canary is still missing.",
+      "status": "needs_exact_failure_injection",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F018",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F018",
+        "cut": "older recovery completion",
+        "prove": "accepted correction evidence may survive per-target commits but final recovery event is appended exactly once; source checkpoint chronology never decreases or changes to the older run, and publication/finalization creates no automatic ticket_import.sr_reappearance_reconcile job or source-presence freshness authority"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/finalize_run.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_finalize_backbone.py::test_older_authorized_recovery_finalizes_without_replacing_checkpoint"
+      ],
+      "observed_assertions": "Older recovery preserves checkpoint monotonicity and emits one recovery event, but exact failure/retry injection is not separately proven.",
+      "status": "needs_exact_failure_injection",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F019",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F019",
+        "cut": "one target in multi-selection accept fails",
+        "prove": "each independently safe proposal has its own atomic result; failed target does not roll back already committed unrelated target and UI reports every target; no silent skip"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/decide_proposal.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_proposal_decisions.py::test_defer_is_independent_smallest_scope_and_other_proposal_stays_pending"
+      ],
+      "observed_assertions": "Per-proposal isolation exists, but the explicit multi-selection one-success/one-failure orchestration proof is missing.",
+      "status": "needs_multi_selection_failure_proof",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F020",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F020",
+        "race": "a formerly equivalent rejected proposal becomes materially different",
+        "prove": "material-input fingerprint differs so suppression no longer applies; new current-state proposal may be reviewed while old rejection remains immutable"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/repositories/proposals.py",
+        "src/soma/ticket_import/reconciliation/engine.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_proposal_persistence.py::test_insert_then_exact_reuse_preserves_one_immutable_proposal",
+        "tests/test_ticket_import_proposal_persistence.py::test_exact_metadata_with_different_change_evidence_fails_closed"
+      ],
+      "observed_assertions": "Proposal identity/evidence are immutable, but the exact rejected-equivalent→materially-different regeneration race lacks a dedicated regression.",
+      "status": "needs_rejected_material_change_proof",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F021",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F021",
+        "cut": "inside NEW_SOURCE advanced_search_sr PublishStagedImportRun after authoritative publication writes but before ticket_import.sr_reappearance_reconcile enqueue/commit, plus cancellation/recovery of the source-check claim after an earlier handler checkpoint but before fresh publication begins, plus a still-current source-check claim whose current persisted checkpoint names another run/revision/candidate",
+        "prove": "committed replay is resolved before mutable claim reads; every fresh publication UnitOfWork calls DurableJobCoordinator.assert_claim_current before its receipt and consumes the exact current validated checkpoint returned from that same UoW; a cancelled/recovered/replaced claim returns JOB_CLAIM_CONFLICT, while a current claim whose returned checkpoint is null, not phase=publishing, or disagrees with the exact import_run_id/run_revision/parser_profile_id/candidate_identity fails publication before receipt with no publication evidence/proposals/audit/job enqueue; claim.checkpoint_json cannot substitute for the current witness; after a valid claim+checkpoint witness the one NEW_SOURCE publication UoW still rolls back run publication/evidence/proposals/receipt/audit and durable-job enqueue together on later failure, so no failed/unpublished evidence can clear an LLD-03 disappearance warning; CHRONOLOGY_CONTENT_CONFLICT and OLDER_SOURCE_RECOVERY_REQUIRED publication paths are separately proven not to enqueue automatic reappearance work"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/publish_staged_run.py",
+        "src/soma/ticket_import/jobs/source_check.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_publish_staged_run.py::test_reappearance_enqueue_failure_rolls_back_receipt_proposals_run_and_audit",
+        "tests/test_ticket_import_publish_staged_run.py::test_stale_source_check_claim_fails_before_receipt_or_publication",
+        "tests/test_ticket_import_publish_staged_run.py::test_current_publishing_checkpoint_drift_is_retryable_claim_conflict"
+      ],
+      "observed_assertions": "Publication/enqueue and source-check claim freshness fail atomically/retryably.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F022",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F022",
+        "cut": "inside one sr_reappearance_reconcile per-SR internal command after outer receipt or LLD-03 event insert but before audit/result/commit, plus cancellation/recovery/reclaim of the worker claim after a prior page checkpoint but before a fresh per-SR command",
+        "prove": "committed per-SR replay is resolved before mutable claim reads; every fresh per-SR command calls DurableJobCoordinator.assert_claim_current inside its own owner UnitOfWork before the receipt, so revoked/replaced claims cannot clear a warning; after a valid claim the command rolls back receipt/event/audit/result atomically on later failure, durable job checkpoint does not advance past the failed SR, restart retries safely and exact command replay prevents duplicate reappearance events"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/jobs/sr_reappearance.py",
+        "src/soma/tickets/sr_source_presence.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_sr_reappearance_worker.py::test_reappearance_worker_closes_warning_and_completes_claim",
+        "tests/test_ticket_import_sr_reappearance_worker.py::test_reappearance_command_id_is_deterministic_and_observation_scoped"
+      ],
+      "observed_assertions": "Deterministic per-SR commands and worker completion are covered, but exact post-receipt/event rollback plus reclaimed-claim checkpoint-resume fault injection is still missing.",
+      "status": "needs_per_sr_reappearance_failure_reclaim_proof",
+      "note": null,
+      "certification_status": "open_evidence_gap"
+    },
+    {
+      "id": "LLD04-F025",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F025",
+        "cut": "ticket-import durable-job failure/cancellation policy boundary",
+        "prove": "source_check retries only JOB_INTERRUPTED, IMPORT_SOURCE_UNAVAILABLE, IMPORT_FILE_UNSTABLE, IMPORT_PARSER_RESTARTABLE or PERSISTENCE_BUSY; sr_reappearance_reconcile retries only JOB_INTERRUPTED, PERSISTENCE_BUSY or bounded per-SR IMPORT_PROPOSAL_STALE; retryable attempt 1 requires retry_at=now+5 and attempt 2 requires retry_at=now+30; retryable attempt >=3 is terminal; every other stable failure code is terminal with retry_at=null; stale prior-run crash recovery uses the same 5/30/terminal attempt budget with JOB_INTERRUPTED; both Beta-1.0 job contracts reject every queued/running/waiting_review/retry_wait packet cancellation transition because no persisted Cancel Import command exists; Foundation ALREADY_CANCELLED/TERMINAL_UNCHANGED observations for terminal jobs are mutation-free no-ops that bypass packet cancellation policy and create no cancellation authority; cooperative host quiesce interruption and Foundation restore invalidation remain separate mechanics"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/jobs/source_check.py",
+        "src/soma/foundation/durable_jobs"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_job_cancellation_semantics.py::test_nonterminal_ticket_import_cancel_transition_is_rejected",
+        "tests/test_ticket_import_job_contracts.py::test_packet_cancellation_is_rejected_for_both_v1_jobs"
+      ],
+      "observed_assertions": "Ticket-import durable-job cancellation follows the packet-owned noncancellable policy.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F026",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD04-F026",
+        "cut": "ticket-import durable-job payload/checkpoint contract corruption or cross-family substitution",
+        "prove": "source_check payload rejects unknown fields, invocation/locator-kind disagreement, advanced_search_sr bound to rfc_wfm_import_directory, RFC/WFM bound to advanced_search_import_directory, unsafe/nonabsolute manual paths and malformed profile/command identities; discovering checkpoint rejects any run/candidate/batch state while later phases require exact run revision plus closed stabilized candidate identity; candidate chronology/hash/size/mtime fields are bounded and typed; reappearance payload requires literal advanced_search_sr and exact UUID/revision fields; reappearance checkpoint accepts only both-null initial cursor or both-nonnull canonical eight-digit SR plus observation UUID resume cursor; malformed persisted values fail contract validation before execution/coalescing/recovery and never gain domain authority"
+      },
+      "production_owners": [
+        "src/soma/ticket_import/jobs/source_check.py",
+        "src/soma/ticket_import/jobs/sr_reappearance.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_job_contracts.py::test_source_check_payload_closes_locator_variants_and_family_mapping",
+        "tests/test_ticket_import_job_contracts.py::test_source_check_checkpoint_phase_and_candidate_contract",
+        "tests/test_ticket_import_job_contracts.py::test_reappearance_payload_checkpoint_and_dedupe_are_closed",
+        "tests/test_foundation_durable_job_claim_guard.py::test_owner_guard_fails_closed_on_current_checkpoint_payload_or_dedupe_corruption"
+      ],
+      "observed_assertions": "Payload/checkpoint/cross-family corruption fails closed.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S001",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S001",
+        "name": "path_escape_and_reparse_rejected",
+        "prove": [
+          "automatic directory traversal never follows nested .. path",
+          "symlink/junction/reparse file rejected",
+          "alternate Windows device/stream namespace rejected",
+          "no fallback search"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_discovery.py::test_reparse_directory_is_rejected_before_enumeration",
+        "tests/test_ticket_import_discovery_path_portability.py::test_literal_windows_unc_namespace_is_still_rejected_on_posix"
+      ],
+      "observed_assertions": "Path escape/reparse namespaces are rejected before candidate use.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S002",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S002",
+        "name": "unstable_file_never_parsed",
+        "prove": [
+          "size or mtime change across probe => IMPORT_FILE_UNSTABLE",
+          "open sharing indicates active writer => unstable",
+          "no ZIP/parser/domain mutation occurs"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_discovery.py::test_unstable_newest_candidate_never_falls_back",
+        "tests/test_ticket_import_advanced_search_discovery.py::test_file_identity_swap_after_preflight_fails_closed"
+      ],
+      "observed_assertions": "Unstable/swapped files are never semantically parsed.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S003",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S003",
+        "name": "zip_slip_part_rejected",
+        "prove": [
+          "../ absolute backslash-normalization and drive/device-like ZIP part names reject container",
+          "nothing extracted to filesystem"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_xlsx_security.py::test_unsafe_zip_part_names_are_rejected",
+        "tests/test_ticket_import_xlsx_security.py::test_backslash_zip_part_is_rejected_on_windows_too"
+      ],
+      "observed_assertions": "ZIP-slip/unsafe part names are rejected.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S004",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S004",
+        "name": "duplicate_normalized_zip_part_rejected",
+        "prove": [
+          "two archive names normalize to same OOXML part identity",
+          "XLSX_UNSAFE_CONTAINER",
+          "parser never chooses one arbitrarily"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_xlsx_security.py::test_duplicate_normalized_zip_part_is_rejected"
+      ],
+      "observed_assertions": "Normalized duplicate ZIP parts fail closed.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S005",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S005",
+        "name": "zip_bomb_limits",
+        "prove": [
+          "compressed/expanded/part/ratio ceilings enforced before materialization",
+          "over-limit file returns XLSX_RESOURCE_LIMIT",
+          "no partial source publication"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_xlsx_security.py::test_expansion_ratio_limit_is_enforced_before_part_materialization",
+        "tests/test_ticket_import_xlsx_security.py::test_entry_count_limit_is_enforced",
+        "tests/test_ticket_import_xlsx_security.py::test_archive_byte_ceilings_fail_closed_before_semantic_load"
+      ],
+      "observed_assertions": "ZIP resource ceilings are enforced before semantic load.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S006",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S006",
+        "name": "encrypted_container_rejected",
+        "prove": [
+          "encrypted/password ZIP unsupported",
+          "fails before workbook semantic parser",
+          "no password prompt or unsafe fallback"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_xlsx_security.py::test_encrypted_zip_flag_is_rejected_before_semantic_read"
+      ],
+      "observed_assertions": "Encrypted XLSX containers are rejected before semantic read.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S007",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S007",
+        "name": "macro_activex_ole_embedded_rejected",
+        "prove": [
+          "VBA/ActiveX/OLE executable/package parts cause safe failure",
+          "renaming macro workbook to .xlsx does not bypass content-type checks",
+          "nothing executes"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_xlsx_security.py::test_active_or_embedded_parts_are_rejected",
+        "tests/test_ticket_import_xlsx_security.py::test_macro_content_type_cannot_hide_behind_xlsx_extension"
+      ],
+      "observed_assertions": "Macro/ActiveX/OLE/embed payloads are rejected.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S008",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S008",
+        "name": "external_relationships_not_fetched",
+        "prove": [
+          "external workbook/data/template relationship rejected",
+          "reader never performs network/file fetch",
+          "inert hyperlink text is never followed/executed"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_xlsx_security.py::test_external_relationship_is_rejected_without_fetching",
+        "tests/test_ticket_import_xlsx_security.py::test_uri_scheme_is_rejected_even_if_target_mode_is_omitted"
+      ],
+      "observed_assertions": "External relationships/URI fetch authority are denied.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S009",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S009",
+        "name": "xml_dtd_entity_rejected",
+        "prove": [
+          "DOCTYPE/ENTITY declaration detected before XML parser",
+          "entity expansion payload never runs",
+          "bounded error only"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_xlsx_security.py::test_dtd_and_entity_declarations_are_rejected_before_xml_parse"
+      ],
+      "observed_assertions": "DTD/entity declarations are rejected before XML parsing.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S010",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S010",
+        "name": "formula_semantic_cell_rejected",
+        "prove": [
+          "formula in registered semantic matrix column -> SOURCE_FORMULA_IN_SEMANTIC_FIELD",
+          "cached result ignored",
+          "outside-matrix formula receives scan/resource count only and has no domain meaning"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_semantic_formula_blocks_workbook_but_discarded_product_formula_does_not"
+      ],
+      "observed_assertions": "Formula in semantic cells is rejected while discarded columns remain non-authoritative.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S011",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S011",
+        "name": "cell_and_field_overflow_not_truncated",
+        "prove": [
+          "absolute cell bound enforced",
+          "field-specific bound enforced",
+          "identity overflow invalidates row",
+          "optional text overflow isolates field/row finding per contract",
+          "no truncation enters fingerprint/domain"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_advanced_search_optional_line_overflow_isolated_to_field",
+        "tests/test_ticket_import_rfc_parser.py::test_rfc_optional_field_overflow_isolated_without_truncation",
+        "tests/test_ticket_import_wfm_parser.py::test_wfm_optional_field_overflow_isolated_without_truncation"
+      ],
+      "observed_assertions": "Field-specific overflow is isolated at the smallest safe scope and never silently truncated.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S012",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S012",
+        "name": "worksheet_row_column_cell_limits",
+        "prove": [
+          "worksheet/matrix row/column/cell ceilings checked",
+          "limit error cannot publish partial parse",
+          "unrelated source checkpoint unchanged"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_workbook_geometry_ceilings_fail_without_partial_parse"
+      ],
+      "observed_assertions": "Worksheet/row/column/cell ceilings fail closed without partial parse.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S013",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S013",
+        "name": "shared_string_limit",
+        "prove": [
+          "oversized shared string table rejected before unbounded allocation",
+          "individual text bound still enforced after lookup"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_xlsx_security.py::test_shared_string_count_is_bounded_during_preflight"
+      ],
+      "observed_assertions": "Shared-string cardinality is bounded during preflight before openpyxl semantic loading.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S014",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S014",
+        "name": "matrix_ambiguity_rejected",
+        "prove": [
+          "two sheets each contain required source identity header matrix",
+          "SOURCE_MATRIX_AMBIGUOUS",
+          "no first-sheet guessing"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_multiple_matrices_are_rejected"
+      ],
+      "observed_assertions": "Multiple semantic matrices are rejected.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S015",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S015",
+        "name": "duplicate_semantic_header_attack",
+        "prove": [
+          "visually similar/folded aliases mapping to same field detected",
+          "no last-column-wins",
+          "no hidden conflicting column can override identity/status"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_duplicate_semantic_header_blocks_workbook"
+      ],
+      "observed_assertions": "Duplicate semantic headers cannot smuggle authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S016",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S016",
+        "name": "unknown_columns_cannot_smuggle_authority",
+        "prove": [
+          "unregistered Product/custom/script-like columns security-scanned then discarded",
+          "cannot affect logical identity/fingerprint/domain proposals",
+          "raw discarded content not persisted"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_semantic_formula_blocks_workbook_but_discarded_product_formula_does_not"
+      ],
+      "observed_assertions": "Unknown/discarded columns cannot become semantic authority.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S017",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S017",
+        "name": "malformed_timestamp_no_clock_fallback",
+        "prove": [
+          "invalid RFC row timestamp never replaced by mtime/import/current time",
+          "invalid WFM filename time never replaced by mtime",
+          "Objective timezone never reinterprets source chronology"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_parser.py::test_lowercase_z_and_pre_epoch_timestamps_are_malformed_without_fallback"
+      ],
+      "observed_assertions": "Malformed timestamps never use ambient clock fallback.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-S018",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/security.json",
+      "normative_claim": {
+        "id": "LLD04-S018",
+        "name": "error_minimization",
+        "prove": [
+          "parser exception converted to closed finding/error code",
+          "no stack/environment/raw row/body serialized to audit/UI",
+          "operational file/customer data never enters source control/logs through error path"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_xlsx_security.py::test_bad_zip_is_mapped_to_closed_container_error",
+        "tests/test_ticket_import_xlsx_security.py::test_missing_relationship_target_is_rejected"
+      ],
+      "observed_assertions": "Security errors are bounded/minimized and fail closed.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-T035",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/wfm-competing-attempt-review.json",
+      "normative_claim": {
+        "id": "LLD04-T035",
+        "name": "reviewed_competing_attempt_uses_explicit_activity_decision",
+        "prove": [
+          "proposal generation requires an ACTIVE existing WFM Task already in a reviewed activity lineage, a complete candidate source interval, and LLD-05 SAME_REVIEWED_LINEAGE_OVERLAP",
+          "each proposal binds one exact deterministic conflicting counterpart through its immutable ordinal-0 conflict change and binds the complete conflict authority through base_state_token_sha256",
+          "generic AcceptReconciliationProposal returns IMPORT_PROPOSAL_BLOCKED for this kind",
+          "the dedicated command requires source identity/projection acceptance first, then exact current conflict fingerprint plus exact LLD-05 activity-review fingerprint for the explicit decision",
+          "same_activity, retry_lineage, distinct_activity and unresolved_source_error remain operator decisions; overlap never chooses one",
+          "participant APPLIED commits LLD-05 lineage history and accepted LLD-04 disposition in one outer UoW; participant semantic NO_CHANGE creates no duplicate lineage history but may accept the exact review proposal",
+          "no Task/TK identity, provider source projection, operational plan or Objective membership is merged or rewritten by the review"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/review_competing_attempt.py",
+        "src/soma/objectives_tasks/services/wfm_activity_review.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_competing_attempt_resolution.py::test_competing_attempt_resolution_applies_atomically_and_replays_before_owner_reads",
+        "tests/test_ticket_import_wfm_competing_attempt_resolution.py::test_competing_attempt_conflict_drift_fails_before_receipt_and_leaves_proposal_pending"
+      ],
+      "observed_assertions": "Reviewed competing-attempt resolution uses explicit activity decision and atomic owner application.",
+      "status": "reviewed_cross_packet_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F023",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/wfm-competing-attempt-review.json",
+      "normative_claim": {
+        "id": "LLD04-F023",
+        "name": "competing_attempt_conflict_drift_rolls_back_before_receipt",
+        "prove": [
+          "source projection, local execution/outcome, lineage, plan interval or selected counterpart authority changing the exact conflict set changes or removes the conflict fingerprint",
+          "dedicated resolution returns IMPORT_PROPOSAL_STALE before receipt/participant mutation",
+          "proposal stays pending and immutable; refreshed reconciliation may supersede it"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/review_competing_attempt.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_competing_attempt_resolution.py::test_competing_attempt_conflict_drift_fails_before_receipt_and_leaves_proposal_pending"
+      ],
+      "observed_assertions": "Competing-attempt drift fails before receipt.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    },
+    {
+      "id": "LLD04-F024",
+      "normative_source": "spec/lld/rfc-wfm-import/tests/wfm-competing-attempt-review.json",
+      "normative_claim": {
+        "id": "LLD04-F024",
+        "name": "competing_attempt_participant_failure_is_atomic",
+        "prove": [
+          "explicit seed Task revision drift returns TASK_STALE or fingerprint drift returns TASK_ACTIVITY_REVIEW_STALE before mutation",
+          "invalid retry relation returns TASK_ACTIVITY_LINEAGE_CONFLICT",
+          "injected LLD-05 participant write or audit failure rolls back the one outer receipt, every lineage/event/Task revision mutation, LLD-04 disposition/run counters and all audits/results",
+          "exact replay after success returns the immutable original ProposalDecisionResultV1 before current conflict/Task reads"
+        ]
+      },
+      "production_owners": [
+        "src/soma/ticket_import/commands/review_competing_attempt.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_competing_attempt_resolution.py::test_competing_attempt_participant_stale_failure_rolls_back_outer_receipt_and_disposition",
+        "tests/test_ticket_import_wfm_competing_attempt_resolution.py::test_competing_attempt_final_orchestration_audit_failure_rolls_back_owner_mutation"
+      ],
+      "observed_assertions": "Participant/audit failure rolls owner mutation, receipt and disposition back.",
+      "status": "reviewed_supported_ci_873",
+      "note": null,
+      "certification_status": "supported_by_exact_ci_873_at_parent"
+    }
+  ]
+}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import PersistenceFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.ticket_import.commands.decide_proposal import ProposalDecisionService
@@ -355,6 +355,85 @@ class _FailAfterReceiptOwner:
             (mutation.accepted_delta_set.accepted_command_id,),
         ).fetchone() is not None
         raise SomaError("INJECTED_OWNER_FAILURE", "failure after outer receipt insertion")
+
+
+class _NestedUowOwner:
+    def __init__(self, factory) -> None:
+        self._factory = factory
+
+    @staticmethod
+    def source_field_set_base_token(reader, service_request_id: str, field_keys: tuple[str, ...]) -> str:
+        return ServiceRequestImportMutationService.source_field_set_base_token(
+            reader,
+            service_request_id,
+            field_keys,
+        )
+
+    def apply_accepted_source_projection(
+        self,
+        uow: UnitOfWork,
+        mutation: ServiceRequestSourceProjectionMutation,
+    ):
+        assert uow.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (mutation.accepted_delta_set.accepted_command_id,),
+        ).fetchone() is not None
+        with UnitOfWork(self._factory):
+            raise AssertionError("nested UnitOfWork unexpectedly opened")
+
+
+def test_lld04_f011_nested_cross_domain_uow_is_rejected_and_outer_acceptance_rolls_back(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _official_sr(factory, "22334460")
+    seeded = _seed_source_projection_proposal(
+        factory,
+        target_service_request_id=sr.service_request_id,
+        target_sr_no="22334460",
+    )
+    command_id = new_uuid4()
+    service = ProposalDecisionService(
+        factory,
+        sr_import_mutation_service=_NestedUowOwner(factory),
+    )
+
+    with pytest.raises(PersistenceFailure, match="nested authoritative UnitOfWork is forbidden"):
+        service.accept(
+            command_id=command_id,
+            proposal_id=seeded["proposal_id"],
+            proposal_revision=1,
+            proposal_fingerprint=seeded["fingerprint"],
+            base_state_token=seeded["base_token"],
+            reason_category="nested_uow_failure_injection",
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT proposal_state,revision FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
+            (seeded["proposal_id"],),
+        ).fetchone() == ("pending", 1)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM proposal_dispositions WHERE reconciliation_proposal_id=?",
+            (seeded["proposal_id"],),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_source_field_observations WHERE service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 0
+        run = snapshot.connection.execute(
+            "SELECT pending_proposal_count,accepted_proposal_count,revision FROM import_runs WHERE import_run_id=?",
+            (seeded["run_id"],),
+        ).fetchone()
+        assert tuple(run) == (1, 0, 1)
 
 
 def test_owner_failure_after_receipt_rolls_back_entire_cross_packet_acceptance(initialized_database) -> None:
