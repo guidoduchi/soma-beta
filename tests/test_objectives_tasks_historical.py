@@ -87,21 +87,31 @@ def _historical_wfm(factory, suffix: int):
 
 
 def _proposal(factory, task_id: str, observation_id: str, start: int, end: int):
-    with UnitOfWork(factory) as uow:
-        fingerprint = HistoricalObjectiveQueryService.input_fingerprint(
-            uow.connection, task_id
+    with ReadSnapshot(factory) as snapshot:
+        rows = snapshot.connection.execute(
+            "SELECT historical_proposal_id FROM historical_objective_proposals "
+            "WHERE task_id=? AND state='pending' ORDER BY historical_proposal_id",
+            (task_id,),
+        ).fetchall()
+        assert len(rows) == 1
+        proposal = HistoricalObjectiveProposalRepository.get(
+            snapshot.connection,
+            str(rows[0][0]),
         )
-        return HistoricalObjectiveProposalRepository.insert_pending(
-            uow,
-            task_id=task_id,
-            expected_source_projection_revision=1,
-            expected_source_plan_start_utc=start,
-            expected_source_plan_end_utc=end,
-            expected_source_observation_id=observation_id,
-            expected_matching_operational_plan_revision_id=None,
-            input_fingerprint=fingerprint,
-            created_at_utc=100,
+        assert proposal is not None
+        assert proposal.expected_source_projection_revision == 1
+        assert proposal.expected_source_plan_start_utc == start
+        assert proposal.expected_source_plan_end_utc == end
+        assert proposal.expected_source_observation_id == observation_id
+        assert proposal.expected_matching_operational_plan_revision_id is None
+        assert (
+            proposal.input_fingerprint
+            == HistoricalObjectiveQueryService.input_fingerprint(
+                snapshot.connection,
+                task_id,
+            )
         )
+        return proposal
 
 
 def test_historical_accept_creates_structure_only_and_replays(initialized_database) -> None:

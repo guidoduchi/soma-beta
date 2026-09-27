@@ -768,3 +768,101 @@ def test_t022_historical_proposal_fingerprint_binds_current_overlap_set(
             input_fingerprint=str(proposal[2]),
         )
     assert stale.value.code == "HISTORICAL_PROPOSAL_STALE"
+
+def test_t023_reviewed_source_plan_refreshes_complete_historical_proposal(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    _rfc_id, registered = _register_manual_wfm(factory, suffix=394)
+    task_no = "TK00000000000394"
+    start_utc = 2_094_000_000
+    end_utc = 2_094_003_600
+
+    observation_id, source_command_id, source_result = (
+        _apply_source_projection_for_history(
+            factory,
+            task_id=registered.task_id,
+            task_no=task_no,
+            expected_revision=0,
+            lifecycle="complete",
+            start_utc=start_utc,
+            end_utc=end_utc,
+        )
+    )
+    assert source_result.source_projection_revision == 1
+
+    with ReadSnapshot(factory) as snapshot:
+        old = snapshot.connection.execute(
+            "SELECT historical_proposal_id,input_fingerprint,state,revision,"
+            "expected_matching_operational_plan_revision_id "
+            "FROM historical_objective_proposals "
+            "WHERE task_id=? AND state='pending'",
+            (registered.task_id,),
+        ).fetchone()
+        assert old is not None
+        assert old[4] is None
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM wfm_source_terminal_reviews "
+            "WHERE task_id=? AND state='pending'",
+            (registered.task_id,),
+        ).fetchone()[0] == 0
+
+    plan_token = _plan_token(
+        factory,
+        task_no=task_no,
+        task_id=registered.task_id,
+    )
+    plan_command_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _insert_outer_receipt(uow, command_id=plan_command_id)
+        plan_result = (
+            WfmImportMutationParticipant.apply_reviewed_operational_plan_from_source(
+                uow,
+                WfmReviewedOperationalPlanMutation(
+                    task_id=registered.task_id,
+                    task_no=task_no,
+                    expected_task_revision=registered.revision,
+                    expected_current_plan_revision=0,
+                    expected_source_projection_revision=1,
+                    accepted_source_observation_id=observation_id,
+                    start_utc=start_utc,
+                    end_utc=end_utc,
+                    base_state_token=plan_token,
+                    accepted_command_id=plan_command_id,
+                    reason_category="historical_source_plan_reconciliation",
+                ),
+            )
+        )
+        _write_owner_audits(uow, plan_result.audit_events)
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT state,revision,last_command_id "
+                "FROM historical_objective_proposals "
+                "WHERE historical_proposal_id=?",
+                (old[0],),
+            ).fetchone()
+        ) == ("superseded", 2, plan_command_id)
+
+        fresh = snapshot.connection.execute(
+            "SELECT historical_proposal_id,input_fingerprint,state,revision,"
+            "expected_matching_operational_plan_revision_id,"
+            "expected_wfm_source_projection_revision,expected_source_observation_id "
+            "FROM historical_objective_proposals "
+            "WHERE task_id=? AND state='pending'",
+            (registered.task_id,),
+        ).fetchone()
+        assert fresh is not None
+        assert str(fresh[0]) != str(old[0])
+        assert str(fresh[1]) != str(old[1])
+        assert tuple(fresh[2:4]) == ("pending", 1)
+        assert str(fresh[4]) == str(plan_result.result_refs[0][1])
+        assert int(fresh[5]) == 1
+        assert str(fresh[6]) == observation_id
+        assert snapshot.connection.execute(
+            "SELECT source_projection_revision,last_command_id "
+            "FROM wfm_source_projection_cache WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone() == (1, source_command_id)
+

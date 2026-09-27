@@ -895,6 +895,11 @@ class WfmImportMutationParticipant:
                 objective_context=objective_context,
                 command_id=mutation.accepted_command_id,
             )
+        WfmImportMutationParticipant._refresh_historical_objective_proposal(
+            uow,
+            task_id=task_id,
+            command_id=mutation.accepted_command_id,
+        )
         audit = AuditEventInput(
             audit_event_id=audit_event_id,
             action_type="task.plan_changed",
