@@ -483,3 +483,74 @@ def test_owner_failure_after_receipt_rolls_back_entire_cross_packet_acceptance(i
             (seeded["run_id"],),
         ).fetchone()
         assert tuple(run) == (1, 0, 1)
+
+
+def test_lld04_f019_independent_selected_accepts_keep_committed_success_when_later_target_stales(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _official_sr(factory, "22334466")
+    first = _seed_source_projection_proposal(
+        factory,
+        target_service_request_id=sr.service_request_id,
+        target_sr_no="22334466",
+        field_value="First reviewed value",
+        chronology=100,
+    )
+    second = _seed_source_projection_proposal(
+        factory,
+        target_service_request_id=sr.service_request_id,
+        target_sr_no="22334466",
+        field_value="Second stale value",
+        chronology=200,
+    )
+    first_command = new_uuid4()
+    second_command = new_uuid4()
+    service = ProposalDecisionService(factory)
+
+    first_result = service.accept(
+        command_id=first_command,
+        proposal_id=first["proposal_id"],
+        proposal_revision=1,
+        proposal_fingerprint=first["fingerprint"],
+        base_state_token=first["base_token"],
+        reason_category="multi_selection_first",
+    )
+    assert first_result.decision == "accepted"
+
+    with pytest.raises(SomaError) as excinfo:
+        service.accept(
+            command_id=second_command,
+            proposal_id=second["proposal_id"],
+            proposal_revision=1,
+            proposal_fingerprint=second["fingerprint"],
+            base_state_token=second["base_token"],
+            reason_category="multi_selection_second",
+        )
+    assert excinfo.value.code == "IMPORT_PROPOSAL_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT proposal_state FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
+            (first["proposal_id"],),
+        ).fetchone()[0] == "accepted"
+        assert snapshot.connection.execute(
+            "SELECT proposal_state FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
+            (second["proposal_id"],),
+        ).fetchone()[0] == "pending"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (first_command,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (second_command,),
+        ).fetchone()[0] == 0
+        current = snapshot.connection.execute(
+            "SELECT o.text_value FROM sr_current_source_projection p "
+            "JOIN sr_source_field_observations o "
+            "ON o.sr_source_field_observation_id=p.problem_summary_observation_id "
+            "WHERE p.service_request_id=?",
+            (sr.service_request_id,),
+        ).fetchone()
+        assert tuple(current) == ("First reviewed value",)
