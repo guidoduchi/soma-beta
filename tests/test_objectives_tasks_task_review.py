@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
+from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
+from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.queries.execution_review import (
     TaskOutcomeCorrectionQueryService,
     TaskOutcomeReviewQueryService,
 )
+from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.task_execution import TaskExecutionService
 from soma.objectives_tasks.services.task_review import TaskReviewService
 
@@ -368,3 +371,180 @@ def test_review_task_outcome_rejects_ineligible_preview_before_receipt(initializ
         assert snapshot.connection.execute(
             "SELECT count(*) FROM command_receipts WHERE command_id=?", (attempted_command,)
         ).fetchone()[0] == 0
+
+def test_lld05_f042_outcome_correction_audit_failure_rolls_back_tip_task_and_objective(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    created = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F042 objective member",
+        schedule=AcceptedTaskSchedule(
+            start_utc=1_982_000_000,
+            end_utc=1_982_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT t.revision,c.revision,c.plan_revision_id "
+            "FROM tasks t JOIN task_plan_current c ON c.task_id=t.task_id "
+            "WHERE t.task_id=?",
+            (created.task_id,),
+        ).fetchone()
+    assert row is not None
+    intent = ObjectiveExistingTaskIntent(
+        task_id=created.task_id,
+        expected_task_revision=int(row[0]),
+        expected_plan_revision=int(row[1]),
+        expected_plan_revision_id=str(row[2]),
+    )
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(intent,),
+    )
+    objective = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=(intent,),
+    )
+
+    execution = TaskExecutionService(factory)
+    started = execution.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=created.task_id,
+        task_revision=created.revision,
+        execution_revision=0,
+        effective_start_utc=1_982_000_100,
+    )
+    ended = execution.end_task_execution(
+        command_id=new_uuid4(),
+        task_id=created.task_id,
+        task_revision=started.revision,
+        execution_revision=1,
+        effective_end_utc=1_982_000_200,
+    )
+    first_preview = TaskOutcomeReviewQueryService(factory).preview(
+        task_id=created.task_id,
+        task_revision=ended.revision,
+        execution_revision=2,
+        outcome_revision=0,
+        current_outcome_event_id=None,
+        outcome="completed",
+        reason_category=None,
+    )
+    service = TaskReviewService(factory)
+    reviewed = service.review_task_outcome(
+        command_id=new_uuid4(),
+        task_id=created.task_id,
+        task_revision=ended.revision,
+        execution_revision=2,
+        outcome_revision=0,
+        current_outcome_event_id=None,
+        outcome="completed",
+        reason_category=None,
+        outcome_review_fingerprint=first_preview.outcome_review_fingerprint,
+    )
+    genesis_id = reviewed.result_refs[0].result_id
+    correction_preview = TaskOutcomeCorrectionQueryService(factory).preview(
+        task_id=created.task_id,
+        task_revision=reviewed.revision,
+        execution_revision=2,
+        current_outcome_revision=1,
+        current_outcome_event_id=genesis_id,
+        replacement_outcome="incomplete",
+        reason_category="f042_correction",
+    )
+    with ReadSnapshot(factory) as snapshot:
+        outcome_before = tuple(
+            snapshot.connection.execute(
+                "SELECT outcome_event_id,accepted_outcome,revision,last_command_id "
+                "FROM task_outcome_current WHERE task_id=?",
+                (created.task_id,),
+            ).fetchone()
+        )
+        task_revision_before = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (created.task_id,),
+            ).fetchone()[0]
+        )
+        aggregate_before = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,attention_reason,"
+                "revision,last_command_id FROM objective_aggregate_projection "
+                "WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        )
+        outcome_event_count_before = int(
+            snapshot.connection.execute(
+                "SELECT count(*) FROM task_outcome_events WHERE task_id=?",
+                (created.task_id,),
+            ).fetchone()[0]
+        )
+
+    command_id = new_uuid4()
+
+    def fail_audit(_uow, _event):
+        raise IntegrityFailure(
+            "LLD05-F042 injected after outcome/aggregate mutation"
+        )
+
+    monkeypatch.setattr(
+        service._boundary._audit_writer,
+        "write",
+        fail_audit,
+    )
+    with pytest.raises(IntegrityFailure, match="LLD05-F042"):
+        service.correct_task_outcome(
+            command_id=command_id,
+            task_id=created.task_id,
+            task_revision=reviewed.revision,
+            execution_revision=2,
+            current_outcome_revision=1,
+            current_outcome_event_id=genesis_id,
+            replacement_outcome="incomplete",
+            reason_category="f042_correction",
+            correction_review_fingerprint=(
+                correction_preview.correction_review_fingerprint
+            ),
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT outcome_event_id,accepted_outcome,revision,last_command_id "
+                "FROM task_outcome_current WHERE task_id=?",
+                (created.task_id,),
+            ).fetchone()
+        ) == outcome_before
+        assert int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (created.task_id,),
+            ).fetchone()[0]
+        ) == task_revision_before
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,attention_reason,"
+                "revision,last_command_id FROM objective_aggregate_projection "
+                "WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        ) == aggregate_before
+        assert int(
+            snapshot.connection.execute(
+                "SELECT count(*) FROM task_outcome_events WHERE task_id=?",
+                (created.task_id,),
+            ).fetchone()[0]
+        ) == outcome_event_count_before
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+

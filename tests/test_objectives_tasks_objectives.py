@@ -1039,3 +1039,135 @@ def test_lld05_f003_second_membership_failure_rolls_back_first_membership_and_ob
             "SELECT count(*) FROM command_receipts WHERE command_id=?",
             (command_id,),
         ).fetchone()[0] == 0
+
+def test_lld05_f011_whole_objective_cancel_failure_after_first_member_rolls_back_all(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    planning = TaskPlanningService(factory)
+    first = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F011 first member",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_325_000_000,
+            end_utc=2_325_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    second = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F011 second member",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_325_001_000,
+            end_utc=2_325_004_000,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intents = (
+        _existing_intent(factory, first.task_id),
+        _existing_intent(factory, second.task_id),
+    )
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=intents,
+    )
+    service = ObjectiveService(factory)
+    created = service.create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=intents,
+    )
+    detail = ObjectiveQueryService(factory).workbench(created.objective_id)
+    aggregate_revision = int(detail["aggregate_state"]["revision"])
+    with ReadSnapshot(factory) as snapshot:
+        aggregate_before = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,revision,last_command_id "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (created.objective_id,),
+            ).fetchone()
+        )
+        task_revisions_before = dict(
+            snapshot.connection.execute(
+                "SELECT task_id,revision FROM tasks WHERE task_id IN (?,?)",
+                (first.task_id, second.task_id),
+            ).fetchall()
+        )
+
+    original_increment = service._tasks.increment_revision
+    calls = [0]
+
+    def fail_after_first_member(inner, *, task_id, expected_revision):
+        original_increment(
+            inner,
+            task_id=task_id,
+            expected_revision=expected_revision,
+        )
+        calls[0] += 1
+        if calls[0] == 1:
+            raise IntegrityFailure(
+                "LLD05-F011 injected after first Task cancellation/outcome"
+            )
+
+    monkeypatch.setattr(
+        service._tasks,
+        "increment_revision",
+        fail_after_first_member,
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F011"):
+        service.cancel_objective_before_execution(
+            command_id=command_id,
+            objective_id=created.objective_id,
+            objective_revision=1,
+            aggregate_revision=aggregate_revision,
+            effective_cancel_utc=2_324_999_000,
+            reason_category="f011_atomicity_cut",
+        )
+    assert calls == [1]
+
+    with ReadSnapshot(factory) as snapshot:
+        assert dict(
+            snapshot.connection.execute(
+                "SELECT task_id,revision FROM tasks WHERE task_id IN (?,?)",
+                (first.task_id, second.task_id),
+            ).fetchall()
+        ) == task_revisions_before
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_execution_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_outcome_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_execution_projection "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_outcome_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,revision,last_command_id "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (created.objective_id,),
+            ).fetchone()
+        ) == aggregate_before
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_review_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+

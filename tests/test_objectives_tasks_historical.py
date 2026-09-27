@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from soma.foundation.audit.writer import AuditWriter
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import TaskPlanningService
@@ -11,6 +11,7 @@ from soma.objectives_tasks.audit_registry import build_objectives_tasks_audit_re
 from soma.objectives_tasks.queries.reviews import HistoricalObjectiveQueryService
 from soma.objectives_tasks.repositories.reviews import HistoricalObjectiveProposalRepository
 from soma.objectives_tasks.services.historical import HistoricalObjectiveService
+from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.wfm_import import (
     WfmSourceProjectionAcceptanceMutation,
     WfmImportBaseTarget,
@@ -275,3 +276,168 @@ def test_historical_operational_count_exclusion_is_reporting_only(initialized_da
             "SELECT count(*) FROM task_outcome_events WHERE task_id=?",
             (task.task_id,),
         ).fetchone()[0] == 0
+
+def test_lld05_f022_historical_plan_failure_before_objective_insert_rolls_back_all(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    task, observation_id, start, end = _historical_wfm(factory, 705)
+    proposal = _proposal(factory, task.task_id, observation_id, start, end)
+    service = HistoricalObjectiveService(factory)
+    with ReadSnapshot(factory) as snapshot:
+        allocator_before = tuple(
+            snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()
+        )
+        task_revision_before = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        )
+
+    original_increment = service._tasks.increment_revision
+
+    def fail_after_historical_plan(inner, *, task_id, expected_revision):
+        original_increment(
+            inner,
+            task_id=task_id,
+            expected_revision=expected_revision,
+        )
+        raise IntegrityFailure(
+            "LLD05-F022 injected after historical plan before Objective insert"
+        )
+
+    monkeypatch.setattr(
+        service._tasks,
+        "increment_revision",
+        fail_after_historical_plan,
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F022"):
+        service.accept_proposal(
+            command_id=command_id,
+            proposal_id=proposal.proposal_id,
+            proposal_revision=proposal.revision,
+            input_fingerprint=proposal.input_fingerprint,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()
+        ) == allocator_before
+        assert int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        ) == task_revision_before
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_plan_current WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_plan_revisions WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objectives WHERE created_command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        current = HistoricalObjectiveProposalRepository.get(
+            snapshot.connection,
+            proposal.proposal_id,
+        )
+        assert current is not None
+        assert current.state == "pending"
+        assert current.revision == proposal.revision
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_lld05_f023_historical_membership_failure_rolls_back_objective_plan_and_allocator(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    task, observation_id, start, end = _historical_wfm(factory, 706)
+    proposal = _proposal(factory, task.task_id, observation_id, start, end)
+    service = HistoricalObjectiveService(factory)
+    with ReadSnapshot(factory) as snapshot:
+        allocator_before = tuple(
+            snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()
+        )
+
+    def fail_membership(*_args, **_kwargs):
+        raise IntegrityFailure(
+            "LLD05-F023 injected after historical Objective insert"
+        )
+
+    monkeypatch.setattr(
+        ObjectiveService,
+        "_insert_membership",
+        staticmethod(fail_membership),
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F023"):
+        service.accept_proposal(
+            command_id=command_id,
+            proposal_id=proposal.proposal_id,
+            proposal_revision=proposal.revision,
+            input_fingerprint=proposal.input_fingerprint,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()
+        ) == allocator_before
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objectives WHERE created_command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_membership_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_plan_revisions WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_plan_current WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == 0
+        current = HistoricalObjectiveProposalRepository.get(
+            snapshot.connection,
+            proposal.proposal_id,
+        )
+        assert current is not None
+        assert current.state == "pending"
+        assert current.revision == proposal.revision
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
