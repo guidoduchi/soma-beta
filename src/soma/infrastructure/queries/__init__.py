@@ -1,0 +1,1 @@
+"""Stable-snapshot Infrastructure projections."""

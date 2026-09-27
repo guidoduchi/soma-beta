@@ -78,6 +78,12 @@
       "migration_id": "beta_0013_fk_index_coverage",
       "filename": "0013_fk_index_coverage.sql",
       "sha256": "5135e6ca649020a633d8169c111e25476bafdc2f4255997866618cff6ca23b81"
+    },
+    {
+      "sequence": 14,
+      "migration_id": "beta_0014_infrastructure",
+      "filename": "0014_infrastructure.sql",
+      "sha256": "b4144d9fbfe2d16dca1887801925e275c241964f603c44a3f5519ec90f017f36"
     }
   ]
 }
