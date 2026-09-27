@@ -1,9 +1,9 @@
 {
-  "schema":"SOMA-LLD-ALGORITHM-V1",
-  "lld_id":"LLD-04",
-  "name":"RfcWfmReconciliationProposalEngine",
-  "input":"one complete non-noop ImportRun source set plus current domain snapshots from LLD-02/03/05; for chronology recovery the same proposals are generated but acceptance remains locked by recovery review",
-  "rfc_flow":[
+  "schema": "SOMA-LLD-ALGORITHM-V1",
+  "lld_id": "LLD-04",
+  "name": "RfcWfmReconciliationProposalEngine",
+  "input": "one complete non-noop ImportRun source set plus current domain snapshots from LLD-02/03/05; for chronology recovery the same proposals are generated but acceptance remains locked by recovery review",
+  "rfc_flow": [
     "for each conflict-free canonical RFC observation resolve exact RFC identity through LLD-03; similar labels never adopt",
     "if missing, propose rfc_create_or_adopt preserving exact rfc_no; if existing manual/provisional, propose exact adoption/source provenance without replacing rfc_id",
     "compute field-level accepted-source candidate changes against LLD-03 current RFC source projection using usable source chronology/precedence; missing/blank/unknown never clears recognized truth unless field contract allows",
@@ -11,7 +11,7 @@
     "Customer Account Number first through LLD-02 governed account-code matching/review semantics, then name only as descriptive CandidateResult; emit rfc_customer_reconciliation only as reviewed proposal and never silently assign/merge",
     "run SR-candidate extraction over RFC Summary and create sr_rfc_link_candidate proposals only against existing exact SR identities; direct target resolves through current LLD-03 governing root at acceptance time"
   ],
-  "wfm_flow":[
+  "wfm_flow": [
     "for each conflict-free canonical WFM observation classify exact Task No. through LLD-05 task_no_status and resolve exact parent RFC through LLD-03; ACTIVE resolves the current WFM identity, RETIRED emits WFM_TASK_ID_RETIRED as a blocked identity finding with no WFM domain mutation proposal, and ABSENT alone may enter wfm_create_or_adopt review",
     "a RETIRED Task No. never emits wfm_create_or_adopt, wfm_source_projection, wfm_plan_reconciliation or any other LLD-05 mutation proposal; retirement is immutable nonreuse authority and unrelated WFM identities remain independently reviewable",
     "when RFC is missing, emit wfm_provisional_rfc proposal using exact RFC identity and bounded WFM hints; never fabricate SR/hierarchy",
@@ -21,24 +21,62 @@
     "query LLD-05 activity-lineage/conflict reader for same-lineage overlapping active attempt evidence and emit wfm_competing_attempt_review rather than invent retry/distinct-work classification",
     "only when owning RFC Summary produced no valid SR candidate may WFM Task Name produce SR-link candidates; precedence is computed per owning RFC context, not row order"
   ],
-  "sr_candidate_parser":{
-    "strong":"token boundary + case-insensitive SR or TT label + optional ASCII whitespace + exactly eight ASCII digits + token boundary",
-    "weak":"isolated exactly eight ASCII digits not adjacent to another digit and not recognized as a Gregorian date token under YYYYMMDD, DDMMYYYY or MMDDYYYY validation",
-    "rules":["substrings of longer numeric/alphanumeric identifiers are excluded","candidate parser never creates an SR","all strong/weak candidates require review","multiple distinct existing SR matches may produce independent proposals","duplicate textual mentions of the same candidate collapse with provenance count"]
+  "sr_candidate_parser": {
+    "strong": "token boundary + case-insensitive SR or TT label + optional ASCII whitespace + exactly eight ASCII digits + token boundary",
+    "weak": "isolated exactly eight ASCII digits not adjacent to another digit and not recognized as a Gregorian date token under YYYYMMDD, DDMMYYYY or MMDDYYYY validation",
+    "rules": [
+      "substrings of longer numeric/alphanumeric identifiers are excluded",
+      "candidate parser never creates an SR",
+      "all strong/weak candidates require review",
+      "multiple distinct existing SR matches may produce independent proposals",
+      "duplicate textual mentions of the same candidate collapse with provenance count"
+    ]
   },
-  "risk_matrix":[
-    {"kind":"rfc_create_or_adopt","default":"medium"},
-    {"kind":"rfc_source_projection","default":"medium","terminal_or_reversal":"high"},
-    {"kind":"rfc_customer_reconciliation","default":"high"},
-    {"kind":"sr_rfc_link_candidate","default":"medium","terminal_or_historical_target":"high"},
-    {"kind":"wfm_create_or_adopt","default":"medium"},
-    {"kind":"wfm_source_projection","default":"medium"},
-    {"kind":"wfm_provisional_rfc","default":"high"},
-    {"kind":"wfm_provisional_eligibility","default":"high"},
-    {"kind":"wfm_plan_reconciliation","default":"high"},
-    {"kind":"wfm_competing_attempt_review","default":"high"}
+  "risk_matrix": [
+    {
+      "kind": "rfc_create_or_adopt",
+      "default": "medium"
+    },
+    {
+      "kind": "rfc_source_projection",
+      "default": "medium",
+      "terminal_or_reversal": "high"
+    },
+    {
+      "kind": "rfc_customer_reconciliation",
+      "default": "high"
+    },
+    {
+      "kind": "sr_rfc_link_candidate",
+      "default": "medium",
+      "terminal_or_historical_target": "high"
+    },
+    {
+      "kind": "wfm_create_or_adopt",
+      "default": "medium"
+    },
+    {
+      "kind": "wfm_source_projection",
+      "default": "medium"
+    },
+    {
+      "kind": "wfm_provisional_rfc",
+      "default": "high"
+    },
+    {
+      "kind": "wfm_provisional_eligibility",
+      "default": "high"
+    },
+    {
+      "kind": "wfm_plan_reconciliation",
+      "default": "high"
+    },
+    {
+      "kind": "wfm_competing_attempt_review",
+      "default": "high"
+    }
   ],
-  "proposal_binding":[
+  "proposal_binding": [
     "read domain targets through stable snapshots for proposal calculation",
     "compute base_state_token from exact immutable target IDs, relevant revisions/current projection evidence/hierarchy/plan locks and dependency generations",
     "compute proposal fingerprint from source observation IDs/field hashes/change set/profile IDs/base target identities, excluding transient UI/order/time",
@@ -46,6 +84,34 @@
     "proposal creation mutates no domain authority",
     "for recovery_required runs the exact same proposal rows are published for inspection but their acceptance gate is the latest exact import_recovery_review authorization rather than a mutable flag on the proposal"
   ],
-  "acceptance_rule":"Before acceptance, owning command opens one LLD-01 UnitOfWork, recomputes current base-state token/proposal eligibility and any recovery authorization, inserts one outer command receipt before receipt-FK children, invokes exactly the owning LLD-02/03/05 service(s), inserts accepted disposition/audit in the same UoW, and commits. Token/recovery mismatch fails closed without rewriting proposal evidence.",
-  "auto_accept":"RFC_WFM_AUTO_ACCEPT_V1 contains no mutation classes; therefore every domain-changing RFC/WFM proposal is operator-reviewed in Beta 1.0."
+  "acceptance_rule": "Before acceptance, owning command opens one LLD-01 UnitOfWork, recomputes current base-state token/proposal eligibility and any recovery authorization, inserts one outer command receipt before receipt-FK children, invokes exactly the owning LLD-02/03/05 service(s), inserts accepted disposition/audit in the same UoW, and commits. Token/recovery mismatch fails closed without rewriting proposal evidence.",
+  "auto_accept": "RFC_WFM_AUTO_ACCEPT_V1 contains no mutation classes; therefore every domain-changing RFC/WFM proposal is operator-reviewed in Beta 1.0.",
+  "material_equivalence": {
+    "fingerprint_schema": "IMPORT_PROPOSAL_EQUIVALENCE_V2",
+    "include": [
+      "source_family and exact source/header/vocabulary/parser profile IDs of the proposal's parent ImportRun",
+      "evidence_mode",
+      "proposal_kind",
+      "target_kind plus target_internal_id/target_business_id",
+      "risk_class",
+      "base_state_token_sha256",
+      "ordered semantic proposal changes: ordinal, field_key, change_kind, value_kind, before/after text and before/after integer"
+    ],
+    "exclude": [
+      "import_run_id",
+      "source_observation_id and prior_source_observation_id",
+      "source_observation_field_id support pointers",
+      "candidate/source chronology",
+      "proposal_id",
+      "proposal_fingerprint_sha256 because it binds exact observation/support identity",
+      "transient UI ordering/time"
+    ],
+    "rules": [
+      "reject/defer persists this digest as immutable proposal_equivalence_decisions evidence",
+      "proposal generation suppresses a candidate only when an existing rejected/deferred equivalence row matches proposal_kind, target identity and this exact digest",
+      "newer source chronology or new observation/support UUIDs alone do not reopen review when the semantic change, profiles and base target state are identical",
+      "any included material input change produces a different digest and may create a new review opportunity while prior decisions remain immutable",
+      "publication preflight and writer UnitOfWork re-evaluate suppression against the same raw candidate set; suppression drift makes publication stale rather than silently changing the proposal set"
+    ]
+  }
 }
