@@ -28,6 +28,7 @@ from .advanced_search import (
     _finding,
     _header_key,
     _is_formula,
+    _isolated_field_resource_limit,
     _logical_to_normalized,
     _malformed_field,
     _parse_instant_field,
@@ -261,12 +262,21 @@ def _parse_field(field_key: str, cell, *, sheet_ordinal: int, row_ordinal: int):
             "SOURCE_FORMULA_IN_SEMANTIC_FIELD",
             f"registered semantic field {field_key} contains a formula",
         )
-    if spec.value_kind == "text":
-        return _parse_text_field(spec, cell.value), ()
-    if spec.value_kind == "controlled":
-        return _parse_controlled_status(spec, cell.value, sheet_ordinal=sheet_ordinal, row_ordinal=row_ordinal)
-    if spec.value_kind == "instant":
-        return _parse_instant_field(spec, cell.value), ()
+    try:
+        if spec.value_kind == "text":
+            return _parse_text_field(spec, cell.value), ()
+        if spec.value_kind == "controlled":
+            return _parse_controlled_status(spec, cell.value, sheet_ordinal=sheet_ordinal, row_ordinal=row_ordinal)
+        if spec.value_kind == "instant":
+            return _parse_instant_field(spec, cell.value), ()
+    except SomaError as exc:
+        if exc.code == "XLSX_RESOURCE_LIMIT":
+            return _isolated_field_resource_limit(
+                spec,
+                sheet_ordinal=sheet_ordinal,
+                row_ordinal=row_ordinal,
+            )
+        raise
     raise RuntimeError("unsupported Enhanced RFC field kind")
 
 

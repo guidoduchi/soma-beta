@@ -132,3 +132,28 @@ def test_rfc_parser_consumes_exact_preflighted_bytes_after_path_replacement(tmp_
     parsed = parse_rfc_enhanced(path, preflight=preflight)
     assert len(parsed.rows) == 1
     assert parsed.rows[0].observation.canonical_primary_id == "NC12345678901234"
+
+
+def test_rfc_optional_field_overflow_isolated_without_truncation(tmp_path) -> None:
+    path = tmp_path / "rfc-field-overflow.xlsx"
+    oversized = "x" * 16_385
+    _save(
+        path,
+        [
+            ["Task ID", "Summary", "Status"],
+            ["NC12345678901234", oversized, "Implement"],
+        ],
+    )
+    parsed = parse_rfc_enhanced(path, preflight=preflight_xlsx(path))
+    row = parsed.rows[0]
+    summary = next(field for field in row.observation.fields if field.field_key == "summary")
+    assert row.observation.identity_state == "valid"
+    assert summary.value_state == "malformed"
+    assert summary.source_text is None
+    assert summary.normalized_text is None
+    assert any(
+        finding.finding_code == "XLSX_RESOURCE_LIMIT"
+        and finding.scope_kind == "field"
+        and finding.field_key == "summary"
+        for finding in row.findings
+    )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import os
 import posixpath
 import re
@@ -21,6 +22,7 @@ MAX_TOTAL_EXPANDED_BYTES = 536_870_912
 MAX_SINGLE_PART_BYTES = 134_217_728
 MAX_ZIP_ENTRIES = 4_096
 MAX_EXPANSION_RATIO = 100
+MAX_SHARED_STRINGS = 1_000_000
 _SPOOL_MEMORY_BYTES = 8_388_608
 _COPY_CHUNK_BYTES = 1_048_576
 
@@ -146,6 +148,19 @@ def _reject_xml_declarations(data: bytes) -> None:
     upper = data.upper()
     if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
         raise _unsafe("OOXML XML contains a forbidden DTD/entity declaration")
+
+
+def _validate_shared_string_count(data: bytes) -> None:
+    count = 0
+    try:
+        for _event, element in ElementTree.iterparse(io.BytesIO(data), events=("end",)):
+            if element.tag.rsplit("}", 1)[-1] == "si":
+                count += 1
+                if count > MAX_SHARED_STRINGS:
+                    raise _resource("XLSX shared-string table exceeds the configured ceiling")
+            element.clear()
+    except ElementTree.ParseError as exc:
+        raise _unsafe("OOXML shared-string table is not well-formed XML") from exc
 
 
 def _parse_xml(data: bytes, *, label: str) -> ElementTree.Element:
@@ -399,6 +414,8 @@ def preflight_xlsx(path: str | os.PathLike[str]) -> XlsxPreflightResult:
                     _reject_xml_declarations(data)
                     if name == "[Content_Types].xml":
                         _validate_content_types(data)
+                    if lowered == "xl/sharedstrings.xml":
+                        _validate_shared_string_count(data)
                     if lowered.endswith(".rels"):
                         relationship_sets[name] = _validate_relationships(
                             data,

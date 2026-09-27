@@ -41,7 +41,7 @@ _PUBLISHED_STATES = frozenset(
         "recovery_required",
     }
 )
-_FINDING_SEVERITY_RANK = {"info": 0, "warning": 1, "error": 2, "high_risk": 3}
+_FINDING_SEVERITY_RANK = {"high_risk": 0, "error": 1, "warning": 2, "info": 3}
 _FINDING_SCOPES = frozenset(
     {"workbook", "sheet", "row", "field", "identity", "chronology", "replay", "proposal", "population"}
 )
@@ -175,10 +175,15 @@ class PublishedObservation:
 @dataclass(frozen=True, slots=True)
 class ObservationPage:
     items: tuple[PublishedObservation, ...]
+    exact_total: int
     next_cursor: dict[str, object] | None
 
     def to_response(self) -> dict[str, object]:
-        return {"items": [item.to_response() for item in self.items], "next_cursor": self.next_cursor}
+        return {
+            "items": [item.to_response() for item in self.items],
+            "exact_total": self.exact_total,
+            "next_cursor": self.next_cursor,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,10 +212,15 @@ class ImportFinding:
 @dataclass(frozen=True, slots=True)
 class FindingPage:
     items: tuple[ImportFinding, ...]
+    exact_total: int
     next_cursor: dict[str, object] | None
 
     def to_response(self) -> dict[str, object]:
-        return {"items": [item.to_response() for item in self.items], "next_cursor": self.next_cursor}
+        return {
+            "items": [item.to_response() for item in self.items],
+            "exact_total": self.exact_total,
+            "next_cursor": self.next_cursor,
+        }
 
 
 def run_summary_from_row(row: Any) -> ImportRunSummary:
@@ -522,11 +532,13 @@ class ImportRunQueryService:
                 after = (int(key[0]), int(key[1]), require_uuid4(str(key[2])))
             except ValidationError as exc:
                 raise SomaError("IMPORT_CURSOR_INVALID", "observation cursor key is invalid") from exc
-        predicates = ["import_run_id=?"]
-        parameters: list[object] = [run_id]
+        filter_predicates = ["import_run_id=?"]
+        filter_parameters: list[object] = [run_id]
         if identity_state is not None:
-            predicates.append("identity_state=?")
-            parameters.append(identity_state)
+            filter_predicates.append("identity_state=?")
+            filter_parameters.append(identity_state)
+        predicates = list(filter_predicates)
+        parameters = list(filter_parameters)
         if after is not None:
             predicates.append(
                 "(sheet_ordinal>? OR (sheet_ordinal=? AND "
@@ -534,9 +546,17 @@ class ImportRunQueryService:
             )
             parameters.extend((after[0], after[0], after[1], after[1], after[2]))
         where = " AND ".join(predicates)
+        filter_where = " AND ".join(filter_predicates)
         with ReadSnapshot(self._factory) as snapshot:
             if _require_run_state(snapshot.connection, run_id) not in _PUBLISHED_STATES:
                 raise SomaError("IMPORT_RUN_UNPUBLISHED", "import run has no published observation authority")
+            exact_total_row = snapshot.connection.execute(
+                f"SELECT COUNT(*) FROM source_observations WHERE {filter_where}",
+                tuple(filter_parameters),
+            ).fetchone()
+            if exact_total_row is None:
+                raise IntegrityFailure("observation exact-total query returned no row")
+            exact_total = int(exact_total_row[0])
             rows = snapshot.connection.execute(
                 "SELECT source_observation_id,source_family,entity_kind,identity_state,canonical_primary_id,"
                 "canonical_parent_rfc_no,sheet_ordinal,row_ordinal,source_row_chronology_utc "
@@ -597,7 +617,7 @@ class ImportRunQueryService:
                 [last.sheet_ordinal, last.row_ordinal, last.source_observation_id],
                 filter_fingerprint,
             )
-        return ObservationPage(items=items, next_cursor=next_cursor)
+        return ObservationPage(items=items, exact_total=exact_total, next_cursor=next_cursor)
 
     def list_findings(
         self,
@@ -637,25 +657,35 @@ class ImportRunQueryService:
             except ValidationError as exc:
                 raise SomaError("IMPORT_CURSOR_INVALID", "finding cursor key is invalid") from exc
         severity_case = (
-            "CASE severity WHEN 'info' THEN 0 WHEN 'warning' THEN 1 "
-            "WHEN 'error' THEN 2 WHEN 'high_risk' THEN 3 ELSE 99 END"
+            "CASE severity WHEN 'high_risk' THEN 0 WHEN 'error' THEN 1 "
+            "WHEN 'warning' THEN 2 WHEN 'info' THEN 3 ELSE 99 END"
         )
-        predicates = ["import_run_id=?"]
-        parameters: list[object] = [run_id]
+        filter_predicates = ["import_run_id=?"]
+        filter_parameters: list[object] = [run_id]
         if severity is not None:
-            predicates.append("severity=?")
-            parameters.append(severity)
+            filter_predicates.append("severity=?")
+            filter_parameters.append(severity)
         if scope_kind is not None:
-            predicates.append("scope_kind=?")
-            parameters.append(scope_kind)
+            filter_predicates.append("scope_kind=?")
+            filter_parameters.append(scope_kind)
+        predicates = list(filter_predicates)
+        parameters = list(filter_parameters)
         if after is not None:
             predicates.append(f"(({severity_case})>? OR (({severity_case})=? AND import_finding_id>?))")
             parameters.extend((after[0], after[0], after[1]))
         where = " AND ".join(predicates)
+        filter_where = " AND ".join(filter_predicates)
         with ReadSnapshot(self._factory) as snapshot:
             state = _require_run_state(snapshot.connection, run_id)
             if state not in _PUBLISHED_STATES:
-                return FindingPage(items=(), next_cursor=None)
+                return FindingPage(items=(), exact_total=0, next_cursor=None)
+            exact_total_row = snapshot.connection.execute(
+                f"SELECT COUNT(*) FROM import_findings WHERE {filter_where}",
+                tuple(filter_parameters),
+            ).fetchone()
+            if exact_total_row is None:
+                raise IntegrityFailure("finding exact-total query returned no row")
+            exact_total = int(exact_total_row[0])
             rows = snapshot.connection.execute(
                 "SELECT import_finding_id,finding_code,severity,scope_kind,message_text,source_observation_id,field_key,"
                 f"{severity_case} AS severity_rank FROM import_findings WHERE {where} "
@@ -691,7 +721,7 @@ class ImportRunQueryService:
                 [last.severity_rank, last.import_finding_id],
                 filter_fingerprint,
             )
-        return FindingPage(items=items, next_cursor=next_cursor)
+        return FindingPage(items=items, exact_total=exact_total, next_cursor=next_cursor)
 
 
 __all__ = [

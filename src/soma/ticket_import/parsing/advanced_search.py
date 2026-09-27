@@ -29,7 +29,7 @@ from soma.ticket_import.repositories.observations import (
     NormalizedObservationEvidence,
 )
 
-from .xlsx_security import XlsxPreflightResult
+from .xlsx_security import MAX_SHARED_STRINGS as _PREFLIGHT_MAX_SHARED_STRINGS, XlsxPreflightResult
 
 _SOURCE_FAMILY = "advanced_search_sr"
 _MAX_WORKSHEETS = 32
@@ -37,7 +37,7 @@ _MAX_HEADER_SEARCH_NONEMPTY_ROWS = 100
 _MAX_MATRIX_ROWS = 250_000
 _MAX_PHYSICAL_COLUMNS = 512
 _MAX_LOGICAL_CELLS_TOTAL = 8_000_000
-_MAX_SHARED_STRINGS = 1_000_000
+_MAX_SHARED_STRINGS = _PREFLIGHT_MAX_SHARED_STRINGS
 _MAX_DEFINED_NAMES = 4_096
 _MAX_CELL_UTF8_BYTES = 65_536
 _MAX_HEADER_UTF8_BYTES = 1_024
@@ -281,7 +281,7 @@ def _validate_source_text(source_text: str | None, spec: ImportFieldSpec) -> Non
     if len(encoded) > min(spec.max_utf8_bytes, _MAX_CELL_UTF8_BYTES):
         raise _source_error("XLSX_RESOURCE_LIMIT", f"{spec.field_key} exceeds its UTF-8 byte ceiling")
     if spec.max_lines == 1 and ("\r" in source_text or "\n" in source_text):
-        raise _source_error("IMPORT_SOURCE_PROFILE_MISMATCH", f"{spec.field_key} must be one line")
+        raise _source_error("XLSX_RESOURCE_LIMIT", f"{spec.field_key} exceeds its line ceiling")
     if source_text.count("\n") + 1 > spec.max_lines:
         raise _source_error("XLSX_RESOURCE_LIMIT", f"{spec.field_key} exceeds its line ceiling")
 
@@ -323,6 +323,28 @@ def _malformed_field(spec: ImportFieldSpec, source_text: str | None) -> LogicalF
         value_kind=spec.value_kind,
         vocabulary_id=spec.vocabulary_id,
         source_text=source_text,
+    )
+
+
+def _isolated_field_resource_limit(
+    spec: ImportFieldSpec,
+    *,
+    sheet_ordinal: int,
+    row_ordinal: int,
+) -> tuple[LogicalField, tuple[ParsedFinding, ...]]:
+    return (
+        _malformed_field(spec, None),
+        (
+            _finding(
+                "XLSX_RESOURCE_LIMIT",
+                "error",
+                "field",
+                f"{spec.field_key} exceeds its registered field bound",
+                field_key=spec.field_key,
+                sheet_ordinal=sheet_ordinal,
+                row_ordinal=row_ordinal,
+            ),
+        ),
     )
 
 
@@ -692,19 +714,28 @@ def _parse_semantic_field(
             "SOURCE_FORMULA_IN_SEMANTIC_FIELD",
             f"registered semantic field {field_key} contains a formula",
         )
-    if spec.value_kind == "text":
-        return _parse_text_field(spec, cell.value), ()
-    if spec.value_kind == "controlled":
-        return _parse_controlled_field(
-            spec,
-            cell.value,
-            sheet_ordinal=sheet_ordinal,
-            row_ordinal=row_ordinal,
-        )
-    if spec.value_kind == "instant":
-        return _parse_instant_field(spec, cell.value), ()
-    if spec.value_kind == "duration_seconds":
-        return _parse_duration_field(spec, cell.value), ()
+    try:
+        if spec.value_kind == "text":
+            return _parse_text_field(spec, cell.value), ()
+        if spec.value_kind == "controlled":
+            return _parse_controlled_field(
+                spec,
+                cell.value,
+                sheet_ordinal=sheet_ordinal,
+                row_ordinal=row_ordinal,
+            )
+        if spec.value_kind == "instant":
+            return _parse_instant_field(spec, cell.value), ()
+        if spec.value_kind == "duration_seconds":
+            return _parse_duration_field(spec, cell.value), ()
+    except SomaError as exc:
+        if exc.code == "XLSX_RESOURCE_LIMIT":
+            return _isolated_field_resource_limit(
+                spec,
+                sheet_ordinal=sheet_ordinal,
+                row_ordinal=row_ordinal,
+            )
+        raise
     raise RuntimeError("unsupported Advanced Search field kind")
 
 

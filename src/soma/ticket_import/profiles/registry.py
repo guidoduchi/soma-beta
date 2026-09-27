@@ -16,6 +16,15 @@ class ImportFieldSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class ImportAutoAcceptPolicy:
+    policy_id: str
+    mutation_classes: frozenset[str]
+
+    def allows_mutation_class(self, mutation_class: str) -> bool:
+        return mutation_class in self.mutation_classes
+
+
+@dataclass(frozen=True, slots=True)
 class ImportProfileVersions:
     source_profile_id: str
     header_registry_id: str
@@ -109,6 +118,14 @@ _FIELDS_BY_FAMILY = {
     "wfm_service_provider": _WFM_FIELDS,
 }
 
+_AUTO_ACCEPT_POLICIES = {
+    "RFC_WFM_AUTO_ACCEPT_V1": ImportAutoAcceptPolicy(
+        policy_id="RFC_WFM_AUTO_ACCEPT_V1",
+        mutation_classes=frozenset(),
+    ),
+}
+
+
 _PROFILE_VERSIONS = {
     "advanced_search_sr": ImportProfileVersions(
         "ADVANCED_SEARCH_SR_V1",
@@ -153,3 +170,13 @@ def require_profile_ids(source_family: str) -> tuple[str, str]:
 
     versions = require_profile_versions(source_family)
     return versions.source_profile_id, versions.header_registry_id
+
+
+def require_auto_accept_policy(policy_id: str) -> ImportAutoAcceptPolicy:
+    policy = _AUTO_ACCEPT_POLICIES.get(policy_id)
+    if policy is None:
+        raise SomaError(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "auto-accept policy is outside the closed LLD-04 registry",
+        )
+    return policy
