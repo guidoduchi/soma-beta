@@ -459,7 +459,7 @@ def test_lld05_f025_different_operational_plan_after_proposal_stales_acceptance(
                 task_id=task.task_id,
                 start_utc=start + 600,
                 end_utc=end + 600,
-                origin="failure_injection_conflict",
+                origin="manual",
                 scheduling_timezone_iana="America/Guayaquil",
                 source_observation_id=None,
                 predecessor_plan_revision_id=None,
@@ -493,7 +493,7 @@ def test_lld05_f025_different_operational_plan_after_proposal_stales_acceptance(
         assert current is not None
         assert str(current[0]) == conflicting_plan_id
         assert tuple(current[2:4]) == (start + 600, end + 600)
-        assert str(current[4]) == "failure_injection_conflict"
+        assert str(current[4]) == "manual"
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM objectives WHERE created_command_id=?",
             (command_id,),
