@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from soma.foundation.errors import IntegrityFailure, SomaError
@@ -547,4 +549,96 @@ def test_lld05_f042_outcome_correction_audit_failure_rolls_back_tip_task_and_obj
             "SELECT count(*) FROM audit_events WHERE command_id=?",
             (command_id,),
         ).fetchone()[0] == 0
+
+def test_lld05_f014_outcome_event_failure_before_current_pointer_rolls_back_exactly(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    task_id, task_revision, _end_event_id = _ended_task(factory)
+    review_preview = _first_review_preview(
+        factory,
+        task_id=task_id,
+        task_revision=task_revision,
+    )
+    service = TaskReviewService(factory)
+    reviewed = service.review_task_outcome(
+        command_id=new_uuid4(),
+        task_id=task_id,
+        task_revision=task_revision,
+        execution_revision=2,
+        outcome_revision=0,
+        current_outcome_event_id=None,
+        outcome="completed",
+        reason_category=None,
+        outcome_review_fingerprint=review_preview.outcome_review_fingerprint,
+    )
+    current_event_id = reviewed.result_refs[0].result_id
+    correction_preview = TaskOutcomeCorrectionQueryService(factory).preview(
+        task_id=task_id,
+        task_revision=reviewed.revision,
+        execution_revision=2,
+        current_outcome_revision=1,
+        current_outcome_event_id=current_event_id,
+        replacement_outcome="incomplete",
+        reason_category="work_incomplete",
+    )
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "CREATE TRIGGER lld05_f014_fail_current BEFORE UPDATE ON task_outcome_current "
+            "BEGIN SELECT RAISE(ABORT,'LLD05-F014 injected before current outcome pointer update'); END"
+        )
+
+    command_id = new_uuid4()
+    with pytest.raises(sqlite3.IntegrityError, match="LLD05-F014"):
+        service.correct_task_outcome(
+            command_id=command_id,
+            task_id=task_id,
+            task_revision=reviewed.revision,
+            execution_revision=2,
+            current_outcome_revision=1,
+            current_outcome_event_id=current_event_id,
+            replacement_outcome="incomplete",
+            reason_category="work_incomplete",
+            correction_review_fingerprint=correction_preview.correction_review_fingerprint,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_outcome_events WHERE task_id=?",
+            (task_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT outcome_event_id,accepted_outcome,revision "
+            "FROM task_outcome_current WHERE task_id=?",
+            (task_id,),
+        ).fetchone() == (current_event_id, "completed", 1)
+        assert snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?",
+            (task_id,),
+        ).fetchone()[0] == reviewed.revision
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute("DROP TRIGGER lld05_f014_fail_current")
+
+    retried = service.correct_task_outcome(
+        command_id=command_id,
+        task_id=task_id,
+        task_revision=reviewed.revision,
+        execution_revision=2,
+        current_outcome_revision=1,
+        current_outcome_event_id=current_event_id,
+        replacement_outcome="incomplete",
+        reason_category="work_incomplete",
+        correction_review_fingerprint=correction_preview.correction_review_fingerprint,
+    )
+    assert retried.outcome == "APPLIED"
 
