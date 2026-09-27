@@ -1385,3 +1385,184 @@ def test_lld05_f031_objective_review_rejects_task_outcome_drift_after_preview(
             (command_id,),
         ).fetchone()[0] == 0
 
+def test_t018_objective_outcome_matrix_is_derived_from_member_task_facts(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    planning = TaskPlanningService(factory)
+    execution = TaskExecutionService(factory)
+    reviews = TaskReviewService(factory)
+
+    def create_pair(label: str, base_utc: int):
+        tasks = tuple(
+            planning.create_local_task(
+                command_id=new_uuid4(),
+                local_task_name=f"{label} member {index}",
+                schedule=AcceptedTaskSchedule(
+                    start_utc=base_utc,
+                    end_utc=base_utc + 3_600,
+                    scheduling_timezone_iana=TZ,
+                ),
+            )
+            for index in (1, 2)
+        )
+        intents = tuple(_existing_intent(factory, task.task_id) for task in tasks)
+        preview = ObjectiveGroupingQueryService(factory).creation_preview(
+            existing_tasks=intents,
+        )
+        assert preview["mode"] == "CREATE"
+        objective = ObjectiveService(factory).create_objective_from_preview(
+            command_id=new_uuid4(),
+            preview_fingerprint=str(preview["fingerprint"]),
+            existing_tasks=intents,
+        )
+        return tasks, objective
+
+    def review_terminal(task, *, outcome: str, start_utc: int):
+        started = execution.start_task_execution(
+            command_id=new_uuid4(),
+            task_id=task.task_id,
+            task_revision=task.revision,
+            execution_revision=0,
+            effective_start_utc=start_utc,
+        )
+        ended = execution.end_task_execution(
+            command_id=new_uuid4(),
+            task_id=task.task_id,
+            task_revision=started.revision,
+            execution_revision=1,
+            effective_end_utc=start_utc + 100,
+        )
+        reason = "work_incomplete" if outcome == "incomplete" else None
+        preview = TaskOutcomeReviewQueryService(factory).preview(
+            task_id=task.task_id,
+            task_revision=ended.revision,
+            execution_revision=2,
+            outcome_revision=0,
+            current_outcome_event_id=None,
+            outcome=outcome,
+            reason_category=reason,
+        )
+        assert preview.eligible is True
+        return reviews.review_task_outcome(
+            command_id=new_uuid4(),
+            task_id=task.task_id,
+            task_revision=ended.revision,
+            execution_revision=2,
+            outcome_revision=0,
+            current_outcome_event_id=None,
+            outcome=outcome,
+            reason_category=reason,
+            outcome_review_fingerprint=preview.outcome_review_fingerprint,
+        )
+
+    def cancel_pristine(task, *, cancel_utc: int):
+        return execution.cancel_task_without_execution(
+            command_id=new_uuid4(),
+            task_id=task.task_id,
+            task_revision=task.revision,
+            execution_revision=0,
+            outcome_revision=0,
+            effective_cancel_utc=cancel_utc,
+            reason_category="operator_cancel",
+        )
+
+    def aggregate(objective_id: str):
+        with ReadSnapshot(factory) as snapshot:
+            return tuple(
+                snapshot.connection.execute(
+                    "SELECT execution_state,aggregate_outcome,attention_reason "
+                    "FROM objective_aggregate_projection WHERE objective_id=?",
+                    (objective_id,),
+                ).fetchone()
+            )
+
+    completed_cancelled, objective_a = create_pair(
+        "T018 completed cancelled",
+        2_780_000_000,
+    )
+    review_terminal(
+        completed_cancelled[0],
+        outcome="completed",
+        start_utc=2_780_000_100,
+    )
+    cancel_pristine(
+        completed_cancelled[1],
+        cancel_utc=2_779_999_900,
+    )
+    assert aggregate(objective_a.objective_id) == (
+        "awaiting_review",
+        "mixed",
+        "mixed_outcomes",
+    )
+
+    completed_incomplete, objective_b = create_pair(
+        "T018 completed incomplete",
+        2_780_100_000,
+    )
+    review_terminal(
+        completed_incomplete[0],
+        outcome="completed",
+        start_utc=2_780_100_100,
+    )
+    review_terminal(
+        completed_incomplete[1],
+        outcome="incomplete",
+        start_utc=2_780_100_200,
+    )
+    assert aggregate(objective_b.objective_id) == (
+        "awaiting_review",
+        "mixed",
+        "mixed_outcomes",
+    )
+
+    all_completed, objective_c = create_pair(
+        "T018 all completed",
+        2_780_200_000,
+    )
+    review_terminal(
+        all_completed[0],
+        outcome="completed",
+        start_utc=2_780_200_100,
+    )
+    review_terminal(
+        all_completed[1],
+        outcome="completed",
+        start_utc=2_780_200_200,
+    )
+    assert aggregate(objective_c.objective_id) == (
+        "awaiting_review",
+        "completed",
+        None,
+    )
+
+    all_cancelled, objective_d = create_pair(
+        "T018 all cancelled",
+        2_780_300_000,
+    )
+    cancel_pristine(
+        all_cancelled[0],
+        cancel_utc=2_780_299_900,
+    )
+    cancel_pristine(
+        all_cancelled[1],
+        cancel_utc=2_780_299_901,
+    )
+    assert aggregate(objective_d.objective_id) == (
+        "awaiting_review",
+        "cancelled",
+        None,
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_review_events "
+            "WHERE objective_id IN (?,?,?,?)",
+            (
+                objective_a.objective_id,
+                objective_b.objective_id,
+                objective_c.objective_id,
+                objective_d.objective_id,
+            ),
+        ).fetchone()[0] == 0
+
