@@ -133,6 +133,157 @@ def test_grouping_sweep_is_transitive_and_exact_touch_separates(initialized_data
     assert all(detail["proposal_kind"] == "create" for detail in details)
 
 
+def test_t008_manual_exact_touch_merge_uses_reviewed_scope_and_preserves_identity(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_450_000_000
+    left = _task(factory, "Exact touch left", start, start + 100)
+    right = _task(factory, "Exact touch right", start + 100, start + 200)
+    left_objective = _objective(factory, left.task_id)
+    right_objective = _objective(factory, right.task_id)
+    service = GroupingService(factory)
+    query = ObjectiveGroupingQueryService(factory)
+
+    automatic = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert automatic["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+
+    with ReadSnapshot(factory) as snapshot:
+        tracking = {
+            str(row[0]): int(row[1])
+            for row in snapshot.connection.execute(
+                "SELECT objective_id,tracking_sequence FROM objectives "
+                "WHERE objective_id IN (?,?)",
+                (left_objective, right_objective),
+            ).fetchall()
+        }
+    survivor = min(tracking, key=tracking.get)
+    superseded = (
+        right_objective if survivor == left_objective else left_objective
+    )
+
+    command_id = new_uuid4()
+    scoped = service.recompute_grouping_proposals(
+        command_id=command_id,
+        origin="manual_request",
+        trigger_scope={
+            "kind": "manual_exact_touch_merge",
+            "objective_ids": [right_objective, left_objective],
+        },
+    )
+    assert scoped["execution_mode"] == "synchronous"
+    assert scoped["job_id"] is None
+    assert scoped["proposals"]["exact_total"] == 1
+    item = scoped["proposals"]["items"][0]
+    assert item["diff"]["proposal_kind"] == "manual_merge"
+
+    replay = service.recompute_grouping_proposals(
+        command_id=command_id,
+        origin="manual_request",
+        trigger_scope={
+            "kind": "manual_exact_touch_merge",
+            "objective_ids": [left_objective, right_objective],
+        },
+    )
+    assert replay == scoped
+
+    detail = query.proposal_detail(str(item["proposal_id"]))
+    assert detail["proposal_kind"] == "manual_merge"
+    assert detail["survivor_objective_id"] == survivor
+    assert detail["component_envelope"] == {
+        "start_utc": start,
+        "end_utc": start + 200,
+    }
+    assert detail["task_change_exact_count"] == 2
+    assert detail["objective_change_exact_count"] == 2
+    assert {
+        (change["objective_id"], change["action"])
+        for change in detail["objective_changes"]["items"]
+    } == {
+        (survivor, "retain"),
+        (superseded, "supersede"),
+    }
+
+    accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(item["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+
+    with ReadSnapshot(factory) as snapshot:
+        memberships = snapshot.connection.execute(
+            "SELECT task_id,objective_id FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?) ORDER BY task_id",
+            (left.task_id, right.task_id),
+        ).fetchall()
+        assert len(memberships) == 2
+        assert {str(row[1]) for row in memberships} == {survivor}
+        assert snapshot.connection.execute(
+            "SELECT superseded_by_objective_id,tracking_sequence "
+            "FROM objectives WHERE objective_id=?",
+            (superseded,),
+        ).fetchone() == (survivor, tracking[superseded])
+        assert snapshot.connection.execute(
+            "SELECT tracking_sequence FROM objectives WHERE objective_id=?",
+            (survivor,),
+        ).fetchone() == (tracking[survivor],)
+        envelope = snapshot.connection.execute(
+            "SELECT start_utc,end_utc,member_count "
+            "FROM objective_envelope_projection WHERE objective_id=?",
+            (survivor,),
+        ).fetchone()
+        assert tuple(envelope) == (start, start + 200, 2)
+
+
+def test_t008_manual_exact_touch_merge_fails_closed_on_third_overlap_drift(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_451_000_000
+    left = _task(factory, "Exact touch guarded left", start, start + 100)
+    right = _task(factory, "Exact touch guarded right", start + 100, start + 200)
+    third = _task(factory, "Third objective", start + 300, start + 400)
+    left_objective = _objective(factory, left.task_id)
+    right_objective = _objective(factory, right.task_id)
+    third_objective = _objective(factory, third.task_id)
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE objective_envelope_projection SET start_utc=?,end_utc=?,revision=revision+1 "
+            "WHERE objective_id=?",
+            (start + 150, start + 250, third_objective),
+        )
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as caught:
+        GroupingService(factory).recompute_grouping_proposals(
+            command_id=command_id,
+            origin="manual_request",
+            trigger_scope={
+                "kind": "manual_exact_touch_merge",
+                "objective_ids": [left_objective, right_objective],
+            },
+        )
+    assert caught.value.code == "GROUPING_INDETERMINATE"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM regroup_proposals WHERE proposal_kind='manual_merge'"
+        ).fetchone()[0] == 0
+
+
 def test_identical_rejected_grouping_input_is_suppressed_until_reconsidered(
     initialized_database,
 ) -> None:
