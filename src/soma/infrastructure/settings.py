@@ -11,6 +11,16 @@ from soma.reference.domain.settings import SettingDefinition, SettingDefinitionR
 IMPORT_DIRECTORY_KEY = "infrastructure.import_directory"
 
 
+def require_saved_import_directory(setting, expected_revision: int) -> dict[str, str]:
+    """Require the owner-approved persisted Check-now freshness identity."""
+    if type(expected_revision) is not int or expected_revision < 1:
+        raise ValidationError("Infrastructure Check-now requires a positive setting revision")
+    if (setting.setting_key != IMPORT_DIRECTORY_KEY or setting.source != "PERSISTED"
+            or setting.revision != expected_revision):
+        raise SomaError("INFRA_STALE", "Infrastructure import directory must be saved at the requested revision")
+    return validate_import_directory(setting.value)
+
+
 def _normal_path(path: str) -> str:
     if not isinstance(path, str) or not path or "\x00" in path:
         raise ValidationError("Infrastructure import directory must be a Windows path")

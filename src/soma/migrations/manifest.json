@@ -84,6 +84,12 @@
       "migration_id": "beta_0014_infrastructure",
       "filename": "0014_infrastructure.sql",
       "sha256": "b4144d9fbfe2d16dca1887801925e275c241964f603c44a3f5519ec90f017f36"
+    },
+    {
+      "sequence": 15,
+      "migration_id": "beta_0015_infrastructure_workbook_candidates",
+      "filename": "0015_infrastructure_workbook_candidates.sql",
+      "sha256": "8ed8b3d4451a3be39fd024132e602dd93c2b0ac56711cdd7664b7800fc2eee45"
     }
   ]
 }

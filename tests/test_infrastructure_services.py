@@ -135,7 +135,7 @@ def test_room_rack_lifecycle_and_stale_revision(infra):
     assert error.value.code == "INFRA_STALE"
 
 
-def test_new_migration_preserves_prefix(tmp_path, migration_directory, security_provider):
+def test_forward_infrastructure_migrations_preserve_prefix(tmp_path, migration_directory, security_provider):
     from test_foundation_durable_job_migration import _runner, _stage_prefix
     prefix = tmp_path / "prefix"
     _stage_prefix(migration_directory, prefix, 13)
@@ -144,11 +144,14 @@ def test_new_migration_preserves_prefix(tmp_path, migration_directory, security_
     with sqlite3.connect(database) as connection:
         before = connection.execute("SELECT * FROM schema_migrations ORDER BY sequence").fetchall()
         instance = connection.execute("SELECT * FROM instance_metadata").fetchall()
-    assert _runner(database, migration_directory, security_provider).initialize_or_migrate() == 14
+    assert _runner(database, migration_directory, security_provider).initialize_or_migrate() == 15
     with sqlite3.connect(database) as connection:
         assert connection.execute("SELECT * FROM schema_migrations WHERE sequence<=13 ORDER BY sequence").fetchall() == before
         assert connection.execute("SELECT * FROM instance_metadata").fetchall() == instance
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert "candidate_ids_json" in {
+            row[1] for row in connection.execute("PRAGMA table_info(infrastructure_workbook_proposals)")
+        }
 
 
 def test_reject_workbook_run_records_terminal_row_decisions_and_replays(infra):

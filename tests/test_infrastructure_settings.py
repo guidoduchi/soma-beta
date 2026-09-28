@@ -7,7 +7,7 @@ from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.infrastructure.settings import (
     IMPORT_DIRECTORY_KEY, build_import_directory_setting_registry,
-    observe_import_directory, validate_import_directory,
+    observe_import_directory, require_saved_import_directory, validate_import_directory,
 )
 from soma.reference.application.settings_service import SettingService
 
@@ -44,7 +44,12 @@ def test_import_directory_default_and_explicit_write_use_lld02_setting_store(ini
     )
     default = settings.get(IMPORT_DIRECTORY_KEY)
     assert default.source == "DEFAULT" and default.revision is None
+    with pytest.raises(SomaError) as error:
+        require_saved_import_directory(default, 1)
+    assert error.value.code == "INFRA_STALE"
     with ReadSnapshot(factory) as snapshot:
+        in_snapshot = settings.get_in_reader(snapshot, IMPORT_DIRECTORY_KEY)
+        assert in_snapshot.source == "DEFAULT" and in_snapshot.revision is None
         assert snapshot.connection.execute(
             "SELECT count(*) FROM setting_values WHERE setting_key=?", (IMPORT_DIRECTORY_KEY,),
         ).fetchone()[0] == 0
@@ -54,6 +59,12 @@ def test_import_directory_default_and_explicit_write_use_lld02_setting_store(ini
     )
     assert written.source == "PERSISTED" and written.revision == 1
     assert settings.get(IMPORT_DIRECTORY_KEY).value == {"path": r"D:\Imports"}
+    assert require_saved_import_directory(written, 1) == {"path": r"D:\Imports"}
+    with pytest.raises(SomaError) as error:
+        require_saved_import_directory(written, 2)
+    assert error.value.code == "INFRA_STALE"
+    with ReadSnapshot(factory) as snapshot:
+        assert settings.get_in_reader(snapshot, IMPORT_DIRECTORY_KEY).revision == 1
 
 
 def test_import_directory_access_is_observational(tmp_path):

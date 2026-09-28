@@ -7,12 +7,139 @@ import zipfile
 import pytest
 from openpyxl import load_workbook
 
-from soma.foundation.errors import ValidationError
+from soma.foundation.errors import SomaError, ValidationError
 from soma.infrastructure.contracts.infrastructure import validate_value
 from soma.infrastructure.jobs.infrastructure_workbooks import (
-    INFRASTRUCTURE_XLSX_LIMITS, preflight_infrastructure_workbook,
+    INFRASTRUCTURE_XLSX_LIMITS, inspect_infrastructure_workbook,
+    preflight_infrastructure_workbook,
     verify_profile_workbook, write_profile_workbook,
 )
+
+
+def test_profile_inspection_uses_captured_bytes_and_counts_rows(tmp_path):
+    path = tmp_path / "source.xlsx"
+    with path.open("w+b") as stream:
+        write_profile_workbook(
+            stream, mode="registration_template", scope={"scope_kind": "all"},
+            data_instance_id="12345678-1234-4234-8234-123456789abc",
+            generated_at_utc=0,
+        )
+    captured = preflight_infrastructure_workbook(path)
+    try:
+        path.unlink()
+        summary = inspect_infrastructure_workbook(
+            captured, current_data_instance_id="12345678-1234-4234-8234-123456789abc",
+        )
+        assert summary.same_installation
+        assert (summary.network_element_rows, summary.ip_rows) == (0, 0)
+    finally:
+        captured.close()
+
+
+def test_inspected_logical_fingerprint_ignores_row_order_and_generation_time(tmp_path):
+    fingerprints = []
+    for index, names in enumerate((("Alpha", "Beta"), ("Beta", "Alpha"))):
+        path = tmp_path / f"source-{index}.xlsx"
+        rows = []
+        for name in names:
+            row = [None] * len(HEADERS["Network Elements"])
+            row[1] = name
+            rows.append(row)
+        with path.open("w+b") as stream:
+            write_profile_workbook(
+                stream, mode="discovery", scope={"scope_kind": "all"},
+                data_instance_id="12345678-1234-4234-8234-123456789abc",
+                generated_at_utc=index, network_elements=rows,
+            )
+        captured = preflight_infrastructure_workbook(path)
+        try:
+            summary = inspect_infrastructure_workbook(
+                captured, current_data_instance_id="12345678-1234-4234-8234-123456789abc",
+            )
+            fingerprints.append(summary.logical_fingerprint)
+        finally:
+            captured.close()
+    assert fingerprints[0] == fingerprints[1]
+
+
+@pytest.mark.parametrize("header, code", (
+    ("Password", "SECRET_FIELD_FORBIDDEN"),
+    ("InterfacePort", "TOPOLOGY_FIELD_FORBIDDEN"),
+))
+def test_profile_inspection_rejects_forbidden_extra_headers(tmp_path, header, code):
+    path = tmp_path / "source.xlsx"
+    with path.open("w+b") as stream:
+        write_profile_workbook(
+            stream, mode="registration_template", scope={"scope_kind": "all"},
+            data_instance_id="12345678-1234-4234-8234-123456789abc",
+            generated_at_utc=0,
+        )
+    workbook = load_workbook(path)
+    workbook["Network Elements"].cell(1, 23, header)
+    workbook.save(path)
+    workbook.close()
+    captured = preflight_infrastructure_workbook(path)
+    try:
+        with pytest.raises(SomaError) as excinfo:
+            inspect_infrastructure_workbook(
+                captured, current_data_instance_id="12345678-1234-4234-8234-123456789abc",
+            )
+        assert excinfo.value.code == code
+    finally:
+        captured.close()
+
+
+def test_profile_inspection_rejects_formula_in_authoritative_cell(tmp_path):
+    path = tmp_path / "formula.xlsx"
+    with path.open("w+b") as stream:
+        write_profile_workbook(
+            stream, mode="registration_template", scope={"scope_kind": "all"},
+            data_instance_id="12345678-1234-4234-8234-123456789abc",
+            generated_at_utc=0,
+        )
+    workbook = load_workbook(path)
+    workbook["Network Elements"]["B2"] = "=1+1"
+    workbook.save(path)
+    workbook.close()
+    captured = preflight_infrastructure_workbook(path)
+    try:
+        with pytest.raises(SomaError) as excinfo:
+            inspect_infrastructure_workbook(
+                captured, current_data_instance_id="12345678-1234-4234-8234-123456789abc",
+            )
+        assert excinfo.value.code == "WORKBOOK_UNSAFE"
+    finally:
+        captured.close()
+
+
+@pytest.mark.parametrize("sheet, coordinate, value", (
+    ("Network Elements", "A2", "not-a-uuid"),
+    ("Network Elements", "P2", "1.5"),
+    ("IP Addresses", "D2", "192.0.2.0/24"),
+    ("IP Addresses", "D2", "fe80::1%eth0"),
+    ("IP Addresses", "E2", "yes"),
+))
+def test_profile_inspection_rejects_invalid_row_fields(tmp_path, sheet, coordinate, value):
+    path = tmp_path / "invalid-row.xlsx"
+    with path.open("w+b") as stream:
+        write_profile_workbook(
+            stream, mode="registration_template", scope={"scope_kind": "all"},
+            data_instance_id="12345678-1234-4234-8234-123456789abc",
+            generated_at_utc=0,
+        )
+    workbook = load_workbook(path)
+    workbook[sheet][coordinate] = value
+    workbook.save(path)
+    workbook.close()
+    captured = preflight_infrastructure_workbook(path)
+    try:
+        with pytest.raises(SomaError) as excinfo:
+            inspect_infrastructure_workbook(
+                captured, current_data_instance_id="12345678-1234-4234-8234-123456789abc",
+            )
+        assert excinfo.value.code == "WORKBOOK_UNSUPPORTED"
+    finally:
+        captured.close()
 from soma.infrastructure.domain.workbooks import (
     HEADERS, METADATA_KEYS, SHEET_ORDER, artifact_filename,
 )

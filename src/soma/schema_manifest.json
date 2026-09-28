@@ -13651,6 +13651,11 @@
       "migration_id": "beta_0014_infrastructure",
       "sequence": 14,
       "sha256": "b4144d9fbfe2d16dca1887801925e275c241964f603c44a3f5519ec90f017f36"
+    },
+    {
+      "migration_id": "beta_0015_infrastructure_workbook_candidates",
+      "sequence": 15,
+      "sha256": "8ed8b3d4451a3be39fd024132e602dd93c2b0ac56711cdd7664b7800fc2eee45"
     }
   ],
   "objects": [
@@ -17856,7 +17861,7 @@
     },
     {
       "name": "infrastructure_workbook_proposals",
-      "sql_sha256": "2518fb56157d1de028cda562dfb5c4d9e09da4cbf479b217324eb5b935748615",
+      "sql_sha256": "5fae0d41305fc269e9c34530f39cbff6bac8f154bfa91d7d81d76c9ce667d752",
       "table_name": "infrastructure_workbook_proposals",
       "type": "table"
     },
@@ -25564,6 +25569,15 @@
           "default_sql": "1",
           "hidden": 0,
           "name": "revision",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 12,
+          "declared_type": "TEXT",
+          "default_sql": "'[]'",
+          "hidden": 0,
+          "name": "candidate_ids_json",
           "not_null": true,
           "primary_key_ordinal": 0
         }

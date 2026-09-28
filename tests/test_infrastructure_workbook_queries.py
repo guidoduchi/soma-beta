@@ -131,6 +131,49 @@ def test_workbook_run_review_groups_and_cursor(initialized_database):
     assert error.value.code == "CURSOR_INVALID"
 
 
+def test_workbook_proposal_detail_reads_bounded_ordered_candidates(initialized_database):
+    import json
+
+    path, factory_builder = initialized_database
+    factory = factory_builder(path)
+    queries = InfrastructureQueries(InfrastructureService(factory))
+    run_id, staging_id, proposal_id = new_uuid4(), new_uuid4(), new_uuid4()
+    candidates = sorted((new_uuid4(), new_uuid4()))
+    digest = "d" * 64
+    impact = dict(creates=[], updates=[], relationship_changes=[], warning_codes=[],
+                  destructive_change=False)
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO infrastructure_workbook_runs "
+            "(workbook_run_id,source_filename,file_sha256,logical_fingerprint,"
+            "workbook_version,workbook_mode,source_installation_scope_id,"
+            "installation_relation,state,captured_at_utc) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (run_id, "input.xlsx", digest, digest, "1.0", "round_trip", "instance",
+             "same_installation", "reviewed", 5),
+        )
+        uow.connection.execute(
+            "INSERT INTO infrastructure_workbook_staging_rows "
+            "(staging_row_id,workbook_run_id,sheet_kind,row_ordinal,row_fingerprint,"
+            "normalized_row_json,validation_state,warning_codes_json) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (staging_id, run_id, "network_elements", 2, digest, "{}", "warning", "[]"),
+        )
+        uow.connection.execute(
+            "INSERT INTO infrastructure_workbook_proposals "
+            "(proposal_id,workbook_run_id,staging_row_id,action,state,input_fingerprint,"
+            "impact_json,candidate_ids_json,created_at_utc) VALUES (?,?,?,?,?,?,?,?,?)",
+            (proposal_id, run_id, staging_id, "ambiguous", "pending", digest,
+             json.dumps(impact), json.dumps(candidates), 5),
+        )
+    detail = queries.execute("InfrastructureWorkbookProposalQuery", {"proposal_id": proposal_id})
+    assert detail["proposal"]["proposal_id"] == proposal_id
+    assert detail["impact"] == impact
+    assert detail["candidate_ids"] == candidates
+    with pytest.raises(SomaError) as error:
+        queries.execute("InfrastructureWorkbookProposalQuery", {"proposal_id": new_uuid4()})
+    assert error.value.code == "INFRA_NOT_FOUND"
+
+
 def _receipt(uow):
     identity = new_uuid4()
     uow.connection.execute(

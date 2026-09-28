@@ -413,7 +413,7 @@
         "command_id": "uuid",
         "job_id": "uuid",
         "job_type": "string",
-        "state": "enum:queued|running|waiting_review|completed|failed|cancelled"
+        "state": "enum:queued|running|retry_wait|waiting_review|completed|failed|cancelled"
       }
     },
     {

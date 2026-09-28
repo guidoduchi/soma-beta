@@ -114,6 +114,22 @@ verified caller snapshot/UnitOfWork; Infrastructure does not read the private
 Foundation identity table itself. Export command enqueue and worker use remain
 pending.
 
+Owner-approved follow-on clarifications are captured in
+`lld08_workbook_normalization_v1.md`: a versioned allowlisted row/logical
+fingerprint representation, and an explicitly saved import-directory setting
+before Check-now. The read-only inspector now computes a logical fingerprint
+from bounded normalized row fingerprints, retaining duplicate multiplicity and
+ignoring row order and generation timestamp. Staging persistence, proposal
+calculation and acceptance replay are not yet wired to that result. The
+clarifications still require reconciliation into the pinned design packet.
+
+The owner-approved proposal candidate field is now a forward-only sequence-15
+runtime migration; accepted sequence 14 remains byte-identical. The proposal
+detail query reads separately persisted, bounded, ascending candidate IDs and
+the closed impact DTO. The pinned provisional LLD-09–12 migration allocations
+must shift as recorded in `docs/reconciliation/LLD08_MIGRATION_15_OWNER_CLARIFICATION.md`.
+Staging still needs to populate candidate IDs for new proposals.
+
 The LLD-08 transport adapter now resolves all 49 declared routes, validates
 path-owned UUID/fingerprint identities, request DTOs and conflicting repeated
 body identities, and dispatches only to explicit injected owner handlers.
@@ -134,3 +150,17 @@ pending. Ordinary XML parts are now declaration-scanned in bounded chunks,
 including across chunk boundaries; relationship and content-type XML are still
 materialized for graph validation and require measured large-file hardening
 before certification at the 1 GiB ceiling.
+
+A first read-only semantic inspection now consumes only the immutable preflight
+snapshot, checks visible required sheets and exact headers, rejects forbidden
+secret/topology extra headers, formulas, duplicate/missing required metadata,
+oversized cells and row-count excesses, and reports installation-scope match
+without granting identity authority. It does not yet normalize rows, validate
+all metadata values, compute logical fingerprints/proposals, or persist staging.
+
+The inspector now also validates generation timestamp and export-scope metadata,
+same-installation UUIDv4 row references, exact bounded Rack integers, host IP
+syntax (including CIDR/zone rejection), and explicit boolean Primary values.
+Foreign local IDs are not promoted to target authority. This is structural
+validation only: normalized row persistence and logical fingerprints remain
+pending.

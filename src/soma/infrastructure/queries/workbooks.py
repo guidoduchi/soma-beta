@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from soma.foundation.errors import IntegrityFailure, ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.strict_json import loads_strict
 from soma.infrastructure.contracts.infrastructure import validate_value
 from soma.infrastructure.repositories.core import get, one
@@ -9,7 +9,7 @@ from .core import page
 
 
 QUERY_NAMES = frozenset({"InfrastructureWorkbookReplayQuery", "InfrastructureWorkbookHistoryQuery",
-                         "InfrastructureWorkbookRunQuery"})
+                         "InfrastructureWorkbookRunQuery", "InfrastructureWorkbookProposalQuery"})
 
 
 def _proposal(row):
@@ -38,6 +38,8 @@ def _run(reader, query, p):
         "FROM infrastructure_workbook_proposals WHERE workbook_run_id=?",
         (p["run_id"],),
     )
+
+
     sql = (
         "SELECT p.proposal_id,p.action,p.state,p.target_network_element_id,"
         "p.expected_target_revision,p.input_fingerprint,s.sheet_kind,s.row_ordinal,"
@@ -72,9 +74,38 @@ def _run(reader, query, p):
     )
 
 
+def _proposal_detail(reader, p):
+    row = one(
+        reader,
+        "SELECT p.proposal_id,p.action,p.state,p.target_network_element_id,"
+        "p.expected_target_revision,p.input_fingerprint,p.impact_json,p.candidate_ids_json,"
+        "s.sheet_kind,s.row_ordinal,s.warning_codes_json "
+        "FROM infrastructure_workbook_proposals p "
+        "JOIN infrastructure_workbook_staging_rows s ON s.staging_row_id=p.staging_row_id "
+        "WHERE p.proposal_id=?",
+        (p["proposal_id"],),
+    )
+    if row is None:
+        raise SomaError("INFRA_NOT_FOUND", "Infrastructure workbook proposal does not exist")
+    try:
+        impact = validate_value(
+            "INFRA_WORKBOOK_IMPACT_V1", loads_strict(row["impact_json"], max_bytes=131_072),
+        )
+        candidate_ids = validate_value(
+            "array<uuid>,max500", loads_strict(row["candidate_ids_json"], max_bytes=32_768),
+        )
+        if candidate_ids != sorted(set(candidate_ids)):
+            raise IntegrityFailure("Workbook candidate IDs are not sorted and unique")
+    except (ValueError, TypeError, ValidationError) as exc:
+        raise IntegrityFailure("Workbook proposal detail is corrupt") from exc
+    return {"proposal": _proposal(row), "impact": impact, "candidate_ids": candidate_ids}
+
+
 def execute(service, reader, query, p):
     if query == "InfrastructureWorkbookRunQuery":
         return _run(reader, query, p)
+    if query == "InfrastructureWorkbookProposalQuery":
+        return _proposal_detail(reader, p)
     if query == "InfrastructureWorkbookReplayQuery":
         result = one(
             reader,

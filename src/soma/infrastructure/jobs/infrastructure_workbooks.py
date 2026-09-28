@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import posixpath
@@ -18,6 +19,9 @@ from soma.foundation.strict_json import canonical_json_bytes, loads_strict
 from soma.infrastructure.contracts.infrastructure import validate_value
 from soma.infrastructure.domain.workbooks import (
     FORMAT_ID, HEADERS, METADATA_KEYS, MODES, SHEET_ORDER, WORKBOOK_VERSION,
+)
+from soma.infrastructure.domain.workbook_normalization import (
+    normalize_workbook_row, workbook_logical_fingerprint,
 )
 from soma.ticket_import.parsing.xlsx_security import (
     XlsxPreflightResult, XlsxResourceLimits, preflight_xlsx,
@@ -44,6 +48,154 @@ def preflight_infrastructure_workbook(path: str) -> XlsxPreflightResult:
         if exc.code in ("XLSX_UNSAFE_CONTAINER", "XLSX_RESOURCE_LIMIT", "IMPORT_FILE_UNSTABLE"):
             raise SomaError("WORKBOOK_UNSAFE", "Infrastructure workbook failed safety preflight") from exc
         raise
+
+
+@dataclass(frozen=True, slots=True)
+class WorkbookProfileSummary:
+    mode: str
+    source_installation_scope_id: str
+    same_installation: bool
+    network_element_rows: int
+    ip_rows: int
+    logical_fingerprint: str
+
+
+def _profile_error(message: str) -> SomaError:
+    return SomaError("WORKBOOK_UNSUPPORTED", message)
+
+
+def _checked_cell(cell) -> object:
+    if cell.data_type == "f":
+        raise SomaError("WORKBOOK_UNSAFE", "Infrastructure workbook contains a formula")
+    value = cell.value
+    if value is not None and type(value) not in (str, int, bool):
+        raise _profile_error("Infrastructure workbook contains an unsupported cell value")
+    if isinstance(value, str) and (len(value.encode("utf-8")) > 16_384 or "\x00" in value):
+        raise SomaError("WORKBOOK_UNSAFE", "Infrastructure workbook cell exceeds its safety bound")
+    return value
+
+
+def _checked_header(row, name: str) -> None:
+    if row is None:
+        raise _profile_error("Infrastructure workbook is missing a required header")
+    actual = tuple(_checked_cell(cell) for cell in row)
+    expected = HEADERS[name]
+    if actual == expected:
+        return
+    for item in actual[len(expected):]:
+        if not isinstance(item, str):
+            continue
+        lowered = item.casefold().replace("_", "").replace(" ", "")
+        if any(token in lowered for token in (
+            "password", "privatekey", "secret", "credential", "token",
+        )):
+            raise SomaError("SECRET_FIELD_FORBIDDEN", "Workbook has a forbidden secret header")
+        if any(token in lowered for token in (
+            "interface", "port", "topology", "connectivity", "reachability",
+        )):
+            raise SomaError("TOPOLOGY_FIELD_FORBIDDEN", "Workbook has a forbidden topology header")
+    raise _profile_error("Infrastructure workbook header does not match the profile")
+
+
+def inspect_infrastructure_workbook(
+    captured: XlsxPreflightResult, *, current_data_instance_id: str,
+) -> WorkbookProfileSummary:
+    """Inspect profile structure from the exact immutable preflight snapshot."""
+    require_uuid4(current_data_instance_id)
+    try:
+        workbook = load_workbook(
+            captured.semantic_stream(), read_only=True, data_only=False,
+            keep_links=False,
+        )
+    except Exception as exc:
+        raise SomaError("WORKBOOK_UNSAFE", "Infrastructure workbook cannot be parsed") from exc
+    try:
+        for name in SHEET_ORDER:
+            if name not in workbook or workbook[name].sheet_state != "visible":
+                raise _profile_error("Infrastructure workbook is missing a visible required sheet")
+        counts: dict[str, int] = {}
+        metadata: dict[str, object] = {}
+        rows = workbook["Metadata"].iter_rows()
+        _checked_header(next(rows, None), "Metadata")
+        for count, row in enumerate(rows, 1):
+            if count > 128:
+                raise SomaError("WORKBOOK_UNSAFE", "Infrastructure workbook metadata row count exceeds its bound")
+            values = tuple(_checked_cell(cell) for cell in row)
+            if len(values) > 2 and any(value is not None for value in values[2:]):
+                raise _profile_error("Infrastructure workbook metadata row exceeds its profile width")
+            key = values[0] if values else None
+            if not isinstance(key, str) or not key or key in metadata:
+                raise _profile_error("Infrastructure workbook metadata key is invalid or duplicate")
+            metadata[key] = values[1] if len(values) > 1 else None
+        if not set(METADATA_KEYS).issubset(metadata):
+            raise _profile_error("Infrastructure workbook is missing required metadata")
+        if metadata["FormatId"] != FORMAT_ID or metadata["WorkbookVersion"] != WORKBOOK_VERSION:
+            raise _profile_error("Infrastructure workbook format or version is unsupported")
+        mode = metadata["Mode"]
+        if mode not in MODES:
+            raise _profile_error("Infrastructure workbook mode is unsupported")
+        source_id = metadata["SourceInstallationScopeId"]
+        try:
+            require_uuid4(source_id)
+        except ValidationError as exc:
+            raise _profile_error("Infrastructure workbook source scope is invalid") from exc
+        generated_at = metadata["GeneratedAtUtc"]
+        if not isinstance(generated_at, str):
+            raise _profile_error("Infrastructure workbook generation time is invalid")
+        try:
+            datetime.strptime(generated_at, "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError as exc:
+            raise _profile_error("Infrastructure workbook generation time is invalid") from exc
+        scope_json = metadata["ExportScopeJson"]
+        if not isinstance(scope_json, str):
+            raise _profile_error("Infrastructure workbook export scope is invalid")
+        try:
+            export_scope = validate_value(
+                "INFRA_EXPORT_SCOPE_V1", loads_strict(scope_json, max_bytes=16_384),
+            )
+        except ValidationError as exc:
+            raise _profile_error("Infrastructure workbook export scope is invalid") from exc
+        same_installation = source_id == current_data_instance_id
+        normalized: dict[str, list[str]] = {}
+        for name in ("Network Elements", "IP Addresses"):
+            sheet = workbook[name]
+            rows = sheet.iter_rows()
+            _checked_header(next(rows, None), name)
+            expected = HEADERS[name]
+            maximum = 100_000 if name == "Network Elements" else 500_000
+            count = 0
+            normalized_rows: list[str] = []
+            for row in rows:
+                count += 1
+                if count > maximum:
+                    raise SomaError("WORKBOOK_UNSAFE", "Infrastructure workbook row count exceeds its bound")
+                values = tuple(_checked_cell(cell) for cell in row)
+                if len(values) > len(expected) and any(value is not None for value in values[len(expected):]):
+                    raise _profile_error("Infrastructure workbook row exceeds its profile width")
+                try:
+                    _, row_fingerprint = normalize_workbook_row(
+                        name, values, same_installation=same_installation,
+                    )
+                    normalized_rows.append(row_fingerprint)
+                except (SomaError, ValidationError) as exc:
+                    raise _profile_error("Infrastructure workbook row is invalid") from exc
+            counts[name] = count
+            normalized[name] = normalized_rows
+        logical_fingerprint = workbook_logical_fingerprint(
+            mode=mode, source_installation_scope_id=source_id,
+            export_scope=export_scope,
+            network_rows=normalized["Network Elements"],
+            ip_rows=normalized["IP Addresses"],
+        )
+        return WorkbookProfileSummary(
+            mode=mode, source_installation_scope_id=source_id,
+            same_installation=same_installation,
+            network_element_rows=counts["Network Elements"],
+            ip_rows=counts["IP Addresses"],
+            logical_fingerprint=logical_fingerprint,
+        )
+    finally:
+        workbook.close()
 
 _GENERATED_PARTS = frozenset({
     "docProps/app.xml", "docProps/core.xml", "xl/theme/theme1.xml",
