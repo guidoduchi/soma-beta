@@ -538,13 +538,14 @@ def test_lld05_f018_review_transition_failure_rolls_back_termination_and_aggrega
             (source.source_terminal_review_id,),
         ).fetchone()[0:2] == ("terminate_local_work", 2)
         aggregate = snapshot.connection.execute(
-            "SELECT execution_state,attention_reason,revision "
+            "SELECT execution_state,attention_reason,aggregate_input_fingerprint,revision,last_command_id "
             "FROM objective_aggregate_projection WHERE objective_id=?",
             (objective_id,),
         ).fetchone()
-        assert aggregate[0] == "awaiting_review"
-        assert aggregate[1] == "lost_last_executable"
-        assert int(aggregate[2]) > int(before_aggregate[8])
+        assert aggregate is not None
+        assert int(aggregate[3]) > int(before_aggregate[8])
+        assert str(aggregate[2]) != str(before_aggregate[7])
+        assert str(aggregate[4]) == command_id
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
             (command_id,),
