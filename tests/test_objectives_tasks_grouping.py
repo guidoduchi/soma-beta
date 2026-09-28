@@ -1169,3 +1169,40 @@ def test_provider_terminal_wfm_tasks_are_not_ordinary_grouping_work(
             (completed.task_id, cancelled.task_id),
         ).fetchone()[0] == 0
 
+def test_started_unassigned_task_is_not_automatic_grouping_candidate(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_888_000_000
+    task = _task(factory, "Started unassigned", start, start + 3_600)
+    started = TaskExecutionService(factory).start_task_execution(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=task.revision,
+        execution_revision=0,
+        effective_start_utc=start + 60,
+    )
+    assert started.outcome == "APPLIED"
+
+    eligibility = ObjectiveGroupingQueryService(factory).grouping_eligibility(
+        task.task_id,
+        as_of_utc=start - 1,
+    )
+    assert eligibility["classification"] == "started_or_protected"
+    assert eligibility["eligible"] is False
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone() is None
+
