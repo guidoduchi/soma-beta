@@ -601,17 +601,13 @@ class ObjectiveGroupingQueryService:
             if not stale:
                 from ..services.grouping import GroupingService
 
-                current_candidate = next(
-                    (
-                        candidate
-                        for candidate in GroupingService._candidates(
-                            snapshot.connection,
-                            origin=proposal.origin,
-                        )
-                        if candidate.input_fingerprint == proposal.input_fingerprint
-                    ),
-                    None,
-                )
+                try:
+                    current_candidate = GroupingService._candidate_for_proposal(
+                        snapshot.connection,
+                        proposal,
+                    )
+                except SomaError:
+                    current_candidate = None
                 stale = current_candidate is None
 
             context_task_ids = {str(row[1]) for row in task_rows}
