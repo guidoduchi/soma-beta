@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 from soma.foundation.errors import ValidationError
 from soma.infrastructure.contracts.infrastructure import validate_value
 from soma.infrastructure.jobs.infrastructure_workbooks import (
+    INFRASTRUCTURE_XLSX_LIMITS, preflight_infrastructure_workbook,
     verify_profile_workbook, write_profile_workbook,
 )
 from soma.infrastructure.domain.workbooks import (
@@ -155,3 +156,42 @@ def test_profile_verifier_rejects_duplicate_archive_part():
             expected_scope={"scope_kind": "all"}, expected_generated_at_utc=0,
             expected_network_rows=0, expected_ip_rows=0,
         )
+
+
+def test_import_preflight_uses_infrastructure_limits_and_same_captured_bytes(tmp_path, monkeypatch):
+    from soma.ticket_import.parsing import xlsx_security
+
+    source = tmp_path / "source.xlsx"
+    with source.open("wb") as stream:
+        write_profile_workbook(
+            stream, mode="registration_template", scope={"scope_kind": "all"},
+            data_instance_id="12345678-1234-4234-8234-123456789abc",
+            generated_at_utc=0,
+        )
+    assert INFRASTRUCTURE_XLSX_LIMITS.zip_entries == 20_000
+    monkeypatch.setattr(xlsx_security, "MAX_ZIP_ENTRIES", 4)
+    preflight = preflight_infrastructure_workbook(str(source))
+    try:
+        assert preflight.entry_count == 11
+        assert preflight.semantic_stream().read() == source.read_bytes()
+    finally:
+        preflight.close()
+
+
+def test_import_preflight_rejects_unsafe_part_without_modifying_source(tmp_path):
+    from soma.foundation.errors import SomaError
+
+    source = tmp_path / "unsafe.xlsx"
+    with source.open("wb") as stream:
+        write_profile_workbook(
+            stream, mode="registration_template", scope={"scope_kind": "all"},
+            data_instance_id="12345678-1234-4234-8234-123456789abc",
+            generated_at_utc=0,
+        )
+    with zipfile.ZipFile(source, "a") as archive:
+        archive.writestr("../escape.xml", b"<escape/>")
+    before = source.read_bytes()
+    with pytest.raises(SomaError) as error:
+        preflight_infrastructure_workbook(str(source))
+    assert error.value.code == "WORKBOOK_UNSAFE"
+    assert source.read_bytes() == before

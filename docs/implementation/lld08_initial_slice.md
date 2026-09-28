@@ -51,8 +51,8 @@ the V2 run response does not declare a separate row-decision summary. Do not
 claim A071/A072 query closure from the current page implementation.
 
 Remaining workbook work includes proposal detail, generation and staging jobs,
-accepted selected mutations, security preflight, cleanup job orchestration, transport
-routes and end-to-end acceptance/failure evidence. The workbook work here is an
+accepted selected mutations, security preflight, cleanup job orchestration, HTTP
+host route assembly and end-to-end acceptance/failure evidence. The workbook work here is an
 implementation slice, not complete LLD-08 certification.
 
 Site customer correction and archive now reuse each cross-packet dependency
@@ -94,3 +94,43 @@ Generated artifact verification now also compares export scope and generation
 timestamp with the inputs that produced the unpublished artifact; it cannot
 accept a different generation's metadata solely because the workbook profile
 is otherwise valid.
+
+The two workbook durable-job types now register Foundation JobTypeContracts
+with closed payload/checkpoint shapes, command/request dedupe identity, bounded
+technical filename and fingerprint fields, and stale-claim reconciliation
+dispositions. Coordinator enqueue/coalescing has focused tests. This does not
+yet enqueue jobs from the two commands or implement either worker's filesystem,
+staging, publication, or crash-recovery state machine.
+
+The Check-now request and stage-job payload require `setting_revision: rev`
+(positive), but LLD-02 returns `revision=None` for an unpersisted computed
+default. The packet needs an explicit default-setting freshness token or a rule
+that Check-now first requires an operator-persisted setting. No synthetic
+revision is assigned in the current implementation.
+
+The Foundation `DataInstanceIdentityReader` callable is now available for
+Infrastructure consumers. It returns the exact canonical UUIDv4 from the
+verified caller snapshot/UnitOfWork; Infrastructure does not read the private
+Foundation identity table itself. Export command enqueue and worker use remain
+pending.
+
+The LLD-08 transport adapter now resolves all 49 declared routes, validates
+path-owned UUID/fingerprint identities, request DTOs and conflicting repeated
+body identities, and dispatches only to explicit injected owner handlers.
+LLD-12 still owns authentication, CSRF and raw request-byte enforcement; this
+adapter is not yet assembled into a running HTTP host. An owner binding now
+connects installed commands and queries with explicit caller-supplied
+authenticated actor context and checks command response schema. Routes for
+workbook commands/queries whose owners are not implemented fail closed rather
+than pretending those operations are available.
+
+The LLD-04 hardened XLSX container preflight now accepts an explicit resource
+profile while retaining its exact existing defaults. LLD-08 supplies its own
+256 MiB compressed, 20,000 ZIP-entry and 1 GiB expanded ceilings and maps
+unsafe/unavailable source failures to Infrastructure errors. The immutable
+captured byte stream is returned to the later semantic parser; import sheet,
+header, formula and row-normalization checks and stage-job orchestration remain
+pending. Ordinary XML parts are now declaration-scanned in bounded chunks,
+including across chunk boundaries; relationship and content-type XML are still
+materialized for graph validation and require measured large-file hardening
+before certification at the 1 GiB ceiling.

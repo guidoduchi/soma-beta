@@ -12,13 +12,38 @@ from xml.etree import ElementTree
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell import WriteOnlyCell
 
-from soma.foundation.errors import ValidationError
+from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.strict_json import canonical_json_bytes, loads_strict
 from soma.infrastructure.contracts.infrastructure import validate_value
 from soma.infrastructure.domain.workbooks import (
     FORMAT_ID, HEADERS, METADATA_KEYS, MODES, SHEET_ORDER, WORKBOOK_VERSION,
 )
+from soma.ticket_import.parsing.xlsx_security import (
+    XlsxPreflightResult, XlsxResourceLimits, preflight_xlsx,
+)
+
+INFRASTRUCTURE_XLSX_LIMITS = XlsxResourceLimits(
+    compressed_file_bytes=268_435_456,
+    total_expanded_bytes=1_073_741_824,
+    single_part_bytes=1_073_741_824,
+    zip_entries=20_000,
+    expansion_ratio=100,
+)
+
+
+def preflight_infrastructure_workbook(path: str) -> XlsxPreflightResult:
+    """Capture and security-check one untrusted source using LLD-08 limits."""
+    try:
+        return preflight_xlsx(path, limits=INFRASTRUCTURE_XLSX_LIMITS)
+    except SomaError as exc:
+        if exc.code == "IMPORT_SOURCE_UNAVAILABLE":
+            raise SomaError(
+                "WORKBOOK_DIRECTORY_UNAVAILABLE", "Infrastructure workbook source is unavailable",
+            ) from exc
+        if exc.code in ("XLSX_UNSAFE_CONTAINER", "XLSX_RESOURCE_LIMIT", "IMPORT_FILE_UNSTABLE"):
+            raise SomaError("WORKBOOK_UNSAFE", "Infrastructure workbook failed safety preflight") from exc
+        raise
 
 _GENERATED_PARTS = frozenset({
     "docProps/app.xml", "docProps/core.xml", "xl/theme/theme1.xml",
