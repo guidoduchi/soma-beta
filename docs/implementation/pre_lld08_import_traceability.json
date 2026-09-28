@@ -1290,11 +1290,11 @@
         "src/soma/ticket_import/commands/decide_proposal.py"
       ],
       "executable_tests": [
-        "tests/test_ticket_import_source_check_failure_injection.py::test_f001_discovery_failure_keeps_durable_job_retryable_without_import_authority"
+        "tests/test_ticket_import_source_check_failure_injection.py::test_f001_stale_worker_before_discovery_recovers_retryably_without_import_authority"
       ],
-      "observed_assertions": "Injected discovery failure after durable enqueue/claim leaves zero import/source/checkpoint authority; registered retry policy reclaims the same job as attempt 2 with no checkpoint.",
+      "observed_assertions": "A running source-check claim is recovered as stale before discovery: the registered crash policy moves the same durable job to retry_wait with JOB_INTERRUPTED while ImportRun/source/proposal/checkpoint authority remains absent; the replacement run then reclaims the same job as attempt 2 with a null checkpoint.",
       "status": "candidate_pending_ci",
-      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "note": "Exact crash/restart proof strengthened on implementation candidate 389dafcd9f6ab8a8b75f6e8acada3a0c78ee6540; do not classify as supported until an exact-head CI containing this commit is green.",
       "certification_status": "candidate_pending_ci"
     },
     {
@@ -1614,11 +1614,12 @@
       ],
       "executable_tests": [
         "tests/test_ticket_import_finalize_backbone.py::test_equal_chronology_recovery_replaces_checkpoint_and_enqueues_reappearance",
-        "tests/test_ticket_import_finalize_backbone.py::test_f017_equal_chronology_recovery_enqueue_failure_rolls_back_all_finalization_authority"
+        "tests/test_ticket_import_finalize_backbone.py::test_f017_equal_chronology_recovery_enqueue_failure_rolls_back_all_finalization_authority",
+        "tests/test_ticket_import_sr_source_acceptance.py::test_lld04_f017_equal_chronology_recovery_resumes_from_committed_correction"
       ],
-      "observed_assertions": "Equal-chronology recovery injects failure at reappearance enqueue after checkpoint replacement/run finalization/recovery-event work; the command UoW restores the prior checkpoint and recovery_required run with no event/job/receipt/audit, then exact retry commits one replacement/event/job.",
+      "observed_assertions": "Equal-chronology recovery is exercised after a real SR source-projection correction has committed through AcceptReconciliationProposal and recorded one immutable accepted disposition. The changed run revision/pending set requires a second exact recovery authorization before finalization. Injected failure at reappearance enqueue then rolls back checkpoint replacement, run finalization, recovery event, finalization receipt/audit and job enqueue while the already-committed owner observation and proposal disposition remain exactly once. Same-command retry commits one replacement/event/job and replay adds no duplicate correction.",
       "status": "candidate_pending_ci",
-      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "note": "Atomic finalization proof was supplemented with real committed-correction/resumption evidence on implementation candidate 66b94a2cb135a8f130d0975a3bf3ff96f9a1a1c6; do not classify as supported until an exact-head CI containing this commit is green.",
       "certification_status": "candidate_pending_ci"
     },
     {
@@ -1634,11 +1635,12 @@
       ],
       "executable_tests": [
         "tests/test_ticket_import_finalize_backbone.py::test_older_authorized_recovery_finalizes_without_replacing_checkpoint",
-        "tests/test_ticket_import_finalize_backbone.py::test_f018_older_recovery_audit_failure_rolls_back_event_and_retry_is_exactly_once"
+        "tests/test_ticket_import_finalize_backbone.py::test_f018_older_recovery_audit_failure_rolls_back_event_and_retry_is_exactly_once",
+        "tests/test_ticket_import_sr_source_acceptance.py::test_lld04_f018_older_recovery_preserves_committed_correction"
       ],
-      "observed_assertions": "Older recovery injects failure at audit emission after recovery-event insertion; the event/receipt/run transition roll back while checkpoint chronology remains unchanged. Same-command retry commits exactly one recovery event and never enqueues reappearance work.",
+      "observed_assertions": "Older recovery is exercised after a real accepted SR source-projection correction and immutable proposal disposition have already committed. After the post-correction recovery state is re-authorized, injected audit failure rolls back only finalization authority: the older run stays recovery_required, the newer source checkpoint remains unchanged, no recovery event/reappearance job/source-presence event is created, and the committed correction remains exactly once. Same-command retry appends exactly one recovery event while checkpoint chronology and ownership remain on the newer run; replay adds nothing.",
       "status": "candidate_pending_ci",
-      "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
+      "note": "Older-recovery proof was supplemented with committed-correction persistence and no-freshness-authority evidence on implementation candidate 17085bc56539743f676b639b0604637d0b223a4d; do not classify as supported until an exact-head CI containing this commit is green.",
       "certification_status": "candidate_pending_ci"
     },
     {
