@@ -1271,3 +1271,64 @@ def test_t013_in_progress_attempt_blocks_overlapping_not_started_lineage_sibling
             (first.task_id, second.task_id),
         ).fetchone()[0] == 0
 
+def test_plan_lock_does_not_block_grouping_but_membership_lock_does(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_890_000_000
+    plan_locked = _task(factory, "Plan locked grouping", start, start + 3_600)
+    membership_locked = _task(
+        factory,
+        "Membership locked grouping",
+        start + 10_000,
+        start + 13_600,
+    )
+
+    plan_lock = TaskExplicitLockService(factory).set_explicit_task_lock(
+        command_id=new_uuid4(),
+        task_id=plan_locked.task_id,
+        task_revision=plan_locked.revision,
+        lock_projection_revision=0,
+        lock_kind="plan",
+        action="lock",
+        reason_category="protect_plan_only",
+    )
+    membership_lock = TaskExplicitLockService(factory).set_explicit_task_lock(
+        command_id=new_uuid4(),
+        task_id=membership_locked.task_id,
+        task_revision=membership_locked.revision,
+        lock_projection_revision=0,
+        lock_kind="membership",
+        action="lock",
+        reason_category="protect_membership",
+    )
+    assert plan_lock.outcome == "APPLIED"
+    assert membership_lock.outcome == "APPLIED"
+
+    query = ObjectiveGroupingQueryService(factory)
+    plan_eligibility = query.grouping_eligibility(
+        plan_locked.task_id,
+        as_of_utc=start - 1,
+    )
+    membership_eligibility = query.grouping_eligibility(
+        membership_locked.task_id,
+        as_of_utc=start - 1,
+    )
+    assert plan_eligibility["classification"] == "ordinary_future"
+    assert plan_eligibility["eligible"] is True
+    assert membership_eligibility["classification"] == "started_or_protected"
+    assert membership_eligibility["eligible"] is False
+
+    with ReadSnapshot(factory) as snapshot:
+        assert GroupingService._eligible_workset_count(snapshot.connection) == 1
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"]["exact_total"] == 1
+    item = page["proposals"]["items"][0]
+    detail = query.proposal_detail(str(item["proposal_id"]))
+    assert detail["task_change_exact_count"] == 1
+    assert detail["task_changes"]["items"][0]["task_id"] == plan_locked.task_id
+
