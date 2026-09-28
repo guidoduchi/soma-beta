@@ -6,7 +6,7 @@
   "audited_implementation_sha": "a6b52124c5e991509dcb8f6aba7caf332526daaa",
   "remediation_head_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
   "disposition": {
-    "audit_findings": "Pre-LLD-08 remediation workstreams R01-R05 are substantively complete. A01-A14 repairs remain preserved; LLD-01 through LLD-07 all have inspectable semantic ledgers; LLD-04 is certified 92/92 and LLD-05 is semantically bound 91/91. CI #946 is the supported implementation closure checkpoint and is fully green on Ubuntu Python 3.14 plus Windows Python 3.13/3.14, including release-schema and wheel/resource gates.",
+    "audit_findings": "Pre-LLD-08 remediation workstreams R01-R05 are complete. A01-A14 repairs remain preserved. LLD-01 through LLD-07 all have inspectable semantic ledgers; LLD-04 is certified 92/92 and LLD-05 is certified 91/91. LLD-01 and LLD-07 are recertified on supported CI; all 32 fully LLD-02-owned reviewed cases are supported. CI #946 is the complete production/runtime closure checkpoint.",
     "certification_scope": "The implementation closure checkpoint is 690c1e7e9a3976553b39c47e7ada3b18a1148269 against accepted design 46c836ca949cebcf52ff05be4eb4799e0c74eed1 / Spec Integrity #936. CI #946 is fully green: Ubuntu 1466 passed/2 skipped; Windows 3.13 and 3.14 each 1468 passed; release schema manifest verified 920 authoritative objects; Windows wheel/resources verified. Later descendants through the current branch head are recertification/documentation-only and do not change production runtime behavior. LLD-08 Site and LLD-12 final security composition remain future-owned and are not claimed complete.",
     "lld08_started": true,
     "lld08_authority_status": "An isolated feat/lld-08-infrastructure branch exists, but it is not part of the active pre-LLD-08 remediation authority and must not be promoted into the certified baseline until closure completes."
@@ -403,16 +403,16 @@
       {
         "id": "R05",
         "status": "complete_supported_ci_946",
-        "scope": "Semantic traceability closure is complete for LLD-01 through LLD-07. LLD-04 is certified across 92/92 normative cases; LLD-05 binds 91/91 normative acceptance/failure cases with no open semantic subclauses; remaining LLD-02 partial/deferred clauses are explicitly owned by future generated-artifact consumers, LLD-08 Site, or LLD-12 security rather than unresolved current-packet behavior. CI #946 certifies the complete production/runtime checkpoint."
+        "scope": "Semantic traceability closure is complete for LLD-01 through LLD-07. LLD-04 is certified across 92/92 normative cases and LLD-05 is certified across 91/91 normative cases. LLD-01 is recertified on supported CI, LLD-07 is recertified on supported CI, and all 32 fully LLD-02-owned reviewed cases are supported; LLD-02's remaining six cross-packet clauses plus one LLD-08-owned Site clause remain explicit future-owner boundaries, not unresolved current-owner defects."
       }
     ],
     "candidate_design_sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
     "candidate_implementation_sha": "690c1e7e9a3976553b39c47e7ada3b18a1148269",
-    "validation": "All five remediation workstreams are complete at the implementation closure checkpoint. Design 46c836ca is green in Spec Integrity #936. Implementation 690c1e7e is fully green in CI #946 across Ubuntu Python 3.14 and Windows Python 3.13/3.14 with release-schema and packaged-resource gates. Post-checkpoint changes are documentation/recertification-only.",
+    "validation": "All five remediation workstreams are complete. Design 46c836ca is green in Spec Integrity #936. Production/runtime checkpoint 690c1e7e is fully green in CI #946 across Ubuntu Python 3.14 and Windows Python 3.13/3.14 with release-schema and packaged-resource gates. LLD-04 final proof ledger is certified; LLD-05 exact semantic ledger is certified by CI #943. Later branch commits only recertify/document closure metadata.",
     "overall_status": "pre_lld08_implementation_closure_complete"
   },
   "pre_lld08_closure": {
-    "status": "IMPLEMENTATION_COMPLETE",
+    "status": "IMPLEMENTATION_AND_SEMANTIC_CLOSURE_COMPLETE",
     "design_sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
     "design_gate": {
       "workflow": "LLD Spec Integrity",
@@ -444,6 +444,15 @@
       "future generated-artifact consumer snapshots"
     ],
     "lld08_started": false,
-    "note": "Current branch head before this ledger update was 8bd7dee5807908aef6a40432cb2c5d9d4bcc8889; changes after implementation checkpoint 690c1e7e are documentation/recertification-only."
+    "note": "Current branch head before this ledger update was 8bd7dee5807908aef6a40432cb2c5d9d4bcc8889; changes after implementation checkpoint 690c1e7e are documentation/recertification-only.",
+    "semantic_certification": {
+      "LLD-01": "owned packet scenarios recertified; LLD-12 security seam explicitly excluded",
+      "LLD-02": "32 fully owned reviewed cases supported; 6 cross-packet + 1 LLD-08-owned clause explicitly future/deferred",
+      "LLD-03": "semantic ledger complete and prior packet certification preserved",
+      "LLD-04": "92/92 certified; final eight race/crash proofs supported by CI #908",
+      "LLD-05": "91/91 certified; exact semantic ledger supported by CI #943",
+      "LLD-06": "semantic ledger complete and supported",
+      "LLD-07": "68/68 current packet cases recertified; strengthened T007/T068 supported"
+    }
   }
 }
