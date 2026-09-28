@@ -1512,5 +1512,5 @@ def test_plan_lock_does_not_block_grouping_but_membership_lock_does(
     item = page["proposals"]["items"][0]
     detail = query.proposal_detail(str(item["proposal_id"]))
     assert detail["task_change_exact_count"] == 1
-    assert detail["task_changes"]["items"][0]["task_id"] == plan_locked.task_id
+    assert detail["task_changes"][0]["task_id"] == plan_locked.task_id
 
