@@ -327,7 +327,7 @@ class ObjectiveGroupingQueryService:
             elif row[15] == "complete":
                 classification = "historical_candidate"
                 eligible = False
-            elif int(row[11]) == 1 or int(row[12]) == 1 or row[13] == "in_progress":
+            elif int(row[12]) == 1 or row[13] == "in_progress":
                 classification = "started_or_protected"
                 eligible = False
             elif row[7] is not None and str(row[9]) != str(row[4]):
