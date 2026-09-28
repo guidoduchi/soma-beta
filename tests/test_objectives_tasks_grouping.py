@@ -10,6 +10,7 @@ from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
 from soma.objectives_tasks.queries.objectives import ObjectiveQueryService
 from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.task_execution import TaskExecutionService
+from soma.objectives_tasks.services.task_explicit_lock import TaskExplicitLockService
 from soma.reference.application.customer_service import CustomerReferenceService
 from soma.tickets.service_requests import ServiceRequestService
 from soma.tickets.sr_references import ServiceRequestReferenceService
@@ -791,3 +792,113 @@ def test_lld05_f007_consolidation_failure_after_all_memberships_rolls_back_origi
             "SELECT count(*) FROM command_receipts WHERE command_id=?",
             (command_id,),
         ).fetchone()[0] == 0
+
+def test_lld05_f008_overlapping_objective_after_proposal_blocks_acceptance(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    target = _task(factory, "F008 target", 2_882_000_000, 2_882_000_200)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert len(page["proposals"]["items"]) == 1
+    item = page["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    fingerprint = str(item["input_fingerprint"])
+
+    blocker = _task(factory, "F008 accepted overlap", 2_882_000_100, 2_882_000_300)
+    blocker_objective_id = _objective(factory, blocker.task_id)
+    command_id = new_uuid4()
+
+    with pytest.raises(SomaError) as raised:
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=fingerprint,
+        )
+    assert raised.value.code in {"GROUPING_PROPOSAL_STALE", "OBJECTIVE_OVERLAP"}
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,revision,input_fingerprint FROM regroup_proposals "
+            "WHERE regroup_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("pending", 1, fingerprint)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
+            (target.task_id,),
+        ).fetchone() is None
+        blocker_membership = snapshot.connection.execute(
+            "SELECT objective_id FROM objective_task_membership_current WHERE task_id=?",
+            (blocker.task_id,),
+        ).fetchone()
+        assert blocker_membership == (blocker_objective_id,)
+        assert snapshot.connection.execute(
+            "SELECT superseded_by_objective_id FROM objectives WHERE objective_id=?",
+            (blocker_objective_id,),
+        ).fetchone() == (None,)
+
+
+def test_lld05_f009_task_lock_drift_keeps_regroup_proposal_immutable(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    target = _task(factory, "F009 target", 2_883_000_000, 2_883_000_200)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert len(page["proposals"]["items"]) == 1
+    item = page["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    fingerprint = str(item["input_fingerprint"])
+
+    locked = TaskExplicitLockService(factory).set_explicit_task_lock(
+        command_id=new_uuid4(),
+        task_id=target.task_id,
+        task_revision=target.revision,
+        lock_projection_revision=0,
+        lock_kind="membership",
+        action="lock",
+        reason_category="f009_membership_lock_drift",
+    )
+    assert locked.outcome == "APPLIED"
+    command_id = new_uuid4()
+
+    with pytest.raises(SomaError) as raised:
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=fingerprint,
+        )
+    assert raised.value.code == "GROUPING_PROPOSAL_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,revision,input_fingerprint FROM regroup_proposals "
+            "WHERE regroup_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("pending", 1, fingerprint)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT explicit_plan_lock,explicit_membership_lock,revision "
+            "FROM task_lock_projection WHERE task_id=?",
+            (target.task_id,),
+        ).fetchone() == (0, 1, 1)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
+            (target.task_id,),
+        ).fetchone() is None
+
