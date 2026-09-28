@@ -1,0 +1,1800 @@
+{
+  "schema": "SOMA-PRE-LLD08-SEMANTIC-TRACEABILITY-V1",
+  "lld_id": "LLD-06",
+  "design_sha": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
+  "design_gate": {
+    "workflow": "LLD Spec Integrity",
+    "run_number": 931,
+    "run_id": 36340822569,
+    "conclusion": "success"
+  },
+  "ledger_parent_sha": "c9d16f8a817fca1d3b25735136b4f77cbcfedaa1",
+  "supported_code_checkpoint": {
+    "implementation_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
+    "workflow": "Beta implementation CI",
+    "run_number": 875,
+    "run_id": 36343766788,
+    "conclusion": "success",
+    "tested_design_pin": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
+    "ubuntu_python_3_14": "1404 passed, 2 skipped",
+    "windows_python_3_13": "1406 passed",
+    "windows_python_3_14": "1406 passed",
+    "release_schema_manifest": "success (920 authoritative objects)",
+    "wheel_and_packaged_authority_resources": "success on Windows 3.13 and 3.14"
+  },
+  "source_acceptance": [
+    "spec/lld/product-line-sla/tests/acceptance.json",
+    "spec/lld/product-line-sla/tests/failure-injection.json"
+  ],
+  "module_map": "spec/lld/product-line-sla/implementation/module-map.json",
+  "normative_traceability": "spec/lld/product-line-sla/tests/traceability.json",
+  "method": [
+    "All 39 acceptance and 33 failure-injection scenarios are enumerated from the exact accepted design authority.",
+    "Every case is bound to production owner paths and executable regressions after semantic inspection; direct ID markers are retrieval aids only.",
+    "The 11 acceptance scenarios lacking direct ID markers were manually inspected against concrete behavior rather than receiving redundant marker-only tests.",
+    "Cross-packet responsibility remains explicit; LLD-06 does not absorb Foundation transaction/job authority, Tickets Customer authority, Import source authority or Objective timezone authority."
+  ],
+  "certified": false,
+  "semantic_binding_complete": true,
+  "certification_rule": "Semantic binding is complete and cites code green at exact CI #875. Final packet/pre-LLD-08 certification remains false until remaining R04/R05/cross-packet obligations close and the final exact authority pair passes supported CI.",
+  "summary": {
+    "total_cases": 72,
+    "acceptance_cases": 39,
+    "failure_injection_cases": 33,
+    "unique_case_ids": 72,
+    "semantically_bound": 72,
+    "missing_executable_bindings": 0,
+    "code_supported_ci_875": 72,
+    "ledger_commit_ci": "pending"
+  },
+  "known_limits": [
+    "CI #875 proves the cited implementation checkpoint, not this later documentation-only ledger commit.",
+    "Production SQLCipher/provider composition is not proven by SQLite-backed test execution and remains later security/release composition scope.",
+    "Later-packet ReportSectionContributor implementations are outside LLD-06; LLD-06's read-only registry/validation/fail-closed consumer behavior is proven.",
+    "Marker/name presence is never treated as semantic certification."
+  ],
+  "cases": [
+    {
+      "id": "LLD06-T001",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T001",
+        "name": "product_line_reusable_across_customers",
+        "prove": [
+          "one Product Line identity used by CPLs in two Customer Contracts",
+          "each Contract owns its Customer",
+          "CPL/policies remain distinct"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/catalog.py",
+        "src/soma/product_line_sla/repositories/catalog.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_acceptance_catalog_classification.py::test_product_line_reuse_keeps_contract_and_cpl_authority_distinct_t001_t002"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves product_line_reusable_across_customers: one Product Line identity used by CPLs in two Customer Contracts; each Contract owns its Customer; CPL/policies remain distinct",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T002",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T002",
+        "name": "same_customer_same_product_multiple_contracts",
+        "prove": [
+          "two Contracts of one Customer may each use same Product Line",
+          "classifications target distinct CPL identities/policies"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/catalog.py",
+        "src/soma/product_line_sla/repositories/catalog.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_acceptance_catalog_classification.py::test_product_line_reuse_keeps_contract_and_cpl_authority_distinct_t001_t002"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves same_customer_same_product_multiple_contracts: two Contracts of one Customer may each use same Product Line; classifications target distinct CPL identities/policies",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T003",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T003",
+        "name": "cross_customer_classification_rejected",
+        "prove": [
+          "SR resolved Customer A",
+          "target CPL Contract belongs Customer B",
+          "preview incompatible and commit rejects"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_classification.py::test_cross_customer_preview_rejects_and_mapping_creation_revalidates_customer"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves cross_customer_classification_rejected: SR resolved Customer A; target CPL Contract belongs Customer B; preview incompatible and commit rejects",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T004",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T004",
+        "name": "discarded_product_has_zero_authority",
+        "prove": [
+          "Advanced Search Product text cannot select Product Line/CPL/mapping",
+          "classification remains unclassified absent trusted mapping/review"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_acceptance_catalog_classification.py::test_discarded_product_and_mapping_cardinality_have_exact_authority_t004_t005_t006"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves discarded_product_has_zero_authority: Advanced Search Product text cannot select Product Line/CPL/mapping; classification remains unclassified absent trusted mapping/review",
+      "cross_packet_responsibility": [
+        "LLD-03/04 own accepted SR source projection; discarded Product supplies no LLD-06 authority."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T005",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T005",
+        "name": "automatic_mapping_unique_only",
+        "prove": [
+          "resolved Customer + exact account code + one compatible active mapping auto-classifies",
+          "zero mapping remains unclassified",
+          "two mappings return ambiguous and no mutation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_acceptance_catalog_classification.py::test_discarded_product_and_mapping_cardinality_have_exact_authority_t004_t005_t006"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves automatic_mapping_unique_only: resolved Customer + exact account code + one compatible active mapping auto-classifies; zero mapping remains unclassified; two mappings return ambiguous and no mutation",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T006",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T006",
+        "name": "mapping_target_customer_revalidated",
+        "prove": [
+          "mapping created only when target CPL Contract belongs mapping Customer",
+          "later stale lifecycle/policy/customer mismatch blocks auto-classification"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_acceptance_catalog_classification.py::test_discarded_product_and_mapping_cardinality_have_exact_authority_t004_t005_t006"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves mapping_target_customer_revalidated: mapping created only when target CPL Contract belongs mapping Customer; later stale lifecycle/policy/customer mismatch blocks auto-classification",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T007",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T007",
+        "name": "reclassification_preserves_history",
+        "prove": [
+          "A->B CPL change appends event",
+          "current row points B",
+          "prior A event remains",
+          "completed report using A unchanged"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_acceptance_catalog_classification.py::test_reclassification_history_and_completed_report_survive_archive_t007_t009"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves reclassification_preserves_history: A->B CPL change appends event; current row points B; prior A event remains; completed report using A unchanged",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T008",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T008",
+        "name": "customer_correction_invalidates_only",
+        "prove": [
+          "current CPL becomes incompatible after governed SR Customer correction",
+          "same-UoW participant appends invalidate_customer/removes current classification",
+          "no replacement CPL guessed"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_classification.py::test_manual_classification_replay_no_change_and_customer_change_invalidation"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves customer_correction_invalidates_only: current CPL becomes incompatible after governed SR Customer correction; same-UoW participant appends invalidate_customer/removes current classification; no replacement CPL guessed",
+      "cross_packet_responsibility": [
+        "LLD-03 owns SR Customer correction and the outer UnitOfWork; LLD-06 participates without nested commit."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T009",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T009",
+        "name": "archived_policyless_cpl_ineligible",
+        "prove": [
+          "archived CPL rejected for new classification",
+          "active CPL without current policy rejected",
+          "historical classification/report remains readable"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_acceptance_catalog_classification.py::test_reclassification_history_and_completed_report_survive_archive_t007_t009"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves archived_policyless_cpl_ineligible: archived CPL rejected for new classification; active CPL without current policy rejected; historical classification/report remains readable",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T010",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T010",
+        "name": "default_it_template_exact",
+        "prove": [
+          "Critical 100%/7d",
+          "Major 85%/15d +100%/30d",
+          "Minor 85%/45d +100%/60d",
+          "Non-fault derives 85%/67.5d +100%/90d"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/policy_validation.py",
+        "src/soma/product_line_sla/services/policy.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_policy_validation.py::test_it_template_materializes_exact_base_and_derived_tiers"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves default_it_template_exact: Critical 100%/7d; Major 85%/15d +100%/30d; Minor 85%/45d +100%/60d; Non-fault derives 85%/67.5d +100%/90d",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T011",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T011",
+        "name": "default_nfv_template_exact",
+        "prove": [
+          "Critical 100%/3d",
+          "Major 100%/15d",
+          "Minor 100%/90d",
+          "Non-fault derives 100%/135d"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/policy_validation.py",
+        "src/soma/product_line_sla/services/policy.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_policy_validation.py::test_nfv_template_materializes_exact_thresholds"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves default_nfv_template_exact: Critical 100%/3d; Major 100%/15d; Minor 100%/90d; Non-fault derives 100%/135d",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T012",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T012",
+        "name": "custom_percentage_not_forced_85_100",
+        "prove": [
+          "valid custom percentage within supported precision accepted",
+          "one or more tiers per base severity allowed",
+          "no forced 85/100 pair"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/policy_validation.py",
+        "src/soma/product_line_sla/services/policy.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_policy_validation.py::test_explicit_policy_preserves_fractional_duration_exactly"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves custom_percentage_not_forced_85_100: valid custom percentage within supported precision accepted; one or more tiers per base severity allowed; no forced 85/100 pair",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T013",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T013",
+        "name": "non_fault_derivation_is_exact_rational",
+        "prove": [
+          "Minor odd-second rational threshold multiplied by exact 3/2 without rounding",
+          "percentage and tier structure preserved",
+          "derived tier points to Minor source"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/policy_validation.py",
+        "src/soma/product_line_sla/services/policy.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_policy_validation.py::test_explicit_policy_preserves_fractional_duration_exactly"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves non_fault_derivation_is_exact_rational: Minor odd-second rational threshold multiplied by exact 3/2 without rounding; percentage and tier structure preserved; derived tier points to Minor source",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T014",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T014",
+        "name": "policy_revision_live_retroactive",
+        "prove": [
+          "accepted new current policy recalculates active and terminal currently-classified SRs regardless Report Date",
+          "no per-SR rewrite needed",
+          "prior policy immutable"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_individual.py::test_policy_revision_recalculates_terminal_current_classification_t014"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves policy_revision_live_retroactive: accepted new current policy recalculates active and terminal currently-classified SRs regardless Report Date; no per-SR rewrite needed; prior policy immutable",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T015",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T015",
+        "name": "missing_report_date_uncalculable_not_unclassified",
+        "prove": [
+          "classified SR with no Report Date retains CPL",
+          "calculation_state missing_report_date",
+          "no synthetic elapsed/cohort month"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_individual.py::test_classified_missing_report_date_and_severity_are_explicit"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves missing_report_date_uncalculable_not_unclassified: classified SR with no Report Date retains CPL; calculation_state missing_report_date; no synthetic elapsed/cohort month",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T016",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T016",
+        "name": "active_endpoint_current_as_of",
+        "prove": [
+          "active SR endpoint equals explicit as_of canonical instant",
+          "import/file/current UI timestamps do not replace Report Date",
+          "repeat with same as_of deterministic"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_individual.py::test_repeated_explicit_as_of_is_bit_for_bit_deterministic_t016"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves active_endpoint_current_as_of: active SR endpoint equals explicit as_of canonical instant; import/file/current UI timestamps do not replace Report Date; repeat with same as_of deterministic",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T017",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T017",
+        "name": "first_resolved_closed_endpoint",
+        "prove": [
+          "first accepted effective Resolved endpoint used",
+          "later Closed does not extend duration",
+          "recording/import times ignored"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_individual.py::test_first_resolved_endpoint_wins_over_later_closed"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves first_resolved_closed_endpoint: first accepted effective Resolved endpoint used; later Closed does not extend duration; recording/import times ignored",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T018",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T018",
+        "name": "cancelled_excluded",
+        "prove": [
+          "Cancelled keeps classification/source history",
+          "individual state cancelled_excluded",
+          "not in cohort denominator"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_cohorts.py::test_cancelled_member_is_excluded_from_canonical_cohort_denominator_t018"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves cancelled_excluded: Cancelled keeps classification/source history; individual state cancelled_excluded; not in cohort denominator",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T019",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T019",
+        "name": "suspension_exact_source_only",
+        "prove": [
+          "accepted cumulative rational suspension subtracted exactly",
+          "no additional inferred time during Customer Agreed Suspend",
+          "planned end is warning input only"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_individual.py::test_suspension_is_source_only_and_elapsed_clamps_to_zero"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves suspension_exact_source_only: accepted cumulative rational suspension subtracted exactly; no additional inferred time during Customer Agreed Suspend; planned end is warning input only",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T020",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T020",
+        "name": "elapsed_clamped_zero",
+        "prove": [
+          "suspension greater than endpoint-report interval produces exact zero",
+          "never negative display or tier decision"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_individual.py::test_suspension_is_source_only_and_elapsed_clamps_to_zero"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves elapsed_clamped_zero: suspension greater than endpoint-report interval produces exact zero; never negative display or tier decision",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T021",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T021",
+        "name": "inclusive_duration_boundary",
+        "prove": [
+          "elapsed exactly equals tier rational maximum => met/within",
+          "one exact rational unit above => exceeded",
+          "no display rounding affects result"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_individual.py::test_active_elapsed_uses_as_of_and_inclusive_exact_boundary"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves inclusive_duration_boundary: elapsed exactly equals tier rational maximum => met/within; one exact rational unit above => exceeded; no display rounding affects result",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T022",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T022",
+        "name": "objective_timezone_isolation",
+        "prove": [
+          "change Objective timezone including Pacific/Galapagos",
+          "same Report Date month/cohort/SLA elapsed result",
+          "America/Guayaquil remains SLA authority"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_objective_timezone_isolation.py::test_objective_scheduling_timezone_never_enters_sla_authority_t022"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves objective_timezone_isolation: change Objective timezone including Pacific/Galapagos; same Report Date month/cohort/SLA elapsed result; America/Guayaquil remains SLA authority",
+      "cross_packet_responsibility": [
+        "LLD-05 Objective timezone is scheduling-only and cannot enter SLA chronology."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T023",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T023",
+        "name": "cohort_key_excludes_outcome",
+        "prove": [
+          "members with different individual states share same cohort key when month/Customer/Contract/CPL/severity/tier equal",
+          "state changes do not create new cohort identity"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "src/soma/product_line_sla/queries/cohorts.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_cohorts.py::test_cohort_key_excludes_individual_outcome_t023"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves cohort_key_excludes_outcome: members with different individual states share same cohort key when month/Customer/Contract/CPL/severity/tier equal; state changes do not create new cohort identity",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T024",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T024",
+        "name": "cohort_pending",
+        "prove": [
+          "open cohort with only active-within/potential members",
+          "lower below required and best possible meets",
+          "no impossible failures => pending"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "src/soma/product_line_sla/queries/cohorts.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_cohorts.py::test_open_cohort_with_only_potential_members_is_pending_t024"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves cohort_pending: open cohort with only active-within/potential members; lower below required and best possible meets; no impossible failures => pending",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T025",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T025",
+        "name": "cohort_at_risk",
+        "prove": [
+          "at least one terminal/active exceeded member",
+          "lower below required but best possible still meets",
+          "state at_risk"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "src/soma/product_line_sla/queries/cohorts.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_cohorts.py::test_exceeded_member_with_viable_best_possible_is_at_risk_t025"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves cohort_at_risk: at least one terminal/active exceeded member; lower below required but best possible still meets; state at_risk",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T026",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T026",
+        "name": "cohort_currently_met",
+        "prove": [
+          "terminal_met count alone guarantees configured percentage",
+          "remaining active members cannot drop requirement below threshold",
+          "state currently_met while nonfinal"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "src/soma/product_line_sla/queries/cohorts.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_cohorts.py::test_terminal_lower_bound_can_make_nonfinal_cohort_currently_met_t026"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves cohort_currently_met: terminal_met count alone guarantees configured percentage; remaining active members cannot drop requirement below threshold; state currently_met while nonfinal",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T027",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T027",
+        "name": "cohort_breached_best_possible",
+        "prove": [
+          "best_possible count below required percentage",
+          "state breached even before all members terminal",
+          "exact integer cross multiplication"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "src/soma/product_line_sla/queries/cohorts.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_cohorts.py::test_best_possible_failure_is_breached_before_month_closes_t027"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves cohort_breached_best_possible: best_possible count below required percentage; state breached even before all members terminal; exact integer cross multiplication",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T028",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T028",
+        "name": "final_met_requires_closed_and_no_active",
+        "prove": [
+          "calendar month closed + zero active + final percentage passes => final_met",
+          "current/open month never final",
+          "closed month with active member remains nonfinal"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "src/soma/product_line_sla/queries/cohorts.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_cohorts.py::test_final_met_requires_closed_month_and_zero_active_members_t028"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves final_met_requires_closed_and_no_active: calendar month closed + zero active + final percentage passes => final_met; current/open month never final; closed month with active member remains nonfinal",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T029",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T029",
+        "name": "daily_weekly_range_do_not_redefine_cohort",
+        "prove": [
+          "progress report includes canonical monthly cohort key/state as-of report instant",
+          "Daily/Weekly/range boundaries do not become contractual cohort boundaries"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "src/soma/product_line_sla/queries/cohorts.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_cohorts.py::test_daily_or_weekly_position_does_not_redefine_monthly_cohort_t029"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves daily_weekly_range_do_not_redefine_cohort: progress report includes canonical monthly cohort key/state as-of report instant; Daily/Weekly/range boundaries do not become contractual cohort boundaries",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T030",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T030",
+        "name": "report_one_consistent_snapshot",
+        "prove": [
+          "domain changes during materialization occur after stable read snapshot and do not mix into staged rows",
+          "all section/SLA rows share exact as_of/scope",
+          "subsequent report sees newer state"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_report_snapshot_consistency.py::test_report_materialization_uses_one_stable_domain_snapshot_t030",
+        "tests/test_product_line_sla_reporting.py::test_report_staging_seal_completion_replay_and_immutability_t030_t034_t039"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves report_one_consistent_snapshot: domain changes during materialization occur after stable read snapshot and do not mix into staged rows; all section/SLA rows share exact as_of/scope; subsequent report sees newer state",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T031",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T031",
+        "name": "report_minimization",
+        "prove": [
+          "only rendered/necessary display fields captured",
+          "no complete source rows",
+          "no communications bodies",
+          "no Working Notes",
+          "discarded Product absent"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting_acceptance.py::test_report_snapshot_is_minimized_and_excludes_unrelated_ticket_text_t031"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves report_minimization: only rendered/necessary display fields captured; no complete source rows; no communications bodies; no Working Notes; discarded Product absent",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T032",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T032",
+        "name": "report_verified_before_complete",
+        "prove": [
+          "sealed snapshot alone not completed",
+          "written but unverified XLSX not completed",
+          "successful reopen/shape/count/hash verification then atomic completed transition"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting_acceptance.py::test_written_but_unverified_xlsx_is_not_completed_t032",
+        "tests/test_product_line_sla_reporting.py::test_report_failure_cleans_all_staging_atomically_t032"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves report_verified_before_complete: sealed snapshot alone not completed; written but unverified XLSX not completed; successful reopen/shape/count/hash verification then atomic completed transition",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T033",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T033",
+        "name": "completed_report_immutable_after_policy_change",
+        "prove": [
+          "new policy changes live calculations/subsequent reports",
+          "completed member/cohort/policy refs/hash unchanged",
+          "no stale/cleanup flag"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_report_policy_immutability.py::test_completed_report_remains_immutable_after_policy_revision_t033"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves completed_report_immutable_after_policy_change: new policy changes live calculations/subsequent reports; completed member/cohort/policy refs/hash unchanged; no stale/cleanup flag",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T034",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T034",
+        "name": "failed_report_cleans_staging_only",
+        "prove": [
+          "artifact failure sets failed attempt",
+          "staged member/tier/cohort/section payload removed",
+          "bounded attempt/audit retained",
+          "operational data unchanged"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_report_staging_seal_completion_replay_and_immutability_t030_t034_t039"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves failed_report_cleans_staging_only: artifact failure sets failed attempt; staged member/tier/cohort/section payload removed; bounded attempt/audit retained; operational data unchanged",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T035",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T035",
+        "name": "report_section_registry_closed",
+        "prove": [
+          "registered versioned contributor payload accepted",
+          "unknown section/schema/version rejected",
+          "contributor cannot mutate domain",
+          "canonical ordering stable"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_report_sections.py::test_report_section_registry_accepts_only_registered_versioned_payloads_t035",
+        "tests/test_product_line_sla_report_sections.py::test_report_section_registry_requires_canonical_contributor_order_t035",
+        "tests/test_product_line_sla_report_sections.py::test_report_section_contributor_receives_read_only_snapshot_t035"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves report_section_registry_closed: registered versioned contributor payload accepted; unknown section/schema/version rejected; contributor cannot mutate domain; canonical ordering stable",
+      "cross_packet_responsibility": [
+        "Later packet ReportSectionContributors are read-only/versioned; LLD-06 owns validation and report assembly."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T036",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T036",
+        "name": "batch_classification_independent_results",
+        "prove": [
+          "preview partitions every target",
+          "eligible targets commit independently",
+          "stale/incompatible target reported",
+          "no silent skip or coercion"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/batch_classification.py",
+        "src/soma/product_line_sla/services/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_batch_classification.py::test_batch_classification_independent_results_t036_and_f029"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves batch_classification_independent_results: preview partitions every target; eligible targets commit independently; stale/incompatible target reported; no silent skip or coercion",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T037",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T037",
+        "name": "suspension_warning_separate_from_sla_state",
+        "prove": [
+          "future planned end under suspended status can raise ending-soon condition",
+          "cohort/individual tier result remains independently derived",
+          "expired/missing end raises inconsistency rather than inferred pause"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/warnings.py",
+        "src/soma/product_line_sla/algorithms/individual_sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_individual.py::test_suspension_warning_is_separate_from_sla_state_t037",
+        "tests/test_product_line_sla_individual.py::test_missing_suspension_planned_end_warns_without_inferred_pause_t037"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves suspension_warning_separate_from_sla_state: future planned end under suspended status can raise ending-soon condition; cohort/individual tier result remains independently derived; expired/missing end raises inconsistency rather than inferred pause",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T038",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T038",
+        "name": "no_report_cleanup_action",
+        "prove": [
+          "completed report exposes no finalize/minimize/archive/delete operational action",
+          "report age/status never grants deletion authority"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_orchestration.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/queries/reports.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting_acceptance.py::test_completed_reports_expose_no_cleanup_authority_t038"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves no_report_cleanup_action: completed report exposes no finalize/minimize/archive/delete operational action; report age/status never grants deletion authority",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-T039",
+      "category": "acceptance",
+      "normative_source": "spec/lld/product-line-sla/tests/acceptance.json",
+      "normative_claim": {
+        "id": "LLD06-T039",
+        "name": "report_cancel_revokes_job_and_staging_atomically",
+        "prove": [
+          "nonterminal report cancellation uses the exact linked SLA_REPORT_GENERATION_V1 job",
+          "Foundation job cancellation/claim revocation, report staging cleanup, cancelled state/revision and cancellation audit commit in one UnitOfWork",
+          "completed reports reject cancellation without changing durable job state",
+          "cancellation never deletes a final published artifact or operational evidence"
+        ]
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_orchestration.py",
+        "src/soma/product_line_sla/services/report_worker.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_report_cancel_revokes_running_job_and_cleans_staging_atomically_t039",
+        "tests/test_product_line_sla_xlsx_artifact.py::test_completed_report_rejects_cancellation_and_preserves_published_artifact_t039"
+      ],
+      "observed_assertions": "Semantically inspected evidence proves report_cancel_revokes_job_and_staging_atomically: nonterminal report cancellation uses the exact linked SLA_REPORT_GENERATION_V1 job; Foundation job cancellation/claim revocation, report staging cleanup, cancelled state/revision and cancellation audit commit in one UnitOfWork; completed reports reject cancellation without changing durable job state; cancellation never deletes a final published artifact or operational evidence",
+      "cross_packet_responsibility": [
+        "LLD-01 owns durable-job mechanics; LLD-06 owns report cancellation semantics and exact job linkage."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F001",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F001",
+        "cut": "after command receipt before Product Line/Contract/CPL insert",
+        "prove": "whole UnitOfWork rolls back; no orphan catalog/audit row"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/catalog.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f001_receipt_rolls_back_when_catalog_insert_fails"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves after command receipt before Product Line/Contract/CPL insert: whole UnitOfWork rolls back; no orphan catalog/audit row",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F002",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F002",
+        "cut": "during policy revision after revision row before all tiers/current pointer",
+        "prove": "revision/tiers/CPL pointer/audit roll back together; prior policy remains current"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/policy.py",
+        "src/soma/product_line_sla/repositories/policy.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f002_partial_policy_materialization_rolls_back_revision_tiers_pointer_and_receipt"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves during policy revision after revision row before all tiers/current pointer: revision/tiers/CPL pointer/audit roll back together; prior policy remains current",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F003",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F003",
+        "race": "CPL archived or current policy changes after classification preview",
+        "prove": "SLA_CLASSIFICATION_STALE/INCOMPATIBLE; no classification event/current change"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f003_policy_revision_after_preview_blocks_stale_classification"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves CPL archived or current policy changes after classification preview: SLA_CLASSIFICATION_STALE/INCOMPATIBLE; no classification event/current change",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F004",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F004",
+        "race": "SR resolved Customer changes after classification preview",
+        "prove": "cross-customer/stale classification blocked; no old-customer CPL attached"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f004_customer_change_after_preview_blocks_old_customer_cpl"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves SR resolved Customer changes after classification preview: cross-customer/stale classification blocked; no old-customer CPL attached",
+      "cross_packet_responsibility": [
+        "LLD-03 owns current Customer/correction caller authority; LLD-06 fails closed and participates in the same UoW."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F005",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F005",
+        "race": "second mapping added after automatic preview",
+        "prove": "automatic acceptance re-evaluates current mapping set, detects ambiguity and performs no mutation"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f005_second_mapping_after_preview_blocks_automatic_acceptance"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves second mapping added after automatic preview: automatic acceptance re-evaluates current mapping set, detects ambiguity and performs no mutation",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F006",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F006",
+        "cut": "classification event inserted before current pointer update",
+        "prove": "same UnitOfWork rollback leaves prior current classification intact"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f006_event_before_current_pointer_failure_rolls_back_classification"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves classification event inserted before current pointer update: same UnitOfWork rollback leaves prior current classification intact",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F007",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F007",
+        "cut": "SR Customer correction participant invalidates classification then caller domain mutation fails",
+        "prove": "classification invalidation rolls back with caller; no half-corrected cross-domain state"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/repositories/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f007_real_customer_invalidation_rolls_back_when_caller_audit_fails"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves SR Customer correction participant invalidates classification then caller domain mutation fails: classification invalidation rolls back with caller; no half-corrected cross-domain state",
+      "cross_packet_responsibility": [
+        "LLD-03 owns current Customer/correction caller authority; LLD-06 fails closed and participates in the same UoW."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F008",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F008",
+        "race": "policy revision accepted while live SLA read already holds stable snapshot",
+        "prove": "current read consistently uses old snapshot/current policy; next read consistently uses new policy; no mixed tiers"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f008_policy_change_does_not_mix_inside_existing_read_snapshot"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves policy revision accepted while live SLA read already holds stable snapshot: current read consistently uses old snapshot/current policy; next read consistently uses new policy; no mixed tiers",
+      "cross_packet_responsibility": [
+        "LLD-01 provides stable read-snapshot/WAL semantics; LLD-06 owns the SLA/report projection."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F009",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F009",
+        "input": "malformed percentage or unbounded rational duration",
+        "prove": "POLICY_VALIDATION_V1 rejects before authoritative mutation; no rounded substitute"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/policy_validation.py",
+        "src/soma/product_line_sla/services/policy.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_policy_validation.py::test_f009_policy_rejects_duration_above_exact_rational_bound"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves malformed percentage or unbounded rational duration: POLICY_VALIDATION_V1 rejects before authoritative mutation; no rounded substitute",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F010",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F010",
+        "input": "Non-fault derived multiplication would overflow configured rational bound",
+        "prove": "policy revision rejected atomically; no truncated/rounded derived tier"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/policy_validation.py",
+        "src/soma/product_line_sla/services/policy.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_policy_validation.py::test_f010_non_fault_exact_derivation_overflow_rejects_whole_policy"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves Non-fault derived multiplication would overflow configured rational bound: policy revision rejected atomically; no truncated/rounded derived tier",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F011",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F011",
+        "input": "Report Date missing/invalid",
+        "prove": "individual projection returns missing_report_date rather than exception or synthetic timestamp"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_individual.py::test_classified_missing_report_date_and_severity_are_explicit"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves Report Date missing/invalid: individual projection returns missing_report_date rather than exception or synthetic timestamp",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F012",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F012",
+        "input": "endpoint earlier than Report Date or accepted suspension exceeds interval",
+        "prove": "elapsed clamps exact zero and does not underflow"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f012_terminal_endpoint_before_report_date_clamps_elapsed_to_zero",
+        "tests/test_product_line_sla_individual.py::test_suspension_is_source_only_and_elapsed_clamps_to_zero"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves endpoint earlier than Report Date or accepted suspension exceeds interval: elapsed clamps exact zero and does not underflow",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F013",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F013",
+        "race": "terminal correction/reversal occurs during cohort calculation",
+        "prove": "stable snapshot yields one internally consistent result; later query sees changed input token/result"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f013_terminal_correction_is_isolated_by_cohort_read_snapshot"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves terminal correction/reversal occurs during cohort calculation: stable snapshot yields one internally consistent result; later query sees changed input token/result",
+      "cross_packet_responsibility": [
+        "LLD-01 provides stable read-snapshot/WAL semantics; LLD-06 owns the SLA/report projection."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F014",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F014",
+        "cut": "report attempt/job commit before snapshot worker starts",
+        "prove": "durable job resumes from staging attempt; no completed evidence fabricated"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/jobs/report_generation.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_f014_committed_staging_attempt_and_job_resume_when_worker_starts_later"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves report attempt/job commit before snapshot worker starts: durable job resumes from staging attempt; no completed evidence fabricated",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F015",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F015",
+        "cut": "mid report snapshot staging batches",
+        "prove": "rows remain technical staging; attempt not sealable until exact complete counts/hash; no completed report"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/jobs/report_generation.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_interrupted_snapshot_recovery_fails_and_cleans_owner_state"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves mid report snapshot staging batches: rows remain technical staging; attempt not sealable until exact complete counts/hash; no completed report",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F016",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F016",
+        "failure": "required ReportSectionContributor throws/returns incomplete",
+        "prove": "snapshot sealing blocked; attempt fails safely and staged payload is cleaned"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/jobs/report_generation.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_f016_contributor_failure_blocks_seal_and_recovery_fails_staging_safely"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves required ReportSectionContributor throws/returns incomplete: snapshot sealing blocked; attempt fails safely and staged payload is cleaned",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F017",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F017",
+        "race": "ordinary domain writes occur while report stable read snapshot remains open",
+        "prove": "writer commits independently under WAL; report snapshot remains old consistent accepted-state view; no mixed row versions"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_report_snapshot_consistency.py::test_report_materialization_uses_one_stable_domain_snapshot_t030"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves ordinary domain writes occur while report stable read snapshot remains open: writer commits independently under WAL; report snapshot remains old consistent accepted-state view; no mixed row versions",
+      "cross_packet_responsibility": [
+        "LLD-01 provides stable read-snapshot/WAL semantics; LLD-06 owns the SLA/report projection."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F018",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F018",
+        "cut": "after all staging rows before SealReportSnapshot",
+        "prove": "attempt remains staging; deterministic recount/hash may safely resume or fail/restart without completed authority"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/jobs/report_generation.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_report_staging_seal_completion_replay_and_immutability_t030_t034_t039"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves after all staging rows before SealReportSnapshot: attempt remains staging; deterministic recount/hash may safely resume or fail/restart without completed authority",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F019",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F019",
+        "corruption": "staged child count/hash differs during seal",
+        "prove": "SLA_REPORT_SNAPSHOT_MISMATCH; attempt not ready_to_generate/completed"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/jobs/report_generation.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_f019_seal_count_mismatch_leaves_attempt_staging_and_unreceipted"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves staged child count/hash differs during seal: SLA_REPORT_SNAPSHOT_MISMATCH; attempt not ready_to_generate/completed",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F020",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F020",
+        "cut": "after sealed snapshot before XLSX write",
+        "prove": "restart regenerates from sealed snapshot only; no live requery and no completed evidence yet"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/jobs/report_generation.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py",
+        "src/soma/product_line_sla/services/report_worker.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_xlsx_artifact.py::test_f020_recovery_from_exact_sealed_checkpoint_regenerates_without_live_requery"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves after sealed snapshot before XLSX write: restart regenerates from sealed snapshot only; no live requery and no completed evidence yet",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F021",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F021",
+        "cut": "partial XLSX write",
+        "prove": "artifact candidate not verified/completed; report can fail or regenerate from same sealed snapshot; operational state unchanged"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/jobs/report_generation.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py",
+        "src/soma/product_line_sla/services/report_worker.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_xlsx_artifact.py::test_f021_partial_candidate_is_never_verified_and_can_regenerate_from_sealed_snapshot"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves partial XLSX write: artifact candidate not verified/completed; report can fail or regenerate from same sealed snapshot; operational state unchanged",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F022",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F022",
+        "corruption": "XLSX reopens but sheet/row/snapshot identifier differs",
+        "prove": "verification fails and completed transition prohibited"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/jobs/report_generation.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py",
+        "src/soma/product_line_sla/services/report_worker.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_xlsx_artifact.py::test_f022_reopenable_workbook_with_wrong_shape_cannot_verify_or_complete"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves XLSX reopens but sheet/row/snapshot identifier differs: verification fails and completed transition prohibited",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F023",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F023",
+        "cut": "after artifact verified before CompleteSlaReport commit",
+        "prove": "attempt remains verifying; retry completion is idempotent against exact snapshot/artifact hash"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/jobs/report_generation.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py",
+        "src/soma/product_line_sla/services/report_worker.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting_acceptance.py::test_written_but_unverified_xlsx_is_not_completed_t032",
+        "tests/test_product_line_sla_reporting.py::test_report_staging_seal_completion_replay_and_immutability_t030_t034_t039"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves after artifact verified before CompleteSlaReport commit: attempt remains verifying; retry completion is idempotent against exact snapshot/artifact hash",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F024",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F024",
+        "cut": "during completed transition after state update before audit",
+        "prove": "state/artifact evidence/audit roll back together; no completed report without required audit"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_f024_completion_audit_failure_rolls_back_completed_state_and_receipt"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves during completed transition after state update before audit: state/artifact evidence/audit roll back together; no completed report without required audit",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F025",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F025",
+        "cut": "failure cleanup while deleting staged children",
+        "prove": "receipt, FK-safe full staging-child deletion, cleared snapshot/artifact metadata, failed state/revision and failure audit share one UnitOfWork; rollback cannot leave a failed attempt with a partial staged population"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py",
+        "src/soma/product_line_sla/repositories/reports.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_f025_partial_failure_cleanup_rolls_back_every_delete_and_terminalization"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves failure cleanup while deleting staged children: receipt, FK-safe full staging-child deletion, cleared snapshot/artifact metadata, failed state/revision and failure audit share one UnitOfWork; rollback cannot leave a failed attempt with a partial staged population",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F026",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F026",
+        "race": "CancelSlaReportAttempt competes with artifact publication/CompleteSlaReport",
+        "prove": "authoritative SQLite serialization yields one winner: if CompleteSlaReport commits first cancellation observes immutable completed and leaves the durable job unchanged; if cancellation commits first it atomically revokes the exact Foundation job claim and makes the report cancelled, so later CompleteSlaReport fails even if already-started file publication physically finishes; such bytes remain external non-authoritative housekeeping and are never auto-deleted as a final artifact"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_orchestration.py",
+        "src/soma/product_line_sla/services/report_worker.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_xlsx_artifact.py::test_f026_cancellation_wins_before_complete_and_published_bytes_stay_non_authoritative",
+        "tests/test_product_line_sla_xlsx_artifact.py::test_completed_report_rejects_cancellation_and_preserves_published_artifact_t039"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves CancelSlaReportAttempt competes with artifact publication/CompleteSlaReport: authoritative SQLite serialization yields one winner: if CompleteSlaReport commits first cancellation observes immutable completed and leaves the durable job unchanged; if cancellation commits first it atomically revokes the exact Foundation job claim and makes the report cancelled, so later CompleteSlaReport fails even if already-started file publication physically finishes; such bytes remain external non-authoritative housekeeping and are never auto-deleted as a final artifact",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F027",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F027",
+        "attempt": "update/delete completed report snapshot rows",
+        "prove": "application repository/command boundary rejects; completed evidence remains immutable"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting_acceptance.py::test_completed_reports_expose_no_cleanup_authority_t038"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves update/delete completed report snapshot rows: application repository/command boundary rejects; completed evidence remains immutable",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F028",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F028",
+        "attempt": "external XLSX moved/deleted after completion",
+        "prove": "completed database evidence remains valid/unchanged; missing artifact becomes presentation/availability fact only"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/repositories/reports.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_xlsx_artifact.py::test_f028_missing_external_artifact_does_not_mutate_completed_database_evidence"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves external XLSX moved/deleted after completion: completed database evidence remains valid/unchanged; missing artifact becomes presentation/availability fact only",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F029",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F029",
+        "batch": "one classification target fails after earlier independent target commits",
+        "prove": "earlier target remains committed, failed target reports exact failure, later targets continue according to batch contract; no silent skip"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/batch_classification.py",
+        "src/soma/product_line_sla/services/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_batch_classification.py::test_batch_classification_independent_results_t036_and_f029"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves one classification target fails after earlier independent target commits: earlier target remains committed, failed target reports exact failure, later targets continue according to batch contract; no silent skip",
+      "cross_packet_responsibility": [],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F030",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F030",
+        "indeterminate": "SR Customer/source input reader cannot determine required current authority during mutation",
+        "prove": "SLA_INPUT_INDETERMINATE/SLA_DEPENDENCY_INDETERMINATE fails closed; no guessed classification/policy mutation"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/classification.py",
+        "src/soma/product_line_sla/queries/classification.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_failure_injection_core.py::test_f030_indeterminate_source_and_dependency_fail_closed_before_mutation"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves SR Customer/source input reader cannot determine required current authority during mutation: SLA_INPUT_INDETERMINATE/SLA_DEPENDENCY_INDETERMINATE fails closed; no guessed classification/policy mutation",
+      "cross_packet_responsibility": [
+        "LLD-03/04 provide current Customer and accepted source inputs; indeterminate dependencies fail closed."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F031",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F031",
+        "cut": "after FailSlaReportAttempt commits before worker receives the result or completes temporary-candidate housekeeping",
+        "prove": "retry with the same command_id/request_hash resolves the committed receipt before terminal-state guards and returns the original failed ReportAttemptV1; no second staging deletion, revision, audit or authority mutation occurs and any missed temporary-file cleanup remains diagnostic housekeeping only"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_worker.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_report_failure_cleans_all_staging_atomically_t032"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves after FailSlaReportAttempt commits before worker receives the result or completes temporary-candidate housekeeping: retry with the same command_id/request_hash resolves the committed receipt before terminal-state guards and returns the original failed ReportAttemptV1; no second staging deletion, revision, audit or authority mutation occurs and any missed temporary-file cleanup remains diagnostic housekeeping only",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F032",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F032",
+        "cut": "after CancelSlaReportAttempt commits before browser response or temporary-candidate housekeeping",
+        "prove": "retry with the same command_id/request_hash resolves the committed receipt before cancelled-state/job guards and returns the original cancelled ReportAttemptV1; Foundation job remains cancelled with no second job-attempt row, no second staging deletion/revision/audit occurs, and missed temp cleanup remains non-authoritative housekeeping"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/services/report_orchestration.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_reporting.py::test_report_cancel_revokes_running_job_and_cleans_staging_atomically_t039"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves after CancelSlaReportAttempt commits before browser response or temporary-candidate housekeeping: retry with the same command_id/request_hash resolves the committed receipt before cancelled-state/job guards and returns the original cancelled ReportAttemptV1; Foundation job remains cancelled with no second job-attempt row, no second staging deletion/revision/audit occurs, and missed temp cleanup remains non-authoritative housekeeping",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    },
+    {
+      "id": "LLD06-F033",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/product-line-sla/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD06-F033",
+        "corruption": "attempt is already verifying but its exact persisted sibling temporary candidate is missing or fails reopen/profile/hash validation after restart",
+        "prove": "recovery removes only the proven attempt-owned temp if present, regenerates solely from the same sealed report_attempt_id/snapshot_hash into the exact same persisted candidate_filename, does not allocate a second candidate identity or rerun MarkReportVerifying, leaves attempt revision unchanged during byte reconstruction, then re-verifies before any publication/completion authority"
+      },
+      "production_owners": [
+        "src/soma/product_line_sla/jobs/report_generation.py",
+        "src/soma/product_line_sla/artifacts/xlsx_report.py",
+        "src/soma/product_line_sla/services/report_worker.py"
+      ],
+      "executable_tests": [
+        "tests/test_product_line_sla_xlsx_artifact.py::test_f033_recovered_exact_candidate_reconstruction_keeps_verifying_authority_unchanged"
+      ],
+      "observed_assertions": "Semantically inspected failure evidence proves attempt is already verifying but its exact persisted sibling temporary candidate is missing or fails reopen/profile/hash validation after restart: recovery removes only the proven attempt-owned temp if present, regenerates solely from the same sealed report_attempt_id/snapshot_hash into the exact same persisted candidate_filename, does not allocate a second candidate identity or rerun MarkReportVerifying, leaves attempt revision unchanged during byte reconstruction, then re-verifies before any publication/completion authority",
+      "cross_packet_responsibility": [
+        "LLD-01 provides durable-job/replay/outer-UoW primitives; LLD-06 owns report-domain transitions/evidence."
+      ],
+      "status": "reviewed_code_supported_ci_875",
+      "certification_status": "semantic_binding_complete_code_supported_ci_875"
+    }
+  ]
+}

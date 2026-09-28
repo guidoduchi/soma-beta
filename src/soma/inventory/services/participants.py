@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from typing import Any, Iterator
 
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
@@ -9,6 +10,8 @@ from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import (
     ObjectContract,
     canonical_json_bytes,
+    canonical_json_bytes_bounded,
+    loads_canonical_json,
     sha256_canonical_json,
 )
 from soma.inventory.audit_registry import build_inventory_audit_registry
@@ -263,104 +266,263 @@ class RfcInventoryDependencyProvider:
 
 class InventoryReferenceDependencyValidator:
     validator_id = "inventory"
+    _CURSOR_PREFIX = "SOMA_INVENTORY_DEPENDENCY_CURSOR_V1."
+    _CURSOR_MAX_BYTES = 2048
 
     @staticmethod
-    def _blockers(connection: Any, target: ReferenceTarget) -> tuple[DependencyBlocker, ...]:
-        target_id = target.target_id
-        blockers: list[DependencyBlocker] = []
-        if target.target_type == "contact":
-            rows = connection.execute(
-                "SELECT r.spare_request_id FROM spare_requests r "
-                "JOIN spare_request_current_projection p ON p.spare_request_id=r.spare_request_id "
-                "WHERE r.requester_contact_id=? "
-                "AND p.lifecycle_state NOT IN ('cancelled','rejected') "
-                "ORDER BY r.spare_request_id",
-                (target_id,),
-            ).fetchall()
-            blockers.extend(
-                DependencyBlocker(str(row[0]), "active_spare_request_requester")
-                for row in rows
-            )
-            rows = connection.execute(
-                "SELECT l.spare_request_id FROM spare_request_draft_logistics l "
-                "JOIN spare_request_current_projection p ON p.spare_request_id=l.spare_request_id "
-                "WHERE l.receiver_contact_id=? AND p.lifecycle_state='draft' "
-                "ORDER BY l.spare_request_id",
-                (target_id,),
-            ).fetchall()
-            blockers.extend(
-                DependencyBlocker(str(row[0]), "active_spare_request_receiver")
-                for row in rows
-            )
-            rows = connection.execute(
-                "SELECT t.fault_tag_id FROM fault_tags t "
-                "JOIN fault_tag_current_projection p ON p.fault_tag_id=t.fault_tag_id "
-                "WHERE t.draft_pickup_contact_id=? AND p.state='draft' "
-                "ORDER BY t.fault_tag_id",
-                (target_id,),
-            ).fetchall()
-            blockers.extend(
-                DependencyBlocker(str(row[0]), "active_fault_tag_pickup_contact")
-                for row in rows
-            )
-        elif target.target_type == "dispatch_location":
-            rows = connection.execute(
-                "SELECT l.spare_request_id FROM spare_request_draft_logistics l "
-                "JOIN spare_request_current_projection p ON p.spare_request_id=l.spare_request_id "
-                "WHERE l.dispatch_location_id=? AND p.lifecycle_state='draft' "
-                "ORDER BY l.spare_request_id",
-                (target_id,),
-            ).fetchall()
-            blockers.extend(
-                DependencyBlocker(str(row[0]), "active_spare_request_dispatch_location")
-                for row in rows
-            )
-            rows = connection.execute(
-                "SELECT t.fault_tag_id FROM fault_tags t "
-                "JOIN fault_tag_current_projection p ON p.fault_tag_id=t.fault_tag_id "
-                "WHERE t.draft_pickup_dispatch_location_id=? AND p.state='draft' "
-                "ORDER BY t.fault_tag_id",
-                (target_id,),
-            ).fetchall()
-            blockers.extend(
-                DependencyBlocker(str(row[0]), "active_fault_tag_pickup_origin")
-                for row in rows
-            )
-        elif target.target_type == "customer_organization":
-            # Inventory customer scope is derived through LLD-03 Service Request authority;
-            # there is no direct mutable Inventory-owned Customer relationship.
-            pass
-        else:
-            raise ValidationError("reference target_type is outside Inventory dependency scope")
-        deduped = {
-            (item.blocker_id, item.reason_code): item
-            for item in blockers
+    def _blocker_key(blocker: DependencyBlocker) -> tuple[str, str]:
+        return blocker.blocker_id, blocker.reason_code
+
+    @classmethod
+    def _encode_cursor(
+        cls,
+        target: ReferenceTarget,
+        blocker: DependencyBlocker,
+    ) -> str:
+        payload = {
+            "schema": "SOMA_INVENTORY_DEPENDENCY_CURSOR_V1",
+            "target_type": target.target_type,
+            "target_id": target.target_id,
+            "blocker_id": blocker.blocker_id,
+            "reason_code": blocker.reason_code,
         }
-        return tuple(
-            deduped[key]
-            for key in sorted(deduped)
+        raw = canonical_json_bytes_bounded(
+            payload,
+            max_bytes=cls._CURSOR_MAX_BYTES,
+            max_depth=2,
+            max_collection_items=8,
         )
+        token = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+        return cls._CURSOR_PREFIX + token
+
+    @classmethod
+    def _decode_cursor(
+        cls,
+        target: ReferenceTarget,
+        cursor: str,
+    ) -> tuple[str, str]:
+        try:
+            if not cursor.startswith(cls._CURSOR_PREFIX):
+                raise ValueError("wrong cursor version")
+            token = cursor[len(cls._CURSOR_PREFIX) :]
+            if not token or len(token) > cls._CURSOR_MAX_BYTES * 2:
+                raise ValueError("cursor length is invalid")
+            encoded = token.encode("ascii")
+            encoded += b"=" * ((4 - len(encoded) % 4) % 4)
+            raw = base64.b64decode(encoded, altchars=b"-_", validate=True)
+            if len(raw) > cls._CURSOR_MAX_BYTES:
+                raise ValueError("cursor payload is oversized")
+            payload = loads_canonical_json(
+                raw.decode("utf-8", errors="strict"),
+                max_bytes=cls._CURSOR_MAX_BYTES,
+                max_depth=2,
+                max_collection_items=8,
+            )
+            if not isinstance(payload, dict) or set(payload) != {
+                "schema",
+                "target_type",
+                "target_id",
+                "blocker_id",
+                "reason_code",
+            }:
+                raise ValueError("cursor payload shape is invalid")
+            if payload["schema"] != "SOMA_INVENTORY_DEPENDENCY_CURSOR_V1":
+                raise ValueError("cursor schema is invalid")
+            if (
+                payload["target_type"] != target.target_type
+                or payload["target_id"] != target.target_id
+            ):
+                raise ValueError("cursor target does not match")
+            blocker_id = payload["blocker_id"]
+            reason_code = payload["reason_code"]
+            if (
+                not isinstance(blocker_id, str)
+                or not blocker_id
+                or not isinstance(reason_code, str)
+                or not reason_code
+            ):
+                raise ValueError("cursor ordering key is invalid")
+            return blocker_id, reason_code
+        except Exception as exc:
+            raise ValidationError("Inventory dependency cursor is invalid") from exc
+
+    @staticmethod
+    def _source_queries(
+        target: ReferenceTarget,
+    ) -> tuple[tuple[str, tuple[object, ...]], ...]:
+        target_id = target.target_id
+        if target.target_type == "contact":
+            return (
+                (
+                    "SELECT r.spare_request_id AS blocker_id,"
+                    "'active_spare_request_requester' AS reason_code "
+                    "FROM spare_requests r "
+                    "JOIN spare_request_current_projection p "
+                    "ON p.spare_request_id=r.spare_request_id "
+                    "WHERE r.requester_contact_id=? "
+                    "AND p.lifecycle_state NOT IN ('cancelled','rejected')",
+                    (target_id,),
+                ),
+                (
+                    "SELECT l.spare_request_id AS blocker_id,"
+                    "'active_spare_request_receiver' AS reason_code "
+                    "FROM spare_request_draft_logistics l "
+                    "JOIN spare_request_current_projection p "
+                    "ON p.spare_request_id=l.spare_request_id "
+                    "WHERE l.receiver_contact_id=? AND p.lifecycle_state='draft'",
+                    (target_id,),
+                ),
+                (
+                    "SELECT t.fault_tag_id AS blocker_id,"
+                    "'active_fault_tag_pickup_contact' AS reason_code "
+                    "FROM fault_tags t "
+                    "JOIN fault_tag_current_projection p "
+                    "ON p.fault_tag_id=t.fault_tag_id "
+                    "WHERE t.draft_pickup_contact_id=? AND p.state='draft'",
+                    (target_id,),
+                ),
+            )
+        if target.target_type == "dispatch_location":
+            return (
+                (
+                    "SELECT l.spare_request_id AS blocker_id,"
+                    "'active_spare_request_dispatch_location' AS reason_code "
+                    "FROM spare_request_draft_logistics l "
+                    "JOIN spare_request_current_projection p "
+                    "ON p.spare_request_id=l.spare_request_id "
+                    "WHERE l.dispatch_location_id=? AND p.lifecycle_state='draft'",
+                    (target_id,),
+                ),
+                (
+                    "SELECT t.fault_tag_id AS blocker_id,"
+                    "'active_fault_tag_pickup_origin' AS reason_code "
+                    "FROM fault_tags t "
+                    "JOIN fault_tag_current_projection p "
+                    "ON p.fault_tag_id=t.fault_tag_id "
+                    "WHERE t.draft_pickup_dispatch_location_id=? AND p.state='draft'",
+                    (target_id,),
+                ),
+            )
+        if target.target_type == "customer_organization":
+            # Inventory customer scope is derived through LLD-03 Service Request
+            # authority. The empty source still proves the provider/schema query
+            # path is available when guards are used only as an availability probe.
+            return (
+                (
+                    "SELECT CAST(NULL AS TEXT) AS blocker_id,"
+                    "CAST(NULL AS TEXT) AS reason_code WHERE 0",
+                    (),
+                ),
+            )
+        raise ValidationError(
+            "reference target_type is outside Inventory dependency scope"
+        )
+
+    @classmethod
+    def _source_query(
+        cls,
+        target: ReferenceTarget,
+    ) -> tuple[str, tuple[object, ...]]:
+        sources = cls._source_queries(target)
+        # Blocker identity + reason is unique inside each source and reason codes
+        # differ across sources, so UNION ALL preserves exact blocker semantics
+        # without paying UNION's duplicate-elimination sort.
+        return (
+            " UNION ALL ".join(sql for sql, _params in sources),
+            tuple(value for _sql, params in sources for value in params),
+        )
+
+    @classmethod
+    def _first_blocker(
+        cls,
+        connection: Any,
+        target: ReferenceTarget,
+    ) -> DependencyBlocker | None:
+        # A write-path guard needs existence, not the globally smallest blocker.
+        # Probe each owner source independently so indexed target predicates can
+        # stop at the first match instead of materializing/sorting a compound UNION.
+        # Source order is fixed only to make the reported blocking reason stable.
+        for source, params in cls._source_queries(target):
+            row = connection.execute(source + " LIMIT 1", params).fetchone()
+            if row is not None:
+                return DependencyBlocker(str(row[0]), str(row[1]))
+        return None
+
+    @classmethod
+    def _count_blockers(cls, connection: Any, target: ReferenceTarget) -> int:
+        source, params = cls._source_query(target)
+        row = connection.execute(
+            "SELECT COUNT(*) FROM (" + source + ") blockers",
+            params,
+        ).fetchone()
+        if row is None:
+            raise IntegrityFailure("Inventory dependency count returned no row")
+        count = int(row[0])
+        if count < 0:
+            raise IntegrityFailure("Inventory dependency count is invalid")
+        return count
+
+    @classmethod
+    def _page_blockers(
+        cls,
+        connection: Any,
+        target: ReferenceTarget,
+        cursor: str | None,
+        limit: int,
+    ) -> DependencyPage:
+        if type(limit) is not int or limit < 1 or limit > 200:
+            raise ValidationError("Inventory dependency page limit must be in 1..200")
+        source, params = cls._source_query(target)
+        where = ""
+        query_params: tuple[object, ...] = params
+        if cursor is not None:
+            blocker_id, reason_code = cls._decode_cursor(target, cursor)
+            where = (
+                " WHERE blocker_id>? OR "
+                "(blocker_id=? AND reason_code>?)"
+            )
+            query_params = (*params, blocker_id, blocker_id, reason_code)
+        rows = connection.execute(
+            "SELECT blocker_id,reason_code FROM (" + source + ") blockers"
+            + where
+            + " ORDER BY blocker_id,reason_code LIMIT ?",
+            (*query_params, limit + 1),
+        ).fetchall()
+        has_more = len(rows) > limit
+        visible = rows[:limit]
+        blockers = tuple(
+            DependencyBlocker(str(row[0]), str(row[1]))
+            for row in visible
+        )
+        continuation = (
+            cls._encode_cursor(target, blockers[-1])
+            if has_more and blockers
+            else None
+        )
+        return DependencyPage(blockers, continuation)
 
     def guard_archive(self, uow: UnitOfWork, target: ReferenceTarget) -> DependencyGuard:
         try:
-            blockers = self._blockers(uow.connection, target)
+            blocker = self._first_blocker(uow.connection, target)
         except Exception:
             return DependencyGuard("INDETERMINATE", "inventory_dependency_unavailable")
         return (
-            DependencyGuard("BLOCKED", blockers[0].reason_code)
-            if blockers
+            DependencyGuard("BLOCKED", blocker.reason_code)
+            if blocker is not None
             else DependencyGuard("CLEAR")
         )
 
     def guard_reactivate(self, uow: UnitOfWork, target: ReferenceTarget) -> DependencyGuard:
         try:
-            self._blockers(uow.connection, target)
+            # A bounded probe proves the provider/schema is available. Inventory has no
+            # reactivation blocker of its own in LLD-07.
+            self._first_blocker(uow.connection, target)
         except Exception:
             return DependencyGuard("INDETERMINATE", "inventory_dependency_unavailable")
         return DependencyGuard("CLEAR")
 
     def count_archive_blockers(self, snapshot: ReadSnapshot, target: ReferenceTarget) -> int:
-        return len(self._blockers(snapshot.connection, target))
+        return self._count_blockers(snapshot.connection, target)
 
     def list_archive_blockers(
         self,
@@ -369,28 +531,12 @@ class InventoryReferenceDependencyValidator:
         cursor: str | None,
         limit: int,
     ) -> DependencyPage:
-        if type(limit) is not int or limit < 1 or limit > 200:
-            raise ValidationError("Inventory dependency page limit must be in 1..200")
-        blockers = self._blockers(snapshot.connection, target)
-        start = 0
-        if cursor is not None:
-            matches = [
-                index for index, item in enumerate(blockers)
-                if item.blocker_id == cursor
-            ]
-            if len(matches) != 1:
-                raise ValidationError("Inventory dependency cursor is invalid")
-            start = matches[0] + 1
-        page = blockers[start : start + limit]
-        continuation = (
-            page[-1].blocker_id
-            if start + len(page) < len(blockers) and page
-            else None
-        )
-        return DependencyPage(page, continuation)
+        return self._page_blockers(snapshot.connection, target, cursor, limit)
 
     def count_reactivation_blockers(self, snapshot: ReadSnapshot, target: ReferenceTarget) -> int:
-        self._blockers(snapshot.connection, target)
+        # Use a bounded probe so an unavailable Inventory authority fails closed rather
+        # than being mistaken for an empty blocker set.
+        self._first_blocker(snapshot.connection, target)
         return 0
 
     def list_reactivation_blockers(
@@ -400,7 +546,9 @@ class InventoryReferenceDependencyValidator:
         cursor: str | None,
         limit: int,
     ) -> DependencyPage:
-        self._blockers(snapshot.connection, target)
+        if type(limit) is not int or limit < 1 or limit > 200:
+            raise ValidationError("Inventory dependency page limit must be in 1..200")
+        self._first_blocker(snapshot.connection, target)
         if cursor is not None:
             raise ValidationError("Inventory reactivation blocker cursor is invalid")
         return DependencyPage((), None)

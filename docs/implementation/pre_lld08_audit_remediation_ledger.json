@@ -1,0 +1,458 @@
+{
+  "schema": "SOMA_PRE_LLD08_AUDIT_REMEDIATION_LEDGER_V1",
+  "audit_date": "2026-09-22",
+  "repository": "guidoduchi/soma-beta",
+  "normative_design_sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+  "audited_implementation_sha": "a6b52124c5e991509dcb8f6aba7caf332526daaa",
+  "remediation_head_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
+  "disposition": {
+    "audit_findings": "Pre-LLD-08 remediation workstreams R01-R05 are complete. A01-A14 repairs remain preserved. LLD-01 through LLD-07 all have inspectable semantic ledgers; LLD-04 is certified 92/92 and LLD-05 is certified 91/91. LLD-01 and LLD-07 are recertified on supported CI; all 32 fully LLD-02-owned reviewed cases are supported. CI #946 is the complete production/runtime closure checkpoint.",
+    "certification_scope": "The implementation closure checkpoint is 690c1e7e9a3976553b39c47e7ada3b18a1148269 against accepted design 46c836ca949cebcf52ff05be4eb4799e0c74eed1 / Spec Integrity #936. CI #946 is fully green: Ubuntu 1466 passed/2 skipped; Windows 3.13 and 3.14 each 1468 passed; release schema manifest verified 920 authoritative objects; Windows wheel/resources verified. Later descendants through the current branch head are recertification/documentation-only and do not change production runtime behavior. LLD-08 Site and LLD-12 final security composition remain future-owned and are not claimed complete.",
+    "lld08_started": true,
+    "lld08_authority_status": "An isolated feat/lld-08-infrastructure branch exists, but it is not part of the active pre-LLD-08 remediation authority and must not be promoted into the certified baseline until closure completes."
+  },
+  "supported_ci": {
+    "workflow": "Beta implementation CI",
+    "run_number": 875,
+    "run_id": 36343766788,
+    "head_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
+    "conclusion": "success",
+    "last_green_run_number": 875,
+    "last_green_run_id": 36343766788,
+    "last_green_head": "3acecc04294f8658336c87806b92690f6dc0aefb",
+    "current_candidate_implementation_sha": "690c1e7e9a3976553b39c47e7ada3b18a1148269",
+    "current_candidate_design_sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "tested_design_pin": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
+    "current_candidate_result": "SUCCESS_CI_946_IMPLEMENTATION_CLOSURE",
+    "ubuntu_python_3_14": "1404 passed, 2 skipped",
+    "windows_python_3_13": "1406 passed",
+    "windows_python_3_14": "1406 passed",
+    "release_schema_manifest": "success (920 authoritative objects)",
+    "windows_wheel_and_authority_resource_verification": "success (13 migrations + manifest + schema authority + FK exceptions + Unicode asset)",
+    "note": "CI #946 is the full supported implementation closure matrix: Ubuntu Python 3.14 1466 passed/2 skipped; Windows Python 3.13 and 3.14 each 1468 passed; release-schema manifest 920 authoritative objects; Windows wheel/resource verification green. Descendants after 690c1e7e are documentation/recertification-only."
+  },
+  "findings": [
+    {
+      "id": "A01",
+      "priority": "P1",
+      "status": "remediated_ci_green",
+      "finding": "Runtime schema verification accepted weakened or missing guards.",
+      "remediation_commits": [
+        "8079713d358025773cde4f1855052bd5d212bf0f",
+        "5fc17b63df49aff3ab849cf67f4ad9ef9f9071da",
+        "a4f823d134aa78577720aef01c0584aff94a653a",
+        "e89c3a5d332de08957e569445611f696be6dbd44",
+        "178d6dc9d9e61816b4be6a77028f0403d767001b"
+      ],
+      "owners": [
+        "src/soma/foundation/migrations/verification.py",
+        "src/soma/schema_manifest.json",
+        "tools/generate_schema_manifest.py"
+      ],
+      "evidence": [
+        "Committed release schema authority is regenerated in CI and compared exactly.",
+        "Current-release startup verifies migration lineage, objects, tables, columns, foreign keys, indexes, quick_check and append-only behavior.",
+        "Exact accepted historical migration prefixes remain valid forward-migration inputs; divergent lineage fails closed."
+      ]
+    },
+    {
+      "id": "A02",
+      "priority": "P1",
+      "status": "strengthened_pending_current_ci",
+      "finding": "Default Reference lifecycle construction could omit required dependency validators.",
+      "remediation_commits": [
+        "982e38ffcca29eac3805bc4284c3697addd553fd",
+        "495ecc26e1ccd0dede16291cc4ac3a716755063a",
+        "b4a30f419511cd58a3233cfa55b8dcfb5a43714f"
+      ],
+      "owners": [
+        "src/soma/reference/domain/dependencies.py",
+        "src/soma/reference/application/lifecycle_service.py",
+        "src/soma/composition.py"
+      ],
+      "evidence": [
+        "ReferenceDependencyRegistry still fails closed unless explicitly finalized.",
+        "The pre-LLD-08 application composition root now registers InventoryReferenceDependencyValidator and finalizes the exact required owner set; the empty registry remains an explicit test-only seam.",
+        "A composed ReferenceLifecycleService regression proves a real active Spare Request requester blocks Contact archival."
+      ]
+    },
+    {
+      "id": "A03",
+      "priority": "P1",
+      "status": "strengthened_pending_current_ci",
+      "finding": "RFC hierarchy mutation replay response failed at ordinary branch sizes.",
+      "remediation_commits": [
+        "4966549c778d7aa7fc59acbddb76e2020f2125ce",
+        "f7d04edc558adaad05a16676902349bc46f71a55",
+        "6e8bade787f631f16426032eface9c569ab1ca4c"
+      ],
+      "owners": [
+        "src/soma/foundation/application/command_boundary.py",
+        "src/soma/tickets/rfc_hierarchy.py"
+      ],
+      "evidence": [
+        "Foundation default response bounds remain unchanged for ordinary schemas.",
+        "RfcBranchV1/v1 alone receives the reviewed 33554432-byte/depth-8/8192-item allocation. The normative conservative maximum-content construction is 23288983 bytes/depth-4/4151 items because accepted LLD-04 text may require six-byte canonical JSON escaping.",
+        "Future RfcBranch schema versions fail closed unless they receive their own exact reviewed allocation.",
+        "Regression coverage includes a real 101-child maximum-content mutation with continuation, exact immutable replay after later source drift, reparent capacity, byte/depth/item boundaries and unallocated-version rejection."
+      ]
+    },
+    {
+      "id": "A04",
+      "priority": "P1",
+      "status": "remediated_ci_green",
+      "finding": "XLSX semantic parsing could consume changed path bytes after an earlier safe preflight.",
+      "remediation_commits": [
+        "4122d78c2eb69f06164aec7ae1ebbc181eeda4b2",
+        "fc2b8311a1177563c894706b4bb28fe4af31a2aa",
+        "a62ad8a3649ce07ae843fe1891684da49a35f008"
+      ],
+      "owners": [
+        "src/soma/ticket_import/parsing/xlsx_security.py",
+        "src/soma/ticket_import/parsing/advanced_search.py",
+        "src/soma/ticket_import/parsing/rfc.py",
+        "src/soma/ticket_import/parsing/wfm.py"
+      ],
+      "evidence": [
+        "Semantic parsers consume the immutable byte source produced by preflight rather than reopening the path.",
+        "Preflight identity includes SHA-256 over the retained bytes.",
+        "Immutable source resources close on success and parser rejection paths."
+      ]
+    },
+    {
+      "id": "A05",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "Inventory dependency continuation omitted part of the stable ordering key.",
+      "remediation_commits": [
+        "bb46215fd9e297181e839d8b5f75856cb427ef2f",
+        "682e0aaa3675c6e593821fa44357b9e07b639379"
+      ],
+      "owners": [
+        "src/soma/inventory/services/participants.py"
+      ],
+      "evidence": [
+        "Continuation is versioned, target-bound and carries blocker_id plus reason_code.",
+        "Multi-role requester/receiver blockers traverse without ambiguity."
+      ]
+    },
+    {
+      "id": "A06",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "Bounded JSON measurement skipped tuple contents.",
+      "remediation_commits": [
+        "bb46215fd9e297181e839d8b5f75856cb427ef2f"
+      ],
+      "owners": [
+        "src/soma/foundation/strict_json.py"
+      ],
+      "evidence": [
+        "Tuple contents now participate in Unicode, depth and aggregate-item measurement equivalently to serialized arrays."
+      ]
+    },
+    {
+      "id": "A07",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "ReadSnapshot leaked an acquired connection when BEGIN failed.",
+      "remediation_commits": [
+        "bb46215fd9e297181e839d8b5f75856cb427ef2f",
+        "5118cdb1883a2154f183c6209aaffeb5220eb506"
+      ],
+      "owners": [
+        "src/soma/foundation/persistence/uow.py"
+      ],
+      "evidence": [
+        "ReadSnapshot entry failure closes and clears the acquired connection before re-raising.",
+        "Later runtime/UoW hardening preserved the injectable factory seam used by failure-path tests."
+      ]
+    },
+    {
+      "id": "A08",
+      "priority": "P1",
+      "status": "regression_ci_green_pending_full_semantic_certification",
+      "finding": "Foundation host lifecycle, readiness, diagnostics and status surfaces were absent.",
+      "remediation_commits": [
+        "005c7e5e50250f50889e1eecb3a5a4421e168bde",
+        "3e8f0989fd167c041f4b8a4fd867be521932c2bd",
+        "4bd553c2c165d83136c504b601e162e3ce191935",
+        "3286d99efd8dbaf0f27db481e37ecdaa27bc1e86",
+        "eecd6a97e8b56a52a784856f0f645c3ec32ae435",
+        "cf3be28ce9ccaca64574a770d89f81580cc62819",
+        "bb6fdc53e182859f358863b5cd292afe44a763d6",
+        "b1e6b3ded3de97526edcc7b36ab5f52c761eb0af",
+        "de7998579221cb73835e72f82833920937ada8a9",
+        "81a2764dfcf2f2334111ce877a98df24ebf7d1b0",
+        "23266aace6c4be6319fe7e65216b865ecc5c48c9",
+        "51e5bbd768f8e20fa9ae26f66cfc02caf5f7de0b",
+        "6e4bcaef057ce3f8e982b3f174fa47aad34c6193",
+        "24a4354b741a45f0128399e365f66434866fe102"
+      ],
+      "owners": [
+        "src/soma/foundation/runtime",
+        "src/soma/foundation/queries/status.py",
+        "src/soma/foundation/api/routes_foundation.py",
+        "src/soma/foundation/persistence/backup_snapshot.py"
+      ],
+      "evidence": [
+        "HostRuntime cleanup now owns partially acquired security/server resources before provider calls return and retains instance ownership when stop/drain safety cannot be proven.",
+        "A single shutdown deadline is propagated through write/request/background drains and server stop; WAL checkpoint uses only the remaining busy budget.",
+        "A real Starlette/Uvicorn loopback smoke regression uses explicit test-only security seams, authenticated self-readiness, host-owned request executor dispatch, READY gating, HTTP shutdown, full cleanup and safe restart on the same data instance.",
+        "Production run/session security and SQLCipher provider integration remain LLD-12 obligations and are not claimed by the test seam.",
+        "2026-09-23 re-audit found the earlier failed-start ownership claim false: close(wait=False) let a running UoW outlive server/security/registry cleanup and OS lock release. The repaired ownership and drain regressions passed supported CI #868 at 4ed3b27c45e187fa1b73edab0c687f6cd1ec3a36; this does not certify all LLD-01 semantics."
+      ]
+    },
+    {
+      "id": "A09",
+      "priority": "P1",
+      "status": "remediated_ci_green",
+      "finding": "Required Reference point/list/history query surfaces were missing.",
+      "remediation_commits": [
+        "36f07c50e05730bc5104fcd727936b0ca319c1da",
+        "0990ee530632a114e3e6b7dcfd53d0de97db4ba2"
+      ],
+      "owners": [
+        "src/soma/reference/queries/references.py",
+        "src/soma/reference/queries/history.py",
+        "src/soma/reference/queries/_cursor.py"
+      ],
+      "evidence": [
+        "GetReferenceById, ListActiveReferences, Customer Account Code history, Contact channels and Contact affiliation history are implemented with bounded keyset continuations.",
+        "Site-derived Dispatch address resolution remains behind SiteDispatchAddressProvider and reports UNAVAILABLE when LLD-08 is not assembled rather than importing future private tables.",
+        "History regressions are robust to whole-second timestamp ties by using the complete stable ordering key."
+      ]
+    },
+    {
+      "id": "A10",
+      "priority": "P2",
+      "status": "strengthened_pending_current_ci",
+      "finding": "Reference dependency guards and previews repeatedly materialized complete blocker sets.",
+      "remediation_commits": [
+        "682e0aaa3675c6e593821fa44357b9e07b639379",
+        "96383ea5defdfe6adf87e3e29b12d06ec54a6b49",
+        "fea88515bd8d2a54c1afd720556661b8a88a0606"
+      ],
+      "owners": [
+        "src/soma/inventory/services/participants.py",
+        "src/soma/reference/application/lifecycle_service.py"
+      ],
+      "evidence": [
+        "Authoritative archive guards no longer execute a compound UNION plus global ORDER BY; they run fixed per-owner LIMIT 1 existence probes and stop at the first blocker.",
+        "Preview count/page enumeration remains exact and uses UNION ALL with deterministic blocker_id/reason_code ordering and target-bound continuation.",
+        "Regression coverage asserts guard SQL shape and the requester index plan rather than inferring constant work from SELECT count alone."
+      ]
+    },
+    {
+      "id": "A11",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "Regroup acceptance recomputed global grouping candidates under the authoritative writer lock.",
+      "remediation_commits": [
+        "cff3086c47750ed83ba9f977d5e985812b352fd0",
+        "1ce09fedd8e099738584c475b9987abdfe7a6ddf"
+      ],
+      "owners": [
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "evidence": [
+        "Expensive candidate planning moved outside the writer transaction.",
+        "Acceptance retains authoritative in-writer freshness/conflict revalidation and atomic mutation semantics."
+      ]
+    },
+    {
+      "id": "A12",
+      "priority": "P2",
+      "status": "strengthened_pending_current_ci",
+      "finding": "Stock page executed per-unit blocker queries before slicing.",
+      "remediation_commits": [
+        "75bd019cb18db3f0037a00b133be67ce1de83221",
+        "91f1ffe7e52ec4599daf4c8f30392f7cc59a9282",
+        "09c1708f0d123fa1cc9c1d38d8796e92309a1bd2",
+        "59e79c1536e5ff44dde66467247a74610e1b1c6a",
+        "3b6cbc4f7cdd13b08d2e0041f6b3d92a245bf843"
+      ],
+      "owners": [
+        "src/soma/inventory/queries/stock_needs.py",
+        "src/soma/inventory/repositories/units.py",
+        "src/soma/migrations/0012_inventory_query_indexes.sql",
+        "src/soma/schema_manifest.json"
+      ],
+      "evidence": [
+        "The earlier N+1 blocker projection repair is retained, but fixed SELECT count is no longer treated as a work-scaling proof.",
+        "Forward migration 12 adds only two expression/order indexes; historical migrations 1 through 11 remain byte-for-byte unchanged.",
+        "Stock page selection is partitioned by compatibility rank, preserves the exact compatibility/display/id cursor contract and exact_total, and uses direct index seeks rather than a temporary ORDER BY B-tree.",
+        "Dense and late-page VM-work regressions plus EXPLAIN QUERY PLAN assertions are now part of the current recertification candidate."
+      ]
+    },
+    {
+      "id": "A13",
+      "priority": "P2",
+      "status": "remediated_ci_green",
+      "finding": "SLA warnings/cohorts reread accepted inputs and immutable policy rows.",
+      "remediation_commits": [
+        "04679b808bcf1230054c45e2d66795ab85b2123f"
+      ],
+      "owners": [
+        "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "src/soma/product_line_sla/algorithms/warnings.py",
+        "src/soma/product_line_sla/queries/sla.py"
+      ],
+      "evidence": [
+        "Already validated ServiceRequestSlaInput can be reused in the same read snapshot.",
+        "Immutable policy-owner/tier reads use a snapshot-local exact-key cache, never a process-wide mutable cache.",
+        "Trace regressions prove one accepted-input read and one shared policy/tier read per exact snapshot key."
+      ]
+    },
+    {
+      "id": "A14",
+      "priority": "P3",
+      "status": "remediated_ci_green",
+      "finding": "Selected serializers/helpers and computed locals were duplicated or redundant.",
+      "remediation_commits": [
+        "825f571845299ee139515fcadac831b0d9db00e8",
+        "e74399a873f55f66fc1a65f0b77e1e7b9b8ced31",
+        "8fe60935bde71443c12ab1a3fd587acd5131bfe1",
+        "67cf54a6f50191d229fa4d92cbe7369613054d4d",
+        "65a3e6a2eac11ae6cad84c802f3599dd0da909de",
+        "ebe936e1c90a322e38b84706cbb682a692e8cc43"
+      ],
+      "owners": [
+        "src/soma/product_line_sla/queries/_cursor.py",
+        "src/soma/product_line_sla/report_projection.py",
+        "src/soma/ticket_import/commands/_proposal_writes.py",
+        "src/soma/ticket_import/jobs/_json.py"
+      ],
+      "evidence": [
+        "Proven unused computations were removed.",
+        "Product-Line/SLA cursor envelope construction is shared while query-specific validation remains local.",
+        "Report-attempt response projection is shared between query and worker.",
+        "Observed-row proposal draft conversion is shared without moving proposal authority.",
+        "Durable Ticket Import job JSON bounded decode is shared while job-specific validation remains local."
+      ]
+    }
+  ],
+  "structural_review": {
+    "module_map_result": {
+      "exact_file_parity": [
+        "LLD-04",
+        "LLD-05",
+        "LLD-06",
+        "LLD-07"
+      ],
+      "layout_divergence": [
+        {
+          "lld": "LLD-01",
+          "note": "The normative brace-family lists foundation/persistence/repositories.py, but no named command/query/service in the module map assigns authority to that generic file. Current Foundation persistence authority is implemented by specific connection/UoW/migration/job/runtime components. Recorded as layout divergence, not an audit blocker."
+        },
+        {
+          "lld": "LLD-02",
+          "note": "The normative map uses services/*, repositories/*, api/* and contracts/* filenames while the implementation retains earlier application/* owner modules plus focused query modules. Named behaviors audited here exist, including account-code review preview, channel-use validation, lifecycle preview, settings reads, profile setup participation, matching and the newly added owner queries. Filename parity was not manufactured with empty wrappers."
+        },
+        {
+          "lld": "LLD-03",
+          "note": "Several repositories remain internal to monolithic owner modules rather than the later repositories/* filenames. Named command/query/service behavior is present; this is source-layout traceability debt rather than evidence of missing authority."
+        }
+      ]
+    }
+  },
+  "residual_limits": [
+    "LLD-08 Infrastructure has not started; Site-owned Reference clauses remain explicitly deferred to LLD-08 and are not pre-implemented by Reference.",
+    "LLD-12 production SQLCipher key-provider, authentication/session and final secure-host composition remain outside pre-LLD-08 certification; existing seams and non-security owner behavior are tested but do not substitute for LLD-12.",
+    "Generated-artifact recipient snapshot immutability remains consumer-owned where the consuming artifact packet has not yet been implemented; Reference address/channel history itself is certified.",
+    "Mechanical acceptance-marker coverage remains retrieval/reporting aid only; semantic ledgers and supported CI are the certification authority."
+  ],
+  "prior_supported_ci": {
+    "workflow": "Beta implementation CI",
+    "run_number": 843,
+    "run_id": 35807574668,
+    "head_sha": "ebe936e1c90a322e38b84706cbb682a692e8cc43",
+    "conclusion": "success",
+    "ubuntu_python_3_14": "success",
+    "windows_python_3_13": "success",
+    "windows_python_3_14": "success",
+    "release_schema_manifest_gate": "success",
+    "windows_wheel_and_authority_resource_verification": "success",
+    "ubuntu_test_summary": "1273 passed, 2 skipped in 267.15s"
+  },
+  "current_reaudit": {
+    "design_sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "implementation_checkpoint_sha": "690c1e7e9a3976553b39c47e7ada3b18a1148269",
+    "workstreams": [
+      {
+        "id": "R01",
+        "status": "complete_supported_ci_946",
+        "scope": "Foundation host lifecycle/status implementation is complete for pre-LLD-08 scope: canonical instance ownership precedes writer admission; STARTING/MIGRATING/VERIFYING/LISTENING_NOT_READY/READY/QUIESCING/STOPPED/FAILED states are owned by HostRuntime; failed-start resources are retained until safely drained; status/diagnostics are bounded. CI #946 is fully green. Final SQLCipher key-provider/security composition remains LLD-12-owned."
+      },
+      {
+        "id": "R02",
+        "status": "complete_supported_ci_946",
+        "scope": "POSIX/Windows canonical instance locking is complete for pre-LLD-08 scope. POSIX retains the established lockf byte-range namespace, serializes same-process ownership, rejects hard-link aliases by device/inode identity, and defers alias descriptor close where closing could release the winning process-scoped lock. Dedicated race/alias regressions are supported by CI #946."
+      },
+      {
+        "id": "R03",
+        "status": "complete_supported_ci_946",
+        "scope": "Host shutdown semantics are complete for pre-LLD-08 scope. One decreasing deadline budget is propagated across drain/server/checkpoint/security/cleanup stages; zero-grace still attempts nonblocking cleanup; failed drain/stop retains runtime ownership for retry; new work is rejected after quiescence. Dedicated shutdown regressions are supported by CI #946."
+      },
+      {
+        "id": "R04",
+        "status": "complete_supported_ci_946",
+        "scope": "Measured-work and query-plan remediation is complete for the audited pre-LLD-08 surfaces. Inventory Stock uses bounded keyset partition seeks with fixed SELECT budget, index-plan assertions and bounded VM-step regressions; Reference lifecycle/query costs use finalized fail-closed dependency validators plus constant/indexed point/count work. CI #946 is fully green. LLD-08-owned Site behavior remains outside this workstream."
+      },
+      {
+        "id": "R05",
+        "status": "complete_supported_ci_946",
+        "scope": "Semantic traceability closure is complete for LLD-01 through LLD-07. LLD-04 is certified across 92/92 normative cases and LLD-05 is certified across 91/91 normative cases. LLD-01 is recertified on supported CI, LLD-07 is recertified on supported CI, and all 32 fully LLD-02-owned reviewed cases are supported; LLD-02's remaining six cross-packet clauses plus one LLD-08-owned Site clause remain explicit future-owner boundaries, not unresolved current-owner defects."
+      }
+    ],
+    "candidate_design_sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "candidate_implementation_sha": "690c1e7e9a3976553b39c47e7ada3b18a1148269",
+    "validation": "All five remediation workstreams are complete. Design 46c836ca is green in Spec Integrity #936. Production/runtime checkpoint 690c1e7e is fully green in CI #946 across Ubuntu Python 3.14 and Windows Python 3.13/3.14 with release-schema and packaged-resource gates. LLD-04 final proof ledger is certified; LLD-05 exact semantic ledger is certified by CI #943. Later branch commits only recertify/document closure metadata.",
+    "overall_status": "pre_lld08_implementation_closure_complete"
+  },
+  "pre_lld08_closure": {
+    "status": "IMPLEMENTATION_AND_SEMANTIC_CLOSURE_COMPLETE",
+    "design_sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "design_gate": {
+      "workflow": "LLD Spec Integrity",
+      "run_number": 936,
+      "run_id": 36369874981,
+      "conclusion": "success"
+    },
+    "implementation_sha": "690c1e7e9a3976553b39c47e7ada3b18a1148269",
+    "implementation_ci": {
+      "workflow": "Beta implementation CI",
+      "run_number": 946,
+      "run_id": 36373373527,
+      "conclusion": "success",
+      "ubuntu_python_3_14": "1466 passed, 2 skipped",
+      "windows_python_3_13": "1468 passed; wheel/resources verified",
+      "windows_python_3_14": "1468 passed; wheel/resources verified",
+      "release_schema_manifest": "920 authoritative objects verified"
+    },
+    "workstreams": [
+      "R01",
+      "R02",
+      "R03",
+      "R04",
+      "R05"
+    ],
+    "future_owned_exclusions": [
+      "LLD-08 Site authority",
+      "LLD-12 final security/authentication/SQLCipher composition",
+      "future generated-artifact consumer snapshots"
+    ],
+    "lld08_started": false,
+    "note": "Current branch head before this ledger update was 8bd7dee5807908aef6a40432cb2c5d9d4bcc8889; changes after implementation checkpoint 690c1e7e are documentation/recertification-only.",
+    "semantic_certification": {
+      "LLD-01": "owned packet scenarios recertified; LLD-12 security seam explicitly excluded",
+      "LLD-02": "32 fully owned reviewed cases supported; 6 cross-packet + 1 LLD-08-owned clause explicitly future/deferred",
+      "LLD-03": "semantic ledger complete and prior packet certification preserved",
+      "LLD-04": "92/92 certified; final eight race/crash proofs supported by CI #908",
+      "LLD-05": "91/91 certified; exact semantic ledger supported by CI #943",
+      "LLD-06": "semantic ledger complete and supported",
+      "LLD-07": "68/68 current packet cases recertified; strengthened T007/T068 supported"
+    }
+  }
+}

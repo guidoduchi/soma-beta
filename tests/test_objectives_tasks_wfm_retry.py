@@ -9,6 +9,7 @@ from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.queries.task_activity_review import WfmActivityRelationshipReviewQueryService
+from soma.objectives_tasks.repositories.tasks import TaskPlanRepository
 from soma.objectives_tasks.services.grouping import GroupingService
 from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.retries import TaskRetryService
@@ -583,3 +584,93 @@ def test_t030_retry_objective_context_is_derived_only_from_current_intervals(
             (first.task_id, first_objective),
             (second.task_id, second_objective),
         }
+
+def test_lld05_f015_local_retry_failure_after_successor_plan_rolls_back_everything(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    predecessor = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F015 predecessor",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_326_000_000,
+            end_utc=2_326_003_600,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    service = TaskRetryService(factory)
+    original_insert = TaskPlanRepository.insert_initial
+    calls = [0]
+
+    def insert_plan_then_fail(uow, row):
+        original_insert(uow, row)
+        calls[0] += 1
+        raise IntegrityFailure(
+            "LLD05-F015 injected after successor Task and plan insert"
+        )
+
+    monkeypatch.setattr(
+        TaskPlanRepository,
+        "insert_initial",
+        staticmethod(insert_plan_then_fail),
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F015"):
+        service.create_local_task_retry(
+            command_id=command_id,
+            predecessor_task_id=predecessor.task_id,
+            predecessor_task_revision=predecessor.revision,
+            schedule=AcceptedTaskSchedule(
+                start_utc=2_326_010_000,
+                end_utc=2_326_013_600,
+                scheduling_timezone_iana="America/Guayaquil",
+            ),
+        )
+    assert calls == [1]
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM tasks WHERE created_command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_plan_revisions WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_retry_relations WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_retry_relations "
+            "WHERE predecessor_task_id=?",
+            (predecessor.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+    monkeypatch.setattr(
+        TaskPlanRepository,
+        "insert_initial",
+        staticmethod(original_insert),
+    )
+    retried = service.create_local_task_retry(
+        command_id=command_id,
+        predecessor_task_id=predecessor.task_id,
+        predecessor_task_revision=predecessor.revision,
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_326_010_000,
+            end_utc=2_326_013_600,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    assert retried.outcome == "APPLIED"
+    assert retried.replayed is False
+

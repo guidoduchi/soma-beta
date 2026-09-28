@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import zipfile
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pytest
 from openpyxl import Workbook
 
 from soma.foundation.errors import SomaError
+from soma.ticket_import.parsing import advanced_search
 from soma.ticket_import.parsing.advanced_search import parse_advanced_search
 from soma.ticket_import.parsing.xlsx_security import preflight_xlsx
 from soma.ticket_import.reconciliation.engine import field_logical_sha256, row_logical_sha256
@@ -322,6 +324,81 @@ def test_parser_requires_preflight_for_the_exact_same_path(tmp_path: Path) -> No
     _write_workbook(first, ["SRNo"], [["12345678"]])
     _write_workbook(second, ["SRNo"], [["87654321"]])
 
+    preflight = preflight_xlsx(first)
     with pytest.raises(SomaError) as raised:
-        parse_advanced_search(second, preflight=preflight_xlsx(first))
+        parse_advanced_search(second, preflight=preflight)
     assert raised.value.code == "IMPORT_SOURCE_PROFILE_MISMATCH"
+    with pytest.raises(SomaError) as closed:
+        preflight.semantic_stream()
+    assert closed.value.code == "IMPORT_SOURCE_UNAVAILABLE"
+
+
+def test_advanced_search_parser_consumes_exact_preflighted_bytes_after_path_replacement(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "stale-preflight.xlsx"
+    _write_workbook(
+        path,
+        ["SRNo", "Problem Summary"],
+        [["12345678", "Original safe workbook"]],
+    )
+    preflight = preflight_xlsx(path)
+
+    with zipfile.ZipFile(path, "a") as archive:
+        archive.writestr("xl/embeddings/audit-marker.bin", b"harmless audit marker")
+
+    with pytest.raises(SomaError) as fresh:
+        preflight_xlsx(path)
+    assert fresh.value.code == "XLSX_UNSAFE_CONTAINER"
+
+    parsed = parse_advanced_search(path, preflight=preflight)
+    assert len(parsed.rows) == 1
+    assert parsed.rows[0].observation.canonical_primary_id == "12345678"
+    assert _field(parsed.rows[0], "problem_summary").normalized_text == "Original safe workbook"
+
+
+@pytest.mark.parametrize(
+    ("limit_name", "limit_value"),
+    (
+        ("_MAX_WORKSHEETS", 0),
+        ("_MAX_PHYSICAL_COLUMNS", 1),
+        ("_MAX_LOGICAL_CELLS_TOTAL", 1),
+        ("_MAX_MATRIX_ROWS", 0),
+    ),
+)
+def test_workbook_geometry_ceilings_fail_without_partial_parse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    limit_name: str,
+    limit_value: int,
+) -> None:
+    path = tmp_path / f"{limit_name}.xlsx"
+    _write_workbook(path, ["SRNo", "Problem Summary"], [["12345678", "safe"]])
+    monkeypatch.setattr(advanced_search, limit_name, limit_value)
+    with pytest.raises(SomaError) as excinfo:
+        _parse(path)
+    assert excinfo.value.code == "XLSX_RESOURCE_LIMIT"
+
+
+def test_advanced_search_optional_line_overflow_isolated_to_field(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "line-overflow.xlsx"
+    _write_workbook(
+        path,
+        ["SRNo", "Problem Summary"],
+        [["12345678", "\n".join("line" for _ in range(513))]],
+    )
+    parsed = _parse(path)
+    row = parsed.rows[0]
+    field = _field(row, "problem_summary")
+    assert row.observation.identity_state == "valid"
+    assert field.value_state == "malformed"
+    assert field.source_text is None
+    assert any(
+        finding.finding_code == "XLSX_RESOURCE_LIMIT"
+        and finding.scope_kind == "field"
+        and finding.field_key == "problem_summary"
+        for finding in row.findings
+    )

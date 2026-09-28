@@ -116,27 +116,62 @@ class RegroupCandidate:
     material_objectives: tuple[GroupingObjectiveAuthority, ...]
     component_start_utc: int
     component_end_utc: int
+    manual_scope_objective_ids: tuple[str, ...] | None = None
 
     @property
     def input_fingerprint(self) -> str:
-        return sha256_canonical_json(
-            {
-                "schema": "SOMA_REGROUP_INPUT_V1",
-                "proposal_kind": self.proposal_kind,
-                "origin": self.origin,
-                "risk_tier": self.risk_tier,
-                "survivor_objective_id": self.survivor_objective_id,
-                "component": [self.component_start_utc, self.component_end_utc],
-                "tasks": [item.fingerprint_value() for item in self.material_tasks],
-                "objectives": [
-                    item.fingerprint_value() for item in self.material_objectives
-                ],
-                "task_changes": [item.value() for item in self.task_changes],
-                "objective_changes": [
-                    item.value() for item in self.objective_changes
-                ],
-            }
-        )
+        material: dict[str, object] = {
+            "schema": "SOMA_REGROUP_INPUT_V1",
+            "proposal_kind": self.proposal_kind,
+            "origin": self.origin,
+            "risk_tier": self.risk_tier,
+            "survivor_objective_id": self.survivor_objective_id,
+            "component": [self.component_start_utc, self.component_end_utc],
+            "tasks": [item.fingerprint_value() for item in self.material_tasks],
+            "objectives": [
+                item.fingerprint_value() for item in self.material_objectives
+            ],
+            "task_changes": [item.value() for item in self.task_changes],
+            "objective_changes": [
+                item.value() for item in self.objective_changes
+            ],
+        }
+        if self.manual_scope_objective_ids is not None:
+            material["manual_scope_objective_ids"] = list(
+                self.manual_scope_objective_ids
+            )
+        return sha256_canonical_json(material)
+
+
+def strict_overlap_member_ids(
+    intervals: Iterable[tuple[str, str, int, int]],
+) -> frozenset[str]:
+    """Return Task ids participating in a strict overlap within one reviewed lineage.
+
+    Each item is (task_id, activity_lineage_id, start_utc, end_utc). Exact touch
+    is not overlap. The sweep is O(n log n) overall and never enumerates all
+    pairwise edges.
+    """
+
+    by_lineage: dict[str, list[tuple[int, int, str]]] = {}
+    for task_id, lineage_id, start_utc, end_utc in intervals:
+        by_lineage.setdefault(lineage_id, []).append((start_utc, end_utc, task_id))
+
+    competing: set[str] = set()
+    for members in by_lineage.values():
+        ordered = sorted(members, key=lambda item: (item[0], item[1], item[2]))
+        if len(ordered) < 2:
+            continue
+        max_end = ordered[0][1]
+        max_end_task_id = ordered[0][2]
+        for start_utc, end_utc, task_id in ordered[1:]:
+            if start_utc < max_end:
+                competing.add(max_end_task_id)
+                competing.add(task_id)
+            if end_utc > max_end:
+                max_end = end_utc
+                max_end_task_id = task_id
+    return frozenset(competing)
 
 
 def strict_overlap_components(
@@ -167,4 +202,5 @@ __all__ = [
     "GroupingTaskChange",
     "RegroupCandidate",
     "strict_overlap_components",
+    "strict_overlap_member_ids",
 ]

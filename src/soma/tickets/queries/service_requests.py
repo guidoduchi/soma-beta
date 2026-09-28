@@ -201,6 +201,21 @@ class ServiceRequestQueryService:
                 "current_affiliation_customer_org_id": None if row[9] is None else str(row[9]),
                 "supporting_observation_id": supporting_observation_id,
             }
+            # The point query reports current-state mismatches using data
+            # already fetched in this snapshot. Previously reviewed active
+            # relationships remain authoritative; their organization-at-use
+            # snapshot is never changed by a later LLD-02 affiliation edit.
+            # A stale handler row is historical, not a current resolution.
+            if (
+                customer is not None
+                and row[9] is not None
+                and str(row[9]) != customer["customer_org_id"]
+                and (
+                    role == "customer_contact"
+                    or alignment == "aligned"
+                )
+            ):
+                warnings.append("SR_CONTACT_AFFILIATION_REVIEW_REQUIRED")
             if str(row[7]) != "active":
                 warnings.append(f"SR_{role.upper()}_REFERENCE_ARCHIVED")
 

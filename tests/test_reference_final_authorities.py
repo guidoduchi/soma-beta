@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pytest
 
@@ -111,6 +111,8 @@ class FakeDependencyValidator:
     reactivate_state: str = "CLEAR"
     archive_blockers: tuple[str, ...] = ()
     reactivate_blockers: tuple[str, ...] = ()
+    archive_list_calls: list[tuple[str | None, int]] = field(default_factory=list)
+    reactivate_list_calls: list[tuple[str | None, int]] = field(default_factory=list)
 
     def guard_archive(self, uow, target: ReferenceTarget) -> DependencyGuard:
         return DependencyGuard(self.archive_state, "fake_archive_blocker" if self.archive_state != "CLEAR" else None)
@@ -129,13 +131,29 @@ class FakeDependencyValidator:
         return len(self.archive_blockers)
 
     def list_archive_blockers(self, snapshot, target: ReferenceTarget, cursor: str | None, limit: int) -> DependencyPage:
+        self.archive_list_calls.append((cursor, limit))
         return self._page(self.archive_blockers, cursor, limit)
 
     def count_reactivation_blockers(self, snapshot, target: ReferenceTarget) -> int:
         return len(self.reactivate_blockers)
 
     def list_reactivation_blockers(self, snapshot, target: ReferenceTarget, cursor: str | None, limit: int) -> DependencyPage:
+        self.reactivate_list_calls.append((cursor, limit))
         return self._page(self.reactivate_blockers, cursor, limit)
+
+
+def test_lifecycle_service_requires_finalized_dependency_assembly(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    with pytest.raises(ValidationError, match="registry is required"):
+        ReferenceLifecycleService(factory)
+
+    unfinalized = ReferenceDependencyRegistry()
+    with pytest.raises(ValidationError, match="not finalized"):
+        ReferenceLifecycleService(factory, unfinalized)
+
+    missing_required = ReferenceDependencyRegistry()
+    with pytest.raises(ValidationError, match="required dependency validators are missing"):
+        missing_required.finalize(required_validator_ids=("inventory",))
 
 
 def test_archive_blocked_or_indeterminate_commits_nothing(initialized_database) -> None:
@@ -143,6 +161,7 @@ def test_archive_blocked_or_indeterminate_commits_nothing(initialized_database) 
     contact = ContactReferenceService(factory).create_contact(command_id=new_uuid4(), name="Blocked Contact")
     registry = ReferenceDependencyRegistry()
     registry.register(FakeDependencyValidator("inventory", archive_state="BLOCKED", archive_blockers=("sr7-1",)))
+    registry.finalize(required_validator_ids=("inventory",))
     service = ReferenceLifecycleService(factory, registry)
     command_id = new_uuid4()
     with pytest.raises(SomaError) as exc:
@@ -170,6 +189,7 @@ def test_archive_blocked_or_indeterminate_commits_nothing(initialized_database) 
 
     registry2 = ReferenceDependencyRegistry()
     registry2.register(FakeDependencyValidator("tickets", archive_state="INDETERMINATE"))
+    registry2.finalize(required_validator_ids=("tickets",))
     with pytest.raises(SomaError) as exc2:
         ReferenceLifecycleService(factory, registry2).archive_reference(
             command_id=new_uuid4(),
@@ -187,6 +207,7 @@ def test_archive_preview_exact_count_is_paged_and_read_only(initialized_database
     registry = ReferenceDependencyRegistry()
     registry.register(FakeDependencyValidator("a-owner", archive_blockers=("a1", "a2")))
     registry.register(FakeDependencyValidator("b-owner", archive_blockers=("b1",)))
+    registry.finalize(required_validator_ids=("a-owner", "b-owner"))
     service = ReferenceLifecycleService(factory, registry)
     connection = _read(initialized_database)
     try:
@@ -196,14 +217,22 @@ def test_archive_preview_exact_count_is_paged_and_read_only(initialized_database
         )
     finally:
         connection.close()
-    first = service.preview(operation="archive", target_type="contact", target_id=contact.contact_id, limit=2)
+    first = service.preview(
+        operation="archive",
+        target_type="contact",
+        target_id=contact.contact_id,
+        base_revision=1,
+        limit=2,
+    )
     second = service.preview(
         operation="archive",
         target_type="contact",
         target_id=contact.contact_id,
+        base_revision=1,
         after=first.continuation,
         limit=2,
     )
+    assert first.revision == second.revision == 1
     assert first.exact_blocker_count == second.exact_blocker_count == 3
     assert first.would_be_eligible is second.would_be_eligible is False
     assert len(first.blockers) == 2 and len(second.blockers) == 1
@@ -217,10 +246,74 @@ def test_archive_preview_exact_count_is_paged_and_read_only(initialized_database
         connection.close()
 
 
+def test_archive_preview_fetches_only_requested_provider_pages(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Bounded Preview Contact",
+    )
+    first_provider = FakeDependencyValidator(
+        "a-owner",
+        archive_blockers=tuple(f"a{index:03d}" for index in range(250)),
+    )
+    second_provider = FakeDependencyValidator(
+        "b-owner",
+        archive_blockers=("b001", "b002", "b003"),
+    )
+    registry = ReferenceDependencyRegistry()
+    registry.register(first_provider)
+    registry.register(second_provider)
+    registry.finalize(required_validator_ids=("a-owner", "b-owner"))
+    service = ReferenceLifecycleService(factory, registry)
+
+    first = service.preview(
+        operation="archive",
+        target_type="contact",
+        target_id=contact.contact_id,
+        base_revision=1,
+        limit=10,
+    )
+    assert first.exact_blocker_count == 253
+    assert len(first.blockers) == 10
+    assert first.continuation is not None
+    assert first_provider.archive_list_calls == [(None, 10)]
+    assert second_provider.archive_list_calls == []
+
+    second = service.preview(
+        operation="archive",
+        target_type="contact",
+        target_id=contact.contact_id,
+        base_revision=1,
+        after=first.continuation,
+        limit=10,
+    )
+    assert len(second.blockers) == 10
+    assert first_provider.archive_list_calls[1][1] == 10
+    assert first_provider.archive_list_calls[1][0] is not None
+    assert second_provider.archive_list_calls == []
+
+    other = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Different Cursor Target",
+    )
+    with pytest.raises(ValidationError, match="preview cursor is invalid"):
+        service.preview(
+            operation="archive",
+            target_type="contact",
+            target_id=other.contact_id,
+            base_revision=1,
+            after=first.continuation,
+            limit=10,
+        )
+
+
 def test_archive_then_reactivate_preserves_append_only_history(initialized_database) -> None:
     factory = _factory(initialized_database)
     contact = ContactReferenceService(factory).create_contact(command_id=new_uuid4(), name="Lifecycle Contact")
-    service = ReferenceLifecycleService(factory)
+    service = ReferenceLifecycleService(
+        factory,
+        ReferenceDependencyRegistry.isolated_for_tests(),
+    )
     service.archive_reference(
         command_id=new_uuid4(), target_type="contact", target_id=contact.contact_id,
         base_revision=1, reason_category="operator_archive"
@@ -366,5 +459,85 @@ def test_local_profile_has_no_login_authority_and_display_edit_is_stale_safe(ini
             "SELECT payload_json FROM audit_events WHERE action_type='local_user_profile.display_name_updated'"
         ).fetchone()[0]
         assert "Operations Administrator" not in payload and "Stale overwrite" not in payload
+    finally:
+        connection.close()
+
+
+def test_t038_first_run_profile_requires_parent_receipt_and_rolls_back_with_setup(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = LocalUserProfileService(factory)
+    missing_parent = new_uuid4()
+    with pytest.raises(SomaError) as missing:
+        with UnitOfWork(factory) as uow:
+            service.ensure_singleton_local_administrator(uow, parent_command_id=missing_parent)
+    assert missing.value.code == "PERSISTENCE_FAILURE"
+
+    parent = new_uuid4()
+    with pytest.raises(RuntimeError, match="setup failure"):
+        with UnitOfWork(factory) as uow:
+            _parent_receipt(uow, parent, "FirstRunSetup")
+            service.ensure_singleton_local_administrator(uow, parent_command_id=parent)
+            raise RuntimeError("setup failure")
+
+    assert service.get_singleton() is None
+    connection = _read(initialized_database)
+    try:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id IN (?,?)",
+            (missing_parent, parent),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE action_type='local_user_profile.created'"
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+
+def test_t039_display_name_edit_preserves_identity_and_rejects_command_collision(initialized_database) -> None:
+    factory = _factory(initialized_database)
+    service = LocalUserProfileService(factory)
+    with UnitOfWork(factory) as uow:
+        parent = new_uuid4()
+        _parent_receipt(uow, parent, "FirstRunSetup")
+        profile_id = service.ensure_singleton_local_administrator(uow, parent_command_id=parent)
+
+    command_id = new_uuid4()
+    changed = service.update_display_name(
+        command_id=command_id,
+        base_revision=1,
+        display_name="Operations Administrator",
+        actor_id=profile_id,
+    )
+    assert (changed.local_user_profile_id, changed.revision, changed.no_change) == (profile_id, 2, False)
+
+    with pytest.raises(SomaError) as collision:
+        service.update_display_name(
+            command_id=command_id,
+            base_revision=1,
+            display_name="Forged different command",
+            actor_id=profile_id,
+        )
+    assert collision.value.code == "IDEMPOTENCY_CONFLICT"
+
+    unchanged = service.update_display_name(
+        command_id=new_uuid4(),
+        base_revision=2,
+        display_name="Operations Administrator",
+        actor_id=profile_id,
+    )
+    assert (unchanged.local_user_profile_id, unchanged.revision, unchanged.no_change) == (profile_id, 2, True)
+    profile = service.get_singleton()
+    assert profile is not None
+    assert (profile.local_user_profile_id, profile.display_name, profile.revision) == (
+        profile_id, "Operations Administrator", 2
+    )
+    connection = _read(initialized_database)
+    try:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE action_type='local_user_profile.display_name_updated'"
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?", (command_id,)
+        ).fetchone()[0] == 1
     finally:
         connection.close()

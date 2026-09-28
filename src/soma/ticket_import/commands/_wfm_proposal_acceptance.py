@@ -23,8 +23,9 @@ from soma.ticket_import.providers.wfm_review_evidence import (
 from soma.tickets.rfc_import_mutations import RfcCreateFromSourceMutation
 from soma.tickets.rfc_import_reader import RfcImportReader
 
-from ..repositories.proposals import PendingProposalWrite, ProposalChangeRecord, ProposalRecord
-from ..reconciliation.engine import ProposalChangeDraft, ReconciliationProposalDraft
+from ..repositories.proposals import ProposalChangeRecord, ProposalRecord
+from ..reconciliation.engine import ProposalChangeDraft
+from ._proposal_writes import pending_write_from_draft
 from ..reconciliation.wfm_follow_on import build_wfm_follow_on_proposals
 from ..reconciliation.wfm_sr_link import build_wfm_task_name_sr_link_proposals
 
@@ -40,36 +41,6 @@ def _same_change(persisted: ProposalChangeRecord, recomputed: ProposalChangeDraf
         and persisted.before_integer == recomputed.before_integer
         and persisted.after_integer == recomputed.after_integer
         and persisted.source_observation_field_id == recomputed.source_observation_field_id
-    )
-
-
-def _pending_write(draft: ReconciliationProposalDraft) -> PendingProposalWrite:
-    return PendingProposalWrite(
-        import_run_id=draft.import_run_id,
-        evidence_mode=draft.evidence_mode,
-        source_observation_id=draft.source_observation_id,
-        prior_source_observation_id=None,
-        proposal_kind=draft.proposal_kind,
-        target_kind=draft.target_kind,
-        target_internal_id=draft.target_internal_id,
-        target_business_id=draft.target_business_id,
-        risk_class=draft.risk_class,
-        base_state_token=draft.base_state_token_sha256,
-        proposal_fingerprint=draft.proposal_fingerprint_sha256,
-        changes=tuple(
-            ProposalChangeRecord(
-                ordinal=change.ordinal,
-                field_key=change.field_key,
-                change_kind=change.change_kind,
-                value_kind=change.value_kind,
-                before_text=change.before_text,
-                after_text=change.after_text,
-                before_integer=change.before_integer,
-                after_integer=change.after_integer,
-                source_observation_field_id=change.source_observation_field_id,
-            )
-            for change in draft.changes
-        ),
     )
 
 
@@ -155,7 +126,7 @@ def prepare_wfm_provisional_rfc_accept(
             expected_source_observation_id=proposal.source_observation_id,
         )
         sr_link_drafts = build_wfm_task_name_sr_link_proposals(inner.connection, source=source)
-        sr_link_writes = tuple(_pending_write(draft) for draft in sr_link_drafts)
+        sr_link_writes = tuple(pending_write_from_draft(draft) for draft in sr_link_drafts)
         service._repository.transition_accept(
             inner,
             proposal=proposal,
@@ -355,7 +326,7 @@ def prepare_wfm_source_projection_accept(
             import_run_id=proposal.import_run_id,
             source_observation_id=candidate.source_observation_id,
         )
-        follow_on_writes = tuple(_pending_write(draft) for draft in follow_on_drafts)
+        follow_on_writes = tuple(pending_write_from_draft(draft) for draft in follow_on_drafts)
         service._repository.transition_accept(
             inner,
             proposal=proposal,

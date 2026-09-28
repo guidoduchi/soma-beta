@@ -640,7 +640,6 @@ class ObjectiveHardDeleteQueryService:
             block("OBJECTIVE_MEMBER_COUNT_CHANGED", int(envelope[2]) != len(members))
 
         member_task_ids = tuple(str(member[0]) for member in members)
-        current_event_ids = tuple(str(member[3]) for member in members)
         event_rows = connection.execute(
             "SELECT membership_event_id,task_id,event_kind,from_objective_id,to_objective_id,"
             "accepted_plan_revision_id,grouping_proposal_id,command_id "

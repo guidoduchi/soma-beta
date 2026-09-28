@@ -24,10 +24,12 @@ from .advanced_search import (
     _MAX_WORKSHEETS,
     _Matrix,
     _blank_field,
+    _candidate_header_key,
     _controlled_key,
     _finding,
     _header_key,
     _is_formula,
+    _isolated_field_resource_limit,
     _logical_to_normalized,
     _malformed_field,
     _parse_instant_field,
@@ -116,10 +118,12 @@ _STATUS_REGISTRY = {_controlled_key(value): value for value in _STATUS_VALUES}
 
 def _resolve_header_row(row, *, sheet_ordinal: int, row_ordinal: int) -> dict[str, int] | None:
     resolved: dict[str, int] = {}
+    oversized_header_cell = False
     for column_ordinal, cell in enumerate(row, start=1):
         if column_ordinal > _MAX_PHYSICAL_COLUMNS:
             raise _source_error("XLSX_RESOURCE_LIMIT", "worksheet exceeds the physical-column ceiling")
-        key = _header_key(cell.value)
+        key, oversized = _candidate_header_key(cell.value)
+        oversized_header_cell = oversized_header_cell or oversized
         if key is None:
             continue
         field_key = _HEADER_KEYS.get(key)
@@ -131,7 +135,11 @@ def _resolve_header_row(row, *, sheet_ordinal: int, row_ordinal: int) -> dict[st
                 f"worksheet {sheet_ordinal} row {row_ordinal} repeats semantic header {field_key}",
             )
         resolved[field_key] = column_ordinal
-    return resolved if "rfc_no" in resolved else None
+    if "rfc_no" not in resolved:
+        return None
+    if oversized_header_cell:
+        raise _source_error("XLSX_RESOURCE_LIMIT", "semantic header row exceeds the UTF-8 byte ceiling")
+    return resolved
 
 
 def _discover_matrix(workbook) -> _Matrix:
@@ -261,12 +269,21 @@ def _parse_field(field_key: str, cell, *, sheet_ordinal: int, row_ordinal: int):
             "SOURCE_FORMULA_IN_SEMANTIC_FIELD",
             f"registered semantic field {field_key} contains a formula",
         )
-    if spec.value_kind == "text":
-        return _parse_text_field(spec, cell.value), ()
-    if spec.value_kind == "controlled":
-        return _parse_controlled_status(spec, cell.value, sheet_ordinal=sheet_ordinal, row_ordinal=row_ordinal)
-    if spec.value_kind == "instant":
-        return _parse_instant_field(spec, cell.value), ()
+    try:
+        if spec.value_kind == "text":
+            return _parse_text_field(spec, cell.value), ()
+        if spec.value_kind == "controlled":
+            return _parse_controlled_status(spec, cell.value, sheet_ordinal=sheet_ordinal, row_ordinal=row_ordinal)
+        if spec.value_kind == "instant":
+            return _parse_instant_field(spec, cell.value), ()
+    except SomaError as exc:
+        if exc.code == "XLSX_RESOURCE_LIMIT":
+            return _isolated_field_resource_limit(
+                spec,
+                sheet_ordinal=sheet_ordinal,
+                row_ordinal=row_ordinal,
+            )
+        raise
     raise RuntimeError("unsupported Enhanced RFC field kind")
 
 
@@ -330,15 +347,32 @@ def parse_rfc_enhanced(path: Path, *, preflight: XlsxPreflightResult) -> RfcPars
         requested_resolved = requested.resolve(strict=True)
         preflight_resolved = Path(preflight.path).resolve(strict=True)
     except OSError as exc:
-        raise _source_error("IMPORT_SOURCE_UNAVAILABLE", "preflighted workbook is no longer available") from exc
+        preflight.close()
+        raise _source_error(
+            "IMPORT_SOURCE_UNAVAILABLE",
+            "preflighted workbook is no longer available",
+        ) from exc
     if requested_resolved != preflight_resolved:
-        raise _source_error("IMPORT_SOURCE_PROFILE_MISMATCH", "parser path does not match preflighted workbook")
+        preflight.close()
+        raise _source_error(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "parser path does not match preflighted workbook",
+        )
 
     versions = require_profile_versions(_SOURCE_FAMILY)
     try:
-        workbook = load_workbook(requested_resolved, read_only=True, data_only=False, keep_links=False)
+        workbook = load_workbook(
+            preflight.semantic_stream(),
+            read_only=True,
+            data_only=False,
+            keep_links=False,
+        )
     except Exception as exc:
-        raise _source_error("IMPORT_SOURCE_PROFILE_MISMATCH", "preflighted workbook could not be opened semantically") from exc
+        preflight.close()
+        raise _source_error(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "preflighted workbook could not be opened semantically",
+        ) from exc
 
     try:
         matrix = _discover_matrix(workbook)
@@ -459,7 +493,10 @@ def parse_rfc_enhanced(path: Path, *, preflight: XlsxPreflightResult) -> RfcPars
             global_findings=global_findings,
         )
     finally:
-        workbook.close()
+        try:
+            workbook.close()
+        finally:
+            preflight.close()
 
 
 __all__ = ["ParsedRfcRow", "RfcParseResult", "parse_rfc_enhanced"]

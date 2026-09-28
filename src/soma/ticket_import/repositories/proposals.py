@@ -450,6 +450,10 @@ class ProposalRepository:
         ):
             raise SomaError("IMPORT_RUN_STALE", "follow-on proposal parent run is not the expected published review state")
 
+        pending = cls.filter_equivalence_suppressed(uow.connection, pending)
+        if not pending:
+            return ()
+
         material_keys: set[tuple[object, ...]] = set()
         for write in pending:
             key = (
@@ -598,18 +602,127 @@ class ProposalRepository:
         )
 
     @staticmethod
-    def material_equivalence_fingerprint(proposal: ProposalRecord) -> str:
+    def _equivalence_run_authority(reader: Any, import_run_id: str) -> dict[str, str]:
+        row = reader.execute(
+            "SELECT source_family,source_profile_id,header_registry_id,vocabulary_registry_id,parser_profile_id "
+            "FROM import_runs WHERE import_run_id=?",
+            (require_uuid4(import_run_id),),
+        ).fetchone()
+        if row is None:
+            raise SomaError("IMPORT_RUN_NOT_FOUND", "proposal equivalence parent run does not exist")
+        return {
+            "source_family": str(row[0]),
+            "source_profile_id": str(row[1]),
+            "header_registry_id": str(row[2]),
+            "vocabulary_registry_id": str(row[3]),
+            "parser_profile_id": str(row[4]),
+        }
+
+    @staticmethod
+    def _equivalence_change_object(change: ProposalChangeRecord) -> dict[str, object]:
+        return {
+            "ordinal": change.ordinal,
+            "field_key": change.field_key,
+            "change_kind": change.change_kind,
+            "value_kind": change.value_kind,
+            "before_text": change.before_text,
+            "after_text": change.after_text,
+            "before_integer": change.before_integer,
+            "after_integer": change.after_integer,
+        }
+
+    @classmethod
+    def _material_equivalence_fingerprint(
+        cls,
+        reader: Any,
+        *,
+        import_run_id: str,
+        evidence_mode: str,
+        proposal_kind: str,
+        target_kind: str,
+        target_internal_id: str | None,
+        target_business_id: str | None,
+        risk_class: str,
+        base_state_token: str,
+        changes: tuple[ProposalChangeRecord, ...],
+    ) -> str:
+        authority = cls._equivalence_run_authority(reader, import_run_id)
         return sha256_canonical_json(
             {
-                "schema": "IMPORT_PROPOSAL_EQUIVALENCE_V1",
-                "proposal_kind": proposal.proposal_kind,
-                "target_kind": proposal.target_kind,
-                "target_internal_id": proposal.target_internal_id,
-                "target_business_id": proposal.target_business_id,
-                "base_state_token": proposal.base_state_token,
-                "proposal_fingerprint": proposal.proposal_fingerprint,
+                "schema": "IMPORT_PROPOSAL_EQUIVALENCE_V2",
+                "source_family": authority["source_family"],
+                "profiles": {
+                    "source_profile_id": authority["source_profile_id"],
+                    "header_registry_id": authority["header_registry_id"],
+                    "vocabulary_registry_id": authority["vocabulary_registry_id"],
+                    "parser_profile_id": authority["parser_profile_id"],
+                },
+                "evidence_mode": evidence_mode,
+                "proposal_kind": proposal_kind,
+                "target_kind": target_kind,
+                "target_internal_id": target_internal_id,
+                "target_business_id": target_business_id,
+                "risk_class": risk_class,
+                "base_state_token_sha256": base_state_token,
+                "changes": [cls._equivalence_change_object(change) for change in changes],
             }
         )
+
+    @classmethod
+    def material_equivalence_fingerprint_for_write(cls, reader: Any, write: PendingProposalWrite) -> str:
+        pending = _validate_pending_write(write)
+        return cls._material_equivalence_fingerprint(
+            reader,
+            import_run_id=pending.import_run_id,
+            evidence_mode=pending.evidence_mode,
+            proposal_kind=pending.proposal_kind,
+            target_kind=pending.target_kind,
+            target_internal_id=pending.target_internal_id,
+            target_business_id=pending.target_business_id,
+            risk_class=pending.risk_class,
+            base_state_token=pending.base_state_token,
+            changes=pending.changes,
+        )
+
+    @classmethod
+    def material_equivalence_fingerprint(cls, reader: Any, proposal: ProposalRecord) -> str:
+        return cls._material_equivalence_fingerprint(
+            reader,
+            import_run_id=proposal.import_run_id,
+            evidence_mode=proposal.evidence_mode,
+            proposal_kind=proposal.proposal_kind,
+            target_kind=proposal.target_kind,
+            target_internal_id=proposal.target_internal_id,
+            target_business_id=proposal.target_business_id,
+            risk_class=proposal.risk_class,
+            base_state_token=proposal.base_state_token,
+            changes=cls.list_changes(reader, proposal.proposal_id),
+        )
+
+    @classmethod
+    def filter_equivalence_suppressed(
+        cls,
+        reader: Any,
+        writes: tuple[PendingProposalWrite, ...],
+    ) -> tuple[PendingProposalWrite, ...]:
+        pending = tuple(_validate_pending_write(write) for write in writes)
+        retained: list[PendingProposalWrite] = []
+        for write in pending:
+            material_fingerprint = cls.material_equivalence_fingerprint_for_write(reader, write)
+            suppressed = reader.execute(
+                "SELECT 1 FROM proposal_equivalence_decisions "
+                "WHERE proposal_kind=? AND target_internal_id IS ? AND target_business_id IS ? "
+                "AND material_input_fingerprint_sha256=? AND decision IN ('rejected','deferred') LIMIT 1",
+                (
+                    write.proposal_kind,
+                    write.target_internal_id,
+                    write.target_business_id,
+                    material_fingerprint,
+                ),
+            ).fetchone()
+            if suppressed is None:
+                retained.append(write)
+        return tuple(retained)
 
     @staticmethod
     def recovery_review_fingerprint(reader: Any, run: ImportRunDecisionState) -> str:
@@ -719,7 +832,7 @@ class ProposalRepository:
                 proposal.proposal_kind,
                 proposal.target_internal_id,
                 proposal.target_business_id,
-                ProposalRepository.material_equivalence_fingerprint(proposal),
+                ProposalRepository.material_equivalence_fingerprint(uow.connection, proposal),
                 decision,
                 proposal.proposal_id,
                 decided_at_utc,

@@ -344,7 +344,7 @@ def _validate_inventory_bulk(payload: dict[str, object]) -> None:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "bulk action_kind is invalid")
     _fingerprint(payload.get("input_fingerprint"), "input_fingerprint")
     target_count = payload.get("target_count")
-    if type(target_count) is not int or not 1 <= target_count <= 200:
+    if type(target_count) is not int or not 1 <= target_count <= 2_000:
         raise SomaError("AUDIT_PAYLOAD_INVALID", "bulk target_count is invalid")
     refs = payload.get("result_refs")
     if not isinstance(refs, list) or len(refs) != target_count:
@@ -795,8 +795,8 @@ def build_inventory_audit_registry() -> AuditRegistry:
                     }
                 ),
                 max_depth=4,
-                max_collection_items=700,
-                max_utf8_bytes=131_072,
+                max_collection_items=8_192,
+                max_utf8_bytes=262_144,
             ),
             sensitivity_validator=_validate_inventory_bulk,
         )

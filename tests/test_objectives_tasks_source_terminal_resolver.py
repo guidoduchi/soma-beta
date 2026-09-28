@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 
@@ -411,3 +412,142 @@ def test_audit_failure_rolls_back_receipt_review_execution_and_task_revision(ini
         ).fetchone()
         assert tuple(review[:4]) == ("pending", 1, None, None)
         assert review[4] is not None
+
+def test_lld05_f018_review_transition_failure_rolls_back_termination_and_aggregate(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    task = _register_wfm(factory, suffix=218)
+    objective_id = _seed_single_objective(factory, task.task_id)
+    source, _ = _apply_terminal_source(factory, task_id=task.task_id)
+    command_id = new_uuid4()
+
+    with ReadSnapshot(factory) as snapshot:
+        before_task_revision = snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0]
+        before_aggregate = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,actual_start_utc,actual_end_utc,"
+                "attention_reason,included_task_count,excluded_task_count,"
+                "aggregate_input_fingerprint,revision,last_command_id "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (objective_id,),
+            ).fetchone()
+        )
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "CREATE TRIGGER lld05_f018_fail_review_transition "
+            "BEFORE UPDATE ON wfm_source_terminal_reviews "
+            "WHEN OLD.source_terminal_review_id='"
+            + str(source.source_terminal_review_id)
+            + "' AND OLD.state='pending' "
+            "BEGIN SELECT RAISE(ABORT,'LLD05-F018 injected review transition failure'); END"
+        )
+
+    service = WfmSourceTerminalService(factory)
+    with pytest.raises(sqlite3.IntegrityError, match="LLD05-F018"):
+        _resolve(
+            service,
+            command_id=command_id,
+            task_id=task.task_id,
+            source_result=source,
+            decision="terminate_local_work",
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipt_results WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_execution_events WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM task_execution_projection WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == before_task_revision
+        assert snapshot.connection.execute(
+            "SELECT state,revision,local_consequence_event_id,decided_at_utc "
+            "FROM wfm_source_terminal_reviews WHERE source_terminal_review_id=?",
+            (source.source_terminal_review_id,),
+        ).fetchone() == ("pending", 1, None, None)
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,actual_start_utc,actual_end_utc,"
+                "attention_reason,included_task_count,excluded_task_count,"
+                "aggregate_input_fingerprint,revision,last_command_id "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (objective_id,),
+            ).fetchone()
+        ) == before_aggregate
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute("DROP TRIGGER lld05_f018_fail_review_transition")
+
+    retried = _resolve(
+        service,
+        command_id=command_id,
+        task_id=task.task_id,
+        source_result=source,
+        decision="terminate_local_work",
+    )
+    assert retried.outcome == "APPLIED"
+    assert retried.replayed is False
+    replay = _resolve(
+        service,
+        command_id=command_id,
+        task_id=task.task_id,
+        source_result=source,
+        decision="terminate_local_work",
+    )
+    assert replay.replayed is True
+    assert replay.revision == retried.revision
+    assert replay.result_refs == retried.result_refs
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_execution_events "
+            "WHERE task_id=? AND event_kind='source_terminal_consequence' AND command_id=?",
+            (task.task_id, command_id),
+        ).fetchone()[0] == 1
+        projection = snapshot.connection.execute(
+            "SELECT execution_state,termination_reason,revision "
+            "FROM task_execution_projection WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        assert tuple(projection) == ("terminated", "provider_terminal_review", 1)
+        assert snapshot.connection.execute(
+            "SELECT state,revision,local_consequence_event_id "
+            "FROM wfm_source_terminal_reviews WHERE source_terminal_review_id=?",
+            (source.source_terminal_review_id,),
+        ).fetchone()[0:2] == ("terminate_local_work", 2)
+        aggregate = snapshot.connection.execute(
+            "SELECT execution_state,attention_reason,aggregate_input_fingerprint,revision,last_command_id "
+            "FROM objective_aggregate_projection WHERE objective_id=?",
+            (objective_id,),
+        ).fetchone()
+        assert aggregate is not None
+        assert int(aggregate[3]) > int(before_aggregate[8])
+        assert str(aggregate[2]) != str(before_aggregate[7])
+        assert str(aggregate[4]) == command_id
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 1
+

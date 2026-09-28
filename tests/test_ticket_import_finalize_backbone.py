@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import PersistenceFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.ticket_import.commands.finalize_run import ImportRunFinalizationService
@@ -345,3 +345,199 @@ def test_rejected_recovery_supersedes_all_pending_proposals_atomically(initializ
         assert tuple(disposition) == ("superseded", "recovery")
     finally:
         connection.close()
+
+def test_f017_equal_chronology_recovery_enqueue_failure_rolls_back_all_finalization_authority(
+    initialized_database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = _factory(initialized_database)
+    checkpoint_run_id = new_uuid4()
+    recovery_run_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _checkpoint_and_recovery(
+            uow,
+            checkpoint_run_id=checkpoint_run_id,
+            recovery_run_id=recovery_run_id,
+            checkpoint_chronology=20,
+            recovery_chronology=20,
+        )
+    _authorize_recovery(factory, recovery_run_id)
+
+    service = ImportRunFinalizationService(factory)
+    command_id = new_uuid4()
+    original_enqueue = service._jobs.enqueue_or_coalesce
+
+    def fail_enqueue(*_args, **_kwargs):
+        raise PersistenceFailure("injected reappearance enqueue failure")
+
+    monkeypatch.setattr(service._jobs, "enqueue_or_coalesce", fail_enqueue)
+    with pytest.raises(PersistenceFailure, match="reappearance enqueue failure"):
+        service.finalize_run(
+            command_id=command_id,
+            import_run_id=recovery_run_id,
+            expected_run_revision=2,
+        )
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        checkpoint = connection.execute(
+            "SELECT accepted_import_run_id,accepted_logical_fingerprint_sha256,revision "
+            "FROM import_source_checkpoints WHERE source_family='advanced_search_sr'",
+        ).fetchone()
+        assert tuple(checkpoint) == (checkpoint_run_id, f"{20:064x}", 1)
+        run = connection.execute(
+            "SELECT run_state,revision,completed_at_utc FROM import_runs WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone()
+        assert tuple(run) == ("recovery_required", 2, None)
+        assert connection.execute("SELECT COUNT(*) FROM import_recovery_events").fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM durable_jobs WHERE job_type='ticket_import.sr_reappearance_reconcile'",
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+    monkeypatch.setattr(service._jobs, "enqueue_or_coalesce", original_enqueue)
+    result = service.finalize_run(
+        command_id=command_id,
+        import_run_id=recovery_run_id,
+        expected_run_revision=2,
+    )
+    replay = service.finalize_run(
+        command_id=command_id,
+        import_run_id=recovery_run_id,
+        expected_run_revision=2,
+    )
+    assert result.checkpoint["revision"] == 2
+    assert result.checkpoint["import_run_id"] == recovery_run_id
+    assert replay.replayed is True
+    assert replay.checkpoint == result.checkpoint
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        checkpoint = connection.execute(
+            "SELECT accepted_import_run_id,accepted_logical_fingerprint_sha256,revision "
+            "FROM import_source_checkpoints WHERE source_family='advanced_search_sr'",
+        ).fetchone()
+        assert tuple(checkpoint) == (recovery_run_id, "f" * 64, 2)
+        assert connection.execute(
+            "SELECT COUNT(*) FROM import_recovery_events WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM durable_jobs WHERE job_type='ticket_import.sr_reappearance_reconcile'",
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 1
+    finally:
+        connection.close()
+
+
+def test_f018_older_recovery_audit_failure_rolls_back_event_and_retry_is_exactly_once(
+    initialized_database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = _factory(initialized_database)
+    checkpoint_run_id = new_uuid4()
+    recovery_run_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _checkpoint_and_recovery(
+            uow,
+            checkpoint_run_id=checkpoint_run_id,
+            recovery_run_id=recovery_run_id,
+            checkpoint_chronology=20,
+            recovery_chronology=10,
+        )
+    _authorize_recovery(factory, recovery_run_id)
+
+    service = ImportRunFinalizationService(factory)
+    command_id = new_uuid4()
+    original_write = service._boundary._audit_writer.write
+
+    def fail_audit(*_args, **_kwargs):
+        raise PersistenceFailure("injected recovery audit failure")
+
+    monkeypatch.setattr(service._boundary._audit_writer, "write", fail_audit)
+    with pytest.raises(PersistenceFailure, match="recovery audit failure"):
+        service.finalize_run(
+            command_id=command_id,
+            import_run_id=recovery_run_id,
+            expected_run_revision=2,
+        )
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        checkpoint = connection.execute(
+            "SELECT accepted_import_run_id,accepted_candidate_chronology_value,revision "
+            "FROM import_source_checkpoints WHERE source_family='advanced_search_sr'",
+        ).fetchone()
+        assert tuple(checkpoint) == (checkpoint_run_id, 20, 1)
+        run = connection.execute(
+            "SELECT run_state,revision,completed_at_utc FROM import_runs WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone()
+        assert tuple(run) == ("recovery_required", 2, None)
+        assert connection.execute(
+            "SELECT COUNT(*) FROM import_recovery_events WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+    monkeypatch.setattr(service._boundary._audit_writer, "write", original_write)
+    result = service.finalize_run(
+        command_id=command_id,
+        import_run_id=recovery_run_id,
+        expected_run_revision=2,
+    )
+    replay = service.finalize_run(
+        command_id=command_id,
+        import_run_id=recovery_run_id,
+        expected_run_revision=2,
+    )
+    assert result.state == "accepted"
+    assert result.checkpoint["import_run_id"] == checkpoint_run_id
+    assert result.checkpoint["chronology_value"] == 20
+    assert result.checkpoint["revision"] == 1
+    assert replay.replayed is True
+    assert replay.checkpoint == result.checkpoint
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        checkpoint = connection.execute(
+            "SELECT accepted_import_run_id,accepted_candidate_chronology_value,revision "
+            "FROM import_source_checkpoints WHERE source_family='advanced_search_sr'",
+        ).fetchone()
+        assert tuple(checkpoint) == (checkpoint_run_id, 20, 1)
+        assert connection.execute(
+            "SELECT COUNT(*) FROM import_recovery_events WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM durable_jobs WHERE job_type='ticket_import.sr_reappearance_reconcile'",
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 1
+    finally:
+        connection.close()
+

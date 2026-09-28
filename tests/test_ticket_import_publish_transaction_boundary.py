@@ -80,3 +80,31 @@ def test_writer_keeps_authoritative_fingerprint_reverification_without_proposal_
     assert "_rfc_enhanced_proposal_writes" not in attribute_calls
     assert "_wfm_proposal_writes" not in attribute_calls
     assert "_wfm_reconciliation_findings" in attribute_calls
+
+
+def test_material_equivalence_suppression_is_revalidated_without_rebuilding_proposals() -> None:
+    service = _class_node()
+    preflight = _method(service, "_preflight_publication")
+    publish = _method(service, "publish")
+    prepare = next(
+        node
+        for node in publish.body
+        if isinstance(node, ast.FunctionDef) and node.name == "prepare"
+    )
+
+    preflight_filters = [
+        node
+        for node in ast.walk(preflight)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "filter_equivalence_suppressed"
+    ]
+    writer_filters = [
+        node
+        for node in ast.walk(prepare)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "filter_equivalence_suppressed"
+    ]
+    assert len(preflight_filters) == 3
+    assert len(writer_filters) == 1

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import zipfile
 from datetime import UTC, datetime
 
+import pytest
 from openpyxl import Workbook
+
+from soma.foundation.errors import SomaError
 
 from soma.ticket_import.parsing.wfm import parse_wfm_service_provider
 from soma.ticket_import.parsing.xlsx_security import preflight_xlsx
@@ -148,3 +152,59 @@ def test_wfm_parser_equivalent_duplicates_collapse_only_with_same_parent_and_con
     assert {row.classification for row in parsed.rows} == {"EQUIVALENT_DUPLICATE"}
     assert all(row.duplicate_count == 2 for row in parsed.rows)
     assert all("SOURCE_EQUIVALENT_DUPLICATE" in {f.finding_code for f in row.findings} for row in parsed.rows)
+
+
+def test_wfm_parser_consumes_exact_preflighted_bytes_after_path_replacement(tmp_path) -> None:
+    path = tmp_path / "stale-wfm.xlsx"
+    _save(
+        path,
+        [
+            ["RFC No", "Task No"],
+            ["NC12345678901234", "TK12345678901234"],
+        ],
+    )
+    preflight = preflight_xlsx(path)
+
+    with zipfile.ZipFile(path, "a") as archive:
+        archive.writestr("xl/embeddings/audit-marker.bin", b"harmless audit marker")
+
+    with pytest.raises(SomaError) as fresh:
+        preflight_xlsx(path)
+    assert fresh.value.code == "XLSX_UNSAFE_CONTAINER"
+
+    parsed = parse_wfm_service_provider(
+        path,
+        preflight=preflight,
+        source_chronology_utc=10,
+    )
+    assert len(parsed.rows) == 1
+    assert parsed.rows[0].observation.canonical_primary_id == "TK12345678901234"
+
+
+def test_wfm_optional_field_overflow_isolated_without_truncation(tmp_path) -> None:
+    path = tmp_path / "wfm-field-overflow.xlsx"
+    oversized = "x" * 16_385
+    _save(
+        path,
+        [
+            ["RFC No", "Task No", "Task Name"],
+            ["NC12345678901234", "TK12345678901234", oversized],
+        ],
+    )
+    parsed = parse_wfm_service_provider(
+        path,
+        preflight=preflight_xlsx(path),
+        source_chronology_utc=10,
+    )
+    row = parsed.rows[0]
+    task_name = next(field for field in row.observation.fields if field.field_key == "task_name")
+    assert row.observation.identity_state == "valid"
+    assert task_name.value_state == "malformed"
+    assert task_name.source_text is None
+    assert task_name.normalized_text is None
+    assert any(
+        finding.finding_code == "XLSX_RESOURCE_LIMIT"
+        and finding.scope_kind == "field"
+        and finding.field_key == "task_name"
+        for finding in row.findings
+    )

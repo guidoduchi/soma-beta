@@ -2,19 +2,27 @@ from __future__ import annotations
 
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
 from soma.objectives_tasks.queries.objectives import ObjectiveQueryService
+from soma.objectives_tasks.queries.task_activity_review import WfmActivityRelationshipReviewQueryService
 from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.task_execution import TaskExecutionService
+from soma.objectives_tasks.services.task_activity_review import WfmActivityRelationshipReviewService
+from soma.objectives_tasks.services.task_explicit_lock import TaskExplicitLockService
 from soma.reference.application.customer_service import CustomerReferenceService
 from soma.tickets.service_requests import ServiceRequestService
+from soma.tickets.rfcs import RfcService
 from soma.tickets.sr_references import ServiceRequestReferenceService
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.services.grouping import GroupingService
+from soma.objectives_tasks.source_terminal_authority import (
+    WfmSourceProjectionMutation,
+    WfmSourceProjectionParticipant,
+)
 
 
 TZ = "America/Guayaquil"
@@ -104,6 +112,105 @@ def _service_request_with_customer(factory, suffix: int, customer_org_id: str | 
     return sr.service_request_id
 
 
+def test_t006_plan_change_requires_separate_reviewed_repin(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_430_000_000
+    task = _task(factory, "Reviewed repin", start, start + 3_600)
+    objective_id = _objective(factory, task.task_id)
+
+    with ReadSnapshot(factory) as snapshot:
+        before = snapshot.connection.execute(
+            "SELECT m.accepted_plan_revision_id,m.membership_revision,"
+            "e.start_utc,e.end_utc,e.revision "
+            "FROM objective_task_membership_current m "
+            "JOIN objective_envelope_projection e ON e.objective_id=m.objective_id "
+            "WHERE m.task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        assert before is not None
+        task_revision = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        )
+        current_plan_revision = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM task_plan_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        )
+
+    changed = TaskPlanningService(factory).set_task_plan(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=task_revision,
+        current_plan_revision=current_plan_revision,
+        schedule=AcceptedTaskSchedule(
+            start_utc=start + 120,
+            end_utc=start + 3_720,
+            scheduling_timezone_iana=TZ,
+        ),
+        reason_category="reviewed_reschedule",
+    )
+    assert changed.outcome == "APPLIED"
+    new_plan_id = changed.result_refs[0].result_id
+
+    with ReadSnapshot(factory) as snapshot:
+        pinned = snapshot.connection.execute(
+            "SELECT m.accepted_plan_revision_id,m.membership_revision,"
+            "e.start_utc,e.end_utc,e.revision,"
+            "a.attention_reason "
+            "FROM objective_task_membership_current m "
+            "JOIN objective_envelope_projection e ON e.objective_id=m.objective_id "
+            "JOIN objective_aggregate_projection a ON a.objective_id=m.objective_id "
+            "WHERE m.task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        assert tuple(pinned[:5]) == tuple(before)
+        assert pinned[5] == "plan_membership_mismatch"
+
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"]["exact_total"] == 1
+    item = page["proposals"]["items"][0]
+    detail = ObjectiveGroupingQueryService(factory).proposal_detail(
+        str(item["proposal_id"])
+    )
+    assert detail["proposal_kind"] == "repin"
+    assert detail["survivor_objective_id"] == objective_id
+    assert detail["task_change_exact_count"] == 1
+    assert detail["task_changes"][0]["change_kind"] == "repin"
+    assert detail["task_changes"][0]["expected_current_plan_revision_id"] == new_plan_id
+
+    accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(item["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+
+    with ReadSnapshot(factory) as snapshot:
+        after = snapshot.connection.execute(
+            "SELECT m.accepted_plan_revision_id,m.membership_revision,"
+            "e.start_utc,e.end_utc,e.revision "
+            "FROM objective_task_membership_current m "
+            "JOIN objective_envelope_projection e ON e.objective_id=m.objective_id "
+            "WHERE m.task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        assert after[0] == new_plan_id
+        assert int(after[1]) == int(before[1]) + 1
+        assert tuple(after[2:4]) == (start + 120, start + 3_720)
+        assert int(after[4]) == int(before[4]) + 1
+
+
 def test_grouping_sweep_is_transitive_and_exact_touch_separates(initialized_database) -> None:
     factory = _factory(initialized_database)
     _task(factory, "A", 2_400_000_000, 2_400_000_100)
@@ -123,6 +230,239 @@ def test_grouping_sweep_is_transitive_and_exact_touch_separates(initialized_data
     counts = sorted(detail["task_change_exact_count"] for detail in details)
     assert counts == [1, 3]
     assert all(detail["proposal_kind"] == "create" for detail in details)
+
+
+def test_t008_manual_exact_touch_merge_uses_reviewed_scope_and_preserves_identity(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_450_000_000
+    left = _task(factory, "Exact touch left", start, start + 100)
+    right = _task(factory, "Exact touch right", start + 100, start + 200)
+    left_objective = _objective(factory, left.task_id)
+    right_objective = _objective(factory, right.task_id)
+    service = GroupingService(factory)
+    query = ObjectiveGroupingQueryService(factory)
+
+    automatic = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert automatic["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+
+    with ReadSnapshot(factory) as snapshot:
+        tracking = {
+            str(row[0]): int(row[1])
+            for row in snapshot.connection.execute(
+                "SELECT objective_id,tracking_sequence FROM objectives "
+                "WHERE objective_id IN (?,?)",
+                (left_objective, right_objective),
+            ).fetchall()
+        }
+    survivor = min(tracking, key=tracking.get)
+    superseded = (
+        right_objective if survivor == left_objective else left_objective
+    )
+
+    command_id = new_uuid4()
+    scoped = service.recompute_grouping_proposals(
+        command_id=command_id,
+        origin="manual_request",
+        trigger_scope={
+            "kind": "manual_exact_touch_merge",
+            "objective_ids": [right_objective, left_objective],
+        },
+    )
+    assert scoped["execution_mode"] == "synchronous"
+    assert scoped["job_id"] is None
+    assert scoped["proposals"]["exact_total"] == 1
+    item = scoped["proposals"]["items"][0]
+    assert item["diff"]["proposal_kind"] == "manual_merge"
+
+    replay = service.recompute_grouping_proposals(
+        command_id=command_id,
+        origin="manual_request",
+        trigger_scope={
+            "kind": "manual_exact_touch_merge",
+            "objective_ids": [left_objective, right_objective],
+        },
+    )
+    assert replay == scoped
+
+    detail = query.proposal_detail(str(item["proposal_id"]))
+    assert detail["proposal_kind"] == "manual_merge"
+    assert detail["survivor_objective_id"] == survivor
+    assert detail["component_envelope"] == {
+        "start_utc": start,
+        "end_utc": start + 200,
+    }
+    assert detail["task_change_exact_count"] == 2
+    assert detail["objective_change_exact_count"] == 2
+    assert {
+        (change["objective_id"], change["action"])
+        for change in detail["objective_changes"]
+    } == {
+        (survivor, "retain"),
+        (superseded, "supersede"),
+    }
+
+    accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(item["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+
+    with ReadSnapshot(factory) as snapshot:
+        memberships = snapshot.connection.execute(
+            "SELECT task_id,objective_id FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?) ORDER BY task_id",
+            (left.task_id, right.task_id),
+        ).fetchall()
+        assert len(memberships) == 2
+        assert {str(row[1]) for row in memberships} == {survivor}
+        assert snapshot.connection.execute(
+            "SELECT superseded_by_objective_id,tracking_sequence "
+            "FROM objectives WHERE objective_id=?",
+            (superseded,),
+        ).fetchone() == (survivor, tracking[superseded])
+        assert snapshot.connection.execute(
+            "SELECT tracking_sequence FROM objectives WHERE objective_id=?",
+            (survivor,),
+        ).fetchone() == (tracking[survivor],)
+        envelope = snapshot.connection.execute(
+            "SELECT start_utc,end_utc,member_count "
+            "FROM objective_envelope_projection WHERE objective_id=?",
+            (survivor,),
+        ).fetchone()
+        assert tuple(envelope) == (start, start + 200, 2)
+
+
+def test_t008_manual_exact_touch_merge_stales_when_selected_member_locks(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_450_100_000
+    left = _task(factory, "Manual merge stale left", start, start + 100)
+    right = _task(factory, "Manual merge stale right", start + 100, start + 200)
+    left_objective = _objective(factory, left.task_id)
+    right_objective = _objective(factory, right.task_id)
+    service = GroupingService(factory)
+
+    scoped = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+        trigger_scope={
+            "kind": "manual_exact_touch_merge",
+            "objective_ids": [left_objective, right_objective],
+        },
+    )
+    item = scoped["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    fingerprint = str(item["input_fingerprint"])
+
+    with ReadSnapshot(factory) as snapshot:
+        task_revision = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (right.task_id,),
+            ).fetchone()[0]
+        )
+    locked = TaskExplicitLockService(factory).set_explicit_task_lock(
+        command_id=new_uuid4(),
+        task_id=right.task_id,
+        task_revision=task_revision,
+        lock_projection_revision=0,
+        lock_kind="membership",
+        action="lock",
+        reason_category="manual_merge_stale",
+    )
+    assert locked.outcome == "APPLIED"
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as caught:
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=fingerprint,
+        )
+    assert caught.value.code == "GROUPING_PROPOSAL_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,revision FROM regroup_proposals WHERE regroup_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("pending", 1)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        memberships = snapshot.connection.execute(
+            "SELECT task_id,objective_id FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?) ORDER BY task_id",
+            (left.task_id, right.task_id),
+        ).fetchall()
+        assert {str(row[1]) for row in memberships} == {
+            left_objective,
+            right_objective,
+        }
+
+
+def test_t008_manual_exact_touch_merge_fails_closed_on_third_overlap_drift(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_451_000_000
+    left = _task(factory, "Exact touch guarded left", start, start + 100)
+    right = _task(factory, "Exact touch guarded right", start + 100, start + 200)
+    third = _task(factory, "Third objective", start + 300, start + 400)
+    left_objective = _objective(factory, left.task_id)
+    right_objective = _objective(factory, right.task_id)
+    third_objective = _objective(factory, third.task_id)
+
+    # Inject pre-existing accepted-topology drift that normal runtime guards
+    # would prevent. Restore the exact production guard before exercising the
+    # manual merge command's fail-closed neighbor proof.
+    with UnitOfWork(factory) as uow:
+        trigger_row = uow.connection.execute(
+            "SELECT sql FROM sqlite_master "
+            "WHERE type='trigger' AND name='objective_envelope_update_guard'"
+        ).fetchone()
+        assert trigger_row is not None and trigger_row[0] is not None
+        trigger_sql = str(trigger_row[0])
+        uow.connection.execute("DROP TRIGGER objective_envelope_update_guard")
+        uow.connection.execute(
+            "UPDATE objective_envelope_projection SET start_utc=?,end_utc=?,revision=revision+1 "
+            "WHERE objective_id=?",
+            (start + 150, start + 250, third_objective),
+        )
+        uow.connection.execute(trigger_sql)
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as caught:
+        GroupingService(factory).recompute_grouping_proposals(
+            command_id=command_id,
+            origin="manual_request",
+            trigger_scope={
+                "kind": "manual_exact_touch_merge",
+                "objective_ids": [left_objective, right_objective],
+            },
+        )
+    assert caught.value.code == "GROUPING_INDETERMINATE"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM regroup_proposals WHERE proposal_kind='manual_merge'"
+        ).fetchone()[0] == 0
 
 
 def test_identical_rejected_grouping_input_is_suppressed_until_reconsidered(
@@ -281,6 +621,37 @@ def test_t009_bridging_task_consolidates_existing_objectives_with_lowest_trackin
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM objectives WHERE superseded_by_objective_id IS NULL"
         ).fetchone()[0] == 1
+
+    later = _task(factory, "Post-consolidation sequence", 2_611_000_000, 2_611_000_200)
+    later_page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert later_page["proposals"]["exact_total"] == 1
+    later_item = later_page["proposals"]["items"][0]
+    later_accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(later_item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(later_item["input_fingerprint"]),
+    )
+    assert later_accepted["state"] == "accepted"
+    with ReadSnapshot(factory) as snapshot:
+        later_objective = snapshot.connection.execute(
+            "SELECT m.objective_id,o.tracking_sequence,o.tracking_id "
+            "FROM objective_task_membership_current m "
+            "JOIN objectives o ON o.objective_id=m.objective_id "
+            "WHERE m.task_id=?",
+            (later.task_id,),
+        ).fetchone()
+        assert later_objective is not None
+        assert int(later_objective[1]) == max(tracking.values()) + 1
+        assert str(later_objective[2]) == f"MW-{max(tracking.values()) + 1:08d}"
+        superseded_tracking = snapshot.connection.execute(
+            "SELECT tracking_sequence FROM objectives WHERE objective_id=?",
+            (expected_superseded,),
+        ).fetchone()
+        assert superseded_tracking == (tracking[expected_superseded],)
 
 
 def test_t010_grouping_is_global_and_multi_customer_context_is_explicit(
@@ -561,3 +932,766 @@ def test_t045_clock_passage_is_read_only_and_never_creates_a_grouping_lock(
     )
     assert after_explicit_execution["classification"] == "started_or_protected"
     assert after_explicit_execution["eligible"] is False
+
+
+
+def test_accept_regroup_plans_globally_only_on_read_snapshot(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    _task(factory, "A11 read A", 2_880_000_000, 2_880_000_200)
+    _task(factory, "A11 read B", 2_880_000_100, 2_880_000_300)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    item = page["proposals"]["items"][0]
+
+    original = GroupingService._load_snapshot
+    query_only_values: list[int] = []
+
+    def tracked(connection):
+        query_only_values.append(int(connection.execute("PRAGMA query_only").fetchone()[0]))
+        return original(connection)
+
+    monkeypatch.setattr(GroupingService, "_load_snapshot", staticmethod(tracked))
+    accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(item["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+    assert query_only_values == [1]
+
+
+def test_accept_regroup_detects_commit_between_planning_snapshot_and_writer(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    first = _task(factory, "A11 stale A", 2_881_000_000, 2_881_000_200)
+    second = _task(factory, "A11 stale B", 2_881_000_100, 2_881_000_300)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    item = page["proposals"]["items"][0]
+    command_id = new_uuid4()
+
+    original = GroupingService._candidate_for_proposal.__func__
+    injected = [False]
+
+    def with_intervening_commit(cls, connection, proposal):
+        candidate = original(cls, connection, proposal)
+        if not injected[0]:
+            injected[0] = True
+            _task(factory, "A11 unrelated commit", 2_990_000_000, 2_990_000_100)
+        return candidate
+
+    monkeypatch.setattr(
+        GroupingService,
+        "_candidate_for_proposal",
+        classmethod(with_intervening_commit),
+    )
+    with pytest.raises(SomaError) as raised:
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=str(item["proposal_id"]),
+            proposal_revision=1,
+            input_fingerprint=str(item["input_fingerprint"]),
+        )
+    assert raised.value.code == "GROUPING_PROPOSAL_STALE"
+    assert injected == [True]
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+
+
+def test_lld05_f006_regroup_failure_after_first_membership_rolls_back_whole_create(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    first = _task(factory, "F006 first", 2_323_000_000, 2_323_000_300)
+    second = _task(factory, "F006 second", 2_323_000_100, 2_323_000_400)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    item = page["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    command_id = new_uuid4()
+    original = service._apply_membership_change
+    calls = [0]
+
+    def fail_after_first_membership(connection, **kwargs):
+        event_id = original(connection, **kwargs)
+        calls[0] += 1
+        if calls[0] == 1:
+            raise IntegrityFailure("LLD05-F006 injected after first regroup membership")
+        return event_id
+
+    monkeypatch.setattr(
+        service,
+        "_apply_membership_change",
+        fail_after_first_membership,
+    )
+    with pytest.raises(IntegrityFailure, match="LLD05-F006"):
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=str(item["input_fingerprint"]),
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objectives"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_membership_events "
+            "WHERE grouping_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()[0] == 0
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT state,revision FROM regroup_proposals "
+                "WHERE regroup_proposal_id=?",
+                (proposal_id,),
+            ).fetchone()
+        ) == ("pending", 1)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_lld05_f007_consolidation_failure_after_all_memberships_rolls_back_original_objectives(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    left = _task(factory, "F007 left", 2_324_000_000, 2_324_000_200)
+    right = _task(factory, "F007 right", 2_324_000_300, 2_324_000_500)
+    left_objective = _objective(factory, left.task_id)
+    right_objective = _objective(factory, right.task_id)
+    bridge = _task(factory, "F007 bridge", 2_324_000_150, 2_324_000_350)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    item = page["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    detail = ObjectiveGroupingQueryService(factory).proposal_detail(proposal_id)
+    original = service._apply_membership_change
+    calls = [0]
+
+    def fail_before_supersession(connection, **kwargs):
+        event_id = original(connection, **kwargs)
+        calls[0] += 1
+        if calls[0] == len(detail["task_changes"]):
+            raise IntegrityFailure("LLD05-F007 injected before Objective supersession")
+        return event_id
+
+    monkeypatch.setattr(
+        service,
+        "_apply_membership_change",
+        fail_before_supersession,
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F007"):
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=str(detail["input_fingerprint"]),
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        memberships = {
+            str(row[0]): str(row[1])
+            for row in snapshot.connection.execute(
+                "SELECT task_id,objective_id FROM objective_task_membership_current "
+                "WHERE task_id IN (?,?,?)",
+                (left.task_id, right.task_id, bridge.task_id),
+            ).fetchall()
+        }
+        assert memberships == {
+            left.task_id: left_objective,
+            right.task_id: right_objective,
+        }
+        objective_rows = snapshot.connection.execute(
+            "SELECT objective_id,superseded_by_objective_id "
+            "FROM objectives WHERE objective_id IN (?,?)",
+            (left_objective, right_objective),
+        ).fetchall()
+        assert len(objective_rows) == 2
+        assert all(row[1] is None for row in objective_rows)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_membership_events "
+            "WHERE grouping_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()[0] == 0
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT state,revision FROM regroup_proposals "
+                "WHERE regroup_proposal_id=?",
+                (proposal_id,),
+            ).fetchone()
+        ) == ("pending", 1)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+def test_lld05_f008_overlapping_objective_after_proposal_blocks_acceptance(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    target = _task(factory, "F008 target", 2_882_000_000, 2_882_000_200)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert len(page["proposals"]["items"]) == 1
+    item = page["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    fingerprint = str(item["input_fingerprint"])
+
+    blocker = _task(factory, "F008 accepted overlap", 2_882_000_100, 2_882_000_300)
+    blocker_objective_id = _objective(factory, blocker.task_id)
+    command_id = new_uuid4()
+
+    with pytest.raises(SomaError) as raised:
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=fingerprint,
+        )
+    assert raised.value.code in {"GROUPING_PROPOSAL_STALE", "OBJECTIVE_OVERLAP"}
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,revision,input_fingerprint FROM regroup_proposals "
+            "WHERE regroup_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("pending", 1, fingerprint)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
+            (target.task_id,),
+        ).fetchone() is None
+        blocker_membership = snapshot.connection.execute(
+            "SELECT objective_id FROM objective_task_membership_current WHERE task_id=?",
+            (blocker.task_id,),
+        ).fetchone()
+        assert blocker_membership == (blocker_objective_id,)
+        assert snapshot.connection.execute(
+            "SELECT superseded_by_objective_id FROM objectives WHERE objective_id=?",
+            (blocker_objective_id,),
+        ).fetchone() == (None,)
+
+
+def test_lld05_f009_task_lock_drift_keeps_regroup_proposal_immutable(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    target = _task(factory, "F009 target", 2_883_000_000, 2_883_000_200)
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert len(page["proposals"]["items"]) == 1
+    item = page["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    fingerprint = str(item["input_fingerprint"])
+
+    locked = TaskExplicitLockService(factory).set_explicit_task_lock(
+        command_id=new_uuid4(),
+        task_id=target.task_id,
+        task_revision=target.revision,
+        lock_projection_revision=0,
+        lock_kind="membership",
+        action="lock",
+        reason_category="f009_membership_lock_drift",
+    )
+    assert locked.outcome == "APPLIED"
+    command_id = new_uuid4()
+
+    with pytest.raises(SomaError) as raised:
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=fingerprint,
+        )
+    assert raised.value.code == "GROUPING_PROPOSAL_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,revision,input_fingerprint FROM regroup_proposals "
+            "WHERE regroup_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("pending", 1, fingerprint)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT explicit_plan_lock,explicit_membership_lock,revision "
+            "FROM task_lock_projection WHERE task_id=?",
+            (target.task_id,),
+        ).fetchone() == (0, 1, 1)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
+            (target.task_id,),
+        ).fetchone() is None
+
+def _grouping_wfm(factory, *, suffix: int, rfc_id: str, start_utc: int):
+    return TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=f"TK{suffix:014d}",
+        rfc_id=rfc_id,
+        schedule=AcceptedTaskSchedule(
+            start_utc=start_utc,
+            end_utc=start_utc + 3_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+
+
+def _review_grouping_activity(factory, task_ids: tuple[str, str], decision: str) -> None:
+    canonical = tuple(sorted(task_ids))
+    preview = WfmActivityRelationshipReviewQueryService(factory).preview(
+        seed_task_ids=canonical,
+        decision=decision,
+    )
+    result = WfmActivityRelationshipReviewService(factory).review_wfm_activity_relationship(
+        command_id=new_uuid4(),
+        seed_tasks=tuple(
+            (seed.task_id, seed.task_revision)
+            for seed in preview.seed_tasks
+        ),
+        decision=decision,
+        review_fingerprint=preview.review_fingerprint,
+        reason_category=f"grouping_{decision}",
+    )
+    assert result.outcome == "APPLIED"
+
+
+def test_t012_distinct_same_rfc_wfm_activities_group_normally(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008840",
+        creation_context="provisional",
+    )
+    start = 2_884_000_000
+    first = _grouping_wfm(factory, suffix=8840, rfc_id=rfc.rfc_id, start_utc=start)
+    second = _grouping_wfm(factory, suffix=8841, rfc_id=rfc.rfc_id, start_utc=start + 600)
+    _review_grouping_activity(
+        factory,
+        (first.task_id, second.task_id),
+        "distinct_activity",
+    )
+
+    query = ObjectiveGroupingQueryService(factory)
+    for task_id in (first.task_id, second.task_id):
+        eligibility = query.grouping_eligibility(task_id, as_of_utc=start - 1)
+        assert eligibility["classification"] == "ordinary_future"
+        assert eligibility["eligible"] is True
+
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"]["exact_total"] == 1
+    item = page["proposals"]["items"][0]
+    detail = query.proposal_detail(str(item["proposal_id"]))
+    assert detail["task_change_exact_count"] == 2
+
+    accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(item["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+    with ReadSnapshot(factory) as snapshot:
+        rows = snapshot.connection.execute(
+            "SELECT task_id,objective_id FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?) ORDER BY task_id",
+            (first.task_id, second.task_id),
+        ).fetchall()
+        assert len(rows) == 2
+        assert len({str(row[1]) for row in rows}) == 1
+
+
+def test_t013_same_activity_overlap_is_excluded_from_automatic_grouping(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008850",
+        creation_context="provisional",
+    )
+    start = 2_885_000_000
+    first = _grouping_wfm(factory, suffix=8850, rfc_id=rfc.rfc_id, start_utc=start)
+    second = _grouping_wfm(factory, suffix=8851, rfc_id=rfc.rfc_id, start_utc=start + 600)
+    _review_grouping_activity(
+        factory,
+        (first.task_id, second.task_id),
+        "same_activity",
+    )
+
+    query = ObjectiveGroupingQueryService(factory)
+    for task_id in (first.task_id, second.task_id):
+        eligibility = query.grouping_eligibility(task_id, as_of_utc=start - 1)
+        assert eligibility["classification"] == "competing_attempt"
+        assert eligibility["eligible"] is False
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objectives",
+        ).fetchone()[0] == 0
+
+
+def test_t013_same_lineage_exact_touch_is_not_competing_attempt(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008860",
+        creation_context="provisional",
+    )
+    start = 2_886_000_000
+    first = _grouping_wfm(factory, suffix=8860, rfc_id=rfc.rfc_id, start_utc=start)
+    second = _grouping_wfm(factory, suffix=8861, rfc_id=rfc.rfc_id, start_utc=start + 3_600)
+    _review_grouping_activity(
+        factory,
+        (first.task_id, second.task_id),
+        "same_activity",
+    )
+
+    query = ObjectiveGroupingQueryService(factory)
+    for task_id in (first.task_id, second.task_id):
+        eligibility = query.grouping_eligibility(task_id, as_of_utc=start - 1)
+        assert eligibility["classification"] == "ordinary_future"
+        assert eligibility["eligible"] is True
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"]["exact_total"] == 2
+    assert all(
+        ObjectiveGroupingQueryService(factory).proposal_detail(
+            str(item["proposal_id"])
+        )["task_change_exact_count"] == 1
+        for item in page["proposals"]["items"]
+    )
+
+def _apply_grouping_terminal_source(
+    factory,
+    *,
+    task_id: str,
+    lifecycle: str,
+    source_start_utc: int,
+) -> None:
+    command_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO command_receipts(command_id,command_type,request_hash,target_type,target_id,"
+            "committed_at_utc,result_type,result_id) "
+            "VALUES (?,'AcceptReconciliationProposal',?,'reconciliation_proposal',?,0,NULL,NULL)",
+            (command_id, "9" * 64, new_uuid4()),
+        )
+        result = WfmSourceProjectionParticipant.apply_wfm_source_projection(
+            uow,
+            WfmSourceProjectionMutation(
+                task_id=task_id,
+                expected_source_projection_revision=0,
+                provider_status_token="Complete" if lifecycle == "complete" else "Plan Cancel",
+                provider_lifecycle_class=lifecycle,
+                source_plan_start_utc=source_start_utc,
+                source_plan_end_utc=source_start_utc + 3_600,
+                accepted_source_observation_id=new_uuid4(),
+                source_base_token="8" * 64,
+            ),
+            command_id=command_id,
+        )
+        assert result.source_projection_revision == 1
+
+
+def test_provider_terminal_wfm_tasks_are_not_ordinary_grouping_work(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008870",
+        creation_context="provisional",
+    )
+    start = 2_887_000_000
+    completed = _grouping_wfm(
+        factory,
+        suffix=8870,
+        rfc_id=rfc.rfc_id,
+        start_utc=start,
+    )
+    cancelled = _grouping_wfm(
+        factory,
+        suffix=8871,
+        rfc_id=rfc.rfc_id,
+        start_utc=start + 10_000,
+    )
+    _apply_grouping_terminal_source(
+        factory,
+        task_id=completed.task_id,
+        lifecycle="complete",
+        source_start_utc=start,
+    )
+    _apply_grouping_terminal_source(
+        factory,
+        task_id=cancelled.task_id,
+        lifecycle="plan_cancel",
+        source_start_utc=start + 10_000,
+    )
+
+    query = ObjectiveGroupingQueryService(factory)
+    complete_eligibility = query.grouping_eligibility(
+        completed.task_id,
+        as_of_utc=start - 1,
+    )
+    cancel_eligibility = query.grouping_eligibility(
+        cancelled.task_id,
+        as_of_utc=start - 1,
+    )
+    assert complete_eligibility["classification"] == "historical_candidate"
+    assert complete_eligibility["eligible"] is False
+    assert cancel_eligibility["classification"] == "cancelled"
+    assert cancel_eligibility["eligible"] is False
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (completed.task_id, cancelled.task_id),
+        ).fetchone()[0] == 0
+
+def test_started_unassigned_task_is_not_automatic_grouping_candidate(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_888_000_000
+    task = _task(factory, "Started unassigned", start, start + 3_600)
+    started = TaskExecutionService(factory).start_task_execution(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=task.revision,
+        execution_revision=0,
+        effective_start_utc=start + 60,
+    )
+    assert started.outcome == "APPLIED"
+
+    eligibility = ObjectiveGroupingQueryService(factory).grouping_eligibility(
+        task.task_id,
+        as_of_utc=start - 1,
+    )
+    assert eligibility["classification"] == "started_or_protected"
+    assert eligibility["eligible"] is False
+
+    with ReadSnapshot(factory) as snapshot:
+        assert GroupingService._eligible_workset_count(snapshot.connection) == 0
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone() is None
+
+def test_t013_in_progress_attempt_blocks_overlapping_not_started_lineage_sibling(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008890",
+        creation_context="provisional",
+    )
+    start = 2_889_000_000
+    first = _grouping_wfm(factory, suffix=8890, rfc_id=rfc.rfc_id, start_utc=start)
+    second = _grouping_wfm(factory, suffix=8891, rfc_id=rfc.rfc_id, start_utc=start + 600)
+    _review_grouping_activity(
+        factory,
+        (first.task_id, second.task_id),
+        "same_activity",
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?",
+            (first.task_id,),
+        ).fetchone()
+        assert row is not None
+        first_revision = int(row[0])
+
+    started = TaskExecutionService(factory).start_task_execution(
+        command_id=new_uuid4(),
+        task_id=first.task_id,
+        task_revision=first_revision,
+        execution_revision=0,
+        effective_start_utc=start + 120,
+    )
+    assert started.outcome == "APPLIED"
+
+    query = ObjectiveGroupingQueryService(factory)
+    first_eligibility = query.grouping_eligibility(first.task_id, as_of_utc=start - 1)
+    second_eligibility = query.grouping_eligibility(second.task_id, as_of_utc=start - 1)
+    assert first_eligibility["classification"] == "started_or_protected"
+    assert first_eligibility["eligible"] is False
+    assert second_eligibility["classification"] == "competing_attempt"
+    assert second_eligibility["eligible"] is False
+
+    with ReadSnapshot(factory) as snapshot:
+        assert GroupingService._eligible_workset_count(snapshot.connection) == 0
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+
+def test_plan_lock_does_not_block_grouping_but_membership_lock_does(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_890_000_000
+    plan_locked = _task(factory, "Plan locked grouping", start, start + 3_600)
+    membership_locked = _task(
+        factory,
+        "Membership locked grouping",
+        start + 10_000,
+        start + 13_600,
+    )
+
+    plan_lock = TaskExplicitLockService(factory).set_explicit_task_lock(
+        command_id=new_uuid4(),
+        task_id=plan_locked.task_id,
+        task_revision=plan_locked.revision,
+        lock_projection_revision=0,
+        lock_kind="plan",
+        action="lock",
+        reason_category="protect_plan_only",
+    )
+    membership_lock = TaskExplicitLockService(factory).set_explicit_task_lock(
+        command_id=new_uuid4(),
+        task_id=membership_locked.task_id,
+        task_revision=membership_locked.revision,
+        lock_projection_revision=0,
+        lock_kind="membership",
+        action="lock",
+        reason_category="protect_membership",
+    )
+    assert plan_lock.outcome == "APPLIED"
+    assert membership_lock.outcome == "APPLIED"
+
+    query = ObjectiveGroupingQueryService(factory)
+    plan_eligibility = query.grouping_eligibility(
+        plan_locked.task_id,
+        as_of_utc=start - 1,
+    )
+    membership_eligibility = query.grouping_eligibility(
+        membership_locked.task_id,
+        as_of_utc=start - 1,
+    )
+    assert plan_eligibility["classification"] == "ordinary_future"
+    assert plan_eligibility["eligible"] is True
+    assert membership_eligibility["classification"] == "started_or_protected"
+    assert membership_eligibility["eligible"] is False
+
+    with ReadSnapshot(factory) as snapshot:
+        assert GroupingService._eligible_workset_count(snapshot.connection) == 1
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"]["exact_total"] == 1
+    item = page["proposals"]["items"][0]
+    detail = query.proposal_detail(str(item["proposal_id"]))
+    assert detail["task_change_exact_count"] == 1
+    assert detail["task_changes"][0]["task_id"] == plan_locked.task_id
+

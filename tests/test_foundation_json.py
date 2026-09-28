@@ -8,6 +8,7 @@ from soma.foundation.errors import ValidationError
 from soma.foundation.strict_json import (
     ObjectContract,
     canonical_json_bytes,
+    canonical_json_bytes_bounded,
     loads_strict,
     sha256_canonical_json,
 )
@@ -43,3 +44,24 @@ def test_object_contract_rejects_unknown_and_missing_fields() -> None:
     with pytest.raises(ValidationError):
         contract.validate({"id": "x", "surprise": True})
     assert contract.validate({"id": "x", "label": "ok"})["id"] == "x"
+
+
+@pytest.mark.parametrize("value", [[0] * 11, tuple([0] * 11)])
+def test_bounded_json_counts_list_and_tuple_items_equally(value) -> None:
+    with pytest.raises(ValidationError, match="collection bound"):
+        canonical_json_bytes_bounded(
+            value,
+            max_bytes=10_000,
+            max_depth=8,
+            max_collection_items=10,
+        )
+
+
+def test_bounded_json_counts_tuple_depth_like_json_array() -> None:
+    with pytest.raises(ValidationError, match="depth bound"):
+        canonical_json_bytes_bounded(
+            ((((0,),),),),
+            max_bytes=10_000,
+            max_depth=2,
+            max_collection_items=100,
+        )

@@ -14,7 +14,12 @@ from soma.foundation.identifiers import require_uuid4
 from soma.foundation.strict_json import canonical_json_bytes, loads_strict_bytes, sha256_canonical_json
 from soma.tickets.service_request_sla_input import ServiceRequestSlaInputReader
 
-from .individual_sla import IndividualSlaCalculator, IndividualSlaResult, IndividualTierResult
+from .individual_sla import (
+    IndividualSlaCalculator,
+    IndividualSlaReadCache,
+    IndividualSlaResult,
+    IndividualTierResult,
+)
 
 _SLA_TIMEZONE = "America/Guayaquil"
 _MONTH_RE = re.compile(r"^(?P<year>[0-9]{4})-(?P<month>0[1-9]|1[0-2])$")
@@ -227,10 +232,13 @@ class CanonicalCohortCalculator:
         calendar_month: str,
         as_of_utc: int,
         customer_scope: str | None = None,
+        read_cache: IndividualSlaReadCache | None = None,
     ) -> CohortMonthProjection:
         if type(as_of_utc) is not int or as_of_utc < 0:
             raise ValidationError("as_of_utc must be a nonnegative whole-second UTC instant")
         month_start_utc, month_end_utc = canonical_month_bounds(calendar_month)
+        if read_cache is None:
+            read_cache = IndividualSlaReadCache()
 
         groups: dict[CohortKeyParts, list[CanonicalCohortMember]] = {}
         cursor: str | None = None
@@ -248,6 +256,8 @@ class CanonicalCohortCalculator:
                     reader,
                     sla_input.service_request_id,
                     as_of_utc,
+                    sla_input=sla_input,
+                    read_cache=read_cache,
                 )
                 if individual.calculation_state != "calculable":
                     continue

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import sqlite3
 
@@ -158,3 +159,64 @@ def test_json_validation_errors_do_not_echo_untrusted_keys():
     with pytest.raises(ValidationError) as unknown:
         contract.validate({private: 1})
     assert private not in str(unknown.value)
+
+
+
+@pytest.mark.parametrize(
+    "drift",
+    [
+        "missing",
+        "renamed",
+        "reordered_manifest",
+        "crlf",
+        "bom",
+        "manifest_hash",
+    ],
+)
+def test_migration_manifest_rejects_structural_and_byte_drift(
+    tmp_path,
+    migration_directory,
+    drift,
+) -> None:
+    directory = tmp_path / f"migrations-{drift}"
+    shutil.copytree(migration_directory, directory)
+    accepted_manifest = (directory / "manifest.json").read_bytes()
+    parsed = json.loads(accepted_manifest.decode("utf-8"))
+    first_name = parsed["migrations"][0]["filename"]
+    first = directory / first_name
+
+    if drift == "missing":
+        first.unlink()
+    elif drift == "renamed":
+        first.rename(directory / "0001_unaccepted_rename.sql")
+    elif drift == "reordered_manifest":
+        parsed["migrations"][0], parsed["migrations"][1] = (
+            parsed["migrations"][1],
+            parsed["migrations"][0],
+        )
+        (directory / "manifest.json").write_text(
+            json.dumps(parsed, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    elif drift == "crlf":
+        first.write_bytes(first.read_bytes().replace(b"\n", b"\r\n"))
+    elif drift == "bom":
+        first.write_bytes(b"\xef\xbb\xbf" + first.read_bytes())
+    elif drift == "manifest_hash":
+        parsed["migrations"][0]["sha256"] = "f" * 64
+        (directory / "manifest.json").write_text(
+            json.dumps(parsed, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    else:
+        raise AssertionError(drift)
+
+    with pytest.raises(MigrationError):
+        MigrationManifest.load(directory)
+
+    # Runtime validation is fail-closed: it never repairs unexpected accepted
+    # migration bytes or silently rewrites the manifest to make drift disappear.
+    if drift not in {"reordered_manifest", "manifest_hash"}:
+        assert (directory / "manifest.json").read_bytes() == accepted_manifest

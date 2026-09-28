@@ -31,17 +31,13 @@ from soma.ticket_import.profiles.registry import require_profile_versions
 from soma.ticket_import.reconciliation.staged import verify_staged_logical_run
 from soma.ticket_import.repositories.runs import ImportRunRepository, SourceCheckpointRepository
 
+from ._json import load_persisted_job_object
 from . import (
     SOURCE_CHECK_JOB_TYPE,
     TICKET_IMPORT_JOB_CONTRACTS,
     validate_source_check_checkpoint,
     validate_source_check_payload,
 )
-
-
-_JOB_JSON_BYTES = 65_536
-_JOB_JSON_DEPTH = 8
-_JOB_JSON_ITEMS = 512
 
 
 class TicketImportSourceCheckWorker:
@@ -57,26 +53,11 @@ class TicketImportSourceCheckWorker:
         self._publish = PublishStagedImportRunService(connection_factory)
         self._finalize = ImportRunFinalizationService(connection_factory)
 
-    @staticmethod
-    def _load_json(text: str, *, label: str) -> dict[str, Any]:
-        try:
-            value = loads_canonical_json(
-                text,
-                max_bytes=_JOB_JSON_BYTES,
-                max_depth=_JOB_JSON_DEPTH,
-                max_collection_items=_JOB_JSON_ITEMS,
-            )
-        except ValidationError as exc:
-            raise IntegrityFailure(f"persisted {label} is not canonical JSON") from exc
-        if not isinstance(value, dict):
-            raise IntegrityFailure(f"persisted {label} must be an object")
-        return value
-
     @classmethod
     def _payload(cls, claim: DurableJobClaim) -> dict[str, Any]:
         if claim.job_type != SOURCE_CHECK_JOB_TYPE or claim.contract_version != 1:
             raise ValidationError("claim is not ticket_import.source_check v1")
-        payload = cls._load_json(claim.payload_json, label="source-check payload")
+        payload = load_persisted_job_object(claim.payload_json, label="source-check payload")
         try:
             validate_source_check_payload(payload)
         except ValidationError as exc:
@@ -87,7 +68,7 @@ class TicketImportSourceCheckWorker:
     def _checkpoint(cls, claim: DurableJobClaim) -> dict[str, Any] | None:
         if claim.checkpoint_json is None:
             return None
-        checkpoint = cls._load_json(claim.checkpoint_json, label="source-check checkpoint")
+        checkpoint = load_persisted_job_object(claim.checkpoint_json, label="source-check checkpoint")
         try:
             validate_source_check_checkpoint(checkpoint)
         except ValidationError as exc:
@@ -166,6 +147,7 @@ class TicketImportSourceCheckWorker:
                 "filename": candidate.filename,
                 "stable_size_bytes": candidate.stable_size_bytes,
                 "stable_mtime_ns": candidate.stable_mtime_ns,
+                "content_sha256": candidate.preflight.content_sha256,
                 "chronology_kind": candidate.chronology_kind,
                 "chronology_value": candidate.chronology_value,
             },
@@ -435,38 +417,42 @@ class TicketImportSourceCheckWorker:
         profiles = self._profiles(payload)
         checkpoint = self._checkpoint(claim)
         candidate = self._discover(payload)
-        if (
-            candidate.source_family != payload["source_family"]
-            or candidate.profile_id != profiles["source_profile_id"]
-        ):
-            raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "discovered candidate uses the wrong source family/profile")
+        try:
+            if (
+                candidate.source_family != payload["source_family"]
+                or candidate.profile_id != profiles["source_profile_id"]
+            ):
+                raise SomaError("IMPORT_SOURCE_PROFILE_MISMATCH", "discovered candidate uses the wrong source family/profile")
 
-        if checkpoint is None:
-            _import_run_id, checkpoint = self._start_run(claim, payload, profiles, candidate)
-        else:
-            self._require_candidate_match(checkpoint, candidate)
+            if checkpoint is None:
+                _import_run_id, checkpoint = self._start_run(claim, payload, profiles, candidate)
+            else:
+                self._require_candidate_match(checkpoint, candidate)
 
-        phase = str(checkpoint["phase"])
-        if phase in {"validating", "staging"}:
-            checkpoint = self._stage(claim, checkpoint, candidate)
-            checkpoint, fingerprint = self._publishing_checkpoint(claim, checkpoint)
-        elif phase in {"publishing", "noop_checkpoint"}:
-            fingerprint = self._checkpoint_fingerprint(checkpoint)
-        else:
-            raise IntegrityFailure("source-check claim is in an unsupported execution phase")
+            phase = str(checkpoint["phase"])
+            if phase in {"validating", "staging"}:
+                checkpoint = self._stage(claim, checkpoint, candidate)
+                checkpoint, fingerprint = self._publishing_checkpoint(claim, checkpoint)
+            elif phase in {"publishing", "noop_checkpoint"}:
+                fingerprint = self._checkpoint_fingerprint(checkpoint)
+            else:
+                raise IntegrityFailure("source-check claim is in an unsupported execution phase")
 
-        if phase == "noop_checkpoint":
-            self._finalize_noop(
-                claim,
-                checkpoint,
-                source_family=str(payload["source_family"]),
-                fingerprint=fingerprint,
-                run_revision=int(checkpoint["run_revision"]),
-            )
-            self._jobs.complete(claim)
+            if phase == "noop_checkpoint":
+                self._finalize_noop(
+                    claim,
+                    checkpoint,
+                    source_family=str(payload["source_family"]),
+                    fingerprint=fingerprint,
+                    run_revision=int(checkpoint["run_revision"]),
+                )
+                self._jobs.complete(claim)
+                return str(checkpoint["import_run_id"])
+            self._publish_run(claim, checkpoint, profiles, fingerprint)
             return str(checkpoint["import_run_id"])
-        self._publish_run(claim, checkpoint, profiles, fingerprint)
-        return str(checkpoint["import_run_id"])
+
+        finally:
+            candidate.preflight.close()
 
 
 def run(claim: DurableJobClaim, connection_factory: ConnectionFactory) -> str:

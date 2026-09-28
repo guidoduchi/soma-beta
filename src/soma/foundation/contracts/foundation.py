@@ -55,3 +55,70 @@ class DurableJobCancellationResult:
     resulting_state: Literal["cancelled", "completed", "failed"]
     claim_revoked: bool
     cancelled_attempt_ordinal: int | None = None
+
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeHealth:
+    protocol_version: str
+    run_id: str
+    data_instance_id: str
+    host_state: Literal["LISTENING_NOT_READY", "READY", "QUIESCING"]
+    app_version: str
+    migration_sequence: int
+    migration_id: str | None
+    integrity_state: str
+    started_at_utc: int
+
+
+@dataclass(frozen=True, slots=True)
+class ShutdownResult:
+    shutdown_state: Literal["QUIESCING", "ALREADY_QUIESCING", "STOPPED"]
+    run_id: str
+    data_instance_id: str
+
+
+
+MigrationStatusState = Literal[
+    "NOT_INITIALIZED",
+    "CURRENT",
+    "MIGRATIONS_PENDING",
+    "DRIFT",
+    "LEDGER_MISMATCH",
+    "UNSUPPORTED_FUTURE_VERSION",
+    "INVALID_DATABASE",
+    "INSTANCE_LAYOUT_INVALID",
+    "INTEGRITY_FAILURE",
+    "LIVE_CURRENT",
+    "LIVE_MIGRATIONS_PENDING",
+    "LIVE_LIMITED",
+    "LOCKED_UNVERIFIED",
+    "OFFLINE_SIDECAR_STATE_UNSAFE",
+    "INSPECTION_FAILURE",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class MigrationIdentity:
+    sequence: int
+    migration_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class MigrationStatus:
+    state: MigrationStatusState
+    current_sequence: int | None
+    current_migration_id: str | None
+    target_sequence: int
+    integrity_state: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class FoundationDiagnosticsState:
+    request_executor_depth: Literal["EMPTY", "LOW", "ELEVATED", "SATURATED"]
+    background_executor_depth: Literal["EMPTY", "LOW", "ELEVATED", "SATURATED"]
+    open_authoritative_connections: int
+    active_transactions: int
+    durable_jobs_by_state: dict[str, int]
+    last_completed_migration: MigrationIdentity | None
+    recent_error_codes: tuple[str, ...]

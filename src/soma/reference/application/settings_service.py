@@ -318,7 +318,6 @@ class SettingService:
     ) -> SettingValue:
         definition = self._registry.require(setting_key)
         validated = definition.validate_value(value)
-        value_json = canonical_json_bytes(validated).decode("utf-8")
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="WriteSetting",

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
+
+from soma.foundation.errors import JobClaimConflict, PersistenceFailure
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.uow import UnitOfWork
@@ -136,4 +141,317 @@ def test_reappearance_command_id_is_deterministic_and_observation_scoped() -> No
     assert first != AdvancedSearchSrReappearanceWorker.derive_command_id(
         **{**values, "source_observation_id": "44444444-4444-4444-8444-444444444444"}
     )
+
+class _Clock:
+    def __init__(self, value: int = 100) -> None:
+        self.value = value
+
+    def __call__(self) -> int:
+        return self.value
+
+
+def _seed_presence_warning(
+    factory,
+    *,
+    absence_run_id: str,
+    presence_run_id: str,
+    sr_no: str,
+    row_ordinal: int,
+):
+    sr = ServiceRequestService(factory).create_manual_service_request(
+        command_id=new_uuid4(),
+        official_sr_no=sr_no,
+    )
+    source_observation_id = new_uuid4()
+    disappearance_command_id = new_uuid4()
+    disappearance_event_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO source_observations(source_observation_id,import_run_id,source_family,"
+            "entity_kind,identity_state,canonical_primary_id,row_ordinal,sheet_ordinal,"
+            "row_logical_sha256,source_row_chronology_utc,presence_state,recorded_at_utc) "
+            "VALUES (?,?,'advanced_search_sr','service_request','valid',?,?,1,?,NULL,"
+            "'observed_valid_identity',1)",
+            (source_observation_id, presence_run_id, sr_no, row_ordinal, f"{row_ordinal:064x}"),
+        )
+        uow.connection.execute(
+            "INSERT INTO command_receipts(command_id,command_type,request_hash,target_type,target_id,"
+            "committed_at_utc,result_type,result_id) VALUES (?,'AcceptReconciliationProposal',?,"
+            "'reconciliation_proposal',?,1,NULL,NULL)",
+            (disappearance_command_id, "b" * 64, new_uuid4()),
+        )
+        uow.connection.execute(
+            "INSERT INTO sr_source_presence_events(sr_source_presence_event_id,service_request_id,"
+            "source_family,event_kind,prior_presence_event_id,import_run_id,source_observation_id,"
+            "prior_source_observation_id,reconciliation_proposal_id,accepted_command_id,recorded_at_utc) "
+            "VALUES (?,?,'advanced_search_sr','disappearance_reviewed',NULL,?,NULL,?,?,?,1)",
+            (
+                disappearance_event_id,
+                sr.service_request_id,
+                absence_run_id,
+                new_uuid4(),
+                new_uuid4(),
+                disappearance_command_id,
+            ),
+        )
+    return sr, source_observation_id, disappearance_event_id
+
+
+def _reappearance_claim(factory, presence_run_id: str, clock: _Clock):
+    coordinator = DurableJobCoordinator(
+        factory,
+        JobTypeRegistry(TICKET_IMPORT_JOB_CONTRACTS),
+        clock=clock,
+    )
+    payload = {
+        "import_run_id": presence_run_id,
+        "source_family": "advanced_search_sr",
+        "published_run_revision": 1,
+        "requested_by_command_id": new_uuid4(),
+    }
+    with UnitOfWork(factory) as uow:
+        job_id = coordinator.enqueue_or_coalesce(
+            uow,
+            "ticket_import.sr_reappearance_reconcile",
+            1,
+            payload,
+            presence_run_id,
+        )
+    claim = coordinator.claim_next(new_uuid4(), clock.value)
+    assert claim is not None and claim.job_id == job_id
+    return coordinator, payload, claim
+
+
+def test_f022_per_sr_late_failure_rolls_back_receipt_event_audit_and_exact_replay_skips_claim_reads(
+    initialized_database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = _factory(initialized_database)
+    absence_run_id = new_uuid4()
+    presence_run_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _published_run(uow, absence_run_id, 10)
+        _published_run(uow, presence_run_id, 20)
+    sr, source_observation_id, _disappearance_event_id = _seed_presence_warning(
+        factory,
+        absence_run_id=absence_run_id,
+        presence_run_id=presence_run_id,
+        sr_no="12345678",
+        row_ordinal=1,
+    )
+
+    clock = _Clock()
+    coordinator, payload, claim = _reappearance_claim(factory, presence_run_id, clock)
+    worker = AdvancedSearchSrReappearanceWorker(factory)
+    worker._jobs = coordinator
+    original_write = worker._boundary._audit_writer.write
+
+    def fail_audit(*_args, **_kwargs):
+        raise PersistenceFailure("injected per-SR audit failure")
+
+    monkeypatch.setattr(worker._boundary._audit_writer, "write", fail_audit)
+    with pytest.raises(PersistenceFailure, match="per-SR audit failure"):
+        worker.run(claim)
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        state = ServiceRequestSourcePresenceRepository.current(
+            connection,
+            sr.service_request_id,
+            "advanced_search_sr",
+        )
+        assert state.warning_active is True
+        assert state.latest_event_kind == "disappearance_reviewed"
+        job = connection.execute(
+            "SELECT state,checkpoint_json FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("running", None)
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_type='ReconcileSrSourceReappearance' "
+            "AND target_id=?",
+            (source_observation_id,),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM sr_source_presence_events "
+            "WHERE service_request_id=? AND event_kind='reappearance_confirmed'",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE action_type="
+            "'ticket.service_request.source_presence_changed' AND target_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+    monkeypatch.setattr(worker._boundary._audit_writer, "write", original_write)
+    result = worker.run(claim)
+    assert result.processed_exact_count == 1
+    assert result.confirmed_count == 1
+
+    replay_outcome = worker._execute_representative(
+        claim,
+        payload,
+        SimpleNamespace(
+            canonical_sr_no="12345678",
+            source_observation_id=source_observation_id,
+        ),
+        None,
+    )
+    assert replay_outcome == "REAPPEARANCE_CONFIRMED"
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        state = ServiceRequestSourcePresenceRepository.current(
+            connection,
+            sr.service_request_id,
+            "advanced_search_sr",
+        )
+        assert state.warning_active is False
+        assert state.latest_event_kind == "reappearance_confirmed"
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_type='ReconcileSrSourceReappearance' "
+            "AND target_id=?",
+            (source_observation_id,),
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM sr_source_presence_events "
+            "WHERE service_request_id=? AND event_kind='reappearance_confirmed'",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE action_type="
+            "'ticket.service_request.source_presence_changed' AND target_id=?",
+            (sr.service_request_id,),
+        ).fetchone()[0] == 1
+    finally:
+        connection.close()
+
+
+def test_f022_reclaimed_claim_resumes_after_committed_cursor_without_touching_next_sr(
+    initialized_database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = _factory(initialized_database)
+    absence_run_id = new_uuid4()
+    presence_run_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _published_run(uow, absence_run_id, 10)
+        _published_run(uow, presence_run_id, 20)
+
+    first_sr, first_observation_id, _ = _seed_presence_warning(
+        factory,
+        absence_run_id=absence_run_id,
+        presence_run_id=presence_run_id,
+        sr_no="12345678",
+        row_ordinal=1,
+    )
+    second_sr, second_observation_id, _ = _seed_presence_warning(
+        factory,
+        absence_run_id=absence_run_id,
+        presence_run_id=presence_run_id,
+        sr_no="23456789",
+        row_ordinal=2,
+    )
+
+    clock = _Clock()
+    coordinator, _payload, claim = _reappearance_claim(factory, presence_run_id, clock)
+    worker = AdvancedSearchSrReappearanceWorker(factory, page_size=1)
+    worker._jobs = coordinator
+    original_checkpoint = coordinator.checkpoint
+    recovered = False
+
+    def checkpoint_then_reclaim(current_claim, checkpoint):
+        nonlocal recovered
+        original_checkpoint(current_claim, checkpoint)
+        if not recovered:
+            recovered = True
+            summary = coordinator.recover_stale_claims(new_uuid4(), clock.value)
+            assert summary.interrupted_count == 1
+            assert summary.retry_wait_count == 1
+
+    monkeypatch.setattr(coordinator, "checkpoint", checkpoint_then_reclaim)
+    with pytest.raises(JobClaimConflict):
+        worker.run(claim)
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        first_state = ServiceRequestSourcePresenceRepository.current(
+            connection,
+            first_sr.service_request_id,
+            "advanced_search_sr",
+        )
+        second_state = ServiceRequestSourcePresenceRepository.current(
+            connection,
+            second_sr.service_request_id,
+            "advanced_search_sr",
+        )
+        assert first_state.warning_active is False
+        assert second_state.warning_active is True
+        job = connection.execute(
+            "SELECT state,attempt_count,checkpoint_json FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert str(job[0]) == "retry_wait"
+        assert int(job[1]) == 1
+        assert '"last_canonical_sr_no":"12345678"' in str(job[2])
+        assert '"processed_exact_count":1' in str(job[2])
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_type='ReconcileSrSourceReappearance' "
+            "AND target_id=?",
+            (first_observation_id,),
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_type='ReconcileSrSourceReappearance' "
+            "AND target_id=?",
+            (second_observation_id,),
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+    monkeypatch.setattr(coordinator, "checkpoint", original_checkpoint)
+    clock.value += 5
+    retried = coordinator.claim_next(new_uuid4(), clock.value)
+    assert retried is not None
+    assert retried.job_id == claim.job_id
+    assert retried.attempt_ordinal == 2
+
+    restarted = AdvancedSearchSrReappearanceWorker(factory, page_size=1)
+    restarted._jobs = coordinator
+    result = restarted.run(retried)
+    assert result.processed_exact_count == 2
+    assert result.confirmed_count == 1
+
+    connection = factory.open_authoritative(read_only=True, require_wal=True)
+    try:
+        first_state = ServiceRequestSourcePresenceRepository.current(
+            connection,
+            first_sr.service_request_id,
+            "advanced_search_sr",
+        )
+        second_state = ServiceRequestSourcePresenceRepository.current(
+            connection,
+            second_sr.service_request_id,
+            "advanced_search_sr",
+        )
+        assert first_state.warning_active is False
+        assert second_state.warning_active is False
+        job = connection.execute(
+            "SELECT state,attempt_count FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("completed", 2)
+        assert connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_type='ReconcileSrSourceReappearance' "
+            "AND target_id IN (?,?)",
+            (first_observation_id, second_observation_id),
+        ).fetchone()[0] == 2
+        assert connection.execute(
+            "SELECT COUNT(*) FROM sr_source_presence_events "
+            "WHERE event_kind='reappearance_confirmed' AND service_request_id IN (?,?)",
+            (first_sr.service_request_id, second_sr.service_request_id),
+        ).fetchone()[0] == 2
+    finally:
+        connection.close()
 

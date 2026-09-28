@@ -19,7 +19,7 @@ def _contract(name: str, fields: frozenset[str]) -> ObjectContract:
         allowed_fields=fields,
         max_depth=4,
         max_collection_items=512 if batch else 32,
-        max_utf8_bytes=65_536 if batch else 16_384,
+        max_utf8_bytes=32_768 if batch else 16_384,
     )
 
 

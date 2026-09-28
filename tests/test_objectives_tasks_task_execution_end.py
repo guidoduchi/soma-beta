@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 
@@ -322,3 +323,83 @@ def test_end_audit_failure_rolls_back_end_task_and_objective_aggregate(initializ
         assert snapshot.connection.execute(
             "SELECT 1 FROM command_receipt_results WHERE command_id=?", (command_id,)
         ).fetchone() is None
+
+def test_lld05_f012_end_event_failure_before_projection_rebuild_rolls_back_exactly(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    row = _create_task(factory, ordinal=6)
+    objective_id = _seed_single_task_objective(factory, row)
+    service = TaskExecutionService(factory)
+    accepted_start = 1_970_003_000
+    service.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=row[1],
+        task_revision=1,
+        execution_revision=0,
+        effective_start_utc=accepted_start,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        before_projection = tuple(snapshot.connection.execute(
+            "SELECT execution_state,actual_start_utc,actual_end_utc,revision,last_event_id "
+            "FROM task_execution_projection WHERE task_id=?",
+            (row[1],),
+        ).fetchone())
+        before_aggregate = tuple(snapshot.connection.execute(
+            "SELECT execution_state,actual_end_utc,attention_reason,revision,last_command_id "
+            "FROM objective_aggregate_projection WHERE objective_id=?",
+            (objective_id,),
+        ).fetchone())
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "CREATE TRIGGER lld05_f012_fail_projection BEFORE UPDATE ON task_execution_projection "
+            "BEGIN SELECT RAISE(ABORT,'LLD05-F012 injected before execution projection update'); END"
+        )
+
+    command_id = new_uuid4()
+    with pytest.raises(sqlite3.IntegrityError, match="LLD05-F012"):
+        service.end_task_execution(
+            command_id=command_id,
+            task_id=row[1],
+            task_revision=2,
+            execution_revision=1,
+            effective_end_utc=accepted_start + 100,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_execution_events WHERE task_id=?",
+            (row[1],),
+        ).fetchone()[0] == 1
+        assert tuple(snapshot.connection.execute(
+            "SELECT execution_state,actual_start_utc,actual_end_utc,revision,last_event_id "
+            "FROM task_execution_projection WHERE task_id=?",
+            (row[1],),
+        ).fetchone()) == before_projection
+        assert snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?",
+            (row[1],),
+        ).fetchone()[0] == 2
+        assert tuple(snapshot.connection.execute(
+            "SELECT execution_state,actual_end_utc,attention_reason,revision,last_command_id "
+            "FROM objective_aggregate_projection WHERE objective_id=?",
+            (objective_id,),
+        ).fetchone()) == before_aggregate
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute("DROP TRIGGER lld05_f012_fail_projection")
+
+    retried = service.end_task_execution(
+        command_id=command_id,
+        task_id=row[1],
+        task_revision=2,
+        execution_revision=1,
+        effective_end_utc=accepted_start + 100,
+    )
+    assert retried.outcome == "APPLIED"
+

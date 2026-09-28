@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from soma.foundation.application.command_receipts import CommandReceipt, CommandReceiptStore
@@ -433,3 +435,137 @@ def test_terminal_reversal_requires_review_then_supersedes_only_pending_proposal
         (proposal_id,),
     )
     assert tuple(proposal) == ("superseded", 2, reversal_command)
+
+
+def test_lld03_fi001_terminal_projection_failure_before_proposal_insert_rolls_back_all(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = _new_rfc(factory)
+
+    class _FailBeforeProposalInsert:
+        def capture_pending(
+            self,
+            uow,
+            *,
+            trigger_rfc_id: str,
+            terminal_epoch_id: str,
+            terminal_status_class: str,
+            terminal_status_evidence_id: str,
+            accepted_command_id: str,
+        ) -> str:
+            projection = uow.connection.execute(
+                "SELECT status_class,status_evidence_id,terminal_epoch_id "
+                "FROM rfc_current_source_projection WHERE rfc_id=?",
+                (trigger_rfc_id,),
+            ).fetchone()
+            assert projection is not None
+            assert tuple(projection) == (
+                terminal_status_class,
+                terminal_status_evidence_id,
+                terminal_epoch_id,
+            )
+            raise RuntimeError("injected failure before pending proposal insert")
+
+    service = RfcSourceProjectionService(
+        _AcceptingEvidenceProvider(),
+        terminal_capture_participant=_FailBeforeProposalInsert(),
+    )
+    command_id = new_uuid4()
+
+    with pytest.raises(RuntimeError, match="before pending proposal insert"):
+        with UnitOfWork(factory) as uow:
+            _insert_outer_receipt(uow, command_id, rfc.rfc_id)
+            service.apply_accepted_field_deltas(
+                uow,
+                rfc_id=rfc.rfc_id,
+                accepted_command_id=command_id,
+                deltas=(_status("Closed", "terminal_closed", "fi001-terminal-evidence"),),
+            )
+
+    assert _read_one(
+        factory,
+        "SELECT 1 FROM rfc_current_source_projection WHERE rfc_id=?",
+        (rfc.rfc_id,),
+    ) is None
+    assert _read_one(
+        factory,
+        "SELECT 1 FROM rfc_terminal_cascade_proposals WHERE trigger_rfc_id=?",
+        (rfc.rfc_id,),
+    ) is None
+    assert _read_one(
+        factory,
+        "SELECT 1 FROM command_receipts WHERE command_id=?",
+        (command_id,),
+    ) is None
+
+
+def test_lld03_fi010_terminal_reversal_failure_rolls_back_pending_supersession(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = _new_rfc(factory)
+    capture = _ExactTerminalCapture()
+    service = RfcSourceProjectionService(
+        _AcceptingEvidenceProvider(),
+        terminal_capture_participant=capture,
+    )
+
+    terminal_command = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _insert_outer_receipt(uow, terminal_command, rfc.rfc_id)
+        terminal = service.apply_accepted_field_deltas(
+            uow,
+            rfc_id=rfc.rfc_id,
+            accepted_command_id=terminal_command,
+            deltas=(_status("Closed", "terminal_closed", "fi010-terminal-evidence"),),
+        )
+        terminal_epoch = terminal.lifecycle_projection.terminal_epoch_id
+        proposal_id = terminal.pending_cascade_proposal_id
+        assert terminal_epoch is not None and proposal_id is not None
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "CREATE TRIGGER test_lld03_fi010_projection_failure "
+            "BEFORE UPDATE OF status_text,status_class,terminal_epoch_id ON rfc_current_source_projection "
+            "WHEN NEW.rfc_id=OLD.rfc_id AND NEW.status_class='implement_eligible' "
+            "BEGIN SELECT RAISE(ABORT,'injected reversal projection failure'); END"
+        )
+
+    reversal_command = new_uuid4()
+    with pytest.raises((sqlite3.IntegrityError, SomaError)):
+        with UnitOfWork(factory) as uow:
+            _insert_outer_receipt(uow, reversal_command, rfc.rfc_id)
+            service.apply_accepted_field_deltas(
+                uow,
+                rfc_id=rfc.rfc_id,
+                accepted_command_id=reversal_command,
+                deltas=(_status("Implement", "implement_eligible", "fi010-nonterminal-evidence"),),
+                review_fingerprint="b" * 64,
+            )
+
+    projection = _read_one(
+        factory,
+        "SELECT status_text,status_class,status_evidence_id,terminal_epoch_id,revision "
+        "FROM rfc_current_source_projection WHERE rfc_id=?",
+        (rfc.rfc_id,),
+    )
+    assert tuple(projection) == (
+        "Closed",
+        "terminal_closed",
+        "fi010-terminal-evidence",
+        terminal_epoch,
+        1,
+    )
+    proposal = _read_one(
+        factory,
+        "SELECT proposal_state,revision,superseded_command_id "
+        "FROM rfc_terminal_cascade_proposals WHERE rfc_terminal_cascade_proposal_id=?",
+        (proposal_id,),
+    )
+    assert tuple(proposal) == ("pending", 1, None)
+    assert _read_one(
+        factory,
+        "SELECT 1 FROM command_receipts WHERE command_id=?",
+        (reversal_command,),
+    ) is None

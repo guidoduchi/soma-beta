@@ -10,6 +10,7 @@ from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.reference.audit_registry import build_reference_audit_registry
+from soma.reference.domain.matching import require_persisted_matching_profile
 from soma.reference.domain.account_code_review import (
     AccountCodeReviewSnapshot,
     preview_account_code_review,
@@ -92,6 +93,7 @@ class CustomerReferenceService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             if code_key is not None:
                 conflicting = int(
                     uow.connection.execute(
@@ -191,6 +193,7 @@ class CustomerReferenceService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             customer = self._active_customer(uow.connection, customer_org_id, base_revision=base_revision)
             if str(customer[1]) == stored_name and str(customer[2]) == name_key:
                 return PreparedMutation(
@@ -277,6 +280,7 @@ class CustomerReferenceService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             customer = self._active_customer(uow.connection, customer_org_id, base_revision=base_revision)
             prior_revision = int(customer[4])
             current = self._active_code_claim(uow.connection, customer_org_id)
@@ -420,6 +424,7 @@ class CustomerReferenceService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             code_key, _ = validate_account_code_review(
                 uow.connection,
                 raw_account_code=code_value,
@@ -540,6 +545,7 @@ class CustomerReferenceService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             code_key, _ = validate_account_code_review(
                 uow.connection,
                 raw_account_code=code_value,

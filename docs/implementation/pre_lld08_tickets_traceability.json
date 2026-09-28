@@ -1,0 +1,2016 @@
+{
+  "schema": "SOMA-PRE-LLD08-SEMANTIC-TRACEABILITY-V1",
+  "lld_id": "LLD-03",
+  "design_sha": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
+  "design_gate": {
+    "workflow": "LLD Spec Integrity",
+    "run_number": 928,
+    "run_id": 36298063308,
+    "conclusion": "success"
+  },
+  "implementation_parent_sha": "dd043b904931fa82f2e1db57992741bb55d3f4bf",
+  "certified": false,
+  "certification_rule": "No case is promoted to packet certification from marker/file presence alone. Final certification requires the reconciled implementation head to pass the supported matrix and all pre-LLD-08-owned clauses to be proven; later-packet clauses stay explicitly deferred to their owners.",
+  "method": [
+    "All 75 normative LLD-03 acceptance/failure cases are enumerated directly from the accepted design at c9b43e24.",
+    "Each case binds the exact normative claim to production owner modules and executable implementation tests after semantic inspection.",
+    "Cross-packet clauses are not inferred from mocks/interfaces; their unproven subclauses and owning later packet remain explicit.",
+    "LLD03-T037 is the repaired unique identity for SR source-presence review history; LLD03-T022 remains RFC current-source projection."
+  ],
+  "summary": {
+    "total_cases": 75,
+    "unique_case_ids": 75,
+    "status_counts": {
+      "reviewed_pending_reconciled_ci": 55,
+      "partial_cross_packet": 19,
+      "deferred_lld08": 1
+    }
+  },
+  "cases": [
+    {
+      "id": "LLD03-T001",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T001",
+        "name": "sr_internal_identity_survives_official_adoption",
+        "prove": [
+          "manual SR starts with LSR-########",
+          "reviewed official eight-digit assignment preserves service_request_id/local_sr_no/relationships/history",
+          "later exact source resolves same row"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/service_requests.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_identity_services.py::test_reviewed_official_sr_adoption_preserves_local_identity_and_history"
+      ],
+      "observed_assertions": "Adoption preserves internal/local identity and history while attaching the reviewed official identity.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T002",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T002",
+        "name": "lsr_allocator_nonreuse_and_exhaustion",
+        "prove": [
+          "sequence begins LSR-00000001",
+          "concurrent creations serialize within UoW",
+          "rollback returns allocator state with no phantom committed ID",
+          "committed ID never reused",
+          "LSR-99999999 is allocatable and atomically transitions next_value to exhausted sentinel 100000000",
+          "creation at exhausted sentinel returns SR_LOCAL_ID_EXHAUSTED with no receipt/SR/audit mutation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/service_requests.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_identity_services.py::test_manual_sr_allocation_replay_conflict_and_exhaustion"
+      ],
+      "observed_assertions": "Allocator/replay/exhaustion and rollback semantics are asserted at the owner boundary.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T003",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T003",
+        "name": "official_sr_uniqueness",
+        "prove": [
+          "same eight-digit official identity cannot belong to two SRs",
+          "presentation SR/TT labels do not enter stored identity",
+          "malformed/truncated values rejected"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/service_requests.py",
+        "src/soma/tickets/repositories/service_requests.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_identity_services.py::test_manual_sr_allocation_replay_conflict_and_exhaustion",
+        "tests/test_tickets_schema.py::test_ticket_business_identifiers_are_whole_value_strict"
+      ],
+      "observed_assertions": "Exact whole-value SR uniqueness/validation is asserted.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T004",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T004",
+        "name": "rfc_exact_identity",
+        "prove": [
+          "NC+14 accepted",
+          "longer value containing canonical substring rejected by domain parser",
+          "recognized source branch artifact is staged/skipped rather than resolving base RFC",
+          "exact manual/source adoption preserves rfc_id"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfcs.py",
+        "src/soma/tickets/rfc_import_reader.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_identity_services.py::test_rfc_exact_identity_adoption_and_customer_branch_consistency",
+        "tests/test_ticket_import_rfc_parser.py::test_rfc_parser_separates_exact_identity_branch_artifact_and_invalid_row"
+      ],
+      "observed_assertions": "Exact RFC identity and branch-artifact separation are asserted.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T005",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T005",
+        "name": "rfc_roles_are_derived",
+        "prove": [
+          "standalone becomes master after child edge",
+          "child is subordinate",
+          "no role column exists",
+          "detaching child recomputes both roles"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hierarchy.py",
+        "src/soma/tickets/queries/rfc_branches.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_relationship_services.py::test_add_subordinate_preserves_two_level_authority_and_idempotency",
+        "tests/test_ticket_rfc_hierarchy_mutations.py::test_detach_low_risk_allows_null_review_and_recomputes_roles"
+      ],
+      "observed_assertions": "RFC roles are derived from active hierarchy state and recomputed after mutation.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T006",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T006",
+        "name": "rfc_forest_invariants",
+        "prove": [
+          "self link rejected",
+          "parent that is subordinate rejected",
+          "child that already parents another rejected",
+          "second active parent rejected",
+          "depth-three/cycle impossible at DB/application boundary"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hierarchy.py",
+        "src/soma/tickets/repositories/rfc_hierarchy.py"
+      ],
+      "executable_tests": [
+        "tests/test_tickets_schema.py::test_rfc_forest_and_root_only_sr_link_are_database_invariants",
+        "tests/test_ticket_relationship_services.py::test_add_subordinate_preserves_two_level_authority_and_idempotency"
+      ],
+      "observed_assertions": "Two-level forest constraints are enforced at application/schema boundaries.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T007",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T007",
+        "name": "no_child_count_business_cap",
+        "prove": [
+          ">20 valid subordinate RFCs remain representable/queryable",
+          "keyset pagination returns stable pages",
+          "no arbitrary domain rejection",
+          "hierarchy mutations with 101 or more total children still return exactly the default 100-child page plus continuation without a business cap",
+          "a real maximum-content 100-child RfcBranchV1 mutation including continuation remains within the exact reviewed 33554432-byte/depth-8/8192-item replay allocation; boundary vectors prove the conservative 23288983-byte/depth-4/4151-item derivation and rejection immediately beyond each applicable bound",
+          "reparent and add-subordinate replay return the exact persisted original branch after later hierarchy/source changes rather than rebuilding current state",
+          "an unallocated RfcBranchV1 version is rejected instead of silently receiving the v1 allocation or generic fallback"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hierarchy.py",
+        "src/soma/tickets/queries/rfc_branches.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hierarchy_replay.py::test_rfc_branch_query_is_keyset_paged_with_page_independent_fingerprint",
+        "tests/test_ticket_rfc_hierarchy_replay.py::test_add_101st_subordinate_persists_max_content_100_child_page_and_replays_exactly",
+        "tests/test_ticket_rfc_hierarchy_mutations.py::test_reparent_into_large_branch_exceeds_legacy_response_ceiling"
+      ],
+      "observed_assertions": "Large branches are bounded/paged without a business child cap and replay exact committed results.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T008",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T008",
+        "name": "rfc_customer_branch_consistency",
+        "prove": [
+          "known different Customers block hierarchy mutation",
+          "unknown Customer permits hierarchy with explicit warning",
+          "Infrastructure-only evidence cannot set RFC Customer"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfcs.py",
+        "src/soma/tickets/rfc_hierarchy.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_relationship_services.py::test_hierarchy_rejects_known_customer_mismatch_without_edge_mutation",
+        "tests/test_ticket_relationship_services.py::test_hierarchy_allows_more_than_twenty_children_and_warns_on_unknown_customer"
+      ],
+      "observed_assertions": "Known customer mismatch blocks; unknown state warns.",
+      "unproven_subclauses": [
+        "Infrastructure-only evidence cannot set RFC Customer"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-08"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T009",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T009",
+        "name": "reparent_preserves_history",
+        "prove": [
+          "old edge becomes superseded with closing command/time",
+          "new edge gets new immutable identity",
+          "RFC/WFM identities unchanged",
+          "post-history reparent requires high-risk reviewed context",
+          "review fingerprint is SOMA_RFC_HIERARCHY_REVIEW_V1 and binds exact old/new structural branch authority plus complete bounded LLD-05 history risk/count/provider fingerprint",
+          "same hierarchy and same HIGH classification with changed affected Task/WFM/Objective history makes the old review stale",
+          "detach uses the same freshness rule with new parent/new branch null",
+          "LLD-05 history provider is read-only and no Task/WFM/Objective state is copied into LLD-03"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hierarchy.py",
+        "src/soma/tickets/repositories/rfc_hierarchy.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hierarchy_mutations.py::test_reparent_preserves_old_edge_history_and_replays_exact_result",
+        "tests/test_ticket_rfc_hierarchy_mutations.py::test_same_hierarchy_and_same_high_risk_with_changed_history_stales_review"
+      ],
+      "observed_assertions": "Reparent preserves edge history and binds review freshness to LLD-05 history authority.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T010",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T010",
+        "name": "master_only_sr_link",
+        "prove": [
+          "root/master accepts direct SR link",
+          "subordinate direct link rejected",
+          "subordinate-origin action resolves proposal to governing root and preserves origin provenance"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/relationships.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_rfc_relationships.py::test_sr_rfc_link_rejects_subordinate_target_and_preserves_origin_provenance"
+      ],
+      "observed_assertions": "Only governing roots receive direct SR links; subordinate-origin provenance survives.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T011",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T011",
+        "name": "sr_rfc_lifecycle_independence_and_terminal_review",
+        "prove": [
+          "existing link between active or terminal SR/RFC does not reopen/restart/close/archive/cancel either ticket",
+          "new link involving terminal/historical SR or RFC requires explicit review bound to exact current lifecycle evidence",
+          "lifecycle change after preview stales or changes the review requirement",
+          "no SLA reset, Communication restore, or terminal cascade is triggered"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/relationships.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_rfc_relationships.py::test_terminal_sr_link_requires_exact_fresh_review_and_failure_has_no_receipt",
+        "tests/test_sr_rfc_relationships.py::test_lifecycle_change_after_preview_stales_relationship_review"
+      ],
+      "observed_assertions": "Terminal/historical link review is exact and stale state writes nothing.",
+      "unproven_subclauses": [
+        "Communication restore/non-effect is owned by LLD-09"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T012",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T012",
+        "name": "sr_rfc_link_idempotency",
+        "prove": [
+          "duplicate active link -> NO_CHANGE receipt only",
+          "already-absent unlink -> NO_CHANGE receipt only",
+          "lost-response retry cannot later become mutation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/relationships.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_rfc_relationships.py::test_sr_rfc_link_and_unlink_increment_both_ticket_revisions_once_and_replay_exact_result"
+      ],
+      "observed_assertions": "Duplicate link/absent unlink and lost-response replay are exact.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T013",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T013",
+        "name": "inherited_sr_context",
+        "prove": [
+          "subordinate obtains SR context from parent root query",
+          "no subordinate sr_rfc_link row is fabricated",
+          "reparent changes current inherited context while old edge/link history remains"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/queries/relationships.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_read_model_closure.py::test_effective_sr_context_and_preview_resolve_subordinate_without_fabricating_direct_link"
+      ],
+      "observed_assertions": "Inherited SR context is derived through root without fabricating subordinate links.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T014",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T014",
+        "name": "standalone_rfc_device_reference",
+        "prove": [
+          "RFC with no SR links can hold Device References",
+          "subordinate can hold different set from master",
+          "branch UI keeps provenance per owning RFC"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/device_references.py",
+        "src/soma/tickets/relationships.py",
+        "src/soma/tickets/queries/device_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_relationship_services.py::test_device_reference_links_are_history_preserving_and_replay_exact_result",
+        "tests/test_ticket_read_model_closure.py::test_device_reference_queries_keep_owner_provenance_equal_names_and_optional_resolution"
+      ],
+      "observed_assertions": "Owner provenance is preserved in query results.",
+      "unproven_subclauses": [
+        "Workbench rendering of provenance is UI-owned"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-10"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T015",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T015",
+        "name": "device_reference_regularization_preserves_links",
+        "prove": [
+          "unregistered Device Reference participates in SR/RFC workflow",
+          "LLD-08 resolution to Network Element leaves device_reference_id and all link rows unchanged",
+          "no network_element_id shortcut exists in ticket relationship tables"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/device_references.py",
+        "src/soma/tickets/relationships.py"
+      ],
+      "executable_tests": [
+        "tests/test_tickets_schema.py::test_device_reference_stays_infrastructure_neutral_and_duplicate_names_are_valid"
+      ],
+      "observed_assertions": "Ticket schema keeps Device Reference identity infrastructure-neutral.",
+      "unproven_subclauses": [
+        "LLD-08 regularization preserving ticket links"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-08"
+      ],
+      "status": "deferred_lld08",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T016",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T016",
+        "name": "equal_device_names_do_not_merge",
+        "prove": [
+          "two Device References may have equal operational_name",
+          "name/hostname candidate does not authorize identity merge/resolution"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/device_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_identity_services.py::test_device_reference_equal_names_stale_correction_and_audit_privacy",
+        "tests/test_tickets_schema.py::test_device_reference_stays_infrastructure_neutral_and_duplicate_names_are_valid"
+      ],
+      "observed_assertions": "Equal names remain distinct identities and never authorize merge.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T017",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T017",
+        "name": "rfc_archive_is_local_only",
+        "prove": [
+          "archive changes only selected/revalidated local_archive_state members",
+          "provider lifecycle/source reconciliation continues",
+          "SR links/hierarchy/Task/Communication state unchanged"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_archive.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_archive.py::test_archive_excludes_prearchived_members_and_replay_reads_no_owner_state",
+        "tests/test_ticket_rfc_archive.py::test_large_archive_and_restore_are_cardinality_safe_and_provenance_scoped"
+      ],
+      "observed_assertions": "Archive affects only local archive authority/history.",
+      "unproven_subclauses": [
+        "Communication state non-effect is LLD-09-owned"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T018",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T018",
+        "name": "working_notes_are_local_and_creator_preserved",
+        "prove": [
+          "source import cannot edit/remove notes",
+          "creating Local User Profile identity is stored directly and remains unchanged through edits",
+          "edit preserves original creation time",
+          "remove records prior content/time/creator identity in audit",
+          "owner and creator FKs prevent orphan note provenance"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/working_notes.py",
+        "src/soma/tickets/repositories/working_notes.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_working_notes.py::test_working_notes_preserve_creator_edit_history_and_removal_evidence",
+        "tests/test_ticket_working_notes.py::test_working_note_owner_and_revision_are_authoritative"
+      ],
+      "observed_assertions": "Working-note creator/edit/removal provenance is immutable/history-preserving.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T019",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T019",
+        "name": "stale_relationship_preview",
+        "prove": [
+          "hierarchy/SR-link preview is advisory",
+          "changed base revision/hierarchy/lifecycle evidence before commit causes stale or renewed-review result",
+          "for hierarchy reparent/detach the writer recomputes RfcHierarchyHistoryAuthorityV1 in the same UnitOfWork before receipt/mutation",
+          "changed history provider_fingerprint or exact count invalidates an old supplied review even when branch fingerprints and LOW/HIGH classification are unchanged",
+          "provider INDETERMINATE cannot produce an authorizing review",
+          "no stale preview authorizes mutation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hierarchy.py",
+        "src/soma/tickets/queries/relationship_previews.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hierarchy_mutations.py::test_same_hierarchy_and_same_high_risk_with_changed_history_stales_review",
+        "tests/test_ticket_rfc_hierarchy_mutations.py::test_indeterminate_history_authority_cannot_authorize_reparent",
+        "tests/test_ticket_rfc_hierarchy_mutations.py::test_reparent_insert_failure_rolls_back_closed_edge_receipt_audit_and_revisions"
+      ],
+      "observed_assertions": "Writer revalidates review authority in-UoW and stale/indeterminate/failure paths are non-authorizing.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T020",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T020",
+        "name": "strict_schema_and_fk_indexes",
+        "prove": [
+          "all LLD-03 tables STRICT",
+          "all FK child columns have effective leading-prefix indexes unless a separately documented measured exception is accepted",
+          "active-only partial indexes are not counted as full-history FK coverage",
+          "append/history rows reject forbidden delete/rewrite",
+          "migration verifier detects missing guard/index"
+        ]
+      },
+      "production_owners": [
+        "src/soma/migrations/0003_tickets_core.sql",
+        "src/soma/foundation/migrations/verification.py",
+        "src/soma/schema_manifest.json"
+      ],
+      "executable_tests": [
+        "tests/test_tickets_schema.py::test_lld03_migration_is_current_strict_and_fk_clean",
+        "tests/test_foundation_fk_index_coverage.py::test_current_release_fk_coverage_fails_if_required_forward_index_is_missing"
+      ],
+      "observed_assertions": "STRICT/guard/FK-index release-schema invariants are verified.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T021",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T021",
+        "name": "sr_source_projection_structural_integrity",
+        "prove": [
+          "unknown/unallowlisted field_key is rejected at persistence boundary",
+          "field_key/value_kind mismatch is rejected",
+          "projection pointer to another Service Request is rejected",
+          "projection pointer to wrong field_key is rejected",
+          "unchanged accepted value does not append duplicate observation",
+          "missing/blank/unknown newer evidence cannot silently clear prior recognized pointer",
+          "SOMA_SR_SOURCE_FIELD_SET_BASE_V1 rejects empty, duplicate and unallowlisted field-key sets and is order-independent after governed UTF-8 field-key sorting",
+          "the token binds exact current authority for every named field including observation identity/value/chronology/precedence or exact null absence",
+          "accepting or changing a disjoint source field does not alter a token whose named field set excludes it",
+          "changing the current accepted authority of any named field changes the token and therefore stales that reviewed field proposal",
+          "projection revision, umbrella SR revision and Customer/Contact/current_handler_reference authority are deliberately excluded from the field-set token"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_source_projection.py",
+        "src/soma/tickets/repositories/sr_source_projection.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_source_projection.py::test_projection_database_guards_reject_wrong_field_cross_sr_and_observation_rewrite",
+        "tests/test_sr_source_projection.py::test_structural_registry_rejects_unknown_wrong_kind_duplicate_and_bad_chronology",
+        "tests/test_ticket_import_proposal_review_freshness.py::test_proposal_review_uses_certified_sr_source_field_set_token"
+      ],
+      "observed_assertions": "Projection structural guards and exact field-set freshness are asserted.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T037",
+      "normative_source": "spec/lld/tickets-core/tests/core-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T037",
+        "name": "sr_source_presence_review_history",
+        "prove": [
+          "accepted reviewed disappearance appends exactly one disappearance_reviewed event for the same service_request_id/source_family and changes no ticket lifecycle/source-field/reference authority",
+          "pending/rejected/deferred/superseded disappearance evidence creates no LLD-03 warning event",
+          "SOMA_SR_SOURCE_PRESENCE_BASE_V1 changes when SR revision or immutable presence-chain head changes, so stale reviewed absence cannot open another warning",
+          "while disappearance_reviewed is the chain head GetServiceRequest emits exactly SR_SOURCE_DISAPPEARANCE_REVIEWED",
+          "valid later reappearance appends reappearance_confirmed referencing the exact open event and clears the warning without accepting any source field value or recreating the SR",
+          "malformed/different-SR/different-source/INDETERMINATE evidence cannot resolve the warning",
+          "unusable non-identity fields do not prevent reappearance when canonical SR identity presence is valid",
+          "after reappearance a later reviewed disappearance appends a new cycle while all prior events remain immutable",
+          "chain-root/successor guards reject independent roots, branches, cross-SR/cross-source links and UPDATE/DELETE",
+          "exact internal command replay returns its recorded source-presence result without rereading later mutable source/presence state",
+          "sequence-7 runtime activation succeeds only after exact accepted migration prefix 1..6 is verified and otherwise fails closed"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_source_presence.py",
+        "src/soma/tickets/repositories/sr_source_presence.py",
+        "src/soma/tickets/queries/service_requests.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_source_presence.py::test_source_presence_owner_chain_query_and_append_only",
+        "tests/test_sr_source_presence.py::test_source_presence_base_token_binds_sr_revision_and_chain_head",
+        "tests/test_sr_source_presence.py::test_population_absence_acceptance_is_one_receipt_two_audits_and_exact_replay",
+        "tests/test_sr_source_presence_migration.py::test_exact_prefix_six_upgrade_matches_fresh_sequence_seven_schema"
+      ],
+      "observed_assertions": "Reviewed disappearance/reappearance is append-only, freshness-bound and replay-safe with migration-7 prefix protection.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T022",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T022",
+        "name": "rfc_current_source_projection_has_single_authority",
+        "prove": [
+          "accepted Enhanced RFC fields populate rfc_current_source_projection without duplicating source history on rfcs",
+          "external source creation chronology remains distinct from SOMA created_at",
+          "missing/unknown optional fields preserve prior accepted current facts",
+          "WFM provisional status cannot override accepted Enhanced RFC status",
+          "status_class is derived from the versioned source vocabulary rather than independently edited"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_source_projection.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_source_projection.py::test_nonterminal_source_projection_commits_exact_projection_and_registered_audit",
+        "tests/test_ticket_rfc_source_projection.py::test_equal_value_and_wfm_provisional_status_preserve_enhanced_authority",
+        "tests/test_ticket_rfc_published_evidence_projection.py::test_published_wfm_then_enhanced_status_respects_authority_and_blocks_later_wfm_override"
+      ],
+      "observed_assertions": "Enhanced RFC source authority remains current over provisional WFM evidence.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T023",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T023",
+        "name": "terminal_acceptance_atomically_creates_pending_cascade_only",
+        "prove": [
+          "accepted nonterminal->Closed or Cancelled transition allocates a terminal epoch",
+          "current projection and exactly one pending cascade proposal/member set commit atomically",
+          "scope_fingerprint exactly matches SOMA_RFC_TERMINAL_CASCADE_SCOPE_V1 including the published golden vectors",
+          "no Task/Objective/Communication consequence executes during source acceptance",
+          "crash/failure cannot leave terminal projection committed without its required pending proposal"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_source_projection.py",
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_source_projection_failure_injection.py::test_partial_terminal_capture_rolls_back_projection_proposal_and_outer_receipt",
+        "tests/test_ticket_rfc_terminal_cascade_capture.py::test_root_terminal_capture_persists_exact_ordered_branch_and_wfms"
+      ],
+      "observed_assertions": "Terminal projection and pending cascade capture are atomic.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T024",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T024",
+        "name": "terminal_cascade_scope_respects_hierarchy",
+        "prove": [
+          "terminal subordinate captures only that RFC plus applicable owned active WFMs",
+          "terminal root/master captures root plus exact direct subordinates and their applicable owned active WFMs",
+          "RFC member persistence is trigger/root first then child rfc_id UTF-8 ascending and WFM persistence is owning_rfc_id then task_id UTF-8 ascending regardless of participant iteration order",
+          "Local Tasks are not captured merely because they reference an RFC",
+          "SRs are never cascade members"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_capture.py::test_root_terminal_capture_persists_exact_ordered_branch_and_wfms",
+        "tests/test_ticket_rfc_terminal_cascade_capture.py::test_subordinate_terminal_capture_is_exact_rfc_scope"
+      ],
+      "observed_assertions": "Captured scope is deterministic and separates root branch from subordinate-only scope.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T025",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T025",
+        "name": "terminal_cascade_persists_and_stales_safely",
+        "prove": [
+          "pending proposal survives restart unchanged",
+          "GetPendingRfcTerminalCascade returns persisted proposal terminal evidence/scope fingerprint verbatim plus exact persisted member counts; paged members are RFC-before-WFM in captured ordinal order",
+          "pending-cascade cursor filter fingerprint binds rfc_id, exact proposal_id, proposal_revision and persisted scope_fingerprint so refresh/replacement between pages cannot splice member evidence from different proposals",
+          "hierarchy/revision/applicable-WFM change after capture makes preview/execute stale",
+          "terminal Closed<->Cancelled correction that changes current terminal status class/evidence while preserving the epoch makes the old pending proposal stale for execution",
+          "stale execution mutates nothing",
+          "explicit refresh supersedes old pending evidence and inserts a new exact pending scope using the same terminal epoch and current terminal status evidence without downstream consequence"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_terminal_cascade.py",
+        "src/soma/tickets/queries/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_query.py::test_pending_query_reads_immutable_capture_even_after_live_hierarchy_drift",
+        "tests/test_ticket_rfc_terminal_cascade_preview.py::test_terminal_preview_marks_hierarchy_drift_stale",
+        "tests/test_ticket_rfc_terminal_cascade_refresh.py::test_refresh_scope_drift_replaces_with_exact_current_branch"
+      ],
+      "observed_assertions": "Immutable capture is distinct from live state; drift stales and explicit refresh replaces.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T026",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T026",
+        "name": "terminal_cascade_deliberate_atomic_execution",
+        "prove": [
+          "client boolean/timestamp cannot substitute for session-bound deliberate-action proof",
+          "ExecuteRfcTerminalCascade accepts the READY preview RfcTerminalCascadeExecutionReviewV1 rather than scope_fingerprint as execution authority; proof binds action tickets.rfc.terminal_cascade.execute, exact proposal target, proposal base revision and execution_review.preview_fingerprint",
+          "inside the authoritative cascade UnitOfWork proposal revision, terminal epoch/evidence and complete RFC/WFM scope are re-read before proof consumption",
+          "LLD-05 and LLD-09 each recompute their complete current impact authority in the same writer UnitOfWork and exact-compare the reviewed provider exact_count/fingerprint before proof consumption or any participant mutation",
+          "with RFC/WFM scope unchanged, a changed Task/Objective exact_count or provider_fingerprint returns RFC_TERMINAL_CASCADE_STALE with no proof consumption and no cascade mutation",
+          "with RFC/WFM scope unchanged, a changed Communication exact_count or provider_fingerprint returns RFC_TERMINAL_CASCADE_STALE with no proof consumption and no cascade mutation",
+          "provider INDETERMINATE during writer-time revalidation fails closed with RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED before proof consumption and with zero cascade mutation",
+          "after both provider revalidations READY, LLD-03 reconstructs exact SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1 and requires exact execution_review.preview_fingerprint equality before proof consumption",
+          "wrong action, target, base revision, preview fingerprint, expired/session-mismatched or already-consumed proof returns RFC_TERMINAL_CASCADE_CONFIRMATION_REQUIRED with zero participant mutation",
+          "after successful proof consumption the one outer command receipt exists before either provider apply; both providers receive exact RfcTerminalCascadeExecutionCommandContextV1 command/actor/review provenance, receive no proof/session secret and open no nested receipt or transaction",
+          "each provider persists its complete exact consequence/history/audit set under the outer command_id and returns only one RfcTerminalCascadeParticipantApplyResultV1 with exact counts and a fingerprint over its complete ordered provider-owned result/audit identities",
+          "a valid cascade whose provider-owned result cardinality exceeds Foundation audit max_collection_items still succeeds without truncation or artificial business cap because no provider result-ref array crosses into the LLD-03 payload",
+          "the LLD-03 execution audit remains fixed-shape with reviewed_preview_fingerprint plus exactly the TASKS_OBJECTIVES and COMMUNICATIONS apply summaries and has only the executed rfc_terminal_cascade_proposal as its own result ref; provider-owned result refs remain on provider histories/audits",
+          "proof single-use consumption and LLD-05/LLD-09 participant application occur in the owning execution attempt; participant/database/summary-validation failure rolls all database effects back and leaves proposal pending while the consumed proof remains unusable and a retry requires fresh deliberate action",
+          "successful execution preserves provider WFM facts, leaves unrelated Local Tasks unchanged, marks proposal executed exactly once, records the reviewed preview fingerprint and persists exact RfcTerminalCascadeStateV1 replay result",
+          "same command_id exact replay resolves before proof validation/current-state reads, returns the original result, consumes no second proof, invokes no participant again and creates no duplicate audit or cascade effect"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_execute_stale_provider_fails_before_proof_or_receipt",
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_execute_participant_failure_rolls_back_receipt_but_proof_remains_consumed",
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_t020_real_task_participant_terminates_exact_wfm_scope_inside_rfc_outer_uow"
+      ],
+      "observed_assertions": "LLD-05 participant shares outer UoW; freshness precedes proof/receipt; participant failure rolls back DB work.",
+      "unproven_subclauses": [
+        "Real LLD-09 apply participant",
+        "production LLD-12 deliberate proof/session binding"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09",
+        "LLD-12"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T027",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T027",
+        "name": "terminal_reversal_preserves_prior_consequences",
+        "prove": [
+          "terminal->recognized nonterminal current projection requires exact high-risk review",
+          "accepted reversal clears current terminal epoch and supersedes still-pending proposal",
+          "previous terminal evidence/proposal history remains immutable",
+          "already executed cascade is not undone or used to resurrect prior WFM attempts",
+          "later genuine WFM work requires its own new Task identity"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_source_projection.py",
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_source_projection.py::test_terminal_reversal_requires_review_then_supersedes_only_pending_proposal"
+      ],
+      "observed_assertions": "Reviewed reversal clears terminal authority and supersedes only pending proposal history.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T028",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T028",
+        "name": "archive_operation_records_only_actual_changes",
+        "prove": [
+          "reviewed branch scope is exact root/direct-child membership with revisions",
+          "already archived member is displayed but excluded from committed operation membership",
+          "only active->archived members get membership and archive events",
+          "archive changes no source status/hierarchy/SR/WFM/Objective/Communication state"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_archive.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_archive.py::test_archive_excludes_prearchived_members_and_replay_reads_no_owner_state",
+        "tests/test_ticket_rfc_archive.py::test_archive_all_prearchived_is_exact_no_change_and_replays_without_reads"
+      ],
+      "observed_assertions": "Archive operation membership records only actual changes; all-prearchived is NO_CHANGE.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T029",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T029",
+        "name": "archive_restore_is_operation_scoped",
+        "prove": [
+          "restore by archive_operation_id affects only members originally archived by that operation",
+          "member independently restored later is not changed again",
+          "member independently rearchived by a newer operation is not activated by the older restore",
+          "members that were already archived before the original operation can never be activated by restoring that operation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_archive.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_archive.py::test_large_archive_and_restore_are_cardinality_safe_and_provenance_scoped"
+      ],
+      "observed_assertions": "Operation-scoped restore cannot overwrite later independent archive provenance.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T030",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T030",
+        "name": "rfc_hard_delete_is_narrow_audited_and_fail_closed",
+        "prove": [
+          "pure untouched manual/local-provisional RFC with only permitted creation evidence can receive eligible preview",
+          "accepted source/provisional provider evidence or any hierarchy/SR/Device/Note/WFM/Task/Objective/Communication/Inventory/archive/correction history blocks eligibility",
+          "INDETERMINATE dependency blocks eligibility",
+          "commit requires unchanged revision/provider freshness/fingerprint and explicit confirmation",
+          "minimal deletion audit survives successful RFC deletion",
+          "unexpected FK dependency rolls back delete/receipt/audit",
+          "no unlink/cascade/dependent deletion is used to manufacture eligibility"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py",
+        "src/soma/tickets/queries/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_preview_reproduces_certified_golden_vector_and_uses_one_read_snapshot",
+        "tests/test_ticket_rfc_hard_delete.py::test_provider_failures_are_closed_in_preview_and_writer_before_proof",
+        "tests/test_ticket_rfc_hard_delete.py::test_failure_after_proof_rolls_back_all_database_work_but_proof_stays_consumed"
+      ],
+      "observed_assertions": "Hard-delete preview/writer revalidation is fail-closed and database mutation is atomic.",
+      "unproven_subclauses": [
+        "Real LLD-09 dependency provider",
+        "production LLD-12 deliberate proof/session binding"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09",
+        "LLD-12"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T031",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T031",
+        "name": "terminal_status_repeat_and_terminal_correction_do_not_duplicate_epoch",
+        "prove": [
+          "newer repeated accepted terminal status does not create a second terminal epoch or duplicate cascade solely because chronology advanced",
+          "terminal Closed<->Cancelled correction preserves the current epoch unless a separately accepted nonterminal reversal occurred",
+          "terminal correction never edits the existing proposal fingerprint/evidence in place and a pending proposal bound to old terminal evidence requires explicit refresh before execution",
+          "pending/executed proposal history remains tied to the epoch that caused local consequences"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_source_projection.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_source_projection.py::test_terminal_repeat_and_correction_preserve_one_epoch_and_one_proposal"
+      ],
+      "observed_assertions": "Terminal repeat/correction preserves one epoch and one pending consequence proposal.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T032",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T032",
+        "name": "implement_eligibility_is_projection_not_task_authority",
+        "prove": [
+          "RFC status classification can expose pre_implement vs implement_eligible to LLD-04/05",
+          "LLD-03 does not create/activate WFM work from that classification",
+          "accepted Enhanced pre-Implement evidence cannot be overridden by WFM provisional status",
+          "unknown RFC status remains explicit and does not fabricate Implement eligibility"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_source_projection.py",
+        "src/soma/tickets/rfc_import_reader.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_published_evidence_projection.py::test_published_wfm_then_enhanced_status_respects_authority_and_blocks_later_wfm_override",
+        "tests/test_tickets_rfc_wfm_provisional.py::test_enhanced_rfc_status_blocks_wfm_provisional_eligibility"
+      ],
+      "observed_assertions": "Implement eligibility is source classification only; Enhanced RFC authority dominates provisional WFM.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T033",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T033",
+        "name": "terminal_cascade_preview_is_read_only_fingerprint_bound_and_page_stable",
+        "prove": [
+          "PreviewRfcTerminalCascade uses one stable ReadSnapshot and never opens a writer UnitOfWork, receipt, audit or proof-consumption path",
+          "current applicable WFM recomputation uses LLD-05 snapshot_applicable_wfms with the same eligibility/order contract as writer capture_applicable_wfms",
+          "preview_fingerprint exactly matches SOMA_RFC_TERMINAL_CASCADE_PREVIEW_V1 including the published golden vector and binds persisted/current scope plus complete Task/Objective and Communication provider fingerprints",
+          "READY preview emits RfcTerminalCascadeExecutionReviewV1 containing only preview_fingerprint plus both complete provider exact_count/fingerprint summaries; stale or INDETERMINATE preview emits null execution_review",
+          "impact items use the closed RfcTerminalCascadeImpactItemV1 kinds and order TICKETS then TASKS_OBJECTIVES then COMMUNICATIONS, then impact_kind/entity_id UTF-8 ascending",
+          "continuation filter binds proposal_id, proposal_revision and preview_fingerprint so Objective/Communication impact change between pages is rejected instead of splicing two previews",
+          "any participant INDETERMINATE produces execution_ready=false, empty impacts and null continuation rather than a partial cross-domain impact page"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/queries/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_preview.py::test_terminal_preview_golden_fingerprint_and_cursor_filter_vectors",
+        "tests/test_ticket_rfc_terminal_cascade_preview.py::test_terminal_preview_never_opens_writer_uow",
+        "tests/test_ticket_rfc_terminal_cascade_preview.py::test_terminal_preview_indeterminate_provider_returns_no_partial_impacts"
+      ],
+      "observed_assertions": "Preview is stable/read-only and fail-closed without partial impact publication.",
+      "unproven_subclauses": [
+        "Real LLD-09 impact-provider semantics"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T034",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T034",
+        "name": "terminal_cascade_refresh_accepts_current_terminal_evidence_within_same_epoch",
+        "prove": [
+          "Closed->Cancelled or Cancelled->Closed accepted correction preserves the terminal epoch and makes the old proposal stale",
+          "RefreshRfcTerminalCascadeProposal accepts the same epoch with the current corrected terminal class/evidence and does not require stale evidence equality",
+          "refresh supersedes the old pending proposal without editing its identity/evidence/fingerprint/members and inserts one replacement pending proposal bound to current evidence",
+          "unchanged terminal binding plus unchanged complete scope is semantic NO_CHANGE",
+          "different epoch, nonterminal reversal, executed proposal or already-superseded proposal cannot be refreshed",
+          "refresh executes no Task/Objective/Communication consequence"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_refresh.py::test_refresh_same_epoch_terminal_correction_replaces_pending_and_audits_exact_provenance",
+        "tests/test_ticket_rfc_terminal_cascade_refresh.py::test_refresh_no_change_persists_exact_state_and_replays_without_owner_reads"
+      ],
+      "observed_assertions": "Refresh supersedes old proposal on material same-epoch correction and preserves exact NO_CHANGE replay.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T035",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-archive-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T035",
+        "name": "archive_scope_and_audit_are_cardinality_safe",
+        "prove": [
+          "SOMA_RFC_ARCHIVE_SCOPE_V1 matches both published golden vectors and changes when any member identity, revision or archive_state changes",
+          "ArchiveRfcRequestV1 carries only scope_kind and reviewed_scope_fingerprint; it never carries a member revision list or other unbounded branch payload",
+          "writer recomputes the complete current scope under the authoritative UnitOfWork and exact-compares reviewed_scope_fingerprint before mutation",
+          "a reviewed_branch with more members than Foundation audit max_collection_items remains valid and archives every active reviewed member without truncation or an invented business cap",
+          "archive audit JSON remains fixed-shape with scalar counts and has exactly one audit result ref to rfc_archive_operation regardless of changed member cardinality",
+          "exact changed RFC identities remain only in immutable rfc_archive_operation_members/rfc_archive_events row-wise authority",
+          "ArchiveRfc material and NO_CHANGE responses are fixed-size ArchiveRfcResultV1; NO_CHANGE has null rfc_archive_operation_id and creates no operation/event/audit",
+          "same command_id replay returns the original exact ArchiveRfcResultV1 before current scope reads and creates no second operation/event/audit"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_archive.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_archive.py::test_archive_scope_fingerprint_matches_certified_golden_vectors",
+        "tests/test_ticket_rfc_archive.py::test_large_archive_and_restore_are_cardinality_safe_and_provenance_scoped",
+        "tests/test_ticket_rfc_archive_contract.py::test_archive_audit_runtime_contract_is_scalar_for_both_actions"
+      ],
+      "observed_assertions": "Archive fingerprint/audit remain bounded at high cardinality.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-T036",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-archive-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-T036",
+        "name": "archive_restore_audit_response_and_paging_are_operation_bounded",
+        "prove": [
+          "RestoreRfcArchiveOperation considers every immutable origin member but restores only members still archived by that exact operation",
+          "a newer independent restore/rearchive wins and an older operation never overwrites later provenance",
+          "RfcArchiveOperationMemberV1 has exactly rfc_id, pre_archive_revision, archived_revision, ordinal, current_archive_state, latest_event_type, latest_event_origin_archive_operation_id, latest_event_resulting_rfc_revision and restore_eligible; unknown fields are rejected",
+          "latest event authority is greatest resulting_rfc_revision for the RFC and restore_eligible is true exactly for current archived state whose latest archived event belongs to the queried origin operation",
+          "SOMA_RFC_ARCHIVE_OPERATION_PROJECTION_V1 binds the complete ordered current RfcArchiveOperationMemberV1 set plus immutable operation identity/scope header and uses exact StrictVersionedJson canonical SHA-256 semantics",
+          "GetRfcArchiveOperation continuation filter binds operation id plus complete projection_fingerprint; changing any current archive state/latest event/restore eligibility between pages rejects the old continuation instead of returning a mixed-time page",
+          "restore audit remains fixed-shape with scalar changed_rfc_count and exactly one audit result ref to the origin rfc_archive_operation even when many members restore",
+          "restored identities remain row-wise rfc_archive_events for the restore command",
+          "RestoreRfcArchiveOperation processes every eligible member before building its response and returns at most 32 RfcArchiveOperationMemberV1 items in the first page with continuation bound to exact resulting projection_fingerprint; this response-page bound never caps restore cardinality",
+          "a material restore with more than 32 eligible members succeeds for all eligible members while its exact stored replay response remains within Foundation response collection bounds",
+          "same command_id restore replay returns the exact stored bounded RfcArchiveOperationV1 even after later archive state changes and does not reconstruct from mutable current state; attempting to continue the historical replay page after such a change fails stale/invalid because its cursor binds the historical projection_fingerprint",
+          "zero eligible members is semantic NO_CHANGE with no restored event or audit and stores the exact bounded operation projection for replay"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_archive.py",
+        "src/soma/tickets/queries/rfc_archive.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_archive.py::test_large_archive_and_restore_are_cardinality_safe_and_provenance_scoped",
+        "tests/test_ticket_rfc_archive_contract.py::test_restore_command_replay_page_bound_matches_certified_design",
+        "tests/test_ticket_rfc_archive_projection_paging.py::test_restore_replay_continuation_is_invalidated_by_later_projection_change"
+      ],
+      "observed_assertions": "Restore mutates complete eligible set but returns bounded projection pages bound to exact resulting authority.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC001",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC001",
+        "given": "SR has no Customer relationship and reviewed exact LLD-02 Customer identity",
+        "when": "SetServiceRequestCustomer accepts",
+        "then": "one active sr_customer_relationship points to customer_org_id and labels/account code remain source evidence only"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_reference_mutations.py::test_customer_relationship_history_revision_no_change_clear_and_exact_replay"
+      ],
+      "observed_assertions": "Canonical SR Customer relationship is identity-based and history-preserving.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC002",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC002",
+        "given": "SR Customer changes while current CPL belongs to old Customer",
+        "when": "Customer correction commits",
+        "then": "prior relationship is superseded, new relationship opens, LLD-06 invalidates incompatible classification in same UoW, no replacement CPL is selected"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py",
+        "src/soma/product_line_sla/services/classification_participant.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_reference_mutations.py::test_customer_participant_failure_rolls_back_receipt_relationship_and_revision"
+      ],
+      "observed_assertions": "Customer replacement and classification invalidation share one UoW.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-06"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC003",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC003",
+        "given": "LLD-06 participant fails or is indeterminate",
+        "when": "Customer change is attempted",
+        "then": "receipt/relationship/classification changes all roll back"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py",
+        "src/soma/product_line_sla/services/classification_participant.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_reference_mutations.py::test_customer_participant_failure_rolls_back_receipt_relationship_and_revision"
+      ],
+      "observed_assertions": "Participant failure rolls relationship/receipt/classification work back.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-06"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC004",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC004",
+        "given": "Customer Account Code/name matching is ambiguous or unresolved",
+        "when": "Advanced Search source facts are accepted",
+        "then": "SR source projection may commit independently and canonical SR Customer remains unchanged"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_source_projection.py",
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_source_projection.py::test_source_projection_fields_advance_independently_and_equal_values_do_not_append"
+      ],
+      "observed_assertions": "Source facts can advance without inventing canonical Customer authority.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC005",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC005",
+        "given": "reviewed existing Contact and current SR Customer",
+        "when": "customer_contact relationship opens, its Contact affiliation independently changes later, and the current SR point context is read",
+        "then": "Contact identity is unchanged and customer_org_context_id records organization-at-use; a later independent LLD-02 Contact affiliation change preserves that snapshot, while the active SR point-query warning reports a known current Contact/SR Customer mismatch without altering either relationship"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_reference_mutations.py::test_contact_affiliation_change_does_not_rewrite_sr_organization_at_use_snapshot",
+        "tests/test_sr_reference_mutations.py::test_point_context_affiliation_warning_both_roles_unknown_and_stale_handler"
+      ],
+      "observed_assertions": "Organization-at-use snapshot survives later affiliation change and point warning reflects current mismatch.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC006",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC006",
+        "given": "Contact current affiliation conflicts with SR Customer",
+        "when": "relationship is attempted without exact mismatch review",
+        "then": "SR_CONTACT_AFFILIATION_REVIEW_REQUIRED and no Contact/relationship mutation"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_reference_mutations.py::test_contact_affiliation_mismatch_requires_fresh_review_preserves_affiliation_and_replays_exactly"
+      ],
+      "observed_assertions": "Mismatch without fresh review is rejected without master/reference mutation.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC007",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC007",
+        "given": "same affiliation mismatch with fresh explicit review",
+        "when": "the mismatched relationship opens with fresh explicit review and the current SR point context is read",
+        "then": "SR relationship records context while LLD-02 Contact affiliation is not rewritten; an accepted reviewed mismatch remains valid, and its current-state point-query warning describes a continuing mismatch without retroactively undoing review or altering the stored organization-at-use"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_reference_mutations.py::test_contact_affiliation_mismatch_requires_fresh_review_preserves_affiliation_and_replays_exactly",
+        "tests/test_sr_reference_mutations.py::test_point_context_affiliation_warning_both_roles_unknown_and_stale_handler"
+      ],
+      "observed_assertions": "Reviewed mismatch preserves master affiliation while recording relationship context.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC008",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC008",
+        "given": "current accepted Current Handler source observation H1 and reviewed Contact match",
+        "when": "current_handler_reference opens",
+        "then": "supporting observation is H1 and source handler text remains sole assignment authority"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py",
+        "src/soma/tickets/sr_source_projection.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_reference_mutations.py::test_current_handler_reference_binds_exact_current_source_observation"
+      ],
+      "observed_assertions": "Handler reference binds the exact accepted source observation, not a local assignment fact.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC009",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC009",
+        "given": "handler relationship supports H1 but accepted source projection advances to different H2",
+        "when": "SR workbench/query resolves current handler",
+        "then": "old Contact relationship remains historical but is not presented as current handler resolution until separately reviewed against H2; a stale handler-only relationship does not independently raise the current affiliation-mismatch warning, and an aligned handler in either reference role follows the same known-affiliation/current-SR-Customer comparison"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py",
+        "src/soma/tickets/queries/service_requests.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_current_handler_reconciliation.py::test_same_contact_new_handler_support_is_material_and_rebinds_history",
+        "tests/test_sr_reference_mutations.py::test_point_context_affiliation_warning_both_roles_unknown_and_stale_handler"
+      ],
+      "observed_assertions": "Stale handler support becomes historical and current query does not present it as current authority.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC010",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC010",
+        "given": "accepted blank Current Handler",
+        "when": "source projection accepts clear",
+        "then": "explicit_clear observation becomes current handler pointer, source display is empty, Contact identity/affiliation and historical handler relationships are untouched"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_source_projection.py",
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_source_projection.py::test_explicit_current_handler_clear_is_persisted_but_other_field_clear_is_rejected"
+      ],
+      "observed_assertions": "Explicit handler clear advances source pointer while leaving Contact/history untouched.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC011",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC011",
+        "given": "LLD-03 accepted field references unpublished, wrong-source-family, wrong-SR or wrong-field LLD-04 evidence",
+        "when": "insert is attempted",
+        "then": "cross-schema/source-provider validation rejects atomically"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_source_projection.py",
+        "src/soma/ticket_import/services/sr_evidence_provider.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_source_projection.py::test_indeterminate_source_evidence_rolls_back_outer_receipt_and_projection",
+        "tests/test_sr_source_projection.py::test_projection_database_guards_reject_wrong_field_cross_sr_and_observation_rewrite"
+      ],
+      "observed_assertions": "Wrong/unpublished/cross-SR evidence is rejected atomically.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC012",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC012",
+        "given": "changed source field has no chronology comparable to current evidence",
+        "when": "ordinary source_chronology precedence is attempted",
+        "then": "write is rejected; only explicit reviewed_correction may establish new accepted current value"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_source_projection.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_source_projection.py::test_changed_value_requires_newer_chronology_or_reviewed_correction"
+      ],
+      "observed_assertions": "Noncomparable chronology is rejected unless explicit reviewed correction applies.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRC013",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-acceptance.json",
+      "normative_claim": {
+        "id": "SRC013",
+        "given": "current_handler_reference resolves Contact C from H1, then current accepted Handler advances to different H2 that also reviews to C",
+        "when": "fresh reviewed Handler Contact reconciliation accepts against H2",
+        "then": "same Contact C is preserved, H1 relationship is superseded, a new active relationship opens with H2 support, and exact C+H2 replay is no-change"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_current_handler_reconciliation.py::test_same_contact_new_handler_support_is_material_and_rebinds_history",
+        "tests/test_ticket_import_advanced_search_current_handler_reconciliation.py::test_exact_same_contact_and_support_is_not_material",
+        "tests/test_ticket_import_sr_contact_acceptance.py::test_current_handler_contact_accepts_equal_later_import_without_redundant_source_observation"
+      ],
+      "observed_assertions": "Same Contact may be rebound to newer exact handler support while exact replay is NO_CHANGE.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRF001",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-failure-injection.json",
+      "normative_claim": {
+        "id": "SRF001",
+        "fault": "crash after prior SR Customer relationship is superseded but before replacement insert",
+        "expected": "single UnitOfWork rolls back; original active relationship survives"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_reference_mutations.py::test_customer_participant_failure_rolls_back_receipt_relationship_and_revision"
+      ],
+      "observed_assertions": "Single UoW preserves old relationship when replacement path fails.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRF002",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-failure-injection.json",
+      "normative_claim": {
+        "id": "SRF002",
+        "fault": "LLD-06 classification participant throws after new Customer relationship insert",
+        "expected": "relationship and classification changes roll back with no accepted partial history"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py",
+        "src/soma/product_line_sla/services/classification_participant.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_reference_mutations.py::test_customer_participant_failure_rolls_back_receipt_relationship_and_revision"
+      ],
+      "observed_assertions": "LLD-06 participant failure leaves no partial relationship/classification history.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-06"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRF003",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-failure-injection.json",
+      "normative_claim": {
+        "id": "SRF003",
+        "fault": "Contact affiliation changes between preview and writer revalidation",
+        "expected": "stale/mismatch gate recomputes under UoW and fails closed unless exact current review remains valid"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_sr_contact_acceptance.py::test_new_same_name_contact_after_review_makes_candidate_stale_without_receipt",
+        "tests/test_sr_reference_mutations.py::test_contact_affiliation_mismatch_requires_fresh_review_preserves_affiliation_and_replays_exactly"
+      ],
+      "observed_assertions": "Writer recomputes Contact review/mismatch authority and fails stale closed.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRF004",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-failure-injection.json",
+      "normative_claim": {
+        "id": "SRF004",
+        "fault": "Current Handler source pointer changes after review preview but before relationship commit",
+        "expected": "SR_HANDLER_REFERENCE_STALE; no new handler Contact relationship"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_advanced_search_current_handler_reconciliation.py::test_same_contact_new_handler_support_is_material_and_rebinds_history",
+        "tests/test_sr_reference_mutations.py::test_current_handler_reference_binds_exact_current_source_observation"
+      ],
+      "observed_assertions": "Current Handler pointer/support drift cannot authorize stale relationship commit.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRF005",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-failure-injection.json",
+      "normative_claim": {
+        "id": "SRF005",
+        "fault": "LLD-04 source observation field exists but owning import run is unpublished validating state",
+        "expected": "SrSourceEvidenceProvider/database guard rejects; no LLD-03 source observation"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_source_projection.py",
+        "src/soma/ticket_import/services/sr_evidence_provider.py"
+      ],
+      "executable_tests": [
+        "tests/test_sr_source_projection.py::test_indeterminate_source_evidence_rolls_back_outer_receipt_and_projection"
+      ],
+      "observed_assertions": "Unpublished/indeterminate owner evidence cannot become LLD-03 source authority.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "SRF006",
+      "normative_source": "spec/lld/tickets-core/tests/sr-reference-failure-injection.json",
+      "normative_claim": {
+        "id": "SRF006",
+        "fault": "foreign-key/audit result insertion fails after relationship mutation",
+        "expected": "whole command rolls back including command receipt and relationship state"
+      },
+      "production_owners": [
+        "src/soma/tickets/sr_references.py",
+        "src/soma/tickets/repositories/sr_references.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_sr_contact_acceptance.py::test_contact_owner_failure_after_receipt_rolls_back_entire_acceptance"
+      ],
+      "observed_assertions": "Post-receipt owner failure rolls command/reference effects back atomically.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI001",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI001",
+        "inject": "failure after RFC terminal projection update but before pending cascade proposal insert",
+        "expect": "entire acceptance UnitOfWork rolls back; prior projection remains current and no proposal/member rows exist"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_source_projection.py",
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_source_projection.py::test_lld03_fi001_terminal_projection_failure_before_proposal_insert_rolls_back_all"
+      ],
+      "observed_assertions": "Injected failure after terminal projection becomes visible inside UoW but before proposal insert rolls projection/receipt back.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI002",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI002",
+        "inject": "failure after cascade proposal row insert but before all immutable membership rows",
+        "expect": "projection/proposal/partial membership/receipt/audit all roll back"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_source_projection.py",
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_source_projection_failure_injection.py::test_partial_terminal_capture_rolls_back_projection_proposal_and_outer_receipt"
+      ],
+      "observed_assertions": "Failure after proposal insert before membership rolls all terminal acceptance artifacts back.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI003",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI003",
+        "inject": "terminal-cascade execution failure at any participant boundary: LLD-05 fails before/after owned mutation; LLD-05 applies then LLD-09 fails before/after owned mutation; or both apply and a failure occurs before proposal transition/audit/exact result/commit",
+        "expect": "all Task/Objective and Communication database changes, proposal execution transition, receipt, audit and command result roll back; proposal remains pending; provider WFM source facts and unrelated Local Tasks remain unchanged; an already-consumed deliberate proof is not made reusable"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_execute_participant_failure_rolls_back_receipt_but_proof_remains_consumed",
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_execute_rejects_wrong_domain_apply_summary_and_rolls_back"
+      ],
+      "observed_assertions": "Participant/late apply failures rollback DB state while consumed proof remains external.",
+      "unproven_subclauses": [
+        "Real LLD-09 participant side effects",
+        "production proof provider"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09",
+        "LLD-12"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI004",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI004",
+        "inject": "after READY preview/deliberate interaction but before execute writer revalidation, either RFC/WFM scope changes, scope remains identical while LLD-05 Task/Objective or LLD-09 Communication complete impact count/fingerprint changes, or either participant returns INDETERMINATE during complete-set revalidation",
+        "expect": "determinate scope/provider mismatch returns RFC_TERMINAL_CASCADE_STALE and INDETERMINATE returns RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED; both fail before proof consumption/receipt/participant mutation and leave proposal pending"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_terminal_cascade.py",
+        "src/soma/tickets/queries/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_execute_stale_provider_fails_before_proof_or_receipt",
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_execute_indeterminate_provider_fails_before_proof",
+        "tests/test_ticket_rfc_terminal_cascade_preview.py::test_preview_fingerprint_binds_provider_authority_even_when_scope_is_unchanged"
+      ],
+      "observed_assertions": "Changed/indeterminate complete authority fails before proof/receipt.",
+      "unproven_subclauses": [
+        "Real LLD-09 impact provider"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI005",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI005",
+        "inject": "deliberate proof has wrong action, proposal target, base revision or reviewed preview fingerprint, or is invalid/expired/session-mismatched/already-consumed",
+        "expect": "RFC_TERMINAL_CASCADE_CONFIRMATION_REQUIRED after domain freshness revalidation but before downstream mutation; client timestamp/boolean is ignored"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_execute_invalid_proof_never_reaches_participant_apply"
+      ],
+      "observed_assertions": "Invalid proof is checked after freshness and before downstream mutation.",
+      "unproven_subclauses": [
+        "Production proof/session/expiry provider"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-12"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI006",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI006",
+        "inject": "crash during branch archive after some in-memory/member updates but before transaction commit",
+        "expect": "all RFC archive states, operation/member/event rows, receipt and audit roll back"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_archive.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_archive.py::test_lld03_fi006_archive_mid_member_failure_rolls_back_entire_operation"
+      ],
+      "observed_assertions": "Failure on second archive event after partial member work rolls operation/member/event/receipt/audit and RFC states back.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI007",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI007",
+        "inject": "member is independently restored/rearchived between archive-operation read and restore commit",
+        "expect": "current-UoW latest-event check excludes or stales that member; older operation never overwrites newer archive provenance"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_archive.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_archive.py::test_large_archive_and_restore_are_cardinality_safe_and_provenance_scoped"
+      ],
+      "observed_assertions": "Later independent rearchive wins; restoring older operation is NO_CHANGE for that member.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI008",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI008",
+        "inject": "new source/history dependency appears after eligible hard-delete preview",
+        "expect": "commit recomputation changes fingerprint or returns blocker; RFC_HARD_DELETE_PREVIEW_STALE/BLOCKED and no mutation"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_preview_snapshot_is_stable_across_concurrent_change_then_writer_blocks",
+        "tests/test_ticket_rfc_hard_delete.py::test_stale_preview_does_not_consume_proof"
+      ],
+      "observed_assertions": "New dependency/state after preview is revalidated and blocks before proof/delete.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI009",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI009",
+        "inject": "unexpected dependent FK causes RFC DELETE to fail after receipt/audit insertion",
+        "expect": "same UnitOfWork rolls back RFC delete attempt, command receipt and deletion audit; RFC remains intact"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_unexpected_foreign_key_preserves_dependent_row_and_rolls_back_delete"
+      ],
+      "observed_assertions": "Unexpected FK failure rolls receipt/audit/delete work back and preserves dependency.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI010",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI010",
+        "inject": "terminal reversal accepted while pending cascade exists",
+        "expect": "projection reversal and pending-proposal supersession commit atomically; crash cannot leave nonterminal current state with executable pending proposal from the old epoch"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_source_projection.py",
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_source_projection.py::test_lld03_fi010_terminal_reversal_failure_rolls_back_pending_supersession"
+      ],
+      "observed_assertions": "Injected failure after pending supersession but before projection commit restores both terminal projection and pending proposal.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI011",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI011",
+        "inject": "one cross-domain dependency provider returns INDETERMINATE during hard-delete preview/commit",
+        "expect": "fail closed without attempting dependent cleanup or RFC deletion"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_provider_failures_are_closed_in_preview_and_writer_before_proof"
+      ],
+      "observed_assertions": "INDETERMINATE provider state fails closed without cleanup/delete.",
+      "unproven_subclauses": [
+        "Real LLD-09 dependency provider"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-FI012",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-lifecycle-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-FI012",
+        "inject": "same command_id replay after successful cascade/archive/hard-delete command",
+        "expect": "LLD-01 replay returns original committed exact result before owner preparation/current reads; terminal-cascade replay does not validate or consume another deliberate proof and creates no duplicate proposal/event/audit or second destructive effect"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_terminal_cascade.py",
+        "src/soma/tickets/rfc_archive.py",
+        "src/soma/tickets/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_execute_large_provider_result_cardinality_keeps_ticket_audit_fixed_shape",
+        "tests/test_ticket_rfc_archive.py::test_archive_excludes_prearchived_members_and_replay_reads_no_owner_state",
+        "tests/test_ticket_rfc_hard_delete.py::test_delete_retains_evidence_before_delete_and_replays_without_owner_reads"
+      ],
+      "observed_assertions": "Committed replay returns stored exact results before mutable owner/proof/provider reads.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-HD001",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-hard-delete-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-HD001",
+        "name": "hard_delete_preview_is_complete_deterministic_and_read_only",
+        "prove": [
+          "PreviewRfcHardDelete runs under one stable LLD-01 ReadSnapshot and opens no writer UnitOfWork, command receipt, audit or deliberate-proof consumption path",
+          "all eleven local guards from algorithms/rfc-hard-delete.json execute exactly once in registry ordinal order and all four cross-domain classifiers use the same stable read authority",
+          "manual or purely local provisional creation evidence is eligible only when it is the single valid RFC creation audit; accepted_source_adoption, missing, duplicate or malformed creation evidence blocks",
+          "provider status mapping is exact and invalid/exception provider output becomes INDETERMINATE rather than guessed CLEAR",
+          "SOMA_RFC_HARD_DELETE_PROVIDER_CLASSIFICATION_V1 tokens are derived only by LLD-03 from provider_id, rfc_id and exact status; provider-private rows/tokens do not cross the boundary",
+          "SOMA_RFC_HARD_DELETE_ELIGIBILITY_V1 includes exact RFC identity/revision/archive state/creation context, every local guard status and all four provider classifications/tokens in fixed ordinal order",
+          "the implementation reproduces the published eligible_manual_draft_v1 provider tokens and eligibility_fingerprint exactly",
+          "blocked and INDETERMINATE previews still return a bounded RfcHardDeletePreviewV1 with exact current fingerprint and ordered typed blockers; they are successful query evidence, not RFC_HARD_DELETE_BLOCKED errors",
+          "eligible is true if and only if every local guard and provider status is CLEAR"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py",
+        "src/soma/tickets/queries/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_preview_reproduces_certified_golden_vector_and_uses_one_read_snapshot",
+        "tests/test_ticket_rfc_hard_delete.py::test_blockers_follow_closed_local_then_provider_order"
+      ],
+      "observed_assertions": "Preview uses one stable snapshot, exact closed guards/classifiers and published fingerprint.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-HD002",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-hard-delete-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-HD002",
+        "name": "hard_delete_execution_is_preview_bound_deliberate_and_exactly_replayable",
+        "prove": [
+          "HardDeleteRfc exact replay resolves before owner preparation/current RFC/provider/proof reads and returns the stored HardDeleteRfcResultV1 even though the RFC row no longer exists",
+          "the one-time DeliberateActionProofV1 bearer is excluded from COMMAND_ENVELOPE_V1 semantic request hashing while rfc_id, base_revision and eligibility_fingerprint remain semantic authority",
+          "writer revalidation reruns every local guard/provider classifier and recomputes the exact eligibility fingerprint before proof consumption",
+          "LLD-12 proof is consumed only after current state is eligible and the reviewed fingerprint still matches; expected binding is action tickets.rfc.hard_delete, target_type rfc, exact rfc_id, base_revision and eligibility_fingerprint",
+          "after proof consumption exactly one outer command receipt exists before the surviving deletion audit/result evidence",
+          "ticket.rfc.hard_deleted audit contains only rfc_id, rfc_no, reviewed_revision, eligibility_fingerprint and result=deleted; no challenge id, session/run binding or proof bearer is persisted",
+          "the hard-delete audit_event_id is also the sole hard_delete_evidence result id and equals HardDeleteRfcResultV1.hard_delete_evidence_id",
+          "only the exact rfcs row is deleted; no relationship/history/dependent cleanup or cascade is attempted",
+          "HardDeleteRfcResultV1 is fixed-size deletion evidence containing outcome=deleted, rfc_id, rfc_no, reviewed_revision, eligibility_fingerprint and hard_delete_evidence_id and makes no claim about a current/live RFC revision",
+          "same command_id exact replay consumes no second proof, inserts no second audit/result, performs no provider work and never reconstructs response state from the deleted RFC"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py",
+        "src/soma/tickets/queries/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_delete_retains_evidence_before_delete_and_replays_without_owner_reads",
+        "tests/test_ticket_rfc_hard_delete.py::test_proof_must_match_exact_action_target_revision_and_fingerprint",
+        "tests/test_ticket_rfc_hard_delete.py::test_failure_after_proof_rolls_back_all_database_work_but_proof_stays_consumed"
+      ],
+      "observed_assertions": "Writer revalidates before proof, audit evidence precedes delete, replay avoids owner/proof reads.",
+      "unproven_subclauses": [
+        "Production deliberate proof provider/session semantics"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-12"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-HD003",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-hard-delete-acceptance.json",
+      "normative_claim": {
+        "id": "LLD03-HD003",
+        "name": "hard_delete_closed_guard_registry_preserves_all_history",
+        "prove": [
+          "each local blocker code is emitted from the exact closed registry and ordering in algorithms/rfc-hard-delete.json",
+          "any hierarchy edge history, SR relationship history, Device Reference relationship history, current or removed/edited RFC Working Note history, terminal-cascade history or archive/restore history blocks deletion even when no current active relationship remains",
+          "any RFC source projection row blocks locally and accepted LLD-04 source provenance also blocks through the source_evidence provider; either authority independently fails closed",
+          "any post-creation audit directly targeting the RFC blocks before the current hard-delete audit exists",
+          "LLD-05 Task/Objective, LLD-07 Inventory and LLD-09 Communication protected dependencies block without exporting or deleting provider-owned history",
+          "a provider INDETERMINATE result emits its closed indeterminate blocker and makes eligible=false",
+          "RFC revision must remain exactly 1 and local_archive_state must remain active; archived/restored/corrected/history-bearing RFCs therefore use preservation flows instead",
+          "the hard-delete path introduces no total Task/Communication/Inventory/history cardinality cap because it consumes only bounded three-state provider classifications"
+        ]
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py",
+        "src/soma/tickets/queries/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_each_local_history_guard_blocks_without_deleting_or_rewriting_history",
+        "tests/test_ticket_rfc_hard_delete.py::test_provider_failures_are_closed_in_preview_and_writer_before_proof"
+      ],
+      "observed_assertions": "Closed local/provider blockers preserve history and never cascade delete.",
+      "unproven_subclauses": [
+        "Real LLD-09 protected dependency classifier"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-HDFI001",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-hard-delete-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-HDFI001",
+        "inject": "after an eligible preview and before command proof consumption, change RFC revision or any local/provider eligibility classification so current SOMA_RFC_HARD_DELETE_ELIGIBILITY_V1 no longer equals the reviewed fingerprint",
+        "expect": "HardDeleteRfc returns RFC_HARD_DELETE_PREVIEW_STALE when the target remains otherwise eligible but the exact reviewed fingerprint changed, or RFC_HARD_DELETE_BLOCKED when any current blocker/INDETERMINATE exists; both occur before proof consumption, receipt, audit or delete"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py",
+        "src/soma/tickets/queries/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_stale_preview_does_not_consume_proof",
+        "tests/test_ticket_rfc_hard_delete.py::test_preview_snapshot_is_stable_across_concurrent_change_then_writer_blocks"
+      ],
+      "observed_assertions": "Fingerprint/blocker drift fails before proof/receipt/delete.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_reconciled_ci",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-HDFI002",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-hard-delete-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-HDFI002",
+        "inject": "LLD-04/05/07/09 classifier returns BLOCKED, INDETERMINATE, malformed output or raises while preview or writer revalidation is running",
+        "expect": "BLOCKED maps to the provider's closed dependency blocker; INDETERMINATE/malformed/exception maps to its closed indeterminate blocker; eligible=false and the writer never consumes proof or attempts dependent cleanup/delete"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py",
+        "src/soma/tickets/queries/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_provider_failures_are_closed_in_preview_and_writer_before_proof"
+      ],
+      "observed_assertions": "Blocked/indeterminate/malformed/exception provider results map fail-closed.",
+      "unproven_subclauses": [
+        "Real LLD-09 provider implementation"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-09"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-HDFI003",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-hard-delete-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-HDFI003",
+        "inject": "after all current eligibility checks pass, deliberate proof has wrong action, RFC target, base revision or eligibility fingerprint, or is expired/session-mismatched/already consumed",
+        "expect": "RFC_HARD_DELETE_CONFIRMATION_REQUIRED with zero command receipt, hard-delete audit/result evidence or RFC mutation; client boolean/timestamp/challenge id cannot substitute for DeliberateActionProofV1"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py",
+        "src/soma/tickets/queries/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_invalid_proof_does_not_mutate_database",
+        "tests/test_ticket_rfc_hard_delete.py::test_proof_must_match_exact_action_target_revision_and_fingerprint"
+      ],
+      "observed_assertions": "Wrong/invalid proof creates no receipt/audit/delete.",
+      "unproven_subclauses": [
+        "Production expiry/session/consumption provider"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-12"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    },
+    {
+      "id": "LLD03-HDFI004",
+      "normative_source": "spec/lld/tickets-core/tests/rfc-hard-delete-failure-injection.json",
+      "normative_claim": {
+        "id": "LLD03-HDFI004",
+        "inject": "after valid proof consumption and command receipt/audit assembly, force unexpected FK/constraint failure, audit failure, exact-result persistence failure or failure immediately before commit",
+        "expect": "the one database UnitOfWork rolls back command receipt, hard-delete audit/result ref, command result and RFC delete so the RFC remains intact; the already-consumed proof remains unusable and retry requires a fresh deliberate action; no dependent row is deleted or rewritten"
+      },
+      "production_owners": [
+        "src/soma/tickets/rfc_hard_delete.py",
+        "src/soma/tickets/queries/rfc_hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_hard_delete.py::test_failure_after_proof_rolls_back_all_database_work_but_proof_stays_consumed"
+      ],
+      "observed_assertions": "Late DB/audit/result/commit failure rolls all DB work back while proof stays consumed.",
+      "unproven_subclauses": [
+        "Production proof provider"
+      ],
+      "cross_packet_responsibility": [
+        "LLD-12"
+      ],
+      "status": "partial_cross_packet",
+      "certification_status": "pending_exact_reconciled_head_ci"
+    }
+  ]
+}

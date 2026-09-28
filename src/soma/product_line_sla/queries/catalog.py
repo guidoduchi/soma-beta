@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ._cursor import cursor_envelope as _cursor
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,23 +40,6 @@ def _lifecycle(value: str | None) -> str | None:
     if value is not None and value not in _LIFECYCLES:
         raise ValidationError("catalog lifecycle filter is invalid")
     return value
-
-
-def _cursor(
-    *,
-    query_id: str,
-    sort_id: str,
-    last_key: list[object],
-    filter_fingerprint: str,
-) -> dict[str, object]:
-    return {
-        "version": 1,
-        "query_id": query_id,
-        "sort_registry_id": sort_id,
-        "last_key_tuple": last_key,
-        "filter_fingerprint": filter_fingerprint,
-        "null_order": "none",
-    }
 
 
 def _cursor_key(

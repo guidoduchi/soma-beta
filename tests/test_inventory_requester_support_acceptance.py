@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.inventory.domain.requests import SpareRequestAllocationIntent
 from soma.inventory.queries.requests_rma import InventoryRequestsRmaQueryService
 from soma.inventory.services.participants import InventoryReferenceDependencyValidator
@@ -11,7 +12,7 @@ from soma.inventory.services.requests_rma import InventoryRequestsRmaService
 from soma.reference.application.contact_service import ContactReferenceService
 from soma.reference.application.customer_service import CustomerReferenceService
 from soma.reference.application.lifecycle_service import ReferenceLifecycleService
-from soma.reference.domain.dependencies import ReferenceDependencyRegistry
+from soma.reference.domain.dependencies import ReferenceDependencyRegistry, ReferenceTarget
 from test_inventory_requests_rma import _dispatch_location, _factory, _need, _sr
 
 
@@ -159,14 +160,17 @@ def test_t068_active_requester_blocks_contact_archive_until_request_terminal(
 
     registry = ReferenceDependencyRegistry()
     registry.register(InventoryReferenceDependencyValidator())
+    registry.finalize(required_validator_ids=("inventory",))
     lifecycle = ReferenceLifecycleService(factory, registry)
 
     blocked_preview = lifecycle.preview(
         operation="archive",
         target_type="contact",
         target_id=requester.contact_id,
+        base_revision=1,
         limit=50,
     )
+    assert blocked_preview.revision == 1
     assert blocked_preview.would_be_eligible is False
     assert blocked_preview.exact_blocker_count == 1
     assert len(blocked_preview.blockers) == 1
@@ -197,8 +201,10 @@ def test_t068_active_requester_blocks_contact_archive_until_request_terminal(
         operation="archive",
         target_type="contact",
         target_id=requester.contact_id,
+        base_revision=1,
         limit=50,
     )
+    assert clear_preview.revision == 1
     assert clear_preview.would_be_eligible is True
     assert clear_preview.exact_blocker_count == 0
     assert clear_preview.blockers == ()
@@ -227,3 +233,161 @@ def test_t068_active_requester_blocks_contact_archive_until_request_terminal(
         "affiliation_id": None,
         "customer_org_id": None,
     }
+
+
+def test_inventory_dependency_cursor_preserves_multi_role_blockers(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Requester And Receiver",
+    )
+    _, request_id = _create_request(
+        factory,
+        official_sr="97909999",
+        requester_contact_id=contact.contact_id,
+        receiver_contact_id=contact.contact_id,
+        bom="REQ-CURSOR",
+    )
+    validator = InventoryReferenceDependencyValidator()
+    target = ReferenceTarget("contact", contact.contact_id)
+
+    with ReadSnapshot(factory) as snapshot:
+        assert validator.count_archive_blockers(snapshot, target) == 2
+        first = validator.list_archive_blockers(snapshot, target, None, 1)
+        assert len(first.blockers) == 1
+        assert first.continuation is not None
+
+        second = validator.list_archive_blockers(
+            snapshot,
+            target,
+            first.continuation,
+            1,
+        )
+        assert len(second.blockers) == 1
+        assert second.continuation is None
+        assert {first.blockers[0].reason_code, second.blockers[0].reason_code} == {
+            "active_spare_request_requester",
+            "active_spare_request_receiver",
+        }
+        assert first.blockers[0].blocker_id == request_id
+        assert second.blockers[0].blocker_id == request_id
+
+        with pytest.raises(ValidationError, match="cursor is invalid"):
+            validator.list_archive_blockers(
+                snapshot,
+                target,
+                first.continuation[:-1] + ("A" if first.continuation[-1] != "A" else "B"),
+                1,
+            )
+
+
+def test_inventory_dependency_guard_count_and_page_are_set_based(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Set Based Dependency Contact",
+    )
+    _create_request(
+        factory,
+        official_sr="97909998",
+        requester_contact_id=contact.contact_id,
+        receiver_contact_id=contact.contact_id,
+        bom="REQ-SET-BASED",
+    )
+    validator = InventoryReferenceDependencyValidator()
+    target = ReferenceTarget("contact", contact.contact_id)
+
+    statements: list[str] = []
+    with ReadSnapshot(factory) as snapshot:
+        snapshot.connection.set_trace_callback(statements.append)
+        assert validator.count_archive_blockers(snapshot, target) == 2
+        page = validator.list_archive_blockers(snapshot, target, None, 1)
+        assert len(page.blockers) == 1
+        assert page.continuation is not None
+
+    selects = [
+        statement
+        for statement in statements
+        if statement.lstrip().upper().startswith("SELECT")
+    ]
+    assert len(selects) == 2
+    assert "COUNT(*) FROM (" in selects[0]
+    assert "UNION ALL" in selects[0].upper()
+    assert "ORDER BY blocker_id,reason_code LIMIT 2" in selects[1]
+    assert "UNION ALL" in selects[1].upper()
+
+
+
+def test_inventory_dependency_write_guard_uses_bounded_source_probe_not_union_sort(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Indexed Guard Probe Contact",
+    )
+    _, request_id = _create_request(
+        factory,
+        official_sr="97909888",
+        requester_contact_id=contact.contact_id,
+        receiver_contact_id=contact.contact_id,
+        bom="REQ-GUARD-PROBE",
+    )
+    validator = InventoryReferenceDependencyValidator()
+    target = ReferenceTarget("contact", contact.contact_id)
+    statements: list[str] = []
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.set_trace_callback(statements.append)
+        guard = validator.guard_archive(uow, target)
+
+    selects = [
+        statement
+        for statement in statements
+        if statement.lstrip().upper().startswith("SELECT")
+    ]
+    assert guard.state == "BLOCKED"
+    assert guard.reason_code == "active_spare_request_requester"
+    assert len(selects) == 1
+    assert contact.contact_id in selects[0]
+    assert "UNION" not in selects[0].upper()
+    assert "ORDER BY" not in selects[0].upper()
+    assert "LIMIT 1" in selects[0].upper()
+
+
+def test_inventory_dependency_enumeration_uses_union_all_without_dedup_sort(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    contact = ContactReferenceService(factory).create_contact(
+        command_id=new_uuid4(),
+        name="Union All Dependency Contact",
+    )
+    _create_request(
+        factory,
+        official_sr="97909887",
+        requester_contact_id=contact.contact_id,
+        receiver_contact_id=contact.contact_id,
+        bom="REQ-UNION-ALL",
+    )
+    validator = InventoryReferenceDependencyValidator()
+    target = ReferenceTarget("contact", contact.contact_id)
+    statements: list[str] = []
+
+    with ReadSnapshot(factory) as snapshot:
+        snapshot.connection.set_trace_callback(statements.append)
+        assert validator.count_archive_blockers(snapshot, target) == 2
+        page = validator.list_archive_blockers(snapshot, target, None, 2)
+        assert len(page.blockers) == 2
+
+    selects = [
+        statement
+        for statement in statements
+        if statement.lstrip().upper().startswith("SELECT")
+    ]
+    assert len(selects) == 2
+    assert all("UNION ALL" in statement.upper() for statement in selects)

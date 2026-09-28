@@ -10,6 +10,7 @@ from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.reference.audit_registry import build_reference_audit_registry
+from soma.reference.domain.matching import require_persisted_matching_profile
 from soma.reference.domain.validation import (
     validate_dispatch_name,
     validate_standalone_address,
@@ -65,6 +66,7 @@ class DispatchLocationService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             dispatch_id = new_uuid4()
             lifecycle_event_id = new_uuid4()
             audit_event_id = new_uuid4()
@@ -127,6 +129,7 @@ class DispatchLocationService:
         precomputed_match_key: str,
     ) -> str:
         """LLD-08 shared-UoW participant; never inserts a second receipt or commits."""
+        require_persisted_matching_profile(uow.connection)
         stored_name, computed_key = validate_dispatch_name(name)
         if computed_key != precomputed_match_key:
             raise ValidationError("precomputed Dispatch Location match key is stale or invalid")
@@ -175,6 +178,7 @@ class DispatchLocationService:
         )
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            require_persisted_matching_profile(uow.connection)
             row = self._active_dispatch(uow.connection, dispatch_location_id, base_revision)
             address_mode = str(row[3])
             current_address = None if row[4] is None else str(row[4])

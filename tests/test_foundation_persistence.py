@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import inspect
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -11,10 +13,12 @@ from soma.foundation.application.command_boundary import (
 )
 from soma.foundation.audit.registry import AuditActionContract, AuditRegistry
 from soma.foundation.audit.writer import AuditEventInput, AuditResultRef, AuditWriter
-from soma.foundation.errors import IdempotencyConflict, PersistenceFailure
+from soma.foundation.errors import IdempotencyConflict, PersistenceBusy, PersistenceFailure
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.migrations.runner import iter_migration_statements
-from soma.foundation.persistence.uow import UnitOfWork
+from soma.foundation.migrations.manifest import MigrationManifest
+from soma.foundation.migrations.runner import MigrationRunner, iter_migration_statements
+from soma.foundation.persistence.connections import ConnectionFactory
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import ObjectContract
 
 
@@ -178,6 +182,11 @@ def test_audit_tables_are_append_only(initialized_database) -> None:
             "VALUES (?, 'test', 1, 1, 'local_user', 'test', ?, 'TestV1', 1, '{}')",
             (audit_id, command_id),
         )
+        uow.connection.execute(
+            "INSERT INTO audit_event_results(audit_event_id,ordinal,result_type,result_id) "
+            "VALUES (?,0,'test_result',?)",
+            (audit_id, new_uuid4()),
+        )
 
     with pytest.raises(Exception, match="AUDIT_APPEND_ONLY"):
         with UnitOfWork(factory) as uow:
@@ -185,3 +194,171 @@ def test_audit_tables_are_append_only(initialized_database) -> None:
                 "UPDATE audit_events SET reason_category = 'changed' WHERE audit_event_id = ?",
                 (audit_id,),
             )
+
+    with pytest.raises(Exception, match="AUDIT_APPEND_ONLY"):
+        with UnitOfWork(factory) as uow:
+            uow.connection.execute(
+                "DELETE FROM audit_events WHERE audit_event_id = ?",
+                (audit_id,),
+            )
+
+    with pytest.raises(Exception):
+        with UnitOfWork(factory) as uow:
+            uow.connection.execute(
+                "INSERT INTO audit_events(audit_event_id,action_type,action_version,recorded_at_utc,actor_kind,target_type,command_id,payload_schema,payload_version,payload_json) "
+                "VALUES (?, 'test', 1, 1, 'local_user', 'test', ?, 'TestV1', 1, '{}')",
+                (audit_id, command_id),
+            )
+
+    writer_source = inspect.getsource(AuditWriter.write).upper()
+    assert "OR IGNORE" not in writer_source
+    assert "OR REPLACE" not in writer_source
+    assert "UPDATE AUDIT_EVENTS" not in writer_source
+    assert "DELETE FROM AUDIT_EVENTS" not in writer_source
+
+
+def test_read_snapshot_closes_connection_when_begin_fails() -> None:
+    class FailingConnection:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def execute(self, statement: str):
+            assert statement == "BEGIN"
+            raise RuntimeError("injected BEGIN failure")
+
+        def close(self) -> None:
+            self.closed = True
+
+    connection = FailingConnection()
+
+    class FailingFactory:
+        @staticmethod
+        def open_authoritative(**kwargs):
+            assert kwargs == {"read_only": True}
+            return connection
+
+    snapshot = ReadSnapshot(FailingFactory())
+    with pytest.raises(RuntimeError, match="injected BEGIN failure"):
+        snapshot.__enter__()
+    assert connection.closed is True
+    with pytest.raises(RuntimeError, match="has not been entered"):
+        _ = snapshot.connection
+
+
+
+def test_concurrent_writer_busy_is_retryable_while_reader_sees_consistent_snapshot(
+    initialized_database,
+) -> None:
+    database_path, factory_for_path = initialized_database
+    factory = factory_for_path(database_path)
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "CREATE TABLE contention_probe("
+            "probe_id INTEGER PRIMARY KEY,value_text TEXT NOT NULL"
+            ") STRICT"
+        )
+        uow.connection.execute(
+            "INSERT INTO contention_probe(probe_id,value_text) VALUES (1,'base')"
+        )
+
+    winning_writer = factory.open_authoritative(read_only=False, require_wal=True)
+    try:
+        winning_writer.execute("BEGIN IMMEDIATE")
+        winning_writer.execute(
+            "UPDATE contention_probe SET value_text='uncommitted' WHERE probe_id=1"
+        )
+
+        class FastBusyFactory:
+            @staticmethod
+            def open_authoritative(*, read_only: bool = False, require_wal: bool = True):
+                connection = factory.open_authoritative(
+                    read_only=read_only,
+                    require_wal=require_wal,
+                )
+                if not read_only:
+                    connection.execute("PRAGMA busy_timeout=0")
+                return connection
+
+        with pytest.raises(PersistenceBusy):
+            with UnitOfWork(FastBusyFactory()):
+                raise AssertionError("contending writer unexpectedly acquired BEGIN IMMEDIATE")
+
+        with ReadSnapshot(factory) as snapshot:
+            assert snapshot.connection.execute(
+                "SELECT value_text FROM contention_probe WHERE probe_id=1"
+            ).fetchone()[0] == "base"
+
+        winning_writer.execute("ROLLBACK")
+    finally:
+        winning_writer.close()
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE contention_probe SET value_text='committed' WHERE probe_id=1"
+        )
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT value_text FROM contention_probe WHERE probe_id=1"
+        ).fetchone()[0] == "committed"
+
+
+def test_data_instance_identity_survives_reopen_and_path_alias_and_new_instance_is_unique(
+    initialized_database,
+    migration_directory,
+    security_provider,
+    tmp_path,
+) -> None:
+    database_path, factory_for_path = initialized_database
+    factory = factory_for_path(database_path)
+    with ReadSnapshot(factory) as snapshot:
+        original_id = str(
+            snapshot.connection.execute(
+                "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
+            ).fetchone()[0]
+        )
+
+    alias_directory = database_path.parent / "identity-alias"
+    alias_directory.mkdir()
+    alias_path = alias_directory / ".." / database_path.name
+    alias_factory = ConnectionFactory(
+        alias_path,
+        security_provider,
+        driver=sqlite3,
+    )
+    with ReadSnapshot(alias_factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
+        ).fetchone()[0] == original_id
+
+    reopened_factory = factory_for_path(database_path)
+    with ReadSnapshot(reopened_factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
+        ).fetchone()[0] == original_id
+
+    second_database = tmp_path / "independent-instance.db"
+    manifest = MigrationManifest.load(migration_directory)
+    runner = MigrationRunner(
+        canonical_database_path=second_database,
+        manifest=manifest,
+        factory_for_path=lambda path: ConnectionFactory(
+            path,
+            security_provider,
+            driver=sqlite3,
+        ),
+        app_version="identity-continuity-test",
+        ownership_assertion=lambda: True,
+    )
+    assert runner.initialize_or_migrate() == manifest.entries[-1].sequence
+    second_factory = ConnectionFactory(
+        second_database,
+        security_provider,
+        driver=sqlite3,
+    )
+    with ReadSnapshot(second_factory) as snapshot:
+        second_id = str(
+            snapshot.connection.execute(
+                "SELECT data_instance_id FROM instance_metadata WHERE singleton=1"
+            ).fetchone()[0]
+        )
+    assert second_id != original_id

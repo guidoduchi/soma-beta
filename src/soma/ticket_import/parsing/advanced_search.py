@@ -29,7 +29,7 @@ from soma.ticket_import.repositories.observations import (
     NormalizedObservationEvidence,
 )
 
-from .xlsx_security import XlsxPreflightResult
+from .xlsx_security import MAX_SHARED_STRINGS as _PREFLIGHT_MAX_SHARED_STRINGS, XlsxPreflightResult
 
 _SOURCE_FAMILY = "advanced_search_sr"
 _MAX_WORKSHEETS = 32
@@ -37,7 +37,7 @@ _MAX_HEADER_SEARCH_NONEMPTY_ROWS = 100
 _MAX_MATRIX_ROWS = 250_000
 _MAX_PHYSICAL_COLUMNS = 512
 _MAX_LOGICAL_CELLS_TOTAL = 8_000_000
-_MAX_SHARED_STRINGS = 1_000_000
+_MAX_SHARED_STRINGS = _PREFLIGHT_MAX_SHARED_STRINGS
 _MAX_DEFINED_NAMES = 4_096
 _MAX_CELL_UTF8_BYTES = 65_536
 _MAX_HEADER_UTF8_BYTES = 1_024
@@ -221,6 +221,13 @@ def _header_key(raw: object) -> str | None:
     )
 
 
+def _candidate_header_key(raw: object) -> tuple[str | None, bool]:
+    source_text = raw if isinstance(raw, str) else _scalar_source_text(raw)
+    if source_text is not None and len(source_text.encode("utf-8", errors="strict")) > _MAX_HEADER_UTF8_BYTES:
+        return None, True
+    return _header_key(raw), False
+
+
 def _build_alias_registry() -> tuple[dict[str, str], set[str]]:
     aliases: dict[str, str] = {}
     for field_key, values in _HEADER_ALIASES.items():
@@ -281,7 +288,7 @@ def _validate_source_text(source_text: str | None, spec: ImportFieldSpec) -> Non
     if len(encoded) > min(spec.max_utf8_bytes, _MAX_CELL_UTF8_BYTES):
         raise _source_error("XLSX_RESOURCE_LIMIT", f"{spec.field_key} exceeds its UTF-8 byte ceiling")
     if spec.max_lines == 1 and ("\r" in source_text or "\n" in source_text):
-        raise _source_error("IMPORT_SOURCE_PROFILE_MISMATCH", f"{spec.field_key} must be one line")
+        raise _source_error("XLSX_RESOURCE_LIMIT", f"{spec.field_key} exceeds its line ceiling")
     if source_text.count("\n") + 1 > spec.max_lines:
         raise _source_error("XLSX_RESOURCE_LIMIT", f"{spec.field_key} exceeds its line ceiling")
 
@@ -323,6 +330,28 @@ def _malformed_field(spec: ImportFieldSpec, source_text: str | None) -> LogicalF
         value_kind=spec.value_kind,
         vocabulary_id=spec.vocabulary_id,
         source_text=source_text,
+    )
+
+
+def _isolated_field_resource_limit(
+    spec: ImportFieldSpec,
+    *,
+    sheet_ordinal: int,
+    row_ordinal: int,
+) -> tuple[LogicalField, tuple[ParsedFinding, ...]]:
+    return (
+        _malformed_field(spec, None),
+        (
+            _finding(
+                "XLSX_RESOURCE_LIMIT",
+                "error",
+                "field",
+                f"{spec.field_key} exceeds its registered field bound",
+                field_key=spec.field_key,
+                sheet_ordinal=sheet_ordinal,
+                row_ordinal=row_ordinal,
+            ),
+        ),
     )
 
 
@@ -577,10 +606,12 @@ def _resolve_header_row(
     row_ordinal: int,
 ) -> dict[str, int] | None:
     resolved: dict[str, int] = {}
+    oversized_header_cell = False
     for column_ordinal, cell in enumerate(row, start=1):
         if column_ordinal > _MAX_PHYSICAL_COLUMNS:
             raise _source_error("XLSX_RESOURCE_LIMIT", "worksheet exceeds the physical-column ceiling")
-        key = _header_key(cell.value)
+        key, oversized = _candidate_header_key(cell.value)
+        oversized_header_cell = oversized_header_cell or oversized
         if key is None or key in _DISCARDED_HEADER_KEYS:
             continue
         field_key = _HEADER_KEYS.get(key)
@@ -592,7 +623,11 @@ def _resolve_header_row(
                 f"worksheet {sheet_ordinal} row {row_ordinal} repeats semantic header {field_key}",
             )
         resolved[field_key] = column_ordinal
-    return resolved if "sr_no" in resolved else None
+    if "sr_no" not in resolved:
+        return None
+    if oversized_header_cell:
+        raise _source_error("XLSX_RESOURCE_LIMIT", "semantic header row exceeds the UTF-8 byte ceiling")
+    return resolved
 
 
 def _discover_matrix(workbook) -> _Matrix:
@@ -692,19 +727,28 @@ def _parse_semantic_field(
             "SOURCE_FORMULA_IN_SEMANTIC_FIELD",
             f"registered semantic field {field_key} contains a formula",
         )
-    if spec.value_kind == "text":
-        return _parse_text_field(spec, cell.value), ()
-    if spec.value_kind == "controlled":
-        return _parse_controlled_field(
-            spec,
-            cell.value,
-            sheet_ordinal=sheet_ordinal,
-            row_ordinal=row_ordinal,
-        )
-    if spec.value_kind == "instant":
-        return _parse_instant_field(spec, cell.value), ()
-    if spec.value_kind == "duration_seconds":
-        return _parse_duration_field(spec, cell.value), ()
+    try:
+        if spec.value_kind == "text":
+            return _parse_text_field(spec, cell.value), ()
+        if spec.value_kind == "controlled":
+            return _parse_controlled_field(
+                spec,
+                cell.value,
+                sheet_ordinal=sheet_ordinal,
+                row_ordinal=row_ordinal,
+            )
+        if spec.value_kind == "instant":
+            return _parse_instant_field(spec, cell.value), ()
+        if spec.value_kind == "duration_seconds":
+            return _parse_duration_field(spec, cell.value), ()
+    except SomaError as exc:
+        if exc.code == "XLSX_RESOURCE_LIMIT":
+            return _isolated_field_resource_limit(
+                spec,
+                sheet_ordinal=sheet_ordinal,
+                row_ordinal=row_ordinal,
+            )
+        raise
     raise RuntimeError("unsupported Advanced Search field kind")
 
 
@@ -780,8 +824,13 @@ def parse_advanced_search(
         requested_resolved = requested.resolve(strict=True)
         preflight_resolved = Path(preflight.path).resolve(strict=True)
     except OSError as exc:
-        raise _source_error("IMPORT_SOURCE_UNAVAILABLE", "preflighted workbook is no longer available") from exc
+        preflight.close()
+        raise _source_error(
+            "IMPORT_SOURCE_UNAVAILABLE",
+            "preflighted workbook is no longer available",
+        ) from exc
     if requested_resolved != preflight_resolved:
+        preflight.close()
         raise _source_error(
             "IMPORT_SOURCE_PROFILE_MISMATCH",
             "parser path does not match the preflighted workbook identity",
@@ -790,13 +839,17 @@ def parse_advanced_search(
     versions = require_profile_versions(_SOURCE_FAMILY)
     try:
         workbook = load_workbook(
-            requested_resolved,
+            preflight.semantic_stream(),
             read_only=True,
             data_only=False,
             keep_links=False,
         )
     except Exception as exc:
-        raise _source_error("IMPORT_SOURCE_PROFILE_MISMATCH", "preflighted workbook could not be opened semantically") from exc
+        preflight.close()
+        raise _source_error(
+            "IMPORT_SOURCE_PROFILE_MISMATCH",
+            "preflighted workbook could not be opened semantically",
+        ) from exc
 
     try:
         matrix = _discover_matrix(workbook)
@@ -915,4 +968,7 @@ def parse_advanced_search(
             global_findings=global_findings,
         )
     finally:
-        workbook.close()
+        try:
+            workbook.close()
+        finally:
+            preflight.close()

@@ -100,6 +100,47 @@ class HistoricalObjectiveProposalRepository:
             )
         return record
 
+    @classmethod
+    def current_for_fingerprint(
+        cls,
+        reader: Any,
+        *,
+        task_id: str,
+        input_fingerprint: str,
+    ) -> HistoricalObjectiveProposalRecord | None:
+        row = reader.execute(
+            "SELECT historical_proposal_id FROM historical_objective_proposals "
+            "WHERE task_id=? AND input_fingerprint=? "
+            "AND state IN ('pending','rejected','accepted') "
+            "ORDER BY created_at_utc DESC,historical_proposal_id DESC LIMIT 1",
+            (task_id, input_fingerprint),
+        ).fetchone()
+        return None if row is None else cls.get(reader, str(row[0]))
+
+    @staticmethod
+    def supersede_pending_except(
+        uow: UnitOfWork,
+        *,
+        task_id: str,
+        command_id: str,
+        keep_fingerprint: str | None,
+    ) -> int:
+        if keep_fingerprint is None:
+            changed = uow.connection.execute(
+                "UPDATE historical_objective_proposals "
+                "SET state='superseded',revision=revision+1,last_command_id=? "
+                "WHERE task_id=? AND state='pending'",
+                (command_id, task_id),
+            )
+        else:
+            changed = uow.connection.execute(
+                "UPDATE historical_objective_proposals "
+                "SET state='superseded',revision=revision+1,last_command_id=? "
+                "WHERE task_id=? AND state='pending' AND input_fingerprint<>?",
+                (command_id, task_id, keep_fingerprint),
+            )
+        return int(changed.rowcount)
+
     @staticmethod
     def transition(
         uow: UnitOfWork,

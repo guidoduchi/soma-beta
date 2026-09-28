@@ -11,7 +11,11 @@ from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
 
 from ..algorithms.cohort_state import CanonicalCohortCalculator
-from ..algorithms.individual_sla import IndividualSlaCalculator, IndividualSlaResult
+from ..algorithms.individual_sla import (
+    IndividualSlaCalculator,
+    IndividualSlaReadCache,
+    IndividualSlaResult,
+)
 from ..algorithms.warnings import SlaWarning, SlaWarningCalculator
 
 _WARNING_KINDS = frozenset(
@@ -259,6 +263,7 @@ class SlaWarningQueryService:
 
         with ReadSnapshot(self._factory) as snapshot:
             reader = snapshot.connection
+            read_cache = IndividualSlaReadCache()
             if any(value in _INDIVIDUAL_WARNING_KINDS for value in selected_kinds):
                 for service_request_id in _candidate_service_request_ids(reader, customer_id):
                     warnings = SlaWarningCalculator.individual(
@@ -268,6 +273,7 @@ class SlaWarningQueryService:
                         suspension_ending_soon_threshold_seconds=(
                             self._suspension_ending_soon_threshold_seconds
                         ),
+                        read_cache=read_cache,
                     )
                     for warning in warnings:
                         bucket = buckets.get(warning.warning_kind)
@@ -285,6 +291,7 @@ class SlaWarningQueryService:
                     calendar_month=_calendar_month_for_utc(effective_as_of),
                     as_of_utc=effective_as_of,
                     customer_scope=customer_id,
+                    read_cache=read_cache,
                 )
                 for cohort in projection.cohorts:
                     for warning in SlaWarningCalculator.cohort(cohort):

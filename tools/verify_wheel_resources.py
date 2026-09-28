@@ -12,7 +12,8 @@ def verify(wheel_path: Path) -> None:
     from soma.foundation.migrations.manifest import MigrationManifest
     from soma.reference.domain.matching import EXPECTED_ASSET_SHA256
 
-    source = Path(__file__).resolve().parents[1] / "src" / "soma" / "migrations"
+    soma_source = Path(__file__).resolve().parents[1] / "src" / "soma"
+    source = soma_source / "migrations"
     manifest = MigrationManifest.load(source)
     with ZipFile(wheel_path) as wheel:
         names = wheel.namelist()
@@ -33,7 +34,14 @@ def verify(wheel_path: Path) -> None:
         unicode_bytes = wheel.read("soma/reference/assets/unicode_match_v1.json")
         if hashlib.sha256(unicode_bytes).hexdigest() != EXPECTED_ASSET_SHA256:
             raise ValueError("wheel Unicode asset hash differs from pinned authority")
-    print(f"Verified {len(expected)} migration files, manifest, and pinned Unicode asset in {wheel_path.name}")
+        for resource in ("schema_manifest.json", "fk_index_exceptions.json"):
+            shipped = wheel.read(f"soma/{resource}")
+            if shipped != (soma_source / resource).read_bytes():
+                raise ValueError(f"wheel {resource} differs from accepted source bytes")
+    print(
+        f"Verified {len(expected)} migration files, manifest, schema authority, "
+        f"FK exceptions, and pinned Unicode asset in {wheel_path.name}"
+    )
 
 
 if __name__ == "__main__":

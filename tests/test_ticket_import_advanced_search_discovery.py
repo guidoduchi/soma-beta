@@ -9,7 +9,6 @@ import pytest
 from soma.foundation.errors import SomaError
 from soma.ticket_import.parsing import discovery
 from soma.ticket_import.parsing.discovery import discover_advanced_search_automatic
-from soma.ticket_import.parsing.xlsx_security import XlsxPreflightResult
 
 
 _CONTENT_TYPES = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -205,11 +204,6 @@ def test_file_identity_swap_after_preflight_fails_closed(
         stable.inode + 1,
     )
     monkeypatch.setattr(discovery, "_probe_stability", lambda path, sleep_fn: stable)
-    monkeypatch.setattr(
-        discovery,
-        "preflight_xlsx",
-        lambda selected: XlsxPreflightResult(selected, 5, selected.stat().st_size, 1),
-    )
     monkeypatch.setattr(discovery, "_probe_stat", lambda selected: swapped)
 
     _assert_error(

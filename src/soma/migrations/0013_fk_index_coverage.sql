@@ -1,0 +1,8 @@
+CREATE INDEX idx_report_member_service_request_fk
+ON sla_report_member_snapshots(service_request_id,report_member_snapshot_id);
+
+CREATE INDEX idx_report_cohort_customer_fk
+ON sla_report_cohort_snapshots(customer_org_id,report_cohort_snapshot_id);
+
+CREATE INDEX idx_report_cohort_cpl_fk
+ON sla_report_cohort_snapshots(contract_product_line_id,report_cohort_snapshot_id);

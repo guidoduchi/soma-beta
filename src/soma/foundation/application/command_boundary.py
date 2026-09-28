@@ -37,7 +37,49 @@ PrepareMutation = Callable[[UnitOfWork], "PreparedMutation"]
 _MAX_RESPONSE_JSON_BYTES = 524_288
 _MAX_RESPONSE_DEPTH = 8
 _MAX_RESPONSE_COLLECTION_ITEMS = 512
+_RFC_BRANCH_RESPONSE_JSON_BYTES = 33_554_432
+_RFC_BRANCH_RESPONSE_COLLECTION_ITEMS = 8_192
+_INVENTORY_MUTATION_RESPONSE_COLLECTION_ITEMS = 8_192
 _DEFAULT_RESPONSE = object()
+
+
+@dataclass(frozen=True, slots=True)
+class _ResponseBounds:
+    max_bytes: int
+    max_depth: int
+    max_collection_items: int
+
+
+_DEFAULT_RESPONSE_BOUNDS = _ResponseBounds(
+    _MAX_RESPONSE_JSON_BYTES,
+    _MAX_RESPONSE_DEPTH,
+    _MAX_RESPONSE_COLLECTION_ITEMS,
+)
+_RESPONSE_BOUND_ALLOCATIONS: dict[tuple[str, int], _ResponseBounds] = {
+    # Exact reviewed LLD-01/LLD-03 allocation. A mutation returns one root plus
+    # the default page of at most 100 children and an optional continuation.
+    # LLD-04 rejects NUL but does not forbid every other C0 control character, so
+    # the conservative bound must allow six-byte canonical JSON escapes rather
+    # than assuming only quote/backslash two-byte expansion. The normative
+    # maximum-content construction is 23_288_983 bytes, depth 4 and 4_151 items.
+    ("RfcBranchV1", 1): _ResponseBounds(
+        _RFC_BRANCH_RESPONSE_JSON_BYTES,
+        _MAX_RESPONSE_DEPTH,
+        _RFC_BRANCH_RESPONSE_COLLECTION_ITEMS,
+    ),
+    # Exact reviewed LLD-01/LLD-07 allocation. AcceptInventoryBulkAction may
+    # return one batch ref plus per-membership and per-Fault-Tag revisions for
+    # up to 2_000 reviewed targets. Bytes stay under the ordinary 512 KiB cap;
+    # only aggregate collection cardinality needs the reviewed expansion.
+    ("InventoryMutationResultV1", 1): _ResponseBounds(
+        _MAX_RESPONSE_JSON_BYTES,
+        _MAX_RESPONSE_DEPTH,
+        _INVENTORY_MUTATION_RESPONSE_COLLECTION_ITEMS,
+    ),
+}
+_ALLOCATED_RESPONSE_SCHEMAS = frozenset(
+    schema for schema, _version in _RESPONSE_BOUND_ALLOCATIONS
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,24 +191,42 @@ class CommandBoundary:
         return events
 
     @staticmethod
-    def _encode_response(response: Any) -> tuple[str, str, Any]:
+    def _response_bounds(response_schema: str, response_version: int) -> _ResponseBounds:
+        allocated = _RESPONSE_BOUND_ALLOCATIONS.get((response_schema, response_version))
+        if allocated is not None:
+            return allocated
+        if response_schema in _ALLOCATED_RESPONSE_SCHEMAS:
+            raise ValidationError(
+                "unsupported command response schema/version for reviewed allocation"
+            )
+        return _DEFAULT_RESPONSE_BOUNDS
+
+    @classmethod
+    def _encode_response(
+        cls,
+        response: Any,
+        *,
+        response_schema: str,
+        response_version: int,
+    ) -> tuple[str, str, Any]:
+        bounds = cls._response_bounds(response_schema, response_version)
         encoded = canonical_json_bytes_bounded(
             response,
-            max_bytes=_MAX_RESPONSE_JSON_BYTES,
-            max_depth=_MAX_RESPONSE_DEPTH,
-            max_collection_items=_MAX_RESPONSE_COLLECTION_ITEMS,
+            max_bytes=bounds.max_bytes,
+            max_depth=bounds.max_depth,
+            max_collection_items=bounds.max_collection_items,
         )
         text = encoded.decode("utf-8", errors="strict")
         normalized = loads_canonical_json(
             text,
-            max_bytes=_MAX_RESPONSE_JSON_BYTES,
-            max_depth=_MAX_RESPONSE_DEPTH,
-            max_collection_items=_MAX_RESPONSE_COLLECTION_ITEMS,
+            max_bytes=bounds.max_bytes,
+            max_depth=bounds.max_depth,
+            max_collection_items=bounds.max_collection_items,
         )
         return text, hashlib.sha256(encoded).hexdigest(), normalized
 
-    @staticmethod
-    def _decode_stored_response(result: CommittedCommandResult) -> Any:
+    @classmethod
+    def _decode_stored_response(cls, result: CommittedCommandResult) -> Any:
         if (
             not result.response_schema
             or type(result.response_version) is not int
@@ -175,11 +235,20 @@ class CommandBoundary:
         ):
             raise IntegrityFailure("committed command result metadata failed integrity validation")
         try:
+            bounds = cls._response_bounds(
+                result.response_schema,
+                result.response_version,
+            )
+        except ValidationError as exc:
+            raise IntegrityFailure(
+                "committed command result response contract is unsupported"
+            ) from exc
+        try:
             value = loads_canonical_json(
                 result.response_json,
-                max_bytes=_MAX_RESPONSE_JSON_BYTES,
-                max_depth=_MAX_RESPONSE_DEPTH,
-                max_collection_items=_MAX_RESPONSE_COLLECTION_ITEMS,
+                max_bytes=bounds.max_bytes,
+                max_depth=bounds.max_depth,
+                max_collection_items=bounds.max_collection_items,
             )
             encoded = result.response_json.encode("utf-8", errors="strict")
         except (ValidationError, UnicodeError) as exc:
@@ -258,7 +327,11 @@ class CommandBoundary:
             else:
                 semantic_response = prepared.response
 
-            response_json, response_sha256, normalized_response = self._encode_response(semantic_response)
+            response_json, response_sha256, normalized_response = self._encode_response(
+                semantic_response,
+                response_schema=prepared.response_schema,
+                response_version=prepared.response_version,
+            )
             self._receipt_store.insert_exact_result(
                 uow,
                 CommittedCommandResult(
