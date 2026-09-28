@@ -8,11 +8,14 @@ from soma.foundation.persistence.uow import ReadSnapshot
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
 from soma.objectives_tasks.queries.objectives import ObjectiveQueryService
+from soma.objectives_tasks.queries.task_activity_review import WfmActivityRelationshipReviewQueryService
 from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.task_execution import TaskExecutionService
+from soma.objectives_tasks.services.task_activity_review import WfmActivityRelationshipReviewService
 from soma.objectives_tasks.services.task_explicit_lock import TaskExplicitLockService
 from soma.reference.application.customer_service import CustomerReferenceService
 from soma.tickets.service_requests import ServiceRequestService
+from soma.tickets.rfcs import RfcService
 from soma.tickets.sr_references import ServiceRequestReferenceService
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.services.grouping import GroupingService
@@ -901,4 +904,167 @@ def test_lld05_f009_task_lock_drift_keeps_regroup_proposal_immutable(
             "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
             (target.task_id,),
         ).fetchone() is None
+
+def _grouping_wfm(factory, *, suffix: int, rfc_id: str, start_utc: int):
+    return TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=f"TK{suffix:014d}",
+        rfc_id=rfc_id,
+        schedule=AcceptedTaskSchedule(
+            start_utc=start_utc,
+            end_utc=start_utc + 3_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+
+
+def _review_grouping_activity(factory, task_ids: tuple[str, str], decision: str) -> None:
+    canonical = tuple(sorted(task_ids))
+    preview = WfmActivityRelationshipReviewQueryService(factory).preview(
+        seed_task_ids=canonical,
+        decision=decision,
+    )
+    result = WfmActivityRelationshipReviewService(factory).review_wfm_activity_relationship(
+        command_id=new_uuid4(),
+        seed_tasks=tuple(
+            (seed.task_id, seed.task_revision)
+            for seed in preview.seed_tasks
+        ),
+        decision=decision,
+        review_fingerprint=preview.review_fingerprint,
+        reason_category=f"grouping_{decision}",
+    )
+    assert result.outcome == "APPLIED"
+
+
+def test_t012_distinct_same_rfc_wfm_activities_group_normally(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008840",
+        creation_context="provisional",
+    )
+    start = 2_884_000_000
+    first = _grouping_wfm(factory, suffix=8840, rfc_id=rfc.rfc_id, start_utc=start)
+    second = _grouping_wfm(factory, suffix=8841, rfc_id=rfc.rfc_id, start_utc=start + 600)
+    _review_grouping_activity(
+        factory,
+        (first.task_id, second.task_id),
+        "distinct_activity",
+    )
+
+    query = ObjectiveGroupingQueryService(factory)
+    for task_id in (first.task_id, second.task_id):
+        eligibility = query.grouping_eligibility(task_id, as_of_utc=start - 1)
+        assert eligibility["classification"] == "ordinary_future"
+        assert eligibility["eligible"] is True
+
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"]["exact_total"] == 1
+    item = page["proposals"]["items"][0]
+    detail = query.proposal_detail(str(item["proposal_id"]))
+    assert detail["task_change_exact_count"] == 2
+
+    accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(item["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+    with ReadSnapshot(factory) as snapshot:
+        rows = snapshot.connection.execute(
+            "SELECT task_id,objective_id FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?) ORDER BY task_id",
+            (first.task_id, second.task_id),
+        ).fetchall()
+        assert len(rows) == 2
+        assert len({str(row[1]) for row in rows}) == 1
+
+
+def test_t013_same_activity_overlap_is_excluded_from_automatic_grouping(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008850",
+        creation_context="provisional",
+    )
+    start = 2_885_000_000
+    first = _grouping_wfm(factory, suffix=8850, rfc_id=rfc.rfc_id, start_utc=start)
+    second = _grouping_wfm(factory, suffix=8851, rfc_id=rfc.rfc_id, start_utc=start + 600)
+    _review_grouping_activity(
+        factory,
+        (first.task_id, second.task_id),
+        "same_activity",
+    )
+
+    query = ObjectiveGroupingQueryService(factory)
+    for task_id in (first.task_id, second.task_id):
+        eligibility = query.grouping_eligibility(task_id, as_of_utc=start - 1)
+        assert eligibility["classification"] == "competing_attempt"
+        assert eligibility["eligible"] is False
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objectives",
+        ).fetchone()[0] == 0
+
+
+def test_t013_same_lineage_exact_touch_is_not_competing_attempt(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008860",
+        creation_context="provisional",
+    )
+    start = 2_886_000_000
+    first = _grouping_wfm(factory, suffix=8860, rfc_id=rfc.rfc_id, start_utc=start)
+    second = _grouping_wfm(factory, suffix=8861, rfc_id=rfc.rfc_id, start_utc=start + 3_600)
+    _review_grouping_activity(
+        factory,
+        (first.task_id, second.task_id),
+        "same_activity",
+    )
+
+    query = ObjectiveGroupingQueryService(factory)
+    for task_id in (first.task_id, second.task_id):
+        eligibility = query.grouping_eligibility(task_id, as_of_utc=start - 1)
+        assert eligibility["classification"] == "ordinary_future"
+        assert eligibility["eligible"] is True
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"]["exact_total"] == 2
+    assert all(
+        ObjectiveGroupingQueryService(factory).proposal_detail(
+            str(item["proposal_id"])
+        )["task_change_exact_count"] == 1
+        for item in page["proposals"]["items"]
+    )
 
