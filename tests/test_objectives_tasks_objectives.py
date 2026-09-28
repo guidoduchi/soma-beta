@@ -95,6 +95,42 @@ def _local_epoch(year: int, month: int, day: int, hour: int, minute: int = 0) ->
         ).timestamp()
     )
 
+def test_t002_empty_objective_preview_persists_nothing(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    with ReadSnapshot(factory) as snapshot:
+        before = (
+            int(snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts").fetchone()[0]),
+            int(snapshot.connection.execute("SELECT COUNT(*) FROM objectives").fetchone()[0]),
+            int(snapshot.connection.execute(
+                "SELECT COUNT(*) FROM objective_task_membership_current"
+            ).fetchone()[0]),
+            tuple(snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()),
+        )
+
+    with pytest.raises(SomaError) as caught:
+        ObjectiveGroupingQueryService(factory).creation_preview()
+    assert caught.value.code == "OBJECTIVE_EMPTY"
+
+    with ReadSnapshot(factory) as snapshot:
+        after = (
+            int(snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts").fetchone()[0]),
+            int(snapshot.connection.execute("SELECT COUNT(*) FROM objectives").fetchone()[0]),
+            int(snapshot.connection.execute(
+                "SELECT COUNT(*) FROM objective_task_membership_current"
+            ).fetchone()[0]),
+            tuple(snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()),
+        )
+    assert after == before
+
+
 def test_objective_creation_preview_commit_replay_and_overlap(initialized_database) -> None:
     factory = _factory(initialized_database)
     task = TaskPlanningService(factory).create_local_task(
