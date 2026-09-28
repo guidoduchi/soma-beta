@@ -34,10 +34,10 @@ def physical_counts(uow, site_id, *, active_only):
             for table in ("rooms", "network_elements", "cloud_deployments")}
 
 
-def dependency_fingerprint(service, uow, site_id):
-    return fingerprint({"site": get(uow, "sites", site_id),
-                        "physical": physical_counts(uow, site_id, active_only=False),
-                        "owners": dependency_state(service, uow, site_id)})
+def dependency_snapshot(service, uow, site_id, site):
+    physical = physical_counts(uow, site_id, active_only=False)
+    owners = dependency_state(service, uow, site_id)
+    return fingerprint({"site": site, "physical": physical, "owners": owners}), physical, owners
 
 
 def duplicate_fingerprint(uow, address_key):
@@ -83,9 +83,10 @@ def prepare(service, uow, command, p, command_id):
         if old["customer_org_id"] == p["new_customer_org_id"]:
             return plan
         require_customer(uow, p["new_customer_org_id"])
-        if dependency_fingerprint(service, uow, identity) != p["dependency_preview_fingerprint"]:
+        current_fingerprint, physical, owners = dependency_snapshot(service, uow, identity, old)
+        if current_fingerprint != p["dependency_preview_fingerprint"]:
             raise SomaError("INFRA_STALE", "Site dependency preview changed")
-        if any(physical_counts(uow, identity, active_only=False).values()) or "BLOCKED" in dependency_state(service, uow, identity):
+        if any(physical.values()) or "BLOCKED" in owners:
             raise SomaError("SITE_CUSTOMER_CORRECTION_BLOCKED", "Site has physical or operational history")
         changes = {"customer_org_id": p["new_customer_org_id"]}
         event.update(event_kind="customer_ownership_corrected", prior_customer_org_id=old["customer_org_id"],
@@ -94,9 +95,13 @@ def prepare(service, uow, command, p, command_id):
         if p["target_state"] == old["lifecycle_state"]:
             return plan
         if p["target_state"] == "archived":
-            if p.get("blocker_preview_fingerprint") is not None and dependency_fingerprint(service, uow, identity) != p["blocker_preview_fingerprint"]:
-                raise SomaError("INFRA_STALE", "Site blocker preview changed")
-            if any(physical_counts(uow, identity, active_only=True).values()) or "BLOCKED" in dependency_state(service, uow, identity):
+            if p.get("blocker_preview_fingerprint") is not None:
+                current_fingerprint, _, owners = dependency_snapshot(service, uow, identity, old)
+                if current_fingerprint != p["blocker_preview_fingerprint"]:
+                    raise SomaError("INFRA_STALE", "Site blocker preview changed")
+            else:
+                owners = dependency_state(service, uow, identity)
+            if any(physical_counts(uow, identity, active_only=True).values()) or "BLOCKED" in owners:
                 raise SomaError("SITE_ARCHIVE_BLOCKED", "Site has active dependencies")
         else:
             require_customer(uow, old["customer_org_id"])

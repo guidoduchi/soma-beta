@@ -19,10 +19,13 @@ class InfrastructureService:
         self.consequence_reader = consequence_reader
         self.boundary = CommandBoundary(connection_factory, AuditWriter(build_infrastructure_audit_registry()))
 
-    def prepare(self, uow, command, payload, command_id):
-        from . import sites, placement, network_elements, relationships, components, regularization
-        for owner in (sites, placement, network_elements, relationships, components, regularization):
+    def prepare(self, uow, command, payload, command_id, *, actor_kind="local_user", actor_id=None):
+        from . import sites, placement, network_elements, relationships, components, regularization, workbooks
+        for owner in (sites, placement, network_elements, relationships, components, regularization, workbooks):
             if command in owner.COMMAND_NAMES:
+                if owner is workbooks:
+                    return owner.prepare(self, uow, command, payload, command_id,
+                                         actor_kind=actor_kind, actor_id=actor_id)
                 return owner.prepare(self, uow, command, payload, command_id)
         from soma.foundation.errors import ValidationError
         raise ValidationError("Infrastructure command has no installed owner")
@@ -37,7 +40,10 @@ class InfrastructureService:
 
         def prepare(uow):
             require_persisted_matching_profile(uow.connection)
-            plan = self.prepare(uow, command, values, command_id)
+            plan = self.prepare(uow, command, values, command_id,
+                                actor_kind=actor_kind, actor_id=actor_id)
+            if isinstance(plan, PreparedMutation):
+                return plan
             def apply(inner):
                 plan.apply(inner)
                 payload = {"operation": command, "target_refs": [{"kind": plan.kind, "id": plan.identity}],

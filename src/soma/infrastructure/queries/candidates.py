@@ -18,25 +18,38 @@ def site_blockers(service, reader, p):
                 "UNION ALL SELECT 0,'cloud_deployment',cloud_deployment_id,'ACTIVE_CLOUD_DEPLOYMENT' FROM cloud_deployments WHERE site_id=? AND lifecycle_state='active' "
                 "UNION ALL SELECT 0,'rack',rack_id,'ACTIVE_RACK' FROM racks r JOIN rooms m USING(room_id) WHERE m.site_id=? AND r.lifecycle_state='active'")
     total += count(reader, "SELECT count(*) FROM (" + physical + ")", (p["site_id"],) * 4)
-    physical_p = {**p, "limit": min(500, limit + 1)}
+    physical_p = {**p, "limit": limit}
     physical_rows, physical_next = page(reader, query, physical_p, physical, (p["site_id"],) * 4,
                                          ["provider_order", "blocker_kind", "blocker_id"])
     items.extend(physical_rows)
+    has_more = physical_next is not None
     for order, provider in enumerate(service.site_dependencies, 1):
         try:
             total += provider.count_blockers(reader, p["site_id"])
             if last and order < last[0]:
                 continue
-            if len(items) > limit or physical_next:
+            if has_more or len(items) > limit:
                 continue
-            page_result = provider.list_blockers(reader, p["site_id"], last[2] if last and order == last[0] else None,
-                                                 min(200, limit + 1 - len(items)))
-            for identity in page_result["blockers"]:
-                items.append(dict(provider_order=order, blocker_kind=("ticket", "task", "inventory")[order - 1],
-                                  blocker_id=identity, reason_code="OPERATIONAL_DEPENDENCY"))
+            provider_cursor = last[2] if last and order == last[0] else None
+            while len(items) <= limit:
+                page_result = provider.list_blockers(
+                    reader, p["site_id"], provider_cursor, min(200, limit + 1 - len(items)))
+                blockers = page_result["blockers"]
+                for identity in blockers:
+                    items.append(dict(provider_order=order,
+                                      blocker_kind=("ticket", "task", "inventory")[order - 1],
+                                      blocker_id=identity, reason_code="OPERATIONAL_DEPENDENCY"))
+                next_provider_cursor = page_result.get("continuation")
+                if next_provider_cursor is None:
+                    break
+                if not blockers or next_provider_cursor == provider_cursor:
+                    raise ValueError("Site dependency provider did not advance its cursor")
+                provider_cursor = next_provider_cursor
+                if len(items) > limit:
+                    break
         except Exception:
             indeterminate = True
-    continuation = make_cursor(query, p, [items[limit - 1][key] for key in ("provider_order", "blocker_kind", "blocker_id")]) if len(items) > limit else None
+    continuation = make_cursor(query, p, [items[limit - 1][key] for key in ("provider_order", "blocker_kind", "blocker_id")]) if len(items) > limit or has_more else None
     return dict(items=items[:limit], next_cursor=continuation, exact_count=total, indeterminate=indeterminate)
 
 

@@ -57,9 +57,9 @@ class InfrastructureQueries:
         if query not in QUERIES:
             raise ValidationError("Unknown Infrastructure query")
         p = validate_value(QUERIES[query]["input_type"], payload)
-        from . import details, explorer, candidates, history
+        from . import details, explorer, candidates, history, workbooks
         with ReadSnapshot(self.service.factory) as snapshot:
-            for owner in (details, explorer, candidates, history):
+            for owner in (details, explorer, candidates, history, workbooks):
                 if query in owner.QUERY_NAMES:
                     return owner.execute(self.service, snapshot, query, p)
         raise ValidationError("Infrastructure query has no installed owner")

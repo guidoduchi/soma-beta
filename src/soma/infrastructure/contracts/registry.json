@@ -465,7 +465,7 @@
       "optional": {
         "customer_org_id": "uuid",
         "site_id": "uuid",
-        "network_element_ids": "array<uuid>,max100000"
+        "network_element_ids": "array<uuid>,max400"
       },
       "semantic_rule": "only fields applicable to scope_kind may be non-null"
     },
