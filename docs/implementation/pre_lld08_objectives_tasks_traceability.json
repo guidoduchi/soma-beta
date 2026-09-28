@@ -9,15 +9,15 @@
     "conclusion": "success"
   },
   "implementation_parent_sha": "5917bce5517c3782a0005ef47218bfbda4ee6498",
-  "certified": false,
-  "certification_rule": "Direct LLD05-T/F markers are retrieval aids only. Packet certification requires all 91 normative cases to remain semantically bound to the exact accepted design, the implementation head to pass the supported Ubuntu/Windows matrix with the exact design pin, and no unresolved cross-packet subclause.",
+  "certified": true,
+  "certification_rule": "LLD-05 certification requires all 91 normative acceptance/failure-injection cases to be semantically bound to accepted design authority and the exact ledger/code checkpoint to pass the full supported matrix. CI #943 satisfies that requirement at ledger head 60434c96 against design 46c836ca.",
   "method": [
-    "All 48 acceptance and 43 failure-injection scenarios are enumerated from the exact accepted LLD-05 design authority.",
-    "Every case is bound to production owner paths and executable regressions after semantic inspection; marker/file presence alone is never certification.",
-    "Cases whose test names predate direct LLD05-T/F markers are retained as manual semantic bindings rather than receiving redundant marker-only tests.",
-    "Cross-packet transaction/source/dependency clauses are proved through real LLD-03/04/07 integration tests and remain explicitly labeled instead of being inferred from mocks.",
-    "T008 was design-reconciled to make manual exact-touch merge request authority explicit and is implemented through the existing proposal/acceptance pipeline; automatic exact-touch grouping remains separate.",
-    "T002 and T006 received focused semantic regressions because their prior evidence covered the implementation invariant but not the complete public acceptance story."
+    "All 48 acceptance and 43 failure-injection scenarios are enumerated from accepted LLD-05 design authority 46c836ca.",
+    "Every case is bound to production owner paths and concrete executable regressions after semantic inspection; marker presence alone is never certification.",
+    "Cases whose tests predate direct LLD05-T/F marker naming remain manual semantic bindings rather than receiving redundant marker-only tests.",
+    "Cross-packet transaction/source/dependency clauses are proved through real LLD-03/04/07 integration tests and explicitly labeled.",
+    "T008 was design-reconciled to make manual exact-touch merge authority explicit and implemented through the existing proposal/acceptance pipeline.",
+    "CI #943 passed the full supported platform/resource matrix at the exact ledger head, promoting all 91 cases to certified status."
   ],
   "source_acceptance": [
     "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
@@ -43,15 +43,22 @@
     "failure_injection_cases": 43,
     "unique_case_ids": 91,
     "semantically_bound_cases": 91,
+    "certified_cases": 91,
     "direct_acceptance_marker_count": 24,
-    "exact_head_ci": "pending"
+    "exact_head_ci": "success_ci_943"
   },
   "supported_code_checkpoint": {
-    "implementation_sha": "5917bce5517c3782a0005ef47218bfbda4ee6498",
+    "implementation_sha": "60434c963a1f037231ecd406425e23306a732ec7",
     "tested_design_pin": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
     "workflow": "Beta implementation CI",
-    "conclusion": "pending",
-    "note": "Documentation is being assembled while earlier implementation runs remain in flight. Promote only after a supported CI run completes on this code checkpoint or a descendant containing documentation-only changes."
+    "run_number": 943,
+    "run_id": 36371436471,
+    "conclusion": "success",
+    "ubuntu_python_3_14": "1466 passed, 2 skipped",
+    "windows_python_3_13": "1468 passed; wheel/resources verified",
+    "windows_python_3_14": "1468 passed; wheel/resources verified",
+    "release_schema_manifest": "success (920 authoritative objects)",
+    "note": "CI #943 is exact at the LLD-05 semantic-ledger head and certifies all 91 bound cases. Later descendants contain closure/recertification documentation only."
   },
   "cases": [
     {
@@ -78,8 +85,8 @@
       "observed_assertions": "Semantic inspection binds local_task_minimum_and_unscheduled to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T002",
@@ -106,8 +113,8 @@
       "observed_assertions": "Semantic inspection binds persisted_objective_is_nonempty to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T003",
@@ -135,8 +142,8 @@
       "observed_assertions": "Semantic inspection binds stable_objective_tracking_identity to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T004",
@@ -165,8 +172,8 @@
       "observed_assertions": "Semantic inspection binds task_plan_precision_and_timezone to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T005",
@@ -200,8 +207,8 @@
       "observed_assertions": "Semantic inspection binds four_temporal_authorities_are_distinct to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T006",
@@ -229,8 +236,8 @@
       "observed_assertions": "Semantic inspection binds plan_change_does_not_silently_regroup to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T007",
@@ -256,8 +263,8 @@
       "observed_assertions": "Semantic inspection binds strict_overlap_is_transitive to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T008",
@@ -286,8 +293,8 @@
       "observed_assertions": "Semantic inspection binds exact_touch_is_not_automatic_overlap to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T009",
@@ -315,8 +322,8 @@
       "observed_assertions": "Semantic inspection binds bridging_task_proposes_consolidation to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T010",
@@ -342,8 +349,8 @@
       "observed_assertions": "Semantic inspection binds grouping_is_global_not_customer_partitioned to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T011",
@@ -370,8 +377,8 @@
       "observed_assertions": "Semantic inspection binds accepted_objectives_never_overlap to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T012",
@@ -400,8 +407,8 @@
       "observed_assertions": "Semantic inspection binds same_rfc_distinct_wfm_activities to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T013",
@@ -435,8 +442,8 @@
       "observed_assertions": "Semantic inspection binds competing_wfm_attempt_requires_review to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T014",
@@ -471,8 +478,8 @@
       "observed_assertions": "Semantic inspection binds selected_member_task_start_is_not_objective_start to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T015",
@@ -500,8 +507,8 @@
       "observed_assertions": "Semantic inspection binds task_end_requires_review to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T016",
@@ -531,8 +538,8 @@
       "observed_assertions": "Semantic inspection binds task_outcome_matrix to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T017",
@@ -563,8 +570,8 @@
       "observed_assertions": "Semantic inspection binds whole_objective_cancel_guard to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T018",
@@ -594,8 +601,8 @@
       "observed_assertions": "Semantic inspection binds mixed_objective_outcome_is_derived to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T019",
@@ -621,8 +628,8 @@
       "observed_assertions": "Semantic inspection binds lost_last_executable_requires_review to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T020",
@@ -652,8 +659,8 @@
       "cross_packet_responsibility": [
         "LLD-03"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T021",
@@ -681,8 +688,8 @@
       "observed_assertions": "Semantic inspection binds provider_terminal_evidence_is_not_local_termination to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T022",
@@ -710,8 +717,8 @@
       "cross_packet_responsibility": [
         "LLD-04"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T023",
@@ -741,8 +748,8 @@
       "cross_packet_responsibility": [
         "LLD-04"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T024",
@@ -769,8 +776,8 @@
       "observed_assertions": "Semantic inspection binds historical_objective_fabricates_no_execution to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T025",
@@ -796,8 +803,8 @@
       "observed_assertions": "Semantic inspection binds historical_operational_count_exclusion to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T026",
@@ -824,8 +831,8 @@
       "observed_assertions": "Semantic inspection binds reviewed_at_is_not_execution_time to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T027",
@@ -862,8 +869,8 @@
       "observed_assertions": "Semantic inspection binds correction_preserves_attempt_identity to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T028",
@@ -891,8 +898,8 @@
       "observed_assertions": "Semantic inspection binds local_retry_is_new_attempt to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T029",
@@ -923,8 +930,8 @@
       "observed_assertions": "Semantic inspection binds wfm_retry_requires_distinct_tk to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T030",
@@ -949,8 +956,8 @@
       "observed_assertions": "Semantic inspection binds objective_retry_context_is_derived to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T031",
@@ -976,8 +983,8 @@
       "observed_assertions": "Semantic inspection binds iana_local_input_dst_safety to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T032",
@@ -1004,8 +1011,8 @@
       "observed_assertions": "Semantic inspection binds timezone_setting_is_presentation_only to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T033",
@@ -1031,8 +1038,8 @@
       "observed_assertions": "Semantic inspection binds monthly_ordinal_is_derived_not_identity to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T034",
@@ -1064,8 +1071,8 @@
       "cross_packet_responsibility": [
         "LLD-03"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T035",
@@ -1097,8 +1104,8 @@
       "observed_assertions": "Semantic inspection binds objective_relationships_are_task_derived to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T036",
@@ -1135,8 +1142,8 @@
       "cross_packet_responsibility": [
         "LLD-07"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T037",
@@ -1167,8 +1174,8 @@
       "observed_assertions": "Semantic inspection binds objective_hard_delete_is_narrow to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T038",
@@ -1193,8 +1200,8 @@
       "observed_assertions": "Semantic inspection binds objective_archive_is_presentation_only to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T039",
@@ -1224,8 +1231,8 @@
       "observed_assertions": "Semantic inspection binds large_grouping_preserves_semantics to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T040",
@@ -1252,8 +1259,8 @@
       "observed_assertions": "Semantic inspection binds regroup_rejection_fingerprint to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T041",
@@ -1279,8 +1286,8 @@
       "observed_assertions": "Semantic inspection binds in_progress_regroup_is_limited_high_risk to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T042",
@@ -1312,8 +1319,8 @@
       "cross_packet_responsibility": [
         "LLD-04"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T043",
@@ -1350,8 +1357,8 @@
         "LLD-03",
         "LLD-04"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T044",
@@ -1379,8 +1386,8 @@
       "observed_assertions": "Semantic inspection binds source_terminal_review_is_stale_bound to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T045",
@@ -1406,8 +1413,8 @@
       "observed_assertions": "Semantic inspection binds future_grouping_clock_is_not_a_lock to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T046",
@@ -1433,8 +1440,8 @@
       "observed_assertions": "Semantic inspection binds due_objective_surfaces_without_fabrication to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T047",
@@ -1460,8 +1467,8 @@
       "observed_assertions": "Semantic inspection binds manual_local_task_under_subordinate_rfc to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-T048",
@@ -1486,8 +1493,8 @@
       "observed_assertions": "Semantic inspection binds objective_can_exist_without_ticket_device_inventory_context to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F001",
@@ -1508,8 +1515,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CreateLocalTask after receipt+tasks insert before plan/current relationship writes) and verifies the required atomic/fail-closed result (whole UoW rolls back; no Task/plan/link/audit partial state; idempotent retry can execute normally).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F002",
@@ -1529,8 +1536,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CreateObjectiveFromPreview after MW sequence allocation/update and Objective insert before first membership) and verifies the required atomic/fail-closed result (allocator/Objectives/memberships/projections/audit all roll back; tracking sequence is not consumed by failed transaction).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F003",
@@ -1550,8 +1557,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CreateObjectiveFromPreview after first of several membership events/current rows) and verifies the required atomic/fail-closed result (no empty/partial Objective survives; every Task remains in prior membership state).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F004",
@@ -1571,8 +1578,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (SetTaskPlan after immutable plan revision insert before task_plan_current update) and verifies the required atomic/fail-closed result (plan revision/current pointer/audit all roll back; Objective membership pin/envelope unchanged).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F005",
@@ -1594,8 +1601,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (SetTaskPlan succeeds but grouping proposal durable job crashes before proposal publication) and verifies the required atomic/fail-closed result (accepted Task plan remains valid; membership pin remains prior; no partial regroup mutation; recompute can resume/recreate proposal deterministically).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F006",
@@ -1615,8 +1622,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (AcceptRegroupProposal after first Task move/repin before remaining Task changes) and verifies the required atomic/fail-closed result (all membership/current/event/projection/supersession changes roll back and proposal remains pending/currently retryable).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F007",
@@ -1636,8 +1643,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (AcceptRegroupProposal consolidation after survivor membership writes before merged Objective supersession) and verifies the required atomic/fail-closed result (no partial consolidation; all original Objectives/memberships/envelopes restored atomically).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F008",
@@ -1658,8 +1665,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (another accepted Objective/plan change creates strict overlap after preview but before regroup acceptance) and verifies the required atomic/fail-closed result (commit-time material fingerprint/neighbor overlap check returns stale/OBJECTIVE_OVERLAP before domain mutation).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F009",
@@ -1679,8 +1686,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (Task plan revision/lock changes after persisted proposal preview) and verifies the required atomic/fail-closed result (GROUPING_PROPOSAL_STALE; proposal cannot overwrite newer plan/lock/membership state).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F010",
@@ -1700,8 +1707,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (StartObjectiveExecution after first selected Task start event before second selected Task) and verifies the required atomic/fail-closed result (all selected starts roll back; Objective aggregate remains prior; no partial start set).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F011",
@@ -1722,8 +1729,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CancelObjectiveBeforeExecution after first Task cancellation/outcome) and verifies the required atomic/fail-closed result (all member cancellation/outcome events and Objective review roll back; no partial whole-Objective cancel).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F012",
@@ -1743,8 +1750,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (EndTaskExecution after end event before execution/Objective projection rebuild) and verifies the required atomic/fail-closed result (end event, projection/audit all roll back; Task remains in_progress).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F013",
@@ -1764,8 +1771,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CorrectTaskExecutionEvidence after correction event before rebuild) and verifies the required atomic/fail-closed result (correction and all derived changes roll back; original current execution interpretation remains).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F014",
@@ -1785,8 +1792,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CorrectTaskOutcome after append correction event before current outcome pointer) and verifies the required atomic/fail-closed result (new outcome event/current Objective aggregate/audit all roll back; prior accepted outcome remains current).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F015",
@@ -1806,8 +1813,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CreateLocalTaskRetry after successor Task+plan insert before retry relation) and verifies the required atomic/fail-closed result (new Task/plan/selected links roll back; predecessor still has no successor).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F016",
@@ -1830,8 +1837,8 @@
       "cross_packet_responsibility": [
         "LLD-07"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F017",
@@ -1854,8 +1861,8 @@
       "cross_packet_responsibility": [
         "LLD-04"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F018",
@@ -1875,8 +1882,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (ResolveWfmSourceTerminalConsequence after local termination execution event before review transition/projection rebuild) and verifies the required atomic/fail-closed result (termination event rolls back; review remains pending; provider source projection unchanged).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F019",
@@ -1897,8 +1904,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (source-terminal review created, then Task execution/plan/membership changes before decision) and verifies the required atomic/fail-closed result (fingerprint revalidation rejects stale review; no local termination occurs; fresh review may supersede old one).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F020",
@@ -1921,8 +1928,8 @@
       "cross_packet_responsibility": [
         "LLD-03"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F021",
@@ -1946,8 +1953,8 @@
       "cross_packet_responsibility": [
         "LLD-03"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F022",
@@ -1967,8 +1974,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (historical Objective acceptance creates historical_source_structure plan then Objective insert fails) and verifies the required atomic/fail-closed result (new plan/current pointer/receipt/audit roll back; Task remains without operational plan and unassigned; proposal pending).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F023",
@@ -1988,8 +1995,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (historical Objective acceptance inserts Objective then membership/projection fails) and verifies the required atomic/fail-closed result (Objective/MW allocation/plan if newly created/membership all roll back; no history structure partial state).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F024",
@@ -2010,8 +2017,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (historical proposal source projection/source plan changes after preview) and verifies the required atomic/fail-closed result (HISTORICAL_PROPOSAL_STALE; no plan/Objective created from obsolete evidence).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F025",
@@ -2031,8 +2038,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (different current operational plan appears after historical proposal) and verifies the required atomic/fail-closed result (historical acceptance fails closed and never overwrites it; normal source-plan conflict review required).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F026",
@@ -2053,8 +2060,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (SetHistoricalTaskOperationalCountInclusion after inclusion event before aggregate rebuild) and verifies the required atomic/fail-closed result (inclusion event/current projection/aggregate/audit roll back together).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F027",
@@ -2074,8 +2081,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (SetObjectiveTimezone LLD-02 setting write/audit validation fails) and verifies the required atomic/fail-closed result (setting transaction rolls back; no Task/Objective instant is touched in either success or failure path).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F028",
@@ -2098,8 +2105,8 @@
       "cross_packet_responsibility": [
         "LLD-07"
       ],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F029",
@@ -2119,8 +2126,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (HardDeleteTask FK/delete fails after first eligible dependent draft row removal) and verifies the required atomic/fail-closed result (all deleted rows restore by rollback; audit does not claim deletion).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F030",
@@ -2140,8 +2147,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (HardDeleteObjective after membership/current projection removal before Objective delete) and verifies the required atomic/fail-closed result (entire deletion rolls back; persisted Objective remains nonempty/current).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F031",
@@ -2162,8 +2169,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (Objective review fingerprint changes after preview because Task outcome corrected) and verifies the required atomic/fail-closed result (OBJECTIVE_REVIEW_STALE; no review event accepted for obsolete aggregate).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F032",
@@ -2184,8 +2191,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (whole Objective cancellation preview had no starts, concurrent Task start commits before cancel) and verifies the required atomic/fail-closed result (cancel UoW recheck sees accepted start and returns OBJECTIVE_CANCEL_AFTER_EXECUTION; start survives and no cancel rows commit).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F033",
@@ -2205,8 +2212,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (ReviewWfmActivityRelationship material multi-Task review fails after the first lineage/event/current/Task/audit write but before all affected Tasks and immutable replay result are complete) and verifies the required atomic/fail-closed result (one outer UnitOfWork rolls back every new lineage, lineage event/current projection, affected tasks.revision increment, audit event, command receipt and replay-result snapshot; all prior lineage/current state, retry edges, Task/TK identities and downstream conflict classification remain exactly unchanged).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F034",
@@ -2227,8 +2234,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (large grouping durable job crashes after one or more proposal-scoped writer commits and before technical job completion) and verifies the required atomic/fail-closed result (already committed regroup proposals remain non-authoritative proposal history and no Task/Objective accepted topology is mutated; restart discards in-memory candidate material, recomputes from one fresh stable accepted-state Snapshot, ordinary exact-pending/rejected suppression prevents duplicate equivalent proposal rows, and any post-snapshot drift remains stale-bound at review/acceptance).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F035",
@@ -2249,8 +2256,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (invalid DST nonexistent/ambiguous local schedule reaches command) and verifies the required atomic/fail-closed result (validation rejects before BEGIN IMMEDIATE; no Task plan/receipt/domain mutation).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F036",
@@ -2271,8 +2278,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (projection rebuild/startup validation detects current accepted strict-overlap drift) and verifies the required atomic/fail-closed result (writes fail closed into diagnostics/recovery; runtime never silently repairs, deletes or regroups operational history).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F037",
@@ -2293,8 +2300,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (TaskExecutionCorrectionPreview succeeds, then Task execution revision/target-effective state or current outcome authority changes before CorrectTaskExecutionEvidence) and verifies the required atomic/fail-closed result (writer recomputation rejects TASK_REVIEW_STALE before receipt/evidence append; no stale reviewed correction is accepted).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F038",
@@ -2315,8 +2322,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (execution correction would invalidate the current reviewed Task outcome but accept_outcome_invalidation is false) and verifies the required atomic/fail-closed result (TASK_OUTCOME_INVALID_FOR_EXECUTION before receipt; execution history/projection, outcome event/current pointer, Task revision and Objective aggregate remain unchanged).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F039",
@@ -2337,8 +2344,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (TaskOutcomeReviewPreview succeeds, then execution evidence changes before ReviewTaskOutcome) and verifies the required atomic/fail-closed result (TASK_REVIEW_STALE; no outcome event/current projection/Task revision/audit mutation occurs).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F040",
@@ -2359,8 +2366,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (TaskOutcomeCorrectionPreview succeeds, then another accepted outcome correction advances the current outcome tip before CorrectTaskOutcome) and verifies the required atomic/fail-closed result (TASK_REVIEW_STALE; command cannot branch correction history from the stale prior event).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F041",
@@ -2380,8 +2387,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CancelTaskWithoutExecution caller observed not_started, but a Task start commits before cancellation writer revalidation) and verifies the required atomic/fail-closed result (current-UoW guard returns TASK_CANCEL_AFTER_START; accepted start survives and no manual_cancel/outcome row commits).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F042",
@@ -2402,8 +2409,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CorrectTaskOutcome after outcome event/current pointer and affected Objective aggregate rebuild but before audit/replay-result completion) and verifies the required atomic/fail-closed result (one outer UoW rolls back correction event/current revision, Task revision, aggregate rebuild, receipt/audit/replay result; prior outcome remains exact current tip).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     },
     {
       "id": "LLD05-F043",
@@ -2424,8 +2431,8 @@
       "observed_assertions": "Semantic inspection exercises the injected cut (CorrectTaskExecutionEvidence after correction event/projection and affected Objective aggregate rebuild but before audit/replay-result completion) and verifies the required atomic/fail-closed result (one outer UoW rolls back correction event, execution/Task revisions, aggregate rebuild, receipt/audit/replay result; prior execution interpretation and outcome currentness remain exact).",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_exact_head_ci",
-      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+      "status": "reviewed_supported_ci_943",
+      "certification_status": "certified_supported_ci_943"
     }
   ]
 }
