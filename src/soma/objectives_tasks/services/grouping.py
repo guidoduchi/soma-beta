@@ -32,6 +32,7 @@ from ..domain.grouping import (
     GroupingTaskChange,
     RegroupCandidate,
     strict_overlap_components,
+    strict_overlap_member_ids,
 )
 from ..repositories.grouping import RegroupProposalRepository
 from ..repositories.objectives import ObjectiveProjectionRepository
@@ -87,6 +88,27 @@ class GroupingService:
         return int(row[0])
 
     @staticmethod
+    def _competing_task_ids(reader: Any) -> frozenset[str]:
+        rows = reader.execute(
+            "SELECT lc.task_id,lc.activity_lineage_id,p.start_utc,p.end_utc "
+            "FROM task_activity_lineage_current lc "
+            "JOIN task_plan_current pc ON pc.task_id=lc.task_id "
+            "JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
+            "AND p.task_id=lc.task_id "
+            "LEFT JOIN task_execution_projection x ON x.task_id=lc.task_id "
+            "LEFT JOIN task_outcome_current oc ON oc.task_id=lc.task_id "
+            "WHERE oc.accepted_outcome IS NULL "
+            "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
+            "ORDER BY lc.activity_lineage_id,p.start_utc,p.end_utc,lc.task_id"
+        ).fetchall()
+        return strict_overlap_member_ids(
+            (
+                (str(row[0]), str(row[1]), int(row[2]), int(row[3]))
+                for row in rows
+            )
+        )
+
+    @staticmethod
     def _eligible_workset_count(reader: Any) -> int:
         invalid = reader.execute(
             "SELECT 1 FROM objective_task_membership_current m "
@@ -100,8 +122,8 @@ class GroupingService:
             raise IntegrityFailure(
                 "Task membership points to missing or noncurrent Objective authority"
             )
-        row = reader.execute(
-            "SELECT COUNT(*) FROM tasks t "
+        rows = reader.execute(
+            "SELECT t.task_id FROM tasks t "
             "JOIN task_plan_current pc ON pc.task_id=t.task_id "
             "JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
             "LEFT JOIN objective_task_membership_current m ON m.task_id=t.task_id "
@@ -118,10 +140,9 @@ class GroupingService:
             "AND o.creation_origin<>'historical_provider_complete' "
             "AND a.execution_state NOT IN ('reviewed','superseded','historical_structure')"
             "))"
-        ).fetchone()
-        if row is None:
-            raise IntegrityFailure("grouping workset count is unavailable")
-        return int(row[0])
+        ).fetchall()
+        competing = GroupingService._competing_task_ids(reader)
+        return sum(1 for row in rows if str(row[0]) not in competing)
 
     def _probe_replay(self, envelope: CommandEnvelope) -> dict[str, object] | None:
         request_hash = envelope.request_hash()
@@ -140,6 +161,7 @@ class GroupingService:
 
     @staticmethod
     def _load_snapshot(connection: Any) -> _GroupingSnapshot:
+        competing_task_ids = GroupingService._competing_task_ids(connection)
         objective_rows = connection.execute(
             "SELECT o.objective_id,o.tracking_sequence,o.revision,e.revision,e.start_utc,"
             "e.end_utc,a.execution_state,o.creation_origin "
@@ -178,7 +200,11 @@ class GroupingService:
         task_items: list[GroupingTaskAuthority] = []
         for row in rows:
             execution_state = str(row[10])
-            if row[11] is not None or execution_state in {"ended", "terminated"}:
+            if (
+                row[11] is not None
+                or execution_state in {"ended", "terminated"}
+                or str(row[0]) in competing_task_ids
+            ):
                 continue
             objective_id = None if row[6] is None else str(row[6])
             objective = None if objective_id is None else objectives.get(objective_id)
