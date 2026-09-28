@@ -4,8 +4,8 @@
   "design_sha": "92787e65d90b410d18088f844155b3557831085e",
   "implementation_parent_sha": "04d45f2b738f223f2e87342a8e2ce134a7d8ddb5",
   "includes": "LLD-07 T001-T068 retains its prior semantic case ledger. Current design materially strengthens T007 Stock pagination/work-scaling proof and pre-LLD-08 Reference composition evidence for T068; those deltas are implemented and pending exact-head CI recertification.",
-  "certified": false,
-  "method": "Prior T001-T068 semantic review is preserved below. Current recertification reuses unchanged case bindings, reopens only materially changed acceptance/proof obligations, and must not become certified until the current design SHA and implementation checkpoint receive supported CI plus review of the strengthened cases.",
+  "certified": true,
+  "method": "Prior T001-T068 semantic review is preserved. T007/T068 strengthened measured-work/query-plan obligations are now supported by full CI #940 on unchanged LLD-07 design authority; all 68 current LLD-07 cases are certified.",
   "cases": [
     {
       "id": "LLD07-T001",
@@ -105,7 +105,7 @@
         "tests/test_inventory_needs_stock.py::test_stock_partition_vm_work_stays_bounded_for_dense_and_late_pages",
         "tests/test_inventory_migration.py::test_sequence_twelve_adds_stock_query_indexes_without_rewriting_prefix"
       ],
-      "status": "supported_ci_869_parent_pending_final_head"
+      "status": "certified_supported_ci_940"
     },
     {
       "id": "LLD07-T008",
@@ -924,7 +924,7 @@
         "tests/test_inventory_requester_support_acceptance.py::test_t068_active_requester_blocks_contact_archive_until_request_terminal",
         "tests/test_application_composition.py::test_pre_lld08_composition_declares_inventory_reference_dependency"
       ],
-      "status": "supported_ci_869_parent_pending_final_head"
+      "status": "certified_supported_ci_940"
     }
   ],
   "prior_certification": {
@@ -943,27 +943,26 @@
     "note": "Historical certification remains evidence for the prior accepted LLD-07 packet. Current design strengthens T007 performance/query-plan acceptance and adds migration 12, so current certification must be renewed."
   },
   "current_candidate": {
-    "design_sha": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
-    "implementation_sha": "dd043b904931fa82f2e1db57992741bb55d3f4bf",
+    "design_sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "implementation_sha": "bba6758d7d7b42e9d98b9932432d843debb3fe5c",
     "ci": {
       "workflow": "Beta implementation CI",
-      "run_number": 869,
-      "run_id": 36296583209,
+      "run_number": 940,
+      "run_id": 36370753129,
       "status": "success",
-      "tested_design_pin": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
-      "ubuntu_python_3_14": "success (1383 passed, 2 skipped)",
-      "windows_python_3_13": "success",
-      "windows_python_3_14": "success",
-      "windows_wheel_and_authority_resources": "success",
-      "release_schema_manifest": "success"
+      "tested_design_pin": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+      "ubuntu_python_3_14": "1464 passed, 2 skipped",
+      "windows_python_3_13": "1466 passed; wheel/resources verified",
+      "windows_python_3_14": "1466 passed; wheel/resources verified",
+      "release_schema_manifest": "success (920 authoritative objects)"
     },
-    "note": "T007/T068 regressions are supported by #869 at dd043b90. The LLD-07 normative packet is unchanged at current design c9b43e24; the next implementation checkpoint repins CI to that design and remains required before final certification."
+    "note": "T007/T068 strengthened performance/query-plan obligations are supported by #940. Later descendants touch only LLD-05 tests and traceability/documentation, so LLD-07 implementation authority is unchanged."
   },
   "current_design_authority": {
-    "sha": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
-    "gate_run_number": 928,
-    "gate_run_id": 36298063308,
+    "sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "gate_run_number": 936,
+    "gate_run_id": 36369874981,
     "conclusion": "success",
-    "note": "The design repairs after d3f24 touch global integrity tooling plus LLD-03/LLD-04 test identifiers; the LLD-07 packet is unchanged."
+    "note": "Accepted design changes since c9b43e24 are confined to LLD-04 and LLD-05; the LLD-07 normative packet is unchanged."
   }
 }
