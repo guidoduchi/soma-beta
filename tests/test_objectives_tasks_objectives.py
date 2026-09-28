@@ -357,6 +357,7 @@ def test_objective_hard_delete_retains_tasks_and_removes_only_baseline_membershi
         preview_fingerprint=str(preview["fingerprint"]),
         existing_tasks=(intent,),
     )
+    assert queries.workbench(created.objective_id)["tracking_handle"] == "MW-00000001"
     delete_queries = ObjectiveHardDeleteQueryService(factory)
     delete_preview = delete_queries.preview(
         objective_id=created.objective_id,
@@ -391,6 +392,24 @@ def test_objective_hard_delete_retains_tasks_and_removes_only_baseline_membershi
             "SELECT 1 FROM task_plan_current WHERE task_id=?",
             (task.task_id,),
         ).fetchone() is not None
+
+    replacement_task = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Objective after deleted sequence",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_321_000_000,
+            end_utc=2_321_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    replacement_intent = _existing_intent(factory, replacement_task.task_id)
+    replacement_preview = grouping.creation_preview(existing_tasks=(replacement_intent,))
+    replacement = service.create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(replacement_preview["fingerprint"]),
+        existing_tasks=(replacement_intent,),
+    )
+    assert queries.workbench(replacement.objective_id)["tracking_handle"] == "MW-00000002"
 
 
 def test_t026_reviewed_at_is_never_execution_time_and_queries_keep_them_separate(
