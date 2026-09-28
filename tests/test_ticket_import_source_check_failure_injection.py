@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 import soma.ticket_import.jobs.source_check as source_check_module
-from soma.foundation.errors import PersistenceFailure, SomaError
+from soma.foundation.errors import PersistenceFailure
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
@@ -168,34 +168,49 @@ def _run_state(factory, run_id: str):
         ).fetchone()
 
 
-def test_f001_discovery_failure_keeps_durable_job_retryable_without_import_authority(
+def test_f001_stale_worker_before_discovery_recovers_retryably_without_import_authority(
     initialized_database,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     factory = _factory(initialized_database)
     profiles = _profiles()
     clock = _Clock()
     coordinator, _payload_value, claim = _enqueue_and_claim(factory, clock, profiles)
-    worker = _worker(factory, coordinator)
 
-    def fail_discovery(_payload):
-        raise SomaError("IMPORT_SOURCE_UNAVAILABLE", "injected discovery failure")
-
-    monkeypatch.setattr(worker, "_discover", fail_discovery)
-    with pytest.raises(SomaError) as excinfo:
-        worker.run(claim)
-    assert excinfo.value.code == "IMPORT_SOURCE_UNAVAILABLE"
+    recovery_run_id = new_uuid4()
+    assert recovery_run_id != claim.run_id
+    recovered = coordinator.recover_stale_claims(recovery_run_id, clock.value)
+    assert recovered.examined_count == 1
+    assert recovered.interrupted_count == 1
+    assert recovered.retry_wait_count == 1
+    assert recovered.failed_count == 0
 
     with ReadSnapshot(factory) as snapshot:
+        job = snapshot.connection.execute(
+            "SELECT state,attempt_count,next_attempt_at_utc,claimed_run_id,"
+            "claim_started_at_utc,checkpoint_json,last_error_code "
+            "FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == (
+            "retry_wait",
+            1,
+            clock.value + 5,
+            None,
+            None,
+            None,
+            "JOB_INTERRUPTED",
+        )
         assert snapshot.connection.execute("SELECT COUNT(*) FROM import_runs").fetchone()[0] == 0
         assert snapshot.connection.execute("SELECT COUNT(*) FROM source_observations").fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM reconciliation_proposals"
+        ).fetchone()[0] == 0
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM import_source_checkpoints"
         ).fetchone()[0] == 0
 
-    coordinator.fail(claim, "IMPORT_SOURCE_UNAVAILABLE", clock.value + 5)
     clock.value += 5
-    retried = coordinator.claim_next(new_uuid4(), clock.value)
+    retried = coordinator.claim_next(recovery_run_id, clock.value)
     assert retried is not None
     assert retried.job_id == claim.job_id
     assert retried.attempt_ordinal == 2
