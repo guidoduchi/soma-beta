@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 import soma.ticket_import.jobs.source_check as source_check_module
-from soma.foundation.errors import PersistenceFailure
+from soma.foundation.errors import PersistenceFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
@@ -18,6 +18,7 @@ from soma.ticket_import.jobs import (
 )
 from soma.ticket_import.jobs.source_check import TicketImportSourceCheckWorker
 from soma.ticket_import.profiles.registry import require_profile_versions
+from soma.ticket_import.queries.runs import ImportRunQueryService
 from soma.ticket_import.reconciliation.engine import LogicalRow, row_logical_sha256
 from soma.ticket_import.repositories.observations import NormalizedObservationEvidence
 
@@ -317,6 +318,19 @@ def test_f003_mid_batch_failure_cannot_advance_cursor_past_rolled_back_rows(
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM import_source_checkpoints"
         ).fetchone()[0] == 0
+
+    queries = ImportRunQueryService(factory)
+    detail = queries.get_run(run_id)
+    assert detail.run.run_state == "validating"
+    assert detail.checkpoint_comparison is None
+    assert detail.review_state["pending"] == 0
+    assert detail.review_state["can_finalize"] is False
+    with pytest.raises(SomaError) as excinfo:
+        queries.list_published_observations(run_id)
+    assert excinfo.value.code == "IMPORT_RUN_UNPUBLISHED"
+    findings = queries.list_findings(run_id)
+    assert findings.items == ()
+    assert findings.exact_total == 0
 
     coordinator.fail(claim, "PERSISTENCE_BUSY", clock.value + 5)
     clock.value += 5
