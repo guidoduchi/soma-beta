@@ -256,12 +256,23 @@ def test_t008_manual_exact_touch_merge_fails_closed_on_third_overlap_drift(
     right_objective = _objective(factory, right.task_id)
     third_objective = _objective(factory, third.task_id)
 
+    # Inject pre-existing accepted-topology drift that normal runtime guards
+    # would prevent. Restore the exact production guard before exercising the
+    # manual merge command's fail-closed neighbor proof.
     with UnitOfWork(factory) as uow:
+        trigger_row = uow.connection.execute(
+            "SELECT sql FROM sqlite_master "
+            "WHERE type='trigger' AND name='objective_envelope_update_guard'"
+        ).fetchone()
+        assert trigger_row is not None and trigger_row[0] is not None
+        trigger_sql = str(trigger_row[0])
+        uow.connection.execute("DROP TRIGGER objective_envelope_update_guard")
         uow.connection.execute(
             "UPDATE objective_envelope_projection SET start_utc=?,end_utc=?,revision=revision+1 "
             "WHERE objective_id=?",
             (start + 150, start + 250, third_objective),
         )
+        uow.connection.execute(trigger_sql)
 
     command_id = new_uuid4()
     with pytest.raises(SomaError) as caught:
