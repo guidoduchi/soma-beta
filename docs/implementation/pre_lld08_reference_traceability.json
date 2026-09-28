@@ -10,19 +10,16 @@
   "module_map": "spec/lld/identity-reference/implementation/module-map.json",
   "method": "Each normative LLD-02 acceptance scenario is bound to current production owner paths and named executable behavior. Marker/name presence is not treated as semantic proof. Partial or LLD-08-owned clauses remain explicit rather than being inferred from adjacent tests.",
   "certified": false,
-  "certification_rule": "Certification requires every non-deferred LLD-02 clause to have inspectable semantic evidence and the exact final implementation head to pass the supported implementation CI matrix, release-schema gate, design pin, wheel build and packaged authority-resource verification.",
+  "certification_rule": "All fully LLD-02-owned reviewed scenarios require semantic binding plus supported CI. CI #940 certifies all 32 fully owned reviewed cases on unchanged LLD-02 design authority. Six cross-packet clauses and one LLD-08-owned Site clause remain explicit non-certification boundaries; they are not defects in the LLD-02 owner implementation and are not inferred complete from adjacent packets.",
   "known_limits": [
-    "LLD-08 Site persistence/lifecycle is not started; Site-owned clauses are explicitly deferred or partial.",
+    "LLD-08 Site persistence/lifecycle is not started; the Site-owned clause remains explicitly deferred.",
+    "Six cross-packet clauses remain partial until their owning boundary is available or separately certified.",
     "Generated-artifact recipient/address snapshots remain consumer-owned and are not reclassified as LLD-02-owned merely because Reference history is preserved.",
     "Production SQLCipher/session security remains LLD-12-owned.",
-    "The mechanical acceptance-marker report is report-only and cannot promote partial cases.",
-    "LLD-12 authentication, verifier, session and setup coordination are not implemented by LLD-02 profile metadata tests; LLD02-T038/T039 retain explicit cross-packet limits.",
-    "CI #869 passed at exact implementation parent dd043b904931fa82f2e1db57992741bb55d3f4bf: Ubuntu Python 3.14 and Windows Python 3.13/3.14 succeeded; both Windows wheel/resource gates and the Ubuntu release-schema/marker steps succeeded. This closes the six reviewed-at-binding pending-CI cases, but partial cross-packet and LLD-08-owned clauses remain non-certified."
+    "The mechanical acceptance-marker report is report-only and cannot promote partial cases."
   ],
   "summary": {
-    "reviewed": 32,
-    "reviewed_pending_ci": 0,
-    "partial_evidence": 0,
+    "reviewed_certified_supported_ci_940": 32,
     "partial_cross_packet": 6,
     "deferred_lld08": 1,
     "unbound": 0
@@ -45,7 +42,7 @@
       ],
       "status": "reviewed",
       "note": "Customer, Contact and Dispatch descriptive renames preserve immutable IDs; the current Contact affiliation continues to resolve the same Contact and Customer IDs after both masters are renamed.",
-      "certification_status": "supported_ci_869_parent"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T002",
@@ -65,7 +62,7 @@
       ],
       "status": "reviewed",
       "note": "Duplicate names remain distinct immutable identities; no merge/uniqueness authority is introduced.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T003",
@@ -88,7 +85,7 @@
       ],
       "status": "reviewed",
       "note": "Pinned Unicode-17 asset drives deterministic matching rather than host Unicode tables.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T004",
@@ -110,7 +107,7 @@
       ],
       "status": "reviewed",
       "note": "Persisted matching-profile mismatch fails closed on reads and writes.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T005",
@@ -130,7 +127,7 @@
       ],
       "status": "reviewed",
       "note": "Account-code evidence remains separate from customer identity and ambiguity is preserved.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T006",
@@ -151,7 +148,7 @@
       ],
       "status": "reviewed",
       "note": "Unreviewed stealing is blocked; reviewed shared claims remain explicitly ambiguous.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T007",
@@ -172,7 +169,7 @@
       ],
       "status": "reviewed",
       "note": "Reviewed reassignment preserves superseded claim history.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T008",
@@ -191,7 +188,7 @@
       ],
       "status": "reviewed",
       "note": "Email matching is affiliation-scoped; UNBOUND and ambiguity semantics are explicit.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T009",
@@ -209,7 +206,7 @@
       ],
       "status": "reviewed",
       "note": "Matching queries are read-only and do not assign identity.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T010",
@@ -228,7 +225,7 @@
       ],
       "status": "reviewed",
       "note": "Full candidate state is independent of visible page size and continuations are stable.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T011",
@@ -248,7 +245,7 @@
       ],
       "status": "reviewed",
       "note": "Affiliation transition closes prior history and preserves one current row.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T012",
@@ -268,7 +265,7 @@
       ],
       "status": "reviewed",
       "note": "Closed affiliation history is protected by schema triggers and carries closure command identity.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T013",
@@ -290,7 +287,7 @@
       ],
       "status": "reviewed",
       "note": "SR Contact history stores immutable customer_org_context_id at use time; a later Contact affiliation change leaves that consumer snapshot unchanged while Reference affiliation history remains queryable.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T014",
@@ -319,7 +316,7 @@
       ],
       "status": "reviewed",
       "note": "Contacts may exist with zero channels. Missing channel does not block SR Contact reference use, local Task/Objective work, or Inventory requester use; channel prerequisites are enforced only by recipient/channel-use validation.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T015",
@@ -384,7 +381,7 @@
       ],
       "status": "reviewed",
       "note": "Real Inventory requester/Fault Tag dependencies block archive atomically through the registered validator.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T018",
@@ -405,7 +402,7 @@
       ],
       "status": "reviewed",
       "note": "Preview exact count, deterministic bounded paging and read purity are directly exercised.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T019",
@@ -443,7 +440,7 @@
       ],
       "status": "reviewed",
       "note": "Reactivation preserves archive history and exact replay.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T021",
@@ -462,7 +459,7 @@
       ],
       "status": "reviewed",
       "note": "Dispatch master has no Customer ownership field; role remains consumer-owned.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T022",
@@ -522,7 +519,7 @@
       ],
       "status": "reviewed",
       "note": "Singleton descriptive identity is separate from credential/session authority.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T025",
@@ -541,7 +538,7 @@
       ],
       "status": "reviewed",
       "note": "Known defaults are read-pure; unknown keys fail and reads do not persist defaults.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T026",
@@ -563,7 +560,7 @@
       ],
       "status": "reviewed",
       "note": "Typed validation, stale-safe atomic write and exact replay are bound.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T027",
@@ -581,7 +578,7 @@
       ],
       "status": "reviewed",
       "note": "Secret-bearing definition classes are excluded from the ordinary setting store.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T028",
@@ -606,7 +603,7 @@
       ],
       "status": "reviewed",
       "note": "Lifecycle history is append-only and an injected audit failure after attempted archive mutation rolls back receipt, master state, lifecycle event and audit evidence atomically.",
-      "certification_status": "supported_ci_869_parent"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T029",
@@ -627,7 +624,7 @@
       ],
       "status": "reviewed",
       "note": "Two editors starting from the same descriptive reference revision are exercised directly; the second receives STALE_REVISION and cannot overwrite the first commit.",
-      "certification_status": "supported_ci_869_parent"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T030",
@@ -649,7 +646,7 @@
       ],
       "status": "reviewed",
       "note": "Registry is finalized explicitly, uses injected provider interfaces and fails closed on indeterminate results.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T031",
@@ -672,7 +669,7 @@
       ],
       "status": "reviewed",
       "note": "Field-specific bounds reject before expensive normalization/parsing and never truncate.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T032",
@@ -696,7 +693,7 @@
       ],
       "status": "reviewed",
       "note": "Contact detail performs a fixed five-SELECT set-based projection for both zero and 25 channels; list/channel/affiliation-history plans use their declared supporting indexes without temp sorting.",
-      "certification_status": "supported_ci_869_parent"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T033",
@@ -719,7 +716,7 @@
       ],
       "status": "reviewed",
       "note": "Transport is closed, owner-injected and contains no SQL/persistence authority or delete route.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T034",
@@ -742,7 +739,7 @@
       ],
       "status": "reviewed",
       "note": "Fresh same-state commands across all governed LLD-02 mutation families commit exact NO_CHANGE receipts/results without fabricated owner/history/audit mutation; replay remains exact after later state change and changed-hash reuse conflicts.",
-      "certification_status": "supported_ci_869_parent"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T035",
@@ -762,7 +759,7 @@
       ],
       "status": "reviewed",
       "note": "Review freshness is generation-bound; commit validation is instrumented inside the writer transaction to require bounded metadata/point/COUNT work with no claimant-detail stream, and COUNT/point plans use the declared indexes.",
-      "certification_status": "supported_ci_869_parent"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T036",
@@ -782,7 +779,7 @@
       ],
       "status": "reviewed",
       "note": "AUTO_SELECT never depends on SQL row order; exact multiple-usable state is surfaced.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T037",
@@ -805,7 +802,7 @@
       ],
       "status": "reviewed",
       "note": "STRICT, closed channel-kind, supporting-index and protection-trigger drift are release-schema verified.",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940"
     },
     {
       "id": "LLD02-T038",
@@ -852,24 +849,24 @@
   ],
   "recertification_checkpoint": {
     "workflow": "Beta implementation CI",
-    "run_number": 869,
-    "run_id": 36296583209,
-    "implementation_sha": "dd043b904931fa82f2e1db57992741bb55d3f4bf",
-    "tested_design_pin": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
-    "current_design_authority": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
+    "run_number": 940,
+    "run_id": 36370753129,
+    "implementation_sha": "bba6758d7d7b42e9d98b9932432d843debb3fe5c",
+    "tested_design_pin": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "current_design_authority": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
     "conclusion": "success",
-    "ubuntu_python_3_14": "success (1383 passed, 2 skipped)",
-    "windows_python_3_13": "success",
-    "windows_python_3_14": "success",
-    "windows_wheel_and_authority_resources": "success",
-    "release_schema_manifest": "success",
-    "note": "The later current design authority does not change the LLD-02 packet; the next implementation checkpoint repins CI to c9b43e24 for exact-pair evidence."
+    "ubuntu_python_3_14": "1464 passed, 2 skipped",
+    "windows_python_3_13": "1466 passed; wheel/resources verified",
+    "windows_python_3_14": "1466 passed; wheel/resources verified",
+    "release_schema_manifest": "success (920 authoritative objects)",
+    "continuity_to_current_head": "From bba6758d to the post-ledger descendants only LLD-05 tests and traceability/documentation changed; Reference implementation is unchanged.",
+    "note": "The 32 fully LLD-02-owned reviewed cases are supported. Cross-packet and LLD-08-owned clauses remain explicit."
   },
   "current_design_authority": {
-    "sha": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
-    "gate_run_number": 928,
-    "gate_run_id": 36298063308,
+    "sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "gate_run_number": 936,
+    "gate_run_id": 36369874981,
     "conclusion": "success",
-    "note": "The design repair changed LLD-03/LLD-04 test identifiers and the global uniqueness gate; the LLD-02 normative packet is unchanged."
+    "note": "Accepted design changes since c9b43e24 are confined to LLD-04 and LLD-05; LLD-02 is unchanged."
   }
 }
