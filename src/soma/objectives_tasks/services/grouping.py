@@ -99,7 +99,7 @@ class GroupingService:
             "LEFT JOIN task_outcome_current oc ON oc.task_id=lc.task_id "
             "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=lc.task_id "
             "WHERE oc.accepted_outcome IS NULL "
-            "AND COALESCE(x.execution_state,'not_started')='not_started' "
+            "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
             "AND COALESCE(sp.provider_lifecycle_class,'unknown') NOT IN ('complete','plan_cancel') "
             "ORDER BY lc.activity_lineage_id,p.start_utc,p.end_utc,lc.task_id"
         ).fetchall()
@@ -136,7 +136,7 @@ class GroupingService:
             "LEFT JOIN objectives o ON o.objective_id=m.objective_id "
             "LEFT JOIN objective_aggregate_projection a ON a.objective_id=m.objective_id "
             "WHERE oc.accepted_outcome IS NULL "
-            "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
+            "AND COALESCE(x.execution_state,'not_started')='not_started' "
             "AND COALESCE(sp.provider_lifecycle_class,'unknown') NOT IN ('complete','plan_cancel') "
             "AND COALESCE(l.explicit_membership_lock,0)=0 "
             "AND (m.objective_id IS NULL OR ("
