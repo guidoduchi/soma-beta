@@ -290,6 +290,37 @@ def test_t009_bridging_task_consolidates_existing_objectives_with_lowest_trackin
             "SELECT COUNT(*) FROM objectives WHERE superseded_by_objective_id IS NULL"
         ).fetchone()[0] == 1
 
+    later = _task(factory, "Post-consolidation sequence", 2_611_000_000, 2_611_000_200)
+    later_page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert later_page["proposals"]["exact_total"] == 1
+    later_item = later_page["proposals"]["items"][0]
+    later_accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(later_item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(later_item["input_fingerprint"]),
+    )
+    assert later_accepted["state"] == "accepted"
+    with ReadSnapshot(factory) as snapshot:
+        later_objective = snapshot.connection.execute(
+            "SELECT m.objective_id,o.tracking_sequence,o.tracking_id "
+            "FROM objective_task_membership_current m "
+            "JOIN objectives o ON o.objective_id=m.objective_id "
+            "WHERE m.task_id=?",
+            (later.task_id,),
+        ).fetchone()
+        assert later_objective is not None
+        assert int(later_objective[1]) == max(tracking.values()) + 1
+        assert str(later_objective[2]) == f"MW-{max(tracking.values()) + 1:08d}"
+        superseded_tracking = snapshot.connection.execute(
+            "SELECT tracking_sequence FROM objectives WHERE objective_id=?",
+            (expected_superseded,),
+        ).fetchone()
+        assert superseded_tracking == (tracking[expected_superseded],)
+
 
 def test_t010_grouping_is_global_and_multi_customer_context_is_explicit(
     initialized_database,
