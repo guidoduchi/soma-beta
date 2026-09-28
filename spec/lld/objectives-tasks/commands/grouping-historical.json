@@ -8,22 +8,25 @@
       "visibility": "replay-safe command selecting synchronous or durable proposal calculation",
       "input": [
         "origin closed enum",
-        "optional trigger task/objective scope",
+        "optional trigger_scope=null | {kind=manual_exact_touch_merge, objective_ids=exactly two unique canonical current Objective ids}",
         "command_id"
       ],
       "steps": [
         "perform command-receipt replay probe before any Task/Objective owner-state read",
-        "under a stable read Snapshot count/scan the exact eligible grouping workset using indexed compact Task/current-plan/current-membership/lock/objective tuples",
-        "when eligible Task count is at or below bounds.json grouping_workset_soft_threshold, run algorithms/overlap-grouping.json outside BEGIN IMMEDIATE and retain exact candidate material fingerprints/counts for writer revalidation",
-        "when eligible Task count exceeds the soft threshold, enter one short UnitOfWork, recheck replay and threshold precondition, insert the command receipt, enqueue-or-coalesce OBJECTIVE_GROUPING_RECOMPUTE_V1 through the LLD-01 DurableJobCoordinator, emit grouping.recompute_deferred audit, store exact GroupingRecomputeResultV1 and commit",
+        "validate trigger_scope before owner reads: null uses ordinary automatic grouping; manual_exact_touch_merge is allowed only with origin=manual_request and exactly two unique Objective ids",
+        "under one stable read Snapshot, ordinary automatic grouping count/scans the exact eligible grouping workset using indexed compact Task/current-plan/current-membership/lock/objective tuples; manual_exact_touch_merge instead loads the exact two current nonsuperseded ordinary Objectives, all current pinned members/current plans/effective locks/execution state, proves their envelopes exactly touch and do not strictly overlap, selects the lower tracking_sequence survivor, and proves the union envelope strictly overlaps no third current Objective",
+        "when ordinary automatic eligible Task count is at or below bounds.json grouping_workset_soft_threshold, run algorithms/overlap-grouping.json outside BEGIN IMMEDIATE and retain exact candidate material fingerprints/counts for writer revalidation; manual_exact_touch_merge always produces at most one targeted synchronous candidate and does not invoke the global durable threshold",
+        "when ordinary automatic eligible Task count exceeds the soft threshold, enter one short UnitOfWork, recheck replay and threshold precondition, insert the command receipt, enqueue-or-coalesce OBJECTIVE_GROUPING_RECOMPUTE_V1 through the LLD-01 DurableJobCoordinator, emit grouping.recompute_deferred audit, store exact GroupingRecomputeResultV1 and commit",
         "for synchronous calculation enter one short UnitOfWork, recheck replay plus exact material candidate authority, suppress exact pending/rejected fingerprints as specified, persist non-authoritative proposal rows, audits and exact GroupingRecomputeResultV1",
         "never mutate Task plan, membership, execution, outcome, Objective accepted topology or provider source authority during recompute"
       ],
       "rules": [
         "Customer/RFC/work-package partitions are warnings only and never partition temporal overlap authority",
-        "exact-touch alone creates no automatic overlap edge",
-        "the 100000-Task threshold selects execution strategy only and is never a product/business maximum",
-        "durable and synchronous paths produce identical proposal/fingerprint semantics for the same stable accepted-state input"
+        "exact-touch alone creates no automatic overlap edge; only an explicit manual_exact_touch_merge scope may request the targeted exception",
+        "manual_exact_touch_merge requires both selected Objectives to be current nonsuperseded ordinary planned Objectives, every selected member to remain unstarted and membership-unlocked with current accepted plan authority, exact touching envelopes, and no strict overlap with any third current Objective; otherwise fail closed as GROUPING_INDETERMINATE with no proposal",
+        "manual_exact_touch_merge persists proposal_kind=manual_merge, chooses the lower tracking_sequence Objective as survivor, includes every selected member/objective revision and explicit manual-merge scope in the material fingerprint, and acceptance uses the normal AcceptRegroupProposal revalidation/mutation boundary",
+        "the 100000-Task threshold selects execution strategy only for ordinary automatic global regrouping and is never a product/business maximum",
+        "durable and synchronous ordinary paths produce identical proposal/fingerprint semantics for the same stable accepted-state input"
       ]
     },
     {
