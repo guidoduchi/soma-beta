@@ -112,6 +112,105 @@ def _service_request_with_customer(factory, suffix: int, customer_org_id: str | 
     return sr.service_request_id
 
 
+def test_t006_plan_change_requires_separate_reviewed_repin(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_430_000_000
+    task = _task(factory, "Reviewed repin", start, start + 3_600)
+    objective_id = _objective(factory, task.task_id)
+
+    with ReadSnapshot(factory) as snapshot:
+        before = snapshot.connection.execute(
+            "SELECT m.accepted_plan_revision_id,m.membership_revision,"
+            "e.start_utc,e.end_utc,e.revision "
+            "FROM objective_task_membership_current m "
+            "JOIN objective_envelope_projection e ON e.objective_id=m.objective_id "
+            "WHERE m.task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        assert before is not None
+        task_revision = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        )
+        current_plan_revision = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM task_plan_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()[0]
+        )
+
+    changed = TaskPlanningService(factory).set_task_plan(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=task_revision,
+        current_plan_revision=current_plan_revision,
+        schedule=AcceptedTaskSchedule(
+            start_utc=start + 120,
+            end_utc=start + 3_720,
+            scheduling_timezone_iana=TZ,
+        ),
+        reason_category="reviewed_reschedule",
+    )
+    assert changed.outcome == "APPLIED"
+    new_plan_id = changed.result_refs[0].result_id
+
+    with ReadSnapshot(factory) as snapshot:
+        pinned = snapshot.connection.execute(
+            "SELECT m.accepted_plan_revision_id,m.membership_revision,"
+            "e.start_utc,e.end_utc,e.revision,"
+            "a.attention_reason "
+            "FROM objective_task_membership_current m "
+            "JOIN objective_envelope_projection e ON e.objective_id=m.objective_id "
+            "JOIN objective_aggregate_projection a ON a.objective_id=m.objective_id "
+            "WHERE m.task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        assert tuple(pinned[:5]) == tuple(before)
+        assert pinned[5] == "plan_membership_mismatch"
+
+    service = GroupingService(factory)
+    page = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"]["exact_total"] == 1
+    item = page["proposals"]["items"][0]
+    detail = ObjectiveGroupingQueryService(factory).proposal_detail(
+        str(item["proposal_id"])
+    )
+    assert detail["proposal_kind"] == "repin"
+    assert detail["survivor_objective_id"] == objective_id
+    assert detail["task_change_exact_count"] == 1
+    assert detail["task_changes"][0]["change_kind"] == "repin"
+    assert detail["task_changes"][0]["expected_current_plan_revision_id"] == new_plan_id
+
+    accepted = service.accept_regroup_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(item["proposal_id"]),
+        proposal_revision=1,
+        input_fingerprint=str(item["input_fingerprint"]),
+    )
+    assert accepted["state"] == "accepted"
+
+    with ReadSnapshot(factory) as snapshot:
+        after = snapshot.connection.execute(
+            "SELECT m.accepted_plan_revision_id,m.membership_revision,"
+            "e.start_utc,e.end_utc,e.revision "
+            "FROM objective_task_membership_current m "
+            "JOIN objective_envelope_projection e ON e.objective_id=m.objective_id "
+            "WHERE m.task_id=?",
+            (task.task_id,),
+        ).fetchone()
+        assert after[0] == new_plan_id
+        assert int(after[1]) == int(before[1]) + 1
+        assert tuple(after[2:4]) == (start + 120, start + 3_720)
+        assert int(after[4]) == int(before[4]) + 1
+
+
 def test_grouping_sweep_is_transitive_and_exact_touch_separates(initialized_database) -> None:
     factory = _factory(initialized_database)
     _task(factory, "A", 2_400_000_000, 2_400_000_100)
