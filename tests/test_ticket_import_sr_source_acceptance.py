@@ -47,6 +47,9 @@ def _seed_source_projection_proposal(
     field_value: str = "Problem Alpha",
     chronology: int = 100,
     candidate_chronology: int = 200,
+    invocation_kind: str = "manual",
+    run_state: str = "waiting_review",
+    logical_fingerprint: str = "1" * 64,
     base_state_token: str | None = None,
 ):
     run_id = new_uuid4()
@@ -67,10 +70,10 @@ def _seed_source_projection_proposal(
             "candidate_filename,candidate_file_size_bytes,candidate_stable_mtime_ns,candidate_chronology_kind,candidate_chronology_value,"
             "logical_fingerprint_sha256,run_state,started_at_utc,staged_at_utc,observed_row_count,valid_identity_count,"
             "proposal_count,pending_proposal_count,revision"
-            ") VALUES (?, 'advanced_search_sr','manual','ADVANCED_SEARCH_SR_V1','ADVANCED_SEARCH_HEADERS_V1',"
+            ") VALUES (?, 'advanced_search_sr',?,'ADVANCED_SEARCH_SR_V1','ADVANCED_SEARCH_HEADERS_V1',"
             "'ADVANCED_SEARCH_VOCAB_V1','ADVANCED_SEARCH_PARSER_V1','Advanced Search(Service Request)20260908010000.xlsx',"
-            "100,1,'embedded_filename_timestamp_utc',?,?,'waiting_review',0,1,1,1,1,1,1)",
-            (run_id, candidate_chronology, "1" * 64),
+            "100,1,'embedded_filename_timestamp_utc',?,?,?,0,1,1,1,1,1,1)",
+            (run_id, invocation_kind, candidate_chronology, logical_fingerprint, run_state),
         )
         uow.connection.execute(
             "INSERT INTO source_observations(source_observation_id,import_run_id,source_family,entity_kind,identity_state,"
@@ -571,6 +574,9 @@ def test_lld04_f017_equal_chronology_recovery_resumes_from_committed_correction(
         target_sr_no="22334467",
         field_value="Recovered reviewed value",
         chronology=200,
+        invocation_kind="recovery",
+        run_state="recovery_required",
+        logical_fingerprint="f" * 64,
     )
     recovery_run_id = seeded["run_id"]
     checkpoint_run_id = new_uuid4()
@@ -596,12 +602,6 @@ def test_lld04_f017_equal_chronology_recovery_resumes_from_committed_correction(
             "'embedded_filename_timestamp_utc',200,?,?,2,1)",
             ("0" * 64, checkpoint_run_id),
         )
-        changed = uow.connection.execute(
-            "UPDATE import_runs SET invocation_kind='recovery',run_state='recovery_required',"
-            "logical_fingerprint_sha256=? WHERE import_run_id=? AND revision=1",
-            ("f" * 64, recovery_run_id),
-        )
-        assert changed.rowcount == 1
 
     recovery = ResolveImportRecoveryService(factory)
     with ReadSnapshot(factory) as snapshot:
@@ -790,6 +790,9 @@ def test_lld04_f018_older_recovery_preserves_committed_correction(
         field_value="Older recovery reviewed value",
         chronology=100,
         candidate_chronology=100,
+        invocation_kind="recovery",
+        run_state="recovery_required",
+        logical_fingerprint="e" * 64,
     )
     recovery_run_id = seeded["run_id"]
     checkpoint_run_id = new_uuid4()
@@ -815,12 +818,6 @@ def test_lld04_f018_older_recovery_preserves_committed_correction(
             "'embedded_filename_timestamp_utc',200,?,?,2,1)",
             ("0" * 64, checkpoint_run_id),
         )
-        changed = uow.connection.execute(
-            "UPDATE import_runs SET invocation_kind='recovery',run_state='recovery_required',"
-            "logical_fingerprint_sha256=? WHERE import_run_id=? AND revision=1",
-            ("e" * 64, recovery_run_id),
-        )
-        assert changed.rowcount == 1
 
     recovery = ResolveImportRecoveryService(factory)
     with ReadSnapshot(factory) as snapshot:
