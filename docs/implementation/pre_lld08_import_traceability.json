@@ -8,7 +8,7 @@
     "run_id": 36340822569,
     "conclusion": "success"
   },
-  "implementation_parent_sha": "3acecc04294f8658336c87806b92690f6dc0aefb",
+  "implementation_parent_sha": "d52c68adad7fda8a7328fc787f6a6de4ae0f3305",
   "supported_parent_ci": {
     "workflow": "Beta implementation CI",
     "run_number": 875,
@@ -20,13 +20,14 @@
     "release_schema_manifest": "success (920 authoritative objects)",
     "tested_design_pin": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2"
   },
-  "certified": false,
-  "certification_rule": "LLD-04 remains non-certified while any exact failure-injection/race obligation is open or a newly added regression has not passed the full supported matrix.",
+  "certified": true,
+  "certification_rule": "LLD-04 certification requires all 92 normative cases to be semantically bound with no open evidence gaps and every newly added exact failure/race proof to pass the full supported matrix. CI #908 satisfies the final eight candidate cases; later accepted design commits through 46c836ca touch only LLD-05 Objectives/Tasks files and do not alter LLD-04 authority.",
   "method": [
-    "All 92 unique normative LLD-04 scenarios are enumerated from the accepted design at 9d1a4268.",
+    "All 92 unique normative LLD-04 scenarios are enumerated from the accepted LLD-04 design authority at 9d1a4268.",
     "Bindings point to production owner modules and concrete executable tests after semantic inspection; green CI is not used as a substitute for missing fault cuts.",
     "Cross-packet owner calls into implemented LLD-03/05/06 are marked explicitly rather than treated as local-only behavior.",
-    "Crash/recovery cases without their exact cut/reclaim proof remain open even when adjacent happy-path or atomicity tests pass."
+    "The final eight exact crash/race cuts F001-F005, F017-F018 and F022 passed the full supported matrix in CI #908 at d52c68ad.",
+    "Current design 46c836ca is continuity-safe for LLD-04 because every intervening design file change is confined to LLD-05 Objectives/Tasks."
   ],
   "summary": {
     "total_cases": 92,
@@ -36,22 +37,14 @@
       "reviewed_cross_packet_supported_ci_873": 7,
       "reviewed_structural_atomicity_supported_ci_873": 1,
       "reviewed_supported_ci_875": 3,
-      "candidate_pending_ci": 8
+      "reviewed_supported_ci_908": 8
     },
-    "candidate_pending_ci": 8,
-    "open_evidence_gaps": 0
+    "candidate_pending_ci": 0,
+    "open_evidence_gaps": 0,
+    "certified_cases": 92
   },
   "open_evidence_case_ids": [],
-  "candidate_pending_case_ids": [
-    "LLD04-F001",
-    "LLD04-F002",
-    "LLD04-F003",
-    "LLD04-F004",
-    "LLD04-F005",
-    "LLD04-F017",
-    "LLD04-F018",
-    "LLD04-F022"
-  ],
+  "candidate_pending_case_ids": [],
   "cases": [
     {
       "id": "LLD04-T001",
@@ -1293,9 +1286,9 @@
         "tests/test_ticket_import_source_check_failure_injection.py::test_f001_stale_worker_before_discovery_recovers_retryably_without_import_authority"
       ],
       "observed_assertions": "A running source-check claim is recovered as stale before discovery: the registered crash policy moves the same durable job to retry_wait with JOB_INTERRUPTED while ImportRun/source/proposal/checkpoint authority remains absent; the replacement run then reclaims the same job as attempt 2 with a null checkpoint.",
-      "status": "candidate_pending_ci",
+      "status": "reviewed_supported_ci_908",
       "note": "Exact crash/restart proof strengthened on implementation candidate 389dafcd9f6ab8a8b75f6e8acada3a0c78ee6540; do not classify as supported until an exact-head CI containing this commit is green.",
-      "certification_status": "candidate_pending_ci"
+      "certification_status": "certified_supported_ci_908"
     },
     {
       "id": "LLD04-F002",
@@ -1315,9 +1308,9 @@
         "tests/test_ticket_import_source_check_failure_injection.py::test_f002_failure_after_validating_creation_retains_only_unpublished_run_checkpoint"
       ],
       "observed_assertions": "Injected failure immediately after validating-run creation proves only the validating run plus durable validating checkpoint survive; no rows, proposals, or source checkpoint exist, and retry reclaims the exact checkpoint.",
-      "status": "candidate_pending_ci",
+      "status": "reviewed_supported_ci_908",
       "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
-      "certification_status": "candidate_pending_ci"
+      "certification_status": "certified_supported_ci_908"
     },
     {
       "id": "LLD04-F003",
@@ -1337,9 +1330,9 @@
         "tests/test_ticket_import_source_check_failure_injection.py::test_f003_mid_batch_failure_cannot_advance_cursor_past_rolled_back_rows"
       ],
       "observed_assertions": "A 2,001-row source forces two batches; failure after second-batch writes rolls that batch back while the durable cursor remains at 2,000. Retry resumes from that cursor, reaches 2,001 exactly, and only then records the publishing fingerprint checkpoint.",
-      "status": "candidate_pending_ci",
+      "status": "reviewed_supported_ci_908",
       "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
-      "certification_status": "candidate_pending_ci"
+      "certification_status": "certified_supported_ci_908"
     },
     {
       "id": "LLD04-F004",
@@ -1359,9 +1352,9 @@
         "tests/test_ticket_import_source_check_failure_injection.py::test_f004_failure_after_eof_before_publish_is_restart_safe"
       ],
       "observed_assertions": "Failure after EOF verification/publishing checkpoint but before PublishStagedImportRun leaves the run validating with unpublished rows and no proposals/source checkpoint; retry from the persisted publishing checkpoint finishes publication safely.",
-      "status": "candidate_pending_ci",
+      "status": "reviewed_supported_ci_908",
       "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
-      "certification_status": "candidate_pending_ci"
+      "certification_status": "certified_supported_ci_908"
     },
     {
       "id": "LLD04-F005",
@@ -1381,9 +1374,9 @@
         "tests/test_ticket_import_publish_staged_run.py::test_f005_exact_replay_cleanup_failure_rolls_back_and_retry_is_safe"
       ],
       "observed_assertions": "Exact-replay cleanup is allowed to delete staged evidence and then fails inside the same command UoW; run state, observations, receipt and audit all roll back, and retry of the same command commits one noop result with no surviving unpublished rows.",
-      "status": "candidate_pending_ci",
+      "status": "reviewed_supported_ci_908",
       "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
-      "certification_status": "candidate_pending_ci"
+      "certification_status": "certified_supported_ci_908"
     },
     {
       "id": "LLD04-F006",
@@ -1618,9 +1611,9 @@
         "tests/test_ticket_import_sr_source_acceptance.py::test_lld04_f017_equal_chronology_recovery_resumes_from_committed_correction"
       ],
       "observed_assertions": "Equal-chronology recovery is exercised after a real SR source-projection correction has committed through AcceptReconciliationProposal and recorded one immutable accepted disposition. The changed run revision/pending set requires a second exact recovery authorization before finalization. Injected failure at reappearance enqueue then rolls back checkpoint replacement, run finalization, recovery event, finalization receipt/audit and job enqueue while the already-committed owner observation and proposal disposition remain exactly once. Same-command retry commits one replacement/event/job and replay adds no duplicate correction.",
-      "status": "candidate_pending_ci",
+      "status": "reviewed_supported_ci_908",
       "note": "Atomic finalization proof was supplemented with real committed-correction/resumption evidence on implementation candidate 66b94a2cb135a8f130d0975a3bf3ff96f9a1a1c6; do not classify as supported until an exact-head CI containing this commit is green.",
-      "certification_status": "candidate_pending_ci"
+      "certification_status": "certified_supported_ci_908"
     },
     {
       "id": "LLD04-F018",
@@ -1639,9 +1632,9 @@
         "tests/test_ticket_import_sr_source_acceptance.py::test_lld04_f018_older_recovery_preserves_committed_correction"
       ],
       "observed_assertions": "Older recovery is exercised after a real accepted SR source-projection correction and immutable proposal disposition have already committed. After the post-correction recovery state is re-authorized, injected audit failure rolls back only finalization authority: the older run stays recovery_required, the newer source checkpoint remains unchanged, no recovery event/reappearance job/source-presence event is created, and the committed correction remains exactly once. Same-command retry appends exactly one recovery event while checkpoint chronology and ownership remain on the newer run; replay adds nothing.",
-      "status": "candidate_pending_ci",
+      "status": "reviewed_supported_ci_908",
       "note": "Older-recovery proof was supplemented with committed-correction persistence and no-freshness-authority evidence on implementation candidate 17085bc56539743f676b639b0604637d0b223a4d; do not classify as supported until an exact-head CI containing this commit is green.",
-      "certification_status": "candidate_pending_ci"
+      "certification_status": "certified_supported_ci_908"
     },
     {
       "id": "LLD04-F019",
@@ -1724,9 +1717,9 @@
         "tests/test_ticket_import_sr_reappearance_worker.py::test_f022_reclaimed_claim_resumes_after_committed_cursor_without_touching_next_sr"
       ],
       "observed_assertions": "Per-SR failure after owner event creation but before audit/result commit rolls back receipt/event/audit with no cursor advance; successful retry commits once and exact command replay succeeds even after the job is terminal, proving replay precedes mutable claim reads. A second two-SR test reclaims the worker immediately after the first committed cursor; the stale claim is rejected before the next SR receipt/mutation, and attempt 2 resumes from the cursor and completes only the untouched SR.",
-      "status": "candidate_pending_ci",
+      "status": "reviewed_supported_ci_908",
       "note": "Exact proof added on implementation candidate a98a67225aacd9a46fa306fb67d54fc9facf253c; do not classify as supported until exact-head CI is green.",
-      "certification_status": "candidate_pending_ci"
+      "certification_status": "certified_supported_ci_908"
     },
     {
       "id": "LLD04-F025",
@@ -2328,5 +2321,18 @@
       "note": null,
       "certification_status": "supported_by_exact_ci_873_at_parent"
     }
-  ]
+  ],
+  "supported_exact_ci": {
+    "workflow": "Beta implementation CI",
+    "run_number": 908,
+    "run_id": 36361825953,
+    "head_sha": "d52c68adad7fda8a7328fc787f6a6de4ae0f3305",
+    "conclusion": "success",
+    "tested_design_pin": "9d1a4268658ab0f48020a4f5f148ff4cec90f9b2",
+    "ubuntu_python_3_14": "1448 passed, 2 skipped",
+    "windows_python_3_13": "1450 passed; wheel/resource verification success",
+    "windows_python_3_14": "1450 passed; wheel/resource verification success",
+    "release_schema_manifest": "success (920 authoritative objects)",
+    "current_design_continuity": "Design 9d1a4268 -> 46c836ca changes only spec/lld/objectives-tasks/*; LLD-04 packet is unchanged."
+  }
 }
