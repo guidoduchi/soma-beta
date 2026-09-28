@@ -1191,6 +1191,9 @@ def test_started_unassigned_task_is_not_automatic_grouping_candidate(
     assert eligibility["classification"] == "started_or_protected"
     assert eligibility["eligible"] is False
 
+    with ReadSnapshot(factory) as snapshot:
+        assert GroupingService._eligible_workset_count(snapshot.connection) == 0
+
     page = GroupingService(factory).recompute_grouping_proposals(
         command_id=new_uuid4(),
         origin="manual_request",
@@ -1205,4 +1208,66 @@ def test_started_unassigned_task_is_not_automatic_grouping_candidate(
             "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
             (task.task_id,),
         ).fetchone() is None
+
+def test_t013_in_progress_attempt_blocks_overlapping_not_started_lineage_sibling(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008890",
+        creation_context="provisional",
+    )
+    start = 2_889_000_000
+    first = _grouping_wfm(factory, suffix=8890, rfc_id=rfc.rfc_id, start_utc=start)
+    second = _grouping_wfm(factory, suffix=8891, rfc_id=rfc.rfc_id, start_utc=start + 600)
+    _review_grouping_activity(
+        factory,
+        (first.task_id, second.task_id),
+        "same_activity",
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT revision FROM tasks WHERE task_id=?",
+            (first.task_id,),
+        ).fetchone()
+        assert row is not None
+        first_revision = int(row[0])
+
+    started = TaskExecutionService(factory).start_task_execution(
+        command_id=new_uuid4(),
+        task_id=first.task_id,
+        task_revision=first_revision,
+        execution_revision=0,
+        effective_start_utc=start + 120,
+    )
+    assert started.outcome == "APPLIED"
+
+    query = ObjectiveGroupingQueryService(factory)
+    first_eligibility = query.grouping_eligibility(first.task_id, as_of_utc=start - 1)
+    second_eligibility = query.grouping_eligibility(second.task_id, as_of_utc=start - 1)
+    assert first_eligibility["classification"] == "started_or_protected"
+    assert first_eligibility["eligible"] is False
+    assert second_eligibility["classification"] == "competing_attempt"
+    assert second_eligibility["eligible"] is False
+
+    with ReadSnapshot(factory) as snapshot:
+        assert GroupingService._eligible_workset_count(snapshot.connection) == 0
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
 
