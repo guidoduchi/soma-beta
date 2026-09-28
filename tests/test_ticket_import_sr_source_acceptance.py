@@ -6,6 +6,9 @@ from soma.foundation.errors import PersistenceFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.ticket_import.commands.decide_proposal import ProposalDecisionService
+from soma.ticket_import.commands.finalize_run import ImportRunFinalizationService
+from soma.ticket_import.commands.recovery import ResolveImportRecoveryService
+from soma.ticket_import.repositories.proposals import ProposalRepository
 from soma.tickets.import_mutations import (
     ServiceRequestImportMutationService,
     ServiceRequestSourceProjectionMutation,
@@ -554,3 +557,222 @@ def test_lld04_f019_independent_selected_accepts_keep_committed_success_when_lat
             (sr.service_request_id,),
         ).fetchone()
         assert tuple(current) == ("First reviewed value",)
+
+def test_lld04_f017_equal_chronology_recovery_resumes_from_committed_correction(
+    initialized_database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = _factory(initialized_database)
+    sr = _official_sr(factory, "22334467")
+    seeded = _seed_source_projection_proposal(
+        factory,
+        target_service_request_id=sr.service_request_id,
+        target_sr_no="22334467",
+        field_value="Recovered reviewed value",
+        chronology=200,
+    )
+    recovery_run_id = seeded["run_id"]
+    checkpoint_run_id = new_uuid4()
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO import_runs("
+            "import_run_id,source_family,invocation_kind,source_profile_id,header_registry_id,"
+            "vocabulary_registry_id,parser_profile_id,candidate_filename,candidate_file_size_bytes,"
+            "candidate_stable_mtime_ns,candidate_chronology_kind,candidate_chronology_value,"
+            "logical_fingerprint_sha256,run_state,started_at_utc,staged_at_utc,completed_at_utc,revision"
+            ") VALUES (?,'advanced_search_sr','manual','ADVANCED_SEARCH_SR_V1',"
+            "'ADVANCED_SEARCH_HEADERS_V1','ADVANCED_SEARCH_VOCAB_V1','ADVANCED_SEARCH_PARSER_V1',"
+            "'prior.xlsx',1,1,'embedded_filename_timestamp_utc',200,?,'accepted',0,1,2,3)",
+            (checkpoint_run_id, "0" * 64),
+        )
+        uow.connection.execute(
+            "INSERT INTO import_source_checkpoints("
+            "source_family,source_profile_id,accepted_candidate_chronology_kind,"
+            "accepted_candidate_chronology_value,accepted_logical_fingerprint_sha256,"
+            "accepted_import_run_id,last_checked_at_utc,revision"
+            ") VALUES ('advanced_search_sr','ADVANCED_SEARCH_SR_V1',"
+            "'embedded_filename_timestamp_utc',200,?,?,2,1)",
+            ("0" * 64, checkpoint_run_id),
+        )
+        changed = uow.connection.execute(
+            "UPDATE import_runs SET invocation_kind='recovery',run_state='recovery_required',"
+            "logical_fingerprint_sha256=? WHERE import_run_id=? AND revision=1",
+            ("f" * 64, recovery_run_id),
+        )
+        assert changed.rowcount == 1
+
+    recovery = ResolveImportRecoveryService(factory)
+    with ReadSnapshot(factory) as snapshot:
+        run = ProposalRepository.get_run(snapshot.connection, recovery_run_id)
+        first_review_fingerprint = ProposalRepository.recovery_review_fingerprint(
+            snapshot.connection,
+            run,
+        )
+    first_review = recovery.resolve(
+        command_id=new_uuid4(),
+        import_run_id=recovery_run_id,
+        expected_run_revision=1,
+        expected_checkpoint_revision=1,
+        review_fingerprint=first_review_fingerprint,
+        decision="authorize_correction",
+        reason_category="equal_chronology_correction",
+    )
+    assert first_review.decision == "authorized"
+    assert first_review.review_ordinal == 1
+
+    correction_command_id = new_uuid4()
+    correction = ProposalDecisionService(factory).accept(
+        command_id=correction_command_id,
+        proposal_id=seeded["proposal_id"],
+        proposal_revision=1,
+        proposal_fingerprint=seeded["fingerprint"],
+        base_state_token=seeded["base_token"],
+        reason_category="recovery_source_projection",
+    )
+    assert correction.decision == "accepted"
+    assert correction.replayed is False
+    assert len(correction.owner_result_refs) == 1
+    owner_observation_id = correction.owner_result_refs[0][1]
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT run_state,pending_proposal_count,accepted_proposal_count,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone() == ("recovery_required", 0, 1, 2)
+        assert snapshot.connection.execute(
+            "SELECT proposal_state,revision FROM reconciliation_proposals "
+            "WHERE reconciliation_proposal_id=?",
+            (seeded["proposal_id"],),
+        ).fetchone() == ("accepted", 2)
+        assert snapshot.connection.execute(
+            "SELECT decision,command_id FROM proposal_dispositions "
+            "WHERE reconciliation_proposal_id=?",
+            (seeded["proposal_id"],),
+        ).fetchone() == ("accepted", correction_command_id)
+        assert snapshot.connection.execute(
+            "SELECT text_value FROM sr_source_field_observations "
+            "WHERE sr_source_field_observation_id=?",
+            (owner_observation_id,),
+        ).fetchone() == ("Recovered reviewed value",)
+        run = ProposalRepository.get_run(snapshot.connection, recovery_run_id)
+        final_review_fingerprint = ProposalRepository.recovery_review_fingerprint(
+            snapshot.connection,
+            run,
+        )
+
+    final_review = recovery.resolve(
+        command_id=new_uuid4(),
+        import_run_id=recovery_run_id,
+        expected_run_revision=2,
+        expected_checkpoint_revision=1,
+        review_fingerprint=final_review_fingerprint,
+        decision="authorize_correction",
+        reason_category="equal_chronology_finalization",
+    )
+    assert final_review.decision == "authorized"
+    assert final_review.review_ordinal == 2
+
+    finalizer = ImportRunFinalizationService(factory)
+    final_command_id = new_uuid4()
+    original_enqueue = finalizer._jobs.enqueue_or_coalesce
+
+    def fail_enqueue(*_args, **_kwargs):
+        raise PersistenceFailure("injected F017 reappearance enqueue failure")
+
+    monkeypatch.setattr(finalizer._jobs, "enqueue_or_coalesce", fail_enqueue)
+    with pytest.raises(PersistenceFailure, match="F017 reappearance enqueue failure"):
+        finalizer.finalize_run(
+            command_id=final_command_id,
+            import_run_id=recovery_run_id,
+            expected_run_revision=2,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT accepted_import_run_id,accepted_candidate_chronology_value,revision "
+            "FROM import_source_checkpoints WHERE source_family='advanced_search_sr'",
+        ).fetchone() == (checkpoint_run_id, 200, 1)
+        assert snapshot.connection.execute(
+            "SELECT run_state,revision,completed_at_utc FROM import_runs WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone() == ("recovery_required", 2, None)
+        assert snapshot.connection.execute(
+            "SELECT proposal_state,revision FROM reconciliation_proposals "
+            "WHERE reconciliation_proposal_id=?",
+            (seeded["proposal_id"],),
+        ).fetchone() == ("accepted", 2)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM proposal_dispositions "
+            "WHERE reconciliation_proposal_id=? AND decision='accepted' AND command_id=?",
+            (seeded["proposal_id"], correction_command_id),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_source_field_observations "
+            "WHERE sr_source_field_observation_id=? AND text_value='Recovered reviewed value'",
+            (owner_observation_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM import_recovery_reviews WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone()[0] == 2
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM import_recovery_events WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM durable_jobs "
+            "WHERE job_type='ticket_import.sr_reappearance_reconcile'",
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (final_command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (final_command_id,),
+        ).fetchone()[0] == 0
+
+    monkeypatch.setattr(finalizer._jobs, "enqueue_or_coalesce", original_enqueue)
+    result = finalizer.finalize_run(
+        command_id=final_command_id,
+        import_run_id=recovery_run_id,
+        expected_run_revision=2,
+    )
+    replay = finalizer.finalize_run(
+        command_id=final_command_id,
+        import_run_id=recovery_run_id,
+        expected_run_revision=2,
+    )
+    assert result.state == "accepted"
+    assert result.revision == 3
+    assert result.checkpoint["import_run_id"] == recovery_run_id
+    assert result.checkpoint["revision"] == 2
+    assert replay.replayed is True
+    assert replay.checkpoint == result.checkpoint
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT accepted_import_run_id,accepted_logical_fingerprint_sha256,revision "
+            "FROM import_source_checkpoints WHERE source_family='advanced_search_sr'",
+        ).fetchone() == (recovery_run_id, "f" * 64, 2)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM import_recovery_events WHERE import_run_id=?",
+            (recovery_run_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM durable_jobs "
+            "WHERE job_type='ticket_import.sr_reappearance_reconcile'",
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM proposal_dispositions "
+            "WHERE reconciliation_proposal_id=? AND decision='accepted'",
+            (seeded["proposal_id"],),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM sr_source_field_observations "
+            "WHERE sr_source_field_observation_id=?",
+            (owner_observation_id,),
+        ).fetchone()[0] == 1
+
