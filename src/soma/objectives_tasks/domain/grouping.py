@@ -116,27 +116,31 @@ class RegroupCandidate:
     material_objectives: tuple[GroupingObjectiveAuthority, ...]
     component_start_utc: int
     component_end_utc: int
+    manual_scope_objective_ids: tuple[str, ...] | None = None
 
     @property
     def input_fingerprint(self) -> str:
-        return sha256_canonical_json(
-            {
-                "schema": "SOMA_REGROUP_INPUT_V1",
-                "proposal_kind": self.proposal_kind,
-                "origin": self.origin,
-                "risk_tier": self.risk_tier,
-                "survivor_objective_id": self.survivor_objective_id,
-                "component": [self.component_start_utc, self.component_end_utc],
-                "tasks": [item.fingerprint_value() for item in self.material_tasks],
-                "objectives": [
-                    item.fingerprint_value() for item in self.material_objectives
-                ],
-                "task_changes": [item.value() for item in self.task_changes],
-                "objective_changes": [
-                    item.value() for item in self.objective_changes
-                ],
-            }
-        )
+        material: dict[str, object] = {
+            "schema": "SOMA_REGROUP_INPUT_V1",
+            "proposal_kind": self.proposal_kind,
+            "origin": self.origin,
+            "risk_tier": self.risk_tier,
+            "survivor_objective_id": self.survivor_objective_id,
+            "component": [self.component_start_utc, self.component_end_utc],
+            "tasks": [item.fingerprint_value() for item in self.material_tasks],
+            "objectives": [
+                item.fingerprint_value() for item in self.material_objectives
+            ],
+            "task_changes": [item.value() for item in self.task_changes],
+            "objective_changes": [
+                item.value() for item in self.objective_changes
+            ],
+        }
+        if self.manual_scope_objective_ids is not None:
+            material["manual_scope_objective_ids"] = list(
+                self.manual_scope_objective_ids
+            )
+        return sha256_canonical_json(material)
 
 
 def strict_overlap_member_ids(
