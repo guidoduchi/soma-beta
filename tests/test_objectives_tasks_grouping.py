@@ -205,7 +205,7 @@ def test_t008_manual_exact_touch_merge_uses_reviewed_scope_and_preserves_identit
     assert detail["objective_change_exact_count"] == 2
     assert {
         (change["objective_id"], change["action"])
-        for change in detail["objective_changes"]["items"]
+        for change in detail["objective_changes"]
     } == {
         (survivor, "retain"),
         (superseded, "supersede"),
