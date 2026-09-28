@@ -321,6 +321,12 @@ class ObjectiveGroupingQueryService:
             elif row[13] in {"ended", "terminated"} or row[14] is not None:
                 classification = "terminal_history"
                 eligible = False
+            elif row[15] == "plan_cancel":
+                classification = "cancelled"
+                eligible = False
+            elif row[15] == "complete":
+                classification = "historical_candidate"
+                eligible = False
             elif int(row[11]) == 1 or int(row[12]) == 1 or row[13] == "in_progress":
                 classification = "started_or_protected"
                 eligible = False
@@ -337,9 +343,11 @@ class ObjectiveGroupingQueryService:
                     "AND p.task_id=lc.task_id "
                     "LEFT JOIN task_execution_projection x ON x.task_id=lc.task_id "
                     "LEFT JOIN task_outcome_current oc ON oc.task_id=lc.task_id "
+                    "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=lc.task_id "
                     "WHERE lc.activity_lineage_id=? "
                     "AND oc.accepted_outcome IS NULL "
                     "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
+                    "AND COALESCE(sp.provider_lifecycle_class,'unknown') NOT IN ('complete','plan_cancel') "
                     "ORDER BY p.start_utc,p.end_utc,lc.task_id",
                     (lineage_id,),
                 ).fetchall()
@@ -352,15 +360,9 @@ class ObjectiveGroupingQueryService:
                 if identity in competing:
                     classification = "competing_attempt"
                     eligible = False
-                elif row[15] == "complete" and int(row[5]) < as_of_utc:
-                    classification = "historical_candidate"
-                    eligible = False
                 else:
                     classification = "ordinary_future"
                     eligible = int(row[5]) >= as_of_utc
-            elif row[15] == "complete" and int(row[5]) < as_of_utc:
-                classification = "historical_candidate"
-                eligible = False
             else:
                 classification = "ordinary_future"
                 eligible = int(row[5]) >= as_of_utc
