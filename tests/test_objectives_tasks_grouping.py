@@ -4,7 +4,7 @@ import pytest
 
 from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
 from soma.objectives_tasks.queries.objectives import ObjectiveQueryService
@@ -19,6 +19,10 @@ from soma.tickets.rfcs import RfcService
 from soma.tickets.sr_references import ServiceRequestReferenceService
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.services.grouping import GroupingService
+from soma.objectives_tasks.source_terminal_authority import (
+    WfmSourceProjectionMutation,
+    WfmSourceProjectionParticipant,
+)
 
 
 TZ = "America/Guayaquil"
@@ -1067,4 +1071,101 @@ def test_t013_same_lineage_exact_touch_is_not_competing_attempt(
         )["task_change_exact_count"] == 1
         for item in page["proposals"]["items"]
     )
+
+def _apply_grouping_terminal_source(
+    factory,
+    *,
+    task_id: str,
+    lifecycle: str,
+    source_start_utc: int,
+) -> None:
+    command_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "INSERT INTO command_receipts(command_id,command_type,request_hash,target_type,target_id,"
+            "committed_at_utc,result_type,result_id) "
+            "VALUES (?,'AcceptReconciliationProposal',?,'reconciliation_proposal',?,0,NULL,NULL)",
+            (command_id, "9" * 64, new_uuid4()),
+        )
+        result = WfmSourceProjectionParticipant.apply_wfm_source_projection(
+            uow,
+            WfmSourceProjectionMutation(
+                task_id=task_id,
+                expected_source_projection_revision=0,
+                provider_status_token="Complete" if lifecycle == "complete" else "Plan Cancel",
+                provider_lifecycle_class=lifecycle,
+                source_plan_start_utc=source_start_utc,
+                source_plan_end_utc=source_start_utc + 3_600,
+                accepted_source_observation_id=new_uuid4(),
+                source_base_token="8" * 64,
+            ),
+            command_id=command_id,
+        )
+        assert result.source_projection_revision == 1
+
+
+def test_provider_terminal_wfm_tasks_are_not_ordinary_grouping_work(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no="NC00000000008870",
+        creation_context="provisional",
+    )
+    start = 2_887_000_000
+    completed = _grouping_wfm(
+        factory,
+        suffix=8870,
+        rfc_id=rfc.rfc_id,
+        start_utc=start,
+    )
+    cancelled = _grouping_wfm(
+        factory,
+        suffix=8871,
+        rfc_id=rfc.rfc_id,
+        start_utc=start + 10_000,
+    )
+    _apply_grouping_terminal_source(
+        factory,
+        task_id=completed.task_id,
+        lifecycle="complete",
+        source_start_utc=start,
+    )
+    _apply_grouping_terminal_source(
+        factory,
+        task_id=cancelled.task_id,
+        lifecycle="plan_cancel",
+        source_start_utc=start + 10_000,
+    )
+
+    query = ObjectiveGroupingQueryService(factory)
+    complete_eligibility = query.grouping_eligibility(
+        completed.task_id,
+        as_of_utc=start - 1,
+    )
+    cancel_eligibility = query.grouping_eligibility(
+        cancelled.task_id,
+        as_of_utc=start - 1,
+    )
+    assert complete_eligibility["classification"] == "historical_candidate"
+    assert complete_eligibility["eligible"] is False
+    assert cancel_eligibility["classification"] == "cancelled"
+    assert cancel_eligibility["eligible"] is False
+
+    page = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+    assert page["proposals"] == {
+        "items": [],
+        "continuation": None,
+        "exact_total": 0,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (completed.task_id, cancelled.task_id),
+        ).fetchone()[0] == 0
 
