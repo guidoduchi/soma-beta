@@ -9,13 +9,12 @@
   ],
   "module_map": "spec/lld/foundation-runtime/implementation/module-map.json",
   "method": "Each normative acceptance scenario is semantically reviewed against the current production owner path and named executable tests. This ledger does not infer correctness from marker presence. A case can be binding-complete while certification remains pending current supported CI.",
-  "certified": false,
-  "certification_rule": "Set certified=true only after the exact candidate implementation head is green on all supported implementation CI legs, including release-schema verification, design pin, wheel build and packaged authority-resource verification. Any later production/design change reopens affected cases.",
+  "certified": true,
+  "certification_rule": "LLD-01 packet certification requires every LLD-01-owned acceptance scenario to be semantically bound and supported by the full platform matrix. CI #940 satisfies the owned packet at unchanged LLD-01 design authority. Production SQLCipher key-provider/security composition remains explicitly LLD-12-owned and is not implied by this packet certification.",
   "known_limits": [
-    "Production SQLCipher key-provider implementation remains LLD-12-owned; LLD-01 tests use the explicit provider seam and must not be cited as LLD-12 release certification.",
+    "Production SQLCipher key-provider implementation remains LLD-12-owned; LLD-01 certification proves the provider seam and host ownership contract, not final LLD-12 release security composition.",
     "LLD-08 Infrastructure has not been started.",
-    "The separate mechanical acceptance-marker reporter remains report-only and is not semantic certification.",
-    "Failed-start lifecycle ownership/drain regressions are now supported by CI #868 and again by exact-parent CI #869. This closes the prior 'unexecuted' bookkeeping gap but does not certify production SQLCipher or LLD-12 security composition."
+    "The separate mechanical acceptance-marker reporter remains report-only and is not semantic certification."
   ],
   "cases": [
     {
@@ -45,7 +44,8 @@
         "connection does not cross threads"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T002",
@@ -79,7 +79,8 @@
         "coverage proof does not depend on current row contents"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T003",
@@ -111,7 +112,8 @@
         "post-migration startup reconciliation finishes before READY and leaves no nonterminal legacy row with dedupe_sha256 NULL claimable"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T004",
@@ -136,7 +138,8 @@
         "runtime never rewrites manifest or ledger to match unexpected bytes"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T005",
@@ -161,7 +164,8 @@
         "unsafe offline sidecar state returns limited classification without touching writer"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T006",
@@ -189,7 +193,8 @@
         "constraint/audit/result-snapshot/disk failure never reports success"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T007",
@@ -216,7 +221,8 @@
         "backup/restore verification preserves audit rows"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T008",
@@ -255,7 +261,8 @@
         "AddWorkingNote and EditWorkingNote transport accept valid maximum-size escaped note bodies within their exact route ceiling; unrelated route ceilings remain unchanged"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T009",
@@ -281,7 +288,8 @@
         "failed upgrade preserves previous document"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T010",
@@ -306,7 +314,8 @@
         "verified-existing-instance path is used or second exits safely"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T011",
@@ -333,7 +342,8 @@
         "wildcard/LAN/proxy-forwarded authority is rejected"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T012",
@@ -358,7 +368,8 @@
         "registry is removed only for exact current run/data identity"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T013",
@@ -390,7 +401,8 @@
         "schema/version-specific replay allocations are exact: RfcBranchV1 v1 accepts the reviewed 32 MiB/depth-8/8192 allocation and InventoryMutationResultV1 v1 accepts 512 KiB/depth-8/8192 for the LLD-07 2000-target bulk response; unlisted versions cannot inherit elevated allocations, and replay applies the same exact tuple bounds used at commit"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T014",
@@ -414,7 +426,8 @@
         "no write transaction includes artificial wait/operator/file parsing"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T015",
@@ -443,7 +456,8 @@
         "repeated shutdown is safe"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T016",
@@ -470,7 +484,8 @@
         "new empty instance never reuses prior identity"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T017",
@@ -495,7 +510,8 @@
         "server uses one worker"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T018",
@@ -521,7 +537,8 @@
         "same command_id with different hash still fails integrity"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T019",
@@ -545,7 +562,8 @@
         "durable-job counts are derived with bounded indexed reads and do not materialize job payload/checkpoint JSON"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T020",
@@ -572,7 +590,8 @@
         "historical migration-5 allocation repair changed only then-unimplemented future allocations and never rewrote migrations 1..4"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T021",
@@ -597,7 +616,8 @@
         "new command identity is not silently substituted and original command is never rerun"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     },
     {
       "id": "LLD01-T022",
@@ -640,29 +660,30 @@
         "restore reconciliation invalidates restored nonterminal work before READY and never fabricates domain lifecycle state"
       ],
       "binding_status": "reviewed",
-      "certification_status": "pending_exact_head_ci"
+      "certification_status": "certified_supported_ci_940",
+      "status": "reviewed"
     }
   ],
   "current_design_authority": {
-    "sha": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
-    "gate_run_number": 928,
-    "gate_run_id": 36298063308,
+    "sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "gate_run_number": 936,
+    "gate_run_id": 36369874981,
     "conclusion": "success",
-    "note": "The c9b43e24 design repairs do not modify the LLD-01 packet."
+    "note": "Since prior c9b43e24 authority, accepted design changes are confined to LLD-04 RFC/WFM Import and LLD-05 Objectives/Tasks; LLD-01 is unchanged."
   },
   "recertification_checkpoint": {
     "workflow": "Beta implementation CI",
-    "run_number": 869,
-    "run_id": 36296583209,
-    "implementation_sha": "dd043b904931fa82f2e1db57992741bb55d3f4bf",
-    "tested_design_pin": "d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338",
-    "current_design_authority": "c9b43e241a5bfacfa8f0da92ac1886a6c368bd19",
+    "run_number": 940,
+    "run_id": 36370753129,
+    "implementation_sha": "bba6758d7d7b42e9d98b9932432d843debb3fe5c",
+    "tested_design_pin": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "current_design_authority": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
     "conclusion": "success",
-    "ubuntu_python_3_14": "success (1383 passed, 2 skipped)",
-    "windows_python_3_13": "success",
-    "windows_python_3_14": "success",
-    "windows_wheel_and_authority_resources": "success",
-    "release_schema_manifest": "success",
-    "certification_effect": "Regression evidence only; complete LLD-01 semantic/prod-provider certification remains open."
+    "ubuntu_python_3_14": "1464 passed, 2 skipped",
+    "windows_python_3_13": "1466 passed; wheel/resources verified",
+    "windows_python_3_14": "1466 passed; wheel/resources verified",
+    "release_schema_manifest": "success (920 authoritative objects)",
+    "continuity_to_current_head": "From bba6758d to current post-ledger head only LLD-05 tests and traceability/documentation changed; no Foundation runtime/lock/shutdown implementation changed.",
+    "certification_effect": "LLD-01 owned semantic/runtime scope certified. LLD-12 SQLCipher/security composition remains outside this certification."
   }
 }
