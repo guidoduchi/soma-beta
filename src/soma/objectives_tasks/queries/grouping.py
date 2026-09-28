@@ -10,6 +10,7 @@ from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
 
 from ..repositories.grouping import RegroupProposalRepository
+from ..domain.grouping import strict_overlap_member_ids
 
 from ..domain.objectives import ObjectiveDraftLocalTaskIntent, ObjectiveExistingTaskIntent
 
@@ -326,15 +327,37 @@ class ObjectiveGroupingQueryService:
             elif row[7] is not None and str(row[9]) != str(row[4]):
                 classification = "plan_membership_mismatch"
                 eligible = False
-            elif row[17] is not None and int(
-                snapshot.connection.execute(
-                    "SELECT COUNT(*) FROM task_activity_lineage_current "
-                    "WHERE activity_lineage_id=?",
-                    (str(row[17]),),
-                ).fetchone()[0]
-            ) > 1:
-                classification = "competing_attempt"
-                eligible = False
+            elif row[17] is not None:
+                lineage_id = str(row[17])
+                lineage_rows = snapshot.connection.execute(
+                    "SELECT lc.task_id,lc.activity_lineage_id,p.start_utc,p.end_utc "
+                    "FROM task_activity_lineage_current lc "
+                    "JOIN task_plan_current pc ON pc.task_id=lc.task_id "
+                    "JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
+                    "AND p.task_id=lc.task_id "
+                    "LEFT JOIN task_execution_projection x ON x.task_id=lc.task_id "
+                    "LEFT JOIN task_outcome_current oc ON oc.task_id=lc.task_id "
+                    "WHERE lc.activity_lineage_id=? "
+                    "AND oc.accepted_outcome IS NULL "
+                    "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
+                    "ORDER BY p.start_utc,p.end_utc,lc.task_id",
+                    (lineage_id,),
+                ).fetchall()
+                competing = strict_overlap_member_ids(
+                    (
+                        (str(item[0]), str(item[1]), int(item[2]), int(item[3]))
+                        for item in lineage_rows
+                    )
+                )
+                if identity in competing:
+                    classification = "competing_attempt"
+                    eligible = False
+                elif row[15] == "complete" and int(row[5]) < as_of_utc:
+                    classification = "historical_candidate"
+                    eligible = False
+                else:
+                    classification = "ordinary_future"
+                    eligible = int(row[5]) >= as_of_utc
             elif row[15] == "complete" and int(row[5]) < as_of_utc:
                 classification = "historical_candidate"
                 eligible = False
