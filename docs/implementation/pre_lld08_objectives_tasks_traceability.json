@@ -1,0 +1,2431 @@
+{
+  "schema": "SOMA-PRE-LLD08-SEMANTIC-TRACEABILITY-V1",
+  "lld_id": "LLD-05",
+  "design_sha": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+  "design_gate": {
+    "workflow": "LLD Spec Integrity",
+    "run_number": 936,
+    "run_id": 36369874981,
+    "conclusion": "success"
+  },
+  "implementation_parent_sha": "5917bce5517c3782a0005ef47218bfbda4ee6498",
+  "certified": false,
+  "certification_rule": "Direct LLD05-T/F markers are retrieval aids only. Packet certification requires all 91 normative cases to remain semantically bound to the exact accepted design, the implementation head to pass the supported Ubuntu/Windows matrix with the exact design pin, and no unresolved cross-packet subclause.",
+  "method": [
+    "All 48 acceptance and 43 failure-injection scenarios are enumerated from the exact accepted LLD-05 design authority.",
+    "Every case is bound to production owner paths and executable regressions after semantic inspection; marker/file presence alone is never certification.",
+    "Cases whose test names predate direct LLD05-T/F markers are retained as manual semantic bindings rather than receiving redundant marker-only tests.",
+    "Cross-packet transaction/source/dependency clauses are proved through real LLD-03/04/07 integration tests and remain explicitly labeled instead of being inferred from mocks.",
+    "T008 was design-reconciled to make manual exact-touch merge request authority explicit and is implemented through the existing proposal/acceptance pipeline; automatic exact-touch grouping remains separate.",
+    "T002 and T006 received focused semantic regressions because their prior evidence covered the implementation invariant but not the complete public acceptance story."
+  ],
+  "source_acceptance": [
+    "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+    "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+    "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json"
+  ],
+  "source_failure_injection": [
+    "spec/lld/objectives-tasks/tests/failure-injection.json",
+    "spec/lld/objectives-tasks/tests/failure-injection-execution-review.json"
+  ],
+  "normative_traceability": [
+    "spec/lld/objectives-tasks/tests/traceability.json",
+    "spec/lld/objectives-tasks/tests/traceability/commands-execution-review.json",
+    "spec/lld/objectives-tasks/tests/traceability/commands-execution.json",
+    "spec/lld/objectives-tasks/tests/traceability/commands-objectives.json",
+    "spec/lld/objectives-tasks/tests/traceability/commands-planning.json",
+    "spec/lld/objectives-tasks/tests/traceability/queries-objectives.json",
+    "spec/lld/objectives-tasks/tests/traceability/queries-task.json"
+  ],
+  "summary": {
+    "total_cases": 91,
+    "acceptance_cases": 48,
+    "failure_injection_cases": 43,
+    "unique_case_ids": 91,
+    "semantically_bound_cases": 91,
+    "direct_acceptance_marker_count": 24,
+    "exact_head_ci": "pending"
+  },
+  "supported_code_checkpoint": {
+    "implementation_sha": "5917bce5517c3782a0005ef47218bfbda4ee6498",
+    "tested_design_pin": "46c836ca949cebcf52ff05be4eb4799e0c74eed1",
+    "workflow": "Beta implementation CI",
+    "conclusion": "pending",
+    "note": "Documentation is being assembled while earlier implementation runs remain in flight. Promote only after a supported CI run completes on this code checkpoint or a descendant containing documentation-only changes."
+  },
+  "cases": [
+    {
+      "id": "LLD05-T001",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T001",
+        "name": "local_task_minimum_and_unscheduled",
+        "prove": [
+          "nonblank bounded Task Name is only universal Local Task field",
+          "Local Task gets opaque identity and no fabricated TK",
+          "SR/RFC/Device/plan/Objective may all be absent",
+          "unscheduled Task creates no Objective"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_planning.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_local_creation.py::test_create_local_task_minimum_is_unscheduled_and_exactly_replayable",
+        "tests/test_objectives_tasks_local_creation.py::test_create_local_task_schedule_preserves_exact_operational_interval_without_objective"
+      ],
+      "observed_assertions": "Semantic inspection binds local_task_minimum_and_unscheduled to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T002",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T002",
+        "name": "persisted_objective_is_nonempty",
+        "prove": [
+          "empty UI Objective draft persists nothing",
+          "create commit requires at least one Task with complete interval",
+          "current nonsuperseded Objective count of members never becomes zero outside exact eligible deletion/supersession flow"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/queries/grouping.py",
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/migrations/0006_objectives_tasks.sql"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_t002_empty_objective_preview_persists_nothing",
+        "tests/test_objectives_tasks_schema.py::test_objective_nonempty_exact_touch_overlap_and_hard_delete_guards"
+      ],
+      "observed_assertions": "Semantic inspection binds persisted_objective_is_nonempty to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T003",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T003",
+        "name": "stable_objective_tracking_identity",
+        "prove": [
+          "first allocator value formats MW-00000001",
+          "tracking identity never changes on reschedule/regroup/archive",
+          "deleted/superseded sequence is never reused",
+          "allocator exhaustion fails before mutation"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/objectives_tasks/queries/objectives.py",
+        "src/soma/migrations/0006_objectives_tasks.sql"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_t003_tracking_allocator_exhaustion_is_atomic_and_nonreusing",
+        "tests/test_objectives_tasks_objectives.py::test_t033_monthly_ordinal_is_derived_and_tracking_identity_never_changes"
+      ],
+      "observed_assertions": "Semantic inspection binds stable_objective_tracking_identity to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T004",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T004",
+        "name": "task_plan_precision_and_timezone",
+        "prove": [
+          "arbitrary valid minute/second plan accepted",
+          "end>start required",
+          "no half-hour rounding",
+          "UTC whole seconds plus scheduling IANA context persisted",
+          "missing endpoint remains unscheduled/error rather than fabricated"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_planning.py",
+        "src/soma/objectives_tasks/services/timezone.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_local_creation.py::test_create_local_task_schedule_preserves_exact_operational_interval_without_objective",
+        "tests/test_objectives_tasks_set_task_plan.py::test_set_task_plan_schedules_unscheduled_task_with_manual_only_provenance_and_exact_audit",
+        "tests/test_objectives_tasks_timezone.py::test_t031_local_time_validation_is_offline_dst_safe_and_path_safe"
+      ],
+      "observed_assertions": "Semantic inspection binds task_plan_precision_and_timezone to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T005",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T005",
+        "name": "four_temporal_authorities_are_distinct",
+        "prove": [
+          "WFM source plan stored as provider projection",
+          "accepted operational Task plan is separate revision",
+          "Objective membership pins a reviewed Task-plan revision/envelope",
+          "actual execution is separate evidence",
+          "a pristine Task exposes logical execution_state=not_started with execution_revision=0 while persisting neither task_execution_projection nor task_execution_events; first accepted execution evidence creates projection revision 1, while corrected history may later yield logical not_started with a positive execution revision",
+          "changing one layer does not silently rewrite the others"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/source_terminal_authority.py",
+        "src/soma/objectives_tasks/services/task_planning.py",
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_source_projection_advances_only_source_authority",
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_reviewed_source_plan_adoption_uses_guayaquil_context_and_advances_task_plan_once",
+        "tests/test_objectives_tasks_set_task_plan.py::test_set_task_plan_preserves_objective_pin_and_envelope_and_surfaces_mismatch",
+        "tests/test_objectives_tasks_task_execution.py::test_start_task_execution_from_exact_absence_is_atomic_and_replayable",
+        "tests/test_objectives_tasks_task_execution.py::test_start_after_corrected_to_not_started_uses_positive_execution_revision"
+      ],
+      "observed_assertions": "Semantic inspection binds four_temporal_authorities_are_distinct to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T006",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T006",
+        "name": "plan_change_does_not_silently_regroup",
+        "prove": [
+          "Task in Objective changes current accepted plan",
+          "membership remains pinned to old accepted plan revision",
+          "Objective envelope remains derived from pin and cannot overlap another Objective silently",
+          "plan_membership_mismatch appears",
+          "separate regroup acceptance repins/moves atomically"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_planning.py",
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_set_task_plan.py::test_set_task_plan_preserves_objective_pin_and_envelope_and_surfaces_mismatch",
+        "tests/test_objectives_tasks_grouping.py::test_t006_plan_change_requires_separate_reviewed_repin"
+      ],
+      "observed_assertions": "Semantic inspection binds plan_change_does_not_silently_regroup to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T007",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T007",
+        "name": "strict_overlap_is_transitive",
+        "prove": [
+          "A overlaps B and B overlaps C while A does not overlap C",
+          "sweep creates one temporal component A+B+C",
+          "component envelope is min start/max end",
+          "Customer/RFC context cannot split it"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/domain/grouping.py",
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_grouping_sweep_is_transitive_and_exact_touch_separates"
+      ],
+      "observed_assertions": "Semantic inspection binds strict_overlap_is_transitive to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T008",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T008",
+        "name": "exact_touch_is_not_automatic_overlap",
+        "prove": [
+          "A.end=B.start yields separate automatic components/Objectives",
+          "manual reviewed merge remains possible",
+          "manual merge proves no third Objective overlap"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/domain/grouping.py",
+        "src/soma/objectives_tasks/services/grouping.py",
+        "src/soma/objectives_tasks/queries/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_grouping_sweep_is_transitive_and_exact_touch_separates",
+        "tests/test_objectives_tasks_grouping.py::test_t008_manual_exact_touch_merge_uses_reviewed_scope_and_preserves_identity",
+        "tests/test_objectives_tasks_grouping.py::test_t008_manual_exact_touch_merge_stales_when_selected_member_locks",
+        "tests/test_objectives_tasks_grouping.py::test_t008_manual_exact_touch_merge_fails_closed_on_third_overlap_drift"
+      ],
+      "observed_assertions": "Semantic inspection binds exact_touch_is_not_automatic_overlap to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T009",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T009",
+        "name": "bridging_task_proposes_consolidation",
+        "prove": [
+          "new Task overlaps two existing planned Objectives transitively",
+          "no third overlapping Objective is created",
+          "proposal contains exact old/new membership/envelopes",
+          "lowest existing tracking_sequence becomes survivor",
+          "other Objective identity becomes superseded not deleted"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/domain/grouping.py",
+        "src/soma/objectives_tasks/services/grouping.py",
+        "src/soma/objectives_tasks/repositories/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_t009_bridging_task_consolidates_existing_objectives_with_lowest_tracking_survivor"
+      ],
+      "observed_assertions": "Semantic inspection binds bridging_task_proposes_consolidation to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T010",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T010",
+        "name": "grouping_is_global_not_customer_partitioned",
+        "prove": [
+          "overlapping Tasks with different Customers still share temporal component",
+          "unknown Customer remains explicit partition/warning",
+          "master/subordinate RFC partitions are explanatory only",
+          "multi-customer Objective is explicit"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py",
+        "src/soma/objectives_tasks/queries/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_t010_grouping_is_global_and_multi_customer_context_is_explicit"
+      ],
+      "observed_assertions": "Semantic inspection binds grouping_is_global_not_customer_partitioned to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T011",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T011",
+        "name": "accepted_objectives_never_overlap",
+        "prove": [
+          "commit-time indexed neighbor query catches newly introduced strict overlap",
+          "stale proposal cannot commit",
+          "exact touch passes",
+          "failed overlap acceptance leaves membership/Objectives unchanged"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py",
+        "src/soma/migrations/0006_objectives_tasks.sql"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_schema.py::test_objective_nonempty_exact_touch_overlap_and_hard_delete_guards",
+        "tests/test_objectives_tasks_grouping.py::test_lld05_f008_overlapping_objective_after_proposal_blocks_acceptance"
+      ],
+      "observed_assertions": "Semantic inspection binds accepted_objectives_never_overlap to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T012",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T012",
+        "name": "same_rfc_distinct_wfm_activities",
+        "prove": [
+          "two distinct TK identities under same RFC remain distinct Tasks",
+          "WfmActivityRelationshipReviewPreview decision=distinct_activity fingerprints both exact Task revisions and the complete touched-lineage closure without mutating authority",
+          "accepted distinct_activity classification keeps/assigns separate singleton activity lineages, increments each materially changed affected Task and lineage revision exactly once and preserves both TK identities/source histories",
+          "reviewed distinct activities may coexist in one Objective when intervals group",
+          "no one-WFM-per-RFC/Object cap exists"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_activity_review.py",
+        "src/soma/objectives_tasks/queries/task_activity_review.py",
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_t012_distinct_same_rfc_wfm_activities_group_normally",
+        "tests/test_objectives_tasks_wfm_activity_review.py::test_distinct_activity_review_is_atomic_replayable_and_semantic_no_change"
+      ],
+      "observed_assertions": "Semantic inspection binds same_rfc_distinct_wfm_activities to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T013",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T013",
+        "name": "competing_wfm_attempt_requires_review",
+        "prove": [
+          "two active overlapping WFM Tasks in the same reviewed activity lineage yield downstream WFM_COMPETING_ATTEMPT while preserving both identities",
+          "same_activity, retry_lineage or unresolved_source_error review is allowed to commit even when projected_competing_attempt=true; WFM_COMPETING_ATTEMPT is not an error from ReviewWfmActivityRelationship",
+          "review fingerprint covers exact seed revisions plus complete touched-lineage closure and material source/plan/execution/outcome/retry/lineage authority; explicit seed Task revision drift returns TASK_STALE before mutation, while any other listed fingerprint-authority change returns TASK_ACTIVITY_REVIEW_STALE before mutation",
+          "affected-task presentation may page without changing affected_task_count/review_fingerprint; continuation cursor binds seed/decision scope plus that fingerprint, and a material change between pages makes the cursor stale instead of silently mixing snapshots",
+          "semantic NO_CHANGE under the exact same current authority persists replay evidence but creates no new lineage event, Task/lineage revision or audit",
+          "automatic grouping does not create overlapping Objectives to evade conflict",
+          "review as distinct_activity or later execution/cancellation evidence changes the downstream classification explicitly"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_activity_review.py",
+        "src/soma/objectives_tasks/queries/task_activity_review.py",
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_t013_same_activity_overlap_is_excluded_from_automatic_grouping",
+        "tests/test_objectives_tasks_grouping.py::test_t013_in_progress_attempt_blocks_overlapping_not_started_lineage_sibling",
+        "tests/test_objectives_tasks_wfm_activity_review.py::test_same_activity_may_commit_projected_competing_attempt",
+        "tests/test_objectives_tasks_wfm_activity_review.py::test_complete_lineage_closure_paging_and_stale_error_split",
+        "tests/test_objectives_tasks_wfm_competing_attempt_owner.py::test_activity_conflicts_binds_complete_hidden_set_and_deterministic_counterpart"
+      ],
+      "observed_assertions": "Semantic inspection binds competing_wfm_attempt_requires_review to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T014",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T014",
+        "name": "selected_member_task_start_is_not_objective_start",
+        "prove": [
+          "StartSelectedObjectiveTasks requires exact current Objective/envelope revisions plus an explicit unique selected current member set of 1..100 entries carrying exact task_revision and execution_revision for every selected Task; duplicate task_id and more than 100 entries reject before receipt",
+          "selected_tasks request order is nonsemantic and canonicalizes by task_id for command hashing, event creation, result refs and audit arrays",
+          "execution_revision=0 succeeds only for exact no-history execution authority; later creation of any execution authority makes the request stale even if the logical state is still not_started",
+          "the whole selected set is revalidated before one outer receipt; any stale/nonmember/already-started/terminal selected Task leaves every selected Task unchanged",
+          "canonical-now resolves once to one shared accepted start instant for the whole batch and exact replay never re-resolves time or reads current Objective/Task state",
+          "selected Tasks receive their own actual Task start events and each material start increments that Task revision exactly once plus creates/advances its execution projection revision exactly once",
+          "unselected Tasks remain unchanged",
+          "no Objective start event/timestamp or Objective identity/envelope revision is created; ObjectiveMutationResultV1 reports the unchanged revalidated Objective identity revision and canonical task_execution_event refs",
+          "Objective aggregate rebuilds once after all selected Task writes and becomes in_progress only as a derived consequence of accepted member Task start evidence",
+          "task.execution_batch_started.v1 carries exact canonical selected Task/event arrays, exact per-Task resulting Task/execution revisions and resulting aggregate fingerprint/revision; audit failure rolls back the receipt, all Task execution writes/revisions and aggregate rebuild atomically"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_selected_execution.py::test_selected_start_is_one_atomic_batch_and_leaves_unselected_task_unchanged",
+        "tests/test_objectives_tasks_selected_execution.py::test_selected_start_request_order_is_nonsemantic_and_exact_replay_ignores_later_state",
+        "tests/test_objectives_tasks_selected_execution.py::test_selected_start_canonical_now_is_one_shared_instant_and_replay_stable",
+        "tests/test_objectives_tasks_selected_execution.py::test_one_stale_or_nonmember_selected_task_rolls_back_entire_preflight"
+      ],
+      "observed_assertions": "Semantic inspection binds selected_member_task_start_is_not_objective_start to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T015",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T015",
+        "name": "task_end_requires_review",
+        "prove": [
+          "ending requires exact current Task revision plus positive execution revision and accepted current start",
+          "ending a started Task records actual end and increments Task/execution revisions exactly once",
+          "no Completed/Incomplete outcome is fabricated",
+          "Task becomes Awaiting Review",
+          "Objective review queue updates without fabricating other Task outcomes"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_execution_end.py::test_end_task_execution_appends_end_without_fabricating_outcome_and_replays",
+        "tests/test_objectives_tasks_task_execution_end.py::test_end_member_task_rebuilds_objective_to_awaiting_review_without_outcome"
+      ],
+      "observed_assertions": "Semantic inspection binds task_end_requires_review to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T016",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-task-grouping.json",
+      "normative_claim": {
+        "id": "LLD05-T016",
+        "name": "task_outcome_matrix",
+        "prove": [
+          "Completed requires accepted ended execution",
+          "Incomplete requires accepted started then ended/terminated work",
+          "Cancelled without execution requires no accepted start and terminal cancellation/termination",
+          "provider Complete alone satisfies none",
+          "reviewed_at remains separate"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_review.py",
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_review.py::test_review_task_outcome_applies_replays_and_exact_no_change",
+        "tests/test_objectives_tasks_task_cancellation.py::test_cancel_task_without_execution_is_atomic_and_replay_exact",
+        "tests/test_objectives_tasks_source_terminal_authority.py::test_terminal_source_without_local_work_does_not_fabricate_review"
+      ],
+      "observed_assertions": "Semantic inspection binds task_outcome_matrix to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T017",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T017",
+        "name": "whole_objective_cancel_guard",
+        "prove": [
+          "zero member Task starts permits reviewed per-Task cancellation and derived Objective Cancelled",
+          "one accepted Task start blocks whole-Objective Cancelled",
+          "individual unstarted Tasks can still be cancelled while other Tasks execute",
+          "CancelTaskWithoutExecution binds exact Task revision, exact execution revision and exact outcome-history absence; execution_revision=0 is pristine no-history authority while a positive corrected history that folds to logical not_started remains a distinct valid freshness state",
+          "a stale cancellation cannot conflate positive corrected not_started authority with pristine revision 0 and a concurrent accepted start blocks before receipt"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_objective_cancel_before_execution_is_atomic_and_reviewed",
+        "tests/test_objectives_tasks_objectives.py::test_objective_cancel_fails_atomically_after_any_member_start",
+        "tests/test_objectives_tasks_task_cancellation.py::test_cancel_accepts_positive_corrected_not_started_authority",
+        "tests/test_objectives_tasks_task_cancellation.py::test_cancel_after_concurrent_start_returns_domain_specific_conflict"
+      ],
+      "observed_assertions": "Semantic inspection binds whole_objective_cancel_guard to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T018",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T018",
+        "name": "mixed_objective_outcome_is_derived",
+        "prove": [
+          "Completed+Cancelled yields mixed",
+          "Completed+Incomplete yields mixed",
+          "all Completed yields completed",
+          "all Cancelled without execution and no start yields cancelled",
+          "no editable Objective outcome overrides member facts",
+          "TaskOutcomeReviewPreview fingerprint binds exact Task/execution/outcome authority plus requested outcome/reason and a material authority change before ReviewTaskOutcome rejects stale review",
+          "ReviewTaskOutcome may return NO_CHANGE only when exact current reviewed outcome remains execution-compatible and requested outcome plus normalized reason exactly match under the current fingerprint; a different current review requires CorrectTaskOutcome"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_review.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_t018_objective_outcome_matrix_is_derived_from_member_task_facts",
+        "tests/test_objectives_tasks_task_review.py::test_review_task_outcome_rejects_execution_drift_as_review_stale"
+      ],
+      "observed_assertions": "Semantic inspection binds mixed_objective_outcome_is_derived to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T019",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T019",
+        "name": "lost_last_executable_requires_review",
+        "prove": [
+          "in-progress Objective with surviving executable Task continues with warning",
+          "governed cancellation/terminal consequence removes last executable Task",
+          "aggregate becomes awaiting_review with lost_last_executable",
+          "never auto-Completed or auto-Cancelled"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/source_terminal.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_source_terminal_resolver.py::test_terminate_local_work_appends_governed_event_preserves_start_and_rebuilds_objective"
+      ],
+      "observed_assertions": "Semantic inspection binds lost_last_executable_requires_review to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T020",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T020",
+        "name": "rfc_terminal_cascade_participant_scope",
+        "prove": [
+          "captures only locally applicable active WFM Tasks owned by exact RFC branch set",
+          "unrelated Local Tasks untouched",
+          "provider WFM source status unchanged",
+          "task termination and Objective projection results commit inside LLD-03 outer UoW"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/contracts/objectives_tasks.py",
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/repositories/objectives.py",
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_t020_real_task_participant_terminates_exact_wfm_scope_inside_rfc_outer_uow"
+      ],
+      "observed_assertions": "Semantic inspection binds rfc_terminal_cascade_participant_scope to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-03"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T021",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T021",
+        "name": "provider_terminal_evidence_is_not_local_termination",
+        "prove": [
+          "accepted Complete/Plan Cancel source projection may create pending source-terminal review",
+          "no local execution/outcome mutation occurs",
+          "retain_local_work leaves executable history intact",
+          "terminate_local_work appends local consequence only after exact review"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/source_terminal_authority.py",
+        "src/soma/objectives_tasks/services/source_terminal.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_source_terminal_authority.py::test_terminal_source_with_operational_plan_creates_exact_pending_review_in_outer_uow",
+        "tests/test_objectives_tasks_source_terminal_resolver.py::test_retain_local_work_changes_only_review_and_exact_replay_survives_later_source_drift",
+        "tests/test_objectives_tasks_source_terminal_resolver.py::test_terminate_local_work_appends_governed_event_preserves_start_and_rebuilds_objective"
+      ],
+      "observed_assertions": "Semantic inspection binds provider_terminal_evidence_is_not_local_termination to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T022",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T022",
+        "name": "provider_complete_source_plan_can_propose_history",
+        "prove": [
+          "provider Complete + valid accepted source plan + unassigned Task creates historical proposal even with no operational plan",
+          "proposal pins exact source revision/observation/interval",
+          "Plan Cancel does not create historical Objective proposal"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/wfm_import.py",
+        "src/soma/objectives_tasks/services/historical.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_t022_complete_source_creates_historical_proposal_and_plan_cancel_supersedes",
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_t022_historical_proposal_fingerprint_binds_current_overlap_set"
+      ],
+      "observed_assertions": "Semantic inspection binds provider_complete_source_plan_can_propose_history to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-04"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T023",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T023",
+        "name": "historical_plan_conflict_is_not_overwritten",
+        "prove": [
+          "no current operational plan allows historical acceptance to append exact historical_source_structure plan",
+          "exact matching current plan can be reused",
+          "different current plan blocks/stales historical acceptance and routes to plan reconciliation",
+          "source plan is never silently substituted"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/wfm_import.py",
+        "src/soma/objectives_tasks/services/historical.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_t023_complete_source_reuses_exact_plan_and_suppresses_conflicting_plan",
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_t023_reviewed_source_plan_refreshes_complete_historical_proposal",
+        "tests/test_objectives_tasks_historical.py::test_historical_proposal_stales_when_source_material_changes"
+      ],
+      "observed_assertions": "Semantic inspection binds historical_plan_conflict_is_not_overwritten to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-04"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T024",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T024",
+        "name": "historical_objective_fabricates_no_execution",
+        "prove": [
+          "accepted historical Objective gets stable MW identity and membership/envelope",
+          "aggregate state historical_structure",
+          "actual start/end remain null",
+          "Task outcome remains absent",
+          "no Device work/spare-use/Inventory evidence created"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/historical.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_historical.py::test_historical_accept_creates_structure_only_and_replays"
+      ],
+      "observed_assertions": "Semantic inspection binds historical_objective_fabricates_no_execution to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T025",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T025",
+        "name": "historical_operational_count_exclusion",
+        "prove": [
+          "eligible historical Task may be excluded without deletion",
+          "one excluded member changes included/excluded counts only",
+          "all members excluded yields excluded_from_operational_counts",
+          "source/membership/audit/history remains intact"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/historical.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_historical.py::test_historical_operational_count_exclusion_is_reporting_only"
+      ],
+      "observed_assertions": "Semantic inspection binds historical_operational_count_exclusion to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T026",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T026",
+        "name": "reviewed_at_is_not_execution_time",
+        "prove": [
+          "Task outcome reviewed after actual end retains actual end",
+          "Objective review time can differ from all Task times",
+          "reviewed_at never populates missing actual start/end",
+          "report/query displays both separately"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_review.py",
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/objectives_tasks/queries/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_t026_reviewed_at_is_never_execution_time_and_queries_keep_them_separate"
+      ],
+      "observed_assertions": "Semantic inspection binds reviewed_at_is_not_execution_time to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T027",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T027",
+        "name": "correction_preserves_attempt_identity",
+        "prove": [
+          "execution correction preview/fingerprint binds exact Task revision, contiguous execution revision/final event, exact current-effective non-correction target identity+revision, requested correction, current outcome authority and simulated corrected fold",
+          "execution correction targets exact immutable base evidence with a strictly smaller execution_revision; an already withdrawn target or changed target/effective authority is stale",
+          "withdraw of rfc_terminal_terminate or source_terminal_consequence is blocked from generic execution correction because their terminal semantics belong to separate governed decisions",
+          "every accepted Task execution mutation has a unique contiguous per-Task execution_revision and projection revision/last_event_id match the revision-N event",
+          "two or more accepted execution events may share recorded_at_utc without ambiguity; UUID lexical order is nonsemantic and revision order remains authoritative",
+          "when corrected execution would invalidate a currently valid reviewed Task outcome, correction fails closed without explicit reviewed invalidation acknowledgement; with exact acknowledgement the old outcome event/current pointer is preserved as historical reviewed evidence but no longer treated as a valid current outcome",
+          "outcome history is one append-only linear chain: genesis correction_of_event_id is null, every correction points to the exact prior current tip, current revision equals event count/chain length and current pointer fields match that tip",
+          "TaskOutcomeCorrectionPreview binds exact Task/execution/current-outcome chain authority; any changed execution or current outcome tip after preview rejects stale correction",
+          "outcome correction appends against exact accepted current outcome; exact same replacement+reason may be NO_CHANGE only under the exact current fingerprint",
+          "same task_id remains",
+          "prior evidence/review survives",
+          "Objective review fingerprint becomes stale when material"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/services/task_review.py",
+        "src/soma/objectives_tasks/queries/execution_review.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_execution_correction.py::test_execution_correction_replace_time_applies_and_replays_exact",
+        "tests/test_objectives_tasks_execution_correction.py::test_execution_correction_invalidated_outcome_requires_ack_and_remains_historical",
+        "tests/test_objectives_tasks_task_review.py::test_correct_task_outcome_appends_linear_tip_and_rejects_stale_preview"
+      ],
+      "observed_assertions": "Semantic inspection binds correction_preserves_attempt_identity to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T028",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T028",
+        "name": "local_retry_is_new_attempt",
+        "prove": [
+          "new task_id allocated",
+          "predecessor unchanged",
+          "one immediate predecessor and max one direct successor",
+          "only reviewed selected current SR/RFC/Device relationships clone",
+          "execution/outcome not cloned",
+          "new interval enters normal grouping"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/retries.py",
+        "src/soma/objectives_tasks/services/task_planning.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_retry.py::test_local_retry_creates_new_task_plan_and_immutable_edge"
+      ],
+      "observed_assertions": "Semantic inspection binds local_retry_is_new_attempt to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T029",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T029",
+        "name": "wfm_retry_requires_distinct_tk",
+        "prove": [
+          "same Task No cannot be retry",
+          "successor has distinct canonical TK",
+          "LinkWfmRetryAttempt creates the immutable retry edge only after exact Task-revision/uniqueness/cycle revalidation and does not create, merge, split or rewrite activity-lineage authority",
+          "both provider/source histories and any pre-existing activity-lineage histories remain independent after retry-edge creation",
+          "ReviewWfmActivityRelationship decision=retry_lineage requires that exact pre-existing edge and may subsequently classify the complete reviewed closure into one shared lineage",
+          "reviewing retry_lineage never creates, redirects or deletes the retry edge",
+          "successor scheduling/grouping remains independent"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/retries.py",
+        "src/soma/objectives_tasks/services/task_activity_review.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_retry.py::test_wfm_retry_link_is_immutable_replayable_and_semantic_no_change",
+        "tests/test_objectives_tasks_wfm_retry.py::test_wfm_retry_rejects_endpoint_reuse_and_cycles_before_receipt",
+        "tests/test_objectives_tasks_wfm_activity_review.py::test_retry_lineage_consumes_existing_edge_without_mutating_it"
+      ],
+      "observed_assertions": "Semantic inspection binds wfm_retry_requires_distinct_tk to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T030",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T030",
+        "name": "objective_retry_context_is_derived",
+        "prove": [
+          "retry Task can group into same/different/new Objective by interval",
+          "one Objective may contain retries from several predecessor Objectives",
+          "no objective predecessor FK/one-to-one chain is persisted"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/retries.py",
+        "src/soma/objectives_tasks/queries/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_retry.py::test_t030_retry_objective_context_is_derived_only_from_current_intervals"
+      ],
+      "observed_assertions": "Semantic inspection binds objective_retry_context_is_derived to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T031",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T031",
+        "name": "iana_local_input_dst_safety",
+        "prove": [
+          "Pacific/Galapagos resolves offline",
+          "ambiguous fold time requires explicit occurrence/offset",
+          "nonexistent local time rejects",
+          "conversion produces canonical UTC whole second",
+          "timezone name never becomes filesystem path"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/timezone.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_timezone.py::test_t031_local_time_validation_is_offline_dst_safe_and_path_safe"
+      ],
+      "observed_assertions": "Semantic inspection binds iana_local_input_dst_safety to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T032",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-execution-history.json",
+      "normative_claim": {
+        "id": "LLD05-T032",
+        "name": "timezone_setting_is_presentation_only",
+        "prove": [
+          "change America/Guayaquil -> another IANA zone redisplays same UTC Task/Objectives",
+          "source chronology/SLA unaffected",
+          "existing persisted instants unchanged",
+          "preserving old wall-clock requires separate reviewed reschedule"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/timezone.py",
+        "src/soma/objectives_tasks/queries/timezone.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_timezone.py::test_objective_timezone_default_write_replay_and_update",
+        "tests/test_objectives_tasks_timezone.py::test_objective_timezone_rejects_unknown_and_never_rewrites_task_plan_utc"
+      ],
+      "observed_assertions": "Semantic inspection binds timezone_setting_is_presentation_only to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T033",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T033",
+        "name": "monthly_ordinal_is_derived_not_identity",
+        "prove": [
+          "uses actual Objective start when known else planned envelope start",
+          "cross-month window belongs to effective start month",
+          "tie resolves by immutable objective_id",
+          "current ordinal may recalculate after schedule/actual evidence",
+          "MW tracking identity never changes"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/queries/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_t033_monthly_ordinal_is_derived_and_tracking_identity_never_changes"
+      ],
+      "observed_assertions": "Semantic inspection binds monthly_ordinal_is_derived_not_identity to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T034",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T034",
+        "name": "wfm_context_derives_from_rfc_hierarchy",
+        "prove": [
+          "WFM owns exactly one RFC",
+          "master/subordinate/root/SR context derives from current RFC hierarchy",
+          "hierarchy correction changes current context without changing Task identity/source/Objective history",
+          "no WFM-to-WFM hierarchy fields",
+          "RfcHistoryRiskProvider uses the same hierarchy_history_authority algorithm for stable preview Snapshot and current writer UnitOfWork",
+          "READY authority returns LOW|HIGH plus exact evidence count and complete SOMA_RFC_HIERARCHY_HISTORY_AUTHORITY_V1 provider_fingerprint; INDETERMINATE fails closed",
+          "a relevant Task/WFM/Objective history or current-authority change changes provider_fingerprint even when LOW/HIGH and evidence count are unchanged",
+          "LLD-03 receives only bounded risk/count/fingerprint and an old hierarchy review cannot authorize a correction after that authority changes"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/queries/objectives.py",
+        "src/soma/objectives_tasks/contracts/objectives_tasks.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_context.py::test_t034_wfm_objective_context_derives_owning_rfc_and_governing_root_authority"
+      ],
+      "observed_assertions": "Semantic inspection binds wfm_context_derives_from_rfc_hierarchy to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-03"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T035",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T035",
+        "name": "objective_relationships_are_task_derived",
+        "prove": [
+          "Local Task links zero-many SR/RFC/Device References and every material direct relationship change advances Task revision exactly once",
+          "WFM may directly link/unlink Device References with the same Task-revision rule while direct WFM SR/RFC relationships are rejected because ticket context derives through its owning RFC",
+          "link of an already-active exact pair and unlink with no active exact pair are semantic NO_CHANGE only after exact Task revision and target identity existence are revalidated",
+          "unlink retains the exact closed history row and reopening the same pair allocates a new relationship identity rather than reactivating history",
+          "WFM SR context derives through RFC root link",
+          "Objective derives the current relationship union with source Task/link provenance while no relationship command mutates Objective membership, pinned plan, envelope, execution or review evidence",
+          "no Objective-level SR/RFC/Device authority",
+          "Device regularization retains same Device Reference"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_relationships.py",
+        "src/soma/objectives_tasks/queries/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_context.py::test_t035_objective_relationship_context_is_task_derived_without_objective_mutation",
+        "tests/test_objectives_tasks_change_task_relationship.py::test_local_task_links_sr_rfc_and_device_with_exact_audit",
+        "tests/test_objectives_tasks_change_task_relationship.py::test_wfm_direct_sr_and_rfc_relationships_are_rejected_before_receipt"
+      ],
+      "observed_assertions": "Semantic inspection binds objective_relationships_are_task_derived to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T036",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T036",
+        "name": "task_hard_delete_fails_closed",
+        "prove": [
+          "source-adopted/history-bearing Task blocked",
+          "Inventory dependency INDETERMINATE blocks",
+          "eligible untouched manual draft preview binds exact dependencies",
+          "source-free manually registered WFM may be eligible only with exactly one registration-baseline assignment event bound to its creation command/current RFC and no other protected history",
+          "HardDeleteTask first persists immutable Task-No retirement, then may delete that sole baseline assignment event and WFM identity in the same guarded UoW",
+          "after successful deletion task_no_status returns RETIRED and neither RegisterManualWfmTask nor LLD-04 source adoption can recreate/adopt that canonical Task No",
+          "direct persistence bypass cannot reinsert wfm_task_identities for a retired Task No because the sequence-6 database guard rejects resurrection",
+          "a second assignment event/reassignment or any source/plan-execution/outcome/membership/retry/lineage/lock/protected relationship history blocks that WFM deletion path",
+          "delete never erases audit or reuses identity"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/hard_delete.py",
+        "src/soma/objectives_tasks/queries/hard_delete.py",
+        "src/soma/migrations/0006_objectives_tasks.sql"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_hard_delete.py::test_manual_wfm_hard_delete_retires_identity_before_delete_and_replays_without_owner_reads",
+        "tests/test_objectives_tasks_task_hard_delete.py::test_inventory_dependency_is_fail_closed_in_preview_and_writer",
+        "tests/test_objectives_tasks_wfm_registration.py::test_retired_wfm_task_no_is_permanent_nonreuse_authority",
+        "tests/test_objectives_tasks_hard_delete_creation_refs.py::test_wfm_creation_assignment_ref_must_be_exact_and_contiguous"
+      ],
+      "observed_assertions": "Semantic inspection binds task_hard_delete_fails_closed to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-07"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T037",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T037",
+        "name": "objective_hard_delete_is_narrow",
+        "prove": [
+          "untouched manual Objective correction may be previewed/deleted atomically while retaining Tasks",
+          "eligible Objective has only creation-baseline add membership events bound to objectives.created_command_id, with from_objective_id null, to_objective_id equal to the Objective and no grouping proposal",
+          "HardDeleteObjective may delete those baseline membership events only in the same exact guarded transaction that deletes the Objective",
+          "any move/remove/repin/historical/grouping or other later membership event makes the Objective history-bearing and blocks hard deletion",
+          "automatic/historical/executed/reviewed/archived/superseded Objective blocked",
+          "removing last Task otherwise returns OBJECTIVE_EMPTY"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/hard_delete.py",
+        "src/soma/objectives_tasks/queries/hard_delete.py",
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/migrations/0006_objectives_tasks.sql"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_objective_hard_delete_retains_tasks_and_removes_only_baseline_membership",
+        "tests/test_objectives_tasks_schema.py::test_objective_nonempty_exact_touch_overlap_and_hard_delete_guards"
+      ],
+      "observed_assertions": "Semantic inspection binds objective_hard_delete_is_narrow to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T038",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T038",
+        "name": "objective_archive_is_presentation_only",
+        "prove": [
+          "archive/restore preserves Task membership/plans/execution/outcomes",
+          "unfinished safety warnings remain discoverable",
+          "restore retains same MW identity"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/objectives_tasks/queries/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_t038_objective_archive_is_presentation_only_and_preserves_review_attention"
+      ],
+      "observed_assertions": "Semantic inspection binds objective_archive_is_presentation_only to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T039",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T039",
+        "name": "large_grouping_preserves_semantics",
+        "prove": [
+          "large interval set uses O(n log n) sweep/durable job path",
+          "no pairwise O(n^2) fallback",
+          "no product max Tasks/component",
+          "exact proposal totals survive pagination"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py",
+        "src/soma/objectives_tasks/jobs/grouping_recompute.py",
+        "src/soma/objectives_tasks/queries/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping_durable.py::test_t039_large_threshold_uses_durable_job_and_replay_precedes_owner_reads",
+        "tests/test_objectives_tasks_grouping_durable.py::test_t039_candidate_builder_has_no_component_times_full_workset_scan",
+        "tests/test_objectives_tasks_grouping_durable.py::test_t039_grouping_proposal_page_exact_total_is_independent_of_page_length",
+        "tests/test_objectives_tasks_grouping_durable.py::test_t039_publication_failure_rolls_back_and_retry_publishes_once"
+      ],
+      "observed_assertions": "Semantic inspection binds large_grouping_preserves_semantics to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T040",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T040",
+        "name": "regroup_rejection_fingerprint",
+        "prove": [
+          "reject records minimized material fingerprint",
+          "unrelated source recency does not re-present identical proposal",
+          "Task plan/membership/lock/objective material change changes fingerprint",
+          "explicit Reconsider allows fresh preview while preserving rejection history"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py",
+        "src/soma/objectives_tasks/repositories/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_identical_rejected_grouping_input_is_suppressed_until_reconsidered",
+        "tests/test_objectives_tasks_grouping.py::test_lld05_f009_task_lock_drift_keeps_regroup_proposal_immutable"
+      ],
+      "observed_assertions": "Semantic inspection binds regroup_rejection_fingerprint to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T041",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T041",
+        "name": "in_progress_regroup_is_limited_high_risk",
+        "prove": [
+          "planned Objective may restructure normally",
+          "in-progress proposal requires high-risk context",
+          "only unstarted unlocked add/repin inside current envelope is allowed",
+          "started Task move/consolidation/split blocked",
+          "terminal/historical Objective restructure blocked"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_t041_in_progress_regroup_requires_high_risk_and_blocks_started_consolidation"
+      ],
+      "observed_assertions": "Semantic inspection binds in_progress_regroup_is_limited_high_risk to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T042",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T042",
+        "name": "source_plan_acceptance_and_regroup_are_separate",
+        "prove": [
+          "LLD-04 accepted source observation changes only source projection",
+          "reviewed source-plan adoption appends operational plan",
+          "current Objective membership pin remains unchanged",
+          "regroup proposal is separately generated/accepted"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/wfm_import.py",
+        "src/soma/objectives_tasks/services/task_planning.py",
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_source_projection_advances_only_source_authority",
+        "tests/test_objectives_tasks_wfm_import_owner.py::test_reviewed_source_plan_adoption_uses_guayaquil_context_and_advances_task_plan_once",
+        "tests/test_objectives_tasks_set_task_plan.py::test_set_task_plan_preserves_objective_pin_and_envelope_and_surfaces_mismatch",
+        "tests/test_objectives_tasks_grouping.py::test_t006_plan_change_requires_separate_reviewed_repin"
+      ],
+      "observed_assertions": "Semantic inspection binds source_plan_acceptance_and_regroup_are_separate to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-04"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T043",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T043",
+        "name": "cross_domain_single_receipt_single_uow",
+        "prove": [
+          "LLD-04 import mutation receives existing receipt/UoW and creates no second receipt",
+          "LLD-03 RFC cascade participant creates no nested commit",
+          "RFC terminal-cascade preview provider_fingerprint binds the complete current WFM termination/Objective executable-count impact authority and authoritative revisions",
+          "inside LLD-03 Execute writer UnitOfWork RfcTerminalTaskParticipant.revalidate_terminal_cascade recomputes that same complete impact authority and exact-compares the reviewed exact_count/provider_fingerprint without mutating or returning impact rows",
+          "a changed Task execution/membership/Objective aggregate or other fingerprint input with unchanged RFC/WFM scope returns STALE before deliberate proof consumption and before apply",
+          "INDETERMINATE revalidation fails closed before apply",
+          "only READY revalidation permits later apply_terminal_cascade in the same caller UoW; required LLD-05 audit/result rows share caller transaction and participant failure rolls caller transaction back",
+          "provider WFM source facts and unrelated Local Tasks remain unchanged by terminal cascade"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/source_terminal_authority.py",
+        "src/soma/objectives_tasks/contracts/objectives_tasks.py",
+        "src/soma/ticket_import/commands/_wfm_proposal_acceptance.py",
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_proposal_acceptance.py::test_accept_wfm_source_projection_applies_exact_reviewed_source_and_replays",
+        "tests/test_ticket_import_wfm_proposal_acceptance.py::test_lld05_f017_terminal_review_insert_failure_rolls_back_lld04_outer_acceptance",
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_t020_real_task_participant_terminates_exact_wfm_scope_inside_rfc_outer_uow"
+      ],
+      "observed_assertions": "Semantic inspection binds cross_domain_single_receipt_single_uow to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-03",
+        "LLD-04"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T044",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T044",
+        "name": "source_terminal_review_is_stale_bound",
+        "prove": [
+          "pending review fingerprint includes source/local revisions",
+          "Task execution/membership/plan/source change makes old review stale",
+          "old review preserved/superseded",
+          "stale decision cannot terminate local work"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/source_terminal_authority.py",
+        "src/soma/objectives_tasks/services/source_terminal.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_source_terminal_authority.py::test_new_terminal_source_projection_supersedes_old_pending_review_and_preserves_history",
+        "tests/test_objectives_tasks_source_terminal_resolver.py::test_local_authority_drift_stales_review_before_receipt",
+        "tests/test_objectives_tasks_source_terminal_resolver.py::test_different_review_or_request_fingerprint_fails_before_receipt"
+      ],
+      "observed_assertions": "Semantic inspection binds source_terminal_review_is_stale_bound to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T045",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T045",
+        "name": "future_grouping_clock_is_not_a_lock",
+        "prove": [
+          "ordinary automatic grouping classifies future/noncancelled eligibility at snapshot",
+          "clock passage by itself writes no lock/event/history",
+          "existing accepted membership remains valid after time passes",
+          "post-boundary changes use explicit execution/review/correction rules rather than synthetic clock locks"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py",
+        "src/soma/objectives_tasks/queries/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_t045_clock_passage_is_read_only_and_never_creates_a_grouping_lock"
+      ],
+      "observed_assertions": "Semantic inspection binds future_grouping_clock_is_not_a_lock to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T046",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T046",
+        "name": "due_objective_surfaces_without_fabrication",
+        "prove": [
+          "planned envelope passes end with unreviewed Tasks",
+          "ObjectiveList/Workbench/ReviewQueue read-time projection surfaces awaiting_review/due_unreviewed from explicit as_of_utc plus pinned envelope while persisted objective_aggregate_projection remains unchanged solely from clock passage",
+          "no receipt, audit event, aggregate revision, Task actual time or outcome is inserted by that read-time transition",
+          "operator resolves Task evidence/outcomes before Objective review"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/queries/objectives.py",
+        "src/soma/objectives_tasks/queries/reviews.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_t046_due_unreviewed_is_explicit_read_time_projection_only"
+      ],
+      "observed_assertions": "Semantic inspection binds due_objective_surfaces_without_fabrication to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T047",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T047",
+        "name": "manual_local_task_under_subordinate_rfc",
+        "prove": [
+          "Local Task may link directly to subordinate RFC",
+          "does not alter RFC hierarchy",
+          "derived Objective RFC context shows subordinate and governing root",
+          "no direct Objective-RFC relation created"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_relationships.py",
+        "src/soma/objectives_tasks/queries/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_local_subordinate_rfc.py::test_t047_local_task_may_link_subordinate_rfc_without_mutating_hierarchy"
+      ],
+      "observed_assertions": "Semantic inspection binds manual_local_task_under_subordinate_rfc to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-T048",
+      "category": "acceptance",
+      "normative_source": "spec/lld/objectives-tasks/tests/acceptance-cross-domain.json",
+      "normative_claim": {
+        "id": "LLD05-T048",
+        "name": "objective_can_exist_without_ticket_device_inventory_context",
+        "prove": [
+          "one scheduled Local Task with only name+plan creates eligible Objective",
+          "Objective has no fabricated SR/RFC/WFM/Device/Inventory relationships",
+          "derived context remains empty but valid"
+        ]
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/objectives_tasks/queries/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_t048_objective_is_valid_without_ticket_device_or_inventory_context"
+      ],
+      "observed_assertions": "Semantic inspection binds objective_can_exist_without_ticket_device_inventory_context to the listed owner invariants and executable regressions; every listed prove clause is represented by concrete assertions or owner/database guards rather than marker presence alone.",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F001",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F001",
+        "inject": "CreateLocalTask after receipt+tasks insert before plan/current relationship writes",
+        "expect": "whole UoW rolls back; no Task/plan/link/audit partial state; idempotent retry can execute normally"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_planning.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_local_creation.py::test_create_local_task_rolls_back_receipt_task_and_plan_then_same_command_retries",
+        "tests/test_objectives_tasks_local_creation.py::test_create_local_task_relationship_failure_rolls_back_every_prior_creation_write"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CreateLocalTask after receipt+tasks insert before plan/current relationship writes) and verifies the required atomic/fail-closed result (whole UoW rolls back; no Task/plan/link/audit partial state; idempotent retry can execute normally).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F002",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F002",
+        "inject": "CreateObjectiveFromPreview after MW sequence allocation/update and Objective insert before first membership",
+        "expect": "allocator/Objectives/memberships/projections/audit all roll back; tracking sequence is not consumed by failed transaction"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_lld05_f002_objective_creation_failure_before_first_membership_rolls_back_allocator_and_retries"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CreateObjectiveFromPreview after MW sequence allocation/update and Objective insert before first membership) and verifies the required atomic/fail-closed result (allocator/Objectives/memberships/projections/audit all roll back; tracking sequence is not consumed by failed transaction).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F003",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F003",
+        "inject": "CreateObjectiveFromPreview after first of several membership events/current rows",
+        "expect": "no empty/partial Objective survives; every Task remains in prior membership state"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_lld05_f003_second_membership_failure_rolls_back_first_membership_and_objective"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CreateObjectiveFromPreview after first of several membership events/current rows) and verifies the required atomic/fail-closed result (no empty/partial Objective survives; every Task remains in prior membership state).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F004",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F004",
+        "inject": "SetTaskPlan after immutable plan revision insert before task_plan_current update",
+        "expect": "plan revision/current pointer/audit all roll back; Objective membership pin/envelope unchanged"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_planning.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_set_task_plan.py::test_lld05_f004_plan_revision_insert_failure_before_current_pointer_rolls_back_exactly"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (SetTaskPlan after immutable plan revision insert before task_plan_current update) and verifies the required atomic/fail-closed result (plan revision/current pointer/audit all roll back; Objective membership pin/envelope unchanged).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F005",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F005",
+        "inject": "SetTaskPlan succeeds but grouping proposal durable job crashes before proposal publication",
+        "expect": "accepted Task plan remains valid; membership pin remains prior; no partial regroup mutation; recompute can resume/recreate proposal deterministically"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_planning.py",
+        "src/soma/objectives_tasks/jobs/grouping_recompute.py",
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping_durable.py::test_lld05_f005_committed_plan_survives_durable_grouping_publication_crash"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (SetTaskPlan succeeds but grouping proposal durable job crashes before proposal publication) and verifies the required atomic/fail-closed result (accepted Task plan remains valid; membership pin remains prior; no partial regroup mutation; recompute can resume/recreate proposal deterministically).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F006",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F006",
+        "inject": "AcceptRegroupProposal after first Task move/repin before remaining Task changes",
+        "expect": "all membership/current/event/projection/supersession changes roll back and proposal remains pending/currently retryable"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_lld05_f006_regroup_failure_after_first_membership_rolls_back_whole_create"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (AcceptRegroupProposal after first Task move/repin before remaining Task changes) and verifies the required atomic/fail-closed result (all membership/current/event/projection/supersession changes roll back and proposal remains pending/currently retryable).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F007",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F007",
+        "inject": "AcceptRegroupProposal consolidation after survivor membership writes before merged Objective supersession",
+        "expect": "no partial consolidation; all original Objectives/memberships/envelopes restored atomically"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_lld05_f007_consolidation_failure_after_all_memberships_rolls_back_original_objectives"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (AcceptRegroupProposal consolidation after survivor membership writes before merged Objective supersession) and verifies the required atomic/fail-closed result (no partial consolidation; all original Objectives/memberships/envelopes restored atomically).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F008",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F008",
+        "inject": "another accepted Objective/plan change creates strict overlap after preview but before regroup acceptance",
+        "expect": "commit-time material fingerprint/neighbor overlap check returns stale/OBJECTIVE_OVERLAP before domain mutation"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py",
+        "src/soma/migrations/0006_objectives_tasks.sql"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_lld05_f008_overlapping_objective_after_proposal_blocks_acceptance"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (another accepted Objective/plan change creates strict overlap after preview but before regroup acceptance) and verifies the required atomic/fail-closed result (commit-time material fingerprint/neighbor overlap check returns stale/OBJECTIVE_OVERLAP before domain mutation).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F009",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F009",
+        "inject": "Task plan revision/lock changes after persisted proposal preview",
+        "expect": "GROUPING_PROPOSAL_STALE; proposal cannot overwrite newer plan/lock/membership state"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping.py::test_lld05_f009_task_lock_drift_keeps_regroup_proposal_immutable"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (Task plan revision/lock changes after persisted proposal preview) and verifies the required atomic/fail-closed result (GROUPING_PROPOSAL_STALE; proposal cannot overwrite newer plan/lock/membership state).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F010",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F010",
+        "inject": "StartObjectiveExecution after first selected Task start event before second selected Task",
+        "expect": "all selected starts roll back; Objective aggregate remains prior; no partial start set"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_selected_execution.py::test_lld05_f010_mid_batch_selected_start_failure_rolls_back_first_task"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (StartObjectiveExecution after first selected Task start event before second selected Task) and verifies the required atomic/fail-closed result (all selected starts roll back; Objective aggregate remains prior; no partial start set).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F011",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F011",
+        "inject": "CancelObjectiveBeforeExecution after first Task cancellation/outcome",
+        "expect": "all member cancellation/outcome events and Objective review roll back; no partial whole-Objective cancel"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/objectives_tasks/services/task_execution.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_lld05_f011_whole_objective_cancel_failure_after_first_member_rolls_back_all"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CancelObjectiveBeforeExecution after first Task cancellation/outcome) and verifies the required atomic/fail-closed result (all member cancellation/outcome events and Objective review roll back; no partial whole-Objective cancel).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F012",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F012",
+        "inject": "EndTaskExecution after end event before execution/Objective projection rebuild",
+        "expect": "end event, projection/audit all roll back; Task remains in_progress"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_execution_end.py::test_lld05_f012_end_event_failure_before_projection_rebuild_rolls_back_exactly"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (EndTaskExecution after end event before execution/Objective projection rebuild) and verifies the required atomic/fail-closed result (end event, projection/audit all roll back; Task remains in_progress).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F013",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F013",
+        "inject": "CorrectTaskExecutionEvidence after correction event before rebuild",
+        "expect": "correction and all derived changes roll back; original current execution interpretation remains"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_execution_correction.py::test_lld05_f013_correction_event_failure_before_projection_rebuild_rolls_back_exactly"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CorrectTaskExecutionEvidence after correction event before rebuild) and verifies the required atomic/fail-closed result (correction and all derived changes roll back; original current execution interpretation remains).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F014",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F014",
+        "inject": "CorrectTaskOutcome after append correction event before current outcome pointer",
+        "expect": "new outcome event/current Objective aggregate/audit all roll back; prior accepted outcome remains current"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_review.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_review.py::test_lld05_f014_outcome_event_failure_before_current_pointer_rolls_back_exactly"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CorrectTaskOutcome after append correction event before current outcome pointer) and verifies the required atomic/fail-closed result (new outcome event/current Objective aggregate/audit all roll back; prior accepted outcome remains current).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F015",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F015",
+        "inject": "CreateLocalTaskRetry after successor Task+plan insert before retry relation",
+        "expect": "new Task/plan/selected links roll back; predecessor still has no successor"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/retries.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_retry.py::test_lld05_f015_local_retry_failure_after_successor_plan_rolls_back_everything"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CreateLocalTaskRetry after successor Task+plan insert before retry relation) and verifies the required atomic/fail-closed result (new Task/plan/selected links roll back; predecessor still has no successor).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F016",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F016",
+        "inject": "LLD-07 Inventory retry participant returns failure/INDETERMINATE after LLD-05 successor writes",
+        "expect": "outer retry UoW rolls back every LLD-05 and LLD-07 mutation; no partial retry attempt"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/retries.py",
+        "src/soma/inventory/services/corrections_bulk.py"
+      ],
+      "executable_tests": [
+        "tests/test_inventory_cross_packet_acceptance.py::test_lld05_f016_inventory_retry_participant_failure_rolls_back_both_packets"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (LLD-07 Inventory retry participant returns failure/INDETERMINATE after LLD-05 successor writes) and verifies the required atomic/fail-closed result (outer retry UoW rolls back every LLD-05 and LLD-07 mutation; no partial retry attempt).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-07"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F017",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F017",
+        "inject": "LLD-04 outer import applies WFM source projection then LLD-05 source-terminal review marker insert fails",
+        "expect": "entire LLD-04 accepted proposal UoW rolls back including source-projection handoff/domain mutation; one outer receipt semantics preserved"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/source_terminal_authority.py",
+        "src/soma/ticket_import/commands/_wfm_proposal_acceptance.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_import_wfm_proposal_acceptance.py::test_lld05_f017_terminal_review_insert_failure_rolls_back_lld04_outer_acceptance"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (LLD-04 outer import applies WFM source projection then LLD-05 source-terminal review marker insert fails) and verifies the required atomic/fail-closed result (entire LLD-04 accepted proposal UoW rolls back including source-projection handoff/domain mutation; one outer receipt semantics preserved).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-04"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F018",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F018",
+        "inject": "ResolveWfmSourceTerminalConsequence after local termination execution event before review transition/projection rebuild",
+        "expect": "termination event rolls back; review remains pending; provider source projection unchanged"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/source_terminal.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_source_terminal_resolver.py::test_lld05_f018_review_transition_failure_rolls_back_termination_and_aggregate"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (ResolveWfmSourceTerminalConsequence after local termination execution event before review transition/projection rebuild) and verifies the required atomic/fail-closed result (termination event rolls back; review remains pending; provider source projection unchanged).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F019",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F019",
+        "inject": "source-terminal review created, then Task execution/plan/membership changes before decision",
+        "expect": "fingerprint revalidation rejects stale review; no local termination occurs; fresh review may supersede old one"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/source_terminal.py",
+        "src/soma/objectives_tasks/source_terminal_authority.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_source_terminal_resolver.py::test_local_authority_drift_stales_review_before_receipt"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (source-terminal review created, then Task execution/plan/membership changes before decision) and verifies the required atomic/fail-closed result (fingerprint revalidation rejects stale review; no local termination occurs; fresh review may supersede old one).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F020",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F020",
+        "inject": "LLD-03 RFC terminal cascade applies first WFM termination then second participant Task write fails",
+        "expect": "caller UoW rolls back all WFM/Task/Objective participant changes and RFC cascade execution; provider statuses unchanged"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/contracts/objectives_tasks.py",
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_lld05_f020_second_task_failure_rolls_back_real_rfc_terminal_participant"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (LLD-03 RFC terminal cascade applies first WFM termination then second participant Task write fails) and verifies the required atomic/fail-closed result (caller UoW rolls back all WFM/Task/Objective participant changes and RFC cascade execution; provider statuses unchanged).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-03"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F021",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F021",
+        "inject": "LLD-03 RFC terminal cascade Task mutations complete but Objective projection rebuild fails",
+        "expect": "all Task terminations and caller RFC/Communication participant work roll back atomically"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/contracts/objectives_tasks.py",
+        "src/soma/objectives_tasks/repositories/objectives.py",
+        "src/soma/tickets/rfc_terminal_cascade.py"
+      ],
+      "executable_tests": [
+        "tests/test_ticket_rfc_terminal_cascade_execute.py::test_lld05_f021_objective_rebuild_failure_rolls_back_real_task_mutations"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (LLD-03 RFC terminal cascade Task mutations complete but Objective projection rebuild fails) and verifies the required atomic/fail-closed result (all Task terminations and caller RFC/Communication participant work roll back atomically).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-03"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F022",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F022",
+        "inject": "historical Objective acceptance creates historical_source_structure plan then Objective insert fails",
+        "expect": "new plan/current pointer/receipt/audit roll back; Task remains without operational plan and unassigned; proposal pending"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/historical.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_historical.py::test_lld05_f022_historical_plan_failure_before_objective_insert_rolls_back_all"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (historical Objective acceptance creates historical_source_structure plan then Objective insert fails) and verifies the required atomic/fail-closed result (new plan/current pointer/receipt/audit roll back; Task remains without operational plan and unassigned; proposal pending).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F023",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F023",
+        "inject": "historical Objective acceptance inserts Objective then membership/projection fails",
+        "expect": "Objective/MW allocation/plan if newly created/membership all roll back; no history structure partial state"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/historical.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_historical.py::test_lld05_f023_historical_membership_failure_rolls_back_objective_plan_and_allocator"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (historical Objective acceptance inserts Objective then membership/projection fails) and verifies the required atomic/fail-closed result (Objective/MW allocation/plan if newly created/membership all roll back; no history structure partial state).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F024",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F024",
+        "inject": "historical proposal source projection/source plan changes after preview",
+        "expect": "HISTORICAL_PROPOSAL_STALE; no plan/Objective created from obsolete evidence"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/historical.py",
+        "src/soma/objectives_tasks/services/wfm_import.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_historical.py::test_historical_proposal_stales_when_source_material_changes"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (historical proposal source projection/source plan changes after preview) and verifies the required atomic/fail-closed result (HISTORICAL_PROPOSAL_STALE; no plan/Objective created from obsolete evidence).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F025",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F025",
+        "inject": "different current operational plan appears after historical proposal",
+        "expect": "historical acceptance fails closed and never overwrites it; normal source-plan conflict review required"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/historical.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_historical.py::test_lld05_f025_different_operational_plan_after_proposal_stales_acceptance"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (different current operational plan appears after historical proposal) and verifies the required atomic/fail-closed result (historical acceptance fails closed and never overwrites it; normal source-plan conflict review required).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F026",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F026",
+        "inject": "SetHistoricalTaskOperationalCountInclusion after inclusion event before aggregate rebuild",
+        "expect": "inclusion event/current projection/aggregate/audit roll back together"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/historical.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_historical.py::test_lld05_f026_operational_count_failure_before_aggregate_rebuild_rolls_back"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (SetHistoricalTaskOperationalCountInclusion after inclusion event before aggregate rebuild) and verifies the required atomic/fail-closed result (inclusion event/current projection/aggregate/audit roll back together).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F027",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F027",
+        "inject": "SetObjectiveTimezone LLD-02 setting write/audit validation fails",
+        "expect": "setting transaction rolls back; no Task/Objective instant is touched in either success or failure path"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/timezone.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_timezone.py::test_lld05_f027_timezone_audit_failure_rolls_back_setting_and_preserves_task_instants"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (SetObjectiveTimezone LLD-02 setting write/audit validation fails) and verifies the required atomic/fail-closed result (setting transaction rolls back; no Task/Objective instant is touched in either success or failure path).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F028",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F028",
+        "inject": "HardDeleteTask cross-domain dependency changes CLEAR->BLOCKED after preview",
+        "expect": "current-UoW guard blocks deletion before destructive write; Task and dependencies remain"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/hard_delete.py",
+        "src/soma/objectives_tasks/queries/hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_hard_delete.py::test_inventory_dependency_is_fail_closed_in_preview_and_writer"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (HardDeleteTask cross-domain dependency changes CLEAR->BLOCKED after preview) and verifies the required atomic/fail-closed result (current-UoW guard blocks deletion before destructive write; Task and dependencies remain).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [
+        "LLD-07"
+      ],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F029",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F029",
+        "inject": "HardDeleteTask FK/delete fails after first eligible dependent draft row removal",
+        "expect": "all deleted rows restore by rollback; audit does not claim deletion"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_hard_delete.py::test_hard_delete_failure_rolls_back_receipt_retirement_audit_and_all_deletes"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (HardDeleteTask FK/delete fails after first eligible dependent draft row removal) and verifies the required atomic/fail-closed result (all deleted rows restore by rollback; audit does not claim deletion).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F030",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F030",
+        "inject": "HardDeleteObjective after membership/current projection removal before Objective delete",
+        "expect": "entire deletion rolls back; persisted Objective remains nonempty/current"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/hard_delete.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_lld05_f030_objective_delete_failure_after_projection_removal_rolls_back_all"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (HardDeleteObjective after membership/current projection removal before Objective delete) and verifies the required atomic/fail-closed result (entire deletion rolls back; persisted Objective remains nonempty/current).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F031",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F031",
+        "inject": "Objective review fingerprint changes after preview because Task outcome corrected",
+        "expect": "OBJECTIVE_REVIEW_STALE; no review event accepted for obsolete aggregate"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_lld05_f031_objective_review_rejects_task_outcome_drift_after_preview"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (Objective review fingerprint changes after preview because Task outcome corrected) and verifies the required atomic/fail-closed result (OBJECTIVE_REVIEW_STALE; no review event accepted for obsolete aggregate).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F032",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F032",
+        "inject": "whole Objective cancellation preview had no starts, concurrent Task start commits before cancel",
+        "expect": "cancel UoW recheck sees accepted start and returns OBJECTIVE_CANCEL_AFTER_EXECUTION; start survives and no cancel rows commit"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/objectives.py",
+        "src/soma/objectives_tasks/services/task_execution.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_objectives.py::test_lld05_f032_preview_then_concurrent_start_returns_cancel_after_execution"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (whole Objective cancellation preview had no starts, concurrent Task start commits before cancel) and verifies the required atomic/fail-closed result (cancel UoW recheck sees accepted start and returns OBJECTIVE_CANCEL_AFTER_EXECUTION; start survives and no cancel rows commit).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F033",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F033",
+        "inject": "ReviewWfmActivityRelationship material multi-Task review fails after the first lineage/event/current/Task/audit write but before all affected Tasks and immutable replay result are complete",
+        "expect": "one outer UnitOfWork rolls back every new lineage, lineage event/current projection, affected tasks.revision increment, audit event, command receipt and replay-result snapshot; all prior lineage/current state, retry edges, Task/TK identities and downstream conflict classification remain exactly unchanged"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_activity_review.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_wfm_activity_review.py::test_multi_task_audit_failure_rolls_back_receipt_domain_and_first_audit"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (ReviewWfmActivityRelationship material multi-Task review fails after the first lineage/event/current/Task/audit write but before all affected Tasks and immutable replay result are complete) and verifies the required atomic/fail-closed result (one outer UnitOfWork rolls back every new lineage, lineage event/current projection, affected tasks.revision increment, audit event, command receipt and replay-result snapshot; all prior lineage/current state, retry edges, Task/TK identities and downstream conflict classification remain exactly unchanged).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F034",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F034",
+        "inject": "large grouping durable job crashes after one or more proposal-scoped writer commits and before technical job completion",
+        "expect": "already committed regroup proposals remain non-authoritative proposal history and no Task/Objective accepted topology is mutated; restart discards in-memory candidate material, recomputes from one fresh stable accepted-state Snapshot, ordinary exact-pending/rejected suppression prevents duplicate equivalent proposal rows, and any post-snapshot drift remains stale-bound at review/acceptance"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/jobs/grouping_recompute.py",
+        "src/soma/objectives_tasks/services/grouping.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_grouping_durable.py::test_lld05_f034_crash_after_committed_proposal_restarts_without_duplicate_authority"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (large grouping durable job crashes after one or more proposal-scoped writer commits and before technical job completion) and verifies the required atomic/fail-closed result (already committed regroup proposals remain non-authoritative proposal history and no Task/Objective accepted topology is mutated; restart discards in-memory candidate material, recomputes from one fresh stable accepted-state Snapshot, ordinary exact-pending/rejected suppression prevents duplicate equivalent proposal rows, and any post-snapshot drift remains stale-bound at review/acceptance).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F035",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F035",
+        "inject": "invalid DST nonexistent/ambiguous local schedule reaches command",
+        "expect": "validation rejects before BEGIN IMMEDIATE; no Task plan/receipt/domain mutation"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/timezone.py",
+        "src/soma/objectives_tasks/services/task_planning.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_timezone.py::test_lld05_f035_invalid_dst_input_rejects_before_writer_uow"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (invalid DST nonexistent/ambiguous local schedule reaches command) and verifies the required atomic/fail-closed result (validation rejects before BEGIN IMMEDIATE; no Task plan/receipt/domain mutation).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F036",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection.json",
+      "normative_claim": {
+        "id": "LLD05-F036",
+        "inject": "projection rebuild/startup validation detects current accepted strict-overlap drift",
+        "expect": "writes fail closed into diagnostics/recovery; runtime never silently repairs, deletes or regroups operational history"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/startup_integrity.py",
+        "src/soma/composition.py"
+      ],
+      "executable_tests": [
+        "tests/test_application_composition.py::test_lld05_f036_startup_reconciler_rejects_preexisting_strict_overlap_drift"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (projection rebuild/startup validation detects current accepted strict-overlap drift) and verifies the required atomic/fail-closed result (writes fail closed into diagnostics/recovery; runtime never silently repairs, deletes or regroups operational history).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F037",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection-execution-review.json",
+      "normative_claim": {
+        "id": "LLD05-F037",
+        "inject": "TaskExecutionCorrectionPreview succeeds, then Task execution revision/target-effective state or current outcome authority changes before CorrectTaskExecutionEvidence",
+        "expect": "writer recomputation rejects TASK_REVIEW_STALE before receipt/evidence append; no stale reviewed correction is accepted"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/queries/execution_review.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_execution_correction.py::test_execution_correction_rejects_preview_drift_before_receipt"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (TaskExecutionCorrectionPreview succeeds, then Task execution revision/target-effective state or current outcome authority changes before CorrectTaskExecutionEvidence) and verifies the required atomic/fail-closed result (writer recomputation rejects TASK_REVIEW_STALE before receipt/evidence append; no stale reviewed correction is accepted).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F038",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection-execution-review.json",
+      "normative_claim": {
+        "id": "LLD05-F038",
+        "inject": "execution correction would invalidate the current reviewed Task outcome but accept_outcome_invalidation is false",
+        "expect": "TASK_OUTCOME_INVALID_FOR_EXECUTION before receipt; execution history/projection, outcome event/current pointer, Task revision and Objective aggregate remain unchanged"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/queries/execution_review.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_execution_correction.py::test_execution_correction_invalidated_outcome_requires_ack_and_remains_historical"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (execution correction would invalidate the current reviewed Task outcome but accept_outcome_invalidation is false) and verifies the required atomic/fail-closed result (TASK_OUTCOME_INVALID_FOR_EXECUTION before receipt; execution history/projection, outcome event/current pointer, Task revision and Objective aggregate remain unchanged).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F039",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection-execution-review.json",
+      "normative_claim": {
+        "id": "LLD05-F039",
+        "inject": "TaskOutcomeReviewPreview succeeds, then execution evidence changes before ReviewTaskOutcome",
+        "expect": "TASK_REVIEW_STALE; no outcome event/current projection/Task revision/audit mutation occurs"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_review.py",
+        "src/soma/objectives_tasks/queries/execution_review.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_review.py::test_review_task_outcome_rejects_execution_drift_as_review_stale"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (TaskOutcomeReviewPreview succeeds, then execution evidence changes before ReviewTaskOutcome) and verifies the required atomic/fail-closed result (TASK_REVIEW_STALE; no outcome event/current projection/Task revision/audit mutation occurs).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F040",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection-execution-review.json",
+      "normative_claim": {
+        "id": "LLD05-F040",
+        "inject": "TaskOutcomeCorrectionPreview succeeds, then another accepted outcome correction advances the current outcome tip before CorrectTaskOutcome",
+        "expect": "TASK_REVIEW_STALE; command cannot branch correction history from the stale prior event"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_review.py",
+        "src/soma/objectives_tasks/queries/execution_review.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_review.py::test_correct_task_outcome_appends_linear_tip_and_rejects_stale_preview"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (TaskOutcomeCorrectionPreview succeeds, then another accepted outcome correction advances the current outcome tip before CorrectTaskOutcome) and verifies the required atomic/fail-closed result (TASK_REVIEW_STALE; command cannot branch correction history from the stale prior event).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F041",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection-execution-review.json",
+      "normative_claim": {
+        "id": "LLD05-F041",
+        "inject": "CancelTaskWithoutExecution caller observed not_started, but a Task start commits before cancellation writer revalidation",
+        "expect": "current-UoW guard returns TASK_CANCEL_AFTER_START; accepted start survives and no manual_cancel/outcome row commits"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_cancellation.py::test_cancel_after_concurrent_start_returns_domain_specific_conflict"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CancelTaskWithoutExecution caller observed not_started, but a Task start commits before cancellation writer revalidation) and verifies the required atomic/fail-closed result (current-UoW guard returns TASK_CANCEL_AFTER_START; accepted start survives and no manual_cancel/outcome row commits).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F042",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection-execution-review.json",
+      "normative_claim": {
+        "id": "LLD05-F042",
+        "inject": "CorrectTaskOutcome after outcome event/current pointer and affected Objective aggregate rebuild but before audit/replay-result completion",
+        "expect": "one outer UoW rolls back correction event/current revision, Task revision, aggregate rebuild, receipt/audit/replay result; prior outcome remains exact current tip"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_review.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_task_review.py::test_lld05_f042_outcome_correction_audit_failure_rolls_back_tip_task_and_objective"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CorrectTaskOutcome after outcome event/current pointer and affected Objective aggregate rebuild but before audit/replay-result completion) and verifies the required atomic/fail-closed result (one outer UoW rolls back correction event/current revision, Task revision, aggregate rebuild, receipt/audit/replay result; prior outcome remains exact current tip).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    },
+    {
+      "id": "LLD05-F043",
+      "category": "failure_injection",
+      "normative_source": "spec/lld/objectives-tasks/tests/failure-injection-execution-review.json",
+      "normative_claim": {
+        "id": "LLD05-F043",
+        "inject": "CorrectTaskExecutionEvidence after correction event/projection and affected Objective aggregate rebuild but before audit/replay-result completion",
+        "expect": "one outer UoW rolls back correction event, execution/Task revisions, aggregate rebuild, receipt/audit/replay result; prior execution interpretation and outcome currentness remain exact"
+      },
+      "production_owners": [
+        "src/soma/objectives_tasks/services/task_execution.py",
+        "src/soma/objectives_tasks/repositories/objectives.py"
+      ],
+      "executable_tests": [
+        "tests/test_objectives_tasks_execution_correction.py::test_execution_correction_rolls_back_all_state_when_audit_fails"
+      ],
+      "observed_assertions": "Semantic inspection exercises the injected cut (CorrectTaskExecutionEvidence after correction event/projection and affected Objective aggregate rebuild but before audit/replay-result completion) and verifies the required atomic/fail-closed result (one outer UoW rolls back correction event, execution/Task revisions, aggregate rebuild, receipt/audit/replay result; prior execution interpretation and outcome currentness remain exact).",
+      "unproven_subclauses": [],
+      "cross_packet_responsibility": [],
+      "status": "reviewed_pending_exact_head_ci",
+      "certification_status": "semantic_binding_complete_pending_exact_head_ci"
+    }
+  ]
+}
