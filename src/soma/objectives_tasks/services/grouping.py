@@ -97,8 +97,10 @@ class GroupingService:
             "AND p.task_id=lc.task_id "
             "LEFT JOIN task_execution_projection x ON x.task_id=lc.task_id "
             "LEFT JOIN task_outcome_current oc ON oc.task_id=lc.task_id "
+            "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=lc.task_id "
             "WHERE oc.accepted_outcome IS NULL "
             "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
+            "AND COALESCE(sp.provider_lifecycle_class,'unknown') NOT IN ('complete','plan_cancel') "
             "ORDER BY lc.activity_lineage_id,p.start_utc,p.end_utc,lc.task_id"
         ).fetchall()
         return strict_overlap_member_ids(
@@ -130,10 +132,12 @@ class GroupingService:
             "LEFT JOIN task_lock_projection l ON l.task_id=t.task_id "
             "LEFT JOIN task_execution_projection x ON x.task_id=t.task_id "
             "LEFT JOIN task_outcome_current oc ON oc.task_id=t.task_id "
+            "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=t.task_id "
             "LEFT JOIN objectives o ON o.objective_id=m.objective_id "
             "LEFT JOIN objective_aggregate_projection a ON a.objective_id=m.objective_id "
             "WHERE oc.accepted_outcome IS NULL "
             "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
+            "AND COALESCE(sp.provider_lifecycle_class,'unknown') NOT IN ('complete','plan_cancel') "
             "AND COALESCE(l.explicit_membership_lock,0)=0 "
             "AND (m.objective_id IS NULL OR ("
             "o.superseded_by_objective_id IS NULL "
@@ -188,13 +192,14 @@ class GroupingService:
             "SELECT t.task_id,t.revision,pc.plan_revision_id,pc.revision,p.start_utc,p.end_utc,"
             "m.objective_id,m.accepted_plan_revision_id,m.membership_revision,"
             "COALESCE(l.explicit_membership_lock,0),COALESCE(x.execution_state,'not_started'),"
-            "oc.accepted_outcome "
+            "oc.accepted_outcome,sp.provider_lifecycle_class "
             "FROM tasks t JOIN task_plan_current pc ON pc.task_id=t.task_id "
             "JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
             "LEFT JOIN objective_task_membership_current m ON m.task_id=t.task_id "
             "LEFT JOIN task_lock_projection l ON l.task_id=t.task_id "
             "LEFT JOIN task_execution_projection x ON x.task_id=t.task_id "
             "LEFT JOIN task_outcome_current oc ON oc.task_id=t.task_id "
+            "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=t.task_id "
             "ORDER BY p.start_utc,p.end_utc,t.task_id"
         ).fetchall()
         task_items: list[GroupingTaskAuthority] = []
@@ -203,6 +208,7 @@ class GroupingService:
             if (
                 row[11] is not None
                 or execution_state in {"ended", "terminated"}
+                or row[12] in {"complete", "plan_cancel"}
                 or str(row[0]) in competing_task_ids
             ):
                 continue
