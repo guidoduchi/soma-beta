@@ -89,37 +89,42 @@
     },
     {
       "sequence": 15,
-      "packet_id": "LLD-09",
-      "migration_id": "beta_0015_communications",
-      "filename": "0015_communications.sql"
+      "packet_id": "LLD-08",
+      "migration_id": "beta_0015_infrastructure_workbook_candidates",
+      "filename": "0015_infrastructure_workbook_candidates.sql"
     },
     {
       "sequence": 16,
-      "packet_id": "LLD-10",
-      "migration_id": "beta_0016_ui_workbenches",
-      "filename": "0016_ui_workbenches.sql"
+      "packet_id": "LLD-09",
+      "migration_id": "beta_0016_communications",
+      "filename": "0016_communications.sql"
     },
     {
       "sequence": 17,
-      "packet_id": "LLD-11",
-      "migration_id": "beta_0017_overview",
-      "filename": "0017_overview.sql"
+      "packet_id": "LLD-10",
+      "migration_id": "beta_0017_ui_workbenches",
+      "filename": "0017_ui_workbenches.sql"
     },
     {
       "sequence": 18,
+      "packet_id": "LLD-11",
+      "migration_id": "beta_0018_overview",
+      "filename": "0018_overview.sql"
+    },
+    {
+      "sequence": 19,
       "packet_id": "LLD-12",
-      "migration_id": "beta_0018_security_packaging",
-      "filename": "0018_security_packaging.sql"
+      "migration_id": "beta_0019_security_packaging",
+      "filename": "0019_security_packaging.sql"
     }
   ],
   "rules": [
     "accepted runtime migrations are immutable: once present in the accepted runtime migration manifest, sequence, migration ID, filename, normalized SQL bytes and SHA-256 may never change",
     "future design allocations are provisional and may be renumbered until accepted into the runtime migration manifest",
     "runtime acceptance still requires a contiguous sequence, exact filename and file set, exact manifest hash, strict UTF-8/NFC/newline normalization and fail-closed validation",
-    "accepted runtime sequences 1 through 11 are historical facts and remain unchanged; sequence 11 is the forward-only LLD-07 Inventory untouched-draft deletion repair beta_0011_inventory_draft_delete",
-    "sequence 12 is the accepted LLD-07 performance-only stock-query index repair beta_0012_inventory_query_indexes",
-    "sequence 13 is allocated to the LLD-01 release-schema FK index coverage repair beta_0013_fk_index_coverage and becomes immutable only after reviewed runtime acceptance",
-    "future LLD-08 through LLD-12 design allocations 14 through 18 remain provisional until individually accepted into the runtime manifest",
-    "future forward migration allocation begins at sequence 19 and requires explicit design update"
+    "accepted runtime sequences 1 through 14 are historical facts and remain unchanged; sequence 14 is beta_0014_infrastructure",
+    "sequence 15 is allocated to the LLD-08 forward-only bounded workbook proposal candidate-ID repair beta_0015_infrastructure_workbook_candidates and becomes immutable only after reviewed runtime acceptance",
+    "future LLD-09 through LLD-12 design allocations 16 through 19 remain provisional until individually accepted into the runtime manifest",
+    "future forward migration allocation begins at sequence 20 and requires explicit design update"
   ]
 }
