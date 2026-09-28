@@ -1664,12 +1664,22 @@ def test_t003_tracking_allocator_exhaustion_is_atomic_and_nonreusing(
     initialized_database,
 ) -> None:
     factory = _factory(initialized_database)
+    # Fast-forward only the test fixture to the last allocatable value.
+    # Restore the exact production guard before exercising allocator behavior.
     with UnitOfWork(factory) as uow:
+        trigger_row = uow.connection.execute(
+            "SELECT sql FROM sqlite_master "
+            "WHERE type='trigger' AND name='objective_allocator_update_guard'"
+        ).fetchone()
+        assert trigger_row is not None and trigger_row[0] is not None
+        trigger_sql = str(trigger_row[0])
+        uow.connection.execute("DROP TRIGGER objective_allocator_update_guard")
         uow.connection.execute(
             "UPDATE objective_tracking_allocator "
             "SET next_sequence=99999999,last_command_id=NULL "
             "WHERE singleton_id=1"
         )
+        uow.connection.execute(trigger_sql)
 
     first_task = TaskPlanningService(factory).create_local_task(
         command_id=new_uuid4(),
