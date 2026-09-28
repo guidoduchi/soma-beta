@@ -1641,3 +1641,87 @@ def test_lld05_f032_preview_then_concurrent_start_returns_cancel_after_execution
             (cancel_command,),
         ).fetchone() is None
 
+def test_t003_tracking_allocator_exhaustion_is_atomic_and_nonreusing(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "UPDATE objective_tracking_allocator "
+            "SET next_sequence=99999999,last_command_id=NULL "
+            "WHERE singleton_id=1"
+        )
+
+    first_task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Last allocatable Objective",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_891_000_000,
+            end_utc=2_891_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    first_intent = _existing_intent(factory, first_task.task_id)
+    first_preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(first_intent,),
+    )
+    assert first_preview["mode"] == "CREATE"
+    first = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(first_preview["fingerprint"]),
+        existing_tasks=(first_intent,),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT tracking_sequence,tracking_id FROM objectives WHERE objective_id=?",
+            (first.objective_id,),
+        ).fetchone()
+        assert tuple(row) == (99_999_999, "MW-99999999")
+        allocator = snapshot.connection.execute(
+            "SELECT next_sequence FROM objective_tracking_allocator WHERE singleton_id=1"
+        ).fetchone()
+        assert allocator == (100_000_000,)
+
+    second_task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Exhausted Objective attempt",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_892_000_000,
+            end_utc=2_892_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    second_intent = _existing_intent(factory, second_task.task_id)
+    second_preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(second_intent,),
+    )
+    assert second_preview["mode"] == "CREATE"
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as caught:
+        ObjectiveService(factory).create_objective_from_preview(
+            command_id=command_id,
+            preview_fingerprint=str(second_preview["fingerprint"]),
+            existing_tasks=(second_intent,),
+        )
+    assert caught.value.code == "OBJECTIVE_TRACKING_ID_EXHAUSTED"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT next_sequence FROM objective_tracking_allocator WHERE singleton_id=1"
+        ).fetchone() == (100_000_000,)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objectives"
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
+            (second_task.task_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+
