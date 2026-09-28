@@ -244,6 +244,77 @@ def test_t008_manual_exact_touch_merge_uses_reviewed_scope_and_preserves_identit
         assert tuple(envelope) == (start, start + 200, 2)
 
 
+def test_t008_manual_exact_touch_merge_stales_when_selected_member_locks(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    start = 2_450_100_000
+    left = _task(factory, "Manual merge stale left", start, start + 100)
+    right = _task(factory, "Manual merge stale right", start + 100, start + 200)
+    left_objective = _objective(factory, left.task_id)
+    right_objective = _objective(factory, right.task_id)
+    service = GroupingService(factory)
+
+    scoped = service.recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+        trigger_scope={
+            "kind": "manual_exact_touch_merge",
+            "objective_ids": [left_objective, right_objective],
+        },
+    )
+    item = scoped["proposals"]["items"][0]
+    proposal_id = str(item["proposal_id"])
+    fingerprint = str(item["input_fingerprint"])
+
+    with ReadSnapshot(factory) as snapshot:
+        task_revision = int(
+            snapshot.connection.execute(
+                "SELECT revision FROM tasks WHERE task_id=?",
+                (right.task_id,),
+            ).fetchone()[0]
+        )
+    locked = TaskExplicitLockService(factory).set_explicit_task_lock(
+        command_id=new_uuid4(),
+        task_id=right.task_id,
+        task_revision=task_revision,
+        lock_projection_revision=0,
+        lock_kind="membership",
+        action="lock",
+        reason_category="manual_merge_stale",
+    )
+    assert locked.outcome == "APPLIED"
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as caught:
+        service.accept_regroup_proposal(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            input_fingerprint=fingerprint,
+        )
+    assert caught.value.code == "GROUPING_PROPOSAL_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state,revision FROM regroup_proposals WHERE regroup_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("pending", 1)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        memberships = snapshot.connection.execute(
+            "SELECT task_id,objective_id FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?) ORDER BY task_id",
+            (left.task_id, right.task_id),
+        ).fetchall()
+        assert {str(row[1]) for row in memberships} == {
+            left_objective,
+            right_objective,
+        }
+
+
 def test_t008_manual_exact_touch_merge_fails_closed_on_third_overlap_drift(
     initialized_database,
 ) -> None:
