@@ -759,7 +759,10 @@ def prepare_workbook_acceptance(service, reader, payload: dict, command_id: str)
         )
         ref = {"kind": "ip", "id": ip_id}
         plan.result_refs.append(ref)
-        per_proposal_refs[row["proposal_id"]] = [ref]
+        per_proposal_refs[row["proposal_id"]] = [
+            {"kind": "network_element", "id": target_id},
+            ref,
+        ]
 
     decisions: list[WorkbookRowDecision] = []
     created = updated = unchanged = 0
