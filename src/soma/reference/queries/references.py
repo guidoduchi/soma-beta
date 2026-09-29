@@ -256,6 +256,31 @@ class ReferenceQueries:
             {"display_name": str(row[1])},
         )
 
+    def get_reference_by_id_in_reader(
+        self,
+        reader: Any,
+        *,
+        reference_type: ReferenceType,
+        reference_id: str,
+        channel_limit: int = _DEFAULT_LIMIT,
+    ) -> ReferenceDetail:
+        """Resolve one Reference through a caller-owned snapshot or UnitOfWork."""
+
+        channel_limit = self._limit(channel_limit)
+        if reference_type == "customer_organization":
+            return self._customer_detail(reader.connection, reference_id)
+        if reference_type == "contact":
+            return self._contact_detail(
+                reader.connection,
+                reference_id,
+                channel_limit=channel_limit,
+            )
+        if reference_type == "dispatch_location":
+            return self._dispatch_detail(reader, reference_id)
+        if reference_type == "local_user_profile":
+            return self._profile_detail(reader.connection, reference_id)
+        raise ValidationError("Reference type is invalid")
+
     def get_reference_by_id(
         self,
         *,
@@ -263,21 +288,13 @@ class ReferenceQueries:
         reference_id: str,
         channel_limit: int = _DEFAULT_LIMIT,
     ) -> ReferenceDetail:
-        channel_limit = self._limit(channel_limit)
         with ReadSnapshot(self._factory) as snapshot:
-            if reference_type == "customer_organization":
-                return self._customer_detail(snapshot.connection, reference_id)
-            if reference_type == "contact":
-                return self._contact_detail(
-                    snapshot.connection,
-                    reference_id,
-                    channel_limit=channel_limit,
-                )
-            if reference_type == "dispatch_location":
-                return self._dispatch_detail(snapshot, reference_id)
-            if reference_type == "local_user_profile":
-                return self._profile_detail(snapshot.connection, reference_id)
-            raise ValidationError("Reference type is invalid")
+            return self.get_reference_by_id_in_reader(
+                snapshot,
+                reference_type=reference_type,
+                reference_id=reference_id,
+                channel_limit=channel_limit,
+            )
 
     def list_active_references(
         self,
