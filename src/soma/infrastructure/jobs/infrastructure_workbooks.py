@@ -16,7 +16,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.cell import WriteOnlyCell
 
 from soma.foundation.contracts.foundation import DurableJobClaim
-from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, JobClaimConflict, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, require_uuid4
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
@@ -590,11 +590,18 @@ def _scoped_export_counts(snapshot: ReadSnapshot, scope: dict) -> tuple[int, int
 class InfrastructureWorkbookExportWorker:
     """Crash-recoverable Infrastructure workbook export and evidence publisher."""
 
-    def __init__(self, connection_factory: ConnectionFactory) -> None:
+    def __init__(
+        self,
+        connection_factory: ConnectionFactory,
+        *,
+        clock=None,
+    ) -> None:
         self._factory = connection_factory
+        coordinator_kwargs = {} if clock is None else {"clock": clock}
         self._jobs = DurableJobCoordinator(
             connection_factory,
             JobTypeRegistry(INFRASTRUCTURE_JOB_CONTRACTS),
+            **coordinator_kwargs,
         )
 
     @staticmethod
@@ -1005,7 +1012,11 @@ class InfrastructureWorkbookExportWorker:
                 export_id=str(checkpoint["export_id"]),
                 temp_filename=expected_temp,
             )
-            self._jobs.checkpoint(claim, checkpoint)
+            try:
+                self._jobs.checkpoint(claim, checkpoint)
+            except JobClaimConflict:
+                self._unlink_owned(temp)
+                raise
             phase = "verifying"
 
         if phase == "verifying":
@@ -1035,7 +1046,11 @@ class InfrastructureWorkbookExportWorker:
                 verified_size_bytes=size,
                 final_filename=expected_final,
             )
-            self._jobs.checkpoint(claim, checkpoint)
+            try:
+                self._jobs.checkpoint(claim, checkpoint)
+            except JobClaimConflict:
+                self._unlink_owned(temp)
+                raise
             phase = "verified"
 
         if phase == "verified":
