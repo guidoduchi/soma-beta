@@ -328,3 +328,88 @@ def test_foreign_installation_ids_never_direct_target_current_network_element(
         assert row[1] is None
         assert ne_id in row[2]
         assert row[3] == "foreign_installation"
+
+
+
+def test_new_network_element_ip_row_binds_to_pending_workbook_create(
+    initialized_database,
+    tmp_path,
+) -> None:
+    factory, settings, service, data_instance_id = _assembled(
+        initialized_database,
+        tmp_path,
+    )
+    customer_id = CustomerReferenceService(factory).create_customer_organization(
+        command_id=new_uuid4(),
+        name="Create-row customer",
+    ).customer_org_id
+    site_id = service.execute(
+        "CreateSite",
+        command_id=new_uuid4(),
+        payload={
+            "customer_org_id": customer_id,
+            "name": "Create Row Site",
+            "address_text": "3 Stage Street",
+        },
+    ).response["target"]["id"]
+
+    source = tmp_path / "new-element.xlsx"
+    _write(
+        source,
+        data_instance_id=data_instance_id,
+        mode="round_trip",
+        network_elements=(
+            (
+                None,
+                "NE-NEW-01",
+                "NEW-SERIAL",
+                None,
+                None,
+                site_id,
+                "Create Row Site",
+                "3 Stage Street",
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+        ),
+        ip_addresses=(
+            (None, None, "NE-NEW-01", "203.0.113.20", True),
+        ),
+    )
+
+    base = utc_epoch_seconds()
+    _accepted, claim = _stage_claim(service, now=base)
+    InfrastructureWorkbookStageWorker(
+        factory,
+        setting_service=settings,
+        clock=_Clock(base + 1),
+    ).run(claim)
+
+    with ReadSnapshot(factory) as snapshot:
+        proposals = snapshot.connection.execute(
+            "SELECT s.sheet_kind,p.action,p.target_network_element_id,"
+            "s.warning_codes_json,p.impact_json "
+            "FROM infrastructure_workbook_proposals p "
+            "JOIN infrastructure_workbook_staging_rows s USING(staging_row_id) "
+            "ORDER BY s.sheet_kind"
+        ).fetchall()
+        assert proposals[0][0:3] == ("ip_addresses", "update_ip_set", None)
+        assert "WORKBOOK_PENDING_CREATE_TARGET" in proposals[0][3]
+        assert "ip_set_after_network_element_create" in proposals[0][4]
+        assert proposals[1][0:3] == (
+            "network_elements",
+            "create_network_element",
+            None,
+        )
