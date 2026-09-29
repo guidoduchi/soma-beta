@@ -82,11 +82,12 @@ def test_installed_owner_binding_uses_authenticated_actor_and_fails_closed_for_m
     class Service:
         def execute(self, command, **kwargs):
             calls.append((command, kwargs))
-            response_schema = (
-                "INFRA_JOB_ACCEPTED_V1"
-                if command in {"GenerateInfrastructureWorkbook", "StageInfrastructureWorkbookCheck"}
-                else "INFRA_MUTATION_RESULT_V1"
-            )
+            response_schema = {
+                "GenerateInfrastructureWorkbook": "INFRA_JOB_ACCEPTED_V1",
+                "StageInfrastructureWorkbookCheck": "INFRA_JOB_ACCEPTED_V1",
+                "AcceptInfrastructureWorkbookRun": "INFRA_WORKBOOK_ACCEPT_RESULT_V1",
+                "RejectInfrastructureWorkbookRun": "INFRA_WORKBOOK_RUN_RESULT_V1",
+            }.get(command, "INFRA_MUTATION_RESULT_V1")
             return SimpleNamespace(response_schema=response_schema, response={"ok": True})
 
     from soma.infrastructure.queries.core import InfrastructureQueries
@@ -115,12 +116,17 @@ def test_installed_owner_binding_uses_authenticated_actor_and_fails_closed_for_m
         "scope": {"scope_kind": "all"}, "destination_directory": r"D:\Exports",
     })
     assert export.body == {"ok": True}
-    with pytest.raises(IntegrityFailure):
-        adapter.dispatch("POST", f"/api/v1/infrastructure/workbooks/runs/{new_uuid4()}/accept", {
+    accepted = adapter.dispatch(
+        "POST",
+        f"/api/v1/infrastructure/workbooks/runs/{new_uuid4()}/accept",
+        {
             "command_id": new_uuid4(),
             "run_revision": 1,
             "run_input_fingerprint": "a" * 64,
             "dispositions": [],
-        })
+        },
+    )
+    assert accepted.body == {"ok": True}
+    assert calls[-1][0] == "AcceptInfrastructureWorkbookRun"
     with pytest.raises(ValidationError):
         build_owner_route_adapter(Service(), actor_kind="", actor_id=None)
