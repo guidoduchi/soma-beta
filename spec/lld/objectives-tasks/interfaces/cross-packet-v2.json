@@ -109,7 +109,7 @@
       "methods": [
         "resolution_for(snapshot_or_uow,device_reference_id) -> NetworkElementResolution|None"
       ],
-      "transaction": "read-only; accepts the caller stable Snapshot or current UnitOfWork and never mutates or commits",
+      "transaction": "read-only; accepts stable Snapshot or current UnitOfWork and never mutates or commits",
       "rule": "TaskSiteDependencyValidator resolves only current active task_device_links through this provider. LLD-05 never reads LLD-08 resolution, Network Element or Site tables directly; missing/indeterminate resolution fails closed for authoritative Site archive validation."
     }
   ],
