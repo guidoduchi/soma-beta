@@ -510,6 +510,7 @@ def prepare_workbook_acceptance(service, reader, payload: dict, command_id: str)
             )
 
     accepted_ip_targets: set[tuple[str, str]] = set()
+    accepted_ip_identities: set[str] = set()
     planned_existing_ip_additions: dict[str, int] = {}
     pending_ip_rows: list[tuple[dict, dict, str, MutationPlan]] = []
 
@@ -593,6 +594,14 @@ def prepare_workbook_acceptance(service, reader, payload: dict, command_id: str)
             continue
 
         # IP row.
+        explicit_ip_id = fields.get("SomaIpId")
+        if explicit_ip_id is not None:
+            if explicit_ip_id in accepted_ip_identities:
+                raise SomaError(
+                    "WORKBOOK_RELATION_INVALID",
+                    "Workbook acceptance selects the same IP identity more than once",
+                )
+            accepted_ip_identities.add(explicit_ip_id)
         if action == "unchanged":
             ip = _existing_ip(reader, row["target_network_element_id"], fields)
             refs = []
