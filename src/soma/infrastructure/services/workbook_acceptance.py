@@ -22,9 +22,15 @@ class PrimaryIpIntent:
     requested_primary: bool | None
 
 
-def validate_rack_placement_batch(reader, intents: tuple[RackPlacementIntent, ...]) -> None:
+def validate_rack_placement_batch(
+    reader,
+    intents: tuple[RackPlacementIntent, ...],
+    *,
+    provisional_sites: dict[str, str] | None = None,
+) -> None:
     if not intents:
         return
+    provisional_sites = dict(provisional_sites or {})
     by_element: dict[str, RackPlacementIntent] = {}
     for intent in intents:
         if intent.network_element_id in by_element:
@@ -37,14 +43,24 @@ def validate_rack_placement_batch(reader, intents: tuple[RackPlacementIntent, ..
         by_element[intent.network_element_id] = intent
 
     element_ids = tuple(sorted(by_element))
-    placeholders = ",".join("?" for _ in element_ids)
-    element_rows = reader.connection.execute(
-        f"SELECT network_element_id,site_id,lifecycle_state FROM network_elements "
-        f"WHERE network_element_id IN ({placeholders})",
-        element_ids,
-    ).fetchall()
-    elements = {str(row[0]): (str(row[1]), str(row[2])) for row in element_rows}
-    if set(elements) != set(element_ids) or any(state != "active" for _site, state in elements.values()):
+    persisted_ids = tuple(identity for identity in element_ids if identity not in provisional_sites)
+    elements: dict[str, tuple[str, str]] = {
+        identity: (site_id, "active") for identity, site_id in provisional_sites.items()
+        if identity in by_element
+    }
+    if persisted_ids:
+        placeholders = ",".join("?" for _ in persisted_ids)
+        element_rows = reader.connection.execute(
+            f"SELECT network_element_id,site_id,lifecycle_state FROM network_elements "
+            f"WHERE network_element_id IN ({placeholders})",
+            persisted_ids,
+        ).fetchall()
+        elements.update(
+            {str(row[0]): (str(row[1]), str(row[2])) for row in element_rows}
+        )
+    if set(elements) != set(element_ids) or any(
+        state != "active" for _site, state in elements.values()
+    ):
         raise SomaError("WORKBOOK_STALE", "Workbook placement target is missing or archived")
 
     rack_ids = tuple(sorted({intent.rack_id for intent in intents}))
@@ -73,11 +89,14 @@ def validate_rack_placement_batch(reader, intents: tuple[RackPlacementIntent, ..
         raise SomaError("WORKBOOK_RELATION_INVALID", "Workbook Rack target does not exist")
 
     affected = set(rack_ids)
-    current_rows = reader.connection.execute(
-        f"SELECT network_element_id,rack_id FROM network_element_placement_current "
-        f"WHERE network_element_id IN ({placeholders})",
-        element_ids,
-    ).fetchall()
+    current_rows = []
+    if persisted_ids:
+        persisted_placeholders = ",".join("?" for _ in persisted_ids)
+        current_rows = reader.connection.execute(
+            f"SELECT network_element_id,rack_id FROM network_element_placement_current "
+            f"WHERE network_element_id IN ({persisted_placeholders})",
+            persisted_ids,
+        ).fetchall()
     for _element_id, rack_id in current_rows:
         if rack_id is not None:
             affected.add(str(rack_id))
