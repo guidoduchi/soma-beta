@@ -919,6 +919,61 @@ class InfrastructureWorkbookExportWorker:
             self._jobs.checkpoint_in_uow(uow, claim, recorded)
             self._jobs.complete_in_uow(uow, claim)
 
+    def _regenerate_verified_temp(
+        self,
+        claim: DurableJobClaim,
+        *,
+        payload: dict,
+        checkpoint: dict,
+        generated_at_utc: int,
+        destination: Path,
+        expected_temp: str,
+        expected_final: str,
+    ) -> dict:
+        """Regenerate only an unpublished job-owned temp from a fresh snapshot."""
+        temp = destination / expected_temp
+        self._unlink_owned(temp)
+        writing = self._checkpoint_value(
+            phase="writing",
+            export_id=str(checkpoint["export_id"]),
+            temp_filename=expected_temp,
+        )
+        self._jobs.checkpoint(claim, writing)
+        self._write_temp(
+            temp,
+            payload=payload,
+            generated_at_utc=generated_at_utc,
+        )
+        verifying = self._checkpoint_value(
+            phase="verifying",
+            export_id=str(checkpoint["export_id"]),
+            temp_filename=expected_temp,
+        )
+        try:
+            self._jobs.checkpoint(claim, verifying)
+        except JobClaimConflict:
+            self._unlink_owned(temp)
+            raise
+        digest, size = self._verify_artifact(
+            temp,
+            payload=payload,
+            generated_at_utc=generated_at_utc,
+        )
+        verified = self._checkpoint_value(
+            phase="verified",
+            export_id=str(checkpoint["export_id"]),
+            temp_filename=expected_temp,
+            verified_sha256=digest,
+            verified_size_bytes=size,
+            final_filename=expected_final,
+        )
+        try:
+            self._jobs.checkpoint(claim, verified)
+        except JobClaimConflict:
+            self._unlink_owned(temp)
+            raise
+        return verified
+
     def _publish_from_verified(
         self,
         claim: DurableJobClaim,
@@ -1076,6 +1131,35 @@ class InfrastructureWorkbookExportWorker:
             phase = "verified"
 
         if phase == "verified":
+            temp = destination / expected_temp
+            final = destination / expected_final
+            if not final.exists():
+                regenerate = not temp.is_file()
+                if not regenerate:
+                    try:
+                        self._verify_artifact(
+                            temp,
+                            payload=payload,
+                            generated_at_utc=generated_at_utc,
+                            expected_sha256=str(checkpoint["verified_sha256"]),
+                            expected_size_bytes=int(checkpoint["verified_size_bytes"]),
+                        )
+                    except IntegrityFailure:
+                        regenerate = True
+                    except SomaError as exc:
+                        if exc.code == "WORKBOOK_DIRECTORY_UNAVAILABLE":
+                            raise
+                        regenerate = True
+                if regenerate:
+                    checkpoint = self._regenerate_verified_temp(
+                        claim,
+                        payload=payload,
+                        checkpoint=checkpoint,
+                        generated_at_utc=generated_at_utc,
+                        destination=destination,
+                        expected_temp=expected_temp,
+                        expected_final=expected_final,
+                    )
             try:
                 self._publish_from_verified(
                     claim,
