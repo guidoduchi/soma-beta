@@ -1,23 +1,13 @@
-"""Ticket-owned read interfaces consumed by Infrastructure."""
+"""Task-owned read interfaces consumed by Infrastructure."""
 from soma.foundation.errors import IntegrityFailure, ValidationError
 from soma.foundation.identifiers import require_uuid4
 
 
-class DeviceReferenceOperationalReader:
-    @staticmethod
-    def get(reader, device_reference_id):
-        require_uuid4(device_reference_id)
-        row = reader.connection.execute(
-            "SELECT device_reference_id,operational_name,revision FROM device_references WHERE device_reference_id=?",
-            (device_reference_id,)).fetchone()
-        return None if row is None else dict(device_reference_id=row[0], operational_name=row[1], revision=row[2])
-
-
-class TicketSiteDependencyValidator:
-    """Read-only LLD-03 Site blocker provider over current Device Reference links."""
+class TaskSiteDependencyValidator:
+    """Read-only LLD-05 Site blocker provider over current Task Device links."""
 
     _MAX_PAGE = 200
-    _KINDS = frozenset({"rfc", "sr"})
+    _KIND = "task"
 
     def __init__(self, resolution_reader):
         self._resolution_reader = resolution_reader
@@ -37,10 +27,10 @@ class TicketSiteDependencyValidator:
         if cursor is None:
             return None
         if not isinstance(cursor, str):
-            raise ValidationError("Ticket Site blocker cursor must be text")
+            raise ValidationError("Task Site blocker cursor must be text")
         parts = cursor.split(":")
-        if len(parts) != 4 or parts[2] not in cls._KINDS:
-            raise ValidationError("Ticket Site blocker cursor is invalid")
+        if len(parts) != 4 or parts[2] != cls._KIND:
+            raise ValidationError("Task Site blocker cursor is invalid")
         return (
             require_uuid4(parts[0]),
             require_uuid4(parts[1]),
@@ -105,48 +95,37 @@ class TicketSiteDependencyValidator:
                 raise IntegrityFailure("Device Reference Site-resolution continuation is not the last row")
         return pairs, next_cursor
 
-    @staticmethod
-    def _blocker_id(row):
-        network_element_id, device_reference_id, link_kind, link_id = row
-        if link_kind not in {"rfc", "sr"}:
-            raise IntegrityFailure("Ticket Site blocker kind is invalid")
+    @classmethod
+    def _blocker_id(cls, row):
+        network_element_id, device_reference_id, link_id = row
         return (
             f"{require_uuid4(network_element_id)}:"
             f"{require_uuid4(device_reference_id)}:"
-            f"{link_kind}:{require_uuid4(link_id)}"
+            f"{cls._KIND}:{require_uuid4(link_id)}"
         )
 
     @staticmethod
-    def _rows_for_pairs(reader, pairs, *, after=None, limit):
+    def _rows_for_pairs(reader, pairs, *, after_link_id=None, limit):
         if not pairs:
             return []
         values = ",".join("(?,?)" for _ in pairs)
         params = [value for pair in pairs for value in pair]
         sql = (
             f"WITH resolved(network_element_id,device_reference_id) AS (VALUES {values}) "
-            "SELECT * FROM ("
-            "SELECT r.network_element_id,r.device_reference_id,'rfc' AS link_kind,"
-            "l.rfc_device_reference_link_id AS link_id "
-            "FROM resolved r JOIN rfc_device_reference_links l "
+            "SELECT r.network_element_id,r.device_reference_id,l.link_id "
+            "FROM resolved r JOIN task_device_links l "
             "ON l.device_reference_id=r.device_reference_id "
-            "WHERE l.link_state='active' "
-            "UNION ALL "
-            "SELECT r.network_element_id,r.device_reference_id,'sr' AS link_kind,"
-            "l.sr_device_reference_link_id AS link_id "
-            "FROM resolved r JOIN sr_device_reference_links l "
-            "ON l.device_reference_id=r.device_reference_id "
-            "WHERE l.link_state='active'"
-            ") blockers "
+            "WHERE l.active=1 "
         )
-        if after is not None:
-            sql += "WHERE link_kind>? OR (link_kind=? AND link_id>?) "
-            params.extend((after[0], after[0], after[1]))
+        if after_link_id is not None:
+            sql += "AND l.link_id>? "
+            params.append(after_link_id)
         sql += (
-            "ORDER BY network_element_id,device_reference_id,link_kind,link_id LIMIT ?"
+            "ORDER BY r.network_element_id,r.device_reference_id,l.link_id LIMIT ?"
         )
         params.append(limit)
         return [
-            (str(row[0]), str(row[1]), str(row[2]), str(row[3]))
+            (str(row[0]), str(row[1]), str(row[2]))
             for row in reader.connection.execute(sql, tuple(params)).fetchall()
         ]
 
@@ -158,15 +137,12 @@ class TicketSiteDependencyValidator:
         params = tuple(value for pair in pairs for value in pair)
         row = reader.connection.execute(
             f"WITH resolved(network_element_id,device_reference_id) AS (VALUES {values}) "
-            "SELECT "
-            "(SELECT count(*) FROM resolved r JOIN rfc_device_reference_links l "
-            "ON l.device_reference_id=r.device_reference_id WHERE l.link_state='active') + "
-            "(SELECT count(*) FROM resolved r JOIN sr_device_reference_links l "
-            "ON l.device_reference_id=r.device_reference_id WHERE l.link_state='active')",
+            "SELECT count(*) FROM resolved r JOIN task_device_links l "
+            "ON l.device_reference_id=r.device_reference_id WHERE l.active=1",
             params,
         ).fetchone()
         if row is None or type(row[0]) is not int or row[0] < 0:
-            raise IntegrityFailure("Ticket Site blocker count is invalid")
+            raise IntegrityFailure("Task Site blocker count is invalid")
         return int(row[0])
 
     def _collect(self, reader, site_id, cursor, want):
@@ -177,7 +153,7 @@ class TicketSiteDependencyValidator:
         provider_cursor = None
 
         if parsed is not None:
-            network_element_id, device_reference_id, link_kind, link_id = parsed
+            network_element_id, device_reference_id, _kind, link_id = parsed
             resolution = provider.resolution_for(reader, device_reference_id)
             if self._resolution_matches(
                 resolution,
@@ -189,7 +165,7 @@ class TicketSiteDependencyValidator:
                     self._rows_for_pairs(
                         reader,
                         [(network_element_id, device_reference_id)],
-                        after=(link_kind, link_id),
+                        after_link_id=link_id,
                         limit=want,
                     )
                 )
@@ -235,7 +211,7 @@ class TicketSiteDependencyValidator:
 
     def list_blockers(self, snapshot, site_id, cursor, limit):
         if type(limit) is not int or limit < 1 or limit > self._MAX_PAGE:
-            raise ValidationError("Ticket Site blocker page limit must be in 1..200")
+            raise ValidationError("Task Site blocker page limit must be in 1..200")
         rows = self._collect(snapshot, site_id, cursor, limit + 1)
         blocker_ids = [self._blocker_id(row) for row in rows]
         visible = blocker_ids[:limit]
