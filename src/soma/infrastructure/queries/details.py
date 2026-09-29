@@ -36,6 +36,19 @@ def execute(service, reader, query, p):
         cloud = get(reader, "cloud_assignment_current", identity, optional=True)
         parent = get(reader, "network_element_containment_current", identity, optional=True)
         primary = rows(reader, "SELECT canonical_address FROM network_element_ip_current WHERE network_element_id=? AND active=1 AND is_primary=1", (identity,))
+        duplicate_ip = reader.connection.execute(
+            """
+            SELECT 1
+            FROM network_element_ip_current own
+            JOIN network_element_ip_current other
+              ON other.canonical_address=own.canonical_address
+             AND other.active=1
+             AND other.network_element_id<>own.network_element_id
+            WHERE own.network_element_id=? AND own.active=1
+            LIMIT 1
+            """,
+            (identity,),
+        ).fetchone() is not None
         return dict(network_element_id=identity, revision=element["revision"], lifecycle=element["lifecycle_state"],
             operational_name=element["operational_name"], site=ref("site", element["site_id"]), customer_org_id=site["customer_org_id"],
             placement=dict(rack_id=placement["rack_id"], u_start=placement["u_start"], u_span=placement["u_span"],
@@ -48,7 +61,7 @@ def execute(service, reader, query, p):
             containment_child_count=count(reader, "SELECT count(*) FROM network_element_containment_current WHERE parent_network_element_id=?", (identity,)),
             device_reference_count=count(reader, "SELECT count(*) FROM device_reference_resolution_current WHERE network_element_id=?", (identity,)),
             installed_component_count=count(reader, "SELECT count(*) FROM installed_components WHERE network_element_id=?", (identity,)),
-            warning_codes=[])
+            warning_codes=["IP_DUPLICATE_ACROSS_NETWORK_ELEMENTS"] if duplicate_ip else [])
     if query == "RackOccupancyQuery":
         rack = get(reader, "racks", p["rack_id"])
         occupants = rows(reader, "SELECT p.network_element_id,n.operational_name,p.u_start,p.u_span FROM network_element_placement_current p JOIN network_elements n USING(network_element_id) WHERE rack_id=? ORDER BY u_start,network_element_id LIMIT 4097", (p["rack_id"],))
