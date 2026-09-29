@@ -105,10 +105,17 @@ def test_installed_owner_binding_uses_authenticated_actor_and_fails_closed_for_m
     site_id = new_uuid4()
     detail = adapter.dispatch("GET", f"/api/v1/infrastructure/sites/{site_id}")
     assert detail.body["site_id"] == site_id
+    export = adapter.dispatch("POST", "/api/v1/infrastructure/workbooks/export", {
+        "command_id": new_uuid4(), "mode": "registration_template",
+        "scope": {"scope_kind": "all"}, "destination_directory": r"D:\Exports",
+    })
+    assert export.body == {"ok": True}
     with pytest.raises(IntegrityFailure):
-        adapter.dispatch("POST", "/api/v1/infrastructure/workbooks/export", {
-            "command_id": new_uuid4(), "mode": "registration_template",
-            "scope": {"scope_kind": "all"}, "destination_directory": r"D:\Exports",
+        adapter.dispatch("POST", f"/api/v1/infrastructure/workbooks/runs/{new_uuid4()}/accept", {
+            "command_id": new_uuid4(),
+            "run_revision": 1,
+            "run_input_fingerprint": "a" * 64,
+            "dispositions": [],
         })
     with pytest.raises(ValidationError):
         build_owner_route_adapter(Service(), actor_kind="", actor_id=None)
