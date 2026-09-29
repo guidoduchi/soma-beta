@@ -1,4 +1,5 @@
 from soma.infrastructure.repositories.core import count, get, rows
+from .core import cursor_key, make_cursor
 
 QUERY_NAMES = frozenset({"SiteDetailQuery", "NetworkElementDetailQuery", "RackOccupancyQuery",
                          "ModelDetailQuery", "InstalledComponentQuery", "DeviceReferenceResolutionQuery"})
@@ -89,18 +90,63 @@ def execute(service, reader, query, p):
                     compatibility_count=count(reader, "SELECT count(*) FROM model_bom_compatibility_current WHERE network_element_model_id=?", (p["model_id"],)),
                     assigned_network_element_count=count(reader, "SELECT count(*) FROM network_element_model_current WHERE network_element_model_id=?", (p["model_id"],)))
     if query == "InstalledComponentQuery":
-        from .core import page
         get(reader, "network_elements", p["network_element_id"])
         where, values = ["c.network_element_id=?"], [p["network_element_id"]]
         for key in ("state", "bom_key", "slot_match_key"):
             if p.get(key) is not None:
                 where.append("c." + key + "=?")
                 values.append(p[key])
-        sql = ("SELECT c.installed_component_id,c.state,c.bom_code,c.manufacturer_serial,c.slot_label,"
-               "c.condition_token AS condition,r.device_part_unit_id,e.inventory_physical_consequence_id AS physical_consequence_id "
-               "FROM installed_component_current c LEFT JOIN device_part_component_resolution_current r USING(installed_component_id) "
-               "JOIN installed_component_events e ON e.installed_component_event_id=c.last_event_id WHERE " + " AND ".join(where))
-        items, continuation = page(reader, query, p, sql, values, ["installed_component_id"])
+
+        last = cursor_key(query, p, 2)
+        if last is not None:
+            slot_key, component_id = last
+            if slot_key is None:
+                where.append(
+                    "c.slot_match_key IS NULL AND c.installed_component_id>?"
+                )
+                values.append(component_id)
+            else:
+                where.append(
+                    "("
+                    "c.slot_match_key>? "
+                    "OR c.slot_match_key IS NULL "
+                    "OR (c.slot_match_key=? AND c.installed_component_id>?)"
+                    ")"
+                )
+                values.extend((slot_key, slot_key, component_id))
+
+        limit = p.get("limit", 100)
+        sql = (
+            "SELECT c.installed_component_id,c.state,c.bom_code,"
+            "c.manufacturer_serial,c.slot_label,c.slot_match_key,"
+            "c.condition_token AS condition,r.device_part_unit_id,"
+            "e.inventory_physical_consequence_id AS physical_consequence_id "
+            "FROM installed_component_current c "
+            "LEFT JOIN device_part_component_resolution_current r "
+            "USING(installed_component_id) "
+            "JOIN installed_component_events e "
+            "ON e.installed_component_event_id=c.last_event_id "
+            "WHERE " + " AND ".join(where) +
+            " ORDER BY (c.slot_match_key IS NULL) ASC,"
+            "c.slot_match_key ASC,c.installed_component_id ASC LIMIT ?"
+        )
+        result = rows(reader, sql, (*values, limit + 1))
+        continuation = (
+            make_cursor(
+                query,
+                p,
+                [
+                    result[limit - 1]["slot_match_key"],
+                    result[limit - 1]["installed_component_id"],
+                ],
+            )
+            if len(result) > limit
+            else None
+        )
+        items = []
+        for row in result[:limit]:
+            row.pop("slot_match_key")
+            items.append(row)
         return dict(items=items, next_cursor=continuation)
     if service.device_reader is None:
         from soma.foundation.errors import SomaError
