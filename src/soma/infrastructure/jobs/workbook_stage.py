@@ -723,13 +723,20 @@ class InfrastructureWorkbookStageWorker:
             )
             if proposal_count != int(run[1]) + int(run[2]):
                 raise IntegrityFailure("Infrastructure proposal set is incomplete")
+            warning_count = int(
+                uow.connection.execute(
+                    "SELECT coalesce(sum(json_array_length(warning_codes_json)),0) "
+                    "FROM infrastructure_workbook_staging_rows WHERE workbook_run_id=?",
+                    (run_id,),
+                ).fetchone()[0]
+            )
             uow.connection.execute(
                 """
                 UPDATE infrastructure_workbook_runs
-                SET state='staged',published_at_utc=?,revision=2
+                SET state='staged',published_at_utc=?,warning_count=?,revision=2
                 WHERE workbook_run_id=? AND state='validating' AND revision=1
                 """,
-                (int(self._clock()), run_id),
+                (int(self._clock()), warning_count, run_id),
             )
             published_ids = list(checkpoint["published_run_ids"])
             if run_id not in published_ids:
