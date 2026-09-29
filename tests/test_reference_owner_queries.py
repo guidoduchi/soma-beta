@@ -302,3 +302,26 @@ def test_local_user_profile_point_lookup_is_available_without_login_authority(
     )
     assert detail.lifecycle_state == "active"
     assert detail.projection == {"display_name": "Local Administrator"}
+
+
+
+def test_reference_point_lookup_reuses_caller_owned_unit_of_work(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    customer = CustomerReferenceService(factory).create_customer_organization(
+        command_id=new_uuid4(),
+        name="Caller-owned reader",
+    )
+    queries = ReferenceQueries(factory)
+
+    with UnitOfWork(factory) as uow:
+        detail = queries.get_reference_by_id_in_reader(
+            uow,
+            reference_type="customer_organization",
+            reference_id=customer.customer_org_id,
+        )
+        assert uow.connection.in_transaction
+        assert detail.reference_id == customer.customer_org_id
+        assert detail.lifecycle_state == "active"
+        assert detail.projection["name"] == "Caller-owned reader"
