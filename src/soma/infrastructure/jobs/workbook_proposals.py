@@ -355,6 +355,7 @@ def _network_element_proposal(
 def _ip_proposal(
     reader,
     *,
+    workbook_run_id: str,
     fields: dict,
     row_fingerprint: str,
     same_installation: bool,
@@ -366,19 +367,46 @@ def _ip_proposal(
             _name_candidates(reader, fields.get("OperationalName")),
             warnings,
         )
+        current_tokens: dict[str, object] = {}
         if candidates:
             action = "ambiguous"
             warnings.append("WORKBOOK_AMBIGUOUS_IDENTITY")
+            impact = _impact(warning_codes=warnings)
         else:
-            action = "unknown_reference"
-            warnings.append("WORKBOOK_UNKNOWN_TARGET")
-        impact = _impact(warning_codes=warnings)
+            name = fields.get("OperationalName")
+            workbook_targets = [] if not name else reader.connection.execute(
+                """
+                SELECT row_fingerprint FROM infrastructure_workbook_staging_rows
+                WHERE workbook_run_id=? AND sheet_kind='network_elements'
+                  AND json_extract(normalized_row_json,'$.fields.OperationalName')=?
+                ORDER BY row_ordinal LIMIT 2
+                """,
+                (workbook_run_id, name),
+            ).fetchall()
+            if len(workbook_targets) == 1:
+                action = "update_ip_set"
+                warnings.append("WORKBOOK_PENDING_CREATE_TARGET")
+                current_tokens["workbook_target_row_fingerprint"] = str(
+                    workbook_targets[0][0]
+                )
+                impact = _impact(
+                    relationship_changes=["ip_set_after_network_element_create"],
+                    warning_codes=warnings,
+                )
+            elif len(workbook_targets) > 1:
+                action = "ambiguous"
+                warnings.append("WORKBOOK_AMBIGUOUS_WORKBOOK_TARGET")
+                impact = _impact(warning_codes=warnings)
+            else:
+                action = "unknown_reference"
+                warnings.append("WORKBOOK_UNKNOWN_TARGET")
+                impact = _impact(warning_codes=warnings)
         fingerprint = _proposal_fingerprint(
             row_fingerprint=row_fingerprint,
             action=action,
             target_network_element_id=None,
             expected_revision=None,
-            current_tokens={},
+            current_tokens=current_tokens,
             candidate_ids=candidates,
         )
         return {
@@ -484,6 +512,7 @@ def _ip_proposal(
 def build_workbook_proposal(
     reader,
     *,
+    workbook_run_id: str,
     sheet_kind: str,
     normalized_row: dict,
     row_fingerprint: str,
@@ -500,6 +529,7 @@ def build_workbook_proposal(
     if sheet_kind == "ip_addresses":
         return _ip_proposal(
             reader,
+            workbook_run_id=workbook_run_id,
             fields=fields,
             row_fingerprint=row_fingerprint,
             same_installation=same_installation,
