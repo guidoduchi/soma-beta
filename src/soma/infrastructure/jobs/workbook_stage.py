@@ -947,6 +947,23 @@ class InfrastructureWorkbookStageWorker:
                 finally:
                     captured.close()
 
+                live_directory, live_candidates, live_manifest = self._discover(payload)
+                if live_manifest != manifest or len(live_candidates) != len(candidates):
+                    self._fail_and_cleanup_current_run(claim, checkpoint)
+                    directory, candidates, manifest = (
+                        live_directory,
+                        live_candidates,
+                        live_manifest,
+                    )
+                    checkpoint = _empty_checkpoint(
+                        manifest_sha256=manifest,
+                        candidate_count=len(candidates),
+                        candidate_index=0,
+                        published_run_ids=checkpoint["published_run_ids"],
+                    )
+                    self._jobs.checkpoint(claim, checkpoint)
+                    continue
+
                 checkpoint = self._publish_run(
                     claim,
                     checkpoint,
