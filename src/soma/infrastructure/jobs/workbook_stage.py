@@ -894,58 +894,58 @@ class InfrastructureWorkbookStageWorker:
 
                 index = int(checkpoint["candidate_index"])
                 candidate = candidates[index]
-            captured = self._capture(directory, candidate)
-            try:
-                summary = inspect_infrastructure_workbook(
-                    captured,
-                    current_data_instance_id=payload["data_instance_id"],
-                )
-                published = self._existing_review_run(
-                    candidate,
-                    file_sha256=captured.content_sha256,
-                    logical_fingerprint=summary.logical_fingerprint,
-                )
-                if published is not None:
-                    published_ids = list(checkpoint["published_run_ids"])
-                    if published not in published_ids:
-                        published_ids.append(published)
-                    checkpoint = _empty_checkpoint(
-                        manifest_sha256=manifest,
-                        candidate_count=len(candidates),
-                        candidate_index=index + 1,
-                        published_run_ids=published_ids,
+                captured = self._capture(directory, candidate)
+                try:
+                    summary = inspect_infrastructure_workbook(
+                        captured,
+                        current_data_instance_id=payload["data_instance_id"],
                     )
-                    self._jobs.checkpoint(claim, checkpoint)
-                    continue
-
-                if checkpoint["current_workbook_run_id"] is None:
-                    _run_id, checkpoint = self._start_run(
-                        claim,
-                        checkpoint,
-                        candidate=candidate,
-                        file_sha256=captured.content_sha256,
-                        summary=summary,
-                    )
-                else:
-                    self._require_run_identity(
-                        checkpoint,
+                    published = self._existing_review_run(
                         candidate,
                         file_sha256=captured.content_sha256,
-                        summary=summary,
+                        logical_fingerprint=summary.logical_fingerprint,
                     )
-                checkpoint = self._stage_rows(
-                    claim,
-                    checkpoint,
-                    captured,
-                    same_installation=summary.same_installation,
-                )
-                self._build_proposals(
-                    claim,
-                    checkpoint,
-                    same_installation=summary.same_installation,
-                )
-            finally:
-                captured.close()
+                    if published is not None:
+                        published_ids = list(checkpoint["published_run_ids"])
+                        if published not in published_ids:
+                            published_ids.append(published)
+                        checkpoint = _empty_checkpoint(
+                            manifest_sha256=manifest,
+                            candidate_count=len(candidates),
+                            candidate_index=index + 1,
+                            published_run_ids=published_ids,
+                        )
+                        self._jobs.checkpoint(claim, checkpoint)
+                        continue
+
+                    if checkpoint["current_workbook_run_id"] is None:
+                        _run_id, checkpoint = self._start_run(
+                            claim,
+                            checkpoint,
+                            candidate=candidate,
+                            file_sha256=captured.content_sha256,
+                            summary=summary,
+                        )
+                    else:
+                        self._require_run_identity(
+                            checkpoint,
+                            candidate,
+                            file_sha256=captured.content_sha256,
+                            summary=summary,
+                        )
+                    checkpoint = self._stage_rows(
+                        claim,
+                        checkpoint,
+                        captured,
+                        same_installation=summary.same_installation,
+                    )
+                    self._build_proposals(
+                        claim,
+                        checkpoint,
+                        same_installation=summary.same_installation,
+                    )
+                finally:
+                    captured.close()
 
                 checkpoint = self._publish_run(
                     claim,
