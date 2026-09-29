@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
+import stat as stat_module
 
 from openpyxl import load_workbook
 
@@ -30,6 +31,7 @@ from soma.infrastructure.jobs.infrastructure_workbooks import (
     preflight_infrastructure_workbook,
 )
 from soma.infrastructure.jobs.workbook_proposals import build_workbook_proposal
+from soma.infrastructure.repositories.workbooks import cleanup_terminal_staging
 from soma.infrastructure.settings import (
     IMPORT_DIRECTORY_KEY,
     observe_import_directory,
@@ -251,7 +253,7 @@ class InfrastructureWorkbookStageWorker:
                 "Infrastructure workbook candidate is unavailable",
             ) from exc
         if (
-            not path.is_file()
+            not stat_module.S_ISREG(stat.st_mode)
             or int(stat.st_size) != expected.size_bytes
             or int(stat.st_mtime_ns) != expected.mtime_ns
         ):
@@ -657,6 +659,100 @@ class InfrastructureWorkbookStageWorker:
                     )
             last = rows[-1]
             after = (str(last[1]), int(last[2]))
+
+    def _fail_and_cleanup_current_run(
+        self,
+        claim: DurableJobClaim,
+        checkpoint: dict,
+    ) -> None:
+        run_id = checkpoint.get("current_workbook_run_id")
+        if run_id is None:
+            return
+        while True:
+            with UnitOfWork(self._factory) as uow:
+                self._jobs.assert_claim_current(uow, claim)
+                run = uow.connection.execute(
+                    "SELECT state FROM infrastructure_workbook_runs WHERE workbook_run_id=?",
+                    (run_id,),
+                ).fetchone()
+                if run is None:
+                    raise IntegrityFailure(
+                        "Infrastructure validating run disappeared during reset"
+                    )
+                if str(run[0]) == "failed":
+                    break
+                if str(run[0]) != "validating":
+                    raise IntegrityFailure(
+                        "Infrastructure manifest reset targeted a reviewable run"
+                    )
+                rows = uow.connection.execute(
+                    """
+                    SELECT s.staging_row_id,s.sheet_kind,s.row_ordinal,s.row_fingerprint
+                    FROM infrastructure_workbook_staging_rows s
+                    LEFT JOIN infrastructure_workbook_row_decisions d
+                      ON d.workbook_run_id=s.workbook_run_id
+                     AND d.sheet_kind=s.sheet_kind
+                     AND d.row_ordinal=s.row_ordinal
+                    WHERE s.workbook_run_id=? AND d.row_decision_id IS NULL
+                    ORDER BY s.sheet_kind,s.row_ordinal LIMIT 500
+                    """,
+                    (run_id,),
+                ).fetchall()
+                if not rows:
+                    pending = int(
+                        uow.connection.execute(
+                            "SELECT count(*) FROM infrastructure_workbook_proposals "
+                            "WHERE workbook_run_id=? AND state='pending'",
+                            (run_id,),
+                        ).fetchone()[0]
+                    )
+                    if pending:
+                        raise IntegrityFailure(
+                            "Infrastructure failed-run proposal evidence is incomplete"
+                        )
+                    uow.connection.execute(
+                        """
+                        UPDATE infrastructure_workbook_runs
+                        SET state='failed',revision=revision+1
+                        WHERE workbook_run_id=? AND state='validating'
+                        """,
+                        (run_id,),
+                    )
+                    break
+                now = int(self._clock())
+                for staging_id, sheet_kind, ordinal, fingerprint in rows:
+                    uow.connection.execute(
+                        """
+                        INSERT INTO infrastructure_workbook_row_decisions(
+                            row_decision_id,workbook_run_id,sheet_kind,row_ordinal,
+                            row_fingerprint,disposition,target_network_element_id,
+                            warning_codes_json,result_refs_json,recorded_at_utc,command_id
+                        ) VALUES (?,?,?,?,?,'failed',NULL,?,'[]',?,NULL)
+                        """,
+                        (
+                            new_uuid4(),
+                            run_id,
+                            sheet_kind,
+                            ordinal,
+                            fingerprint,
+                            '["WORKBOOK_STAGE_RESTARTED"]',
+                            now,
+                        ),
+                    )
+                    uow.connection.execute(
+                        """
+                        UPDATE infrastructure_workbook_proposals
+                        SET state='rejected',revision=revision+1
+                        WHERE staging_row_id=? AND state='pending'
+                        """,
+                        (staging_id,),
+                    )
+
+        while True:
+            with UnitOfWork(self._factory) as uow:
+                removed = cleanup_terminal_staging(uow, str(run_id), limit=500)
+            if removed == 0:
+                break
 
     def _publish_run(
         self,
