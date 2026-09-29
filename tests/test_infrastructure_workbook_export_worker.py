@@ -286,9 +286,10 @@ def test_export_worker_discovery_streams_current_infrastructure_rows(
             "SELECT state FROM durable_jobs WHERE job_id=?",
             (accepted.response["job_id"],),
         ).fetchone() == ("completed",)
+        # Export evidence persists the scope as canonical JSON with sorted keys.
         assert snapshot.connection.execute(
             "SELECT mode,filter_scope_json FROM infrastructure_workbook_exports"
         ).fetchone() == (
             "discovery",
-            '{"site_id":"' + site_id + '","scope_kind":"site"}',
+            '{"scope_kind":"site","site_id":"' + site_id + '"}',
         )
