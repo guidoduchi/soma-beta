@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -32,6 +33,7 @@ from ..domain.grouping import (
     GroupingTaskChange,
     RegroupCandidate,
     strict_overlap_components,
+    strict_overlap_member_ids,
 )
 from ..repositories.grouping import RegroupProposalRepository
 from ..repositories.objectives import ObjectiveProjectionRepository
@@ -87,6 +89,29 @@ class GroupingService:
         return int(row[0])
 
     @staticmethod
+    def _competing_task_ids(reader: Any) -> frozenset[str]:
+        rows = reader.execute(
+            "SELECT lc.task_id,lc.activity_lineage_id,p.start_utc,p.end_utc "
+            "FROM task_activity_lineage_current lc "
+            "JOIN task_plan_current pc ON pc.task_id=lc.task_id "
+            "JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
+            "AND p.task_id=lc.task_id "
+            "LEFT JOIN task_execution_projection x ON x.task_id=lc.task_id "
+            "LEFT JOIN task_outcome_current oc ON oc.task_id=lc.task_id "
+            "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=lc.task_id "
+            "WHERE oc.accepted_outcome IS NULL "
+            "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
+            "AND COALESCE(sp.provider_lifecycle_class,'unknown') NOT IN ('complete','plan_cancel') "
+            "ORDER BY lc.activity_lineage_id,p.start_utc,p.end_utc,lc.task_id"
+        ).fetchall()
+        return strict_overlap_member_ids(
+            (
+                (str(row[0]), str(row[1]), int(row[2]), int(row[3]))
+                for row in rows
+            )
+        )
+
+    @staticmethod
     def _eligible_workset_count(reader: Any) -> int:
         invalid = reader.execute(
             "SELECT 1 FROM objective_task_membership_current m "
@@ -100,28 +125,29 @@ class GroupingService:
             raise IntegrityFailure(
                 "Task membership points to missing or noncurrent Objective authority"
             )
-        row = reader.execute(
-            "SELECT COUNT(*) FROM tasks t "
+        rows = reader.execute(
+            "SELECT t.task_id FROM tasks t "
             "JOIN task_plan_current pc ON pc.task_id=t.task_id "
             "JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
             "LEFT JOIN objective_task_membership_current m ON m.task_id=t.task_id "
             "LEFT JOIN task_lock_projection l ON l.task_id=t.task_id "
             "LEFT JOIN task_execution_projection x ON x.task_id=t.task_id "
             "LEFT JOIN task_outcome_current oc ON oc.task_id=t.task_id "
+            "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=t.task_id "
             "LEFT JOIN objectives o ON o.objective_id=m.objective_id "
             "LEFT JOIN objective_aggregate_projection a ON a.objective_id=m.objective_id "
             "WHERE oc.accepted_outcome IS NULL "
-            "AND COALESCE(x.execution_state,'not_started') NOT IN ('ended','terminated') "
+            "AND COALESCE(x.execution_state,'not_started')='not_started' "
+            "AND COALESCE(sp.provider_lifecycle_class,'unknown') NOT IN ('complete','plan_cancel') "
             "AND COALESCE(l.explicit_membership_lock,0)=0 "
             "AND (m.objective_id IS NULL OR ("
             "o.superseded_by_objective_id IS NULL "
             "AND o.creation_origin<>'historical_provider_complete' "
             "AND a.execution_state NOT IN ('reviewed','superseded','historical_structure')"
             "))"
-        ).fetchone()
-        if row is None:
-            raise IntegrityFailure("grouping workset count is unavailable")
-        return int(row[0])
+        ).fetchall()
+        competing = GroupingService._competing_task_ids(reader)
+        return sum(1 for row in rows if str(row[0]) not in competing)
 
     def _probe_replay(self, envelope: CommandEnvelope) -> dict[str, object] | None:
         request_hash = envelope.request_hash()
@@ -140,6 +166,7 @@ class GroupingService:
 
     @staticmethod
     def _load_snapshot(connection: Any) -> _GroupingSnapshot:
+        competing_task_ids = GroupingService._competing_task_ids(connection)
         objective_rows = connection.execute(
             "SELECT o.objective_id,o.tracking_sequence,o.revision,e.revision,e.start_utc,"
             "e.end_utc,a.execution_state,o.creation_origin "
@@ -166,19 +193,25 @@ class GroupingService:
             "SELECT t.task_id,t.revision,pc.plan_revision_id,pc.revision,p.start_utc,p.end_utc,"
             "m.objective_id,m.accepted_plan_revision_id,m.membership_revision,"
             "COALESCE(l.explicit_membership_lock,0),COALESCE(x.execution_state,'not_started'),"
-            "oc.accepted_outcome "
+            "oc.accepted_outcome,sp.provider_lifecycle_class "
             "FROM tasks t JOIN task_plan_current pc ON pc.task_id=t.task_id "
             "JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
             "LEFT JOIN objective_task_membership_current m ON m.task_id=t.task_id "
             "LEFT JOIN task_lock_projection l ON l.task_id=t.task_id "
             "LEFT JOIN task_execution_projection x ON x.task_id=t.task_id "
             "LEFT JOIN task_outcome_current oc ON oc.task_id=t.task_id "
+            "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=t.task_id "
             "ORDER BY p.start_utc,p.end_utc,t.task_id"
         ).fetchall()
         task_items: list[GroupingTaskAuthority] = []
         for row in rows:
             execution_state = str(row[10])
-            if row[11] is not None or execution_state in {"ended", "terminated"}:
+            if (
+                row[11] is not None
+                or execution_state != "not_started"
+                or row[12] in {"complete", "plan_cancel"}
+                or str(row[0]) in competing_task_ids
+            ):
                 continue
             objective_id = None if row[6] is None else str(row[6])
             objective = None if objective_id is None else objectives.get(objective_id)
@@ -210,6 +243,248 @@ class GroupingService:
                 )
             )
         return _GroupingSnapshot(tuple(task_items), objectives)
+
+    @staticmethod
+    def _normalize_trigger_scope(
+        origin: str,
+        trigger_scope: Mapping[str, object] | None,
+    ) -> dict[str, object] | None:
+        if trigger_scope is None:
+            return None
+        if origin != "manual_request":
+            raise ValidationError(
+                "grouping trigger_scope is allowed only for origin=manual_request"
+            )
+        if not isinstance(trigger_scope, Mapping) or set(trigger_scope) != {
+            "kind",
+            "objective_ids",
+        }:
+            raise ValidationError(
+                "grouping trigger_scope must contain exactly kind and objective_ids"
+            )
+        if trigger_scope["kind"] != "manual_exact_touch_merge":
+            raise ValidationError("grouping trigger_scope kind is invalid")
+        raw_ids = trigger_scope["objective_ids"]
+        if not isinstance(raw_ids, (list, tuple)) or len(raw_ids) != 2:
+            raise ValidationError(
+                "manual_exact_touch_merge requires exactly two Objective ids"
+            )
+        objective_ids = tuple(sorted(require_uuid4(value) for value in raw_ids))
+        if objective_ids[0] == objective_ids[1]:
+            raise ValidationError(
+                "manual_exact_touch_merge requires two unique Objective ids"
+            )
+        return {
+            "kind": "manual_exact_touch_merge",
+            "objective_ids": list(objective_ids),
+        }
+
+    @classmethod
+    def _manual_exact_touch_candidate(
+        cls,
+        connection: Any,
+        *,
+        objective_ids: tuple[str, str],
+        origin: str,
+    ) -> RegroupCandidate:
+        if origin != "manual_request":
+            raise ValidationError(
+                "manual exact-touch merge requires origin=manual_request"
+            )
+        selected_ids = tuple(sorted(objective_ids))
+        rows = connection.execute(
+            "SELECT o.objective_id,o.tracking_sequence,o.revision,e.revision,"
+            "e.start_utc,e.end_utc,a.execution_state,o.creation_origin "
+            "FROM objectives o "
+            "JOIN objective_envelope_projection e ON e.objective_id=o.objective_id "
+            "JOIN objective_aggregate_projection a ON a.objective_id=o.objective_id "
+            "WHERE o.objective_id IN (?,?) "
+            "AND o.superseded_by_objective_id IS NULL "
+            "ORDER BY o.tracking_sequence,o.objective_id",
+            selected_ids,
+        ).fetchall()
+        if len(rows) != 2:
+            raise SomaError(
+                "GROUPING_INDETERMINATE",
+                "manual merge requires two current nonsuperseded Objectives",
+            )
+        objectives = tuple(
+            GroupingObjectiveAuthority(
+                objective_id=str(row[0]),
+                tracking_sequence=int(row[1]),
+                revision=int(row[2]),
+                envelope_revision=int(row[3]),
+                start_utc=int(row[4]),
+                end_utc=int(row[5]),
+                execution_state=str(row[6]),
+                creation_origin=str(row[7]),
+            )
+            for row in rows
+        )
+        if {item.objective_id for item in objectives} != set(selected_ids):
+            raise SomaError(
+                "GROUPING_INDETERMINATE",
+                "manual merge Objective selection changed",
+            )
+        if any(
+            item.execution_state != "planned"
+            or item.creation_origin == "historical_provider_complete"
+            for item in objectives
+        ):
+            raise SomaError(
+                "GROUPING_INDETERMINATE",
+                "manual merge requires ordinary planned Objectives",
+            )
+        left, right = sorted(
+            objectives,
+            key=lambda item: (item.start_utc, item.end_utc, item.objective_id),
+        )
+        if left.end_utc != right.start_utc:
+            raise SomaError(
+                "GROUPING_INDETERMINATE",
+                "manual merge requires exactly touching Objective envelopes",
+            )
+        union_start = min(item.start_utc for item in objectives)
+        union_end = max(item.end_utc for item in objectives)
+        neighbor = connection.execute(
+            "SELECT 1 FROM objectives o "
+            "JOIN objective_envelope_projection e ON e.objective_id=o.objective_id "
+            "WHERE o.superseded_by_objective_id IS NULL "
+            "AND o.objective_id NOT IN (?,?) "
+            "AND e.start_utc < ? AND e.end_utc > ? LIMIT 1",
+            (selected_ids[0], selected_ids[1], union_end, union_start),
+        ).fetchone()
+        if neighbor is not None:
+            raise SomaError(
+                "GROUPING_INDETERMINATE",
+                "manual merge union overlaps a third current Objective",
+            )
+
+        count_rows = connection.execute(
+            "SELECT objective_id,COUNT(*) "
+            "FROM objective_task_membership_current "
+            "WHERE objective_id IN (?,?) GROUP BY objective_id",
+            selected_ids,
+        ).fetchall()
+        counts = {str(row[0]): int(row[1]) for row in count_rows}
+        if set(counts) != set(selected_ids) or any(value <= 0 for value in counts.values()):
+            raise IntegrityFailure("current Objective has no material membership")
+
+        member_rows = connection.execute(
+            "SELECT t.task_id,t.revision,pc.plan_revision_id,pc.revision,"
+            "p.start_utc,p.end_utc,m.objective_id,m.accepted_plan_revision_id,"
+            "m.membership_revision,COALESCE(l.explicit_membership_lock,0),"
+            "COALESCE(x.execution_state,'not_started'),oc.accepted_outcome,"
+            "COALESCE(sp.provider_lifecycle_class,'unknown') "
+            "FROM objective_task_membership_current m "
+            "JOIN tasks t ON t.task_id=m.task_id "
+            "JOIN task_plan_current pc ON pc.task_id=t.task_id "
+            "JOIN task_plan_revisions p ON p.plan_revision_id=pc.plan_revision_id "
+            "AND p.task_id=t.task_id "
+            "LEFT JOIN task_lock_projection l ON l.task_id=t.task_id "
+            "LEFT JOIN task_execution_projection x ON x.task_id=t.task_id "
+            "LEFT JOIN task_outcome_current oc ON oc.task_id=t.task_id "
+            "LEFT JOIN wfm_source_projection_cache sp ON sp.task_id=t.task_id "
+            "WHERE m.objective_id IN (?,?) "
+            "ORDER BY m.objective_id,t.task_id",
+            selected_ids,
+        ).fetchall()
+        if len(member_rows) != sum(counts.values()):
+            raise SomaError(
+                "GROUPING_INDETERMINATE",
+                "manual merge member plan authority is incomplete",
+            )
+        competing = cls._competing_task_ids(connection)
+        objective_by_id = {item.objective_id: item for item in objectives}
+        material_tasks: list[GroupingTaskAuthority] = []
+        for row in member_rows:
+            task_id = str(row[0])
+            objective_id = str(row[6])
+            if (
+                int(row[9]) != 0
+                or str(row[10]) != "not_started"
+                or row[11] is not None
+                or str(row[12]) in {"complete", "plan_cancel"}
+                or task_id in competing
+                or str(row[7]) != str(row[2])
+            ):
+                raise SomaError(
+                    "GROUPING_INDETERMINATE",
+                    "manual merge member is not ordinary grouping eligible",
+                )
+            objective = objective_by_id.get(objective_id)
+            if objective is None:
+                raise IntegrityFailure("manual merge membership Objective is missing")
+            material_tasks.append(
+                GroupingTaskAuthority(
+                    task_id=task_id,
+                    task_revision=int(row[1]),
+                    plan_revision_id=str(row[2]),
+                    plan_revision=int(row[3]),
+                    start_utc=int(row[4]),
+                    end_utc=int(row[5]),
+                    membership_objective_id=objective_id,
+                    membership_plan_revision_id=str(row[7]),
+                    membership_revision=int(row[8]),
+                    membership_locked=False,
+                    execution_state="not_started",
+                    objective_id=objective_id,
+                    objective_revision=objective.revision,
+                    objective_envelope_revision=objective.envelope_revision,
+                    objective_execution_state=objective.execution_state,
+                )
+            )
+
+        survivor = min(
+            objectives,
+            key=lambda item: (item.tracking_sequence, item.objective_id),
+        )
+        task_changes = tuple(
+            GroupingTaskChange(
+                task_id=task.task_id,
+                from_objective_id=task.membership_objective_id,
+                to_objective_id=survivor.objective_id,
+                expected_task_revision=task.task_revision,
+                expected_current_plan_revision_id=task.plan_revision_id,
+                expected_membership_revision=task.membership_revision,
+                change_kind=(
+                    "unchanged_context"
+                    if task.membership_objective_id == survivor.objective_id
+                    else "move"
+                ),
+            )
+            for task in sorted(material_tasks, key=lambda item: item.task_id)
+        )
+        objective_changes = tuple(
+            GroupingObjectiveChange(
+                item.objective_id,
+                "retain" if item.objective_id == survivor.objective_id else "supersede",
+                item.revision,
+                item.envelope_revision,
+            )
+            for item in sorted(
+                objectives,
+                key=lambda item: (item.tracking_sequence, item.objective_id),
+            )
+        )
+        return RegroupCandidate(
+            proposal_kind="manual_merge",
+            origin=origin,
+            risk_tier="normal",
+            survivor_objective_id=survivor.objective_id,
+            task_changes=task_changes,
+            objective_changes=objective_changes,
+            material_tasks=tuple(sorted(material_tasks, key=lambda item: item.task_id)),
+            material_objectives=tuple(
+                sorted(
+                    objectives,
+                    key=lambda item: (item.tracking_sequence, item.objective_id),
+                )
+            ),
+            component_start_utc=union_start,
+            component_end_utc=union_end,
+            manual_scope_objective_ids=selected_ids,
+        )
 
     @staticmethod
     def _split_objectives(
@@ -472,17 +747,22 @@ class GroupingService:
         *,
         command_id: str,
         origin: str = "manual_request",
+        trigger_scope: Mapping[str, object] | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
     ) -> dict[str, object]:
         if origin not in GROUPING_ORIGINS:
             raise ValidationError("grouping origin is invalid")
+        normalized_scope = self._normalize_trigger_scope(origin, trigger_scope)
+        semantic_payload: dict[str, object] = {"origin": origin}
+        if normalized_scope is not None:
+            semantic_payload["trigger_scope"] = normalized_scope
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="RecomputeGroupingProposals",
             target_type="grouping",
             target_id=None,
-            semantic_payload={"origin": origin},
+            semantic_payload=semantic_payload,
         )
 
         replay = self._probe_replay(envelope)
@@ -490,17 +770,51 @@ class GroupingService:
             return replay
 
         with ReadSnapshot(self._factory) as snapshot:
-            workset_count = self._eligible_workset_count(snapshot.connection)
-            if workset_count > _GROUPING_WORKSET_SOFT_THRESHOLD:
-                snapshot_receipt_count = None
-                candidates: tuple[RegroupCandidate, ...] = ()
+            if normalized_scope is not None:
+                raw_ids = normalized_scope["objective_ids"]
+                assert isinstance(raw_ids, list) and len(raw_ids) == 2
+                scoped_ids = (str(raw_ids[0]), str(raw_ids[1]))
+                workset_count: int | None = None
+                snapshot_receipt_count: int | None = None
+                candidates = (
+                    self._manual_exact_touch_candidate(
+                        snapshot.connection,
+                        objective_ids=scoped_ids,
+                        origin=origin,
+                    ),
+                )
             else:
-                snapshot_receipt_count = self._receipt_count(snapshot.connection)
-                candidates = self._candidates(snapshot.connection, origin=origin)
+                scoped_ids = None
+                workset_count = self._eligible_workset_count(snapshot.connection)
+                if workset_count > _GROUPING_WORKSET_SOFT_THRESHOLD:
+                    snapshot_receipt_count = None
+                    candidates = ()
+                else:
+                    snapshot_receipt_count = self._receipt_count(snapshot.connection)
+                    candidates = self._candidates(snapshot.connection, origin=origin)
 
         def prepare(uow: UnitOfWork) -> PreparedMutation:
-            current_count = self._eligible_workset_count(uow.connection)
-            if workset_count > _GROUPING_WORKSET_SOFT_THRESHOLD:
+            if scoped_ids is not None:
+                current_candidate = self._manual_exact_touch_candidate(
+                    uow.connection,
+                    objective_ids=scoped_ids,
+                    origin=origin,
+                )
+                if (
+                    len(candidates) != 1
+                    or current_candidate.input_fingerprint
+                    != candidates[0].input_fingerprint
+                ):
+                    raise SomaError(
+                        "GROUPING_INDETERMINATE",
+                        "manual merge authority changed after the stable read Snapshot",
+                    )
+                current_count = None
+            else:
+                current_count = self._eligible_workset_count(uow.connection)
+
+            if workset_count is not None and workset_count > _GROUPING_WORKSET_SOFT_THRESHOLD:
+                assert current_count is not None
                 if current_count <= _GROUPING_WORKSET_SOFT_THRESHOLD:
                     raise SomaError(
                         "GROUPING_INDETERMINATE",
@@ -559,7 +873,7 @@ class GroupingService:
                     ),
                 )
 
-            if (
+            if scoped_ids is None and (
                 current_count != workset_count
                 or snapshot_receipt_count is None
                 or self._receipt_count(uow.connection) != snapshot_receipt_count
@@ -749,6 +1063,42 @@ class GroupingService:
 
     @classmethod
     def _candidate_for_proposal(cls, connection: Any, proposal):
+        if proposal.proposal_kind == "manual_merge":
+            objective_rows = RegroupProposalRepository.objective_changes(
+                connection,
+                proposal.proposal_id,
+            )
+            objective_ids = tuple(
+                sorted(
+                    str(row[1])
+                    for row in objective_rows
+                    if row[1] is not None
+                    and str(row[2]) in {"retain", "supersede"}
+                )
+            )
+            if len(objective_ids) != 2 or len(set(objective_ids)) != 2:
+                raise SomaError(
+                    "GROUPING_PROPOSAL_STALE",
+                    "manual merge proposal scope is incomplete",
+                )
+            try:
+                candidate = cls._manual_exact_touch_candidate(
+                    connection,
+                    objective_ids=(objective_ids[0], objective_ids[1]),
+                    origin=proposal.origin,
+                )
+            except SomaError as exc:
+                raise SomaError(
+                    "GROUPING_PROPOSAL_STALE",
+                    "current manual merge authority no longer reproduces reviewed proposal",
+                ) from exc
+            if candidate.input_fingerprint != proposal.input_fingerprint:
+                raise SomaError(
+                    "GROUPING_PROPOSAL_STALE",
+                    "current manual merge authority no longer reproduces reviewed proposal",
+                )
+            return candidate
+
         candidates = cls._candidates(connection, origin=proposal.origin)
         matches = [
             candidate for candidate in candidates

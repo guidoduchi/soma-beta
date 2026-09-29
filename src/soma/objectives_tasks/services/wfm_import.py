@@ -11,7 +11,9 @@ from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seco
 from soma.foundation.persistence.uow import UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 
+from ..queries.reviews import HistoricalObjectiveQueryService
 from ..queries.task_activity_review import _load_authorities
+from ..repositories.reviews import HistoricalObjectiveProposalRepository
 from ..repositories.tasks import (
     TaskNoStatus,
     TaskPlanRecord,
@@ -538,6 +540,117 @@ class WfmImportMutationParticipant:
     """LLD-05 WFM import participant executed inside LLD-04's outer UnitOfWork."""
 
     @staticmethod
+    def _refresh_historical_objective_proposal(
+        uow: UnitOfWork,
+        *,
+        task_id: str,
+        command_id: str,
+    ) -> str | None:
+        source = current_source_projection(uow.connection, task_id)
+        if (
+            source is None
+            or source.provider_lifecycle_class != "complete"
+            or type(source.source_plan_start_utc) is not int
+            or type(source.source_plan_end_utc) is not int
+            or source.source_plan_start_utc < 0
+            or source.source_plan_end_utc <= source.source_plan_start_utc
+        ):
+            HistoricalObjectiveProposalRepository.supersede_pending_except(
+                uow,
+                task_id=task_id,
+                command_id=command_id,
+                keep_fingerprint=None,
+            )
+            return None
+
+        if uow.connection.execute(
+            "SELECT 1 FROM objective_task_membership_current "
+            "WHERE task_id=? LIMIT 1",
+            (task_id,),
+        ).fetchone() is not None:
+            HistoricalObjectiveProposalRepository.supersede_pending_except(
+                uow,
+                task_id=task_id,
+                command_id=command_id,
+                keep_fingerprint=None,
+            )
+            return None
+
+        execution = _execution_fingerprint_state(uow.connection, task_id)
+        outcome_count = int(
+            uow.connection.execute(
+                "SELECT count(*) FROM task_outcome_events WHERE task_id=?",
+                (task_id,),
+            ).fetchone()[0]
+        )
+        lock = _lock_fingerprint_state(uow.connection, task_id)
+        if (
+            int(execution["revision"]) != 0
+            or outcome_count != 0
+            or bool(lock["explicit_plan_lock"])
+            or bool(lock["explicit_membership_lock"])
+        ):
+            HistoricalObjectiveProposalRepository.supersede_pending_except(
+                uow,
+                task_id=task_id,
+                command_id=command_id,
+                keep_fingerprint=None,
+            )
+            return None
+
+        pointer = TaskPlanRepository.current_pointer(uow.connection, task_id)
+        matching_plan_revision_id = None
+        if pointer is not None:
+            plan = TaskPlanRepository.get_revision(
+                uow.connection, pointer.plan_revision_id
+            )
+            if plan is None or plan.task_id != task_id:
+                raise IntegrityFailure(
+                    "historical proposal current Task-plan pointer is invalid"
+                )
+            if (
+                plan.start_utc != source.source_plan_start_utc
+                or plan.end_utc != source.source_plan_end_utc
+            ):
+                HistoricalObjectiveProposalRepository.supersede_pending_except(
+                    uow,
+                    task_id=task_id,
+                    command_id=command_id,
+                    keep_fingerprint=None,
+                )
+                return None
+            matching_plan_revision_id = plan.plan_revision_id
+
+        fingerprint = HistoricalObjectiveQueryService.input_fingerprint(
+            uow.connection, task_id
+        )
+        HistoricalObjectiveProposalRepository.supersede_pending_except(
+            uow,
+            task_id=task_id,
+            command_id=command_id,
+            keep_fingerprint=fingerprint,
+        )
+        existing = HistoricalObjectiveProposalRepository.current_for_fingerprint(
+            uow.connection,
+            task_id=task_id,
+            input_fingerprint=fingerprint,
+        )
+        if existing is not None:
+            return existing.proposal_id
+
+        proposal = HistoricalObjectiveProposalRepository.insert_pending(
+            uow,
+            task_id=task_id,
+            expected_source_projection_revision=source.source_projection_revision,
+            expected_source_plan_start_utc=source.source_plan_start_utc,
+            expected_source_plan_end_utc=source.source_plan_end_utc,
+            expected_source_observation_id=source.accepted_source_observation_id,
+            expected_matching_operational_plan_revision_id=matching_plan_revision_id,
+            input_fingerprint=fingerprint,
+        )
+        return proposal.proposal_id
+
+    @staticmethod
     def create_or_adopt_wfm_from_source(
         uow: UnitOfWork,
         mutation: WfmCreateOrAdoptFromSourceMutation,
@@ -670,6 +783,11 @@ class WfmImportMutationParticipant:
             ),
             command_id=mutation.accepted_command_id,
         )
+        WfmImportMutationParticipant._refresh_historical_objective_proposal(
+            uow,
+            task_id=task_id,
+            command_id=mutation.accepted_command_id,
+        )
         task = TaskRepository.get(uow.connection, task_id)
         if task is None:
             raise IntegrityFailure("WFM source projection lost owning Task after mutation")
@@ -777,6 +895,11 @@ class WfmImportMutationParticipant:
                 objective_context=objective_context,
                 command_id=mutation.accepted_command_id,
             )
+        WfmImportMutationParticipant._refresh_historical_objective_proposal(
+            uow,
+            task_id=task_id,
+            command_id=mutation.accepted_command_id,
+        )
         audit = AuditEventInput(
             audit_event_id=audit_event_id,
             action_type="task.plan_changed",

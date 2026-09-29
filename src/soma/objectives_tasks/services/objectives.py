@@ -789,9 +789,6 @@ class ObjectiveService:
             if int(objective[0]) != objective_revision or objective[3] is not None:
                 raise SomaError("OBJECTIVE_STALE", "Objective revision/currentness changed")
             aggregate = self._objectives.aggregate(uow.connection, identity)
-            if aggregate is None or aggregate.revision != aggregate_revision:
-                raise SomaError("OBJECTIVE_STALE", "Objective aggregate revision changed")
-
             members = self._objectives._load_members(uow.connection, identity)
             if not members:
                 raise IntegrityFailure("current Objective has no members")
@@ -800,6 +797,8 @@ class ObjectiveService:
                     "OBJECTIVE_CANCEL_AFTER_EXECUTION",
                     "At least one Objective Task already has accepted start evidence",
                 )
+            if aggregate is None or aggregate.revision != aggregate_revision:
+                raise SomaError("OBJECTIVE_STALE", "Objective aggregate revision changed")
 
             already_cancelled = all(
                 member.execution_state == "terminated"

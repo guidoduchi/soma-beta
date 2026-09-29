@@ -1,19 +1,23 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.domain.objectives import (
     ObjectiveDraftLocalTaskIntent,
     ObjectiveExistingTaskIntent,
 )
-from soma.objectives_tasks.queries.execution_review import TaskOutcomeReviewQueryService
+from soma.objectives_tasks.queries.execution_review import (
+    TaskOutcomeCorrectionQueryService,
+    TaskOutcomeReviewQueryService,
+)
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.queries.hard_delete import ObjectiveHardDeleteQueryService
 from soma.objectives_tasks.queries.objectives import ObjectiveQueryService
@@ -90,6 +94,42 @@ def _local_epoch(year: int, month: int, day: int, hour: int, minute: int = 0) ->
             tzinfo=ZoneInfo(TZ),
         ).timestamp()
     )
+
+def test_t002_empty_objective_preview_persists_nothing(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    with ReadSnapshot(factory) as snapshot:
+        before = (
+            int(snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts").fetchone()[0]),
+            int(snapshot.connection.execute("SELECT COUNT(*) FROM objectives").fetchone()[0]),
+            int(snapshot.connection.execute(
+                "SELECT COUNT(*) FROM objective_task_membership_current"
+            ).fetchone()[0]),
+            tuple(snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()),
+        )
+
+    with pytest.raises(SomaError) as caught:
+        ObjectiveGroupingQueryService(factory).creation_preview()
+    assert caught.value.code == "OBJECTIVE_EMPTY"
+
+    with ReadSnapshot(factory) as snapshot:
+        after = (
+            int(snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts").fetchone()[0]),
+            int(snapshot.connection.execute("SELECT COUNT(*) FROM objectives").fetchone()[0]),
+            int(snapshot.connection.execute(
+                "SELECT COUNT(*) FROM objective_task_membership_current"
+            ).fetchone()[0]),
+            tuple(snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()),
+        )
+    assert after == before
+
 
 def test_objective_creation_preview_commit_replay_and_overlap(initialized_database) -> None:
     factory = _factory(initialized_database)
@@ -353,6 +393,7 @@ def test_objective_hard_delete_retains_tasks_and_removes_only_baseline_membershi
         preview_fingerprint=str(preview["fingerprint"]),
         existing_tasks=(intent,),
     )
+    assert queries.workbench(created.objective_id)["tracking_handle"] == "MW-00000001"
     delete_queries = ObjectiveHardDeleteQueryService(factory)
     delete_preview = delete_queries.preview(
         objective_id=created.objective_id,
@@ -387,6 +428,24 @@ def test_objective_hard_delete_retains_tasks_and_removes_only_baseline_membershi
             "SELECT 1 FROM task_plan_current WHERE task_id=?",
             (task.task_id,),
         ).fetchone() is not None
+
+    replacement_task = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Objective after deleted sequence",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_321_000_000,
+            end_utc=2_321_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    replacement_intent = _existing_intent(factory, replacement_task.task_id)
+    replacement_preview = grouping.creation_preview(existing_tasks=(replacement_intent,))
+    replacement = service.create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(replacement_preview["fingerprint"]),
+        existing_tasks=(replacement_intent,),
+    )
+    assert queries.workbench(replacement.objective_id)["tracking_handle"] == "MW-00000002"
 
 
 def test_t026_reviewed_at_is_never_execution_time_and_queries_keep_them_separate(
@@ -892,3 +951,842 @@ def test_t046_due_unreviewed_is_explicit_read_time_projection_only(
             "SELECT COUNT(*) FROM task_execution_events WHERE task_id=?",
             (task.task_id,),
         ).fetchone()[0]) == authority_before["execution"] == 0
+
+
+def test_lld05_f002_objective_creation_failure_before_first_membership_rolls_back_allocator_and_retries(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F002 allocator rollback",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_320_000_000,
+            end_utc=2_320_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intent = _existing_intent(factory, task.task_id)
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(intent,),
+    )
+    service = ObjectiveService(factory)
+    command_id = new_uuid4()
+    with ReadSnapshot(factory) as snapshot:
+        allocator_before = tuple(
+            snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()
+        )
+
+    original = service._insert_membership
+
+    def fail_before_first_membership(*_args, **_kwargs):
+        raise IntegrityFailure("LLD05-F002 injected before first membership")
+
+    monkeypatch.setattr(service, "_insert_membership", fail_before_first_membership)
+    with pytest.raises(IntegrityFailure, match="LLD05-F002"):
+        service.create_objective_from_preview(
+            command_id=command_id,
+            preview_fingerprint=str(preview["fingerprint"]),
+            existing_tasks=(intent,),
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT next_sequence,revision,last_command_id "
+                "FROM objective_tracking_allocator WHERE singleton_id=1"
+            ).fetchone()
+        ) == allocator_before
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objectives"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_task_membership_current WHERE task_id=?",
+            (task.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+    monkeypatch.setattr(service, "_insert_membership", original)
+    retried = service.create_objective_from_preview(
+        command_id=command_id,
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=(intent,),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        tracking = snapshot.connection.execute(
+            "SELECT tracking_sequence FROM objectives WHERE objective_id=?",
+            (retried.objective_id,),
+        ).fetchone()
+    assert tracking is not None and int(tracking[0]) == int(allocator_before[0])
+
+
+def test_lld05_f003_second_membership_failure_rolls_back_first_membership_and_objective(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    first = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F003 first",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_321_000_000,
+            end_utc=2_321_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    second = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F003 second",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_321_001_800,
+            end_utc=2_321_005_400,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intents = (
+        _existing_intent(factory, first.task_id),
+        _existing_intent(factory, second.task_id),
+    )
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=intents,
+    )
+    service = ObjectiveService(factory)
+    command_id = new_uuid4()
+    original = service._insert_membership
+    calls = [0]
+
+    def fail_on_second_membership(connection, **kwargs):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise IntegrityFailure("LLD05-F003 injected after first membership")
+        return original(connection, **kwargs)
+
+    monkeypatch.setattr(service, "_insert_membership", fail_on_second_membership)
+    with pytest.raises(IntegrityFailure, match="LLD05-F003"):
+        service.create_objective_from_preview(
+            command_id=command_id,
+            preview_fingerprint=str(preview["fingerprint"]),
+            existing_tasks=intents,
+        )
+    assert calls == [2]
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objectives"
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_membership_events "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+def test_lld05_f011_whole_objective_cancel_failure_after_first_member_rolls_back_all(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    planning = TaskPlanningService(factory)
+    first = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F011 first member",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_325_000_000,
+            end_utc=2_325_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    second = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F011 second member",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_325_001_000,
+            end_utc=2_325_004_000,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intents = (
+        _existing_intent(factory, first.task_id),
+        _existing_intent(factory, second.task_id),
+    )
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=intents,
+    )
+    service = ObjectiveService(factory)
+    created = service.create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=intents,
+    )
+    detail = ObjectiveQueryService(factory).workbench(created.objective_id)
+    aggregate_revision = int(detail["aggregate_state"]["revision"])
+    with ReadSnapshot(factory) as snapshot:
+        aggregate_before = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,revision,last_command_id "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (created.objective_id,),
+            ).fetchone()
+        )
+        task_revisions_before = dict(
+            snapshot.connection.execute(
+                "SELECT task_id,revision FROM tasks WHERE task_id IN (?,?)",
+                (first.task_id, second.task_id),
+            ).fetchall()
+        )
+
+    original_increment = service._tasks.increment_revision
+    calls = [0]
+
+    def fail_after_first_member(inner, *, task_id, expected_revision):
+        original_increment(
+            inner,
+            task_id=task_id,
+            expected_revision=expected_revision,
+        )
+        calls[0] += 1
+        if calls[0] == 1:
+            raise IntegrityFailure(
+                "LLD05-F011 injected after first Task cancellation/outcome"
+            )
+
+    monkeypatch.setattr(
+        service._tasks,
+        "increment_revision",
+        fail_after_first_member,
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F011"):
+        service.cancel_objective_before_execution(
+            command_id=command_id,
+            objective_id=created.objective_id,
+            objective_revision=1,
+            aggregate_revision=aggregate_revision,
+            effective_cancel_utc=2_324_999_000,
+            reason_category="f011_atomicity_cut",
+        )
+    assert calls == [1]
+
+    with ReadSnapshot(factory) as snapshot:
+        assert dict(
+            snapshot.connection.execute(
+                "SELECT task_id,revision FROM tasks WHERE task_id IN (?,?)",
+                (first.task_id, second.task_id),
+            ).fetchall()
+        ) == task_revisions_before
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_execution_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_outcome_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_execution_projection "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_outcome_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,revision,last_command_id "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (created.objective_id,),
+            ).fetchone()
+        ) == aggregate_before
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM objective_review_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+def test_lld05_f030_objective_delete_failure_after_projection_removal_rolls_back_all(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F030 retained Task",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_330_000_000,
+            end_utc=2_330_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intent = _existing_intent(factory, task.task_id)
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(intent,),
+    )
+    created = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=(intent,),
+    )
+    delete_preview = ObjectiveHardDeleteQueryService(factory).preview(
+        objective_id=created.objective_id,
+        base_revision=1,
+    )
+    assert delete_preview.eligible is True
+
+    with ReadSnapshot(factory) as snapshot:
+        membership_before = tuple(
+            snapshot.connection.execute(
+                "SELECT task_id,objective_id,accepted_plan_revision_id,"
+                "membership_revision,last_event_id,last_command_id "
+                "FROM objective_task_membership_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        )
+        envelope_before = tuple(
+            snapshot.connection.execute(
+                "SELECT start_utc,end_utc,member_count,revision,last_command_id "
+                "FROM objective_envelope_projection WHERE objective_id=?",
+                (created.objective_id,),
+            ).fetchone()
+        )
+        aggregate_before = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,revision,last_command_id "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (created.objective_id,),
+            ).fetchone()
+        )
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "CREATE TRIGGER test_lld05_f030_fail_objective_delete "
+            "BEFORE DELETE ON objectives "
+            "WHEN OLD.objective_id='" + created.objective_id + "' "
+            "BEGIN SELECT RAISE(ABORT,'LLD05-F030 injected final Objective delete failure'); END"
+        )
+
+    command_id = new_uuid4()
+    with pytest.raises((SomaError, sqlite3.IntegrityError)):
+        ObjectiveHardDeleteService(factory).hard_delete(
+            command_id=command_id,
+            objective_id=created.objective_id,
+            objective_revision=1,
+            eligibility_fingerprint=delete_preview.eligibility_fingerprint,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM objectives WHERE objective_id=?",
+            (created.objective_id,),
+        ).fetchone() is not None
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT task_id,objective_id,accepted_plan_revision_id,"
+                "membership_revision,last_event_id,last_command_id "
+                "FROM objective_task_membership_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        ) == membership_before
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT start_utc,end_utc,member_count,revision,last_command_id "
+                "FROM objective_envelope_projection WHERE objective_id=?",
+                (created.objective_id,),
+            ).fetchone()
+        ) == envelope_before
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,revision,last_command_id "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (created.objective_id,),
+            ).fetchone()
+        ) == aggregate_before
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+
+def test_lld05_f031_objective_review_rejects_task_outcome_drift_after_preview(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F031 review drift",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_331_000_000,
+            end_utc=2_331_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intent = _existing_intent(factory, task.task_id)
+    creation = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(intent,),
+    )
+    objective = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(creation["fingerprint"]),
+        existing_tasks=(intent,),
+    )
+
+    execution = TaskExecutionService(factory)
+    started = execution.start_task_execution(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=task.revision,
+        execution_revision=0,
+        effective_start_utc=2_331_000_100,
+    )
+    ended = execution.end_task_execution(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=started.revision,
+        execution_revision=1,
+        effective_end_utc=2_331_000_200,
+    )
+    first_preview = TaskOutcomeReviewQueryService(factory).preview(
+        task_id=task.task_id,
+        task_revision=ended.revision,
+        execution_revision=2,
+        outcome_revision=0,
+        current_outcome_event_id=None,
+        outcome="completed",
+        reason_category=None,
+    )
+    task_review = TaskReviewService(factory).review_task_outcome(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=ended.revision,
+        execution_revision=2,
+        outcome_revision=0,
+        current_outcome_event_id=None,
+        outcome="completed",
+        reason_category=None,
+        outcome_review_fingerprint=first_preview.outcome_review_fingerprint,
+    )
+    outcome_event_id = task_review.result_refs[0].result_id
+
+    detail = ObjectiveQueryService(factory).workbench(objective.objective_id)
+    stale_review_fingerprint = str(detail["review"]["review_fingerprint"])
+
+    correction_preview = TaskOutcomeCorrectionQueryService(factory).preview(
+        task_id=task.task_id,
+        task_revision=task_review.revision,
+        execution_revision=2,
+        current_outcome_revision=1,
+        current_outcome_event_id=outcome_event_id,
+        replacement_outcome="incomplete",
+        reason_category="f031_outcome_drift",
+    )
+    TaskReviewService(factory).correct_task_outcome(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=task_review.revision,
+        execution_revision=2,
+        current_outcome_revision=1,
+        current_outcome_event_id=outcome_event_id,
+        replacement_outcome="incomplete",
+        reason_category="f031_outcome_drift",
+        correction_review_fingerprint=correction_preview.correction_review_fingerprint,
+    )
+
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as stale:
+        ObjectiveService(factory).review_objective(
+            command_id=command_id,
+            objective_id=objective.objective_id,
+            review_fingerprint=stale_review_fingerprint,
+        )
+    assert stale.value.code == "OBJECTIVE_REVIEW_STALE"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_review_events "
+            "WHERE objective_id=? AND command_id=?",
+            (objective.objective_id, command_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+def test_t018_objective_outcome_matrix_is_derived_from_member_task_facts(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    planning = TaskPlanningService(factory)
+    execution = TaskExecutionService(factory)
+    reviews = TaskReviewService(factory)
+
+    def create_pair(label: str, base_utc: int):
+        tasks = tuple(
+            planning.create_local_task(
+                command_id=new_uuid4(),
+                local_task_name=f"{label} member {index}",
+                schedule=AcceptedTaskSchedule(
+                    start_utc=base_utc,
+                    end_utc=base_utc + 3_600,
+                    scheduling_timezone_iana=TZ,
+                ),
+            )
+            for index in (1, 2)
+        )
+        intents = tuple(_existing_intent(factory, task.task_id) for task in tasks)
+        preview = ObjectiveGroupingQueryService(factory).creation_preview(
+            existing_tasks=intents,
+        )
+        assert preview["mode"] == "CREATE"
+        objective = ObjectiveService(factory).create_objective_from_preview(
+            command_id=new_uuid4(),
+            preview_fingerprint=str(preview["fingerprint"]),
+            existing_tasks=intents,
+        )
+        return tasks, objective
+
+    def review_terminal(task, *, outcome: str, start_utc: int):
+        started = execution.start_task_execution(
+            command_id=new_uuid4(),
+            task_id=task.task_id,
+            task_revision=task.revision,
+            execution_revision=0,
+            effective_start_utc=start_utc,
+        )
+        ended = execution.end_task_execution(
+            command_id=new_uuid4(),
+            task_id=task.task_id,
+            task_revision=started.revision,
+            execution_revision=1,
+            effective_end_utc=start_utc + 100,
+        )
+        reason = "work_incomplete" if outcome == "incomplete" else None
+        preview = TaskOutcomeReviewQueryService(factory).preview(
+            task_id=task.task_id,
+            task_revision=ended.revision,
+            execution_revision=2,
+            outcome_revision=0,
+            current_outcome_event_id=None,
+            outcome=outcome,
+            reason_category=reason,
+        )
+        assert preview.eligible is True
+        return reviews.review_task_outcome(
+            command_id=new_uuid4(),
+            task_id=task.task_id,
+            task_revision=ended.revision,
+            execution_revision=2,
+            outcome_revision=0,
+            current_outcome_event_id=None,
+            outcome=outcome,
+            reason_category=reason,
+            outcome_review_fingerprint=preview.outcome_review_fingerprint,
+        )
+
+    def cancel_pristine(task, *, cancel_utc: int):
+        return execution.cancel_task_without_execution(
+            command_id=new_uuid4(),
+            task_id=task.task_id,
+            task_revision=task.revision,
+            execution_revision=0,
+            outcome_revision=0,
+            effective_cancel_utc=cancel_utc,
+            reason_category="operator_cancel",
+        )
+
+    def aggregate(objective_id: str):
+        with ReadSnapshot(factory) as snapshot:
+            return tuple(
+                snapshot.connection.execute(
+                    "SELECT execution_state,aggregate_outcome,attention_reason "
+                    "FROM objective_aggregate_projection WHERE objective_id=?",
+                    (objective_id,),
+                ).fetchone()
+            )
+
+    completed_cancelled, objective_a = create_pair(
+        "T018 completed cancelled",
+        2_780_000_000,
+    )
+    review_terminal(
+        completed_cancelled[0],
+        outcome="completed",
+        start_utc=2_780_000_100,
+    )
+    cancel_pristine(
+        completed_cancelled[1],
+        cancel_utc=2_779_999_900,
+    )
+    assert aggregate(objective_a.objective_id) == (
+        "awaiting_review",
+        "mixed",
+        "mixed_outcomes",
+    )
+
+    completed_incomplete, objective_b = create_pair(
+        "T018 completed incomplete",
+        2_780_100_000,
+    )
+    review_terminal(
+        completed_incomplete[0],
+        outcome="completed",
+        start_utc=2_780_100_100,
+    )
+    review_terminal(
+        completed_incomplete[1],
+        outcome="incomplete",
+        start_utc=2_780_100_200,
+    )
+    assert aggregate(objective_b.objective_id) == (
+        "awaiting_review",
+        "mixed",
+        "mixed_outcomes",
+    )
+
+    all_completed, objective_c = create_pair(
+        "T018 all completed",
+        2_780_200_000,
+    )
+    review_terminal(
+        all_completed[0],
+        outcome="completed",
+        start_utc=2_780_200_100,
+    )
+    review_terminal(
+        all_completed[1],
+        outcome="completed",
+        start_utc=2_780_200_200,
+    )
+    assert aggregate(objective_c.objective_id) == (
+        "awaiting_review",
+        "completed",
+        None,
+    )
+
+    all_cancelled, objective_d = create_pair(
+        "T018 all cancelled",
+        2_780_300_000,
+    )
+    cancel_pristine(
+        all_cancelled[0],
+        cancel_utc=2_780_299_900,
+    )
+    cancel_pristine(
+        all_cancelled[1],
+        cancel_utc=2_780_299_901,
+    )
+    assert aggregate(objective_d.objective_id) == (
+        "awaiting_review",
+        "cancelled",
+        None,
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_review_events "
+            "WHERE objective_id IN (?,?,?,?)",
+            (
+                objective_a.objective_id,
+                objective_b.objective_id,
+                objective_c.objective_id,
+                objective_d.objective_id,
+            ),
+        ).fetchone()[0] == 0
+
+def test_lld05_f032_preview_then_concurrent_start_returns_cancel_after_execution(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    planning = TaskPlanningService(factory)
+    first = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F032 preview member A",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_311_000_000,
+            end_utc=2_311_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    second = planning.create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F032 preview member B",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_311_001_000,
+            end_utc=2_311_004_000,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    intents = (
+        _existing_intent(factory, first.task_id),
+        _existing_intent(factory, second.task_id),
+    )
+    grouping = ObjectiveGroupingQueryService(factory)
+    queries = ObjectiveQueryService(factory)
+    preview = grouping.creation_preview(existing_tasks=intents)
+    service = ObjectiveService(factory)
+    created = service.create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=intents,
+    )
+    cancel_preview = queries.workbench(created.objective_id)
+    preview_aggregate_revision = int(cancel_preview["aggregate_state"]["revision"])
+
+    started = TaskExecutionService(factory).start_task_execution(
+        command_id=new_uuid4(),
+        task_id=first.task_id,
+        task_revision=1,
+        execution_revision=0,
+        effective_start_utc=2_311_000_100,
+    )
+    assert started.outcome == "APPLIED"
+
+    cancel_command = new_uuid4()
+    with pytest.raises(SomaError) as excinfo:
+        service.cancel_objective_before_execution(
+            command_id=cancel_command,
+            objective_id=created.objective_id,
+            objective_revision=1,
+            aggregate_revision=preview_aggregate_revision,
+            effective_cancel_utc=2_311_000_200,
+            reason_category="f032_concurrent_start",
+        )
+    assert excinfo.value.code == "OBJECTIVE_CANCEL_AFTER_EXECUTION"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT execution_state,actual_start_utc FROM task_execution_projection "
+            "WHERE task_id=?",
+            (first.task_id,),
+        ).fetchone() == ("in_progress", 2_311_000_100)
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM task_outcome_current WHERE task_id=?",
+            (second.task_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (cancel_command,),
+        ).fetchone() is None
+
+def test_t003_tracking_allocator_exhaustion_is_atomic_and_nonreusing(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    # Fast-forward only the test fixture to the last allocatable value.
+    # Restore the exact production guard before exercising allocator behavior.
+    with UnitOfWork(factory) as uow:
+        trigger_row = uow.connection.execute(
+            "SELECT sql FROM sqlite_master "
+            "WHERE type='trigger' AND name='objective_allocator_update_guard'"
+        ).fetchone()
+        assert trigger_row is not None and trigger_row[0] is not None
+        trigger_sql = str(trigger_row[0])
+        uow.connection.execute("DROP TRIGGER objective_allocator_update_guard")
+        uow.connection.execute(
+            "UPDATE objective_tracking_allocator "
+            "SET next_sequence=99999999,last_command_id=NULL "
+            "WHERE singleton_id=1"
+        )
+        uow.connection.execute(trigger_sql)
+
+    first_task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Last allocatable Objective",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_891_000_000,
+            end_utc=2_891_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    first_intent = _existing_intent(factory, first_task.task_id)
+    first_preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(first_intent,),
+    )
+    assert first_preview["mode"] == "CREATE"
+    first = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(first_preview["fingerprint"]),
+        existing_tasks=(first_intent,),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT tracking_sequence,tracking_id FROM objectives WHERE objective_id=?",
+            (first.objective_id,),
+        ).fetchone()
+        assert tuple(row) == (99_999_999, "MW-99999999")
+        allocator = snapshot.connection.execute(
+            "SELECT next_sequence FROM objective_tracking_allocator WHERE singleton_id=1"
+        ).fetchone()
+        assert allocator == (100_000_000,)
+
+    second_task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Exhausted Objective attempt",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_892_000_000,
+            end_utc=2_892_003_600,
+            scheduling_timezone_iana=TZ,
+        ),
+    )
+    second_intent = _existing_intent(factory, second_task.task_id)
+    second_preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(second_intent,),
+    )
+    assert second_preview["mode"] == "CREATE"
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as caught:
+        ObjectiveService(factory).create_objective_from_preview(
+            command_id=command_id,
+            preview_fingerprint=str(second_preview["fingerprint"]),
+            existing_tasks=(second_intent,),
+        )
+    assert caught.value.code == "OBJECTIVE_TRACKING_ID_EXHAUSTED"
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT next_sequence FROM objective_tracking_allocator WHERE singleton_id=1"
+        ).fetchone() == (100_000_000,)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objectives"
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM objective_task_membership_current WHERE task_id=?",
+            (second_task.task_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone() is None
+

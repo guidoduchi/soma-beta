@@ -242,3 +242,157 @@ def test_outer_uow_failure_rolls_back_proposal_and_changes(initialized_database)
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute("SELECT count(*) FROM reconciliation_proposals").fetchone()[0] == 0
         assert snapshot.connection.execute("SELECT count(*) FROM reconciliation_proposal_changes").fetchone()[0] == 0
+
+
+def _seed_equivalence_source_proposal(
+    uow: UnitOfWork,
+    *,
+    run_id: str,
+    observation_id: str,
+    write: PendingProposalWrite,
+    decision: str = "rejected",
+) -> str:
+    proposal_id = new_uuid4()
+    command_id = new_uuid4()
+    uow.connection.execute(
+        "INSERT INTO reconciliation_proposals("
+        "reconciliation_proposal_id,import_run_id,evidence_mode,source_observation_id,prior_source_observation_id,"
+        "proposal_kind,target_kind,target_internal_id,target_business_id,risk_class,base_state_token_sha256,"
+        "proposal_fingerprint_sha256,proposal_state,created_at_utc,revision,decided_at_utc"
+        ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,2,2)",
+        (
+            proposal_id,
+            run_id,
+            write.evidence_mode,
+            observation_id,
+            write.prior_source_observation_id,
+            write.proposal_kind,
+            write.target_kind,
+            write.target_internal_id,
+            write.target_business_id,
+            write.risk_class,
+            write.base_state_token,
+            write.proposal_fingerprint,
+            decision,
+        ),
+    )
+    for change in write.changes:
+        uow.connection.execute(
+            "INSERT INTO reconciliation_proposal_changes("
+            "reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,before_text,after_text,before_integer,"
+            "after_integer,source_observation_field_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (
+                proposal_id,
+                change.ordinal,
+                change.field_key,
+                change.change_kind,
+                change.value_kind,
+                change.before_text,
+                change.after_text,
+                change.before_integer,
+                change.after_integer,
+                change.source_observation_field_id,
+            ),
+        )
+    uow.connection.execute(
+        "INSERT INTO command_receipts(command_id,command_type,request_hash,target_type,target_id,committed_at_utc,result_type,result_id) "
+        "VALUES (?,'SeedEquivalenceDecision',?,'reconciliation_proposal',?,2,NULL,NULL)",
+        (command_id, "9" * 64, proposal_id),
+    )
+    material = ProposalRepository.material_equivalence_fingerprint_for_write(uow.connection, write)
+    uow.connection.execute(
+        "INSERT INTO proposal_equivalence_decisions("
+        "proposal_equivalence_decision_id,proposal_kind,target_internal_id,target_business_id,"
+        "material_input_fingerprint_sha256,decision,source_proposal_id,created_at_utc,command_id"
+        ") VALUES (?,?,?,?,?,?,?,?,?)",
+        (
+            new_uuid4(),
+            write.proposal_kind,
+            write.target_internal_id,
+            write.target_business_id,
+            material,
+            decision,
+            proposal_id,
+            2,
+            command_id,
+        ),
+    )
+    return proposal_id
+
+
+def test_lld04_f020_v2_suppresses_observation_churn_but_reopens_material_change(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    prior_run = new_uuid4()
+    prior_observation = new_uuid4()
+    current_run = new_uuid4()
+    current_observation = new_uuid4()
+    lineage_id = new_uuid4()
+    counterpart_id = new_uuid4()
+    changed_counterpart_id = new_uuid4()
+
+    prior = _write(
+        run_id=prior_run,
+        observation_id=prior_observation,
+        lineage_id=lineage_id,
+        counterpart_id=counterpart_id,
+        proposal_fingerprint="b" * 64,
+    )
+    equivalent_new_observation = _write(
+        run_id=current_run,
+        observation_id=current_observation,
+        lineage_id=lineage_id,
+        counterpart_id=counterpart_id,
+        proposal_fingerprint="c" * 64,
+    )
+    materially_changed = _write(
+        run_id=current_run,
+        observation_id=current_observation,
+        lineage_id=lineage_id,
+        counterpart_id=changed_counterpart_id,
+        proposal_fingerprint="d" * 64,
+    )
+
+    with UnitOfWork(factory) as uow:
+        _seed_run_and_observation(
+            uow,
+            run_id=prior_run,
+            observation_id=prior_observation,
+            state="waiting_review",
+        )
+        _seed_run_and_observation(
+            uow,
+            run_id=current_run,
+            observation_id=current_observation,
+            state="validating",
+        )
+        source_proposal_id = _seed_equivalence_source_proposal(
+            uow,
+            run_id=prior_run,
+            observation_id=prior_observation,
+            write=prior,
+        )
+        prior_material = ProposalRepository.material_equivalence_fingerprint_for_write(uow.connection, prior)
+        equivalent_material = ProposalRepository.material_equivalence_fingerprint_for_write(
+            uow.connection,
+            equivalent_new_observation,
+        )
+        changed_material = ProposalRepository.material_equivalence_fingerprint_for_write(
+            uow.connection,
+            materially_changed,
+        )
+        assert prior_material == equivalent_material
+        assert changed_material != prior_material
+        assert ProposalRepository.filter_equivalence_suppressed(
+            uow.connection,
+            (equivalent_new_observation,),
+        ) == ()
+        assert ProposalRepository.filter_equivalence_suppressed(
+            uow.connection,
+            (materially_changed,),
+        ) == (materially_changed,)
+        assert uow.connection.execute(
+            "SELECT proposal_state FROM reconciliation_proposals WHERE reconciliation_proposal_id=?",
+            (source_proposal_id,),
+        ).fetchone()[0] == "rejected"

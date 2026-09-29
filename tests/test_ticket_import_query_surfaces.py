@@ -24,16 +24,23 @@ def _run(
     chronology: int = 100,
     fingerprint: str | None = "a" * 64,
     started: int = 1,
+    observed: int = 0,
+    valid_identity: int = 0,
+    invalid: int = 0,
+    warning: int = 0,
+    proposal: int = 0,
+    pending: int = 0,
 ) -> None:
     uow.connection.execute(
         "INSERT INTO import_runs(import_run_id,source_family,invocation_kind,source_profile_id,"
         "header_registry_id,vocabulary_registry_id,parser_profile_id,candidate_filename,"
         "candidate_file_size_bytes,candidate_stable_mtime_ns,candidate_chronology_kind,"
         "candidate_chronology_value,logical_fingerprint_sha256,run_state,started_at_utc,"
-        "staged_at_utc,completed_at_utc,revision) VALUES (?,'advanced_search_sr','manual',"
+        "staged_at_utc,completed_at_utc,observed_row_count,valid_identity_count,invalid_row_count,"
+        "warning_count,proposal_count,pending_proposal_count,revision) VALUES (?,'advanced_search_sr','manual',"
         "'ADVANCED_SEARCH_SR_V1','ADVANCED_SEARCH_HEADERS_V1','ADVANCED_SEARCH_VOCAB_V1',"
         "'ADVANCED_SEARCH_PARSER_V1','source.xlsx',1,1,'embedded_filename_timestamp_utc',"
-        "?,?,?,?,?,?,1)",
+        "?,?,?,?,?,?,?,?,?,?,?,?,1)",
         (
             run_id,
             chronology,
@@ -42,6 +49,12 @@ def _run(
             started,
             started if state not in {"discovering", "validating", "failed"} else None,
             started if state in {"accepted", "rejected", "partially_accepted", "noop", "failed"} else None,
+            observed,
+            valid_identity,
+            invalid,
+            warning,
+            proposal,
+            pending,
         ),
     )
 
@@ -131,10 +144,12 @@ def test_published_observations_are_typed_paged_and_filter_bound(initialized_dat
     first = service.list_published_observations(run_id, limit=2)
     assert [item.row_ordinal for item in first.items] == [1, 2]
     assert [item.fields[0].display_value for item in first.items] == ["summary-1", "summary-2"]
+    assert first.exact_total == 3
     assert first.next_cursor is not None
 
     second = service.list_published_observations(run_id, cursor=first.next_cursor, limit=2)
     assert [item.row_ordinal for item in second.items] == [3]
+    assert second.exact_total == 3
 
     with pytest.raises(SomaError) as excinfo:
         service.list_published_observations(
@@ -164,15 +179,19 @@ def test_findings_are_ranked_paged_and_unpublished_evidence_is_hidden(initialize
 
     service = ImportRunQueryService(factory)
     first = service.list_findings(run_id, limit=2)
-    assert [item.severity for item in first.items] == ["info", "warning"]
+    assert [item.severity for item in first.items] == ["high_risk", "warning"]
+    assert first.exact_total == 3
     assert first.next_cursor is not None
     second = service.list_findings(run_id, cursor=first.next_cursor, limit=2)
-    assert [item.severity for item in second.items] == ["high_risk"]
+    assert [item.severity for item in second.items] == ["info"]
+    assert second.exact_total == 3
 
     with pytest.raises(SomaError) as excinfo:
         service.list_findings(run_id, severity="warning", cursor=first.next_cursor, limit=2)
     assert excinfo.value.code == "IMPORT_CURSOR_INVALID"
-    assert service.list_findings(unpublished_run_id).items == ()
+    unpublished = service.list_findings(unpublished_run_id)
+    assert unpublished.items == ()
+    assert unpublished.exact_total == 0
 
 
 def test_proposal_list_uses_risk_desc_keyset_and_filter_bound_cursor(initialized_database) -> None:
@@ -194,9 +213,11 @@ def test_proposal_list_uses_risk_desc_keyset_and_filter_bound_cursor(initialized
     service = ProposalQueryService(factory)
     first = service.list_proposals(run_id, limit=2)
     assert [item.risk_class for item in first.items] == ["blocked", "high"]
+    assert first.exact_total == 3
     assert first.next_cursor is not None
     second = service.list_proposals(run_id, cursor=first.next_cursor, limit=2)
     assert [item.risk_class for item in second.items] == ["low"]
+    assert second.exact_total == 3
 
     with pytest.raises(SomaError) as excinfo:
         service.list_proposals(run_id, risk="high", cursor=first.next_cursor, limit=2)
@@ -290,3 +311,122 @@ def test_proposal_review_uses_certified_sr_source_field_set_token(initialized_da
     assert review.stale is False
     assert review.allowed_dispositions == ("accept", "reject", "defer")
     assert review.proposal.base_state_token == base_token
+
+
+def test_t032_more_than_500_items_preserve_keyset_and_exact_filtered_totals(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    run_id = new_uuid4()
+    observation_ids = [new_uuid4() for _ in range(501)]
+    finding_ids = [new_uuid4() for _ in range(501)]
+    proposal_ids = [new_uuid4() for _ in range(501)]
+
+    with UnitOfWork(factory) as uow:
+        _run(
+            uow,
+            run_id=run_id,
+            observed=501,
+            valid_identity=501,
+            warning=251,
+            proposal=501,
+            pending=501,
+        )
+        uow.connection.executemany(
+            "INSERT INTO source_observations(source_observation_id,import_run_id,source_family,entity_kind,"
+            "identity_state,canonical_primary_id,canonical_parent_rfc_no,row_ordinal,sheet_ordinal,"
+            "row_logical_sha256,source_row_chronology_utc,presence_state,recorded_at_utc) "
+            "VALUES (?,?,'advanced_search_sr','service_request','valid',?,NULL,?,1,?,NULL,"
+            "'observed_valid_identity',1)",
+            [
+                (
+                    observation_ids[index - 1],
+                    run_id,
+                    f"{index:08d}",
+                    index,
+                    f"{index:064x}",
+                )
+                for index in range(1, 502)
+            ],
+        )
+        uow.connection.executemany(
+            "INSERT INTO import_findings(import_finding_id,import_run_id,source_observation_id,field_key,"
+            "finding_code,severity,scope_kind,message_text,recorded_at_utc) "
+            "VALUES (?,?,?,NULL,?,?,'row',?,1)",
+            [
+                (
+                    finding_ids[index],
+                    run_id,
+                    observation_ids[0],
+                    f"F{index:03d}",
+                    "warning" if index % 2 == 0 else "error",
+                    f"finding-{index}",
+                )
+                for index in range(501)
+            ],
+        )
+        uow.connection.executemany(
+            "INSERT INTO reconciliation_proposals(reconciliation_proposal_id,import_run_id,evidence_mode,"
+            "source_observation_id,prior_source_observation_id,proposal_kind,target_kind,target_internal_id,"
+            "target_business_id,risk_class,base_state_token_sha256,proposal_fingerprint_sha256,proposal_state,"
+            "created_at_utc,revision,decided_at_utc) "
+            "VALUES (?,?,'observed_row',?,NULL,'sr_create_or_adopt','service_request',NULL,?,?,?,?,'pending',1,1,NULL)",
+            [
+                (
+                    proposal_ids[index],
+                    run_id,
+                    observation_ids[0],
+                    f"{index + 1:08d}",
+                    "high" if index % 2 else "low",
+                    "c" * 64,
+                    f"{index + 1:064x}",
+                )
+                for index in range(501)
+            ],
+        )
+    run_service = ImportRunQueryService(factory)
+    proposal_service = ProposalQueryService(factory)
+
+    def collect_observations() -> int:
+        cursor = None
+        seen = 0
+        while True:
+            page = run_service.list_published_observations(run_id, cursor=cursor, limit=100)
+            assert page.exact_total == 501
+            seen += len(page.items)
+            cursor = page.next_cursor
+            if cursor is None:
+                return seen
+
+    def collect_findings() -> int:
+        cursor = None
+        seen = 0
+        while True:
+            page = run_service.list_findings(run_id, cursor=cursor, limit=100)
+            assert page.exact_total == 501
+            seen += len(page.items)
+            cursor = page.next_cursor
+            if cursor is None:
+                return seen
+
+    def collect_proposals() -> int:
+        cursor = None
+        seen = 0
+        while True:
+            page = proposal_service.list_proposals(run_id, cursor=cursor, limit=100)
+            assert page.exact_total == 501
+            seen += len(page.items)
+            cursor = page.next_cursor
+            if cursor is None:
+                return seen
+
+    assert collect_observations() == 501
+    assert collect_findings() == 501
+    assert collect_proposals() == 501
+    assert run_service.list_findings(run_id, severity="error", limit=1).exact_total == 250
+    assert proposal_service.list_proposals(run_id, risk="high", limit=1).exact_total == 250
+
+    detail = run_service.get_run(run_id)
+    assert detail.run.counts["observed"] == 501
+    assert detail.run.counts["warning"] == 251
+    assert detail.run.counts["proposal"] == 501

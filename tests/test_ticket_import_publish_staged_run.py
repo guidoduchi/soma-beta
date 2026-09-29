@@ -1196,3 +1196,131 @@ def test_changed_rfc_publication_persists_identity_review_for_missing_rfc(
             (command_id,),
         ).fetchone()[0] == 1
 
+def test_f005_exact_replay_cleanup_failure_rolls_back_and_retry_is_safe(
+    initialized_database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = _factory(initialized_database)
+    profiles = _profiles()
+    candidate = _candidate(chronology_value=10)
+    run_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _seed_validating_run(
+            uow,
+            run_id=run_id,
+            source_family="advanced_search_sr",
+            profiles=profiles,
+            candidate=candidate,
+        )
+        _stage_identity_row(
+            uow,
+            run_id=run_id,
+            source_family="advanced_search_sr",
+            canonical_primary_id=None,
+        )
+    fingerprint = _fingerprint(factory, run_id)
+    with UnitOfWork(factory) as uow:
+        _seed_checkpoint(
+            uow,
+            source_family="advanced_search_sr",
+            profiles=profiles,
+            chronology_kind="embedded_filename_timestamp_utc",
+            chronology_value=10,
+            logical_fingerprint=fingerprint,
+        )
+    _coordinator, claim, checkpoint = _claim_with_publishing_checkpoint(
+        factory,
+        run_id=run_id,
+        source_family="advanced_search_sr",
+        profiles=profiles,
+        candidate=candidate,
+    )
+    service = PublishStagedImportRunService(factory)
+    command_id = new_uuid4()
+    original_cleanup = SourceObservationRepository.cleanup_unpublished
+
+    def fail_after_cleanup(
+        uow: UnitOfWork,
+        *,
+        import_run_id: str,
+        expected_run_revision: int,
+    ) -> None:
+        original_cleanup(
+            uow,
+            import_run_id=import_run_id,
+            expected_run_revision=expected_run_revision,
+        )
+        raise PersistenceFailure("injected failure after exact-replay staging cleanup")
+
+    monkeypatch.setattr(
+        SourceObservationRepository,
+        "cleanup_unpublished",
+        fail_after_cleanup,
+    )
+    with pytest.raises(
+        PersistenceFailure,
+        match="injected failure after exact-replay staging cleanup",
+    ):
+        _publish(
+            service,
+            command_id=command_id,
+            claim=claim,
+            run_id=run_id,
+            profiles=profiles,
+            checkpoint=checkpoint,
+            fingerprint=fingerprint,
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        run = snapshot.connection.execute(
+            "SELECT run_state,revision,logical_fingerprint_sha256,staged_at_utc "
+            "FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()
+        assert tuple(run) == ("validating", 1, None, None)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM source_observations WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+    monkeypatch.setattr(
+        SourceObservationRepository,
+        "cleanup_unpublished",
+        original_cleanup,
+    )
+    retried = _publish(
+        service,
+        command_id=command_id,
+        claim=claim,
+        run_id=run_id,
+        profiles=profiles,
+        checkpoint=checkpoint,
+        fingerprint=fingerprint,
+    )
+    assert retried.run_state == "noop"
+    assert retried.revision == 2
+    assert retried.proposal_count == 0
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM source_observations WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events "
+            "WHERE command_id=? AND action_type='ticket_import.run_noop_classified'",
+            (command_id,),
+        ).fetchone()[0] == 1
+

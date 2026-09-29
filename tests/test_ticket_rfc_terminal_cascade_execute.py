@@ -6,13 +6,15 @@ from dataclasses import dataclass, field
 import pytest
 
 from soma.foundation.application.command_receipts import CommandReceipt, CommandReceiptStore
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import IntegrityFailure, SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import sha256_canonical_json
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
+from soma.objectives_tasks.repositories.objectives import ObjectiveProjectionRepository
+from soma.objectives_tasks.repositories.tasks import TaskRepository
 from soma.objectives_tasks.services.objectives import ObjectiveService
 from soma.objectives_tasks.services.source_terminal import RfcTerminalTaskParticipant
 from soma.objectives_tasks.services.wfm_import import (
@@ -729,3 +731,300 @@ def test_t020_real_task_participant_terminates_exact_wfm_scope_inside_rfc_outer_
             "WHERE rfc_terminal_cascade_proposal_id=?",
             (proposal_id,),
         ).fetchone()[0] == execute_command
+
+def _real_task_terminal_rollback_case(initialized_database, *, suffix: int):
+    factory = _factory(initialized_database)
+    rfc = RfcService(factory).create_or_adopt_identity(
+        command_id=new_uuid4(),
+        rfc_no=f"NC{suffix:014d}",
+        creation_context="manual",
+    )
+    schedule = AcceptedTaskSchedule(
+        start_utc=2_650_000_000 + suffix * 100,
+        end_utc=2_650_003_600 + suffix * 100,
+        scheduling_timezone_iana="America/Guayaquil",
+    )
+    wfms = tuple(
+        TaskPlanningService(factory).register_manual_wfm_task(
+            command_id=new_uuid4(),
+            task_no=f"TK{suffix * 10 + index:014d}",
+            rfc_id=rfc.rfc_id,
+            schedule=schedule,
+        )
+        for index in (1, 2)
+    )
+
+    intents = []
+    with ReadSnapshot(factory) as snapshot:
+        for task in wfms:
+            row = snapshot.connection.execute(
+                "SELECT t.revision,c.revision,c.plan_revision_id "
+                "FROM tasks t JOIN task_plan_current c ON c.task_id=t.task_id "
+                "WHERE t.task_id=?",
+                (task.task_id,),
+            ).fetchone()
+            assert row is not None
+            intents.append(
+                ObjectiveExistingTaskIntent(
+                    task_id=task.task_id,
+                    expected_task_revision=int(row[0]),
+                    expected_plan_revision=int(row[1]),
+                    expected_plan_revision_id=str(row[2]),
+                )
+            )
+    creation = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=tuple(intents),
+    )
+    assert creation["mode"] == "CREATE"
+    objective = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(creation["fingerprint"]),
+        existing_tasks=tuple(intents),
+    )
+
+    task_participant = RfcTerminalTaskParticipant()
+    capture = RfcTerminalCascadeCaptureService(task_participant)
+    source = RfcSourceProjectionService(
+        _AcceptingEvidenceProvider(),
+        terminal_capture_participant=capture,
+    )
+    terminal_command = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _insert_outer_receipt(uow, terminal_command, rfc.rfc_id)
+        applied = source.apply_accepted_field_deltas(
+            uow,
+            rfc_id=rfc.rfc_id,
+            accepted_command_id=terminal_command,
+            deltas=(_status(),),
+        )
+        assert applied.pending_cascade_proposal_id is not None
+        proposal_id = applied.pending_cascade_proposal_id
+
+    communication = _ExecutionParticipant(
+        domain="COMMUNICATIONS",
+        fingerprint=sha256_canonical_json(
+            {"schema": "LLD05_F020_F021_EMPTY_COMMUNICATIONS_V1"}
+        ),
+        apply_result=_apply_result(
+            "COMMUNICATIONS",
+            result_count=0,
+            audit_count=0,
+        ),
+    )
+    preview = RfcTerminalCascadePreviewService(
+        factory,
+        task_participant,
+        communication,
+    ).preview(proposal_id=proposal_id, limit=500)
+    assert preview.execution_ready is True
+    assert preview.execution_review is not None
+    proof = _ProofProvider()
+    execute = RfcTerminalCascadeExecutionService(
+        factory,
+        task_participant,
+        communication,
+        proof,
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        task_revisions = {
+            str(row[0]): int(row[1])
+            for row in snapshot.connection.execute(
+                "SELECT task_id,revision FROM tasks WHERE task_id IN (?,?)",
+                (wfms[0].task_id, wfms[1].task_id),
+            ).fetchall()
+        }
+        aggregate = tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,attention_reason,"
+                "revision,last_command_id,aggregate_input_fingerprint "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        )
+    return (
+        factory,
+        tuple(task.task_id for task in wfms),
+        objective.objective_id,
+        proposal_id,
+        preview,
+        proof,
+        execute,
+        task_revisions,
+        aggregate,
+    )
+
+
+def _assert_real_terminal_rollback(
+    factory,
+    *,
+    task_ids: tuple[str, str],
+    objective_id: str,
+    proposal_id: str,
+    command_id: str,
+    task_revisions: dict[str, int],
+    aggregate_before: tuple,
+) -> None:
+    with ReadSnapshot(factory) as snapshot:
+        assert {
+            str(row[0]): int(row[1])
+            for row in snapshot.connection.execute(
+                "SELECT task_id,revision FROM tasks WHERE task_id IN (?,?)",
+                task_ids,
+            ).fetchall()
+        } == task_revisions
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_execution_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM task_execution_projection "
+            "WHERE task_id IN (?,?)",
+            task_ids,
+        ).fetchone()[0] == 0
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT execution_state,aggregate_outcome,attention_reason,"
+                "revision,last_command_id,aggregate_input_fingerprint "
+                "FROM objective_aggregate_projection WHERE objective_id=?",
+                (objective_id,),
+            ).fetchone()
+        ) == aggregate_before
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT proposal_state,revision,executed_command_id "
+            "FROM rfc_terminal_cascade_proposals "
+            "WHERE rfc_terminal_cascade_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("pending", 1, None)
+
+
+def test_lld05_f020_second_task_failure_rolls_back_real_rfc_terminal_participant(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    (
+        factory,
+        task_ids,
+        objective_id,
+        proposal_id,
+        preview,
+        proof,
+        execute,
+        task_revisions,
+        aggregate_before,
+    ) = _real_task_terminal_rollback_case(
+        initialized_database,
+        suffix=9021,
+    )
+
+    original_increment = TaskRepository.increment_revision
+    calls = [0]
+
+    def fail_on_second_task(uow, *, task_id, expected_revision):
+        original_increment(
+            uow,
+            task_id=task_id,
+            expected_revision=expected_revision,
+        )
+        calls[0] += 1
+        if calls[0] == 2:
+            raise IntegrityFailure(
+                "LLD05-F020 injected after first WFM termination"
+            )
+
+    monkeypatch.setattr(
+        TaskRepository,
+        "increment_revision",
+        staticmethod(fail_on_second_task),
+    )
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as raised:
+        execute.execute(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=preview.proposal_revision,
+            execution_review=preview.execution_review,
+            deliberate_action_proof="proof-lld05-f020",
+        )
+    assert raised.value.code == "RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED"
+    assert calls == [2]
+    assert "proof-lld05-f020" in proof.consumed
+    _assert_real_terminal_rollback(
+        factory,
+        task_ids=task_ids,
+        objective_id=objective_id,
+        proposal_id=proposal_id,
+        command_id=command_id,
+        task_revisions=task_revisions,
+        aggregate_before=aggregate_before,
+    )
+
+
+def test_lld05_f021_objective_rebuild_failure_rolls_back_real_task_mutations(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    (
+        factory,
+        task_ids,
+        objective_id,
+        proposal_id,
+        preview,
+        proof,
+        execute,
+        task_revisions,
+        aggregate_before,
+    ) = _real_task_terminal_rollback_case(
+        initialized_database,
+        suffix=9022,
+    )
+
+    original_rebuild = ObjectiveProjectionRepository.rebuild_aggregate
+    calls = [0]
+
+    def rebuild_then_fail(uow, *, objective_id, command_id):
+        result = original_rebuild(
+            uow,
+            objective_id=objective_id,
+            command_id=command_id,
+        )
+        calls[0] += 1
+        raise IntegrityFailure(
+            "LLD05-F021 injected after Objective projection rebuild"
+        )
+
+    monkeypatch.setattr(
+        ObjectiveProjectionRepository,
+        "rebuild_aggregate",
+        staticmethod(rebuild_then_fail),
+    )
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as raised:
+        execute.execute(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=preview.proposal_revision,
+            execution_review=preview.execution_review,
+            deliberate_action_proof="proof-lld05-f021",
+        )
+    assert raised.value.code == "RFC_TERMINAL_CASCADE_PARTICIPANT_FAILED"
+    assert calls == [1]
+    assert "proof-lld05-f021" in proof.consumed
+    _assert_real_terminal_rollback(
+        factory,
+        task_ids=task_ids,
+        objective_id=objective_id,
+        proposal_id=proposal_id,
+        command_id=command_id,
+        task_revisions=task_revisions,
+        aggregate_before=aggregate_before,
+    )
+

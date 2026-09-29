@@ -179,3 +179,32 @@ def test_wfm_parser_consumes_exact_preflighted_bytes_after_path_replacement(tmp_
     )
     assert len(parsed.rows) == 1
     assert parsed.rows[0].observation.canonical_primary_id == "TK12345678901234"
+
+
+def test_wfm_optional_field_overflow_isolated_without_truncation(tmp_path) -> None:
+    path = tmp_path / "wfm-field-overflow.xlsx"
+    oversized = "x" * 16_385
+    _save(
+        path,
+        [
+            ["RFC No", "Task No", "Task Name"],
+            ["NC12345678901234", "TK12345678901234", oversized],
+        ],
+    )
+    parsed = parse_wfm_service_provider(
+        path,
+        preflight=preflight_xlsx(path),
+        source_chronology_utc=10,
+    )
+    row = parsed.rows[0]
+    task_name = next(field for field in row.observation.fields if field.field_key == "task_name")
+    assert row.observation.identity_state == "valid"
+    assert task_name.value_state == "malformed"
+    assert task_name.source_text is None
+    assert task_name.normalized_text is None
+    assert any(
+        finding.finding_code == "XLSX_RESOURCE_LIMIT"
+        and finding.scope_kind == "field"
+        and finding.field_key == "task_name"
+        for finding in row.findings
+    )

@@ -8,6 +8,7 @@ import pytest
 from openpyxl import Workbook
 
 from soma.foundation.errors import SomaError
+from soma.ticket_import.parsing import advanced_search
 from soma.ticket_import.parsing.advanced_search import parse_advanced_search
 from soma.ticket_import.parsing.xlsx_security import preflight_xlsx
 from soma.ticket_import.reconciliation.engine import field_logical_sha256, row_logical_sha256
@@ -354,3 +355,50 @@ def test_advanced_search_parser_consumes_exact_preflighted_bytes_after_path_repl
     assert len(parsed.rows) == 1
     assert parsed.rows[0].observation.canonical_primary_id == "12345678"
     assert _field(parsed.rows[0], "problem_summary").normalized_text == "Original safe workbook"
+
+
+@pytest.mark.parametrize(
+    ("limit_name", "limit_value"),
+    (
+        ("_MAX_WORKSHEETS", 0),
+        ("_MAX_PHYSICAL_COLUMNS", 1),
+        ("_MAX_LOGICAL_CELLS_TOTAL", 1),
+        ("_MAX_MATRIX_ROWS", 0),
+    ),
+)
+def test_workbook_geometry_ceilings_fail_without_partial_parse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    limit_name: str,
+    limit_value: int,
+) -> None:
+    path = tmp_path / f"{limit_name}.xlsx"
+    _write_workbook(path, ["SRNo", "Problem Summary"], [["12345678", "safe"]])
+    monkeypatch.setattr(advanced_search, limit_name, limit_value)
+    with pytest.raises(SomaError) as excinfo:
+        _parse(path)
+    assert excinfo.value.code == "XLSX_RESOURCE_LIMIT"
+
+
+def test_advanced_search_optional_line_overflow_isolated_to_field(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "line-overflow.xlsx"
+    _write_workbook(
+        path,
+        ["SRNo", "Problem Summary"],
+        [["12345678", "\n".join("line" for _ in range(513))]],
+    )
+    parsed = _parse(path)
+    row = parsed.rows[0]
+    field = _field(row, "problem_summary")
+    assert row.observation.identity_state == "valid"
+    assert field.value_state == "malformed"
+    assert field.source_text is None
+    assert any(
+        finding.finding_code == "XLSX_RESOURCE_LIMIT"
+        and finding.scope_kind == "field"
+        and finding.field_key == "problem_summary"
+        for finding in row.findings
+    )

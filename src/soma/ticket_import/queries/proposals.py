@@ -129,10 +129,15 @@ class ProposalSummary:
 @dataclass(frozen=True, slots=True)
 class ProposalPage:
     items: tuple[ProposalSummary, ...]
+    exact_total: int
     next_cursor: dict[str, object] | None
 
     def to_response(self) -> dict[str, object]:
-        return {"items": [item.to_response() for item in self.items], "next_cursor": self.next_cursor}
+        return {
+            "items": [item.to_response() for item in self.items],
+            "exact_total": self.exact_total,
+            "next_cursor": self.next_cursor,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -1021,7 +1026,14 @@ class ProposalQueryService:
             if run is None:
                 raise SomaError("IMPORT_RUN_NOT_FOUND", "import run does not exist")
             if str(run[0]) not in _PUBLISHED_RUN_STATES:
-                return ProposalPage(items=(), next_cursor=None)
+                return ProposalPage(items=(), exact_total=0, next_cursor=None)
+            exact_total_row = snapshot.connection.execute(
+                f"SELECT COUNT(*) FROM reconciliation_proposals WHERE {where}",
+                tuple(parameters),
+            ).fetchone()
+            if exact_total_row is None:
+                raise IntegrityFailure("proposal exact-total query returned no row")
+            exact_total = int(exact_total_row[0])
             ranked_where = ""
             ranked_parameters: list[object] = []
             if after is not None:
@@ -1055,7 +1067,7 @@ class ProposalQueryService:
                 "filter_fingerprint": filter_fingerprint,
                 "null_order": "none",
             }
-        return ProposalPage(items=items, next_cursor=next_cursor)
+        return ProposalPage(items=items, exact_total=exact_total, next_cursor=next_cursor)
 
     def get_review(self, proposal_id: str) -> ProposalReview:
         canonical_id = require_uuid4(proposal_id)

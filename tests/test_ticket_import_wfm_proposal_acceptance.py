@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import sqlite3
+
+import pytest
+
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import TaskPlanningService
@@ -233,6 +237,7 @@ def _seed_source_projection_proposal(
     end_field_id: str,
     start: int,
     end: int,
+    status: str = "Implementation",
 ) -> str:
     proposal_id = new_uuid4()
     with UnitOfWork(factory) as uow:
@@ -246,8 +251,8 @@ def _seed_source_projection_proposal(
         uow.connection.execute(
             "INSERT INTO reconciliation_proposal_changes(reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,"
             "before_text,after_text,before_integer,after_integer,source_observation_field_id) "
-            "VALUES (?,0,'task_status','set','controlled',NULL,'Implementation',NULL,NULL,?)",
-            (proposal_id, status_field_id),
+            "VALUES (?,0,'task_status','set','controlled',NULL,?,NULL,NULL,?)",
+            (proposal_id, status, status_field_id),
         )
         uow.connection.execute(
             "INSERT INTO reconciliation_proposal_changes(reconciliation_proposal_id,ordinal,field_key,change_kind,value_kind,"
@@ -899,5 +904,150 @@ def test_accept_wfm_source_projection_applies_exact_reviewed_source_and_replays(
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM audit_events WHERE command_id=? AND action_type='task.plan_changed'",
             (plan_command_id,),
+        ).fetchone()[0] == 1
+
+def test_lld05_f017_terminal_review_insert_failure_rolls_back_lld04_outer_acceptance(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc, rfc_no = _create_rfc(factory, 617)
+    _mark_rfc_implement_eligible(factory, rfc.rfc_id)
+    task_no = "TK00000000000617"
+    start = 2_067_000_000
+    end = start + 3_600
+    registered = TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=task_no,
+        rfc_id=rfc.rfc_id,
+        schedule=AcceptedTaskSchedule(
+            start_utc=start,
+            end_utc=end,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    run_id, observation_id, field_ids = _seed_run_and_observation(
+        factory,
+        task_no=task_no,
+        rfc_no=rfc_no,
+        fields=(
+            {
+                "field_key": "task_status",
+                "value_state": "usable",
+                "value_kind": "controlled",
+                "source_text": "Complete",
+                "normalized_text": "Complete",
+                "vocabulary_id": "WFM_TASK_STATUS_V1",
+            },
+            _usable_instant("planned_start", start),
+            _usable_instant("planned_end", end),
+        ),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        base_token = WfmImportReader.source_acceptance_base_token(
+            snapshot.connection,
+            WfmImportBaseTarget("wfm_source_projection", task_no, registered.task_id),
+        )
+    fingerprint = "f" * 64
+    proposal_id = _seed_source_projection_proposal(
+        factory,
+        run_id=run_id,
+        observation_id=observation_id,
+        task_id=registered.task_id,
+        task_no=task_no,
+        base_token=base_token,
+        fingerprint=fingerprint,
+        status_field_id=field_ids["task_status"],
+        start_field_id=field_ids["planned_start"],
+        end_field_id=field_ids["planned_end"],
+        start=start,
+        end=end,
+        status="Complete",
+    )
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute(
+            "CREATE TRIGGER lld05_f017_fail_terminal_review "
+            "BEFORE INSERT ON wfm_source_terminal_reviews "
+            "BEGIN SELECT RAISE(ABORT,'LLD05-F017 injected terminal review failure'); END"
+        )
+
+    command_id = new_uuid4()
+    service = ProposalDecisionService(factory)
+    with pytest.raises(sqlite3.IntegrityError, match="LLD05-F017"):
+        service.accept(
+            command_id=command_id,
+            proposal_id=proposal_id,
+            proposal_revision=1,
+            proposal_fingerprint=fingerprint,
+            base_state_token=base_token,
+            reason_category="f017_terminal_review_failure",
+        )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM wfm_source_projection_cache WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM wfm_source_terminal_reviews WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT proposal_state,revision FROM reconciliation_proposals "
+            "WHERE reconciliation_proposal_id=?",
+            (proposal_id,),
+        ).fetchone() == ("pending", 1)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM proposal_dispositions WHERE reconciliation_proposal_id=?",
+            (proposal_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT pending_proposal_count,accepted_proposal_count,revision "
+            "FROM import_runs WHERE import_run_id=?",
+            (run_id,),
+        ).fetchone() == (1, 0, 1)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+    with UnitOfWork(factory) as uow:
+        uow.connection.execute("DROP TRIGGER lld05_f017_fail_terminal_review")
+
+    accepted = service.accept(
+        command_id=command_id,
+        proposal_id=proposal_id,
+        proposal_revision=1,
+        proposal_fingerprint=fingerprint,
+        base_state_token=base_token,
+        reason_category="f017_terminal_review_failure",
+    )
+    assert accepted.decision == "accepted"
+    assert accepted.replayed is False
+
+    with ReadSnapshot(factory) as snapshot:
+        source = WfmImportReader.source_projection(snapshot.connection, registered.task_id)
+        assert source is not None
+        assert source["provider_status_token"] == "Complete"
+        assert source["provider_lifecycle_class"] == "complete"
+        assert source["source_projection_revision"] == 1
+        review = snapshot.connection.execute(
+            "SELECT state,source_projection_revision,provider_lifecycle_class "
+            "FROM wfm_source_terminal_reviews WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone()
+        assert tuple(review) == ("pending", 1, "complete")
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM proposal_dispositions "
+            "WHERE reconciliation_proposal_id=? AND decision='accepted' AND command_id=?",
+            (proposal_id, command_id),
+        ).fetchone()[0] == 1
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
         ).fetchone()[0] == 1
 

@@ -127,6 +127,7 @@ class _RunAuthority:
 class _PublicationPreflight:
     replay_classification: str
     checkpoint: SourceCheckpointState | None
+    raw_proposal_writes: tuple[PendingProposalWrite, ...]
     proposal_writes: tuple[PendingProposalWrite, ...]
     reconciliation_findings: tuple[NormalizedFindingEvidence, ...]
     target_state: str
@@ -611,16 +612,29 @@ class PublishStagedImportRunService:
                 ).fetchone()
                 if existing is None or int(existing[0]) != 0:
                     raise IntegrityFailure("replay/noop classification found pre-existing proposal authority")
+                raw_proposal_writes: tuple[PendingProposalWrite, ...] = ()
                 proposal_writes: tuple[PendingProposalWrite, ...] = ()
                 reconciliation_findings: tuple[NormalizedFindingEvidence, ...] = ()
             elif verified.evidence.source_family == "advanced_search_sr":
-                proposal_writes = self._advanced_search_proposal_writes(snapshot.connection, verified)
+                raw_proposal_writes = self._advanced_search_proposal_writes(snapshot.connection, verified)
+                proposal_writes = self._proposals.filter_equivalence_suppressed(
+                    snapshot.connection,
+                    raw_proposal_writes,
+                )
                 reconciliation_findings = ()
             elif verified.evidence.source_family == "rfc_enhanced":
-                proposal_writes = self._rfc_enhanced_proposal_writes(snapshot.connection, verified)
+                raw_proposal_writes = self._rfc_enhanced_proposal_writes(snapshot.connection, verified)
+                proposal_writes = self._proposals.filter_equivalence_suppressed(
+                    snapshot.connection,
+                    raw_proposal_writes,
+                )
                 reconciliation_findings = ()
             elif verified.evidence.source_family == "wfm_service_provider":
-                proposal_writes = self._wfm_proposal_writes(snapshot.connection, verified)
+                raw_proposal_writes = self._wfm_proposal_writes(snapshot.connection, verified)
+                proposal_writes = self._proposals.filter_equivalence_suppressed(
+                    snapshot.connection,
+                    raw_proposal_writes,
+                )
                 reconciliation_findings = self._wfm_reconciliation_findings(snapshot.connection, verified)
             else:
                 raise SomaError(
@@ -630,6 +644,7 @@ class PublishStagedImportRunService:
             return _PublicationPreflight(
                 replay_classification=classification,
                 checkpoint=verified.checkpoint,
+                raw_proposal_writes=raw_proposal_writes,
                 proposal_writes=proposal_writes,
                 reconciliation_findings=reconciliation_findings,
                 target_state=self._target_state(classification, proposal_writes),
@@ -776,25 +791,30 @@ class PublishStagedImportRunService:
                     raise IntegrityFailure("replay/noop classification found pre-existing proposal authority")
                 proposal_writes: tuple[PendingProposalWrite, ...] = ()
                 reconciliation_findings: tuple[NormalizedFindingEvidence, ...] = ()
-            elif run.source_family == "advanced_search_sr":
-                proposal_writes = preflight.proposal_writes
-                reconciliation_findings = ()
-            elif run.source_family == "rfc_enhanced":
-                proposal_writes = preflight.proposal_writes
-                reconciliation_findings = ()
-            elif run.source_family == "wfm_service_provider":
-                proposal_writes = preflight.proposal_writes
-                reconciliation_findings = self._wfm_reconciliation_findings(uow.connection, verified)
-                if reconciliation_findings != preflight.reconciliation_findings:
+            else:
+                proposal_writes = self._proposals.filter_equivalence_suppressed(
+                    uow.connection,
+                    preflight.raw_proposal_writes,
+                )
+                if proposal_writes != preflight.proposal_writes:
                     raise SomaError(
                         "IMPORT_RUN_STALE",
-                        "WFM retired-identity reconciliation evidence changed after publication preflight",
+                        "proposal equivalence suppression changed after publication preflight",
                     )
-            else:
-                raise SomaError(
-                    "IMPORT_RUN_STALE",
-                    "changed-source publication orchestration is not yet implemented for this source family",
-                )
+                if run.source_family in {"advanced_search_sr", "rfc_enhanced"}:
+                    reconciliation_findings = ()
+                elif run.source_family == "wfm_service_provider":
+                    reconciliation_findings = self._wfm_reconciliation_findings(uow.connection, verified)
+                    if reconciliation_findings != preflight.reconciliation_findings:
+                        raise SomaError(
+                            "IMPORT_RUN_STALE",
+                            "WFM retired-identity reconciliation evidence changed after publication preflight",
+                        )
+                else:
+                    raise SomaError(
+                        "IMPORT_RUN_STALE",
+                        "changed-source publication orchestration is not yet implemented for this source family",
+                    )
 
             target_state = self._target_state(classification, proposal_writes)
             if target_state != preflight.target_state:

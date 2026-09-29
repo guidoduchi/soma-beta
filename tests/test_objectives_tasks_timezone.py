@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from soma.foundation.errors import SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.persistence.uow import ReadSnapshot
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.queries.timezone import ObjectiveTimezoneQueryService
 from soma.objectives_tasks.services.timezone import ObjectiveTimezoneService
@@ -186,3 +186,118 @@ def test_t031_local_time_validation_is_offline_dst_safe_and_path_safe() -> None:
             datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             "America/Guayaquil",
         )
+
+def test_lld05_f027_timezone_audit_failure_rolls_back_setting_and_preserves_task_instants(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    task = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="F027 timezone rollback",
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_401_000_000,
+            end_utc=2_401_003_600,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    with ReadSnapshot(factory) as snapshot:
+        task_plan_before = tuple(
+            snapshot.connection.execute(
+                "SELECT p.start_utc,p.end_utc,p.scheduling_timezone_iana,"
+                "c.plan_revision_id,c.revision "
+                "FROM task_plan_current c JOIN task_plan_revisions p "
+                "ON p.plan_revision_id=c.plan_revision_id WHERE c.task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        )
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM setting_values WHERE setting_key='OBJECTIVE_TIMEZONE_V1'",
+        ).fetchone() is None
+
+    service = ObjectiveTimezoneService(factory)
+    calls = [0]
+
+    def fail_audit(_uow, _event):
+        calls[0] += 1
+        raise IntegrityFailure(
+            "LLD05-F027 injected timezone audit failure after setting write"
+        )
+
+    monkeypatch.setattr(
+        service._boundary._audit_writer,
+        "write",
+        fail_audit,
+    )
+    command_id = new_uuid4()
+    with pytest.raises(IntegrityFailure, match="LLD05-F027"):
+        service.set_timezone(
+            command_id=command_id,
+            new_timezone="Asia/Tokyo",
+            base_revision=None,
+        )
+    assert calls == [1]
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT 1 FROM setting_values WHERE setting_key='OBJECTIVE_TIMEZONE_V1'",
+        ).fetchone() is None
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT p.start_utc,p.end_utc,p.scheduling_timezone_iana,"
+                "c.plan_revision_id,c.revision "
+                "FROM task_plan_current c JOIN task_plan_revisions p "
+                "ON p.plan_revision_id=c.plan_revision_id WHERE c.task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        ) == task_plan_before
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone()[0] == 0
+
+def test_lld05_f035_invalid_dst_input_rejects_before_writer_uow(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    with ReadSnapshot(factory) as snapshot:
+        before = (
+            snapshot.connection.execute("SELECT COUNT(*) FROM tasks").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM task_plan_revisions").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0],
+        )
+
+    def writer_uow_must_not_start(_self):
+        raise AssertionError("LLD05-F035 invalid local input entered writer UnitOfWork")
+
+    monkeypatch.setattr(UnitOfWork, "__enter__", writer_uow_must_not_start)
+
+    with pytest.raises(SomaError) as nonexistent:
+        ObjectiveTimezoneService.validate_local_input(
+            datetime(2026, 3, 8, 2, 30, 0),
+            "America/New_York",
+        )
+    assert nonexistent.value.code == "TIMEZONE_NONEXISTENT_LOCAL_TIME"
+
+    with pytest.raises(SomaError) as ambiguous:
+        ObjectiveTimezoneService.validate_local_input(
+            datetime(2026, 11, 1, 1, 30, 0),
+            "America/New_York",
+        )
+    assert ambiguous.value.code == "TIMEZONE_AMBIGUOUS_LOCAL_TIME"
+
+    with ReadSnapshot(factory) as snapshot:
+        after = (
+            snapshot.connection.execute("SELECT COUNT(*) FROM tasks").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM task_plan_revisions").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM command_receipts").fetchone()[0],
+            snapshot.connection.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0],
+        )
+    assert after == before
+

@@ -6,8 +6,13 @@ from soma.foundation.audit.writer import AuditWriter
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
-from soma.objectives_tasks import TaskPlanningService
+from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
 from soma.objectives_tasks.audit_registry import build_objectives_tasks_audit_registry
+from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
+from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
+from soma.objectives_tasks.services.historical import HistoricalObjectiveService
+from soma.objectives_tasks.services.objectives import ObjectiveService
+from soma.objectives_tasks.services.source_terminal import WfmSourceTerminalService
 from soma.objectives_tasks.services.task_explicit_lock import TaskExplicitLockService
 from soma.objectives_tasks.services.wfm_import import (
     WfmCreateOrAdoptFromSourceMutation,
@@ -509,3 +514,383 @@ def test_outer_uow_failure_rolls_back_source_created_identity_and_audit(initiali
         assert snapshot.connection.execute(
             "SELECT count(*) FROM audit_events WHERE command_id=?", (command_id,)
         ).fetchone()[0] == 0
+
+
+def _apply_source_projection_for_history(
+    factory,
+    *,
+    task_id: str,
+    task_no: str,
+    expected_revision: int,
+    lifecycle: str,
+    start_utc: int | None,
+    end_utc: int | None,
+):
+    observation_id = new_uuid4()
+    command_id = new_uuid4()
+    base_token = _source_token(factory, task_no=task_no, task_id=task_id)
+    with UnitOfWork(factory) as uow:
+        _insert_outer_receipt(uow, command_id=command_id)
+        result = WfmImportMutationParticipant.apply_wfm_source_projection(
+            uow,
+            WfmSourceProjectionAcceptanceMutation(
+                task_id=task_id,
+                task_no=task_no,
+                expected_source_projection_revision=expected_revision,
+                provider_status_token=(
+                    "Complete" if lifecycle == "complete" else "Plan Cancel"
+                ),
+                provider_lifecycle_class=lifecycle,
+                source_plan_start_utc=start_utc,
+                source_plan_end_utc=end_utc,
+                accepted_source_observation_id=observation_id,
+                base_state_token=base_token,
+                accepted_command_id=command_id,
+            ),
+        )
+    return observation_id, command_id, result
+
+
+def _objective_intent(factory, task_id: str) -> ObjectiveExistingTaskIntent:
+    with ReadSnapshot(factory) as snapshot:
+        row = snapshot.connection.execute(
+            "SELECT t.revision,pc.revision,pc.plan_revision_id "
+            "FROM tasks t JOIN task_plan_current pc ON pc.task_id=t.task_id "
+            "WHERE t.task_id=?",
+            (task_id,),
+        ).fetchone()
+    assert row is not None
+    return ObjectiveExistingTaskIntent(
+        task_id=task_id,
+        expected_task_revision=int(row[0]),
+        expected_plan_revision=int(row[1]),
+        expected_plan_revision_id=str(row[2]),
+    )
+
+
+def test_t022_complete_source_creates_historical_proposal_and_plan_cancel_supersedes(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    _rfc_id, registered = _register_manual_wfm(factory, suffix=390)
+    task_no = "TK00000000000390"
+    start_utc = 2_090_000_000
+    end_utc = 2_090_003_600
+
+    observation_id, _command_id, result = _apply_source_projection_for_history(
+        factory,
+        task_id=registered.task_id,
+        task_no=task_no,
+        expected_revision=0,
+        lifecycle="complete",
+        start_utc=start_utc,
+        end_utc=end_utc,
+    )
+    assert result.source_projection_revision == 1
+    with ReadSnapshot(factory) as snapshot:
+        proposal = snapshot.connection.execute(
+            "SELECT historical_proposal_id,expected_wfm_source_projection_revision,"
+            "expected_source_plan_start_utc,expected_source_plan_end_utc,"
+            "expected_source_observation_id,expected_matching_operational_plan_revision_id,"
+            "input_fingerprint,state,revision "
+            "FROM historical_objective_proposals WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone()
+    assert proposal is not None
+    assert tuple(proposal[1:6]) == (
+        1,
+        start_utc,
+        end_utc,
+        observation_id,
+        None,
+    )
+    assert len(str(proposal[6])) == 64
+    assert tuple(proposal[7:]) == ("pending", 1)
+
+    _apply_source_projection_for_history(
+        factory,
+        task_id=registered.task_id,
+        task_no=task_no,
+        expected_revision=1,
+        lifecycle="plan_cancel",
+        start_utc=start_utc,
+        end_utc=end_utc,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        prior = snapshot.connection.execute(
+            "SELECT state,revision FROM historical_objective_proposals "
+            "WHERE historical_proposal_id=?",
+            (proposal[0],),
+        ).fetchone()
+        assert tuple(prior) == ("superseded", 2)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM historical_objective_proposals "
+            "WHERE task_id=? AND state='pending'",
+            (registered.task_id,),
+        ).fetchone()[0] == 0
+
+
+def test_t023_complete_source_reuses_exact_plan_and_suppresses_conflicting_plan(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    exact_rfc, _ = _create_rfc(factory, 391)
+    exact_task_no = "TK00000000000391"
+    start_utc = 2_091_000_000
+    end_utc = 2_091_003_600
+    exact = TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=exact_task_no,
+        rfc_id=exact_rfc,
+        schedule=AcceptedTaskSchedule(
+            start_utc=start_utc,
+            end_utc=end_utc,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    _apply_source_projection_for_history(
+        factory,
+        task_id=exact.task_id,
+        task_no=exact_task_no,
+        expected_revision=0,
+        lifecycle="complete",
+        start_utc=start_utc,
+        end_utc=end_utc,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        proposal = snapshot.connection.execute(
+            "SELECT historical_proposal_id,revision,input_fingerprint,"
+            "expected_matching_operational_plan_revision_id "
+            "FROM historical_objective_proposals "
+            "WHERE task_id=? AND state='pending'",
+            (exact.task_id,),
+        ).fetchone()
+        before_plan = snapshot.connection.execute(
+            "SELECT plan_revision_id FROM task_plan_current WHERE task_id=?",
+            (exact.task_id,),
+        ).fetchone()[0]
+    assert proposal is not None
+    assert str(proposal[3]) == str(before_plan)
+    accepted = HistoricalObjectiveService(factory).accept_proposal(
+        command_id=new_uuid4(),
+        proposal_id=str(proposal[0]),
+        proposal_revision=int(proposal[1]),
+        input_fingerprint=str(proposal[2]),
+    )
+    assert accepted.state == "accepted"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT plan_revision_id FROM task_plan_current WHERE task_id=?",
+            (exact.task_id,),
+        ).fetchone()[0] == before_plan
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM task_plan_revisions WHERE task_id=?",
+            (exact.task_id,),
+        ).fetchone()[0] == 1
+
+    conflict_rfc, _ = _create_rfc(factory, 392)
+    conflict_task_no = "TK00000000000392"
+    conflict = TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=conflict_task_no,
+        rfc_id=conflict_rfc,
+        schedule=AcceptedTaskSchedule(
+            start_utc=start_utc + 10_000,
+            end_utc=end_utc + 10_000,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    _apply_source_projection_for_history(
+        factory,
+        task_id=conflict.task_id,
+        task_no=conflict_task_no,
+        expected_revision=0,
+        lifecycle="complete",
+        start_utc=start_utc,
+        end_utc=end_utc,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM historical_objective_proposals WHERE task_id=?",
+            (conflict.task_id,),
+        ).fetchone()[0] == 0
+
+
+def test_t022_historical_proposal_fingerprint_binds_current_overlap_set(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    _rfc_id, registered = _register_manual_wfm(factory, suffix=393)
+    task_no = "TK00000000000393"
+    start_utc = 2_093_000_000
+    end_utc = 2_093_003_600
+    _apply_source_projection_for_history(
+        factory,
+        task_id=registered.task_id,
+        task_no=task_no,
+        expected_revision=0,
+        lifecycle="complete",
+        start_utc=start_utc,
+        end_utc=end_utc,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        proposal = snapshot.connection.execute(
+            "SELECT historical_proposal_id,revision,input_fingerprint "
+            "FROM historical_objective_proposals "
+            "WHERE task_id=? AND state='pending'",
+            (registered.task_id,),
+        ).fetchone()
+    assert proposal is not None
+
+    blocker = TaskPlanningService(factory).create_local_task(
+        command_id=new_uuid4(),
+        local_task_name="Historical overlap blocker",
+        schedule=AcceptedTaskSchedule(
+            start_utc=start_utc + 60,
+            end_utc=end_utc + 60,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+    intent = _objective_intent(factory, blocker.task_id)
+    preview = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(intent,),
+    )
+    ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(preview["fingerprint"]),
+        existing_tasks=(intent,),
+    )
+
+    with pytest.raises(SomaError) as stale:
+        HistoricalObjectiveService(factory).accept_proposal(
+            command_id=new_uuid4(),
+            proposal_id=str(proposal[0]),
+            proposal_revision=int(proposal[1]),
+            input_fingerprint=str(proposal[2]),
+        )
+    assert stale.value.code == "HISTORICAL_PROPOSAL_STALE"
+
+def test_t023_reviewed_source_plan_refreshes_complete_historical_proposal(
+    initialized_database,
+) -> None:
+    factory = _factory(initialized_database)
+    rfc_id, _ = _create_rfc(factory, 394)
+    task_no = "TK00000000000394"
+    local_start = 2_094_000_000
+    local_end = 2_094_003_600
+    source_start = 2_094_010_000
+    source_end = 2_094_013_600
+    registered = TaskPlanningService(factory).register_manual_wfm_task(
+        command_id=new_uuid4(),
+        task_no=task_no,
+        rfc_id=rfc_id,
+        schedule=AcceptedTaskSchedule(
+            start_utc=local_start,
+            end_utc=local_end,
+            scheduling_timezone_iana="America/Guayaquil",
+        ),
+    )
+
+    observation_id, source_command_id, source_result = (
+        _apply_source_projection_for_history(
+            factory,
+            task_id=registered.task_id,
+            task_no=task_no,
+            expected_revision=0,
+            lifecycle="complete",
+            start_utc=source_start,
+            end_utc=source_end,
+        )
+    )
+    assert source_result.source_projection_revision == 1
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM historical_objective_proposals "
+            "WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone()[0] == 0
+        review = snapshot.connection.execute(
+            "SELECT source_terminal_review_id,input_fingerprint,source_projection_revision "
+            "FROM wfm_source_terminal_reviews "
+            "WHERE task_id=? AND state='pending'",
+            (registered.task_id,),
+        ).fetchone()
+        assert review is not None
+        current_plan_before = snapshot.connection.execute(
+            "SELECT plan_revision_id,revision FROM task_plan_current WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone()
+        assert current_plan_before is not None
+
+    retained = WfmSourceTerminalService(factory).resolve_wfm_source_terminal_consequence(
+        command_id=new_uuid4(),
+        source_terminal_review_id=str(review[0]),
+        task_id=registered.task_id,
+        source_projection_revision=int(review[2]),
+        input_fingerprint=str(review[1]),
+        decision="retain_local_work",
+        reason_category="retain_before_source_plan_reconciliation",
+    )
+    assert retained.outcome == "APPLIED"
+    assert retained.revision == registered.revision
+
+    plan_token = _plan_token(
+        factory,
+        task_no=task_no,
+        task_id=registered.task_id,
+    )
+    plan_command_id = new_uuid4()
+    with UnitOfWork(factory) as uow:
+        _insert_outer_receipt(uow, command_id=plan_command_id)
+        plan_result = (
+            WfmImportMutationParticipant.apply_reviewed_operational_plan_from_source(
+                uow,
+                WfmReviewedOperationalPlanMutation(
+                    task_id=registered.task_id,
+                    task_no=task_no,
+                    expected_task_revision=registered.revision,
+                    expected_current_plan_revision=int(current_plan_before[1]),
+                    expected_source_projection_revision=1,
+                    accepted_source_observation_id=observation_id,
+                    start_utc=source_start,
+                    end_utc=source_end,
+                    base_state_token=plan_token,
+                    accepted_command_id=plan_command_id,
+                    reason_category="historical_source_plan_reconciliation",
+                ),
+            )
+        )
+        _write_owner_audits(uow, plan_result.audit_events)
+
+    with ReadSnapshot(factory) as snapshot:
+        fresh = snapshot.connection.execute(
+            "SELECT historical_proposal_id,input_fingerprint,state,revision,"
+            "expected_matching_operational_plan_revision_id,"
+            "expected_wfm_source_projection_revision,expected_source_observation_id,"
+            "expected_source_plan_start_utc,expected_source_plan_end_utc "
+            "FROM historical_objective_proposals "
+            "WHERE task_id=? AND state='pending'",
+            (registered.task_id,),
+        ).fetchone()
+        assert fresh is not None
+        assert tuple(fresh[2:4]) == ("pending", 1)
+        assert str(fresh[4]) == str(plan_result.result_refs[0][1])
+        assert int(fresh[5]) == 1
+        assert str(fresh[6]) == observation_id
+        assert tuple(fresh[7:9]) == (source_start, source_end)
+        assert snapshot.connection.execute(
+            "SELECT source_projection_revision,last_command_id "
+            "FROM wfm_source_projection_cache WHERE task_id=?",
+            (registered.task_id,),
+        ).fetchone() == (1, source_command_id)
+        current_plan_after = snapshot.connection.execute(
+            "SELECT c.plan_revision_id,c.revision,p.start_utc,p.end_utc "
+            "FROM task_plan_current c JOIN task_plan_revisions p "
+            "ON p.plan_revision_id=c.plan_revision_id "
+            "WHERE c.task_id=?",
+            (registered.task_id,),
+        ).fetchone()
+        assert tuple(current_plan_after[2:4]) == (source_start, source_end)
+        assert str(current_plan_after[0]) == str(plan_result.result_refs[0][1])
+        assert int(current_plan_after[1]) == int(current_plan_before[1]) + 1

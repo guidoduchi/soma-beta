@@ -9,11 +9,13 @@ from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.objectives_tasks import AcceptedTaskSchedule, TaskPlanningService
+from soma.objectives_tasks.domain.objectives import ObjectiveExistingTaskIntent
 from soma.objectives_tasks.jobs import OBJECTIVES_TASKS_JOB_CONTRACTS
 from soma.objectives_tasks.jobs.grouping_recompute import ObjectiveGroupingRecomputeWorker
 from soma.objectives_tasks.queries.grouping import ObjectiveGroupingQueryService
 from soma.objectives_tasks.repositories.grouping import RegroupProposalRepository
 from soma.objectives_tasks.services.grouping import GroupingService
+from soma.objectives_tasks.services.objectives import ObjectiveService
 
 
 TZ = "America/Guayaquil"
@@ -305,3 +307,282 @@ def test_t039_candidate_builder_has_no_component_times_full_workset_scan() -> No
     assert "for task in snapshot.tasks\n                    if task.task_id" not in source
     assert "members_by_objective" in source
     assert "objective_cursor" in source
+
+def test_lld05_f005_committed_plan_survives_durable_grouping_publication_crash(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    task = _task(
+        factory,
+        "F005 committed plan",
+        2_816_000_000,
+        2_816_000_100,
+    )
+    with ReadSnapshot(factory) as snapshot:
+        before = snapshot.connection.execute(
+            "SELECT t.revision,c.revision,c.plan_revision_id,p.start_utc,p.end_utc "
+            "FROM tasks t JOIN task_plan_current c ON c.task_id=t.task_id "
+            "JOIN task_plan_revisions p ON p.plan_revision_id=c.plan_revision_id "
+            "WHERE t.task_id=?",
+            (task.task_id,),
+        ).fetchone()
+    assert before is not None
+    intent = ObjectiveExistingTaskIntent(
+        task_id=task.task_id,
+        expected_task_revision=int(before[0]),
+        expected_plan_revision=int(before[1]),
+        expected_plan_revision_id=str(before[2]),
+    )
+    creation = ObjectiveGroupingQueryService(factory).creation_preview(
+        existing_tasks=(intent,),
+    )
+    assert creation["mode"] == "CREATE"
+    objective = ObjectiveService(factory).create_objective_from_preview(
+        command_id=new_uuid4(),
+        preview_fingerprint=str(creation["fingerprint"]),
+        existing_tasks=(intent,),
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        membership_before = tuple(
+            snapshot.connection.execute(
+                "SELECT accepted_plan_revision_id,membership_revision,last_event_id "
+                "FROM objective_task_membership_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        )
+        envelope_before = tuple(
+            snapshot.connection.execute(
+                "SELECT start_utc,end_utc,revision,membership_input_fingerprint "
+                "FROM objective_envelope_projection WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        )
+
+    changed = TaskPlanningService(factory).set_task_plan(
+        command_id=new_uuid4(),
+        task_id=task.task_id,
+        task_revision=int(before[0]),
+        current_plan_revision=int(before[1]),
+        schedule=AcceptedTaskSchedule(
+            start_utc=2_816_001_000,
+            end_utc=2_816_001_100,
+            scheduling_timezone_iana=TZ,
+        ),
+        reason_category="f005_plan_change",
+    )
+    assert changed.outcome == "APPLIED"
+
+    with ReadSnapshot(factory) as snapshot:
+        current_plan = tuple(
+            snapshot.connection.execute(
+                "SELECT c.plan_revision_id,c.revision,p.start_utc,p.end_utc "
+                "FROM task_plan_current c JOIN task_plan_revisions p "
+                "ON p.plan_revision_id=c.plan_revision_id WHERE c.task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        )
+        assert current_plan[0] != membership_before[0]
+        assert tuple(current_plan[2:4]) == (2_816_001_000, 2_816_001_100)
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT accepted_plan_revision_id,membership_revision,last_event_id "
+                "FROM objective_task_membership_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        ) == membership_before
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT start_utc,end_utc,revision,membership_input_fingerprint "
+                "FROM objective_envelope_projection WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        ) == envelope_before
+
+    monkeypatch.setattr(
+        GroupingService,
+        "_eligible_workset_count",
+        staticmethod(lambda _reader: 100_001),
+    )
+    deferred = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="task_plan_changed",
+    )
+    assert deferred["execution_mode"] == "durable_job"
+
+    coordinator = _coordinator(factory)
+    claim = coordinator.claim_next(new_uuid4(), utc_epoch_seconds())
+    assert claim is not None and claim.job_id == deferred["job_id"]
+    original_insert = RegroupProposalRepository.insert_candidate
+
+    with monkeypatch.context() as local_patch:
+        def fail_after_insert(cls, connection, *, candidate, command_id):
+            original_insert(
+                connection,
+                candidate=candidate,
+                command_id=command_id,
+            )
+            raise RuntimeError("LLD05-F005 injected publication crash")
+
+        local_patch.setattr(
+            RegroupProposalRepository,
+            "insert_candidate",
+            classmethod(fail_after_insert),
+        )
+        with pytest.raises(RuntimeError, match="LLD05-F005"):
+            ObjectiveGroupingRecomputeWorker(factory).run(claim)
+
+    with ReadSnapshot(factory) as snapshot:
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT c.plan_revision_id,c.revision,p.start_utc,p.end_utc "
+                "FROM task_plan_current c JOIN task_plan_revisions p "
+                "ON p.plan_revision_id=c.plan_revision_id WHERE c.task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        ) == current_plan
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT accepted_plan_revision_id,membership_revision,last_event_id "
+                "FROM objective_task_membership_current WHERE task_id=?",
+                (task.task_id,),
+            ).fetchone()
+        ) == membership_before
+        assert tuple(
+            snapshot.connection.execute(
+                "SELECT start_utc,end_utc,revision,membership_input_fingerprint "
+                "FROM objective_envelope_projection WHERE objective_id=?",
+                (objective.objective_id,),
+            ).fetchone()
+        ) == envelope_before
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM regroup_proposals",
+        ).fetchone()[0] == 0
+
+    failure_now = max(utc_epoch_seconds(), claim.claim_started_at_utc)
+    retry_at = failure_now + 5
+    _coordinator(factory, clock=lambda: failure_now).fail(
+        claim,
+        "PERSISTENCE_BUSY",
+        retry_at,
+    )
+    retry_claim = coordinator.claim_next(new_uuid4(), retry_at)
+    assert retry_claim is not None and retry_claim.job_id == claim.job_id
+    retried = ObjectiveGroupingRecomputeWorker(
+        factory,
+        clock=lambda: retry_at,
+    ).run(retry_claim)
+    assert retried.published_proposal_count == 1
+
+    page = ObjectiveGroupingQueryService(factory).list_proposals(limit=10)
+    assert page["exact_total"] == 1
+    detail = ObjectiveGroupingQueryService(factory).proposal_detail(
+        str(page["items"][0]["proposal_id"])
+    )
+    assert detail["stale"] is False
+
+def test_lld05_f034_crash_after_committed_proposal_restarts_without_duplicate_authority(
+    initialized_database,
+    monkeypatch,
+) -> None:
+    factory = _factory(initialized_database)
+    first = _task(factory, "F034 durable first", 2_817_000_000, 2_817_000_100)
+    second = _task(factory, "F034 durable second", 2_817_000_200, 2_817_000_300)
+    with ReadSnapshot(factory) as snapshot:
+        frozen = GroupingService._candidates(
+            snapshot.connection,
+            origin="manual_request",
+        )
+    assert len(frozen) == 2
+
+    monkeypatch.setattr(
+        GroupingService,
+        "_eligible_workset_count",
+        staticmethod(lambda _reader: 100_001),
+    )
+    deferred = GroupingService(factory).recompute_grouping_proposals(
+        command_id=new_uuid4(),
+        origin="manual_request",
+    )
+
+    coordinator = _coordinator(factory)
+    claim = coordinator.claim_next(new_uuid4(), utc_epoch_seconds())
+    assert claim is not None and claim.job_id == deferred["job_id"]
+
+    def crash_after_first():
+        yield frozen[0]
+        raise RuntimeError("LLD05-F034 injected crash after first committed proposal")
+
+    with monkeypatch.context() as crash_patch:
+        crash_patch.setattr(
+            GroupingService,
+            "_candidates",
+            classmethod(lambda _cls, _reader, *, origin: crash_after_first()),
+        )
+        with pytest.raises(RuntimeError, match="LLD05-F034"):
+            ObjectiveGroupingRecomputeWorker(factory).run(claim)
+
+    with ReadSnapshot(factory) as snapshot:
+        rows = snapshot.connection.execute(
+            "SELECT input_fingerprint,state FROM regroup_proposals ORDER BY input_fingerprint",
+        ).fetchall()
+        assert len(rows) == 1
+        assert str(rows[0][1]) == "pending"
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objectives",
+        ).fetchone()[0] == 0
+        job = snapshot.connection.execute(
+            "SELECT state,checkpoint_json FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert str(job[0]) == "running"
+        assert '"phase":"publishing"' in str(job[1])
+        assert '"published_proposal_count":1' in str(job[1])
+
+    recovery_now = max(utc_epoch_seconds(), claim.claim_started_at_utc)
+    recovered = coordinator.recover_stale_claims(new_uuid4(), recovery_now)
+    assert recovered.interrupted_count == 1
+    assert recovered.retry_wait_count == 1
+
+    retry_at = recovery_now + 5
+    retry_coordinator = _coordinator(factory, clock=lambda: retry_at)
+    retry_claim = retry_coordinator.claim_next(new_uuid4(), retry_at)
+    assert retry_claim is not None
+    assert retry_claim.job_id == claim.job_id
+    assert retry_claim.attempt_ordinal == 2
+
+    retried = ObjectiveGroupingRecomputeWorker(
+        factory,
+        clock=lambda: retry_at,
+    ).run(retry_claim)
+    assert retried.candidate_exact_count == 2
+    assert retried.published_proposal_count == 1
+
+    with ReadSnapshot(factory) as snapshot:
+        rows = snapshot.connection.execute(
+            "SELECT input_fingerprint,state,COUNT(*) "
+            "FROM regroup_proposals GROUP BY input_fingerprint,state "
+            "ORDER BY input_fingerprint",
+        ).fetchall()
+        assert len(rows) == 2
+        assert all(str(row[1]) == "pending" and int(row[2]) == 1 for row in rows)
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objective_task_membership_current "
+            "WHERE task_id IN (?,?)",
+            (first.task_id, second.task_id),
+        ).fetchone()[0] == 0
+        assert snapshot.connection.execute(
+            "SELECT COUNT(*) FROM objectives",
+        ).fetchone()[0] == 0
+        job = snapshot.connection.execute(
+            "SELECT state,attempt_count FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        assert tuple(job) == ("completed", 2)
+

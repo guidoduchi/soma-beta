@@ -24,10 +24,12 @@ from .advanced_search import (
     _MAX_WORKSHEETS,
     _Matrix,
     _blank_field,
+    _candidate_header_key,
     _controlled_key,
     _finding,
     _header_key,
     _is_formula,
+    _isolated_field_resource_limit,
     _logical_to_normalized,
     _malformed_field,
     _parse_instant_field,
@@ -104,10 +106,12 @@ _TASK_STATUS_REGISTRY = {_controlled_key(value): value for value in _TASK_STATUS
 
 def _resolve_header_row(row, *, sheet_ordinal: int, row_ordinal: int) -> dict[str, int] | None:
     resolved: dict[str, int] = {}
+    oversized_header_cell = False
     for column_ordinal, cell in enumerate(row, start=1):
         if column_ordinal > _MAX_PHYSICAL_COLUMNS:
             raise _source_error("XLSX_RESOURCE_LIMIT", "worksheet exceeds the physical-column ceiling")
-        key = _header_key(cell.value)
+        key, oversized = _candidate_header_key(cell.value)
+        oversized_header_cell = oversized_header_cell or oversized
         if key is None:
             continue
         field_key = _HEADER_KEYS.get(key)
@@ -119,7 +123,11 @@ def _resolve_header_row(row, *, sheet_ordinal: int, row_ordinal: int) -> dict[st
                 f"worksheet {sheet_ordinal} row {row_ordinal} repeats semantic header {field_key}",
             )
         resolved[field_key] = column_ordinal
-    return resolved if "rfc_no" in resolved or "task_no" in resolved else None
+    if "rfc_no" not in resolved and "task_no" not in resolved:
+        return None
+    if oversized_header_cell:
+        raise _source_error("XLSX_RESOURCE_LIMIT", "semantic header row exceeds the UTF-8 byte ceiling")
+    return resolved
 
 
 def _discover_matrix(workbook) -> _Matrix:
@@ -267,12 +275,21 @@ def _parse_field(field_key: str, cell, *, sheet_ordinal: int, row_ordinal: int):
             "SOURCE_FORMULA_IN_SEMANTIC_FIELD",
             f"registered semantic field {field_key} contains a formula",
         )
-    if spec.value_kind == "text":
-        return _parse_text_field(spec, cell.value), ()
-    if spec.value_kind == "controlled":
-        return _parse_controlled(spec, cell.value, sheet_ordinal=sheet_ordinal, row_ordinal=row_ordinal)
-    if spec.value_kind == "instant":
-        return _parse_instant_field(spec, cell.value), ()
+    try:
+        if spec.value_kind == "text":
+            return _parse_text_field(spec, cell.value), ()
+        if spec.value_kind == "controlled":
+            return _parse_controlled(spec, cell.value, sheet_ordinal=sheet_ordinal, row_ordinal=row_ordinal)
+        if spec.value_kind == "instant":
+            return _parse_instant_field(spec, cell.value), ()
+    except SomaError as exc:
+        if exc.code == "XLSX_RESOURCE_LIMIT":
+            return _isolated_field_resource_limit(
+                spec,
+                sheet_ordinal=sheet_ordinal,
+                row_ordinal=row_ordinal,
+            )
+        raise
     raise RuntimeError("unsupported Service Provider WFM field kind")
 
 
