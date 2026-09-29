@@ -304,6 +304,7 @@ def _relation_plan(reader, target_id: str, relation: str, target: str | None, co
             "network_element_id": target_id,
             "model_id": target,
             "base_revision": base_revision,
+            "reason_code": "WORKBOOK_REVIEWED",
         }
     elif relation == "cloud":
         command = "SetCloudDeploymentAssignment"
@@ -311,6 +312,7 @@ def _relation_plan(reader, target_id: str, relation: str, target: str | None, co
             "network_element_id": target_id,
             "cloud_deployment_id": target,
             "base_revision": base_revision,
+            "reason_code": "WORKBOOK_REVIEWED",
         }
     else:
         command = "SetContainmentParent"
