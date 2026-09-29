@@ -5,12 +5,27 @@ import pytest
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.infrastructure.queries.core import InfrastructureQueries
+from soma.infrastructure.services.core import InfrastructureService
+from soma.reference.application.customer_service import CustomerReferenceService
 from test_infrastructure_relationships import element
 from test_infrastructure_services import command, site
 
 
-def test_cloud_type_reuse_assignment_is_site_scoped_and_lifecycle_guarded(infra):
-    service, _factory, customer = infra
+def _infra(initialized_database):
+    path, factory_builder = initialized_database
+    factory = factory_builder(path)
+    service = InfrastructureService(factory)
+    customer = CustomerReferenceService(factory).create_customer_organization(
+        command_id=new_uuid4(),
+        name="Infrastructure certification customer",
+    ).customer_org_id
+    return service, factory, customer
+
+
+def test_cloud_type_reuse_assignment_is_site_scoped_and_lifecycle_guarded(
+    initialized_database,
+):
+    service, _factory, customer = _infra(initialized_database)
     first_site = site(service, customer)
     second_site = site(service, customer)
     cloud_type = command(
@@ -105,8 +120,10 @@ def test_cloud_type_reuse_assignment_is_site_scoped_and_lifecycle_guarded(infra)
     assert archived_target.value.code == "INFRA_STALE"
 
 
-def test_model_archive_preserves_existing_relations_but_blocks_new_active_use(infra):
-    service, _factory, customer = infra
+def test_model_archive_preserves_existing_relations_but_blocks_new_active_use(
+    initialized_database,
+):
+    service, _factory, customer = _infra(initialized_database)
     site_id = site(service, customer)
     first = element(service, site_id)
     second = element(service, site_id)
