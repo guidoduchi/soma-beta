@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.infrastructure.queries.core import InfrastructureQueries
 from test_infrastructure_relationships import element
@@ -78,3 +81,46 @@ def test_installed_component_query_uses_slot_nulls_last_keyset_cursor(infra):
         slotted_b,
         unslotted_b,
     }
+
+
+def test_cursor_nullability_is_bound_to_declared_key_position(infra):
+    service, _factory, customer = infra
+    node = element(service, site(service, customer))
+    command(
+        service,
+        "RegisterInstalledComponent",
+        network_element_id=node,
+        origin="manual",
+        bom_code="BOM-CURSOR-A",
+    )
+    command(
+        service,
+        "RegisterInstalledComponent",
+        network_element_id=node,
+        origin="manual",
+        bom_code="BOM-CURSOR-B",
+    )
+
+    queries = InfrastructureQueries(service)
+    page = queries.execute(
+        "InstalledComponentQuery",
+        {"network_element_id": node, "limit": 1},
+    )
+    assert page["next_cursor"] is not None
+    malformed = {
+        **page["next_cursor"],
+        "last_key_tuple": [
+            page["next_cursor"]["last_key_tuple"][0],
+            None,
+        ],
+    }
+    with pytest.raises(SomaError) as invalid:
+        queries.execute(
+            "InstalledComponentQuery",
+            {
+                "network_element_id": node,
+                "limit": 1,
+                "cursor": malformed,
+            },
+        )
+    assert invalid.value.code == "CURSOR_INVALID"
