@@ -10,7 +10,8 @@
     "LLD-02 DomainIdFactory, SettingDefinitionRegistry, SettingStore",
     "LLD-03 RFC identity/lifecycle/hierarchy plus terminal-cascade snapshot/review/context/apply-summary contracts",
     "LLD-04 immutable source evidence/proposal authority through WfmImportReader/WfmImportMutationService",
-    "LLD-07 InventoryTaskDependencyProvider"
+    "LLD-07 InventoryTaskDependencyProvider",
+    "LLD-08 DeviceReferenceResolutionReader for TaskSiteDependencyValidator only"
   ],
   "cross_domain_transaction_rule": "Cross-domain mutations use caller UoW/receipt and never commit/rollback independently; RFC terminal revalidation precedes proof/apply; RFC history/hard-delete providers are read-only.",
   "reader_contract": "Authoritative decisions re-read through supplied current reader; expensive previews use stable snapshots plus exact fingerprints/revisions for commit-time revalidation.",
