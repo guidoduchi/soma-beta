@@ -82,7 +82,12 @@ def test_installed_owner_binding_uses_authenticated_actor_and_fails_closed_for_m
     class Service:
         def execute(self, command, **kwargs):
             calls.append((command, kwargs))
-            return SimpleNamespace(response_schema="INFRA_MUTATION_RESULT_V1", response={"ok": True})
+            response_schema = (
+                "INFRA_JOB_ACCEPTED_V1"
+                if command in {"GenerateInfrastructureWorkbook", "StageInfrastructureWorkbookCheck"}
+                else "INFRA_MUTATION_RESULT_V1"
+            )
+            return SimpleNamespace(response_schema=response_schema, response={"ok": True})
 
     from soma.infrastructure.queries.core import InfrastructureQueries
 
