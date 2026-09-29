@@ -5,7 +5,7 @@
   "modules": {
     "domain": "domain/{tasks,objectives,grouping,reviews,retries}.py",
     "repositories": "repositories/{tasks,objectives,grouping,reviews}.py",
-    "services": "services/{task_planning,wfm_import,task_plan_correction,task_explicit_lock,task_relationships,task_activity_review,task_execution,task_review,retries,objectives,grouping,historical,source_terminal,hard_delete,timezone}.py",
+    "services": "services/{task_planning,wfm_import,task_plan_correction,task_explicit_lock,task_relationships,task_activity_review,task_execution,task_review,retries,objectives,grouping,historical,source_terminal,hard_delete,timezone,participants}.py",
     "queries": "queries/{tasks,objectives,grouping,reviews,hard_delete,timezone,cascade,task_plan_correction,task_activity_review,execution_review}.py",
     "transport": "api/routes_objectives_tasks.py",
     "types": "contracts/objectives_tasks.py",
@@ -77,7 +77,9 @@
     "WfmImportReader": "services/wfm_import.py",
     "WfmImportMutationParticipant": "services/wfm_import.py",
     "TaskOperationalEvidenceReader": "queries/tasks.py",
-    "OBJECTIVE_GROUPING_RECOMPUTE_V1 worker": "jobs/grouping_recompute.py"
+    "OBJECTIVE_GROUPING_RECOMPUTE_V1 worker": "jobs/grouping_recompute.py",
+    "TaskSiteDependencyValidator": "services/participants.py",
+    "DeviceReferenceResolutionReader consumer adapter": "services/participants.py"
   },
   "rules": [
     "Each operation has one owning source-module destination; private helpers may be factored but authority cannot migrate across packet boundaries.",
