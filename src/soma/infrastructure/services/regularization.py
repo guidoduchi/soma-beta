@@ -91,13 +91,15 @@ def prepare(service, uow, command, p, command_id):
     if device:
         if service.proof_provider is None or not p.get("deliberate_action_proof"):
             raise SomaError("DEVICE_RESOLUTION_PROOF_REQUIRED", "Deliberate-action proof is required")
-        def consume(inner):
-            validated = service.proof_provider.validate_and_consume(
-                inner, p["deliberate_action_proof"], "RegularizeDeviceReference",
-                {"kind": "device_reference", "id": identity}, p["device_reference_revision"], expected)
-            if validated is None or validated is False:
-                raise SomaError("DEVICE_RESOLUTION_PROOF_REQUIRED", "Deliberate-action proof was not validated")
-        plan.writes.append(consume)
+        # LLD-08 requires the session-bound proof to be consumed after all
+        # authoritative freshness checks but before the command receipt. This
+        # prepare function runs inside CommandBoundary's one outer UnitOfWork,
+        # so later receipt/domain/audit failure still rolls the proof state back.
+        validated = service.proof_provider.validate_and_consume(
+            uow, p["deliberate_action_proof"], "RegularizeDeviceReference",
+            {"kind": "device_reference", "id": identity}, p["device_reference_revision"], expected)
+        if validated is None or validated is False:
+            raise SomaError("DEVICE_RESOLUTION_PROOF_REQUIRED", "Deliberate-action proof was not validated")
         if new is not None:
             plan.writes.extend(child.writes)
         if target:
