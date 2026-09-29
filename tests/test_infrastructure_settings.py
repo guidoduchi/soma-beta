@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from soma.foundation.errors import SomaError, ValidationError
@@ -67,6 +69,7 @@ def test_import_directory_default_and_explicit_write_use_lld02_setting_store(ini
         assert settings.get_in_reader(snapshot, IMPORT_DIRECTORY_KEY).revision == 1
 
 
+@pytest.mark.skipif(os.name != "nt", reason="LLD-08 local directory authority is Windows-path specific")
 def test_import_directory_access_is_observational(tmp_path):
     existing = tmp_path / "Infrastructure Import"
     existing.mkdir()
