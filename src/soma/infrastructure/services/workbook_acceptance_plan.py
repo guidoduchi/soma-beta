@@ -522,19 +522,11 @@ def prepare_workbook_acceptance(service, reader, payload: dict, command_id: str)
         if row["sheet_kind"] == "network_elements":
             if action == "create_network_element":
                 continue
-            if action == "unchanged":
-                if row["target_network_element_id"] is not None:
-                    per_proposal_refs[row["proposal_id"]] = [{
-                        "kind": "network_element",
-                        "id": row["target_network_element_id"],
-                    }]
-                continue
-
             target_id = row["target_network_element_id"]
             if target_id is None:
                 raise SomaError(
                     "WORKBOOK_RELATION_INVALID",
-                    "Workbook update lacks an exact Network Element target",
+                    "Workbook existing row lacks an exact Network Element target",
                 )
             if target_id in existing_network_targets:
                 raise SomaError(
@@ -542,6 +534,12 @@ def prepare_workbook_acceptance(service, reader, payload: dict, command_id: str)
                     "Workbook acceptance selects duplicate Network Element rows",
                 )
             existing_network_targets.add(target_id)
+            if action == "unchanged":
+                per_proposal_refs[row["proposal_id"]] = [{
+                    "kind": "network_element",
+                    "id": target_id,
+                }]
+                continue
             _validate_readable_relationship_context(reader, fields)
             target = get(
                 reader,
