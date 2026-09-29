@@ -268,3 +268,39 @@ def test_bad_zip_is_mapped_to_closed_container_error(tmp_path: Path) -> None:
     path.write_bytes(b"not a zip and no source data should leak")
     error = _assert_code(path, "XLSX_UNSAFE_CONTAINER")
     assert "source data" not in str(error)
+
+
+@pytest.mark.parametrize(
+    ("limit_name", "limit_value"),
+    (
+        ("MAX_COMPRESSED_FILE_BYTES", 1),
+        ("MAX_TOTAL_EXPANDED_BYTES", 1),
+        ("MAX_SINGLE_PART_BYTES", 1),
+    ),
+)
+def test_archive_byte_ceilings_fail_closed_before_semantic_load(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    limit_name: str,
+    limit_value: int,
+) -> None:
+    path = _write_xlsx(tmp_path / f"{limit_name}.xlsx")
+    monkeypatch.setattr(xlsx_security, limit_name, limit_value)
+    _assert_code(path, "XLSX_RESOURCE_LIMIT")
+
+
+def test_shared_string_count_is_bounded_during_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(xlsx_security, "MAX_SHARED_STRINGS", 1)
+    shared_strings = b"""<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <si><t>one</t></si><si><t>two</t></si>
+</sst>
+"""
+    path = _write_xlsx(
+        tmp_path / "shared-strings-over-limit.xlsx",
+        extras=(("xl/sharedStrings.xml", shared_strings, zipfile.ZIP_STORED),),
+    )
+    _assert_code(path, "XLSX_RESOURCE_LIMIT")
