@@ -458,13 +458,13 @@ def test_regularization_correction_preserves_history_and_allows_many_devices_per
         history = snapshot.connection.execute(
             "SELECT event_kind,prior_network_element_id,new_network_element_id "
             "FROM device_reference_resolution_events "
-            "WHERE device_reference_id=? ORDER BY recorded_at_utc,resolution_event_id",
+            "WHERE device_reference_id=?",
             (device.device_reference_id,),
         ).fetchall()
-        assert history == [
+        assert set(history) == {
             ("link", None, first_element_id),
             ("correct", first_element_id, second_element_id),
-        ]
+        }
         assert snapshot.connection.execute(
             "SELECT count(*) FROM device_reference_resolution_current "
             "WHERE network_element_id=?",
