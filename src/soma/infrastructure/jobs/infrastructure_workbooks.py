@@ -472,3 +472,629 @@ def verify_profile_workbook(
                 ElementTree.ParseError, OSError, EOFError) as exc:
             raise ValidationError("Workbook is not a valid profile XLSX archive") from exc
     return digest.hexdigest(), size
+
+
+
+@dataclass(frozen=True, slots=True)
+class InfrastructureWorkbookExportResult:
+    job_id: str
+    export_id: str
+    final_filename: str
+
+
+_EXPORT_JOB_JSON_BYTES = 65_536
+
+
+def _scope_sql(scope: dict) -> tuple[str, tuple[object, ...]]:
+    clauses = ["n.lifecycle_state='active'"]
+    values: list[object] = []
+    kind = scope["scope_kind"]
+    if kind == "customer":
+        clauses.append("s.customer_org_id=?")
+        values.append(scope["customer_org_id"])
+    elif kind == "site":
+        clauses.append("n.site_id=?")
+        values.append(scope["site_id"])
+    elif kind == "network_elements":
+        identities = tuple(scope["network_element_ids"])
+        if not identities:
+            raise IntegrityFailure("persisted workbook export scope is empty")
+        clauses.append(
+            "n.network_element_id IN (" + ",".join("?" for _ in identities) + ")"
+        )
+        values.extend(identities)
+    elif kind != "all":
+        raise IntegrityFailure("persisted workbook export scope kind is invalid")
+    return " AND ".join(clauses), tuple(values)
+
+
+def _network_export_rows(snapshot: ReadSnapshot, scope: dict):
+    where, values = _scope_sql(scope)
+    cursor = snapshot.connection.execute(
+        """
+        SELECT
+            n.network_element_id,n.operational_name,n.manufacturer_serial,
+            ma.network_element_model_id,m.name,
+            s.site_id,s.name,s.address_text,
+            rm.room_id,rm.name,
+            r.rack_id,r.name,r.height_u,r.row_label,r.column_label,
+            p.u_start,p.u_span,
+            ca.cloud_deployment_id,ct.name,cd.name,
+            cc.parent_network_element_id
+        FROM network_elements n
+        JOIN sites s ON s.site_id=n.site_id
+        JOIN network_element_placement_current p
+          ON p.network_element_id=n.network_element_id
+        LEFT JOIN racks r ON r.rack_id=p.rack_id
+        LEFT JOIN rooms rm ON rm.room_id=r.room_id
+        LEFT JOIN network_element_model_current ma
+          ON ma.network_element_id=n.network_element_id
+        LEFT JOIN network_element_models m
+          ON m.network_element_model_id=ma.network_element_model_id
+        LEFT JOIN cloud_assignment_current ca
+          ON ca.network_element_id=n.network_element_id
+        LEFT JOIN cloud_deployments cd
+          ON cd.cloud_deployment_id=ca.cloud_deployment_id
+        LEFT JOIN cloud_types ct ON ct.cloud_type_id=cd.cloud_type_id
+        LEFT JOIN network_element_containment_current cc
+          ON cc.child_network_element_id=n.network_element_id
+        WHERE """ + where + """
+        ORDER BY n.network_element_id
+        """,
+        values,
+    )
+    for row in cursor:
+        yield (*tuple(row), None)
+
+
+def _ip_export_rows(snapshot: ReadSnapshot, scope: dict):
+    where, values = _scope_sql(scope)
+    cursor = snapshot.connection.execute(
+        """
+        SELECT ip.network_element_ip_id,ip.network_element_id,n.operational_name,
+               ip.canonical_address,ip.is_primary
+        FROM network_element_ip_current ip
+        JOIN network_elements n ON n.network_element_id=ip.network_element_id
+        JOIN sites s ON s.site_id=n.site_id
+        WHERE ip.active=1 AND """ + where + """
+        ORDER BY ip.network_element_id,ip.network_element_ip_id
+        """,
+        values,
+    )
+    for row in cursor:
+        yield (row[0], row[1], row[2], row[3], bool(row[4]))
+
+
+def _scoped_export_counts(snapshot: ReadSnapshot, scope: dict) -> tuple[int, int]:
+    where, values = _scope_sql(scope)
+    network_count = int(snapshot.connection.execute(
+        """
+        SELECT count(*)
+        FROM network_elements n
+        JOIN sites s ON s.site_id=n.site_id
+        WHERE """ + where,
+        values,
+    ).fetchone()[0])
+    ip_count = int(snapshot.connection.execute(
+        """
+        SELECT count(*)
+        FROM network_element_ip_current ip
+        JOIN network_elements n ON n.network_element_id=ip.network_element_id
+        JOIN sites s ON s.site_id=n.site_id
+        WHERE ip.active=1 AND """ + where,
+        values,
+    ).fetchone()[0])
+    return network_count, ip_count
+
+
+class InfrastructureWorkbookExportWorker:
+    """Crash-recoverable Infrastructure workbook export and evidence publisher."""
+
+    def __init__(self, connection_factory: ConnectionFactory) -> None:
+        self._factory = connection_factory
+        self._jobs = DurableJobCoordinator(
+            connection_factory,
+            JobTypeRegistry(INFRASTRUCTURE_JOB_CONTRACTS),
+        )
+
+    @staticmethod
+    def _payload(claim: DurableJobClaim) -> dict:
+        if claim.job_type != EXPORT_JOB_TYPE or claim.contract_version != 1:
+            raise ValidationError("claim is not INFRA_WORKBOOK_EXPORT_V1")
+        value = loads_canonical_json(
+            claim.payload_json,
+            max_bytes=_EXPORT_JOB_JSON_BYTES,
+            max_depth=8,
+            max_collection_items=512,
+        )
+        if not isinstance(value, dict):
+            raise IntegrityFailure("persisted Infrastructure export payload is not an object")
+        try:
+            validate_export_payload(value)
+        except ValidationError as exc:
+            raise IntegrityFailure(
+                "persisted Infrastructure export payload violates its contract"
+            ) from exc
+        return value
+
+    @staticmethod
+    def _checkpoint(claim: DurableJobClaim) -> dict | None:
+        if claim.checkpoint_json is None:
+            return None
+        value = loads_canonical_json(
+            claim.checkpoint_json,
+            max_bytes=_EXPORT_JOB_JSON_BYTES,
+            max_depth=4,
+            max_collection_items=32,
+        )
+        if not isinstance(value, dict):
+            raise IntegrityFailure("persisted Infrastructure export checkpoint is not an object")
+        try:
+            validate_export_checkpoint(value)
+        except ValidationError as exc:
+            raise IntegrityFailure(
+                "persisted Infrastructure export checkpoint violates its contract"
+            ) from exc
+        return value
+
+    def _created_at(self, claim: DurableJobClaim) -> int:
+        with ReadSnapshot(self._factory) as snapshot:
+            row = snapshot.connection.execute(
+                "SELECT created_at_utc FROM durable_jobs WHERE job_id=?",
+                (claim.job_id,),
+            ).fetchone()
+        if row is None or type(row[0]) is not int or row[0] < 0:
+            raise IntegrityFailure("Infrastructure export job creation time is unavailable")
+        return int(row[0])
+
+    @staticmethod
+    def _checkpoint_value(
+        *,
+        phase: str,
+        export_id: str,
+        temp_filename: str | None,
+        verified_sha256: str | None = None,
+        verified_size_bytes: int | None = None,
+        final_filename: str | None = None,
+    ) -> dict:
+        return {
+            "phase": phase,
+            "export_id": export_id,
+            "temp_filename": temp_filename,
+            "verified_sha256": verified_sha256,
+            "verified_size_bytes": verified_size_bytes,
+            "final_filename": final_filename,
+        }
+
+    @staticmethod
+    def _temp_filename(claim: DurableJobClaim, export_id: str) -> str:
+        return f".soma-{export_id}-{claim.job_id}.tmp"
+
+    @staticmethod
+    def _require_filename_identity(
+        claim: DurableJobClaim,
+        checkpoint: dict,
+        *,
+        generated_at_utc: int,
+        payload: dict,
+    ) -> tuple[str, str]:
+        export_id = str(checkpoint["export_id"])
+        expected_temp = InfrastructureWorkbookExportWorker._temp_filename(claim, export_id)
+        expected_final = artifact_filename(payload["mode"], export_id, generated_at_utc)
+        if checkpoint["temp_filename"] not in (None, expected_temp):
+            raise IntegrityFailure("Infrastructure export temp identity changed")
+        if checkpoint["final_filename"] not in (None, expected_final):
+            raise IntegrityFailure("Infrastructure export final identity changed")
+        return expected_temp, expected_final
+
+    @staticmethod
+    def _destination(payload: dict) -> Path:
+        destination = Path(str(payload["destination_directory"]))
+        try:
+            if not destination.is_dir():
+                raise SomaError(
+                    "WORKBOOK_DIRECTORY_UNAVAILABLE",
+                    "Infrastructure workbook destination is unavailable",
+                )
+        except OSError as exc:
+            raise SomaError(
+                "WORKBOOK_DIRECTORY_UNAVAILABLE",
+                "Infrastructure workbook destination is unavailable",
+            ) from exc
+        return destination
+
+    @staticmethod
+    def _unlink_owned(path: Path) -> None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            raise SomaError(
+                "WORKBOOK_DIRECTORY_UNAVAILABLE",
+                "Infrastructure workbook temporary artifact cannot be removed",
+            ) from exc
+
+    @staticmethod
+    def _same_file(left: Path, right: Path) -> bool:
+        try:
+            return os.path.samefile(left, right)
+        except OSError:
+            return False
+
+    def _require_data_instance(self, reader, payload: dict) -> None:
+        if DataInstanceIdentityReader.get(reader) != payload["data_instance_id"]:
+            raise SomaError(
+                "WORKBOOK_STALE",
+                "Infrastructure export belongs to a different data instance",
+            )
+
+    def _write_temp(
+        self,
+        path: Path,
+        *,
+        payload: dict,
+        generated_at_utc: int,
+    ) -> None:
+        self._unlink_owned(path)
+        try:
+            with ReadSnapshot(self._factory) as snapshot:
+                self._require_data_instance(snapshot, payload)
+                if payload["mode"] == "registration_template":
+                    expected_network, expected_ip = 0, 0
+                    network_rows = ()
+                    ip_rows = ()
+                else:
+                    expected_network, expected_ip = _scoped_export_counts(
+                        snapshot, payload["scope"]
+                    )
+                    network_rows = _network_export_rows(snapshot, payload["scope"])
+                    ip_rows = _ip_export_rows(snapshot, payload["scope"])
+                with path.open("xb") as stream:
+                    actual_network, actual_ip = write_profile_workbook(
+                        stream,
+                        mode=payload["mode"],
+                        scope=payload["scope"],
+                        data_instance_id=payload["data_instance_id"],
+                        generated_at_utc=generated_at_utc,
+                        network_elements=network_rows,
+                        ip_addresses=ip_rows,
+                    )
+                if (actual_network, actual_ip) != (expected_network, expected_ip):
+                    raise IntegrityFailure(
+                        "Infrastructure export snapshot row counts changed during generation"
+                    )
+        except Exception:
+            self._unlink_owned(path)
+            raise
+
+    def _verify_artifact(
+        self,
+        path: Path,
+        *,
+        payload: dict,
+        generated_at_utc: int,
+        expected_sha256: str | None = None,
+        expected_size_bytes: int | None = None,
+    ) -> tuple[str, int]:
+        try:
+            captured = preflight_infrastructure_workbook(str(path))
+        except OSError as exc:
+            raise SomaError(
+                "WORKBOOK_DIRECTORY_UNAVAILABLE",
+                "Infrastructure workbook artifact cannot be reopened",
+            ) from exc
+        try:
+            summary = inspect_infrastructure_workbook(
+                captured,
+                current_data_instance_id=payload["data_instance_id"],
+            )
+        finally:
+            captured.close()
+        if (
+            summary.mode != payload["mode"]
+            or summary.source_installation_scope_id != payload["data_instance_id"]
+            or not summary.same_installation
+        ):
+            raise IntegrityFailure("Infrastructure export artifact identity changed")
+        try:
+            with path.open("rb") as stream:
+                digest, size = verify_profile_workbook(
+                    stream,
+                    mode=payload["mode"],
+                    data_instance_id=payload["data_instance_id"],
+                    expected_scope=payload["scope"],
+                    expected_generated_at_utc=generated_at_utc,
+                    expected_network_rows=summary.network_element_rows,
+                    expected_ip_rows=summary.ip_rows,
+                )
+        except OSError as exc:
+            raise SomaError(
+                "WORKBOOK_DIRECTORY_UNAVAILABLE",
+                "Infrastructure workbook artifact cannot be reopened",
+            ) from exc
+        if expected_sha256 is not None and digest != expected_sha256:
+            raise IntegrityFailure("published Infrastructure workbook hash changed")
+        if expected_size_bytes is not None and size != expected_size_bytes:
+            raise IntegrityFailure("published Infrastructure workbook size changed")
+        return digest, size
+
+    def _evidence(
+        self,
+        uow: UnitOfWork,
+        claim: DurableJobClaim,
+        *,
+        payload: dict,
+        checkpoint: dict,
+        generated_at_utc: int,
+    ) -> None:
+        self._require_data_instance(uow, payload)
+        export_id = str(checkpoint["export_id"])
+        expected = (
+            payload["mode"],
+            payload["data_instance_id"],
+            canonical_json_bytes(payload["scope"]).decode("utf-8"),
+            generated_at_utc,
+            checkpoint["final_filename"],
+            checkpoint["verified_sha256"],
+            checkpoint["verified_size_bytes"],
+            payload["export_request_id"],
+        )
+        row = uow.connection.execute(
+            """
+            SELECT mode,installation_scope_id,filter_scope_json,generated_at_utc,
+                   artifact_filename,artifact_sha256,artifact_size_bytes,command_id
+            FROM infrastructure_workbook_exports
+            WHERE export_id=?
+            """,
+            (export_id,),
+        ).fetchone()
+        if row is None:
+            uow.connection.execute(
+                """
+                INSERT INTO infrastructure_workbook_exports(
+                    export_id,mode,installation_scope_id,filter_scope_json,
+                    generated_at_utc,artifact_filename,artifact_sha256,
+                    artifact_size_bytes,command_id
+                ) VALUES (?,?,?,?,?,?,?,?,?)
+                """,
+                (export_id, *expected),
+            )
+        elif tuple(row) != expected:
+            raise IntegrityFailure("Infrastructure workbook export evidence changed")
+
+    def _finish_published(
+        self,
+        claim: DurableJobClaim,
+        *,
+        payload: dict,
+        checkpoint: dict,
+        generated_at_utc: int,
+    ) -> None:
+        published = {
+            **checkpoint,
+            "phase": "published",
+        }
+        recorded = {
+            **published,
+            "phase": "evidence_recorded",
+        }
+        with UnitOfWork(self._factory) as uow:
+            self._jobs.assert_claim_current(uow, claim)
+            self._jobs.checkpoint_in_uow(uow, claim, published)
+            self._evidence(
+                uow,
+                claim,
+                payload=payload,
+                checkpoint=published,
+                generated_at_utc=generated_at_utc,
+            )
+            self._jobs.checkpoint_in_uow(uow, claim, recorded)
+            self._jobs.complete_in_uow(uow, claim)
+
+    def _publish_from_verified(
+        self,
+        claim: DurableJobClaim,
+        *,
+        payload: dict,
+        checkpoint: dict,
+        generated_at_utc: int,
+        destination: Path,
+    ) -> None:
+        temp = destination / str(checkpoint["temp_filename"])
+        final = destination / str(checkpoint["final_filename"])
+        expected_sha = str(checkpoint["verified_sha256"])
+        expected_size = int(checkpoint["verified_size_bytes"])
+
+        if final.exists():
+            if not temp.exists() or not self._same_file(temp, final):
+                raise IntegrityFailure(
+                    "Infrastructure export final artifact exists without job ownership proof"
+                )
+            self._verify_artifact(
+                final,
+                payload=payload,
+                generated_at_utc=generated_at_utc,
+                expected_sha256=expected_sha,
+                expected_size_bytes=expected_size,
+            )
+            self._finish_published(
+                claim,
+                payload=payload,
+                checkpoint=checkpoint,
+                generated_at_utc=generated_at_utc,
+            )
+            self._unlink_owned(temp)
+            return
+
+        self._verify_artifact(
+            temp,
+            payload=payload,
+            generated_at_utc=generated_at_utc,
+            expected_sha256=expected_sha,
+            expected_size_bytes=expected_size,
+        )
+        recorded = {**checkpoint, "phase": "evidence_recorded"}
+        published = {**checkpoint, "phase": "published"}
+        with UnitOfWork(self._factory) as uow:
+            self._jobs.assert_claim_current(uow, claim)
+            self._require_data_instance(uow, payload)
+            try:
+                os.link(temp, final)
+            except FileExistsError as exc:
+                raise IntegrityFailure(
+                    "Infrastructure export destination filename collision"
+                ) from exc
+            except OSError as exc:
+                raise SomaError(
+                    "WORKBOOK_DIRECTORY_UNAVAILABLE",
+                    "Infrastructure workbook artifact cannot be atomically published",
+                ) from exc
+            self._jobs.checkpoint_in_uow(uow, claim, published)
+            self._evidence(
+                uow,
+                claim,
+                payload=payload,
+                checkpoint=published,
+                generated_at_utc=generated_at_utc,
+            )
+            self._jobs.checkpoint_in_uow(uow, claim, recorded)
+            self._jobs.complete_in_uow(uow, claim)
+        self._unlink_owned(temp)
+
+    def run(self, claim: DurableJobClaim) -> InfrastructureWorkbookExportResult:
+        payload = self._payload(claim)
+        checkpoint = self._checkpoint(claim)
+        generated_at_utc = self._created_at(claim)
+        destination = self._destination(payload)
+
+        if checkpoint is None:
+            checkpoint = self._checkpoint_value(
+                phase="queued",
+                export_id=new_uuid4(),
+                temp_filename=None,
+            )
+            self._jobs.checkpoint(claim, checkpoint)
+
+        if checkpoint["export_id"] is None:
+            raise IntegrityFailure("Infrastructure export checkpoint lacks its export identity")
+        expected_temp, expected_final = self._require_filename_identity(
+            claim,
+            checkpoint,
+            generated_at_utc=generated_at_utc,
+            payload=payload,
+        )
+        phase = str(checkpoint["phase"])
+
+        if phase == "queued":
+            checkpoint = self._checkpoint_value(
+                phase="writing",
+                export_id=str(checkpoint["export_id"]),
+                temp_filename=expected_temp,
+            )
+            self._jobs.checkpoint(claim, checkpoint)
+            phase = "writing"
+
+        if phase == "writing":
+            temp = destination / expected_temp
+            self._write_temp(
+                temp,
+                payload=payload,
+                generated_at_utc=generated_at_utc,
+            )
+            checkpoint = self._checkpoint_value(
+                phase="verifying",
+                export_id=str(checkpoint["export_id"]),
+                temp_filename=expected_temp,
+            )
+            self._jobs.checkpoint(claim, checkpoint)
+            phase = "verifying"
+
+        if phase == "verifying":
+            temp = destination / expected_temp
+            if not temp.is_file():
+                checkpoint = self._checkpoint_value(
+                    phase="writing",
+                    export_id=str(checkpoint["export_id"]),
+                    temp_filename=expected_temp,
+                )
+                self._jobs.checkpoint(claim, checkpoint)
+                self._write_temp(
+                    temp,
+                    payload=payload,
+                    generated_at_utc=generated_at_utc,
+                )
+            digest, size = self._verify_artifact(
+                temp,
+                payload=payload,
+                generated_at_utc=generated_at_utc,
+            )
+            checkpoint = self._checkpoint_value(
+                phase="verified",
+                export_id=str(checkpoint["export_id"]),
+                temp_filename=expected_temp,
+                verified_sha256=digest,
+                verified_size_bytes=size,
+                final_filename=expected_final,
+            )
+            self._jobs.checkpoint(claim, checkpoint)
+            phase = "verified"
+
+        if phase == "verified":
+            self._publish_from_verified(
+                claim,
+                payload=payload,
+                checkpoint=checkpoint,
+                generated_at_utc=generated_at_utc,
+                destination=destination,
+            )
+            return InfrastructureWorkbookExportResult(
+                claim.job_id,
+                str(checkpoint["export_id"]),
+                expected_final,
+            )
+
+        if phase == "published":
+            final = destination / expected_final
+            self._verify_artifact(
+                final,
+                payload=payload,
+                generated_at_utc=generated_at_utc,
+                expected_sha256=str(checkpoint["verified_sha256"]),
+                expected_size_bytes=int(checkpoint["verified_size_bytes"]),
+            )
+            self._finish_published(
+                claim,
+                payload=payload,
+                checkpoint=checkpoint,
+                generated_at_utc=generated_at_utc,
+            )
+            return InfrastructureWorkbookExportResult(
+                claim.job_id,
+                str(checkpoint["export_id"]),
+                expected_final,
+            )
+
+        if phase == "evidence_recorded":
+            with UnitOfWork(self._factory) as uow:
+                self._jobs.assert_claim_current(uow, claim)
+                self._evidence(
+                    uow,
+                    claim,
+                    payload=payload,
+                    checkpoint=checkpoint,
+                    generated_at_utc=generated_at_utc,
+                )
+                self._jobs.complete_in_uow(uow, claim)
+            return InfrastructureWorkbookExportResult(
+                claim.job_id,
+                str(checkpoint["export_id"]),
+                expected_final,
+            )
+
+        raise IntegrityFailure("Infrastructure export checkpoint phase is unsupported")
+
+
+def run_export(
+    claim: DurableJobClaim,
+    connection_factory: ConnectionFactory,
+) -> InfrastructureWorkbookExportResult:
+    return InfrastructureWorkbookExportWorker(connection_factory).run(claim)
