@@ -17,7 +17,15 @@ def cursor_key(query, p, width):
         or cursor["filter_fingerprint"] != fingerprint(filters)
         or cursor["null_order"] != QUERIES[query].get("pagination", {}).get("null_order", "NOT_APPLICABLE")
         or not isinstance(cursor["last_key_tuple"], list) or len(cursor["last_key_tuple"]) != width
-        or any(type(item) not in (str, int) for item in cursor["last_key_tuple"])):
+        or any(
+            type(item) not in (str, int)
+            and not (
+                item is None
+                and QUERIES[query].get("pagination", {}).get("null_order")
+                in ("NULLS_FIRST", "NULLS_LAST")
+            )
+            for item in cursor["last_key_tuple"]
+        )):
         raise SomaError("CURSOR_INVALID", "Infrastructure cursor does not match this query and filter")
     return cursor["last_key_tuple"]
 
