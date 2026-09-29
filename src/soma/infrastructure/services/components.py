@@ -26,10 +26,6 @@ def validate_consequence(service, uow, p, element_id, required=False):
         raise SomaError("DEPENDENCY_INDETERMINATE", "Inventory consequence cannot be verified")
     if state != "VALID" or evidence is None or evidence["task_id"] != p.get("task_id"):
         raise SomaError("PHYSICAL_CONSEQUENCE_STALE", "Inventory consequence or Task is stale")
-    # The injected owner must prove Task/Device Reference context, not merely a matching hash.
-    context = getattr(provider, "validate_infrastructure_target", None)
-    if context is None or context(uow, identity, element_id, p.get("action", "installed")) != "VALID":
-        raise SomaError("DEPENDENCY_INDETERMINATE", "Maintenance target context cannot be proven")
 
 
 def check_slot(uow, element_id, slot, component_id):
