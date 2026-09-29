@@ -305,3 +305,168 @@ def test_regularization_no_change_still_requires_and_consumes_deliberate_proof(
             "SELECT result_type FROM command_receipts WHERE command_id=?",
             (no_change_command,),
         ).fetchone() == ("NO_CHANGE",)
+
+
+def test_regularization_create_and_link_is_atomic_and_returns_new_element_ref(
+    initialized_database,
+):
+    factory, service, _provider, device, existing_element_id = _assembled(
+        initialized_database
+    )
+    with ReadSnapshot(factory) as snapshot:
+        site_id = snapshot.connection.execute(
+            "SELECT site_id FROM network_elements WHERE network_element_id=?",
+            (existing_element_id,),
+        ).fetchone()[0]
+
+    command_id = new_uuid4()
+    request = {
+        "device_reference_id": device.device_reference_id,
+        "device_reference_revision": device.revision,
+        "action": "create_and_link",
+        "new_network_element": {
+            "site_id": str(site_id),
+            "operational_name": "NE-CREATED-BY-REGULARIZATION",
+        },
+    }
+    with ReadSnapshot(factory) as snapshot:
+        preview = regularization_fingerprint(service, snapshot, request)
+
+    execution = service.execute(
+        "RegularizeDeviceReference",
+        command_id=command_id,
+        payload={
+            **request,
+            "preview_fingerprint": preview,
+            "deliberate_action_proof": command_id,
+        },
+    )
+    created_refs = [
+        item["id"]
+        for item in execution.response["result_refs"]
+        if item["kind"] == "network_element"
+    ]
+    assert len(created_refs) == 1
+    created_id = created_refs[0]
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT site_id,operational_name,lifecycle_state FROM network_elements "
+            "WHERE network_element_id=?",
+            (created_id,),
+        ).fetchone() == (
+            str(site_id),
+            "NE-CREATED-BY-REGULARIZATION",
+            "active",
+        )
+        assert snapshot.connection.execute(
+            "SELECT network_element_id,revision "
+            "FROM device_reference_resolution_current WHERE device_reference_id=?",
+            (device.device_reference_id,),
+        ).fetchone() == (created_id, 1)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() == (1,)
+
+
+def test_regularization_correction_preserves_history_and_allows_many_devices_per_element(
+    initialized_database,
+):
+    factory, service, _provider, device, first_element_id = _assembled(
+        initialized_database
+    )
+    first_command = new_uuid4()
+    service.execute(
+        "RegularizeDeviceReference",
+        command_id=first_command,
+        payload=_link_payload(
+            service,
+            factory,
+            device,
+            first_element_id,
+            first_command,
+        ),
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        site_id = str(
+            snapshot.connection.execute(
+                "SELECT site_id FROM network_elements WHERE network_element_id=?",
+                (first_element_id,),
+            ).fetchone()[0]
+        )
+    second_element_id = service.execute(
+        "CreateNetworkElement",
+        command_id=new_uuid4(),
+        payload={
+            "new_element": {
+                "site_id": site_id,
+                "operational_name": "NE-CORRECTED-TARGET",
+            }
+        },
+    ).response["target"]["id"]
+
+    correction_command = new_uuid4()
+    correction_request = {
+        "device_reference_id": device.device_reference_id,
+        "device_reference_revision": device.revision,
+        "action": "correct_link",
+        "target_network_element_id": second_element_id,
+        "resolution_revision": 1,
+        "reason_code": "reviewed_correction",
+    }
+    with ReadSnapshot(factory) as snapshot:
+        correction_preview = regularization_fingerprint(
+            service,
+            snapshot,
+            correction_request,
+        )
+    service.execute(
+        "RegularizeDeviceReference",
+        command_id=correction_command,
+        payload={
+            **correction_request,
+            "preview_fingerprint": correction_preview,
+            "deliberate_action_proof": correction_command,
+        },
+    )
+
+    second_device = DeviceReferenceService(factory).create(
+        command_id=new_uuid4(),
+        operational_name="Second shared device",
+    )
+    second_command = new_uuid4()
+    service.execute(
+        "RegularizeDeviceReference",
+        command_id=second_command,
+        payload=_link_payload(
+            service,
+            factory,
+            second_device,
+            second_element_id,
+            second_command,
+        ),
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT network_element_id,revision "
+            "FROM device_reference_resolution_current WHERE device_reference_id=?",
+            (device.device_reference_id,),
+        ).fetchone() == (second_element_id, 2)
+        history = snapshot.connection.execute(
+            "SELECT event_kind,prior_network_element_id,new_network_element_id "
+            "FROM device_reference_resolution_events "
+            "WHERE device_reference_id=? ORDER BY recorded_at_utc,resolution_event_id",
+            (device.device_reference_id,),
+        ).fetchall()
+        assert history == [
+            ("link", None, first_element_id),
+            ("correct", first_element_id, second_element_id),
+        ]
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM device_reference_resolution_current "
+            "WHERE network_element_id=?",
+            (second_element_id,),
+        ).fetchone() == (2,)
