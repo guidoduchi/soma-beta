@@ -55,17 +55,21 @@ def _assembled(initialized_database, import_directory):
     return factory, settings, service, data_instance_id
 
 
-def _stage_claim(service: InfrastructureService, *, now: int):
+def _stage_claim(service: InfrastructureService):
     accepted = service.execute(
         "StageInfrastructureWorkbookCheck",
         command_id=new_uuid4(),
         payload={"setting_revision": 1},
     )
-    claim = service.job_coordinator.claim_next(new_uuid4(), now)
+    # Claim only after enqueue has committed. Capturing the clock before the
+    # command can cross a one-second boundary on slower Windows runners and
+    # correctly trigger Foundation's durable-job clock-regression guard.
+    claim_now = utc_epoch_seconds()
+    claim = service.job_coordinator.claim_next(new_uuid4(), claim_now)
     assert claim is not None
     assert claim.job_id == accepted.response["job_id"]
     assert claim.job_type == "INFRA_WORKBOOK_STAGE_V1"
-    return accepted, claim
+    return accepted, claim, claim_now
 
 
 def _write(
@@ -104,8 +108,7 @@ def test_stage_worker_publishes_header_only_candidate_without_mutating_source(
         mode="registration_template",
     )
 
-    base = utc_epoch_seconds()
-    accepted, claim = _stage_claim(service, now=base)
+    accepted, claim, base = _stage_claim(service)
     result = InfrastructureWorkbookStageWorker(
         factory,
         setting_service=settings,
@@ -215,8 +218,7 @@ def test_stage_worker_exact_round_trip_rows_are_unchanged(
         ip_addresses=(ip_row,),
     )
 
-    base = utc_epoch_seconds()
-    _accepted, claim = _stage_claim(service, now=base)
+    _accepted, claim, base = _stage_claim(service)
     result = InfrastructureWorkbookStageWorker(
         factory,
         setting_service=settings,
@@ -309,8 +311,7 @@ def test_foreign_installation_ids_never_direct_target_current_network_element(
         ),
     )
 
-    base = utc_epoch_seconds()
-    _accepted, claim = _stage_claim(service, now=base)
+    _accepted, claim, base = _stage_claim(service)
     InfrastructureWorkbookStageWorker(
         factory,
         setting_service=settings,
@@ -389,8 +390,7 @@ def test_new_network_element_ip_row_binds_to_pending_workbook_create(
         ),
     )
 
-    base = utc_epoch_seconds()
-    _accepted, claim = _stage_claim(service, now=base)
+    _accepted, claim, base = _stage_claim(service)
     InfrastructureWorkbookStageWorker(
         factory,
         setting_service=settings,
