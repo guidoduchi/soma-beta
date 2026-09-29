@@ -8,6 +8,14 @@ Work as an implementation engineer under existing product and architecture autho
 
 ## Start every task
 
+For implementation continuation, first read `docs/implementation/current-state.json`
+and `docs/implementation/continuation-workflow.md`. They index checkpoint evidence
+and bounded tasks; they are not normative product authority. Refresh branch heads
+and CI, then use `tools/implementation_state.py check` to target changed scopes.
+Unchanged declared scope is continuity only, never automatic certification. Follow
+the current user's task, not a stale generated prompt's selected task. Generate
+copy-ready handovers with the tool instead of maintaining competing roadmap files.
+
 Before changing code:
 
 1. Inspect the branch and working tree with `git status --short --branch`.

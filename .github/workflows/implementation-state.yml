@@ -1,0 +1,35 @@
+name: Implementation continuation integrity
+
+on:
+  push:
+    paths:
+      - "docs/implementation/current-state.json"
+      - "docs/implementation/continuation-workflow.md"
+      - "tools/implementation_state.py"
+      - "tests/test_implementation_state.py"
+      - ".github/workflows/implementation-state.yml"
+  pull_request:
+    paths:
+      - "docs/implementation/current-state.json"
+      - "docs/implementation/continuation-workflow.md"
+      - "tools/implementation_state.py"
+      - "tests/test_implementation_state.py"
+      - ".github/workflows/implementation-state.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  continuation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Test checkpoint invalidation and prompt generation
+        run: python -m unittest discover -s tests -p test_implementation_state.py -v
+      - name: Validate recorded evidence references
+        run: python tools/implementation_state.py validate
