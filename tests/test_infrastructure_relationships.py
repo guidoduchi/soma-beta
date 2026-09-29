@@ -97,3 +97,55 @@ def test_explorer_cursor_is_bound_to_filter(infra):
     with pytest.raises(SomaError) as error:
         queries.execute("InfrastructureExplorerQuery", dict(node_kind="room", cursor=page["next_cursor"]))
     assert error.value.code == "CURSOR_INVALID"
+
+
+def test_cross_element_duplicate_ip_is_allowed_and_warned(infra):
+    service, _factory, customer = infra
+    site_id = site(service, customer)
+    first = element(service, site_id)
+    second = element(service, site_id)
+
+    first_ip = command(
+        service,
+        "AddNetworkElementIp",
+        network_element_id=first,
+        address="2001:0db8:0:0::42",
+        make_primary=False,
+    )["target"]["id"]
+    second_ip = command(
+        service,
+        "AddNetworkElementIp",
+        network_element_id=second,
+        address="2001:db8::42",
+        make_primary=False,
+    )["target"]["id"]
+    assert first_ip != second_ip
+
+    queries = InfrastructureQueries(service)
+    candidates = queries.execute(
+        "IpCandidateQuery",
+        {"canonical_address": "2001:db8::42"},
+    )
+    assert candidates["exact_count"] == 2
+    assert {
+        (item["network_element_id"], item["network_element_ip_id"])
+        for item in candidates["items"]
+    } == {
+        (first, first_ip),
+        (second, second_ip),
+    }
+
+    first_detail = queries.execute(
+        "NetworkElementDetailQuery",
+        {"network_element_id": first},
+    )
+    second_detail = queries.execute(
+        "NetworkElementDetailQuery",
+        {"network_element_id": second},
+    )
+    assert first_detail["warning_codes"] == [
+        "IP_DUPLICATE_ACROSS_NETWORK_ELEMENTS"
+    ]
+    assert second_detail["warning_codes"] == [
+        "IP_DUPLICATE_ACROSS_NETWORK_ELEMENTS"
+    ]
