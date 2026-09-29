@@ -864,6 +864,7 @@ class InfrastructureWorkbookStageWorker:
             checkpoint["candidate_manifest_sha256"] != manifest
             or checkpoint["candidate_count"] != len(candidates)
         ):
+            self._fail_and_cleanup_current_run(claim, checkpoint)
             checkpoint = _empty_checkpoint(
                 manifest_sha256=manifest,
                 candidate_count=len(candidates),
@@ -872,9 +873,27 @@ class InfrastructureWorkbookStageWorker:
             )
             self._jobs.checkpoint(claim, checkpoint)
 
-        while int(checkpoint["candidate_index"]) < len(candidates):
-            index = int(checkpoint["candidate_index"])
-            candidate = candidates[index]
+        while True:
+            while int(checkpoint["candidate_index"]) < len(candidates):
+                live_directory, live_candidates, live_manifest = self._discover(payload)
+                if live_manifest != manifest or len(live_candidates) != len(candidates):
+                    self._fail_and_cleanup_current_run(claim, checkpoint)
+                    directory, candidates, manifest = (
+                        live_directory,
+                        live_candidates,
+                        live_manifest,
+                    )
+                    checkpoint = _empty_checkpoint(
+                        manifest_sha256=manifest,
+                        candidate_count=len(candidates),
+                        candidate_index=0,
+                        published_run_ids=checkpoint["published_run_ids"],
+                    )
+                    self._jobs.checkpoint(claim, checkpoint)
+                    continue
+
+                index = int(checkpoint["candidate_index"])
+                candidate = candidates[index]
             captured = self._capture(directory, candidate)
             try:
                 summary = inspect_infrastructure_workbook(
@@ -928,20 +947,37 @@ class InfrastructureWorkbookStageWorker:
             finally:
                 captured.close()
 
-            checkpoint = self._publish_run(
-                claim,
-                checkpoint,
-                directory=directory,
-                candidate=candidate,
-                file_sha256=str(checkpoint["current_file_sha256"]),
-                logical_fingerprint=summary.logical_fingerprint,
+                checkpoint = self._publish_run(
+                    claim,
+                    checkpoint,
+                    directory=directory,
+                    candidate=candidate,
+                    file_sha256=str(checkpoint["current_file_sha256"]),
+                    logical_fingerprint=summary.logical_fingerprint,
+                )
+                if int(checkpoint["candidate_index"]) < len(candidates):
+                    checkpoint = {
+                        **checkpoint,
+                        "phase": "discovering",
+                    }
+                    self._jobs.checkpoint(claim, checkpoint)
+
+            live_directory, live_candidates, live_manifest = self._discover(payload)
+            if live_manifest == manifest and len(live_candidates) == len(candidates):
+                break
+            self._fail_and_cleanup_current_run(claim, checkpoint)
+            directory, candidates, manifest = (
+                live_directory,
+                live_candidates,
+                live_manifest,
             )
-            if int(checkpoint["candidate_index"]) < len(candidates):
-                checkpoint = {
-                    **checkpoint,
-                    "phase": "discovering",
-                }
-                self._jobs.checkpoint(claim, checkpoint)
+            checkpoint = _empty_checkpoint(
+                manifest_sha256=manifest,
+                candidate_count=len(candidates),
+                candidate_index=0,
+                published_run_ids=checkpoint["published_run_ids"],
+            )
+            self._jobs.checkpoint(claim, checkpoint)
 
         completed = {**checkpoint, "phase": "completed"}
         with UnitOfWork(self._factory) as uow:
