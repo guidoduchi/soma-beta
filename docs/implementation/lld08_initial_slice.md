@@ -1,8 +1,13 @@
 # LLD-08 initial domain implementation
 
-Branch base: dd043b90 (existing implementation checkpoint).
-Normative design: d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338, the design revision
-pinned by implementation CI. Sources: spec/lld/infrastructure/algorithms/
+Historical branch base: dd043b90. The promoted pre-LLD-08 implementation
+baseline 9d105fe23dff79efbb4ab10f92c5ac68b2191997 is incorporated by merge
+commit 87bb619d44b7bef68b212967c54cf5c9519fa10a without rewriting LLD-08
+history. Normative LLD-08 design authority is
+13efc6979bd6f021b1a0fdbb1074f3a3746e8ce8. Structural design reconciliation
+was verified when pinned; a remote design-workflow success for that exact SHA
+was not independently observable in the integration session. Sources:
+spec/lld/infrastructure/algorithms/
 {rack-occupancy,containment-cycle,ip-normalization}.json, bounds.json, errors.json
 and implementation/module-map.json.
 
@@ -73,62 +78,59 @@ captures the unpublished bytes once, checks resource bounds, ZIP parts,
 relationships, profile, formulas and row counts, and returns SHA-256/size.
 Atomic publication, evidence and recovery remain job work.
 
-Owner clarification: `INFRA_EXPORT_SCOPE_V1.network_element_ids` is limited to
-400 IDs, superseding the pinned packet's 100,000-ID field bound. The workbook
-profile still requires one `ExportScopeJson` metadata cell bounded to 16,384
-UTF-8 bytes. Runtime request validation enforces 400; the pinned design leaf
-must be reconciled before design-integrity evidence can claim alignment.
+`INFRA_EXPORT_SCOPE_V1.network_element_ids` is limited to 400 IDs while the
+workbook profile retains the 16,384-byte `ExportScopeJson` metadata-cell
+bound. Runtime validation and reconciled design authority
+13efc6979bd6f021b1a0fdbb1074f3a3746e8ce8 now agree on that limit.
 
-Owner clarification: `infrastructure.import_directory` uses LLD-02's
-`ordinary_nonsecret` storage class; all LLD-08 path-specific validation and
-observational access rules remain. This supersedes only the pinned LLD-08
-setting leaf's `non_secret_local_path` classification. A typed registry
-definition and lexical Windows path validation are now present, with an
-integration test for the unpersisted default and explicit LLD-02 SettingStore
-write. An observational directory access probe now returns
-`WORKBOOK_DIRECTORY_UNAVAILABLE` without creating the configured directory.
-Command/job integration, deterministic nonrecursive discovery, and pinned
-design reconciliation remain pending. No new SettingStore class is introduced.
+`infrastructure.import_directory` uses LLD-02's `ordinary_nonsecret`
+storage class; all LLD-08 path-specific validation and observational access
+rules remain. A typed registry definition and lexical Windows path validation
+are present, with coverage for the unpersisted default and explicit LLD-02
+SettingStore write. Check-now now requires the exact persisted positive setting
+revision and enqueues through the shared durable-job coordinator. Deterministic
+nonrecursive discovery and worker-time observational/recovery behavior remain
+worker implementation debt. No new SettingStore class is introduced.
 
 Generated artifact verification now also compares export scope and generation
 timestamp with the inputs that produced the unpublished artifact; it cannot
 accept a different generation's metadata solely because the workbook profile
 is otherwise valid.
 
-The two workbook durable-job types now register Foundation JobTypeContracts
-with closed payload/checkpoint shapes, command/request dedupe identity, bounded
+The two workbook durable-job types register Foundation JobTypeContracts with
+closed payload/checkpoint shapes, command/request dedupe identity, bounded
 technical filename and fingerprint fields, and stale-claim reconciliation
-dispositions. Coordinator enqueue/coalescing has focused tests. This does not
-yet enqueue jobs from the two commands or implement either worker's filesystem,
-staging, publication, or crash-recovery state machine.
+dispositions. Generate and Check-now now enqueue/coalesce those jobs only after
+the authoritative command receipt is inserted, with enqueue and owner audit in
+the same outer UnitOfWork and exact replay returning the committed job response.
+The export/stage workers' filesystem, staging, publication and crash-recovery
+state machines remain incomplete.
 
-The Check-now request and stage-job payload require `setting_revision: rev`
-(positive), but LLD-02 returns `revision=None` for an unpersisted computed
-default. The packet needs an explicit default-setting freshness token or a rule
-that Check-now first requires an operator-persisted setting. No synthetic
-revision is assigned in the current implementation.
+The Check-now request and stage-job payload require a positive
+`setting_revision`. LLD-02 returns `revision=None` for an unpersisted
+computed default, so Check-now requires the operator to save the setting first.
+No synthetic revision or alternate freshness token is assigned.
 
-The Foundation `DataInstanceIdentityReader` callable is now available for
-Infrastructure consumers. It returns the exact canonical UUIDv4 from the
-verified caller snapshot/UnitOfWork; Infrastructure does not read the private
-Foundation identity table itself. Export command enqueue and worker use remain
-pending.
+The Foundation `DataInstanceIdentityReader` callable returns the exact
+canonical UUIDv4 from the verified caller snapshot/UnitOfWork; Infrastructure
+does not read the private Foundation identity table itself. Generate and
+Check-now now bind that identity into their durable job payloads. Worker-time
+revalidation remains part of the unfinished worker state machines.
 
-Owner-approved follow-on clarifications are captured in
+The reconciled follow-on authority is recorded in
 `lld08_workbook_normalization_v1.md`: a versioned allowlisted row/logical
-fingerprint representation, and an explicitly saved import-directory setting
-before Check-now. The read-only inspector now computes a logical fingerprint
-from bounded normalized row fingerprints, retaining duplicate multiplicity and
+fingerprint representation and an explicitly saved import-directory setting
+before Check-now. The read-only inspector computes a logical fingerprint from
+bounded normalized row fingerprints, retaining duplicate multiplicity and
 ignoring row order and generation timestamp. Staging persistence, proposal
-calculation and acceptance replay are not yet wired to that result. The
-clarifications still require reconciliation into the pinned design packet.
+calculation and acceptance replay are not yet wired to that result.
 
-The owner-approved proposal candidate field is now a forward-only sequence-15
-runtime migration; accepted sequence 14 remains byte-identical. The proposal
-detail query reads separately persisted, bounded, ascending candidate IDs and
-the closed impact DTO. The pinned provisional LLD-09–12 migration allocations
-must shift as recorded in `docs/reconciliation/LLD08_MIGRATION_15_OWNER_CLARIFICATION.md`.
-Staging still needs to populate candidate IDs for new proposals.
+The proposal candidate field is a forward-only sequence-15 runtime migration;
+accepted sequence 14 remains byte-identical. The proposal detail query reads
+separately persisted, bounded, ascending candidate IDs and the closed impact
+DTO. Reconciled design authority shifts the provisional LLD-09–12 allocations
+to sequences 16–19 and future allocation to 20 onward. Staging still needs to
+populate candidate IDs for new proposals.
 
 The LLD-08 transport adapter now resolves all 49 declared routes, validates
 path-owned UUID/fingerprint identities, request DTOs and conflicting repeated
@@ -136,9 +138,9 @@ body identities, and dispatches only to explicit injected owner handlers.
 LLD-12 still owns authentication, CSRF and raw request-byte enforcement; this
 adapter is not yet assembled into a running HTTP host. An owner binding now
 connects installed commands and queries with explicit caller-supplied
-authenticated actor context and checks command response schema. Routes for
-workbook commands/queries whose owners are not implemented fail closed rather
-than pretending those operations are available.
+authenticated actor context and checks command response schema. Generate, Check-now and Reject now have installed service owners. Routes whose
+owners remain unimplemented, including workbook acceptance, continue to fail
+closed rather than pretending those operations are available.
 
 The LLD-04 hardened XLSX container preflight now accepts an explicit resource
 profile while retaining its exact existing defaults. LLD-08 supplies its own
@@ -151,16 +153,17 @@ including across chunk boundaries; relationship and content-type XML are still
 materialized for graph validation and require measured large-file hardening
 before certification at the 1 GiB ceiling.
 
-A first read-only semantic inspection now consumes only the immutable preflight
-snapshot, checks visible required sheets and exact headers, rejects forbidden
+Read-only semantic inspection consumes only the immutable preflight snapshot,
+checks visible required sheets and exact headers, rejects forbidden
 secret/topology extra headers, formulas, duplicate/missing required metadata,
-oversized cells and row-count excesses, and reports installation-scope match
-without granting identity authority. It does not yet normalize rows, validate
-all metadata values, compute logical fingerprints/proposals, or persist staging.
+oversized cells and row-count excesses, validates bounded row values, and
+computes the versioned normalized-row/logical fingerprints without granting
+identity authority. It does not yet persist staging or calculate/publish the
+complete proposal set.
 
 The inspector now also validates generation timestamp and export-scope metadata,
 same-installation UUIDv4 row references, exact bounded Rack integers, host IP
 syntax (including CIDR/zone rejection), and explicit boolean Primary values.
-Foreign local IDs are not promoted to target authority. This is structural
-validation only: normalized row persistence and logical fingerprints remain
-pending.
+Foreign local IDs are not promoted to target authority. Normalized-row
+persistence, proposal publication and acceptance use of those fingerprints
+remain pending.
