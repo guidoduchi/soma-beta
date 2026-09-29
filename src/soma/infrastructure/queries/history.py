@@ -1,5 +1,6 @@
 import json
 
+from soma.foundation.errors import SomaError
 from soma.infrastructure.repositories.core import one
 from .core import page
 
@@ -23,6 +24,51 @@ EVENTS = {
 }
 
 
+LOCAL_TARGET_TABLES = {
+    "site": ("sites", "site_id"),
+    "room": ("rooms", "room_id"),
+    "rack": ("racks", "rack_id"),
+    "network_element": ("network_elements", "network_element_id"),
+    "cloud_type": ("cloud_types", "cloud_type_id"),
+    "cloud_deployment": ("cloud_deployments", "cloud_deployment_id"),
+    "model": ("network_element_models", "network_element_model_id"),
+    "installed_component": ("installed_components", "installed_component_id"),
+    "ip": ("network_element_ip_identities", "network_element_ip_id"),
+    "workbook_run": ("infrastructure_workbook_runs", "workbook_run_id"),
+}
+
+
+def _require_history_target(service, reader, kind, identity):
+    local = LOCAL_TARGET_TABLES.get(kind)
+    if local is not None:
+        table, key = local
+        if reader.connection.execute(
+            f"SELECT 1 FROM {table} WHERE {key}=?",
+            (identity,),
+        ).fetchone() is None:
+            raise SomaError("INFRA_NOT_FOUND", "Infrastructure history target does not exist")
+        return
+    if kind == "device_reference":
+        if service.device_reader is None:
+            raise SomaError(
+                "DEPENDENCY_INDETERMINATE",
+                "Device Reference reader is unavailable",
+            )
+        if service.device_reader.get(reader, identity) is None:
+            raise SomaError("INFRA_NOT_FOUND", "Device Reference history target does not exist")
+        return
+    if kind == "device_part_unit":
+        if service.device_part_reader is None:
+            raise SomaError(
+                "DEPENDENCY_INDETERMINATE",
+                "Device Part reader is unavailable",
+            )
+        if service.device_part_reader.get_reference_context(reader, identity) is None:
+            raise SomaError("INFRA_NOT_FOUND", "Device Part history target does not exist")
+        return
+    raise SomaError("INFRA_NOT_FOUND", "Infrastructure history target does not exist")
+
+
 def history_value(value):
     kind = "null" if value is None else "boolean" if type(value) is bool else "integer" if type(value) is int else "text"
     text = None
@@ -33,6 +79,7 @@ def history_value(value):
 
 
 def execute(service, reader, query, p):
+    _require_history_target(service, reader, p["target_kind"], p["target_id"])
     tables = EVENTS.get(p["target_kind"], [])
     if not tables:
         # Cloud lifecycle and workbook commands retain their owner audit chronology.
