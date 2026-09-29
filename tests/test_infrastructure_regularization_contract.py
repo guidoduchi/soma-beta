@@ -241,3 +241,67 @@ def test_regularization_rejects_malformed_validated_proof_binding(initialized_da
             "WHERE device_reference_id=?",
             (device.device_reference_id,),
         ).fetchone() == (0,)
+
+
+
+def test_regularization_no_change_still_requires_and_consumes_deliberate_proof(
+    initialized_database,
+):
+    factory, service, provider, device, network_element_id = _assembled(
+        initialized_database
+    )
+    first_command = new_uuid4()
+    first_payload = _link_payload(
+        service, factory, device, network_element_id, first_command
+    )
+    service.execute(
+        "RegularizeDeviceReference",
+        command_id=first_command,
+        payload=first_payload,
+    )
+
+    request = {
+        "device_reference_id": device.device_reference_id,
+        "device_reference_revision": device.revision,
+        "action": "correct_link",
+        "target_network_element_id": network_element_id,
+        "resolution_revision": 1,
+    }
+    with ReadSnapshot(factory) as snapshot:
+        preview = regularization_fingerprint(service, snapshot, request)
+
+    no_proof_command = new_uuid4()
+    with pytest.raises(SomaError) as missing:
+        service.execute(
+            "RegularizeDeviceReference",
+            command_id=no_proof_command,
+            payload={
+                **request,
+                "preview_fingerprint": preview,
+            },
+        )
+    assert missing.value.code == "DEVICE_RESOLUTION_PROOF_REQUIRED"
+
+    no_change_command = new_uuid4()
+    result = service.execute(
+        "RegularizeDeviceReference",
+        command_id=no_change_command,
+        payload={
+            **request,
+            "preview_fingerprint": preview,
+            "deliberate_action_proof": no_change_command,
+        },
+    )
+    assert result.no_change
+    assert result.response["no_change"] is True
+    assert no_change_command in provider.consumed
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT revision FROM device_reference_resolution_current "
+            "WHERE device_reference_id=?",
+            (device.device_reference_id,),
+        ).fetchone() == (1,)
+        assert snapshot.connection.execute(
+            "SELECT result_type FROM command_receipts WHERE command_id=?",
+            (no_change_command,),
+        ).fetchone() == ("NO_CHANGE",)

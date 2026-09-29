@@ -135,7 +135,7 @@ def prepare(service, uow, command, p, command_id):
         child = create_plan(uow, new, command_id)
         target = child.identity
     previous = old[new_key] if old else None
-    if previous == target and not (device and new is not None):
+    if not device and previous == target:
         return plan
     if device:
         if service.proof_provider is None or not p.get("deliberate_action_proof"):
@@ -160,6 +160,8 @@ def prepare(service, uow, command, p, command_id):
             plan.writes.extend(child.writes)
         if target:
             plan.result_refs.append({"kind": "network_element", "id": target})
+        if previous == target and new is None:
+            return plan
     event_id = plan.event(events, "resolution_event_id", {
         owner_key: identity, "event_kind": "clear" if target is None else "link" if previous is None else "correct",
         "prior_" + new_key: previous, "new_" + new_key: target, "reason_code": p.get("reason_code")})
