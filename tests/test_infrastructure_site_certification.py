@@ -5,6 +5,7 @@ import pytest
 from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
 from soma.foundation.persistence.uow import ReadSnapshot
+from soma.infrastructure.domain.sites import match_key
 from soma.infrastructure.services.core import InfrastructureService
 from soma.infrastructure.services.participants import SiteDispatchAddressProvider
 from soma.infrastructure.services.sites import dependency_snapshot, duplicate_fingerprint
@@ -74,7 +75,7 @@ def test_duplicate_site_address_is_review_evidence_not_identity_authority(
         address=address,
     )
     with ReadSnapshot(factory) as snapshot:
-        preview = duplicate_fingerprint(snapshot, "10 duplicate avenue")
+        preview = duplicate_fingerprint(snapshot, match_key(address))
 
     second = service.execute(
         "CreateSite",
@@ -91,7 +92,7 @@ def test_duplicate_site_address_is_review_evidence_not_identity_authority(
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute(
             "SELECT count(*) FROM sites WHERE address_match_key=?",
-            ("10 duplicate avenue",),
+            (match_key(address),),
         ).fetchone() == (2,)
         dispatches = snapshot.connection.execute(
             "SELECT site_id,dispatch_location_id FROM site_dispatch_locations "
