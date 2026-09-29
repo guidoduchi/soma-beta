@@ -372,3 +372,152 @@ def test_terminal_staging_cleanup_requires_durable_row_decision(infra):
         assert snapshot.connection.execute(
             "SELECT count(*) FROM infrastructure_workbook_staging_rows WHERE workbook_run_id=?", (run_id,)
         ).fetchone() == (1,)
+
+
+
+def test_generate_workbook_enqueues_atomically_and_replays(infra):
+    service, factory, _ = infra
+    command_id = new_uuid4()
+    payload = {
+        "mode": "registration_template",
+        "scope": {"scope_kind": "all"},
+        "destination_directory": r"D:\Exports",
+    }
+
+    first = service.execute(
+        "GenerateInfrastructureWorkbook",
+        command_id=command_id,
+        payload=payload,
+    )
+    replay = service.execute(
+        "GenerateInfrastructureWorkbook",
+        command_id=command_id,
+        payload=payload,
+    )
+
+    assert first.response_schema == "INFRA_JOB_ACCEPTED_V1"
+    assert first.response["command_id"] == command_id
+    assert first.response["job_type"] == "INFRA_WORKBOOK_EXPORT_V1"
+    assert first.response["state"] == "queued"
+    assert replay.replayed and replay.response == first.response
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM durable_jobs WHERE job_id=?",
+            (first.response["job_id"],),
+        ).fetchone() == (1,)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() == (1,)
+        assert snapshot.connection.execute(
+            "SELECT action_type FROM audit_events WHERE command_id=?",
+            (command_id,),
+        ).fetchone() == ("infrastructure.workbook.export_request",)
+
+
+def test_generate_workbook_scope_revalidation_fails_before_receipt(infra):
+    service, factory, _ = infra
+    command_id = new_uuid4()
+    with pytest.raises(SomaError) as error:
+        service.execute(
+            "GenerateInfrastructureWorkbook",
+            command_id=command_id,
+            payload={
+                "mode": "discovery",
+                "scope": {"scope_kind": "site", "site_id": new_uuid4()},
+                "destination_directory": r"D:\Exports",
+            },
+        )
+    assert error.value.code == "INFRA_STALE"
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() == (0,)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM durable_jobs WHERE job_type='INFRA_WORKBOOK_EXPORT_V1'",
+        ).fetchone() == (0,)
+
+
+def test_stage_workbook_requires_persisted_setting_and_coalesces_by_revision(initialized_database):
+    from soma.infrastructure.settings import (
+        IMPORT_DIRECTORY_KEY,
+        build_import_directory_setting_registry,
+    )
+    from soma.reference.application.settings_service import SettingService
+
+    path, factory_builder = initialized_database
+    factory = factory_builder(path)
+    settings = SettingService(
+        factory,
+        build_import_directory_setting_registry(r"D:\SOMA"),
+    )
+    service = InfrastructureService(factory, setting_service=settings)
+
+    missing_command = new_uuid4()
+    with pytest.raises(SomaError) as error:
+        service.execute(
+            "StageInfrastructureWorkbookCheck",
+            command_id=missing_command,
+            payload={"setting_revision": 1},
+        )
+    assert error.value.code == "INFRA_STALE"
+
+    settings.write(
+        command_id=new_uuid4(),
+        setting_key=IMPORT_DIRECTORY_KEY,
+        base_revision=None,
+        value={"path": r"D:\Imports"},
+    )
+    first_command = new_uuid4()
+    second_command = new_uuid4()
+    first = service.execute(
+        "StageInfrastructureWorkbookCheck",
+        command_id=first_command,
+        payload={"setting_revision": 1},
+    )
+    second = service.execute(
+        "StageInfrastructureWorkbookCheck",
+        command_id=second_command,
+        payload={"setting_revision": 1},
+    )
+    assert first.response["job_type"] == "INFRA_WORKBOOK_STAGE_V1"
+    assert first.response["state"] == "queued"
+    assert second.response["job_id"] == first.response["job_id"]
+    assert second.response["command_id"] == second_command
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM durable_jobs WHERE job_type='INFRA_WORKBOOK_STAGE_V1'",
+        ).fetchone() == (1,)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id IN (?,?)",
+            (first_command, second_command),
+        ).fetchone() == (2,)
+
+
+def test_workbook_enqueue_audit_failure_rolls_back_job_and_receipt(infra, monkeypatch):
+    service, factory, _ = infra
+    command_id = new_uuid4()
+
+    def fail_audit(*args, **kwargs):
+        raise RuntimeError("injected workbook enqueue audit failure")
+
+    monkeypatch.setattr(service.boundary._audit_writer, "write", fail_audit)
+    with pytest.raises(RuntimeError, match="injected workbook enqueue audit failure"):
+        service.execute(
+            "GenerateInfrastructureWorkbook",
+            command_id=command_id,
+            payload={
+                "mode": "round_trip",
+                "scope": {"scope_kind": "all"},
+                "destination_directory": r"D:\Exports",
+            },
+        )
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() == (0,)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM durable_jobs WHERE job_type='INFRA_WORKBOOK_EXPORT_V1'",
+        ).fetchone() == (0,)
