@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 import pytest
+from openpyxl import load_workbook
 
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import ReadSnapshot
@@ -12,6 +13,7 @@ from soma.infrastructure.jobs.infrastructure_workbooks import (
     inspect_infrastructure_workbook,
 )
 from soma.infrastructure.services.core import InfrastructureService
+from soma.reference.application.customer_service import CustomerReferenceService
 
 
 pytestmark = pytest.mark.skipif(
@@ -190,3 +192,101 @@ def test_export_worker_recovers_link_published_before_database_commit(
         assert snapshot.connection.execute(
             "SELECT count(*) FROM infrastructure_workbook_exports"
         ).fetchone() == (1,)
+
+
+
+def test_export_worker_discovery_streams_current_infrastructure_rows(
+    initialized_database,
+    tmp_path,
+) -> None:
+    factory, service = _service(initialized_database)
+    customer_id = CustomerReferenceService(factory).create_customer_organization(
+        command_id=new_uuid4(),
+        name="Workbook export customer",
+    ).customer_org_id
+    site_id = service.execute(
+        "CreateSite",
+        command_id=new_uuid4(),
+        payload={
+            "customer_org_id": customer_id,
+            "name": "Export Site",
+            "address_text": "1 Export Street",
+        },
+    ).response["target"]["id"]
+    network_element_id = service.execute(
+        "CreateNetworkElement",
+        command_id=new_uuid4(),
+        payload={
+            "new_element": {
+                "site_id": site_id,
+                "operational_name": "NE-EXPORT-01",
+                "manufacturer_serial": "SERIAL-01",
+            },
+        },
+    ).response["target"]["id"]
+    ip_response = service.execute(
+        "AddNetworkElementIp",
+        command_id=new_uuid4(),
+        payload={
+            "network_element_id": network_element_id,
+            "address": "192.0.2.10",
+            "make_primary": True,
+        },
+    ).response
+    ip_id = ip_response["target"]["id"]
+
+    accepted = service.execute(
+        "GenerateInfrastructureWorkbook",
+        command_id=new_uuid4(),
+        payload={
+            "mode": "discovery",
+            "scope": {"scope_kind": "site", "site_id": site_id},
+            "destination_directory": str(tmp_path),
+        },
+    )
+    base = utc_epoch_seconds()
+    claim = _claim_export(service, now=base)
+    result = InfrastructureWorkbookExportWorker(
+        factory,
+        clock=_Clock(base + 1),
+    ).run(claim)
+
+    workbook = load_workbook(
+        tmp_path / result.final_filename,
+        read_only=True,
+        data_only=False,
+        keep_links=False,
+    )
+    try:
+        network_rows = list(workbook["Network Elements"].values)
+        ip_rows = list(workbook["IP Addresses"].values)
+    finally:
+        workbook.close()
+
+    assert len(network_rows) == 2
+    assert network_rows[1][0] == network_element_id
+    assert network_rows[1][1] == "NE-EXPORT-01"
+    assert network_rows[1][2] == "SERIAL-01"
+    assert network_rows[1][5] == site_id
+    assert network_rows[1][6] == "Export Site"
+    assert network_rows[1][10] is None
+    assert len(ip_rows) == 2
+    assert ip_rows[1] == (
+        ip_id,
+        network_element_id,
+        "NE-EXPORT-01",
+        "192.0.2.10",
+        True,
+    )
+
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT state FROM durable_jobs WHERE job_id=?",
+            (accepted.response["job_id"],),
+        ).fetchone() == ("completed",)
+        assert snapshot.connection.execute(
+            "SELECT mode,filter_scope_json FROM infrastructure_workbook_exports"
+        ).fetchone() == (
+            "discovery",
+            '{"site_id":"' + site_id + '","scope_kind":"site"}',
+        )
