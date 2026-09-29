@@ -4,6 +4,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+import os
+from pathlib import Path
 import posixpath
 import tempfile
 from typing import BinaryIO
@@ -13,12 +15,22 @@ from xml.etree import ElementTree
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell import WriteOnlyCell
 
-from soma.foundation.errors import SomaError, ValidationError
-from soma.foundation.identifiers import require_uuid4
-from soma.foundation.strict_json import canonical_json_bytes, loads_strict
+from soma.foundation.contracts.foundation import DurableJobClaim
+from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.identifiers import new_uuid4, require_uuid4
+from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
+from soma.foundation.persistence.connections import ConnectionFactory
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.queries.data_instance_identity import DataInstanceIdentityReader
+from soma.foundation.strict_json import canonical_json_bytes, loads_canonical_json, loads_strict
 from soma.infrastructure.contracts.infrastructure import validate_value
 from soma.infrastructure.domain.workbooks import (
     FORMAT_ID, HEADERS, METADATA_KEYS, MODES, SHEET_ORDER, WORKBOOK_VERSION,
+    artifact_filename,
+)
+from soma.infrastructure.jobs import (
+    EXPORT_JOB_TYPE, INFRASTRUCTURE_JOB_CONTRACTS,
+    validate_export_checkpoint, validate_export_payload,
 )
 from soma.infrastructure.domain.workbook_normalization import (
     normalize_workbook_row, workbook_logical_fingerprint,
