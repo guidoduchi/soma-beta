@@ -27,9 +27,9 @@ def _assembled(initialized_database):
     return factory, service, customer_id
 
 
-def _command(service, name: str, **payload):
+def _command(service, command: str, **payload):
     return service.execute(
-        name,
+        command,
         command_id=new_uuid4(),
         payload=payload,
     ).response
