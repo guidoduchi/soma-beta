@@ -107,10 +107,11 @@
       "name": "DeviceReferenceResolutionReader",
       "provider": "LLD-08",
       "methods": [
+        "list_for_site(snapshot_or_uow,site_id,cursor,limit) -> page",
         "resolution_for(snapshot_or_uow,device_reference_id) -> NetworkElementResolution|None"
       ],
       "transaction": "read-only; accepts stable Snapshot or current UnitOfWork and never mutates or commits",
-      "rule": "TaskSiteDependencyValidator resolves only current active task_device_links through this provider. LLD-05 never reads LLD-08 resolution, Network Element or Site tables directly; missing/indeterminate resolution fails closed for authoritative Site archive validation."
+      "rule": "TaskSiteDependencyValidator considers only current active task_device_links. It consumes the Site-scoped resolution stream so work is proportional to the target Site's current resolutions rather than all Task links. LLD-05 never reads LLD-08 resolution, Network Element or Site tables directly; unavailable or malformed provider data fails closed."
     }
   ],
   "rules": [
