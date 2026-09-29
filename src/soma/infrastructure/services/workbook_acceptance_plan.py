@@ -508,6 +508,7 @@ def prepare_workbook_acceptance(service, reader, payload: dict, command_id: str)
             )
 
     accepted_ip_targets: set[tuple[str, str]] = set()
+    planned_existing_ip_additions: dict[str, int] = {}
     pending_ip_rows: list[tuple[dict, dict, str, MutationPlan]] = []
 
     for row, disposition, normalized, _current in prepared_rows:
@@ -645,7 +646,7 @@ def prepare_workbook_acceptance(service, reader, payload: dict, command_id: str)
             )
         )
         address_key = (target_key, fields["Address"])
-        if address_key in accepted_ip_targets and current_ip is None:
+        if address_key in accepted_ip_targets:
             raise SomaError(
                 "IP_DUPLICATE_ON_ELEMENT",
                 "Workbook acceptance selects duplicate canonical IP rows",
@@ -658,6 +659,20 @@ def prepare_workbook_acceptance(service, reader, payload: dict, command_id: str)
 
         row_plans: list[MutationPlan] = []
         if current_ip is None:
+            planned = planned_existing_ip_additions.get(target_id, 0) + 1
+            current_count = int(
+                reader.connection.execute(
+                    "SELECT count(*) FROM network_element_ip_current "
+                    "WHERE network_element_id=? AND active=1",
+                    (target_id,),
+                ).fetchone()[0]
+            )
+            if current_count + planned > 1024:
+                raise SomaError(
+                    "WORKBOOK_RELATION_INVALID",
+                    "Workbook acceptance exceeds the Network Element IP hard limit",
+                )
+            planned_existing_ip_additions[target_id] = planned
             plan = relationships.prepare(
                 None,
                 reader,
