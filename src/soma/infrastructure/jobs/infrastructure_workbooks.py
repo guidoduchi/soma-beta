@@ -932,13 +932,16 @@ class InfrastructureWorkbookExportWorker:
     ) -> dict:
         """Regenerate only an unpublished job-owned temp from a fresh snapshot."""
         temp = destination / expected_temp
-        self._unlink_owned(temp)
         writing = self._checkpoint_value(
             phase="writing",
             export_id=str(checkpoint["export_id"]),
             temp_filename=expected_temp,
         )
+        # Re-prove the exact durable claim before destructive temp cleanup.
+        # If this worker is stale, checkpoint() fails before it can touch a
+        # newer attempt's job-owned filesystem state.
         self._jobs.checkpoint(claim, writing)
+        self._unlink_owned(temp)
         self._write_temp(
             temp,
             payload=payload,
