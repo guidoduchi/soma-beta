@@ -9,7 +9,7 @@ import stat as stat_module
 from openpyxl import load_workbook
 
 from soma.foundation.contracts.foundation import DurableJobClaim
-from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
+from soma.foundation.errors import IntegrityFailure, JobClaimConflict, SomaError, ValidationError
 from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
 from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
@@ -755,6 +755,152 @@ class InfrastructureWorkbookStageWorker:
             if removed == 0:
                 break
 
+    @staticmethod
+    def _assert_cancelled_attempt(uow: UnitOfWork, claim: DurableJobClaim) -> str | None:
+        row = uow.connection.execute(
+            "SELECT state,job_type,contract_version,attempt_count,checkpoint_json "
+            "FROM durable_jobs WHERE job_id=?",
+            (claim.job_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        state, job_type, contract_version, attempt_count, checkpoint_json = row
+        if (
+            str(state) != "cancelled"
+            or str(job_type) != claim.job_type
+            or int(contract_version) != claim.contract_version
+            or int(attempt_count) != claim.attempt_ordinal
+        ):
+            return None
+        attempt = uow.connection.execute(
+            "SELECT run_id,outcome FROM job_attempts WHERE job_id=? AND ordinal=?",
+            (claim.job_id, claim.attempt_ordinal),
+        ).fetchone()
+        if attempt is None or tuple(attempt) != (claim.run_id, "cancelled"):
+            return None
+        return None if checkpoint_json is None else str(checkpoint_json)
+
+    def _cancelled_checkpoint(self, claim: DurableJobClaim) -> dict | None:
+        with ReadSnapshot(self._factory) as snapshot:
+            checkpoint_json = self._assert_cancelled_attempt(snapshot, claim)
+        if checkpoint_json is None:
+            return None
+        value = loads_canonical_json(
+            checkpoint_json,
+            max_bytes=_STAGE_JOB_JSON_BYTES,
+            max_depth=5,
+            max_collection_items=520,
+        )
+        if not isinstance(value, dict):
+            raise IntegrityFailure(
+                "cancelled Infrastructure stage checkpoint is not an object"
+            )
+        try:
+            validate_stage_checkpoint(value)
+        except ValidationError as exc:
+            raise IntegrityFailure(
+                "cancelled Infrastructure stage checkpoint violates its contract"
+            ) from exc
+        return value
+
+    def _cleanup_cancelled_claim(self, claim: DurableJobClaim) -> None:
+        checkpoint = self._cancelled_checkpoint(claim)
+        if checkpoint is None or checkpoint["current_workbook_run_id"] is None:
+            return
+        run_id = str(checkpoint["current_workbook_run_id"])
+
+        while True:
+            with UnitOfWork(self._factory) as uow:
+                if self._assert_cancelled_attempt(uow, claim) is None:
+                    return
+                run = uow.connection.execute(
+                    "SELECT state FROM infrastructure_workbook_runs WHERE workbook_run_id=?",
+                    (run_id,),
+                ).fetchone()
+                if run is None:
+                    raise IntegrityFailure(
+                        "cancelled Infrastructure validating run disappeared"
+                    )
+                state = str(run[0])
+                if state in ("staged", "reviewed", "accepted", "rejected"):
+                    return
+                if state == "failed":
+                    break
+                if state != "validating":
+                    raise IntegrityFailure(
+                        "cancelled Infrastructure job targeted an unknown run state"
+                    )
+                rows = uow.connection.execute(
+                    """
+                    SELECT s.staging_row_id,s.sheet_kind,s.row_ordinal,s.row_fingerprint
+                    FROM infrastructure_workbook_staging_rows s
+                    LEFT JOIN infrastructure_workbook_row_decisions d
+                      ON d.workbook_run_id=s.workbook_run_id
+                     AND d.sheet_kind=s.sheet_kind
+                     AND d.row_ordinal=s.row_ordinal
+                    WHERE s.workbook_run_id=? AND d.row_decision_id IS NULL
+                    ORDER BY s.sheet_kind,s.row_ordinal LIMIT 500
+                    """,
+                    (run_id,),
+                ).fetchall()
+                if not rows:
+                    pending = int(
+                        uow.connection.execute(
+                            "SELECT count(*) FROM infrastructure_workbook_proposals "
+                            "WHERE workbook_run_id=? AND state='pending'",
+                            (run_id,),
+                        ).fetchone()[0]
+                    )
+                    if pending:
+                        raise IntegrityFailure(
+                            "cancelled Infrastructure run has proposals without row evidence"
+                        )
+                    uow.connection.execute(
+                        """
+                        UPDATE infrastructure_workbook_runs
+                        SET state='failed',revision=revision+1
+                        WHERE workbook_run_id=? AND state='validating'
+                        """,
+                        (run_id,),
+                    )
+                    break
+                now = int(self._clock())
+                for staging_id, sheet_kind, ordinal, row_fingerprint in rows:
+                    uow.connection.execute(
+                        """
+                        INSERT INTO infrastructure_workbook_row_decisions(
+                            row_decision_id,workbook_run_id,sheet_kind,row_ordinal,
+                            row_fingerprint,disposition,target_network_element_id,
+                            warning_codes_json,result_refs_json,recorded_at_utc,command_id
+                        ) VALUES (?,?,?,?,?,'failed',NULL,?,'[]',?,NULL)
+                        """,
+                        (
+                            new_uuid4(),
+                            run_id,
+                            sheet_kind,
+                            ordinal,
+                            row_fingerprint,
+                            '["WORKBOOK_STAGE_CANCELLED"]',
+                            now,
+                        ),
+                    )
+                    uow.connection.execute(
+                        """
+                        UPDATE infrastructure_workbook_proposals
+                        SET state='rejected',revision=revision+1
+                        WHERE staging_row_id=? AND state='pending'
+                        """,
+                        (staging_id,),
+                    )
+
+        while True:
+            with UnitOfWork(self._factory) as uow:
+                if self._assert_cancelled_attempt(uow, claim) is None:
+                    return
+                removed = cleanup_terminal_staging(uow, run_id, limit=500)
+            if removed == 0:
+                return
+
     def _publish_run(
         self,
         claim: DurableJobClaim,
@@ -850,7 +996,7 @@ class InfrastructureWorkbookStageWorker:
             self._jobs.checkpoint_in_uow(uow, claim, next_checkpoint)
         return next_checkpoint
 
-    def run(self, claim: DurableJobClaim) -> InfrastructureWorkbookStageResult:
+    def _run_current_claim(self, claim: DurableJobClaim) -> InfrastructureWorkbookStageResult:
         payload = self._payload(claim)
         checkpoint = self._checkpoint(claim)
         directory, candidates, manifest = self._discover(payload)
@@ -1006,6 +1152,17 @@ class InfrastructureWorkbookStageWorker:
             job_id=claim.job_id,
             published_run_ids=tuple(completed["published_run_ids"]),
         )
+
+
+    def run(self, claim: DurableJobClaim) -> InfrastructureWorkbookStageResult:
+        try:
+            return self._run_current_claim(claim)
+        except JobClaimConflict:
+            # A revoked claim may be cancellation or a newer recovered attempt.
+            # Only exact durable cancellation evidence authorizes cleanup of the
+            # unpublished validating run; newer/recovered claims are untouched.
+            self._cleanup_cancelled_claim(claim)
+            raise
 
 
 __all__ = [
