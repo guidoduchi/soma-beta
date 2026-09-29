@@ -10,24 +10,32 @@ def cursor_key(query, p, width):
     cursor = p.get("cursor")
     if cursor is None:
         return None
+    pagination = QUERIES[query].get("pagination", {})
+    declared_keys = pagination.get("last_key_tuple", [])
     expected = {"version", "query_id", "sort_registry_id", "last_key_tuple", "filter_fingerprint", "null_order"}
     filters = {key: value for key, value in p.items() if key not in ("cursor", "limit")}
-    if (not isinstance(cursor, dict) or set(cursor) != expected or cursor["version"] != 1
-        or cursor["query_id"] != query or cursor["sort_registry_id"] != query + "_ORDER_V1"
-        or cursor["filter_fingerprint"] != fingerprint(filters)
-        or cursor["null_order"] != QUERIES[query].get("pagination", {}).get("null_order", "NOT_APPLICABLE")
-        or not isinstance(cursor["last_key_tuple"], list) or len(cursor["last_key_tuple"]) != width
+    key_values = cursor.get("last_key_tuple") if isinstance(cursor, dict) else None
+    invalid_key = (
+        not isinstance(key_values, list)
+        or len(key_values) != width
+        or len(declared_keys) != width
         or any(
             type(item) not in (str, int)
             and not (
                 item is None
-                and QUERIES[query].get("pagination", {}).get("null_order")
-                in ("NULLS_FIRST", "NULLS_LAST")
+                and isinstance(declared_keys[index], str)
+                and "|null" in declared_keys[index]
             )
-            for item in cursor["last_key_tuple"]
-        )):
+            for index, item in enumerate(key_values or ())
+        )
+    )
+    if (not isinstance(cursor, dict) or set(cursor) != expected or cursor["version"] != 1
+        or cursor["query_id"] != query or cursor["sort_registry_id"] != query + "_ORDER_V1"
+        or cursor["filter_fingerprint"] != fingerprint(filters)
+        or cursor["null_order"] != pagination.get("null_order", "NOT_APPLICABLE")
+        or invalid_key):
         raise SomaError("CURSOR_INVALID", "Infrastructure cursor does not match this query and filter")
-    return cursor["last_key_tuple"]
+    return key_values
 
 
 def make_cursor(query, p, keys):
