@@ -34,9 +34,9 @@
     "The 11 acceptance scenarios lacking direct ID markers were manually inspected against concrete behavior rather than receiving redundant marker-only tests.",
     "Cross-packet responsibility remains explicit; LLD-06 does not absorb Foundation transaction/job authority, Tickets Customer authority, Import source authority or Objective timezone authority."
   ],
-  "certified": false,
+  "certified": true,
   "semantic_binding_complete": true,
-  "certification_rule": "Semantic binding is complete and cites code green at exact CI #875. Final packet/pre-LLD-08 certification remains false until remaining R04/R05/cross-packet obligations close and the final exact authority pair passes supported CI.",
+  "certification_rule": "All 72 LLD-06 cases are semantically bound and code-supported; CI #875 proves the cited code checkpoint and final pre-LLD-08 closure CI #946 closes R04/R05 and the accepted authority pair. Later-packet contributors and LLD-12 security composition remain outside LLD-06 certification.",
   "summary": {
     "total_cases": 72,
     "acceptance_cases": 39,
@@ -45,10 +45,10 @@
     "semantically_bound": 72,
     "missing_executable_bindings": 0,
     "code_supported_ci_875": 72,
-    "ledger_commit_ci": "pending"
+    "ledger_commit_ci": "supported_by_pre_lld08_closure_ci_946"
   },
   "known_limits": [
-    "CI #875 proves the cited implementation checkpoint, not this later documentation-only ledger commit.",
+    "CI #875 proves the cited LLD-06 code checkpoint; final pre-LLD-08 closure CI #946 certifies the accepted authority pair after R04/R05 completion without widening later-packet ownership.",
     "Production SQLCipher/provider composition is not proven by SQLite-backed test execution and remains later security/release composition scope.",
     "Later-packet ReportSectionContributor implementations are outside LLD-06; LLD-06's read-only registry/validation/fail-closed consumer behavior is proven.",
     "Marker/name presence is never treated as semantic certification."
