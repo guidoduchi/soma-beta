@@ -1,9 +1,9 @@
 # LLD-08 workbook normalization V1 implementation contract
 
-Owner clarification approved in conversation: define an explicit versioned
-normalized-row representation before using workbook fingerprints for replay.
-This implementation contract needs reconciliation into the pinned design packet;
-it does not silently amend `d3f24ca9752a2ac9cd1a5f9cb9b38dd352681338`.
+The owner-approved workbook normalization clarification is now reconciled into
+design authority `13efc6979bd6f021b1a0fdbb1074f3a3746e8ce8`. This implementation
+contract records the corresponding V1 runtime representation; it does not
+override that pinned design authority.
 
 Each row is canonical UTF-8 JSON with exactly `version`, `sheet`, and `fields`.
 `version` is `INFRA_WORKBOOK_NORMALIZED_ROW_V1`. `sheet` is one of the two data
@@ -26,14 +26,13 @@ and preserve duplicate entries. Metadata `GeneratedAtUtc` and physical row
 ordinals are excluded. The source installation scope remains in the hash;
 foreign workbook IDs therefore cannot gain same-instance meaning by replay.
 
-Owner clarification approved in conversation: Check-now requires an explicitly
-persisted LLD-02 `infrastructure.import_directory` setting with a positive
-revision. The computed default can be displayed but must be saved before the
-command is eligible. No synthetic default revision or alternate freshness
-token is created. This also needs pinned-design reconciliation.
+Check-now requires an explicitly persisted LLD-02
+`infrastructure.import_directory` setting with a positive revision. The
+computed default can be displayed but must be saved before the command is
+eligible. No synthetic default revision or alternate freshness token is
+created; this is reconciled in the pinned design authority.
 
-Owner clarification approved in conversation: `INFRA_JOB_ACCEPTED_V1.state`
-includes `retry_wait` so a coalesced durable job reports its actual technical
-state. The pinned enum omitted that state while the stage-job contract permits
-coalescing in `retry_wait`. This runtime DTO change also needs pinned-design
-reconciliation; consumers of the closed enum must accept the additional value.
+`INFRA_JOB_ACCEPTED_V1.state` includes `retry_wait` so a coalesced durable
+job reports its actual technical state. This closed-enum reconciliation is
+present in design authority `13efc6979bd6f021b1a0fdbb1074f3a3746e8ce8`;
+consumers must accept the additional value.
