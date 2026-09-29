@@ -26,7 +26,10 @@ class _ReceiptOrderingProofProvider:
     ):
         self.calls += 1
         assert action == "RegularizeDeviceReference"
-        assert target["kind"] == "device_reference"
+        assert target == {
+            "target_type": "device_reference",
+            "target_id": target["target_id"],
+        }
         assert type(base_revision) is int and base_revision > 0
         assert isinstance(scope_fingerprint, str) and len(scope_fingerprint) == 64
         # The accepted LLD-08 leaf requires proof consumption before the
@@ -39,7 +42,12 @@ class _ReceiptOrderingProofProvider:
             "INSERT INTO test_deliberate_proof_consumptions(proof) VALUES (?)",
             (proof,),
         )
-        return True
+        return {
+            "action_code": action,
+            "target": dict(target),
+            "base_revision": base_revision,
+            "preview_fingerprint": scope_fingerprint,
+        }
 
 
 def _assembled(initialized_database):
