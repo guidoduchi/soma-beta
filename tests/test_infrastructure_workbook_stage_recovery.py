@@ -161,3 +161,166 @@ def test_stage_worker_recovers_checkpointed_rows_without_duplicate_generation(
             "WHERE workbook_run_id=?",
             (run_id,),
         ).fetchone() == (1,)
+
+
+def test_stage_worker_restarts_on_source_generation_change_without_mixing_rows(
+    initialized_database,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    factory, settings, service, data_instance_id = _assembled(
+        initialized_database,
+        tmp_path,
+    )
+    customer_id = CustomerReferenceService(factory).create_customer_organization(
+        command_id=new_uuid4(),
+        name="Generation customer",
+    ).customer_org_id
+    site_id = service.execute(
+        "CreateSite",
+        command_id=new_uuid4(),
+        payload={
+            "customer_org_id": customer_id,
+            "name": "Generation Site",
+            "address_text": "6 Stage Street",
+        },
+    ).response["target"]["id"]
+    source = tmp_path / "generation.xlsx"
+    _write(
+        source,
+        data_instance_id=data_instance_id,
+        mode="round_trip",
+        network_elements=(
+            (
+                None,
+                "NE-GENERATION-OLD",
+                "OLD-SERIAL",
+                None,
+                None,
+                site_id,
+                "Generation Site",
+                "6 Stage Street",
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+        ),
+    )
+
+    accepted, first_claim, base = _stage_claim(service)
+    clock = _Clock(base + 1)
+    worker = InfrastructureWorkbookStageWorker(
+        factory,
+        setting_service=settings,
+        clock=clock,
+    )
+    real_build = worker._build_proposals
+    failed_once = False
+
+    def crash_before_proposals(*args, **kwargs):
+        nonlocal failed_once
+        if not failed_once:
+            failed_once = True
+            raise RuntimeError("injected generation-change interruption")
+        return real_build(*args, **kwargs)
+
+    monkeypatch.setattr(worker, "_build_proposals", crash_before_proposals)
+    with pytest.raises(RuntimeError, match="generation-change interruption"):
+        worker.run(first_claim)
+
+    with ReadSnapshot(factory) as snapshot:
+        old_run = snapshot.connection.execute(
+            "SELECT workbook_run_id,state FROM infrastructure_workbook_runs"
+        ).fetchone()
+        assert old_run is not None and old_run[1] == "validating"
+        old_run_id = str(old_run[0])
+        old_row = snapshot.connection.execute(
+            "SELECT normalized_row_json FROM infrastructure_workbook_staging_rows "
+            "WHERE workbook_run_id=?",
+            (old_run_id,),
+        ).fetchone()
+        assert old_row is not None and "NE-GENERATION-OLD" in old_row[0]
+
+    _write(
+        source,
+        data_instance_id=data_instance_id,
+        mode="round_trip",
+        network_elements=(
+            (
+                None,
+                "NE-GENERATION-NEW-WITH-DIFFERENT-LENGTH",
+                "NEW-SERIAL-WITH-DIFFERENT-LENGTH",
+                None,
+                None,
+                site_id,
+                "Generation Site",
+                "6 Stage Street",
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+        ),
+    )
+
+    clock.value = base + 2
+    recovery_run = new_uuid4()
+    recovery = worker._jobs.recover_stale_claims(recovery_run, clock.value)
+    assert recovery.interrupted_count == 1
+    second_claim = worker._jobs.claim_next(recovery_run, clock.value)
+    assert second_claim is not None and second_claim.attempt_ordinal == 2
+
+    monkeypatch.setattr(worker, "_build_proposals", real_build)
+    clock.value = base + 3
+    result = worker.run(second_claim)
+    assert len(result.published_run_ids) == 1
+    new_run_id = result.published_run_ids[0]
+    assert new_run_id != old_run_id
+
+    with ReadSnapshot(factory) as snapshot:
+        runs = snapshot.connection.execute(
+            "SELECT workbook_run_id,state FROM infrastructure_workbook_runs "
+            "ORDER BY workbook_run_id"
+        ).fetchall()
+        assert set(runs) == {
+            (old_run_id, "failed"),
+            (new_run_id, "staged"),
+        }
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM infrastructure_workbook_staging_rows "
+            "WHERE workbook_run_id=?",
+            (old_run_id,),
+        ).fetchone() == (0,)
+        new_rows = snapshot.connection.execute(
+            "SELECT normalized_row_json FROM infrastructure_workbook_staging_rows "
+            "WHERE workbook_run_id=?",
+            (new_run_id,),
+        ).fetchall()
+        assert len(new_rows) == 1
+        assert "NE-GENERATION-NEW-WITH-DIFFERENT-LENGTH" in new_rows[0][0]
+        assert "NE-GENERATION-OLD" not in new_rows[0][0]
+        assert snapshot.connection.execute(
+            "SELECT state,attempt_count FROM durable_jobs WHERE job_id=?",
+            (accepted.response["job_id"],),
+        ).fetchone() == ("completed", 2)
