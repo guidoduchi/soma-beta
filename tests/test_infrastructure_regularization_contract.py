@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from soma.foundation.errors import SomaError
 from soma.foundation.identifiers import new_uuid4
-from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
+from soma.foundation.persistence.uow import ReadSnapshot
 from soma.infrastructure.services.core import InfrastructureService
 from soma.infrastructure.services.regularization import regularization_fingerprint
 from soma.reference.application.customer_service import CustomerReferenceService
@@ -14,6 +15,7 @@ from soma.tickets.infrastructure_participants import DeviceReferenceOperationalR
 class _ReceiptOrderingProofProvider:
     def __init__(self) -> None:
         self.calls = 0
+        self.consumed: set[str] = set()
 
     def validate_and_consume(
         self,
@@ -25,6 +27,8 @@ class _ReceiptOrderingProofProvider:
         scope_fingerprint,
     ):
         self.calls += 1
+        if proof in self.consumed:
+            return False
         assert action == "RegularizeDeviceReference"
         assert target == {
             "target_type": "device_reference",
@@ -38,10 +42,7 @@ class _ReceiptOrderingProofProvider:
             "SELECT count(*) FROM command_receipts WHERE command_id=?",
             (proof,),
         ).fetchone() == (0,)
-        uow.connection.execute(
-            "INSERT INTO test_deliberate_proof_consumptions(proof) VALUES (?)",
-            (proof,),
-        )
+        self.consumed.add(proof)
         return {
             "action_code": action,
             "target": dict(target),
@@ -53,11 +54,6 @@ class _ReceiptOrderingProofProvider:
 def _assembled(initialized_database):
     path, factory_builder = initialized_database
     factory = factory_builder(path)
-    with UnitOfWork(factory) as uow:
-        uow.connection.execute(
-            "CREATE TABLE test_deliberate_proof_consumptions("
-            "proof TEXT PRIMARY KEY)"
-        )
     provider = _ReceiptOrderingProofProvider()
     service = InfrastructureService(
         factory,
@@ -150,13 +146,10 @@ def test_regularization_consumes_proof_before_receipt_and_replay_does_not_recons
             "SELECT revision FROM device_references WHERE device_reference_id=?",
             (device.device_reference_id,),
         ).fetchone() == (device.revision,)
-        assert snapshot.connection.execute(
-            "SELECT count(*) FROM test_deliberate_proof_consumptions WHERE proof=?",
-            (command_id,),
-        ).fetchone() == (1,)
+    assert command_id in provider.consumed
 
 
-def test_regularization_proof_consumption_rolls_back_with_later_audit_failure(
+def test_regularization_consumed_proof_remains_single_use_after_later_audit_failure(
     initialized_database,
     monkeypatch,
 ):
@@ -180,13 +173,67 @@ def test_regularization_proof_consumption_rolls_back_with_later_audit_failure(
         )
 
     assert provider.calls == 1
+    assert command_id in provider.consumed
     with ReadSnapshot(factory) as snapshot:
         assert snapshot.connection.execute(
             "SELECT count(*) FROM command_receipts WHERE command_id=?",
             (command_id,),
         ).fetchone() == (0,)
         assert snapshot.connection.execute(
-            "SELECT count(*) FROM test_deliberate_proof_consumptions WHERE proof=?",
+            "SELECT count(*) FROM device_reference_resolution_current "
+            "WHERE device_reference_id=?",
+            (device.device_reference_id,),
+        ).fetchone() == (0,)
+
+    monkeypatch.undo()
+    with pytest.raises(SomaError) as reused:
+        service.execute(
+            "RegularizeDeviceReference",
+            command_id=command_id,
+            payload=payload,
+        )
+    assert reused.value.code == "DEVICE_RESOLUTION_PROOF_REQUIRED"
+    assert provider.calls == 2
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
+            (command_id,),
+        ).fetchone() == (0,)
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM device_reference_resolution_current "
+            "WHERE device_reference_id=?",
+            (device.device_reference_id,),
+        ).fetchone() == (0,)
+
+
+def test_regularization_rejects_malformed_validated_proof_binding(initialized_database):
+    factory, service, _provider, device, network_element_id = _assembled(
+        initialized_database
+    )
+
+    class WrongBindingProvider(_ReceiptOrderingProofProvider):
+        def validate_and_consume(self, *args, **kwargs):
+            value = super().validate_and_consume(*args, **kwargs)
+            if not isinstance(value, dict):
+                return value
+            return {**value, "target": {"target_type": "device_reference", "target_id": new_uuid4()}}
+
+    provider = WrongBindingProvider()
+    service.proof_provider = provider
+    command_id = new_uuid4()
+    payload = _link_payload(service, factory, device, network_element_id, command_id)
+
+    with pytest.raises(SomaError) as malformed:
+        service.execute(
+            "RegularizeDeviceReference",
+            command_id=command_id,
+            payload=payload,
+        )
+    assert malformed.value.code == "DEVICE_RESOLUTION_PROOF_REQUIRED"
+    assert command_id in provider.consumed
+    with ReadSnapshot(factory) as snapshot:
+        assert snapshot.connection.execute(
+            "SELECT count(*) FROM command_receipts WHERE command_id=?",
             (command_id,),
         ).fetchone() == (0,)
         assert snapshot.connection.execute(

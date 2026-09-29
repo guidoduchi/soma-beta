@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 from soma.foundation.errors import SomaError, ValidationError
 from soma.infrastructure.repositories.core import MutationPlan, count, fingerprint, get
 from .network_elements import create_plan
@@ -15,6 +17,53 @@ def regularization_fingerprint(service, reader, p):
     target = get(reader, "network_elements", p["target_network_element_id"], active=True) if p.get("target_network_element_id") else None
     return fingerprint({"device": device, "current": current, "target": target,
                         "action": p["action"], "new_network_element": p.get("new_network_element")})
+
+
+def _validated_deliberate_action_matches(
+    value,
+    *,
+    action: str,
+    target: dict,
+    base_revision: int,
+    preview_fingerprint: str,
+) -> bool:
+    required = {"action_code", "target", "base_revision", "preview_fingerprint"}
+    if isinstance(value, Mapping):
+        if set(value) != required:
+            return False
+        action_code = value["action_code"]
+        actual_target = value["target"]
+        actual_base_revision = value["base_revision"]
+        actual_preview = value["preview_fingerprint"]
+    else:
+        missing = object()
+        action_code = getattr(value, "action_code", missing)
+        actual_target = getattr(value, "target", missing)
+        actual_base_revision = getattr(value, "base_revision", missing)
+        actual_preview = getattr(value, "preview_fingerprint", missing)
+        if missing in (action_code, actual_target, actual_base_revision, actual_preview):
+            return False
+
+    if isinstance(actual_target, Mapping):
+        if set(actual_target) != {"target_type", "target_id"}:
+            return False
+        normalized_target = {
+            "target_type": actual_target["target_type"],
+            "target_id": actual_target["target_id"],
+        }
+    else:
+        target_type = getattr(actual_target, "target_type", None)
+        target_id = getattr(actual_target, "target_id", None)
+        if target_type is None or target_id is None:
+            return False
+        normalized_target = {"target_type": target_type, "target_id": target_id}
+
+    return (
+        action_code == action
+        and normalized_target == target
+        and actual_base_revision == base_revision
+        and actual_preview == preview_fingerprint
+    )
 
 
 def validate_component_target(service, reader, unit_id, component_id):
@@ -91,15 +140,21 @@ def prepare(service, uow, command, p, command_id):
     if device:
         if service.proof_provider is None or not p.get("deliberate_action_proof"):
             raise SomaError("DEVICE_RESOLUTION_PROOF_REQUIRED", "Deliberate-action proof is required")
-        # LLD-08 requires the session-bound proof to be consumed after all
-        # authoritative freshness checks but before the command receipt. This
-        # prepare function runs inside CommandBoundary's one outer UnitOfWork,
-        # so later receipt/domain/audit failure still rolls the proof state back.
+        # LLD-08 consumes the session-bound proof after all authoritative
+        # freshness checks but before the command receipt, inside the same
+        # outer UnitOfWork. LLD-12 keeps the proof single-use even if a later
+        # receipt/domain/audit failure rolls the database transaction back.
+        proof_target = {"target_type": "device_reference", "target_id": identity}
         validated = service.proof_provider.validate_and_consume(
             uow, p["deliberate_action_proof"], "RegularizeDeviceReference",
-            {"target_type": "device_reference", "target_id": identity},
-            p["device_reference_revision"], expected)
-        if validated is None or validated is False:
+            proof_target, p["device_reference_revision"], expected)
+        if not _validated_deliberate_action_matches(
+            validated,
+            action="RegularizeDeviceReference",
+            target=proof_target,
+            base_revision=p["device_reference_revision"],
+            preview_fingerprint=expected,
+        ):
             raise SomaError("DEVICE_RESOLUTION_PROOF_REQUIRED", "Deliberate-action proof was not validated")
         if new is not None:
             plan.writes.extend(child.writes)
