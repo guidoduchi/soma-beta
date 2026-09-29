@@ -575,6 +575,7 @@ class InfrastructureWorkbookStageWorker:
                     )
                     proposal = build_workbook_proposal(
                         snapshot,
+                        workbook_run_id=run_id,
                         sheet_kind=str(row[1]),
                         normalized_row=normalized,
                         row_fingerprint=str(row[3]),
