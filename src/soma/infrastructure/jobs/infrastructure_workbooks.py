@@ -727,6 +727,28 @@ class InfrastructureWorkbookExportWorker:
         except OSError:
             return False
 
+    def _claim_was_cancelled(self, claim: DurableJobClaim) -> bool:
+        with ReadSnapshot(self._factory) as snapshot:
+            row = snapshot.connection.execute(
+                "SELECT state,job_type,contract_version,attempt_count "
+                "FROM durable_jobs WHERE job_id=?",
+                (claim.job_id,),
+            ).fetchone()
+            if (
+                row is None
+                or str(row[0]) != "cancelled"
+                or str(row[1]) != claim.job_type
+                or int(row[2]) != claim.contract_version
+                or int(row[3]) != claim.attempt_ordinal
+            ):
+                return False
+            attempt = snapshot.connection.execute(
+                "SELECT run_id,outcome FROM job_attempts "
+                "WHERE job_id=? AND ordinal=?",
+                (claim.job_id, claim.attempt_ordinal),
+            ).fetchone()
+        return attempt is not None and tuple(attempt) == (claim.run_id, "cancelled")
+
     def _require_data_instance(self, reader, payload: dict) -> None:
         if DataInstanceIdentityReader.get(reader) != payload["data_instance_id"]:
             raise SomaError(
@@ -1054,13 +1076,21 @@ class InfrastructureWorkbookExportWorker:
             phase = "verified"
 
         if phase == "verified":
-            self._publish_from_verified(
-                claim,
-                payload=payload,
-                checkpoint=checkpoint,
-                generated_at_utc=generated_at_utc,
-                destination=destination,
-            )
+            try:
+                self._publish_from_verified(
+                    claim,
+                    payload=payload,
+                    checkpoint=checkpoint,
+                    generated_at_utc=generated_at_utc,
+                    destination=destination,
+                )
+            except JobClaimConflict:
+                # A verified temp belongs to a recoverable newer attempt unless
+                # the exact attempt was durably cancelled. Cancellation alone
+                # authorizes deletion of this unpublished job-owned artifact.
+                if self._claim_was_cancelled(claim):
+                    self._unlink_owned(destination / expected_temp)
+                raise
             return InfrastructureWorkbookExportResult(
                 claim.job_id,
                 str(checkpoint["export_id"]),
