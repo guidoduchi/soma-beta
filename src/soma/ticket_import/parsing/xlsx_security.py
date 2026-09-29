@@ -21,6 +21,7 @@ MAX_TOTAL_EXPANDED_BYTES = 536_870_912
 MAX_SINGLE_PART_BYTES = 134_217_728
 MAX_ZIP_ENTRIES = 4_096
 MAX_EXPANSION_RATIO = 100
+MAX_SHARED_STRINGS = 1_000_000
 _SPOOL_MEMORY_BYTES = 8_388_608
 _COPY_CHUNK_BYTES = 1_048_576
 
@@ -76,11 +77,13 @@ class XlsxResourceLimits:
     single_part_bytes: int = MAX_SINGLE_PART_BYTES
     zip_entries: int = MAX_ZIP_ENTRIES
     expansion_ratio: int = MAX_EXPANSION_RATIO
+    shared_strings: int = MAX_SHARED_STRINGS
 
     def validate(self) -> None:
         if any(type(value) is not int or value < 1 for value in (
             self.compressed_file_bytes, self.total_expanded_bytes,
             self.single_part_bytes, self.zip_entries, self.expansion_ratio,
+            self.shared_strings,
         )):
             raise ValidationError("XLSX resource limits must be positive exact integers")
 
@@ -97,6 +100,7 @@ def _current_default_limits() -> XlsxResourceLimits:
         single_part_bytes=MAX_SINGLE_PART_BYTES,
         zip_entries=MAX_ZIP_ENTRIES,
         expansion_ratio=MAX_EXPANSION_RATIO,
+        shared_strings=MAX_SHARED_STRINGS,
     )
 
 
@@ -192,6 +196,29 @@ def _scan_xml_part(zf: zipfile.ZipFile, info: zipfile.ZipInfo,
             overlap = probe[-8:]
     if read_bytes != info.file_size:
         raise _resource("OOXML part expansion exceeded its declared or allowed size")
+
+
+def _scan_shared_strings(
+    zf: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+    limits: XlsxResourceLimits,
+) -> None:
+    """Validate and count shared strings without materializing the XML part."""
+
+    _scan_xml_part(zf, info, limits)
+    count = 0
+    try:
+        with zf.open(info, "r") as stream:
+            for _event, element in ElementTree.iterparse(stream, events=("end",)):
+                if element.tag.rsplit("}", 1)[-1] == "si":
+                    count += 1
+                    if count > limits.shared_strings:
+                        raise _resource(
+                            "XLSX shared-string table exceeds the configured ceiling"
+                        )
+                element.clear()
+    except ElementTree.ParseError as exc:
+        raise _unsafe("OOXML shared-string table is not well-formed XML") from exc
 
 
 def _reject_xml_declarations(data: bytes) -> None:
@@ -451,7 +478,9 @@ def preflight_xlsx(path: str | os.PathLike[str], *,
             for name, info in normalized.items():
                 lowered = name.lower()
                 if lowered.endswith(_XML_SUFFIXES):
-                    if name == "[Content_Types].xml" or lowered.endswith(".rels"):
+                    if lowered == "xl/sharedstrings.xml":
+                        _scan_shared_strings(zf, info, limits)
+                    elif name == "[Content_Types].xml" or lowered.endswith(".rels"):
                         data = _read_bounded(zf, info, limits)
                         _reject_xml_declarations(data)
                         if name == "[Content_Types].xml":
