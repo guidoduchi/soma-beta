@@ -97,7 +97,8 @@ def prepare(service, uow, command, p, command_id):
         # so later receipt/domain/audit failure still rolls the proof state back.
         validated = service.proof_provider.validate_and_consume(
             uow, p["deliberate_action_proof"], "RegularizeDeviceReference",
-            {"kind": "device_reference", "id": identity}, p["device_reference_revision"], expected)
+            {"target_type": "device_reference", "target_id": identity},
+            p["device_reference_revision"], expected)
         if validated is None or validated is False:
             raise SomaError("DEVICE_RESOLUTION_PROOF_REQUIRED", "Deliberate-action proof was not validated")
         if new is not None:
