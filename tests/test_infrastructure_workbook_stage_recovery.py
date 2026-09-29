@@ -491,7 +491,7 @@ def test_stage_recovery_rejects_mixed_source_generation_and_restarts_fresh(
         by_id = {str(row[0]): row for row in runs}
         assert by_id[first_run_id][1] == "failed"
         assert str(by_id[first_run_id][2]) == first_sha
-        assert by_id[second_run_id][1:] [0] == "staged"
+        assert by_id[second_run_id][1] == "staged"
         assert int(by_id[second_run_id][3]) == 2
         assert str(by_id[second_run_id][2]) != first_sha
 
