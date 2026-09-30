@@ -18,7 +18,7 @@
   "observed_heads": {
     "main": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
     "feat/beta-1.0-implementation": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
-    "feat/lld-08-infrastructure": "cfd5277a1a5855b33beae10317d0d21eefcbcff0",
+    "feat/lld-08-infrastructure": "20a914fd6eae9403b5289b488518cdc943ad1738",
     "design/beta-1.0-hld-lld": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
   },
   "shared_paths": {
