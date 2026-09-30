@@ -1,0 +1,396 @@
+{
+  "schema": "SOMA_IMPLEMENTATION_ACCEPTANCE_REVIEW_V1",
+  "packet": "LLD-08",
+  "title": "Infrastructure semantic certification",
+  "certified": true,
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "implementation_semantic_sha": "20a914fd6eae9403b5289b488518cdc943ad1738",
+  "observed_at_utc": "2026-09-29",
+  "scope": {
+    "commands": 34,
+    "queries": 15,
+    "acceptance_cases": 76,
+    "failure_injection_cases": 55,
+    "workbook_security_cases": 36,
+    "total_normative_cases": 167
+  },
+  "method": [
+    "Semantic review was performed against the exact accepted LLD-08 design authority pinned by src/soma/infrastructure/contracts/registry.json.",
+    "All declared command/query owners were reconciled to installed production owners; no command/query remained unowned.",
+    "Certification includes transactional receipt/audit rollback, cross-packet fail-closed boundaries, workbook generation/staging/acceptance/recovery/cancellation, query cursor/history semantics, forward migrations/indexes and package-resource CI.",
+    "Green tests alone were not treated as correctness proof; certification added adversarial regressions for proof ordering/binding, workbook cancellation/recovery, duplicate workbook identities, relationship provenance, nullable cursor ordering, history target existence, source-generation reset and Site-derived Dispatch availability."
+  ],
+  "exact_ci": {
+    "workflow": "Beta implementation CI",
+    "run_id": 36645561097,
+    "implementation_sha": "20a914fd6eae9403b5289b488518cdc943ad1738",
+    "conclusion": "success",
+    "lanes": [
+      {
+        "name": "Python 3.13 / Windows",
+        "conclusion": "success",
+        "tests": "1644 passed",
+        "packaging": "wheel/resource verification passed"
+      },
+      {
+        "name": "Python 3.14 / Windows",
+        "conclusion": "success",
+        "tests": "1644 passed",
+        "packaging": "wheel/resource verification passed"
+      },
+      {
+        "name": "Python 3.14 / Ubuntu compatibility",
+        "conclusion": "success",
+        "tests": "1628 passed, 16 skipped"
+      }
+    ],
+    "continuation_integrity_run_id": 36645561011,
+    "continuation_integrity_conclusion": "success"
+  },
+  "design_integrity": {
+    "workflow": "LLD Spec Integrity",
+    "run_id": 36600862004,
+    "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+    "conclusion": "success"
+  },
+  "case_bindings": [
+    {
+      "name": "site_room_rack_and_placement",
+      "case_ids": [
+        "A001",
+        "A002",
+        "A003",
+        "A004",
+        "A005",
+        "A006",
+        "A007",
+        "A008",
+        "A009",
+        "A010",
+        "A011",
+        "A012",
+        "A013",
+        "A014",
+        "F001",
+        "F002",
+        "F003",
+        "F004",
+        "F005",
+        "F006",
+        "F007",
+        "F008"
+      ],
+      "production_owners": [
+        "src/soma/infrastructure/services/sites.py",
+        "src/soma/infrastructure/services/placement.py",
+        "src/soma/infrastructure/domain/sites.py",
+        "src/soma/infrastructure/domain/placement.py",
+        "src/soma/infrastructure/services/participants.py",
+        "src/soma/migrations/0014_infrastructure.sql"
+      ],
+      "focused_tests": [
+        "tests/test_infrastructure_services.py",
+        "tests/test_infrastructure_domain.py",
+        "tests/test_infrastructure_site_blockers.py",
+        "tests/test_infrastructure_site_dependency_participants.py",
+        "tests/test_infrastructure_site_certification.py"
+      ]
+    },
+    {
+      "name": "network_element_identity_placement_and_regularization",
+      "case_ids": [
+        "A015",
+        "A016",
+        "A017",
+        "A018",
+        "A019",
+        "A020",
+        "A021",
+        "A022",
+        "A023",
+        "A024",
+        "A025",
+        "A026",
+        "A027",
+        "A028",
+        "F009",
+        "F010",
+        "F011",
+        "F012",
+        "F013",
+        "F014"
+      ],
+      "production_owners": [
+        "src/soma/infrastructure/services/network_elements.py",
+        "src/soma/infrastructure/services/placement.py",
+        "src/soma/infrastructure/services/regularization.py",
+        "src/soma/tickets/infrastructure_participants.py"
+      ],
+      "focused_tests": [
+        "tests/test_infrastructure_domain.py",
+        "tests/test_infrastructure_regularization_contract.py",
+        "tests/test_infrastructure_relationships.py",
+        "tests/test_infrastructure_routes.py"
+      ]
+    },
+    {
+      "name": "containment_cloud_ip_model_and_component_relationships",
+      "case_ids": [
+        "A029",
+        "A030",
+        "A031",
+        "A032",
+        "A033",
+        "A034",
+        "A035",
+        "A036",
+        "A037",
+        "A038",
+        "A039",
+        "A040",
+        "A041",
+        "A042",
+        "A043",
+        "A044",
+        "A045",
+        "A046",
+        "A047",
+        "A048",
+        "A049",
+        "A050",
+        "A051",
+        "A052",
+        "A053",
+        "A054",
+        "F015",
+        "F016",
+        "F017",
+        "F018",
+        "F019",
+        "F020",
+        "F021",
+        "F022",
+        "F023",
+        "F024",
+        "F025",
+        "F026",
+        "F027",
+        "F028",
+        "F029",
+        "F030"
+      ],
+      "production_owners": [
+        "src/soma/infrastructure/services/relationships.py",
+        "src/soma/infrastructure/services/components.py",
+        "src/soma/infrastructure/services/regularization.py",
+        "src/soma/infrastructure/queries/details.py",
+        "src/soma/inventory/services/participants.py"
+      ],
+      "focused_tests": [
+        "tests/test_infrastructure_relationships.py",
+        "tests/test_infrastructure_core_certification.py",
+        "tests/test_infrastructure_component_consequence_contract.py",
+        "tests/test_infrastructure_services.py"
+      ]
+    },
+    {
+      "name": "workbook_artifact_staging_review_acceptance_and_replay",
+      "case_ids": [
+        "A055",
+        "A056",
+        "A057",
+        "A058",
+        "A059",
+        "A060",
+        "A061",
+        "A062",
+        "A063",
+        "A064",
+        "A065",
+        "A066",
+        "A067",
+        "A068",
+        "A069",
+        "A070",
+        "A071",
+        "A072",
+        "F031",
+        "F032",
+        "F033",
+        "F034",
+        "F035",
+        "F036",
+        "F037",
+        "F038",
+        "F039",
+        "F040",
+        "F041",
+        "F042"
+      ],
+      "production_owners": [
+        "src/soma/infrastructure/jobs/infrastructure_workbooks.py",
+        "src/soma/infrastructure/jobs/workbook_stage.py",
+        "src/soma/infrastructure/jobs/workbook_proposals.py",
+        "src/soma/infrastructure/services/workbooks.py",
+        "src/soma/infrastructure/services/workbook_acceptance.py",
+        "src/soma/infrastructure/services/workbook_acceptance_plan.py",
+        "src/soma/infrastructure/repositories/workbooks.py"
+      ],
+      "focused_tests": [
+        "tests/test_infrastructure_workbook_export_worker.py",
+        "tests/test_infrastructure_workbook_export_recovery.py",
+        "tests/test_infrastructure_workbook_stage_worker.py",
+        "tests/test_infrastructure_workbook_stage_recovery.py",
+        "tests/test_infrastructure_workbook_acceptance.py",
+        "tests/test_infrastructure_workbook_acceptance_guards.py",
+        "tests/test_infrastructure_workbook_acceptance_identity_guards.py",
+        "tests/test_infrastructure_workbook_acceptance_provenance.py",
+        "tests/test_infrastructure_workbook_queries.py",
+        "tests/test_infrastructure_workbook_normalization.py"
+      ]
+    },
+    {
+      "name": "command_boundary_dispatch_queries_and_generic_failure_safety",
+      "case_ids": [
+        "A073",
+        "A074",
+        "A075",
+        "A076",
+        "F043",
+        "F044",
+        "F045",
+        "F046",
+        "F047",
+        "F048"
+      ],
+      "production_owners": [
+        "src/soma/infrastructure/services/core.py",
+        "src/soma/infrastructure/api/routes_infrastructure.py",
+        "src/soma/infrastructure/queries/core.py",
+        "src/soma/infrastructure/queries/explorer.py",
+        "src/soma/infrastructure/queries/details.py",
+        "src/soma/infrastructure/queries/history.py",
+        "src/soma/infrastructure/queries/candidates.py",
+        "src/soma/reference/queries/references.py"
+      ],
+      "focused_tests": [
+        "tests/test_infrastructure_routes.py",
+        "tests/test_infrastructure_query_certification.py",
+        "tests/test_infrastructure_history_certification.py",
+        "tests/test_infrastructure_services.py",
+        "tests/test_infrastructure_site_certification.py"
+      ]
+    },
+    {
+      "name": "durable_export_and_stage_recovery_cancellation",
+      "case_ids": [
+        "F049",
+        "F050",
+        "F051",
+        "F052",
+        "F053",
+        "F054",
+        "F055"
+      ],
+      "production_owners": [
+        "src/soma/infrastructure/jobs/infrastructure_workbooks.py",
+        "src/soma/infrastructure/jobs/workbook_stage.py",
+        "src/soma/foundation/jobs/coordinator.py"
+      ],
+      "focused_tests": [
+        "tests/test_infrastructure_workbook_export_worker.py",
+        "tests/test_infrastructure_workbook_export_recovery.py",
+        "tests/test_infrastructure_workbook_export_cancellation.py",
+        "tests/test_infrastructure_workbook_stage_worker.py",
+        "tests/test_infrastructure_workbook_stage_recovery.py",
+        "tests/test_infrastructure_workbook_stage_cancellation.py"
+      ]
+    },
+    {
+      "name": "hostile_workbook_security_profile",
+      "case_ids": [
+        "S001",
+        "S002",
+        "S003",
+        "S004",
+        "S005",
+        "S006",
+        "S007",
+        "S008",
+        "S009",
+        "S010",
+        "S011",
+        "S012",
+        "S013",
+        "S014",
+        "S015",
+        "S016",
+        "S017",
+        "S018",
+        "S019",
+        "S020",
+        "S021",
+        "S022",
+        "S023",
+        "S024",
+        "S025",
+        "S026",
+        "S027",
+        "S028",
+        "S029",
+        "S030",
+        "S031",
+        "S032",
+        "S033",
+        "S034",
+        "S035",
+        "S036"
+      ],
+      "production_owners": [
+        "src/soma/infrastructure/jobs/infrastructure_workbooks.py",
+        "src/soma/infrastructure/jobs/workbook_stage.py",
+        "src/soma/infrastructure/jobs/workbook_proposals.py"
+      ],
+      "focused_tests": [
+        "tests/test_infrastructure_workbook_profile.py",
+        "tests/test_infrastructure_workbook_normalization.py",
+        "tests/test_infrastructure_workbook_stage_worker.py",
+        "tests/test_infrastructure_workbook_export_worker.py",
+        "tests/test_ticket_import_xlsx_security.py"
+      ],
+      "note": "LLD-08 reuses the hardened XLSX ZIP/path/resource/active-content principles established by LLD-04 while retaining packet-owned profile/semantic validation."
+    }
+  ],
+  "additional_certification_evidence": {
+    "query_contracts": [
+      "InstalledComponentQuery now honors slot_match_key NULLS LAST + installed_component_id keyset ordering, including nullable cursor position binding.",
+      "InfrastructureHistoryQuery distinguishes missing targets from valid targets with empty history.",
+      "Cross-element canonical IP duplicates remain legal but surface a stable duplicate warning."
+    ],
+    "workbook_safety": [
+      "Selected batches reject duplicate explicit IP identities and duplicate existing Network Element identities before receipt/mutation.",
+      "Workbook model/cloud relationship changes retain explicit WORKBOOK_REVIEWED provenance.",
+      "Cancellation cleans only exact cancelled-attempt unpublished state; newer/recovered attempts are never retracted.",
+      "Verified export temp tamper causes owned-temp regeneration from a fresh snapshot before publication.",
+      "Stage recovery resets unpublished generations when candidate manifest/source identity changes and never mixes generations."
+    ],
+    "cross_packet": [
+      "LLD-02 Site-derived Dispatch Location ownership/address provider remains read-only and bounded when unavailable.",
+      "LLD-03 Device Reference resolution uses declared participant readers and deliberate-action proof authority.",
+      "LLD-05 Task/Site dependency validation is fail-closed.",
+      "LLD-07 Inventory physical consequence and Device Part boundaries use declared minimized contracts.",
+      "LLD-12 authentication/session and deliberate-action proof implementation remain future-owned; LLD-08 consumes the accepted boundary and does not implement credential/session policy."
+    ],
+    "migrations_and_packaging": [
+      "LLD-08 is additive after the immutable pre-LLD-08 migration prefix.",
+      "Infrastructure event/current/candidate/workbook tables carry required FK/STRICT/index/immutability guards.",
+      "Supported Windows packaging and wheel resource verification pass at the exact semantic candidate."
+    ]
+  },
+  "future_owned_exclusions": [
+    "LLD-11 composes Overview providers; LLD-08 does not invent the later Overview DTO/composer.",
+    "LLD-12 owns authentication/session/CSRF/key-provider composition and concrete deliberate-action proof issuance/storage.",
+    "Beta 1.0 intentionally excludes SSH, SNMP, scanner, interface/port, topology and reachability authority."
+  ],
+  "conclusion": "LLD-08 Infrastructure is semantically certified at implementation 20a914fd6eae9403b5289b488518cdc943ad1738 against design 9a0e891127a771251afccca1a281b7ef7dde9e5f. Promotion remains a separate branch-management action; this certificate does not by itself merge PR #78."
+}
