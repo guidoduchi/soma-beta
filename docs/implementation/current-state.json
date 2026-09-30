@@ -2,23 +2,23 @@
   "schema": "SOMA_IMPLEMENTATION_STATE_V1",
   "repository": "guidoduchi/soma-beta",
   "observed_at": "2026-09-29 (UTC)",
-  "mission": "LLD-08 Infrastructure is semantically certified. Preserve the certified pre-LLD-08 baseline and the exact LLD-08 semantic candidate; next perform the separate promotion checkpoint before beginning LLD-09.",
-  "active_branch": "feat/lld-08-infrastructure",
-  "next_task": "infra-promotion",
+  "mission": "LLD-08 Infrastructure is certified and promoted onto the active Beta implementation baseline. Preserve the promoted checkpoint; next perform LLD-09 Communications preflight before creating its implementation lane.",
+  "active_branch": "feat/beta-1.0-implementation",
+  "next_task": "lld09-preflight",
   "checkpoints": {
     "baseline": {
       "implementation": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
       "design": "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
     },
     "active": {
-      "implementation": "cfd5277a1a5855b33beae10317d0d21eefcbcff0",
+      "implementation": "337baa3334709d023a2f292b32ab3262b6e34896",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     }
   },
   "observed_heads": {
     "main": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
-    "feat/beta-1.0-implementation": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
-    "feat/lld-08-infrastructure": "cfd5277a1a5855b33beae10317d0d21eefcbcff0",
+    "feat/beta-1.0-implementation": "337baa3334709d023a2f292b32ab3262b6e34896",
+    "feat/lld-08-infrastructure": "15b4310c68ed47de9226a5fa0fc25af233b1bb1a",
     "design/beta-1.0-hld-lld": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
   },
   "shared_paths": {
@@ -192,7 +192,27 @@
         "objectives",
         "inventory"
       ],
-      "summary": "LLD-08 is semantically certified at implementation 20a914fd6eae9403b5289b488518cdc943ad1738 against accepted design 9a0e891127a771251afccca1a281b7ef7dde9e5f. Certificate: docs/implementation/lld08_infrastructure_traceability.json. Promotion is a separate branch-management action."
+      "summary": "LLD-08 is semantically certified and promoted. Semantic runtime: 20a914fd6eae9403b5289b488518cdc943ad1738; certificate-bearing checkpoint: cfd5277a1a5855b33beae10317d0d21eefcbcff0; promotion merge: 337baa3334709d023a2f292b32ab3262b6e34896."
+    },
+    "communications": {
+      "checkpoint": "active",
+      "paths": {
+        "implementation": [
+          "src/soma/communications/*",
+          "tests/test_communications*",
+          "docs/implementation/lld09*",
+          "docs/reconciliation/LLD09*"
+        ],
+        "design": [
+          "spec/lld/communications/*"
+        ]
+      },
+      "depends_on": [
+        "foundation",
+        "reference",
+        "tickets"
+      ],
+      "summary": "LLD-09 Communications is design review-ready/owner-accepted but implementation has not begun. Preflight must reconcile exact accepted owners, migration allocation, adapters and cross-packet boundaries before a new implementation lane is created."
     }
   },
   "evidence": {
@@ -292,6 +312,24 @@
       "source": "implementation",
       "path": "docs/implementation/lld08_infrastructure_traceability.json",
       "purpose": "Exact LLD-08 semantic certificate binding all 167 normative acceptance/failure/security cases to production owners and proof."
+    },
+    "comm-index": {
+      "checkpoint": "active",
+      "source": "design",
+      "path": "spec/lld/communications/_index.json",
+      "purpose": "Accepted LLD-09 packet index: 100 explicit cases, owner accepted and AI implementation ready."
+    },
+    "comm-map": {
+      "checkpoint": "active",
+      "source": "design",
+      "path": "spec/lld/communications/implementation/module-map.json",
+      "purpose": "Canonical LLD-09 implementation ownership/module map."
+    },
+    "comm-traceability": {
+      "checkpoint": "active",
+      "source": "design",
+      "path": "spec/lld/communications/tests/traceability.json",
+      "purpose": "Canonical LLD-09 requirement/command/query/cross-packet traceability contract."
     }
   },
   "ci": {
@@ -305,13 +343,13 @@
       "detail": "Windows 3.13/3.14 each 1468 passed plus wheel/resources; Ubuntu 1466 passed, 2 skipped; schema manifest 920 objects."
     },
     "active": {
-      "name": "Beta implementation CI",
+      "name": "Beta implementation CI post-LLD-08 promotion",
       "checkpoint": "active",
       "source": "implementation",
-      "sha": "cfd5277a1a5855b33beae10317d0d21eefcbcff0",
-      "run_id": 36664687515,
+      "sha": "337baa3334709d023a2f292b32ab3262b6e34896",
+      "run_id": 36665927714,
       "conclusion": "pending",
-      "detail": "Certification-bearing docs checkpoint. Semantic runtime is certified at 20a914fd6eae9403b5289b488518cdc943ad1738 with exact green CI #36645561097; full CI for this docs-bearing checkpoint is still in progress."
+      "detail": "Push CI started automatically at the LLD-08 promotion merge commit. Semantic candidate CI and certification evidence are already green; record this promoted-baseline run when complete."
     }
   },
   "tasks": {
@@ -415,13 +453,13 @@
     },
     "infra-promotion": {
       "title": "Promote the certified LLD-08 checkpoint",
-      "status": "pending",
+      "status": "done",
       "scope": "infrastructure",
       "depends_on": [
         "infra-certification"
       ],
-      "reason": "Certification is complete, but PR #78 remains a draft and the protected feat/beta-1.0-implementation baseline still points to the pre-LLD-08 checkpoint.",
-      "resume": "Verify the certificate commit is nonsemantic relative to semantic candidate 20a914fd6eae9403b5289b488518cdc943ad1738, ensure continuation/CI remain green, then promote through the repository's normal non-force PR path. Do not begin LLD-09 until promotion is recorded.",
+      "reason": "Closed: PR #78 merged through the normal non-force merge path into feat/beta-1.0-implementation as 337baa3334709d023a2f292b32ab3262b6e34896.",
+      "resume": "Promotion is complete. LLD-08 should only reopen for a later semantic regression or accepted design change.",
       "read_first": [
         "infra-certificate",
         "infra-registry",
@@ -435,6 +473,36 @@
       "verification": [
         "Confirm PR #78 mergeability and exact head/base.",
         "Record the promoted implementation SHA and supported CI/checkpoint evidence."
+      ],
+      "completion_evidence": [
+        "infra-certificate"
+      ]
+    },
+    "lld09-preflight": {
+      "title": "Preflight LLD-09 Communications",
+      "status": "pending",
+      "scope": "communications",
+      "depends_on": [
+        "infra-promotion"
+      ],
+      "reason": "LLD-08 is promoted. LLD-09 is the next accepted packet and is design-ready, but its implementation lane has not been created.",
+      "resume": "Read the exact LLD-09 index/module map/traceability first. Reconcile migration allocation against the promoted runtime, enumerate required cross-packet providers/consumers and durable-job/artifact boundaries, then create a dedicated LLD-09 implementation branch from the promoted baseline. Do not implement before the preflight ledger is coherent.",
+      "read_first": [
+        "comm-index",
+        "comm-map",
+        "comm-traceability",
+        "infra-certificate"
+      ],
+      "acceptance": [
+        "Exact LLD-09 design authority and Spec Integrity checkpoint are recorded before implementation.",
+        "All declared commands, queries, jobs, adapters, artifacts, settings and cross-packet interfaces have named implementation owners and dependency direction.",
+        "Migration allocation is reconciled against the promoted migration prefix without rewriting history.",
+        "The new implementation lane branches from the promoted LLD-08 baseline and no LLD-10+ work is started."
+      ],
+      "verification": [
+        "Confirm the 100 explicit LLD-09 design cases and traceability counts.",
+        "Compare the module map and migration allocation to the promoted implementation tree.",
+        "Record the dedicated branch name and exact parent SHA before the first semantic commit."
       ]
     }
   },
@@ -454,7 +522,7 @@
     "LLD-12 security/session/key-provider composition and future artifact-consumer clauses remain outside this checkpoint.",
     "Scope patterns are conservative maintenance metadata, not a proven complete dependency graph. Unknown changes require expanded review.",
     "LLD-08 certification is semantic at 20a914fd6eae9403b5289b488518cdc943ad1738; later docs-only certificate/state commits do not change the certified runtime.",
-    "PR #78 remains the promotion vehicle until the branch-management checkpoint is completed.",
-    "LLD-11 Overview composition and LLD-12 security/session/key-provider composition remain future-owned."
+    "LLD-11 Overview composition and LLD-12 security/session/key-provider composition remain future-owned.",
+    "Post-promotion Beta implementation CI at merge commit 337baa3334709d023a2f292b32ab3262b6e34896 is pending at this state checkpoint; semantic LLD-08 certification remains anchored to its exact green candidate and certificate."
   ]
 }
