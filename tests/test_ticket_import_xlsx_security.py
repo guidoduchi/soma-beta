@@ -104,6 +104,18 @@ def test_valid_minimal_inert_xlsx_passes_preflight(tmp_path: Path) -> None:
     result.close()
 
 
+@pytest.mark.parametrize("declaration", (b"<!DOCTYPE", b"<!ENTITY"))
+def test_streamed_xml_rejects_declaration_split_across_reads(
+    tmp_path: Path, declaration: bytes,
+) -> None:
+    prefix = b"<worksheet>" + b"x" * (xlsx_security._COPY_CHUNK_BYTES - 16)
+    # Put the declaration across the one-MiB streaming read boundary.
+    padding = b"x" * (xlsx_security._COPY_CHUNK_BYTES - len(prefix) - 4)
+    sheet = prefix + padding + declaration + b"</worksheet>"
+    path = _write_xlsx(tmp_path / "split-declaration.xlsx", sheet=sheet)
+    _assert_code(path, "XLSX_UNSAFE_CONTAINER")
+
+
 @pytest.mark.parametrize(
     "malicious_name",
     (

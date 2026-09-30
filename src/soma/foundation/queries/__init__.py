@@ -6,8 +6,10 @@ from .status import (
     MigrationStatusReader,
     OfflineDatabaseInspector,
 )
+from .data_instance_identity import DataInstanceIdentityReader
 
 __all__ = [
+    "DataInstanceIdentityReader",
     "FoundationStatusQueries",
     "LiveRuntimeStatusClient",
     "MigrationStatusReader",

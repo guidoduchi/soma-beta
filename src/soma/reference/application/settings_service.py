@@ -160,12 +160,16 @@ class SettingService:
         )
 
     def get(self, setting_key: str) -> SettingValue:
-        definition = self._registry.require(setting_key)
         with ReadSnapshot(self._factory) as snapshot:
-            row = snapshot.connection.execute(
-                "SELECT contract_name,contract_version,value_json,revision FROM setting_values WHERE setting_key=?",
-                (setting_key,),
-            ).fetchone()
+            return self.get_in_reader(snapshot, setting_key)
+
+    def get_in_reader(self, snapshot_or_uow: ReadSnapshot | UnitOfWork, setting_key: str) -> SettingValue:
+        """Read a setting through the caller's stable snapshot or writer UnitOfWork."""
+        definition = self._registry.require(setting_key)
+        row = snapshot_or_uow.connection.execute(
+            "SELECT contract_name,contract_version,value_json,revision FROM setting_values WHERE setting_key=?",
+            (setting_key,),
+        ).fetchone()
         if row is None:
             default = definition.validate_value(definition.default_provider())
             return SettingValue(

@@ -338,31 +338,36 @@ class DurableJobCoordinator:
         return checkpoint_json
 
     def complete(self, claim: DurableJobClaim) -> None:
+        with UnitOfWork(self._factory) as uow:
+            self.complete_in_uow(uow, claim)
+
+    def complete_in_uow(self, uow: UnitOfWork, claim: DurableJobClaim) -> None:
+        """Complete a claimed job atomically with caller-owned bounded writes."""
+
         self._require_claim_contract(claim)
         now = self._now()
-        with UnitOfWork(self._factory) as uow:
-            row = self._verify_claim(uow, claim)
-            self._require_nonregressing_now(now, int(row[1]), claim)
-            self._require_attempt_absent(uow, claim.job_id, claim.attempt_ordinal)
-            self._insert_attempt(
-                uow,
-                job_id=claim.job_id,
-                ordinal=claim.attempt_ordinal,
-                run_id=claim.run_id,
-                started_at_utc=claim.claim_started_at_utc,
-                finished_at_utc=now,
-                outcome="completed",
-                error_code=None,
-            )
-            uow.connection.execute(
-                """
-                UPDATE durable_jobs
-                SET state='completed',claimed_run_id=NULL,claim_started_at_utc=NULL,
-                    next_attempt_at_utc=NULL,last_error_code=NULL,updated_at_utc=?
-                WHERE job_id=?
-                """,
-                (now, claim.job_id),
-            )
+        row = self._verify_claim(uow, claim)
+        self._require_nonregressing_now(now, int(row[1]), claim)
+        self._require_attempt_absent(uow, claim.job_id, claim.attempt_ordinal)
+        self._insert_attempt(
+            uow,
+            job_id=claim.job_id,
+            ordinal=claim.attempt_ordinal,
+            run_id=claim.run_id,
+            started_at_utc=claim.claim_started_at_utc,
+            finished_at_utc=now,
+            outcome="completed",
+            error_code=None,
+        )
+        uow.connection.execute(
+            """
+            UPDATE durable_jobs
+            SET state='completed',claimed_run_id=NULL,claim_started_at_utc=NULL,
+                next_attempt_at_utc=NULL,last_error_code=NULL,updated_at_utc=?
+            WHERE job_id=?
+            """,
+            (now, claim.job_id),
+        )
 
     def fail(self, claim: DurableJobClaim, error_code: str, retry_at: int | None) -> None:
         contract = self._require_claim_contract(claim)

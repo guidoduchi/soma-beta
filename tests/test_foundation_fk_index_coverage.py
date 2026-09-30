@@ -299,8 +299,10 @@ def test_sequence_thirteen_adds_only_missing_fk_lookup_indexes_and_preserves_pre
     assert entry.filename == "0013_fk_index_coverage.sql"
     assert entry.sha256 == "5135e6ca649020a633d8169c111e25476bafdc2f4255997866618cff6ca23b81"
 
-    assert _runner(database, migration_directory, security_provider).initialize_or_migrate() == 13
-    assert _runner(database, migration_directory, security_provider).initialize_or_migrate() == 13
+    prefix_thirteen = tmp_path / "prefix-thirteen"
+    _stage_prefix(migration_directory, prefix_thirteen, 13)
+    assert _runner(database, prefix_thirteen, security_provider).initialize_or_migrate() == 13
+    assert _runner(database, prefix_thirteen, security_provider).initialize_or_migrate() == 13
 
     connection = sqlite3.connect(database)
     try:

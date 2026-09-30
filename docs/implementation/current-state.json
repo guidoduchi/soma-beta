@@ -1,0 +1,460 @@
+{
+  "schema": "SOMA_IMPLEMENTATION_STATE_V1",
+  "repository": "guidoduchi/soma-beta",
+  "observed_at": "2026-09-29 (UTC)",
+  "mission": "LLD-08 Infrastructure is semantically certified. Preserve the certified pre-LLD-08 baseline and the exact LLD-08 semantic candidate; next perform the separate promotion checkpoint before beginning LLD-09.",
+  "active_branch": "feat/lld-08-infrastructure",
+  "next_task": "infra-promotion",
+  "checkpoints": {
+    "baseline": {
+      "implementation": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
+      "design": "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
+    },
+    "active": {
+      "implementation": "cfd5277a1a5855b33beae10317d0d21eefcbcff0",
+      "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
+    }
+  },
+  "observed_heads": {
+    "main": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
+    "feat/beta-1.0-implementation": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
+    "feat/lld-08-infrastructure": "cfd5277a1a5855b33beae10317d0d21eefcbcff0",
+    "design/beta-1.0-hld-lld": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
+  },
+  "shared_paths": {
+    "implementation": [
+      "src/soma/foundation/*",
+      "src/soma/migrations/*",
+      "src/soma/schema_manifest.json",
+      "src/soma/fk_index_exceptions.json",
+      "src/soma/composition.py",
+      "pyproject.toml",
+      ".github/workflows/implementation-ci.yml"
+    ],
+    "design": [
+      "spec/lld/foundation/*",
+      "spec/lld/migrations.json",
+      "spec/authority/*",
+      "spec/requirements/*",
+      "spec/hld/*",
+      "spec/lld/_integrity-gate.json"
+    ]
+  },
+  "nonsemantic_paths": {
+    "implementation": [
+      "docs/*",
+      "AGENTS.md",
+      "tools/implementation_state.py",
+      "tests/test_implementation_state.py",
+      ".github/workflows/implementation-state.yml"
+    ],
+    "design": [
+      "docs/*"
+    ]
+  },
+  "scopes": {
+    "foundation": {
+      "checkpoint": "baseline",
+      "paths": {
+        "implementation": [
+          "src/soma/foundation/*",
+          "tests/test_foundation*",
+          "docs/implementation/pre_lld08_foundation_traceability.json"
+        ],
+        "design": [
+          "spec/lld/foundation/*"
+        ]
+      },
+      "depends_on": [],
+      "summary": "Promoted baseline evidence is preserved in docs/implementation/pre_lld08_foundation_traceability.json; continuity checks do not renew certification."
+    },
+    "reference": {
+      "checkpoint": "baseline",
+      "paths": {
+        "implementation": [
+          "src/soma/reference/*",
+          "tests/test_reference*",
+          "docs/implementation/pre_lld08_reference_traceability.json"
+        ],
+        "design": [
+          "spec/lld/identity-reference/*"
+        ]
+      },
+      "depends_on": [
+        "foundation"
+      ],
+      "summary": "Promoted baseline evidence is preserved in docs/implementation/pre_lld08_reference_traceability.json; continuity checks do not renew certification."
+    },
+    "tickets": {
+      "checkpoint": "baseline",
+      "paths": {
+        "implementation": [
+          "src/soma/tickets/*",
+          "tests/test_tickets*",
+          "docs/implementation/pre_lld08_tickets_traceability.json"
+        ],
+        "design": [
+          "spec/lld/tickets-core/*"
+        ]
+      },
+      "depends_on": [
+        "reference"
+      ],
+      "summary": "Promoted baseline evidence is preserved in docs/implementation/pre_lld08_tickets_traceability.json; continuity checks do not renew certification."
+    },
+    "import": {
+      "checkpoint": "baseline",
+      "paths": {
+        "implementation": [
+          "src/soma/ticket_import/*",
+          "tests/test_ticket_import*",
+          "docs/implementation/pre_lld08_import_traceability.json"
+        ],
+        "design": [
+          "spec/lld/rfc-wfm-import/*"
+        ]
+      },
+      "depends_on": [
+        "tickets"
+      ],
+      "summary": "Promoted baseline evidence is preserved in docs/implementation/pre_lld08_import_traceability.json; continuity checks do not renew certification."
+    },
+    "objectives": {
+      "checkpoint": "baseline",
+      "paths": {
+        "implementation": [
+          "src/soma/objectives_tasks/*",
+          "tests/test_objectives_tasks*",
+          "docs/implementation/pre_lld08_objectives_tasks_traceability.json"
+        ],
+        "design": [
+          "spec/lld/objectives-tasks/*"
+        ]
+      },
+      "depends_on": [
+        "tickets"
+      ],
+      "summary": "Promoted baseline evidence is preserved in docs/implementation/pre_lld08_objectives_tasks_traceability.json; continuity checks do not renew certification."
+    },
+    "sla": {
+      "checkpoint": "baseline",
+      "paths": {
+        "implementation": [
+          "src/soma/product_line_sla/*",
+          "tests/test_product_line_sla*",
+          "docs/implementation/pre_lld08_product_line_sla_traceability.json"
+        ],
+        "design": [
+          "spec/lld/product-line-sla/*"
+        ]
+      },
+      "depends_on": [
+        "tickets",
+        "objectives"
+      ],
+      "summary": "Promoted baseline evidence is preserved in docs/implementation/pre_lld08_product_line_sla_traceability.json; continuity checks do not renew certification."
+    },
+    "inventory": {
+      "checkpoint": "baseline",
+      "paths": {
+        "implementation": [
+          "src/soma/inventory/*",
+          "tests/test_inventory*",
+          "docs/implementation/pre_lld08_inventory_traceability.json"
+        ],
+        "design": [
+          "spec/lld/inventory/*"
+        ]
+      },
+      "depends_on": [
+        "objectives",
+        "reference"
+      ],
+      "summary": "Promoted baseline evidence is preserved in docs/implementation/pre_lld08_inventory_traceability.json; continuity checks do not renew certification."
+    },
+    "infrastructure": {
+      "checkpoint": "active",
+      "paths": {
+        "implementation": [
+          "src/soma/infrastructure/*",
+          "tests/test_infrastructure*",
+          "docs/implementation/lld08*",
+          "docs/reconciliation/LLD08*"
+        ],
+        "design": [
+          "spec/lld/infrastructure/*"
+        ]
+      },
+      "depends_on": [
+        "foundation",
+        "reference",
+        "tickets",
+        "objectives",
+        "inventory"
+      ],
+      "summary": "LLD-08 is semantically certified at implementation 20a914fd6eae9403b5289b488518cdc943ad1738 against accepted design 9a0e891127a771251afccca1a281b7ef7dde9e5f. Certificate: docs/implementation/lld08_infrastructure_traceability.json. Promotion is a separate branch-management action."
+    }
+  },
+  "evidence": {
+    "foundation-ledger": {
+      "checkpoint": "baseline",
+      "source": "implementation",
+      "path": "docs/implementation/pre_lld08_foundation_traceability.json",
+      "purpose": "Historical semantic owner/test evidence; inspect only affected cases."
+    },
+    "reference-ledger": {
+      "checkpoint": "baseline",
+      "source": "implementation",
+      "path": "docs/implementation/pre_lld08_reference_traceability.json",
+      "purpose": "Historical semantic owner/test evidence; inspect only affected cases."
+    },
+    "tickets-ledger": {
+      "checkpoint": "baseline",
+      "source": "implementation",
+      "path": "docs/implementation/pre_lld08_tickets_traceability.json",
+      "purpose": "Historical semantic owner/test evidence; inspect only affected cases."
+    },
+    "import-ledger": {
+      "checkpoint": "baseline",
+      "source": "implementation",
+      "path": "docs/implementation/pre_lld08_import_traceability.json",
+      "purpose": "Historical semantic owner/test evidence; inspect only affected cases."
+    },
+    "objectives-ledger": {
+      "checkpoint": "baseline",
+      "source": "implementation",
+      "path": "docs/implementation/pre_lld08_objectives_tasks_traceability.json",
+      "purpose": "Historical semantic owner/test evidence; inspect only affected cases."
+    },
+    "sla-ledger": {
+      "checkpoint": "baseline",
+      "source": "implementation",
+      "path": "docs/implementation/pre_lld08_product_line_sla_traceability.json",
+      "purpose": "Historical semantic owner/test evidence; inspect only affected cases."
+    },
+    "inventory-ledger": {
+      "checkpoint": "baseline",
+      "source": "implementation",
+      "path": "docs/implementation/pre_lld08_inventory_traceability.json",
+      "purpose": "Historical semantic owner/test evidence; inspect only affected cases."
+    },
+    "infra-index": {
+      "checkpoint": "active",
+      "source": "design",
+      "path": "spec/lld/infrastructure/_index.json",
+      "purpose": "Start with the accepted packet ownership/index."
+    },
+    "infra-map": {
+      "checkpoint": "active",
+      "source": "design",
+      "path": "spec/lld/infrastructure/implementation/module-map.json",
+      "purpose": "Audit named operations; no filename-only wrappers."
+    },
+    "export-contract": {
+      "checkpoint": "active",
+      "source": "design",
+      "path": "spec/lld/infrastructure/artifacts/infrastructure-workbook.json",
+      "purpose": "Workbook artifact semantics."
+    },
+    "export-test": {
+      "checkpoint": "active",
+      "source": "implementation",
+      "path": "tests/test_infrastructure_workbook_export_worker.py",
+      "purpose": "Exact currently failing Windows test.",
+      "node": "test_export_worker_discovery_streams_current_infrastructure_rows"
+    },
+    "infra-registry": {
+      "checkpoint": "active",
+      "source": "implementation",
+      "path": "src/soma/infrastructure/contracts/registry.json",
+      "purpose": "Runtime design pin and closed DTOs."
+    },
+    "infra-notes": {
+      "checkpoint": "active",
+      "source": "implementation",
+      "path": "docs/implementation/lld08_initial_slice.md",
+      "purpose": "Historical narrative; later worker/acceptance commits supersede several pending claims."
+    },
+    "closure-ledger": {
+      "checkpoint": "active",
+      "source": "implementation",
+      "path": "docs/implementation/pre_lld08_audit_remediation_ledger.json",
+      "purpose": "Central closure declaration and historical evidence."
+    },
+    "accept-contract": {
+      "checkpoint": "active",
+      "source": "design",
+      "path": "spec/lld/infrastructure/commands/v2/accept-workbook-run.json",
+      "purpose": "Reviewed acceptance owner and transaction semantics."
+    },
+    "infra-certificate": {
+      "checkpoint": "active",
+      "source": "implementation",
+      "path": "docs/implementation/lld08_infrastructure_traceability.json",
+      "purpose": "Exact LLD-08 semantic certificate binding all 167 normative acceptance/failure/security cases to production owners and proof."
+    }
+  },
+  "ci": {
+    "baseline": {
+      "name": "Beta implementation CI #954",
+      "checkpoint": "baseline",
+      "source": "implementation",
+      "sha": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
+      "run_id": 36383582090,
+      "conclusion": "success",
+      "detail": "Windows 3.13/3.14 each 1468 passed plus wheel/resources; Ubuntu 1466 passed, 2 skipped; schema manifest 920 objects."
+    },
+    "active": {
+      "name": "Beta implementation CI",
+      "checkpoint": "active",
+      "source": "implementation",
+      "sha": "cfd5277a1a5855b33beae10317d0d21eefcbcff0",
+      "run_id": 36664687515,
+      "conclusion": "pending",
+      "detail": "Certification-bearing docs checkpoint. Semantic runtime is certified at 20a914fd6eae9403b5289b488518cdc943ad1738 with exact green CI #36645561097; full CI for this docs-bearing checkpoint is still in progress."
+    }
+  },
+  "tasks": {
+    "infra-ci": {
+      "title": "Repair and verify the current Infrastructure Windows CI failure",
+      "status": "done",
+      "scope": "infrastructure",
+      "depends_on": [],
+      "reason": "Closed: exact supported CI is green at the certified semantic candidate.",
+      "resume": "No implementation work remains for this task; use the LLD-08 certificate and exact CI evidence.",
+      "read_first": [
+        "export-contract",
+        "export-test",
+        "infra-registry"
+      ],
+      "acceptance": [
+        "The current failure is explained against the artifact contract; any fix preserves semantic and canonical serialization requirements.",
+        "Focused regression and complete supported Windows/Ubuntu matrix pass at the exact candidate; record packaging results."
+      ],
+      "verification": [
+        "Run the selected export-worker test on supported Windows Python.",
+        "Run the existing supported CI harness at one coherent checkpoint; record exact SHA and lane results."
+      ],
+      "completion_evidence": [
+        "infra-certificate"
+      ]
+    },
+    "design-pin": {
+      "title": "Verify and reconcile the newer Task/Site design authority",
+      "status": "done",
+      "scope": "infrastructure",
+      "depends_on": [],
+      "reason": "Closed: runtime registry pins accepted design 9a0e891127a771251afccca1a281b7ef7dde9e5f and Spec Integrity run 36600862004 is green at that exact SHA.",
+      "resume": "No reconciliation remains at this checkpoint.",
+      "read_first": [
+        "infra-index",
+        "infra-registry"
+      ],
+      "acceptance": [
+        "Resolve applicable Task/Site provider and consumer requirements against exact design leaves.",
+        "Pin a verified design checkpoint consistently and identify implementation/tests affected by the change."
+      ],
+      "verification": [
+        "Complete LLD Spec Integrity at the chosen design SHA.",
+        "Run focused provider/consumer ownership tests and compare contract registry authority."
+      ],
+      "completion_evidence": [
+        "infra-registry",
+        "infra-index"
+      ]
+    },
+    "ledger-reconcile": {
+      "title": "Reconcile current certification metadata without widening scope",
+      "status": "pending",
+      "scope": "tickets",
+      "depends_on": [],
+      "reason": "Some historical per-packet flags and CI fields contradict the central closure record.",
+      "resume": "Use baseline #954 plus each case's actual evidence. Do not promote deferred or partial clauses by changing a boolean.",
+      "read_first": [
+        "closure-ledger",
+        "tickets-ledger",
+        "sla-ledger",
+        "reference-ledger"
+      ],
+      "acceptance": [
+        "Current versus historical CI fields are explicit and internally consistent.",
+        "LLD-03/06 and other lagging status fields agree with actual reviewed evidence; future-owned exclusions remain explicit."
+      ],
+      "verification": [
+        "Check ledger case counts, unique IDs, referenced tests, authority continuity and supported CI evidence."
+      ]
+    },
+    "infra-certification": {
+      "title": "Audit remaining Infrastructure behavior and close the packet",
+      "status": "done",
+      "scope": "infrastructure",
+      "depends_on": [
+        "infra-ci",
+        "design-pin"
+      ],
+      "reason": "Closed: all 167 normative cases are bound exactly once in docs/implementation/lld08_infrastructure_traceability.json and exact supported CI is green.",
+      "resume": "Certification is complete; do not reopen broad LLD-08 auditing without a semantic change.",
+      "read_first": [
+        "infra-index",
+        "infra-map",
+        "accept-contract",
+        "infra-notes"
+      ],
+      "acceptance": [
+        "Every required operation and acceptance/failure clause is bound to one production owner and concrete proof.",
+        "Replay, stale-state, cancellation, rollback, query plans, forward migrations and package resources are verified.",
+        "Full supported matrix is green before any authorized promotion."
+      ],
+      "verification": [
+        "Run focused adversarial owner tests, schema/resource gates and full supported CI.",
+        "Review large-file memory/work bounds and cross-packet transactions; green tests alone are insufficient."
+      ],
+      "completion_evidence": [
+        "infra-certificate"
+      ]
+    },
+    "infra-promotion": {
+      "title": "Promote the certified LLD-08 checkpoint",
+      "status": "pending",
+      "scope": "infrastructure",
+      "depends_on": [
+        "infra-certification"
+      ],
+      "reason": "Certification is complete, but PR #78 remains a draft and the protected feat/beta-1.0-implementation baseline still points to the pre-LLD-08 checkpoint.",
+      "resume": "Verify the certificate commit is nonsemantic relative to semantic candidate 20a914fd6eae9403b5289b488518cdc943ad1738, ensure continuation/CI remain green, then promote through the repository's normal non-force PR path. Do not begin LLD-09 until promotion is recorded.",
+      "read_first": [
+        "infra-certificate",
+        "infra-registry",
+        "infra-index"
+      ],
+      "acceptance": [
+        "PR #78 contains the certified semantic candidate plus only reviewed nonsemantic certification metadata after it.",
+        "Promotion is non-force, preserves history, and updates the active implementation baseline without rewriting the protected pre-LLD-08 checkpoint.",
+        "Post-promotion branch/CI state is recorded before LLD-09 begins."
+      ],
+      "verification": [
+        "Confirm PR #78 mergeability and exact head/base.",
+        "Record the promoted implementation SHA and supported CI/checkpoint evidence."
+      ]
+    }
+  },
+  "constraints": [
+    "spec/ at the recorded accepted design pin is normative; do not silently upgrade to a newer branch head.",
+    "One outer UoW and command receipt; exact replay before mutable reads; append-only audit; no fabricated NO_CHANGE evidence.",
+    "Participants use declared owner boundaries and caller UoW; current durable claim and mutation share one UoW.",
+    "Preserve immutable migration history and production SQLCipher intent; test SQLite is not security-composition proof.",
+    "Before mutation fetch heads, inspect intervening commits and touched files, commit on the observed parent, update non-force and re-fetch.",
+    "Do not merge draft PR #78 or promote incomplete Infrastructure as part of a narrow task. No force-push or destructive cleanup.",
+    "Read relevant normative leaves and actual current code; generated state is a navigation aid, not product authority."
+  ],
+  "known_limits": [
+    "Active PR #78 is a draft validation harness into feat/beta-1.0-implementation; the promoted baseline is already incorporated in the active lane.",
+    "Existing chronological Infrastructure notes lag later worker/acceptance commits; they are historical context, not a current missing-feature list.",
+    "Central pre-LLD-08 closure is recorded complete, but some leaf ledger fields remain pending/false. Preserve genuine later-owner exclusions while reconciling evidence.",
+    "LLD-12 security/session/key-provider composition and future artifact-consumer clauses remain outside this checkpoint.",
+    "Scope patterns are conservative maintenance metadata, not a proven complete dependency graph. Unknown changes require expanded review.",
+    "LLD-08 certification is semantic at 20a914fd6eae9403b5289b488518cdc943ad1738; later docs-only certificate/state commits do not change the certified runtime.",
+    "PR #78 remains the promotion vehicle until the branch-management checkpoint is completed.",
+    "LLD-11 Overview composition and LLD-12 security/session/key-provider composition remain future-owned."
+  ]
+}

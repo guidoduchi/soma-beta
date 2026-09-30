@@ -220,6 +220,36 @@ def test_claim_repeated_checkpoint_and_complete_preserve_exact_attempt_history(
         coordinator.complete(claim)
 
 
+def test_complete_in_uow_is_atomic_with_caller_writes(initialized_database) -> None:
+    database_path, factory, clock, coordinator = _coordinator(initialized_database)
+    job_id = _enqueue(coordinator, factory)
+    claim = coordinator.claim_next(_uuid(), 101)
+    assert claim is not None
+    clock.value = 102
+
+    with pytest.raises(RuntimeError, match="rollback caller"):
+        with UnitOfWork(factory) as uow:
+            coordinator.complete_in_uow(uow, claim)
+            uow.connection.execute(
+                "CREATE TEMP TABLE caller_completion_probe(value INTEGER)"
+            )
+            raise RuntimeError("rollback caller")
+
+    assert _job_row(database_path, job_id)[:2] == ("running", 1)
+    connection = sqlite3.connect(database_path)
+    try:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM job_attempts WHERE job_id=?", (job_id,)
+        ).fetchone()[0] == 0
+    finally:
+        connection.close()
+
+    clock.value = 103
+    with UnitOfWork(factory) as uow:
+        coordinator.complete_in_uow(uow, claim)
+    assert _job_row(database_path, job_id)[0] == "completed"
+
+
 def test_retry_wait_due_time_and_full_claim_token_reject_stale_attempt(
     initialized_database,
 ) -> None:

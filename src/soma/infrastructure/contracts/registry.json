@@ -1,0 +1,4489 @@
+{
+  "design_ref": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "types": [
+    {
+      "id": "INFRA_CREATE_SITE_REQUEST_V1",
+      "required": {
+        "customer_org_id": "uuid",
+        "name": "site_name",
+        "address_text": "site_address"
+      },
+      "optional": {
+        "duplicate_review_fingerprint": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_UPDATE_SITE_REQUEST_V1",
+      "required": {
+        "site_id": "uuid",
+        "base_revision": "rev",
+        "name": "site_name",
+        "address_text": "site_address",
+        "reason_code": "reason"
+      }
+    },
+    {
+      "id": "INFRA_CORRECT_SITE_CUSTOMER_REQUEST_V1",
+      "required": {
+        "site_id": "uuid",
+        "base_revision": "rev",
+        "new_customer_org_id": "uuid",
+        "reason_code": "reason",
+        "dependency_preview_fingerprint": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_CHANGE_SITE_LIFECYCLE_REQUEST_V1",
+      "required": {
+        "site_id": "uuid",
+        "base_revision": "rev",
+        "target_state": "enum:active|archived"
+      },
+      "optional": {
+        "reason_code": "reason",
+        "blocker_preview_fingerprint": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_CREATE_ROOM_REQUEST_V1",
+      "required": {
+        "site_id": "uuid",
+        "name": "room_name"
+      }
+    },
+    {
+      "id": "INFRA_CHANGE_ROOM_LIFECYCLE_REQUEST_V1",
+      "required": {
+        "room_id": "uuid",
+        "base_revision": "rev",
+        "target_state": "enum:active|archived"
+      },
+      "optional": {
+        "reason_code": "reason"
+      }
+    },
+    {
+      "id": "INFRA_CREATE_RACK_REQUEST_V1",
+      "required": {
+        "room_id": "uuid",
+        "name": "rack_name",
+        "height_u": "int:1..120"
+      },
+      "optional": {
+        "row_label": "row_column_label",
+        "column_label": "row_column_label"
+      }
+    },
+    {
+      "id": "INFRA_UPDATE_RACK_REQUEST_V1",
+      "required": {
+        "rack_id": "uuid",
+        "base_revision": "rev",
+        "name": "rack_name",
+        "height_u": "int:1..120",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "row_label": "row_column_label",
+        "column_label": "row_column_label"
+      }
+    },
+    {
+      "id": "INFRA_CHANGE_RACK_LIFECYCLE_REQUEST_V1",
+      "required": {
+        "rack_id": "uuid",
+        "base_revision": "rev",
+        "target_state": "enum:active|archived"
+      },
+      "optional": {
+        "reason_code": "reason"
+      }
+    },
+    {
+      "id": "INFRA_SET_PLACEMENT_REQUEST_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "placement_revision": "rev",
+        "explicit_unracked": "boolean",
+        "preview_fingerprint": "sha256",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "placement": "INFRA_RACK_PLACEMENT_INPUT_V1"
+      },
+      "semantic_rule": "exactly one of explicit_unracked=true or placement is supplied"
+    },
+    {
+      "id": "INFRA_NEW_NETWORK_ELEMENT_INPUT_V1",
+      "required": {
+        "site_id": "uuid",
+        "operational_name": "network_element_name"
+      },
+      "optional": {
+        "manufacturer_serial": "manufacturer_serial",
+        "model_id": "uuid",
+        "placement": "INFRA_RACK_PLACEMENT_INPUT_V1",
+        "cloud_deployment_id": "uuid",
+        "ips": "array<INFRA_IP_CREATE_INPUT_V1>,max1024"
+      }
+    },
+    {
+      "id": "INFRA_CREATE_NETWORK_ELEMENT_REQUEST_V1",
+      "required": {
+        "new_element": "INFRA_NEW_NETWORK_ELEMENT_INPUT_V1"
+      },
+      "optional": {
+        "candidate_preview_fingerprint": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_UPDATE_NETWORK_ELEMENT_REQUEST_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "base_revision": "rev",
+        "operational_name": "network_element_name",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "manufacturer_serial": "manufacturer_serial"
+      }
+    },
+    {
+      "id": "INFRA_CHANGE_NETWORK_ELEMENT_LIFECYCLE_REQUEST_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "base_revision": "rev",
+        "target_state": "enum:active|archived"
+      },
+      "optional": {
+        "reason_code": "reason"
+      }
+    },
+    {
+      "id": "INFRA_REGULARIZE_DEVICE_REFERENCE_REQUEST_V1",
+      "required": {
+        "device_reference_id": "uuid",
+        "device_reference_revision": "rev",
+        "action": "enum:link_existing|create_and_link|correct_link|clear",
+        "preview_fingerprint": "sha256"
+      },
+      "optional": {
+        "target_network_element_id": "uuid",
+        "new_network_element": "INFRA_NEW_NETWORK_ELEMENT_INPUT_V1",
+        "resolution_revision": "rev",
+        "deliberate_action_proof": "opaque<=4096bytes",
+        "reason_code": "reason"
+      },
+      "semantic_rule": "link_existing/correct_link require target id; create_and_link requires new element; clear requires neither"
+    },
+    {
+      "id": "INFRA_SET_CONTAINMENT_REQUEST_V1",
+      "required": {
+        "child_network_element_id": "uuid",
+        "base_revision": "rev_or_zero",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "parent_network_element_id": "uuid",
+        "preview_fingerprint": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_CREATE_CLOUD_TYPE_REQUEST_V1",
+      "required": {
+        "name": "cloud_name"
+      }
+    },
+    {
+      "id": "INFRA_CREATE_CLOUD_DEPLOYMENT_REQUEST_V1",
+      "required": {
+        "site_id": "uuid",
+        "cloud_type_id": "uuid",
+        "name": "cloud_name"
+      }
+    },
+    {
+      "id": "INFRA_CHANGE_CLOUD_DEPLOYMENT_LIFECYCLE_REQUEST_V1",
+      "required": {
+        "cloud_deployment_id": "uuid",
+        "base_revision": "rev",
+        "target_state": "enum:active|archived"
+      },
+      "optional": {
+        "reason_code": "reason"
+      }
+    },
+    {
+      "id": "INFRA_SET_CLOUD_ASSIGNMENT_REQUEST_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "base_revision": "rev_or_zero",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "cloud_deployment_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_ADD_IP_REQUEST_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "address": "string<=256bytes",
+        "make_primary": "boolean"
+      }
+    },
+    {
+      "id": "INFRA_SET_PRIMARY_IP_REQUEST_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "ip_id": "uuid",
+        "ip_revision": "rev",
+        "primary_set_fingerprint": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_CORRECT_IP_REQUEST_V1",
+      "required": {
+        "ip_id": "uuid",
+        "base_revision": "rev",
+        "action": "enum:address_corrected|remove|reactivate",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "new_address": "string<=256bytes"
+      }
+    },
+    {
+      "id": "INFRA_CREATE_MODEL_REQUEST_V1",
+      "required": {
+        "name": "model_name"
+      },
+      "optional": {
+        "manufacturer": "string<=800bytes"
+      }
+    },
+    {
+      "id": "INFRA_UPDATE_MODEL_REQUEST_V1",
+      "required": {
+        "model_id": "uuid",
+        "base_revision": "rev",
+        "name": "model_name",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "manufacturer": "string<=800bytes"
+      }
+    },
+    {
+      "id": "INFRA_CHANGE_MODEL_LIFECYCLE_REQUEST_V1",
+      "required": {
+        "model_id": "uuid",
+        "base_revision": "rev",
+        "target_state": "enum:active|archived"
+      },
+      "optional": {
+        "reason_code": "reason"
+      }
+    },
+    {
+      "id": "INFRA_SET_MODEL_ASSIGNMENT_REQUEST_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "base_revision": "rev_or_zero",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "model_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_CHANGE_MODEL_COMPATIBILITY_REQUEST_V1",
+      "required": {
+        "model_id": "uuid",
+        "relation_id": "uuid",
+        "base_revision": "rev_or_zero",
+        "action": "enum:add|remove|correct",
+        "bom_code": "component_bom",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "component_role": "string<=384bytes"
+      }
+    },
+    {
+      "id": "INFRA_REGISTER_COMPONENT_REQUEST_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "origin": "enum:manual|workbook|maintenance_consequence|legacy_reconciliation"
+      },
+      "optional": {
+        "bom_code": "component_bom",
+        "manufacturer_serial": "manufacturer_serial",
+        "slot_label": "component_slot",
+        "condition": "enum:unknown|normal|faulty|removed|quarantined",
+        "task_id": "uuid",
+        "physical_consequence_id": "uuid",
+        "physical_consequence_fingerprint": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_COMPONENT_LIFECYCLE_REQUEST_V1",
+      "required": {
+        "installed_component_id": "uuid",
+        "base_revision": "rev",
+        "action": "enum:installed|removed|condition_changed|descriptive_corrected|correction",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "bom_code": "component_bom",
+        "manufacturer_serial": "manufacturer_serial",
+        "slot_label": "component_slot",
+        "condition": "enum:unknown|normal|faulty|removed|quarantined",
+        "task_id": "uuid",
+        "physical_consequence_id": "uuid",
+        "physical_consequence_fingerprint": "sha256",
+        "target_event_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_RESOLVE_DEVICE_PART_COMPONENT_REQUEST_V1",
+      "required": {
+        "device_part_unit_id": "uuid",
+        "base_revision": "rev_or_zero",
+        "reason_code": "reason"
+      },
+      "optional": {
+        "installed_component_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_GENERATE_WORKBOOK_REQUEST_V1",
+      "required": {
+        "mode": "enum:registration_template|discovery|round_trip",
+        "scope": "INFRA_EXPORT_SCOPE_V1",
+        "destination_directory": "filesystem_path<=4096bytes"
+      }
+    },
+    {
+      "id": "INFRA_STAGE_WORKBOOK_CHECK_REQUEST_V1",
+      "required": {
+        "setting_revision": "rev"
+      }
+    },
+    {
+      "id": "INFRA_REJECT_WORKBOOK_RUN_REQUEST_V1",
+      "required": {
+        "run_id": "uuid",
+        "run_revision": "rev",
+        "reason_code": "reason"
+      }
+    },
+    {
+      "id": "INFRA_ACCEPT_WORKBOOK_RUN_REQUEST_V1",
+      "required": {
+        "run_id": "uuid",
+        "run_revision": "rev",
+        "run_input_fingerprint": "sha256",
+        "dispositions": "array<INFRA_WORKBOOK_ROW_DISPOSITION_V1>,max100000"
+      }
+    },
+    {
+      "id": "INFRA_ENTITY_REF_V1",
+      "kind": "object",
+      "required": {
+        "kind": "enum:site|room|rack|network_element|cloud_type|cloud_deployment|model|installed_component|device_reference|device_part_unit|ip|workbook_run",
+        "id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_MUTATION_RESULT_V1",
+      "kind": "object",
+      "required": {
+        "command_id": "uuid",
+        "target": "INFRA_ENTITY_REF_V1",
+        "revision": "integer>=1",
+        "result_refs": "array<INFRA_ENTITY_REF_V1>,max64",
+        "no_change": "boolean"
+      }
+    },
+    {
+      "id": "INFRA_JOB_ACCEPTED_V1",
+      "kind": "object",
+      "required": {
+        "command_id": "uuid",
+        "job_id": "uuid",
+        "job_type": "string",
+        "state": "enum:queued|running|retry_wait|waiting_review|completed|failed|cancelled"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_RUN_RESULT_V1",
+      "kind": "object",
+      "required": {
+        "command_id": "uuid",
+        "run_id": "uuid",
+        "state": "enum:staged|reviewed|accepted|rejected|failed",
+        "revision": "integer>=1"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_ACCEPT_RESULT_V1",
+      "kind": "object",
+      "required": {
+        "command_id": "uuid",
+        "run_id": "uuid",
+        "state": "enum:accepted",
+        "created": "integer>=0",
+        "updated": "integer>=0",
+        "unchanged": "integer>=0",
+        "result_refs": "array<INFRA_ENTITY_REF_V1>,max64"
+      }
+    },
+    {
+      "id": "INFRA_RACK_PLACEMENT_INPUT_V1",
+      "kind": "object",
+      "required": {
+        "rack_id": "uuid",
+        "u_start": "integer:1..120",
+        "u_span": "integer:1..120"
+      }
+    },
+    {
+      "id": "INFRA_IP_CREATE_INPUT_V1",
+      "kind": "object",
+      "required": {
+        "address": "string<=256bytes",
+        "make_primary": "boolean"
+      }
+    },
+    {
+      "id": "INFRA_EXPORT_SCOPE_V1",
+      "kind": "object",
+      "required": {
+        "scope_kind": "enum:all|customer|site|network_elements"
+      },
+      "optional": {
+        "customer_org_id": "uuid",
+        "site_id": "uuid",
+        "network_element_ids": "array<uuid>,max400"
+      },
+      "semantic_rule": "only fields applicable to scope_kind may be non-null"
+    },
+    {
+      "id": "INFRA_WORKBOOK_ROW_DISPOSITION_V1",
+      "kind": "object",
+      "required": {
+        "proposal_id": "uuid",
+        "expected_revision": "integer>=1",
+        "decision": "enum:accept|reject",
+        "proposal_fingerprint": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_PLACEMENT_VIEW_V1",
+      "required": {
+        "rack_id": "uuid|null",
+        "u_start": "integer>=1|null",
+        "u_span": "integer>=1|null",
+        "revision": "integer>=1",
+        "explicit_unracked": "boolean"
+      }
+    },
+    {
+      "id": "INFRA_HISTORY_VALUE_V1",
+      "required": {
+        "kind": "enum:null|text|integer|boolean|entity_ref",
+        "text_value": "string<=1600bytes|null",
+        "integer_value": "integer|null",
+        "boolean_value": "boolean|null",
+        "entity_ref": "INFRA_ENTITY_REF_V1|null"
+      },
+      "semantic_rule": "exactly the field matching kind is non-null; kind=null has all value fields null"
+    },
+    {
+      "id": "INFRA_HISTORY_FIELD_CHANGE_V1",
+      "required": {
+        "field": "string<=128bytes",
+        "prior": "INFRA_HISTORY_VALUE_V1",
+        "new": "INFRA_HISTORY_VALUE_V1"
+      }
+    },
+    {
+      "id": "INFRA_HISTORY_SUMMARY_V1",
+      "required": {
+        "changes": "array<INFRA_HISTORY_FIELD_CHANGE_V1>,max32",
+        "reason_code": "string<=384bytes|null",
+        "warning_codes": "array<string<=128bytes>,max16"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_ROW_COUNTS_V1",
+      "required": {
+        "network_elements": "integer>=0",
+        "ip_addresses": "integer>=0",
+        "warnings": "integer>=0"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_PROPOSAL_COUNTS_V1",
+      "required": {
+        "pending": "integer>=0",
+        "accepted": "integer>=0",
+        "rejected": "integer>=0",
+        "superseded": "integer>=0",
+        "ambiguous": "integer>=0",
+        "invalid": "integer>=0"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_IMPACT_V1",
+      "required": {
+        "creates": "array<INFRA_ENTITY_REF_V1>,max64",
+        "updates": "array<INFRA_ENTITY_REF_V1>,max64",
+        "relationship_changes": "array<string<=256bytes>,max64",
+        "warning_codes": "array<string<=128bytes>,max32",
+        "destructive_change": "boolean"
+      }
+    },
+    {
+      "id": "INFRA_EXPLORER_QUERY_V1",
+      "optional": {
+        "customer_org_id": "uuid",
+        "site_id": "uuid",
+        "node_kind": "enum:site|room|rack|cloud_deployment|network_element|containment",
+        "lifecycle": "enum:active|archived",
+        "cursor": "CURSOR_V1",
+        "limit": "int:1..500"
+      }
+    },
+    {
+      "id": "INFRA_EXPLORER_RESPONSE_V1",
+      "required": {
+        "nodes": "array<INFRA_EXPLORER_NODE_V1>,max500",
+        "next_cursor": "CURSOR_V1|null"
+      }
+    },
+    {
+      "id": "INFRA_EXPLORER_NODE_V1",
+      "required": {
+        "kind": "enum:site|room|rack|cloud_deployment|network_element|containment",
+        "id": "uuid",
+        "label": "string<=800bytes",
+        "parent_context_id": "uuid|null",
+        "lifecycle": "enum:active|archived|null",
+        "warning_codes": "array<string<=128bytes>,max16"
+      }
+    },
+    {
+      "id": "INFRA_NETWORK_ELEMENT_DETAIL_QUERY_V1",
+      "required": {
+        "network_element_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_NETWORK_ELEMENT_DETAIL_RESPONSE_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "revision": "rev",
+        "lifecycle": "enum:active|archived",
+        "operational_name": "string<=800bytes",
+        "site": "INFRA_ENTITY_REF_V1",
+        "customer_org_id": "uuid",
+        "placement": "INFRA_PLACEMENT_VIEW_V1",
+        "model": "INFRA_ENTITY_REF_V1|null",
+        "cloud_deployment": "INFRA_ENTITY_REF_V1|null",
+        "primary_ip": "string<=256bytes|null",
+        "ip_count": "integer>=0",
+        "containment_parent": "INFRA_ENTITY_REF_V1|null",
+        "containment_child_count": "integer>=0",
+        "device_reference_count": "integer>=0",
+        "installed_component_count": "integer>=0",
+        "warning_codes": "array<string<=128bytes>,max32"
+      }
+    },
+    {
+      "id": "INFRA_HISTORY_QUERY_V1",
+      "required": {
+        "target_kind": "enum:site|room|rack|network_element|cloud_type|cloud_deployment|model|installed_component|device_reference|device_part_unit|ip|workbook_run",
+        "target_id": "uuid"
+      },
+      "optional": {
+        "cursor": "CURSOR_V1",
+        "limit": "int:1..500"
+      }
+    },
+    {
+      "id": "INFRA_HISTORY_RESPONSE_V1",
+      "required": {
+        "events": "array<INFRA_HISTORY_EVENT_V1>,max500",
+        "next_cursor": "CURSOR_V1|null"
+      }
+    },
+    {
+      "id": "INFRA_HISTORY_EVENT_V1",
+      "required": {
+        "event_id": "uuid",
+        "event_kind": "string<=128bytes",
+        "recorded_at_utc": "integer>=0",
+        "effective_at_utc": "integer>=0|null",
+        "command_id": "uuid",
+        "summary": "INFRA_HISTORY_SUMMARY_V1"
+      }
+    },
+    {
+      "id": "INFRA_SITE_DETAIL_QUERY_V1",
+      "required": {
+        "site_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_SITE_DETAIL_RESPONSE_V1",
+      "required": {
+        "site_id": "uuid",
+        "revision": "rev",
+        "customer_org_id": "uuid",
+        "name": "string<=800bytes",
+        "address_text": "string<=3200bytes",
+        "lifecycle": "enum:active|archived",
+        "dispatch_location_id": "uuid",
+        "room_count": "integer>=0",
+        "rack_count": "integer>=0",
+        "network_element_count": "integer>=0",
+        "cloud_deployment_count": "integer>=0",
+        "archive_blocker_count": "integer>=0",
+        "duplicate_candidate_count": "integer>=0"
+      }
+    },
+    {
+      "id": "INFRA_RACK_OCCUPANCY_QUERY_V1",
+      "required": {
+        "rack_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_RACK_OCCUPANCY_RESPONSE_V1",
+      "required": {
+        "rack_id": "uuid",
+        "height_u": "int:1..120",
+        "row_label": "string<=256bytes|null",
+        "column_label": "string<=256bytes|null",
+        "occupants": "array<INFRA_RACK_OCCUPANT_V1>,max4096",
+        "free_ranges": "array<INFRA_U_RANGE_V1>,max121",
+        "corrupt_overlap_detected": "boolean"
+      }
+    },
+    {
+      "id": "INFRA_RACK_OCCUPANT_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "operational_name": "string<=800bytes",
+        "u_start": "int:1..120",
+        "u_span": "int:1..120"
+      }
+    },
+    {
+      "id": "INFRA_U_RANGE_V1",
+      "required": {
+        "u_start": "int:1..120",
+        "u_span": "int:1..120"
+      }
+    },
+    {
+      "id": "INFRA_NETWORK_ELEMENT_CANDIDATE_QUERY_V1",
+      "optional": {
+        "name": "string<=800bytes",
+        "serial": "string<=640bytes",
+        "canonical_ip": "string<=256bytes",
+        "site_id": "uuid",
+        "model_id": "uuid",
+        "cursor": "CURSOR_V1",
+        "limit": "int:1..500"
+      }
+    },
+    {
+      "id": "INFRA_NETWORK_ELEMENT_CANDIDATE_RESPONSE_V1",
+      "required": {
+        "candidates": "array<INFRA_NETWORK_ELEMENT_CANDIDATE_ROW_V1>,max500",
+        "next_cursor": "CURSOR_V1|null",
+        "candidate_count": "integer>=0"
+      }
+    },
+    {
+      "id": "INFRA_NETWORK_ELEMENT_CANDIDATE_ROW_V1",
+      "required": {
+        "network_element_id": "uuid",
+        "evidence_rank": "integer>=0",
+        "evidence_codes": "array<string<=128bytes>,max8",
+        "site_id": "uuid",
+        "lifecycle": "enum:active|archived"
+      }
+    },
+    {
+      "id": "INFRA_DEVICE_REFERENCE_RESOLUTION_QUERY_V1",
+      "required": {
+        "device_reference_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_DEVICE_REFERENCE_RESOLUTION_RESPONSE_V1",
+      "required": {
+        "device_reference_id": "uuid",
+        "device_reference_revision": "rev",
+        "current_network_element_id": "uuid|null",
+        "resolution_revision": "integer>=0",
+        "history_count": "integer>=0"
+      }
+    },
+    {
+      "id": "INFRA_MODEL_DETAIL_QUERY_V1",
+      "required": {
+        "model_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_MODEL_DETAIL_RESPONSE_V1",
+      "required": {
+        "model_id": "uuid",
+        "revision": "rev",
+        "name": "string<=800bytes",
+        "manufacturer": "string<=800bytes|null",
+        "lifecycle": "enum:active|archived",
+        "compatibility_count": "integer>=0",
+        "assigned_network_element_count": "integer>=0"
+      }
+    },
+    {
+      "id": "INFRA_INSTALLED_COMPONENT_QUERY_V1",
+      "required": {
+        "network_element_id": "uuid"
+      },
+      "optional": {
+        "state": "enum:installed|removed|unknown",
+        "bom_key": "string<=640bytes",
+        "slot_match_key": "string<=384bytes",
+        "cursor": "CURSOR_V1",
+        "limit": "int:1..500"
+      }
+    },
+    {
+      "id": "INFRA_INSTALLED_COMPONENT_RESPONSE_V1",
+      "required": {
+        "items": "array<INFRA_INSTALLED_COMPONENT_ROW_V1>,max500",
+        "next_cursor": "CURSOR_V1|null"
+      }
+    },
+    {
+      "id": "INFRA_INSTALLED_COMPONENT_ROW_V1",
+      "required": {
+        "installed_component_id": "uuid",
+        "state": "enum:installed|removed|unknown",
+        "bom_code": "string<=640bytes|null",
+        "manufacturer_serial": "string<=640bytes|null",
+        "slot_label": "string<=384bytes|null",
+        "condition": "enum:unknown|normal|faulty|removed|quarantined",
+        "device_part_unit_id": "uuid|null",
+        "physical_consequence_id": "uuid|null"
+      }
+    },
+    {
+      "id": "INFRA_IP_CANDIDATE_QUERY_V1",
+      "required": {
+        "canonical_address": "string<=256bytes"
+      },
+      "optional": {
+        "cursor": "CURSOR_V1",
+        "limit": "int:1..500"
+      }
+    },
+    {
+      "id": "INFRA_IP_CANDIDATE_RESPONSE_V1",
+      "required": {
+        "items": "array<INFRA_IP_CANDIDATE_ROW_V1>,max500",
+        "next_cursor": "CURSOR_V1|null",
+        "exact_count": "integer>=0"
+      }
+    },
+    {
+      "id": "INFRA_IP_CANDIDATE_ROW_V1",
+      "required": {
+        "network_element_ip_id": "uuid",
+        "network_element_id": "uuid",
+        "site_id": "uuid",
+        "is_primary": "boolean"
+      }
+    },
+    {
+      "id": "INFRA_SITE_ARCHIVE_BLOCKER_QUERY_V1",
+      "required": {
+        "site_id": "uuid"
+      },
+      "optional": {
+        "cursor": "CURSOR_V1",
+        "limit": "int:1..500"
+      }
+    },
+    {
+      "id": "INFRA_SITE_ARCHIVE_BLOCKER_RESPONSE_V1",
+      "required": {
+        "items": "array<INFRA_SITE_BLOCKER_ROW_V1>,max500",
+        "next_cursor": "CURSOR_V1|null",
+        "exact_count": "integer>=0",
+        "indeterminate": "boolean"
+      }
+    },
+    {
+      "id": "INFRA_SITE_BLOCKER_ROW_V1",
+      "required": {
+        "provider_order": "integer>=0",
+        "blocker_kind": "string<=128bytes",
+        "blocker_id": "string<=128bytes",
+        "reason_code": "string<=128bytes"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_RUN_QUERY_V1",
+      "required": {
+        "run_id": "uuid"
+      },
+      "optional": {
+        "proposal_state": "enum:pending|accepted|rejected|superseded",
+        "cursor": "CURSOR_V1",
+        "limit": "int:1..500"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_RUN_RESPONSE_V1",
+      "required": {
+        "run_id": "uuid",
+        "state": "enum:validating|staged|reviewed|accepted|rejected|failed",
+        "revision": "rev",
+        "workbook_version": "string<=64bytes",
+        "mode": "enum:registration_template|discovery|round_trip",
+        "installation_relation": "enum:same_installation|foreign_installation",
+        "file_sha256": "sha256",
+        "logical_fingerprint": "sha256",
+        "row_counts": "INFRA_WORKBOOK_ROW_COUNTS_V1",
+        "proposal_counts": "INFRA_WORKBOOK_PROPOSAL_COUNTS_V1",
+        "proposals": "array<INFRA_WORKBOOK_PROPOSAL_ROW_V1>,max500",
+        "next_cursor": "CURSOR_V1|null"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_PROPOSAL_QUERY_V1",
+      "required": {
+        "proposal_id": "uuid"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_PROPOSAL_RESPONSE_V1",
+      "required": {
+        "proposal": "INFRA_WORKBOOK_PROPOSAL_ROW_V1",
+        "impact": "INFRA_WORKBOOK_IMPACT_V1",
+        "candidate_ids": "array<uuid>,max500"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_PROPOSAL_ROW_V1",
+      "required": {
+        "proposal_id": "uuid",
+        "sheet_kind": "enum:network_elements|ip_addresses",
+        "row_ordinal": "integer>=2",
+        "action": "enum:create_network_element|update_network_element|create_related_reference|update_ip_set|unchanged|skip_invalid|ambiguous|unknown_reference|relationship_change",
+        "state": "enum:pending|accepted|rejected|superseded",
+        "target_network_element_id": "uuid|null",
+        "expected_revision": "integer>=1|null",
+        "input_fingerprint": "sha256",
+        "warning_codes": "array<string<=128bytes>,max32"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_HISTORY_QUERY_V1",
+      "optional": {
+        "state": "enum:validating|staged|reviewed|accepted|rejected|failed",
+        "mode": "enum:registration_template|discovery|round_trip",
+        "cursor": "CURSOR_V1",
+        "limit": "int:1..500"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_HISTORY_RESPONSE_V1",
+      "required": {
+        "items": "array<INFRA_WORKBOOK_HISTORY_ROW_V1>,max500",
+        "next_cursor": "CURSOR_V1|null"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_HISTORY_ROW_V1",
+      "required": {
+        "kind": "enum:run|export",
+        "id": "uuid",
+        "timestamp_utc": "integer>=0",
+        "state_or_mode": "string<=64bytes",
+        "filename": "string<=1024bytes",
+        "sha256": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_REPLAY_QUERY_V1",
+      "required": {
+        "logical_fingerprint": "sha256"
+      }
+    },
+    {
+      "id": "INFRA_WORKBOOK_REPLAY_RESPONSE_V1",
+      "required": {
+        "accepted_run_id": "uuid|null",
+        "accepted_at_utc": "integer>=0|null"
+      }
+    }
+  ],
+  "bounds": {
+    "schema": "SOMA-LLD-BOUNDS-V1",
+    "lld_id": "LLD-08",
+    "text_bounds": {
+      "site_name": {
+        "max_graphemes": 200,
+        "max_utf8_bytes": 800,
+        "blank": "reject"
+      },
+      "site_address": {
+        "max_graphemes": 800,
+        "max_utf8_bytes": 3200,
+        "blank": "reject"
+      },
+      "room_name": {
+        "max_graphemes": 160,
+        "max_utf8_bytes": 640,
+        "blank": "reject"
+      },
+      "rack_name": {
+        "max_graphemes": 160,
+        "max_utf8_bytes": 640,
+        "blank": "reject"
+      },
+      "row_column_label": {
+        "max_graphemes": 64,
+        "max_utf8_bytes": 256,
+        "blank": "normalize_to_null"
+      },
+      "network_element_name": {
+        "max_graphemes": 200,
+        "max_utf8_bytes": 800,
+        "blank": "reject"
+      },
+      "manufacturer_serial": {
+        "max_graphemes": 160,
+        "max_utf8_bytes": 640,
+        "blank": "normalize_to_null"
+      },
+      "model_name": {
+        "max_graphemes": 200,
+        "max_utf8_bytes": 800,
+        "blank": "reject"
+      },
+      "component_bom": {
+        "max_graphemes": 160,
+        "max_utf8_bytes": 640,
+        "blank": "reject"
+      },
+      "component_slot": {
+        "max_graphemes": 96,
+        "max_utf8_bytes": 384,
+        "blank": "normalize_to_null"
+      },
+      "cloud_name": {
+        "max_graphemes": 200,
+        "max_utf8_bytes": 800,
+        "blank": "reject"
+      },
+      "workbook_comment": {
+        "max_graphemes": 1000,
+        "max_utf8_bytes": 4000,
+        "blank": "normalize_to_null"
+      },
+      "reason_code": {
+        "max_graphemes": 96,
+        "max_utf8_bytes": 384,
+        "blank": "reject_when_required"
+      }
+    },
+    "rack": {
+      "height_u_min": 1,
+      "height_u_max": 120,
+      "u_start_min": 1,
+      "u_span_min": 1,
+      "placement_rule": "u_start + u_span - 1 must be <= rack.height_u; occupied U intervals within one Rack may not strictly overlap unless one represented item is explicitly non-U occupying under a future accepted placement type"
+    },
+    "collections": {
+      "rooms_per_site": {
+        "page_default": 100,
+        "page_max": 500
+      },
+      "racks_per_room": {
+        "page_default": 100,
+        "page_max": 500
+      },
+      "network_elements": {
+        "page_default": 100,
+        "page_max": 500
+      },
+      "ips_per_network_element": {
+        "soft_warning": 64,
+        "hard_limit": 1024
+      },
+      "installed_components_per_network_element": {
+        "soft_warning": 256,
+        "hard_limit": 4096
+      },
+      "containment_depth": {
+        "soft_warning": 32,
+        "hard_limit": 1024,
+        "rule": "cycle guard is iterative/indexed and does not recurse Python stack"
+      },
+      "workbook_rows": {
+        "network_elements_max": 100000,
+        "ip_rows_max": 500000,
+        "metadata_rows_max": 128,
+        "rule": "higher requirements require a new accepted profile rather than unbounded parsing"
+      },
+      "import_review_page": {
+        "default": 100,
+        "max": 500,
+        "exact_total": "separate"
+      }
+    },
+    "ip": {
+      "families": [
+        4,
+        6
+      ],
+      "zone_identifier": "reject in Beta 1.0 because no interface identity exists",
+      "canonicalization": "stdlib ipaddress compressed canonical text",
+      "per_network_element_duplicate": "reject exact canonical duplicate",
+      "cross_network_element_duplicate": "allowed with explicit duplicate-candidate warning; never identity/topology authority"
+    },
+    "workbook": {
+      "max_file_bytes": 268435456,
+      "max_zip_entries": 20000,
+      "max_uncompressed_bytes": 1073741824,
+      "max_cell_text_utf8_bytes": 16384,
+      "formulas": "reject in all authoritative data cells",
+      "macros": "reject",
+      "external_links": "reject",
+      "embedded_objects": "reject",
+      "source_directory": "nonrecursive configured Infrastructure Import Directory"
+    },
+    "performance": {
+      "containment_guard": "O(depth) indexed parent walk",
+      "rack_occupancy": "indexed overlap query on one Rack",
+      "ip_lookup": "indexed canonical address candidate query",
+      "workbook": "streaming bounded rows; proposal calculation outside writer lock; accepted batch one bounded transactional mutation plan"
+    }
+  },
+  "commands": [
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "AcceptInfrastructureWorkbookRun",
+      "visibility": "public_high_risk",
+      "request_type": "INFRA_ACCEPT_WORKBOOK_RUN_REQUEST_V1",
+      "response_type": "INFRA_WORKBOOK_ACCEPT_RESULT_V1",
+      "pure_preflight": [
+        "complete disposition/fingerprint validation and deterministic mutation plan"
+      ],
+      "transaction_boundary": "one all-or-nothing outer UnitOfWork; all manual-domain reducers are receipt-free participants",
+      "authoritative_reads": [
+        "run/proposal revisions+fingerprints",
+        "replay index",
+        "every selected target/current relationship",
+        "DataInstanceIdentityReader"
+      ],
+      "guards": [
+        "no selected invalid/ambiguous/unknown item",
+        "same-installation IDs only direct-target when scope matches",
+        "all manual invariants revalidate",
+        "logical replay idempotent"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1 plus logical_fingerprint replay index",
+      "receipt_order": "replay checks -> all current-state revalidation -> one receipt -> ordered receipt-free reducers -> row decisions/run/proposals/replay index -> audit -> commit",
+      "mutations": [
+        "selected LLD-08 domain tables through exact reducers",
+        "infrastructure_workbook_row_decisions",
+        "run/proposal terminal state",
+        "infrastructure_workbook_replay_index"
+      ],
+      "revision_effects": "only selected material domain changes increment owning revisions; unchanged/rejected rows do not",
+      "audit_action": "infrastructure.workbook.accept@1",
+      "post_commit_work": "terminal staging/proposal cleanup only after commit",
+      "errors": [
+        "WORKBOOK_STALE",
+        "WORKBOOK_AMBIGUOUS_IDENTITY",
+        "WORKBOOK_FOREIGN_IDENTITY",
+        "WORKBOOK_RELATION_INVALID",
+        "PLACEMENT_CROSS_SITE",
+        "RACK_U_OCCUPIED",
+        "CLOUD_CROSS_SITE",
+        "CONTAINMENT_CYCLE",
+        "IP_PRIMARY_CONFLICT",
+        "SECRET_FIELD_FORBIDDEN",
+        "TOPOLOGY_FIELD_FORBIDDEN",
+        "DEPENDENCY_INDETERMINATE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A062",
+        "A063",
+        "A064",
+        "A065",
+        "A066",
+        "A067",
+        "A068",
+        "A069",
+        "A070",
+        "F035",
+        "F036",
+        "F037",
+        "F038",
+        "F039",
+        "F040",
+        "F041"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "AddNetworkElementIp",
+      "visibility": "public",
+      "request_type": "INFRA_ADD_IP_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "IP_NORMALIZATION_V1",
+        "cross-element duplicate candidates"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "Network Element state",
+        "same-element canonical IPs",
+        "current primary"
+      ],
+      "guards": [
+        "valid host IP",
+        "no same-element duplicate",
+        "explicit primary replacement semantics"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> normalize/revalidate -> receipt -> identity/events/current including primary swap -> audit -> commit",
+      "mutations": [
+        "network_element_ip_identities/events/current"
+      ],
+      "revision_effects": "new IP revision=1; prior primary revision increments if unset",
+      "audit_action": "infrastructure.ip.add@1",
+      "post_commit_work": "none",
+      "errors": [
+        "IP_INVALID",
+        "IP_DUPLICATE_ON_ELEMENT",
+        "IP_PRIMARY_CONFLICT",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A038",
+        "A039",
+        "A040",
+        "A041",
+        "A042",
+        "A043",
+        "F020",
+        "F023"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "ChangeCloudDeploymentLifecycle",
+      "visibility": "public",
+      "request_type": "INFRA_CHANGE_CLOUD_DEPLOYMENT_LIFECYCLE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "Deployment revision/state",
+        "current assignments",
+        "Site/Cloud Type state"
+      ],
+      "guards": [
+        "archive requires no current assignments",
+        "reactivate requires Site+Cloud Type active"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> guards -> receipt -> lifecycle -> audit -> commit",
+      "mutations": [
+        "cloud_deployments lifecycle+revision"
+      ],
+      "revision_effects": "increment once on change",
+      "audit_action": "infrastructure.cloud_deployment.lifecycle@1",
+      "post_commit_work": "none",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A034",
+        "F018"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "ChangeModelBomCompatibility",
+      "visibility": "public",
+      "request_type": "INFRA_CHANGE_MODEL_COMPATIBILITY_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "exact Model+BOM+role candidate query"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "Model state",
+        "current compatibility relation revision"
+      ],
+      "guards": [
+        "Model active for add/correct",
+        "BOM bounded/nonblank"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> event/current -> audit -> commit",
+      "mutations": [
+        "model_bom_compatibility_events/current"
+      ],
+      "revision_effects": "current relation revision increments once or row is inserted/removed; identical add no_change",
+      "audit_action": "infrastructure.model.compatibility@1",
+      "post_commit_work": "none",
+      "errors": [
+        "MODEL_ARCHIVED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A047",
+        "F025"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "ChangeNetworkElementModelLifecycle",
+      "visibility": "public",
+      "request_type": "INFRA_CHANGE_MODEL_LIFECYCLE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "Model revision/state"
+      ],
+      "guards": [
+        "archive preserves assignments/compatibility history but blocks new active use"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revision -> receipt -> lifecycle/event -> audit -> commit",
+      "mutations": [
+        "network_element_models lifecycle+revision",
+        "model_lifecycle_events"
+      ],
+      "revision_effects": "increment once on state change",
+      "audit_action": "infrastructure.model.lifecycle@1",
+      "post_commit_work": "none",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A046",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "ChangeNetworkElementLifecycle",
+      "visibility": "public",
+      "request_type": "INFRA_CHANGE_NETWORK_ELEMENT_LIFECYCLE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "network_elements revision/state",
+        "Site state for reactivation"
+      ],
+      "guards": [
+        "reactivate requires Site active",
+        "archive preserves all relationships/history"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> guards -> receipt -> lifecycle/event -> audit -> commit",
+      "mutations": [
+        "network_elements lifecycle+revision",
+        "network_element_lifecycle_events"
+      ],
+      "revision_effects": "increment once on state change",
+      "audit_action": "infrastructure.network_element.lifecycle@1",
+      "post_commit_work": "selectors exclude archived target",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A075",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "ChangeRackLifecycle",
+      "visibility": "public",
+      "request_type": "INFRA_CHANGE_RACK_LIFECYCLE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "racks revision/state",
+        "current Network Element placements",
+        "Room/Site state"
+      ],
+      "guards": [
+        "archive requires zero current placements",
+        "reactivate requires Room+Site active"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> guards -> receipt -> lifecycle/event -> audit -> commit",
+      "mutations": [
+        "racks lifecycle+revision",
+        "room_rack_lifecycle_events"
+      ],
+      "revision_effects": "increment once on state change",
+      "audit_action": "infrastructure.rack.lifecycle@1",
+      "post_commit_work": "none",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A075",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "ChangeRoomLifecycle",
+      "visibility": "public",
+      "request_type": "INFRA_CHANGE_ROOM_LIFECYCLE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "rooms revision/state",
+        "active Racks",
+        "parent Site state"
+      ],
+      "guards": [
+        "archive requires no active Racks",
+        "reactivate requires Site active"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> guards -> receipt -> lifecycle/event -> audit -> commit",
+      "mutations": [
+        "rooms lifecycle+revision",
+        "room_rack_lifecycle_events"
+      ],
+      "revision_effects": "increment once on state change; same state no_change",
+      "audit_action": "infrastructure.room.lifecycle@1",
+      "post_commit_work": "none",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A011",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "ChangeSiteLifecycle",
+      "visibility": "public",
+      "request_type": "INFRA_CHANGE_SITE_LIFECYCLE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "paged blocker preview"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "sites revision/state",
+        "active physical dependencies",
+        "SiteDependencyRegistry validators"
+      ],
+      "guards": [
+        "archive: every guard CLEAR",
+        "reactivate: Customer usable",
+        "same state is NO_CHANGE"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> guards -> receipt -> lifecycle/event -> audit -> commit",
+      "mutations": [
+        "sites lifecycle+revision",
+        "site_lifecycle_events archive/reactivate"
+      ],
+      "revision_effects": "increment once only on state change",
+      "audit_action": "infrastructure.site.lifecycle@1",
+      "post_commit_work": "dedicated Dispatch Location unchanged",
+      "errors": [
+        "SITE_ARCHIVE_BLOCKED",
+        "DEPENDENCY_INDETERMINATE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A007",
+        "A008",
+        "A009",
+        "F004",
+        "F048"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "CorrectNetworkElementIp",
+      "visibility": "public",
+      "request_type": "INFRA_CORRECT_IP_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "IP_NORMALIZATION_V1 when address changes"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "IP current revision/owner",
+        "same-element canonical set",
+        "primary state"
+      ],
+      "guards": [
+        "new address required only for address_corrected",
+        "no duplicate",
+        "reactivate valid"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> event/current -> audit -> commit",
+      "mutations": [
+        "network_element_ip_events/current"
+      ],
+      "revision_effects": "IP revision increments once; removing primary does not alter another IP",
+      "audit_action": "infrastructure.ip.correct@1",
+      "post_commit_work": "none",
+      "errors": [
+        "IP_INVALID",
+        "IP_DUPLICATE_ON_ELEMENT",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A045",
+        "F022"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "CorrectSiteCustomerOwnership",
+      "visibility": "public_high_risk",
+      "request_type": "INFRA_CORRECT_SITE_CUSTOMER_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "Site dependency preview/fingerprint"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "sites revision/customer",
+        "Rooms/Racks/Deployments/Network Elements existence",
+        "SiteDependencyRegistry validators"
+      ],
+      "guards": [
+        "new Customer active",
+        "only initial pre-operational Site history",
+        "all dependency validators CLEAR",
+        "preview fingerprint current"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> all guards -> receipt -> ownership/event -> audit -> commit",
+      "mutations": [
+        "sites customer_org_id+revision",
+        "site_lifecycle_events customer_ownership_corrected"
+      ],
+      "revision_effects": "increment Site revision once; same customer returns no_change",
+      "audit_action": "infrastructure.site.customer_correct@1",
+      "post_commit_work": "none",
+      "errors": [
+        "SITE_CUSTOMER_CORRECTION_BLOCKED",
+        "DEPENDENCY_INDETERMINATE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A005",
+        "A006",
+        "F003"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "CreateCloudDeployment",
+      "visibility": "public",
+      "request_type": "INFRA_CREATE_CLOUD_DEPLOYMENT_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "Site active",
+        "Cloud Type active"
+      ],
+      "guards": [
+        "both references active",
+        "bounded name"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> guards -> receipt -> Deployment -> audit -> commit",
+      "mutations": [
+        "cloud_deployments insert"
+      ],
+      "revision_effects": "new revision=1",
+      "audit_action": "infrastructure.cloud_deployment.create@1",
+      "post_commit_work": "none",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A034",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "CreateCloudType",
+      "visibility": "public",
+      "request_type": "INFRA_CREATE_CLOUD_TYPE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "same-name candidate query"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [],
+      "guards": [
+        "bounded nonblank name"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> receipt -> Cloud Type -> audit -> commit",
+      "mutations": [
+        "cloud_types insert"
+      ],
+      "revision_effects": "new revision=1",
+      "audit_action": "infrastructure.cloud_type.create@1",
+      "post_commit_work": "none",
+      "errors": [
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A033",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "CreateNetworkElementModel",
+      "visibility": "public",
+      "request_type": "INFRA_CREATE_MODEL_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "same-description candidates"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [],
+      "guards": [
+        "bounded nonblank name"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> receipt -> Model/event -> audit -> commit",
+      "mutations": [
+        "network_element_models",
+        "model_lifecycle_events created"
+      ],
+      "revision_effects": "new revision=1",
+      "audit_action": "infrastructure.model.create@1",
+      "post_commit_work": "none",
+      "errors": [
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A046",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "CreateNetworkElement",
+      "visibility": "public_internal_reducer",
+      "request_type": "INFRA_CREATE_NETWORK_ELEMENT_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "descriptive candidate search",
+        "optional occupancy/IP/Cloud/Model previews"
+      ],
+      "transaction_boundary": "standalone one UnitOfWork; when called by Regularize/workbook runs receipt-free inside caller UoW",
+      "authoritative_reads": [
+        "Site active",
+        "optional Model/Deployment/Rack/IP relations"
+      ],
+      "guards": [
+        "Site+nonblank name",
+        "every requested optional relation valid/current"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1 for standalone; caller envelope for reducer",
+      "receipt_order": "standalone replay -> revalidate -> receipt -> identity/event/unracked + optional relations -> audit -> commit",
+      "mutations": [
+        "network_elements",
+        "network_element_lifecycle_events",
+        "network_element_placement_current/event",
+        "optional model/cloud/ip relationship tables"
+      ],
+      "revision_effects": "new identity revision=1; requested child relation revisions initialize once",
+      "audit_action": "infrastructure.network_element.create@1",
+      "post_commit_work": "none",
+      "errors": [
+        "PLACEMENT_CROSS_SITE",
+        "RACK_U_OCCUPIED",
+        "CLOUD_CROSS_SITE",
+        "IP_INVALID",
+        "IP_PRIMARY_CONFLICT",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A015",
+        "A016",
+        "F009",
+        "F010"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "CreateRack",
+      "visibility": "public",
+      "request_type": "INFRA_CREATE_RACK_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "rooms/Site active state"
+      ],
+      "guards": [
+        "height 1..120",
+        "bounded name/row/column",
+        "Room active and parent Site active"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> Rack/event -> audit -> commit",
+      "mutations": [
+        "racks insert",
+        "room_rack_lifecycle_events created"
+      ],
+      "revision_effects": "new Rack revision=1",
+      "audit_action": "infrastructure.rack.create@1",
+      "post_commit_work": "none",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A012",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "CreateRoom",
+      "visibility": "public",
+      "request_type": "INFRA_CREATE_ROOM_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "sites state"
+      ],
+      "guards": [
+        "Site active",
+        "room name bounded/nonblank"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> Room/event -> audit -> commit",
+      "mutations": [
+        "rooms insert",
+        "room_rack_lifecycle_events created"
+      ],
+      "revision_effects": "new Room revision=1",
+      "audit_action": "infrastructure.room.create@1",
+      "post_commit_work": "none",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A010",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "CreateSite",
+      "visibility": "public",
+      "request_type": "INFRA_CREATE_SITE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "ADDRESS_MATCH_V1 duplicate candidate preview"
+      ],
+      "transaction_boundary": "one LLD-01 UnitOfWork; LLD-02 DispatchLocationService participates without nested receipt/commit",
+      "authoritative_reads": [
+        "customer_organizations active state",
+        "site duplicate review fingerprint when supplied",
+        "site_dispatch_locations uniqueness"
+      ],
+      "guards": [
+        "Customer active",
+        "bounded name/address",
+        "duplicate candidate is review evidence only"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> insert one command_receipt -> Site/Dispatch/link/events -> audit -> commit",
+      "mutations": [
+        "sites insert",
+        "LLD-02 dispatch_locations insert via service",
+        "site_dispatch_locations insert",
+        "site_lifecycle_events created"
+      ],
+      "revision_effects": "new Site revision=1; no-change replay creates nothing",
+      "audit_action": "infrastructure.site.create@1",
+      "post_commit_work": "none",
+      "errors": [
+        "INFRA_STALE",
+        "DISPATCH_LINK_CONFLICT",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A001",
+        "A002",
+        "F001",
+        "F002"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "GenerateInfrastructureWorkbook",
+      "visibility": "public",
+      "request_type": "INFRA_GENERATE_WORKBOOK_REQUEST_V1",
+      "response_type": "INFRA_JOB_ACCEPTED_V1",
+      "pure_preflight": [
+        "destination/scope validation"
+      ],
+      "transaction_boundary": "short enqueue UnitOfWork only; artifact generation/verifying/publish occurs in INFRA_WORKBOOK_EXPORT_V1 job outside writer lock",
+      "authoritative_reads": [
+        "DataInstanceIdentityReader",
+        "scope target existence"
+      ],
+      "guards": [
+        "destination explicit and valid",
+        "scope bounded"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> durable_jobs insert -> audit -> commit",
+      "mutations": [
+        "durable_jobs enqueue only"
+      ],
+      "revision_effects": "no Infrastructure domain revision changes",
+      "audit_action": "infrastructure.workbook.export_request@1",
+      "post_commit_work": "INFRA_WORKBOOK_EXPORT_V1 allocates/checkpoints one immutable export_id before temp creation, writes/verifies/publishes the workbook according to SOMA_INFRASTRUCTURE_WORKBOOK_V1, then records exactly one infrastructure_workbook_exports row; crash/cancellation behavior is governed by jobs/workbook-jobs.json and never treats an operator-managed published file as rollback/cleanup authority",
+      "errors": [
+        "WORKBOOK_DIRECTORY_UNAVAILABLE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A055",
+        "A056",
+        "A057",
+        "S032",
+        "S033",
+        "F049",
+        "F050",
+        "F051",
+        "F052"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "RecordInstalledComponentLifecycle",
+      "visibility": "public",
+      "request_type": "INFRA_COMPONENT_LIFECYCLE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "slot/consequence preview"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "component current revision/owner",
+        "slot occupancy",
+        "optional Inventory consequence"
+      ],
+      "guards": [
+        "correction requires target_event_id",
+        "maintenance install/remove consequence VALID/current",
+        "resulting known installed slot free"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> event/current -> audit -> commit",
+      "mutations": [
+        "installed_component_events/current"
+      ],
+      "revision_effects": "component projection revision increments once on material current-effective change; immutable prior events remain",
+      "audit_action": "infrastructure.component.lifecycle@1",
+      "post_commit_work": "none",
+      "errors": [
+        "PHYSICAL_CONSEQUENCE_STALE",
+        "DEPENDENCY_INDETERMINATE",
+        "COMPONENT_SLOT_OCCUPIED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A050",
+        "A051",
+        "A052",
+        "F026",
+        "F028"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "RegisterInstalledComponent",
+      "visibility": "public_internal_reducer",
+      "request_type": "INFRA_REGISTER_COMPONENT_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "component candidate search",
+        "optional Inventory consequence preview"
+      ],
+      "transaction_boundary": "standalone one UnitOfWork; receipt-free reducer when accepted workbook invokes it",
+      "authoritative_reads": [
+        "Network Element state",
+        "known-slot occupancy",
+        "LLD-07 InventoryPhysicalConsequenceReader for maintenance origin"
+      ],
+      "guards": [
+        "maintenance origin requires VALID current consequence/fingerprint",
+        "known slot free",
+        "descriptive match never identity"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1 standalone/caller envelope as reducer",
+      "receipt_order": "standalone replay -> revalidate -> receipt -> identity/event/current -> audit -> commit",
+      "mutations": [
+        "installed_components",
+        "installed_component_events/current"
+      ],
+      "revision_effects": "new component current revision=1",
+      "audit_action": "infrastructure.component.register@1",
+      "post_commit_work": "none",
+      "errors": [
+        "PHYSICAL_CONSEQUENCE_STALE",
+        "DEPENDENCY_INDETERMINATE",
+        "COMPONENT_SLOT_OCCUPIED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A048",
+        "A049",
+        "A050",
+        "A051",
+        "A052",
+        "F026",
+        "F027",
+        "F028",
+        "F029"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "RegularizeDeviceReference",
+      "visibility": "public_high_risk",
+      "request_type": "INFRA_REGULARIZE_DEVICE_REFERENCE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "DEVICE_REFERENCE_REGULARIZATION_V1 candidate preview",
+        "LLD-12 deliberate proof acquisition after governed hold; acquisition is non-authoritative and does not validate or consume the proof"
+      ],
+      "transaction_boundary": "one outer UnitOfWork; optional CreateNetworkElement reducer is receipt-free; proof validation/consumption occurs inside this same UnitOfWork",
+      "authoritative_reads": [
+        "LLD-03 Device Reference revision",
+        "current resolution",
+        "target/new Network Element prerequisites",
+        "current deliberate-action target/base revision/scope fingerprint bindings"
+      ],
+      "guards": [
+        "inside the UnitOfWork LLD-12 validate_and_consume returns ValidatedDeliberateActionV1 for the exact governed promotion action",
+        "exact action/request shape",
+        "target active",
+        "preview/current resolution fresh",
+        "already-consumed/expired/stale-bound proof fails closed"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate exact target/base revision/fingerprint -> validate_and_consume proof -> single outer receipt -> optional NE reducer -> resolution event/current -> audit -> commit",
+      "mutations": [
+        "optional LLD-08 Network Element aggregate",
+        "device_reference_resolution_events/current",
+        "LLD-12 deliberate-proof single-use consumption record/state inside caller UnitOfWork"
+      ],
+      "revision_effects": "resolution revision increments once; operational Device Reference revision/relationships unchanged",
+      "audit_action": "infrastructure.device_reference.regularize@1",
+      "post_commit_work": "none",
+      "errors": [
+        "DEVICE_RESOLUTION_PROOF_REQUIRED",
+        "DEVICE_RESOLUTION_AMBIGUOUS",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A022",
+        "A023",
+        "A024",
+        "A025",
+        "A026",
+        "A027",
+        "A028",
+        "F011",
+        "F012",
+        "F013",
+        "F014"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "RejectInfrastructureWorkbookRun",
+      "visibility": "public",
+      "request_type": "INFRA_REJECT_WORKBOOK_RUN_REQUEST_V1",
+      "response_type": "INFRA_WORKBOOK_RUN_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "workbook run revision/state",
+        "proposal states"
+      ],
+      "guards": [
+        "run staged/reviewed and nonterminal"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> run revalidate -> receipt -> terminal decision rows -> audit -> commit",
+      "mutations": [
+        "infrastructure_workbook_runs state=rejected",
+        "proposal terminal states",
+        "row decisions"
+      ],
+      "revision_effects": "run revision/state transition once; domain entities unchanged",
+      "audit_action": "infrastructure.workbook.reject@1",
+      "post_commit_work": "terminal technical staging cleanup may run safely",
+      "errors": [
+        "WORKBOOK_STALE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A071",
+        "A072",
+        "F042"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "ResolveDevicePartToInstalledComponent",
+      "visibility": "public",
+      "request_type": "INFRA_RESOLVE_DEVICE_PART_COMPONENT_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "DevicePartInstalledComponentResolution.validate_target preview"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "LLD-07 Device Part Unit",
+        "LLD-03/08 Device Reference resolution",
+        "Installed Component owner",
+        "current resolution revision"
+      ],
+      "guards": [
+        "validate_target=VALID for non-null link",
+        "one-to-one current relation"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> validate -> receipt -> event/current -> audit -> commit",
+      "mutations": [
+        "device_part_component_resolution_events/current"
+      ],
+      "revision_effects": "resolution revision increments once; LLD-07 identity/lifecycle unchanged",
+      "audit_action": "infrastructure.device_part_component.resolve@1",
+      "post_commit_work": "none",
+      "errors": [
+        "DEVICE_PART_COMPONENT_INVALID",
+        "DEPENDENCY_INDETERMINATE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A053",
+        "A054",
+        "F030"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "SetCloudDeploymentAssignment",
+      "visibility": "public",
+      "request_type": "INFRA_SET_CLOUD_ASSIGNMENT_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "same-Site eligibility preview"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "Network Element Site/state",
+        "Deployment Site/state",
+        "current assignment revision"
+      ],
+      "guards": [
+        "Deployment active",
+        "same Site",
+        "one current assignment"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> event/current -> audit -> commit",
+      "mutations": [
+        "cloud_assignment_events",
+        "cloud_assignment_current"
+      ],
+      "revision_effects": "assignment revision increments once; same assignment no_change",
+      "audit_action": "infrastructure.cloud_assignment.set@1",
+      "post_commit_work": "none",
+      "errors": [
+        "CLOUD_CROSS_SITE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A035",
+        "A036",
+        "A037",
+        "F018",
+        "F019"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "SetContainmentParent",
+      "visibility": "public",
+      "request_type": "INFRA_SET_CONTAINMENT_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "CONTAINMENT_CYCLE_GUARD_V1"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "child/current parent revision",
+        "parent state",
+        "indexed ancestry chain"
+      ],
+      "guards": [
+        "not self",
+        "one parent",
+        "no cycle",
+        "depth bound"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> complete ancestry rewalk -> receipt -> event/current -> audit -> commit",
+      "mutations": [
+        "network_element_containment_events",
+        "network_element_containment_current"
+      ],
+      "revision_effects": "edge revision increments once; same current parent no_change",
+      "audit_action": "infrastructure.containment.set@1",
+      "post_commit_work": "none",
+      "errors": [
+        "CONTAINMENT_SELF",
+        "CONTAINMENT_CYCLE",
+        "CONTAINMENT_SECOND_PARENT",
+        "DEPENDENCY_INDETERMINATE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A029",
+        "A030",
+        "A031",
+        "A032",
+        "F015",
+        "F016",
+        "F017"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "SetNetworkElementModel",
+      "visibility": "public",
+      "request_type": "INFRA_SET_MODEL_ASSIGNMENT_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "Network Element state",
+        "Model state",
+        "current assignment revision"
+      ],
+      "guards": [
+        "Model active when non-null",
+        "Network Element active"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> assignment event/current -> audit -> commit",
+      "mutations": [
+        "network_element_model_assignment_events",
+        "network_element_model_current"
+      ],
+      "revision_effects": "assignment revision increments once; same relation no_change",
+      "audit_action": "infrastructure.model.assignment@1",
+      "post_commit_work": "none",
+      "errors": [
+        "MODEL_ARCHIVED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A046",
+        "A047",
+        "F024"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "SetNetworkElementPlacement",
+      "visibility": "public",
+      "request_type": "INFRA_SET_PLACEMENT_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "RACK_OCCUPANCY_V1"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "network_elements Site/state",
+        "placement revision",
+        "Rack/Room/Site state",
+        "same-Rack current intervals"
+      ],
+      "guards": [
+        "same-Site",
+        "U range valid",
+        "no strict overlap",
+        "preview fingerprint current"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> occupancy/site revalidate -> receipt -> event/current -> audit -> commit",
+      "mutations": [
+        "network_element_placement_events",
+        "network_element_placement_current"
+      ],
+      "revision_effects": "placement revision increments once on material change; identical placement no_change",
+      "audit_action": "infrastructure.network_element.placement@1",
+      "post_commit_work": "none",
+      "errors": [
+        "PLACEMENT_CROSS_SITE",
+        "RACK_U_OUT_OF_RANGE",
+        "RACK_U_OCCUPIED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A017",
+        "A018",
+        "A019",
+        "A020",
+        "A021",
+        "F007",
+        "F008"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "SetPrimaryNetworkElementIp",
+      "visibility": "public",
+      "request_type": "INFRA_SET_PRIMARY_IP_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "target IP owner/state/revision",
+        "current primary"
+      ],
+      "guards": [
+        "target active and belongs to Network Element",
+        "fingerprint/revisions current"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> unset old/set target events+projections -> audit -> commit",
+      "mutations": [
+        "network_element_ip_events/current for old+new"
+      ],
+      "revision_effects": "old/new affected IP revisions increment exactly once; already primary returns no_change",
+      "audit_action": "infrastructure.ip.primary_set@1",
+      "post_commit_work": "none",
+      "errors": [
+        "IP_PRIMARY_CONFLICT",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A044",
+        "F020",
+        "F021"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "StageInfrastructureWorkbookCheck",
+      "visibility": "public",
+      "request_type": "INFRA_STAGE_WORKBOOK_CHECK_REQUEST_V1",
+      "response_type": "INFRA_JOB_ACCEPTED_V1",
+      "pure_preflight": [
+        "SettingStore revision/path access check"
+      ],
+      "transaction_boundary": "short enqueue UnitOfWork only; discovery/parsing/staging occurs in INFRA_WORKBOOK_STAGE_V1 with bounded short checkpoints and one atomic validating-to-staged publication transaction per candidate",
+      "authoritative_reads": [
+        "LLD-02 infrastructure.import_directory setting revision",
+        "DataInstanceIdentityReader"
+      ],
+      "guards": [
+        "setting revision current",
+        "configured path present/access result bounded"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1 + job coalescing for same setting_revision",
+      "receipt_order": "replay -> setting revalidate -> receipt -> durable_jobs insert/reuse -> audit -> commit",
+      "mutations": [
+        "durable_jobs enqueue/coalesce only"
+      ],
+      "revision_effects": "no Infrastructure domain revision changes",
+      "audit_action": "infrastructure.workbook.check_request@1",
+      "post_commit_work": "INFRA_WORKBOOK_STAGE_V1 revalidates the exact setting/directory and data-instance identity, uses deterministic candidate/source/checkpoint identities, creates only non-authoritative validating runs/staging/proposals, and publishes a complete candidate to staged/reviewable atomically; recovery never mixes workbook generations or retracts already-published review runs",
+      "errors": [
+        "WORKBOOK_DIRECTORY_UNAVAILABLE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A058",
+        "A059",
+        "A060",
+        "A061",
+        "F031",
+        "F032",
+        "F033",
+        "F034",
+        "F053",
+        "F054",
+        "F055",
+        "S030",
+        "S031"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "UpdateNetworkElementModel",
+      "visibility": "public",
+      "request_type": "INFRA_UPDATE_MODEL_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "same-description candidates"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "Model revision/state"
+      ],
+      "guards": [
+        "active exact Model"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revision -> receipt -> update/event -> audit -> commit",
+      "mutations": [
+        "network_element_models descriptive+revision",
+        "model_lifecycle_events"
+      ],
+      "revision_effects": "increment once on semantic change",
+      "audit_action": "infrastructure.model.update@1",
+      "post_commit_work": "none",
+      "errors": [
+        "MODEL_ARCHIVED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A046",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "UpdateNetworkElementDescriptive",
+      "visibility": "public",
+      "request_type": "INFRA_UPDATE_NETWORK_ELEMENT_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "duplicate candidate query"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "network_elements revision"
+      ],
+      "guards": [
+        "Site immutable",
+        "bounded name/serial"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revision -> receipt -> update/event -> audit -> commit",
+      "mutations": [
+        "network_elements descriptive+revision",
+        "network_element_lifecycle_events descriptive_corrected"
+      ],
+      "revision_effects": "increment once on semantic change; else no_change",
+      "audit_action": "infrastructure.network_element.update@1",
+      "post_commit_work": "none",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A016",
+        "F043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "UpdateRack",
+      "visibility": "public",
+      "request_type": "INFRA_UPDATE_RACK_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "placement fit preview when height changes"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "racks revision",
+        "network_element_placement_current on Rack"
+      ],
+      "guards": [
+        "new height within bounds",
+        "every current placement fits new height"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> occupancy revalidate -> receipt -> Rack/event -> audit -> commit",
+      "mutations": [
+        "racks descriptive/height+revision",
+        "room_rack_lifecycle_events descriptive_corrected"
+      ],
+      "revision_effects": "increment once if any semantic field changes; else no_change",
+      "audit_action": "infrastructure.rack.update@1",
+      "post_commit_work": "none",
+      "errors": [
+        "RACK_U_OUT_OF_RANGE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A013",
+        "A014",
+        "F005",
+        "F006"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-COMMAND-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "UpdateSiteDescriptive",
+      "visibility": "public",
+      "request_type": "INFRA_UPDATE_SITE_REQUEST_V1",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "pure_preflight": [
+        "ADDRESS_MATCH_V1 duplicate candidates"
+      ],
+      "transaction_boundary": "one UnitOfWork",
+      "authoritative_reads": [
+        "sites exact revision"
+      ],
+      "guards": [
+        "site exists",
+        "base revision current",
+        "customer_org_id unchanged"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1",
+      "receipt_order": "replay -> revalidate -> receipt -> update/event -> audit -> commit",
+      "mutations": [
+        "sites descriptive fields+revision",
+        "site_lifecycle_events descriptive_corrected"
+      ],
+      "revision_effects": "increment Site revision exactly once when semantic values change; identical values return no_change",
+      "audit_action": "infrastructure.site.update@1",
+      "post_commit_work": "site-derived Dispatch address reads new Site address automatically",
+      "errors": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "acceptance_test_ids": [
+        "A003",
+        "A004",
+        "F043"
+      ]
+    }
+  ],
+  "audit": {
+    "schema": "SOMA-LLD-AUDIT-REGISTRY-V2",
+    "lld_id": "LLD-08",
+    "payload_version": 1,
+    "payload_schema": "INFRA_AUDIT_PAYLOAD_V1",
+    "sensitivity": "bounded_non_secret_metadata_only",
+    "payload_contract": {
+      "required": [
+        "operation",
+        "target_refs",
+        "base_revisions",
+        "result_refs"
+      ],
+      "optional": [
+        "reason_code",
+        "preview_fingerprint",
+        "workbook_run_id",
+        "warning_codes"
+      ],
+      "prohibited": [
+        "passwords",
+        "keys",
+        "tokens",
+        "full workbook rows/XML",
+        "unbounded notes"
+      ]
+    },
+    "actions": [
+      [
+        "infrastructure.site.create",
+        "site"
+      ],
+      [
+        "infrastructure.site.update",
+        "site"
+      ],
+      [
+        "infrastructure.site.customer_correct",
+        "site"
+      ],
+      [
+        "infrastructure.site.lifecycle",
+        "site"
+      ],
+      [
+        "infrastructure.room.create",
+        "room"
+      ],
+      [
+        "infrastructure.room.lifecycle",
+        "room"
+      ],
+      [
+        "infrastructure.rack.create",
+        "rack"
+      ],
+      [
+        "infrastructure.rack.update",
+        "rack"
+      ],
+      [
+        "infrastructure.rack.lifecycle",
+        "rack"
+      ],
+      [
+        "infrastructure.network_element.placement",
+        "network_element"
+      ],
+      [
+        "infrastructure.network_element.create",
+        "network_element"
+      ],
+      [
+        "infrastructure.network_element.update",
+        "network_element"
+      ],
+      [
+        "infrastructure.network_element.lifecycle",
+        "network_element"
+      ],
+      [
+        "infrastructure.device_reference.regularize",
+        "device_reference"
+      ],
+      [
+        "infrastructure.containment.set",
+        "network_element"
+      ],
+      [
+        "infrastructure.cloud_type.create",
+        "cloud_type"
+      ],
+      [
+        "infrastructure.cloud_deployment.create",
+        "cloud_deployment"
+      ],
+      [
+        "infrastructure.cloud_deployment.lifecycle",
+        "cloud_deployment"
+      ],
+      [
+        "infrastructure.cloud_assignment.set",
+        "network_element"
+      ],
+      [
+        "infrastructure.ip.add",
+        "ip"
+      ],
+      [
+        "infrastructure.ip.primary_set",
+        "ip"
+      ],
+      [
+        "infrastructure.ip.correct",
+        "ip"
+      ],
+      [
+        "infrastructure.model.create",
+        "model"
+      ],
+      [
+        "infrastructure.model.update",
+        "model"
+      ],
+      [
+        "infrastructure.model.lifecycle",
+        "model"
+      ],
+      [
+        "infrastructure.model.assignment",
+        "network_element"
+      ],
+      [
+        "infrastructure.model.compatibility",
+        "model"
+      ],
+      [
+        "infrastructure.component.register",
+        "installed_component"
+      ],
+      [
+        "infrastructure.component.lifecycle",
+        "installed_component"
+      ],
+      [
+        "infrastructure.device_part_component.resolve",
+        "device_part_unit"
+      ],
+      [
+        "infrastructure.workbook.export_request",
+        "workbook_export"
+      ],
+      [
+        "infrastructure.workbook.check_request",
+        "workbook_run"
+      ],
+      [
+        "infrastructure.workbook.reject",
+        "workbook_run"
+      ],
+      [
+        "infrastructure.workbook.accept",
+        "workbook_run"
+      ]
+    ],
+    "rule": "Each tuple is action_type,target_type with action_version=1; result refs must be immutable IDs inserted into audit_event_results in deterministic ordinal order."
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/tree",
+      "handler_kind": "query",
+      "handler": "InfrastructureExplorerQuery",
+      "request_type": "INFRA_EXPLORER_QUERY_V1",
+      "response_type": "INFRA_EXPLORER_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/sites",
+      "handler_kind": "command",
+      "handler": "CreateSite",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CREATE_SITE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 201,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "DISPATCH_LINK_CONFLICT",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CREATE_SITE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/sites/{site_id}",
+      "handler_kind": "query",
+      "handler": "SiteDetailQuery",
+      "request_type": "INFRA_SITE_DETAIL_QUERY_V1",
+      "response_type": "INFRA_SITE_DETAIL_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "site_id"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/infrastructure/sites/{site_id}",
+      "handler_kind": "command",
+      "handler": "UpdateSiteDescriptive",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_UPDATE_SITE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "site_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_UPDATE_SITE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/sites/{site_id}/customer-correction",
+      "handler_kind": "command",
+      "handler": "CorrectSiteCustomerOwnership",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CORRECT_SITE_CUSTOMER_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "SITE_CUSTOMER_CORRECTION_BLOCKED",
+        "INFRA_STALE",
+        "DEPENDENCY_INDETERMINATE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "site_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CORRECT_SITE_CUSTOMER_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/sites/{site_id}/lifecycle",
+      "handler_kind": "command",
+      "handler": "ChangeSiteLifecycle",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CHANGE_SITE_LIFECYCLE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "SITE_ARCHIVE_BLOCKED",
+        "DEPENDENCY_INDETERMINATE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "site_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CHANGE_SITE_LIFECYCLE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/sites/{site_id}/archive-blockers",
+      "handler_kind": "query",
+      "handler": "SiteArchiveBlockerQuery",
+      "request_type": "INFRA_SITE_ARCHIVE_BLOCKER_QUERY_V1",
+      "response_type": "INFRA_SITE_ARCHIVE_BLOCKER_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "DEPENDENCY_INDETERMINATE"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "site_id"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/rooms",
+      "handler_kind": "command",
+      "handler": "CreateRoom",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CREATE_ROOM_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 201,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CREATE_ROOM_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/rooms/{room_id}/lifecycle",
+      "handler_kind": "command",
+      "handler": "ChangeRoomLifecycle",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CHANGE_ROOM_LIFECYCLE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "room_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CHANGE_ROOM_LIFECYCLE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/racks",
+      "handler_kind": "command",
+      "handler": "CreateRack",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CREATE_RACK_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 201,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CREATE_RACK_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/infrastructure/racks/{rack_id}",
+      "handler_kind": "command",
+      "handler": "UpdateRack",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_UPDATE_RACK_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "RACK_U_OUT_OF_RANGE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "rack_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_UPDATE_RACK_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/racks/{rack_id}/lifecycle",
+      "handler_kind": "command",
+      "handler": "ChangeRackLifecycle",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CHANGE_RACK_LIFECYCLE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "rack_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CHANGE_RACK_LIFECYCLE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/racks/{rack_id}/occupancy",
+      "handler_kind": "query",
+      "handler": "RackOccupancyQuery",
+      "request_type": "INFRA_RACK_OCCUPANCY_QUERY_V1",
+      "response_type": "INFRA_RACK_OCCUPANCY_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "rack_id"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/network-elements",
+      "handler_kind": "command",
+      "handler": "CreateNetworkElement",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CREATE_NETWORK_ELEMENT_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 201,
+      "max_request_bytes": 262144,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "PLACEMENT_CROSS_SITE",
+        "RACK_U_OUT_OF_RANGE",
+        "RACK_U_OCCUPIED",
+        "CLOUD_CROSS_SITE",
+        "IP_INVALID",
+        "IP_DUPLICATE_ON_ELEMENT",
+        "IP_PRIMARY_CONFLICT",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CREATE_NETWORK_ELEMENT_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/network-elements/candidates",
+      "handler_kind": "query",
+      "handler": "NetworkElementCandidateQuery",
+      "request_type": "INFRA_NETWORK_ELEMENT_CANDIDATE_QUERY_V1",
+      "response_type": "INFRA_NETWORK_ELEMENT_CANDIDATE_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}",
+      "handler_kind": "query",
+      "handler": "NetworkElementDetailQuery",
+      "request_type": "INFRA_NETWORK_ELEMENT_DETAIL_QUERY_V1",
+      "response_type": "INFRA_NETWORK_ELEMENT_DETAIL_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}",
+      "handler_kind": "command",
+      "handler": "UpdateNetworkElementDescriptive",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_UPDATE_NETWORK_ELEMENT_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_UPDATE_NETWORK_ELEMENT_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}/lifecycle",
+      "handler_kind": "command",
+      "handler": "ChangeNetworkElementLifecycle",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CHANGE_NETWORK_ELEMENT_LIFECYCLE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CHANGE_NETWORK_ELEMENT_LIFECYCLE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}/placement",
+      "handler_kind": "command",
+      "handler": "SetNetworkElementPlacement",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_SET_PLACEMENT_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "PLACEMENT_CROSS_SITE",
+        "RACK_U_OUT_OF_RANGE",
+        "RACK_U_OCCUPIED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_SET_PLACEMENT_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/device-references/{device_reference_id}/regularization",
+      "handler_kind": "command",
+      "handler": "RegularizeDeviceReference",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_REGULARIZE_DEVICE_REFERENCE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 262144,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "DEVICE_RESOLUTION_AMBIGUOUS",
+        "DEVICE_RESOLUTION_PROOF_REQUIRED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "device_reference_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_REGULARIZE_DEVICE_REFERENCE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/device-references/{device_reference_id}/resolution",
+      "handler_kind": "query",
+      "handler": "DeviceReferenceResolutionQuery",
+      "request_type": "INFRA_DEVICE_REFERENCE_RESOLUTION_QUERY_V1",
+      "response_type": "INFRA_DEVICE_REFERENCE_RESOLUTION_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "device_reference_id"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}/containment",
+      "handler_kind": "command",
+      "handler": "SetContainmentParent",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_SET_CONTAINMENT_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "CONTAINMENT_SELF",
+        "CONTAINMENT_CYCLE",
+        "CONTAINMENT_SECOND_PARENT",
+        "DEPENDENCY_INDETERMINATE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_SET_CONTAINMENT_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/history",
+      "handler_kind": "query",
+      "handler": "InfrastructureHistoryQuery",
+      "request_type": "INFRA_HISTORY_QUERY_V1",
+      "response_type": "INFRA_HISTORY_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/cloud-types",
+      "handler_kind": "command",
+      "handler": "CreateCloudType",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CREATE_CLOUD_TYPE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 201,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CREATE_CLOUD_TYPE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/cloud-deployments",
+      "handler_kind": "command",
+      "handler": "CreateCloudDeployment",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CREATE_CLOUD_DEPLOYMENT_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 201,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CREATE_CLOUD_DEPLOYMENT_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/cloud-deployments/{cloud_deployment_id}/lifecycle",
+      "handler_kind": "command",
+      "handler": "ChangeCloudDeploymentLifecycle",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CHANGE_CLOUD_DEPLOYMENT_LIFECYCLE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "cloud_deployment_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CHANGE_CLOUD_DEPLOYMENT_LIFECYCLE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}/cloud-assignment",
+      "handler_kind": "command",
+      "handler": "SetCloudDeploymentAssignment",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_SET_CLOUD_ASSIGNMENT_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "CLOUD_CROSS_SITE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_SET_CLOUD_ASSIGNMENT_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/models",
+      "handler_kind": "command",
+      "handler": "CreateNetworkElementModel",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CREATE_MODEL_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 201,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CREATE_MODEL_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/models/{model_id}",
+      "handler_kind": "query",
+      "handler": "ModelDetailQuery",
+      "request_type": "INFRA_MODEL_DETAIL_QUERY_V1",
+      "response_type": "INFRA_MODEL_DETAIL_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "model_id"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/infrastructure/models/{model_id}",
+      "handler_kind": "command",
+      "handler": "UpdateNetworkElementModel",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_UPDATE_MODEL_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "model_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_UPDATE_MODEL_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/models/{model_id}/lifecycle",
+      "handler_kind": "command",
+      "handler": "ChangeNetworkElementModelLifecycle",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CHANGE_MODEL_LIFECYCLE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "MODEL_ARCHIVED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "model_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CHANGE_MODEL_LIFECYCLE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}/model-assignment",
+      "handler_kind": "command",
+      "handler": "SetNetworkElementModel",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_SET_MODEL_ASSIGNMENT_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "MODEL_ARCHIVED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_SET_MODEL_ASSIGNMENT_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/models/{model_id}/bom-compatibility",
+      "handler_kind": "command",
+      "handler": "ChangeModelBomCompatibility",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CHANGE_MODEL_COMPATIBILITY_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "MODEL_ARCHIVED",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "model_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CHANGE_MODEL_COMPATIBILITY_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}/ips",
+      "handler_kind": "command",
+      "handler": "AddNetworkElementIp",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_ADD_IP_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 201,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "IP_INVALID",
+        "IP_DUPLICATE_ON_ELEMENT",
+        "IP_PRIMARY_CONFLICT",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_ADD_IP_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/ip-candidates",
+      "handler_kind": "query",
+      "handler": "IpCandidateQuery",
+      "request_type": "INFRA_IP_CANDIDATE_QUERY_V1",
+      "response_type": "INFRA_IP_CANDIDATE_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "IP_INVALID",
+        "CURSOR_INVALID"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}/ips/{ip_id}/primary",
+      "handler_kind": "command",
+      "handler": "SetPrimaryNetworkElementIp",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_SET_PRIMARY_IP_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "IP_PRIMARY_CONFLICT",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id",
+          "ip_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_SET_PRIMARY_IP_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/ips/{ip_id}/correction",
+      "handler_kind": "command",
+      "handler": "CorrectNetworkElementIp",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_CORRECT_IP_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "IP_INVALID",
+        "IP_DUPLICATE_ON_ELEMENT",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "ip_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_CORRECT_IP_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}/components",
+      "handler_kind": "command",
+      "handler": "RegisterInstalledComponent",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_REGISTER_COMPONENT_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 201,
+      "max_request_bytes": 65536,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "COMPONENT_SLOT_OCCUPIED",
+        "PHYSICAL_CONSEQUENCE_STALE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_REGISTER_COMPONENT_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/network-elements/{network_element_id}/components",
+      "handler_kind": "query",
+      "handler": "InstalledComponentQuery",
+      "request_type": "INFRA_INSTALLED_COMPONENT_QUERY_V1",
+      "response_type": "INFRA_INSTALLED_COMPONENT_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "network_element_id"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/components/{installed_component_id}/lifecycle",
+      "handler_kind": "command",
+      "handler": "RecordInstalledComponentLifecycle",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_COMPONENT_LIFECYCLE_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 65536,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "COMPONENT_SLOT_OCCUPIED",
+        "PHYSICAL_CONSEQUENCE_STALE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "installed_component_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_COMPONENT_LIFECYCLE_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/device-parts/{device_part_unit_id}/component-resolution",
+      "handler_kind": "command",
+      "handler": "ResolveDevicePartToInstalledComponent",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_RESOLVE_DEVICE_PART_COMPONENT_REQUEST_V1>",
+      "response_type": "INFRA_MUTATION_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "DEVICE_PART_COMPONENT_INVALID",
+        "DEPENDENCY_INDETERMINATE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "device_part_unit_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_RESOLVE_DEVICE_PART_COMPONENT_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/workbooks/export",
+      "handler_kind": "command",
+      "handler": "GenerateInfrastructureWorkbook",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_GENERATE_WORKBOOK_REQUEST_V1>",
+      "response_type": "INFRA_JOB_ACCEPTED_V1",
+      "success_status": 202,
+      "max_request_bytes": 65536,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "WORKBOOK_DIRECTORY_UNAVAILABLE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_GENERATE_WORKBOOK_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/workbooks/check-now",
+      "handler_kind": "command",
+      "handler": "StageInfrastructureWorkbookCheck",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_STAGE_WORKBOOK_CHECK_REQUEST_V1>",
+      "response_type": "INFRA_JOB_ACCEPTED_V1",
+      "success_status": 202,
+      "max_request_bytes": 16384,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "WORKBOOK_DIRECTORY_UNAVAILABLE",
+        "WORKBOOK_UNSUPPORTED",
+        "WORKBOOK_UNSAFE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_STAGE_WORKBOOK_CHECK_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/workbooks/runs/{run_id}",
+      "handler_kind": "query",
+      "handler": "InfrastructureWorkbookRunQuery",
+      "request_type": "INFRA_WORKBOOK_RUN_QUERY_V1",
+      "response_type": "INFRA_WORKBOOK_RUN_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "run_id"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/workbooks/proposals/{proposal_id}",
+      "handler_kind": "query",
+      "handler": "InfrastructureWorkbookProposalQuery",
+      "request_type": "INFRA_WORKBOOK_PROPOSAL_QUERY_V1",
+      "response_type": "INFRA_WORKBOOK_PROPOSAL_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "INFRA_STALE"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "proposal_id"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/workbooks/history",
+      "handler_kind": "query",
+      "handler": "InfrastructureWorkbookHistoryQuery",
+      "request_type": "INFRA_WORKBOOK_HISTORY_QUERY_V1",
+      "response_type": "INFRA_WORKBOOK_HISTORY_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [
+        "CURSOR_INVALID"
+      ],
+      "input_ownership": {
+        "path_fields": [],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/workbooks/replay/{logical_fingerprint}",
+      "handler_kind": "query",
+      "handler": "InfrastructureWorkbookReplayQuery",
+      "request_type": "INFRA_WORKBOOK_REPLAY_QUERY_V1",
+      "response_type": "INFRA_WORKBOOK_REPLAY_RESPONSE_V1",
+      "success_status": 200,
+      "max_request_bytes": 8192,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_V1",
+      "error_codes": [],
+      "input_ownership": {
+        "path_fields": [
+          "logical_fingerprint"
+        ],
+        "query_fields": "all non-path fields declared by query input DTO",
+        "body": "none",
+        "headers": "LLD-12 authenticated-session context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/workbooks/runs/{run_id}/accept",
+      "handler_kind": "command",
+      "handler": "AcceptInfrastructureWorkbookRun",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_ACCEPT_WORKBOOK_RUN_REQUEST_V1>",
+      "response_type": "INFRA_WORKBOOK_ACCEPT_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 16777216,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "WORKBOOK_STALE",
+        "WORKBOOK_AMBIGUOUS_IDENTITY",
+        "WORKBOOK_FOREIGN_IDENTITY",
+        "WORKBOOK_RELATION_INVALID",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "run_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_ACCEPT_WORKBOOK_RUN_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/workbooks/runs/{run_id}/reject",
+      "handler_kind": "command",
+      "handler": "RejectInfrastructureWorkbookRun",
+      "request_type": "COMMAND_ENVELOPE_V1<INFRA_REJECT_WORKBOOK_RUN_REQUEST_V1>",
+      "response_type": "INFRA_WORKBOOK_RUN_RESULT_V1",
+      "success_status": 200,
+      "max_request_bytes": 32768,
+      "auth_policy": "LOCAL_ADMIN_AUTHENTICATED_CSRF_V1",
+      "error_codes": [
+        "WORKBOOK_STALE",
+        "INFRA_STALE",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "input_ownership": {
+        "path_fields": [
+          "run_id"
+        ],
+        "query_fields": [],
+        "body": "COMMAND_ENVELOPE_V1 carrying INFRA_REJECT_WORKBOOK_RUN_REQUEST_V1 fields except path-owned identities; adapter injects path fields and rejects conflicting duplicate body identities",
+        "headers": "LLD-12 authenticated-session and anti-forgery context only"
+      }
+    }
+  ],
+  "queries": [
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "DeviceReferenceResolutionQuery",
+      "input_type": "INFRA_DEVICE_REFERENCE_RESOLUTION_QUERY_V1",
+      "response_type": "INFRA_DEVICE_REFERENCE_RESOLUTION_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "single current identity; history count only",
+      "pagination": "none",
+      "required_indexes": [
+        "device_reference_resolution_current PRIMARY KEY",
+        "device_reference_resolution_events(device_reference_id,recorded_at_utc,resolution_event_id)"
+      ],
+      "errors": [
+        "INFRA_NOT_FOUND"
+      ],
+      "acceptance_test_ids": [
+        "A022",
+        "A023",
+        "A025",
+        "A027"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "InfrastructureExplorerQuery",
+      "input_type": "INFRA_EXPLORER_QUERY_V1",
+      "response_type": "INFRA_EXPLORER_RESPONSE_V1",
+      "read_consistency": "LLD-01 stable ReadSnapshot",
+      "ordering": "customer_org_id ASC NULLS_LAST, site_id ASC NULLS_LAST, node_kind_registry_order ASC, node_id ASC",
+      "pagination": {
+        "contract": "CURSOR_V1",
+        "last_key_tuple": [
+          "customer_org_id|null",
+          "site_id|null",
+          "node_kind_order:int",
+          "node_id:uuid"
+        ],
+        "null_order": "NULLS_LAST",
+        "default_limit": 100,
+        "max_limit": 500
+      },
+      "required_indexes": [
+        "sites(customer_org_id,lifecycle_state,site_id)",
+        "rooms(site_id,lifecycle_state,room_id)",
+        "racks(room_id,lifecycle_state,rack_id)",
+        "network_elements(site_id,lifecycle_state,network_element_id)",
+        "cloud_deployments(site_id,lifecycle_state,cloud_deployment_id)",
+        "network_element_containment_current(parent_network_element_id,child_network_element_id)"
+      ],
+      "errors": [
+        "CURSOR_INVALID",
+        "INFRA_STALE"
+      ],
+      "acceptance_test_ids": [
+        "A073",
+        "A075"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "InfrastructureHistoryQuery",
+      "input_type": "INFRA_HISTORY_QUERY_V1",
+      "response_type": "INFRA_HISTORY_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "recorded_at_utc DESC, event_id DESC",
+      "pagination": {
+        "contract": "CURSOR_V1",
+        "last_key_tuple": [
+          "recorded_at_utc:int",
+          "event_id:uuid"
+        ],
+        "null_order": "NOT_APPLICABLE",
+        "default_limit": 100,
+        "max_limit": 500
+      },
+      "required_indexes": [
+        "all LLD-08 event tables indexed by target,recorded_at_utc,event_id as declared in schema files"
+      ],
+      "errors": [
+        "CURSOR_INVALID",
+        "INFRA_NOT_FOUND"
+      ],
+      "acceptance_test_ids": [
+        "A027",
+        "A032",
+        "A052",
+        "A075"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "InstalledComponentQuery",
+      "input_type": "INFRA_INSTALLED_COMPONENT_QUERY_V1",
+      "response_type": "INFRA_INSTALLED_COMPONENT_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "slot_match_key ASC NULLS_LAST, installed_component_id ASC",
+      "pagination": {
+        "contract": "CURSOR_V1",
+        "last_key_tuple": [
+          "slot_match_key:string|null",
+          "installed_component_id:uuid"
+        ],
+        "null_order": "NULLS_LAST",
+        "default_limit": 100,
+        "max_limit": 500
+      },
+      "required_indexes": [
+        "installed_component_current(network_element_id,bom_key,serial_match_key,installed_component_id)",
+        "installed_component_current(network_element_id,slot_match_key) partial unique",
+        "device_part_component_resolution_current(installed_component_id)"
+      ],
+      "errors": [
+        "CURSOR_INVALID",
+        "INFRA_NOT_FOUND"
+      ],
+      "acceptance_test_ids": [
+        "A048",
+        "A049",
+        "A052",
+        "A053"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "IpCandidateQuery",
+      "input_type": "INFRA_IP_CANDIDATE_QUERY_V1",
+      "response_type": "INFRA_IP_CANDIDATE_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "network_element_id ASC, network_element_ip_id ASC",
+      "pagination": {
+        "contract": "CURSOR_V1",
+        "last_key_tuple": [
+          "network_element_id:uuid",
+          "network_element_ip_id:uuid"
+        ],
+        "null_order": "NOT_APPLICABLE",
+        "default_limit": 100,
+        "max_limit": 500
+      },
+      "required_indexes": [
+        "network_element_ip_current(canonical_address,network_element_id) WHERE active=1"
+      ],
+      "errors": [
+        "CURSOR_INVALID",
+        "IP_INVALID"
+      ],
+      "acceptance_test_ids": [
+        "A042",
+        "A043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "ModelDetailQuery",
+      "input_type": "INFRA_MODEL_DETAIL_QUERY_V1",
+      "response_type": "INFRA_MODEL_DETAIL_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "single identity",
+      "pagination": "none; child sets counts only",
+      "required_indexes": [
+        "network_element_models PRIMARY KEY",
+        "model_bom_compatibility_current(network_element_model_id,bom_key,compatibility_relation_id)",
+        "network_element_model_current(network_element_model_id,network_element_id)"
+      ],
+      "errors": [
+        "INFRA_NOT_FOUND"
+      ],
+      "acceptance_test_ids": [
+        "A046",
+        "A047"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "NetworkElementCandidateQuery",
+      "input_type": "INFRA_NETWORK_ELEMENT_CANDIDATE_QUERY_V1",
+      "response_type": "INFRA_NETWORK_ELEMENT_CANDIDATE_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "evidence_rank DESC, network_element_id ASC",
+      "pagination": {
+        "contract": "CURSOR_V1",
+        "last_key_tuple": [
+          "evidence_rank:int",
+          "network_element_id:uuid"
+        ],
+        "null_order": "NOT_APPLICABLE",
+        "default_limit": 100,
+        "max_limit": 500
+      },
+      "required_indexes": [
+        "network_elements(name_match_key,network_element_id)",
+        "network_elements(serial_match_key,network_element_id)",
+        "network_element_ip_current(canonical_address,network_element_id)",
+        "network_element_model_current(network_element_model_id,network_element_id)"
+      ],
+      "errors": [
+        "CURSOR_INVALID",
+        "IP_INVALID"
+      ],
+      "acceptance_test_ids": [
+        "A016",
+        "A026",
+        "A043"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "NetworkElementDetailQuery",
+      "input_type": "INFRA_NETWORK_ELEMENT_DETAIL_QUERY_V1",
+      "response_type": "INFRA_NETWORK_ELEMENT_DETAIL_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "single identity",
+      "pagination": "none; child collections returned as counts/links only",
+      "required_indexes": [
+        "network_elements PRIMARY KEY",
+        "network_element_placement_current PRIMARY KEY",
+        "network_element_model_current PRIMARY KEY",
+        "cloud_assignment_current PRIMARY KEY",
+        "network_element_ip_current(network_element_id,canonical_address)",
+        "network_element_containment_current PRIMARY KEY",
+        "device_reference_resolution_current(network_element_id,device_reference_id)",
+        "installed_components(network_element_id,installed_component_id)"
+      ],
+      "errors": [
+        "INFRA_NOT_FOUND"
+      ],
+      "acceptance_test_ids": [
+        "A015",
+        "A021",
+        "A074"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "RackOccupancyQuery",
+      "input_type": "INFRA_RACK_OCCUPANCY_QUERY_V1",
+      "response_type": "INFRA_RACK_OCCUPANCY_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "u_start ASC, network_element_id ASC",
+      "pagination": "none; hard bounded by Rack height/current occupants <=4096",
+      "required_indexes": [
+        "network_element_placement_current(rack_id,u_start,network_element_id)"
+      ],
+      "errors": [
+        "INFRA_NOT_FOUND",
+        "RACK_U_OUT_OF_RANGE"
+      ],
+      "acceptance_test_ids": [
+        "A017",
+        "A018",
+        "A019"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "SiteArchiveBlockerQuery",
+      "input_type": "INFRA_SITE_ARCHIVE_BLOCKER_QUERY_V1",
+      "response_type": "INFRA_SITE_ARCHIVE_BLOCKER_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot across ordered registered validators",
+      "ordering": "provider_order ASC, blocker_kind ASC, blocker_id ASC",
+      "pagination": {
+        "contract": "CURSOR_V1",
+        "last_key_tuple": [
+          "provider_order:int",
+          "blocker_kind:string",
+          "blocker_id:string"
+        ],
+        "null_order": "NOT_APPLICABLE",
+        "default_limit": 100,
+        "max_limit": 500
+      },
+      "required_indexes": [
+        "owner-specific indexes declared by each SiteOperationalDependencyValidator; LLD-08 physical indexes sites/rooms/racks/network_elements/cloud_deployments"
+      ],
+      "errors": [
+        "CURSOR_INVALID",
+        "DEPENDENCY_INDETERMINATE"
+      ],
+      "acceptance_test_ids": [
+        "A007",
+        "A008",
+        "F048"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "SiteDetailQuery",
+      "input_type": "INFRA_SITE_DETAIL_QUERY_V1",
+      "response_type": "INFRA_SITE_DETAIL_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "single identity",
+      "pagination": "none; child/detail sets represented by counts and dedicated queries",
+      "required_indexes": [
+        "sites PRIMARY KEY",
+        "site_dispatch_locations PRIMARY KEY/UNIQUE",
+        "rooms(site_id,lifecycle_state,room_id)",
+        "network_elements(site_id,lifecycle_state,network_element_id)",
+        "cloud_deployments(site_id,lifecycle_state,cloud_deployment_id)",
+        "sites(address_match_key,site_id)"
+      ],
+      "errors": [
+        "INFRA_NOT_FOUND"
+      ],
+      "acceptance_test_ids": [
+        "A001",
+        "A003",
+        "A007"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "InfrastructureWorkbookHistoryQuery",
+      "input_type": "INFRA_WORKBOOK_HISTORY_QUERY_V1",
+      "response_type": "INFRA_WORKBOOK_HISTORY_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "timestamp_utc DESC, kind ASC, id DESC",
+      "pagination": {
+        "contract": "CURSOR_V1",
+        "last_key_tuple": [
+          "timestamp_utc:int",
+          "kind:string",
+          "id:uuid"
+        ],
+        "null_order": "NOT_APPLICABLE",
+        "default_limit": 100,
+        "max_limit": 500
+      },
+      "required_indexes": [
+        "infrastructure_workbook_runs(state,captured_at_utc,workbook_run_id)",
+        "infrastructure_workbook_exports(generated_at_utc,export_id)"
+      ],
+      "errors": [
+        "CURSOR_INVALID"
+      ],
+      "acceptance_test_ids": [
+        "A055",
+        "A068",
+        "A071",
+        "A072"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "InfrastructureWorkbookProposalQuery",
+      "input_type": "INFRA_WORKBOOK_PROPOSAL_QUERY_V1",
+      "response_type": "INFRA_WORKBOOK_PROPOSAL_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "single proposal; candidate_ids ASC",
+      "pagination": "candidate ids max500 in response; larger ambiguity uses NetworkElementCandidateQuery",
+      "required_indexes": [
+        "infrastructure_workbook_proposals PRIMARY KEY",
+        "infrastructure_workbook_staging_rows PRIMARY KEY"
+      ],
+      "errors": [
+        "INFRA_NOT_FOUND"
+      ],
+      "acceptance_test_ids": [
+        "A060",
+        "A062",
+        "A063",
+        "A064",
+        "A065"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "InfrastructureWorkbookReplayQuery",
+      "input_type": "INFRA_WORKBOOK_REPLAY_QUERY_V1",
+      "response_type": "INFRA_WORKBOOK_REPLAY_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "single fingerprint identity",
+      "pagination": "none",
+      "required_indexes": [
+        "infrastructure_workbook_replay_index PRIMARY KEY"
+      ],
+      "errors": [],
+      "acceptance_test_ids": [
+        "A068",
+        "A069",
+        "A070"
+      ]
+    },
+    {
+      "schema": "SOMA-LLD-QUERY-LEAF-V2",
+      "lld_id": "LLD-08",
+      "name": "InfrastructureWorkbookRunQuery",
+      "input_type": "INFRA_WORKBOOK_RUN_QUERY_V1",
+      "response_type": "INFRA_WORKBOOK_RUN_RESPONSE_V1",
+      "read_consistency": "stable ReadSnapshot",
+      "ordering": "proposal_group_registry_order ASC, sheet_kind ASC, row_ordinal ASC, proposal_id ASC",
+      "pagination": {
+        "contract": "CURSOR_V1",
+        "last_key_tuple": [
+          "proposal_group_order:int",
+          "sheet_kind:string",
+          "row_ordinal:int",
+          "proposal_id:uuid"
+        ],
+        "null_order": "NOT_APPLICABLE",
+        "default_limit": 100,
+        "max_limit": 500
+      },
+      "required_indexes": [
+        "infrastructure_workbook_runs PRIMARY KEY",
+        "infrastructure_workbook_proposals(workbook_run_id,state,proposal_id)",
+        "infrastructure_workbook_staging_rows(workbook_run_id,sheet_kind,row_ordinal) UNIQUE"
+      ],
+      "errors": [
+        "CURSOR_INVALID",
+        "INFRA_NOT_FOUND"
+      ],
+      "acceptance_test_ids": [
+        "A058",
+        "A059",
+        "A062",
+        "A071"
+      ]
+    }
+  ],
+  "workbook_profile": {
+    "schema": "SOMA-LLD-ALGORITHM-V1",
+    "lld_id": "LLD-08",
+    "name": "INFRASTRUCTURE_WORKBOOK_PROFILE_V1",
+    "format_id": "SOMA-INFRA-XLSX",
+    "version": "1.0",
+    "installation_scope_rule": "SourceInstallationScopeId is exactly the opaque non-secret LLD-01 DataInstanceIdentityReader data_instance_id. Restoring that canonical data instance preserves same-installation scope; a genuinely new empty data instance receives a different scope. LLD-08 stores no competing installation identity.",
+    "sheets": [
+      {
+        "name": "Metadata",
+        "headers": [
+          "Key",
+          "Value"
+        ],
+        "required_keys": [
+          "FormatId",
+          "WorkbookVersion",
+          "Mode",
+          "SourceInstallationScopeId",
+          "GeneratedAtUtc",
+          "ExportScopeJson"
+        ],
+        "rules": [
+          "one row per key",
+          "unknown required-format key does not change semantics; unsupported version blocks import",
+          "Mode is registration_template|discovery|round_trip"
+        ]
+      },
+      {
+        "name": "Network Elements",
+        "headers": [
+          "SomaNetworkElementId",
+          "OperationalName",
+          "ManufacturerSerial",
+          "SomaModelId",
+          "ModelName",
+          "SomaSiteId",
+          "SiteName",
+          "SiteAddress",
+          "SomaRoomId",
+          "RoomName",
+          "SomaRackId",
+          "RackName",
+          "RackHeightU",
+          "RackRow",
+          "RackColumn",
+          "RackUStart",
+          "RackUSpan",
+          "SomaCloudDeploymentId",
+          "CloudTypeName",
+          "CloudDeploymentName",
+          "SomaParentNetworkElementId",
+          "ImportComment"
+        ],
+        "identity": "Soma* ids are authoritative targets only when SourceInstallationScopeId equals the current Foundation data_instance_id; on foreign scope they are provenance/candidate evidence only",
+        "required_for_new": [
+          "OperationalName",
+          "SiteName",
+          "SiteAddress"
+        ],
+        "blank_rule": "blank optional existing-target cells preserve prior accepted value/relationship; explicit clearing requires a separately represented reviewed operation and is not encoded by blank"
+      },
+      {
+        "name": "IP Addresses",
+        "headers": [
+          "SomaIpId",
+          "SomaNetworkElementId",
+          "OperationalName",
+          "Address",
+          "Primary"
+        ],
+        "required": [
+          "Address",
+          "one resolvable Network Element target"
+        ],
+        "rules": [
+          "same-installation SomaIpId may target existing IP relation",
+          "Primary accepts explicit TRUE/FALSE only; blank preserves existing primary state for existing relation and means non-primary proposal for new relation",
+          "missing IP rows never remove existing IPs"
+        ]
+      }
+    ],
+    "generation": [
+      "registration_template writes Metadata plus header-only Network Elements/IP Addresses sheets with blank same-installation ids",
+      "discovery writes human-readable current rows and same-installation ids for deterministic provenance but is observational",
+      "round_trip writes same current data and stable same-installation IDs intended for reviewed updates",
+      "no formulas/macros/external links/hidden authoritative sheets/credentials/topology fields",
+      "workbook generation never mutates domain state"
+    ],
+    "preflight": [
+      "file must pass LLD-08 resource bounds and shared hardened ZIP/path/active-content checks before openpyxl",
+      "reject VBA/macro content, formulas in authoritative cells, external links, embedded executable/OLE objects, malformed duplicate metadata keys, unsupported required sheets/headers and forbidden secret/topology headers",
+      "source file opened read-only and never rewritten"
+    ],
+    "row_normalization": [
+      "strings pass bound + Unicode normalization appropriate to field",
+      "IP uses IP_NORMALIZATION_V1",
+      "numeric Rack values require exact integers, never spreadsheet float rounding",
+      "same-installation local IDs require canonical UUIDv4 syntax when nonblank",
+      "foreign local IDs retained only in normalized staging provenance",
+      "each normalized row receives SHA-256 row_fingerprint over versioned canonical JSON"
+    ],
+    "logical_fingerprint": [
+      "canonical Metadata semantic fields excluding GeneratedAtUtc are encoded with profile/version",
+      "normalized Network Elements rows are sorted by same-installation local id when authoritative, else stable row fingerprint with duplicate occurrence ordinal",
+      "normalized IP rows likewise sorted; duplicate rows remain multiplicity-significant",
+      "SHA-256 over canonical UTF-8 JSON stream yields logical_fingerprint",
+      "workbook row order changes alone do not create a different logical content identity"
+    ],
+    "staging_and_review": [
+      "parsing writes only unpublished technical run/staging rows",
+      "same-installation exact local ID may propose update to exactly that entity after current-state checks",
+      "foreign/local-missing identity uses candidate search and can only propose reviewed create/link; descriptive fields never prove target",
+      "related Site/Room/Rack/Model/Cloud references use same-installation IDs when valid, otherwise explicit candidate/creation review",
+      "Network Element row proposal and its IP rows are grouped by target key for impact display",
+      "review partitions creations, updates, unchanged, ambiguity, duplicate candidates, unknown references, invalid relationships, skips and warnings",
+      "missing rows and blank optional cells are nondestructive"
+    ],
+    "acceptance": [
+      "accepted run revalidates every target/current relation using the same manual Infrastructure services inside one UnitOfWork",
+      "cross-Site Rack/Cloud, U occupancy, multiple-primary, containment cycle, archived target, foreign identity overwrite and secret/topology fields fail before mutation",
+      "reviewed batch is atomic; one invalid/stale intended accepted target aborts whole acceptance",
+      "after success record bounded row decisions/replay index and allow technical staging minimization"
+    ]
+  },
+  "workbook_jobs": {
+    "schema": "SOMA-LLD-JOB-REGISTRY-V2",
+    "lld_id": "LLD-08",
+    "jobs": [
+      {
+        "job_type": "INFRA_WORKBOOK_EXPORT_V1",
+        "contract_version": 1,
+        "payload_schema": "INFRA_WORKBOOK_EXPORT_JOB_PAYLOAD_V1",
+        "payload": {
+          "required": [
+            "export_request_id",
+            "mode",
+            "scope",
+            "destination_directory",
+            "data_instance_id"
+          ]
+        },
+        "checkpoint_schema": "INFRA_WORKBOOK_EXPORT_CHECKPOINT_V1",
+        "checkpoint": {
+          "fields": [
+            "phase:queued|writing|verifying|verified|published|evidence_recorded",
+            "export_id:uuid|null",
+            "temp_filename|null",
+            "verified_sha256|null",
+            "verified_size_bytes:int>0|null",
+            "final_filename|null"
+          ],
+          "rules": [
+            "allocate export_id and commit it to the durable checkpoint before creating any temp artifact; the export_id is then immutable for this job and supplies the artifact filename suffix identity",
+            "temp_filename/final_filename are bounded filename-only sibling identities resolved only beneath the validated destination_directory; no checkpoint field grants arbitrary filesystem path authority",
+            "verified_sha256 and verified_size_bytes are populated only after the closed temp workbook is reopened and passes SOMA_INFRASTRUCTURE_WORKBOOK_V1 profile/row-count/active-content verification"
+          ]
+        },
+        "retry_policy": {
+          "transient_io_attempts": 3,
+          "backoff_seconds": [
+            5,
+            30,
+            120
+          ],
+          "nonretryable": [
+            "invalid_destination",
+            "artifact_contract_failure",
+            "unsafe_path",
+            "published_artifact_identity_mismatch"
+          ]
+        },
+        "crash_recovery_policy": {
+          "pre_publication": "For queued/writing/verifying/verified interruption, trust only committed checkpoint identity. Delete an unpublished temp file only after proving it is the exact bounded sibling temp_filename owned by this job/export_id under the still-valid destination. A verified temp may be reused only after reopen plus exact hash/size/profile verification; otherwise discard that owned temp and regenerate from a fresh stable Infrastructure read snapshot. Never resume openpyxl or an in-memory row cursor.",
+          "published_before_evidence": "If phase=published but infrastructure_workbook_exports evidence is absent, never rewrite or republish the artifact. Reopen only the exact checkpoint final_filename beneath the validated destination and require its SHA-256 and byte size to equal verified_sha256/verified_size_bytes. If exact, idempotently record the single infrastructure_workbook_exports row keyed by export_id and advance to evidence_recorded; if missing or mismatched, fail closed with bounded diagnostic state and never fabricate export evidence or delete/overwrite the final file.",
+          "evidence_recorded": "If export evidence already exists for export_id, require its mode/scope/installation identity/final filename/hash/size to match the checkpoint/job payload exactly and finish idempotently without filesystem rewrite or second evidence insertion.",
+          "rules": [
+            "published final files are operator-managed external artifacts and are never recovery cleanup targets",
+            "restart may observe newer live Infrastructure only when no artifact has been published; each regeneration uses one fresh stable read snapshot and the eventual export evidence describes only the successfully published bytes",
+            "unknown/malformed checkpoint phase or impossible phase-field combination fails closed rather than guessing progress"
+          ]
+        },
+        "cancellation_policy": {
+          "queued_or_prepublication": "Cancellation is cooperative at safe boundaries before atomic publication. Close any active writer, then delete only an exact job-owned unpublished temp artifact after ownership validation; commit cancelled job state without export evidence.",
+          "publication_boundary": "Once atomic publication begins, cancellation cannot interleave with rename/replace. The handler completes the bounded publication critical section before re-reading cancellation state.",
+          "postpublication": "After exact final publication, cancellation no longer deletes or retracts the final workbook. The job must reconcile the already-published artifact to one infrastructure_workbook_exports evidence row, then terminate normally; a later operator file move/delete remains external artifact management rather than domain rollback."
+        },
+        "sensitive_field_policy": "no secrets/workbook cell bodies; destination_directory is local-path-sensitive technical job data only and is sanitized from audit/diagnostics; checkpoint stores filename-only temp/final identities rather than duplicate full paths",
+        "coalescing": "none; each explicit export request is independent"
+      },
+      {
+        "job_type": "INFRA_WORKBOOK_STAGE_V1",
+        "contract_version": 1,
+        "payload_schema": "INFRA_WORKBOOK_STAGE_JOB_PAYLOAD_V1",
+        "payload": {
+          "required": [
+            "run_request_id",
+            "import_directory",
+            "setting_revision",
+            "data_instance_id"
+          ]
+        },
+        "checkpoint_schema": "INFRA_WORKBOOK_STAGE_CHECKPOINT_V1",
+        "checkpoint": {
+          "fields": [
+            "phase:discovering|parsing|staging|publishing|waiting_review|completed",
+            "candidate_manifest_sha256:sha256|null",
+            "candidate_count:int>=0|null",
+            "candidate_index:int>=0",
+            "current_filename:filename|null",
+            "current_file_size_bytes:int>=0|null",
+            "current_file_mtime_ns:int>=0|null",
+            "current_file_sha256:sha256|null",
+            "current_workbook_run_id:uuid|null",
+            "last_committed_network_element_row:int>=1|null",
+            "last_committed_ip_row:int>=1|null",
+            "published_run_ids<=512"
+          ],
+          "rules": [
+            "after deterministic nonrecursive discovery, commit candidate_manifest_sha256 over the ordered bounded candidate filename + stabilized size + stabilized mtime identity set before parsing the first candidate; candidate_index is meaningful only while that manifest fingerprint remains exact",
+            "before semantic parsing, stabilize the exact current_filename, hash it while checking size/mtime remain unchanged, then commit filename/size/mtime/SHA-256 to the checkpoint; a changed source identity is never spliced into existing staging",
+            "current_workbook_run_id and per-sheet last-committed row ordinals are durable restart cursors only for non-authoritative validating staging; recovery reopens from the beginning and verifies existing row fingerprints through the cursor rather than resuming an in-memory openpyxl iterator",
+            "published_run_ids is a bounded recovery cache, not replay authority; persisted workbook-run file/logical identities remain authoritative for idempotently skipping already-published review runs"
+          ]
+        },
+        "retry_policy": {
+          "transient_io_attempts": 3,
+          "backoff_seconds": [
+            5,
+            30,
+            120
+          ],
+          "nonretryable": [
+            "unsafe_workbook",
+            "unsupported_profile",
+            "resource_limit",
+            "invalid_import_directory",
+            "setting_revision_stale"
+          ]
+        },
+        "crash_recovery_policy": {
+          "revalidate_context": "Before resuming any interrupted job, require the same Foundation data_instance_id and re-read the LLD-02 Infrastructure Import Directory setting. The current setting revision and normalized directory must still equal payload setting_revision/import_directory; otherwise terminate the stale job without scanning another path.",
+          "discovering": "Never trust candidate_index without its manifest identity. Re-enumerate only the exact configured nonrecursive directory, stabilize candidate metadata and recompute candidate_manifest_sha256. If it differs from the checkpoint, reset discovery/current-candidate cursors and start a new deterministic scan generation; already-published runs are skipped through persisted replay identities rather than index position.",
+          "parsing_or_staging": "Never resume an in-memory ZIP/openpyxl/parser position. Revalidate the exact current filename beneath the configured directory, require stabilized size/mtime and SHA-256 to equal the committed checkpoint, rerun hardened workbook preflight, reopen streaming from the beginning and verify every already-committed staging row fingerprint through the per-sheet row cursor before continuing. Any source/cursor/staging mismatch fails the unpublished validating run, cleans only that run's technical staging/proposals in a bounded UnitOfWork and restarts the candidate from a fresh validating run; it never merges two source generations.",
+          "publishing": "Publishing one candidate is one bounded transaction that revalidates complete staging counts/fingerprint/proposal set and changes the run from validating to staged/reviewable with published_at_utc. A crash before commit leaves no reviewable partial run; a crash after commit is detected by exact persisted run identity and is skipped idempotently without duplicate proposals or a second review publication.",
+          "waiting_review_or_completed": "Once all intended candidates have either bounded failure evidence or exact persisted staged/reviewable run publication, recovery never reparses those published runs. waiting_review/completed may only reconcile technical job/checkpoint state against the persisted run identities.",
+          "rules": [
+            "source workbooks are always external read-only inputs and are never renamed, rewritten or deleted by recovery",
+            "no recovery path invokes Infrastructure domain mutation services; staged runs/proposals remain non-authoritative until explicit reviewed acceptance",
+            "unknown/malformed checkpoint phase, impossible cursor combination or persisted run identity mismatch fails closed instead of guessing progress"
+          ]
+        },
+        "cancellation_policy": {
+          "discovery_boundary": "Cancellation during discovery stops before opening the next candidate and commits the durable job cancelled with no source-file mutation.",
+          "parsing_or_staging": "Cancellation is cooperative between bounded staging checkpoints. Close readers, mark any current unpublished validating run failed with a bounded cancellation reason and remove only its technical staging/proposals when safe; never publish that incomplete candidate as reviewable.",
+          "publication_boundary": "Cancellation cannot interleave with the short validating-to-staged publication transaction. After that transaction resolves, re-read cancellation state: if publication committed, preserve the complete staged/reviewable run and stop before the next candidate; if it rolled back, treat the candidate as unpublished and apply normal cancellation cleanup.",
+          "postpublication": "Cancellation never retracts, rejects or deletes already-published staged/reviewed runs and never changes accepted Infrastructure state. Those runs remain available for explicit operator review/reject/accept independently of the cancelled discovery job."
+        },
+        "sensitive_field_policy": "no secrets/full workbook XML/unbounded cell bodies; import_directory is local-path-sensitive technical job data and is sanitized from audit/diagnostics; checkpoint stores bounded filename and digests/row ordinals rather than workbook rows",
+        "coalescing": "at most one active Check-now job for the same setting_revision; a duplicate command reuses prior job through COMMAND_ENVELOPE_V1"
+      }
+    ],
+    "writer_lock_rule": "No job holds SQLite writer transaction while enumerating directories, parsing XLSX, hashing, writing or verifying artifact files."
+  }
+}

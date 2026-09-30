@@ -9,8 +9,8 @@
     "conclusion": "success"
   },
   "implementation_parent_sha": "dd043b904931fa82f2e1db57992741bb55d3f4bf",
-  "certified": false,
-  "certification_rule": "No case is promoted to packet certification from marker/file presence alone. Final certification requires the reconciled implementation head to pass the supported matrix and all pre-LLD-08-owned clauses to be proven; later-packet clauses stay explicitly deferred to their owners.",
+  "certified": true,
+  "certification_rule": "All LLD-03-owned and pre-LLD-08 cross-packet obligations are semantically bound and supported by the final pre-LLD-08 closure matrix CI #946. Clauses owned by LLD-08/09/10/12 remain explicitly partial or deferred and are not claimed complete for those future owners.",
   "method": [
     "All 75 normative LLD-03 acceptance/failure cases are enumerated directly from the accepted design at c9b43e24.",
     "Each case binds the exact normative claim to production owner modules and executable implementation tests after semantic inspection.",
@@ -21,8 +21,8 @@
     "total_cases": 75,
     "unique_case_ids": 75,
     "status_counts": {
-      "reviewed_pending_reconciled_ci": 55,
-      "partial_cross_packet": 19,
+      "reviewed_certified_supported_ci_946": 58,
+      "partial_cross_packet": 16,
       "deferred_lld08": 1
     }
   },
@@ -48,8 +48,8 @@
       "observed_assertions": "Adoption preserves internal/local identity and history while attaching the reviewed official identity.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T002",
@@ -75,8 +75,8 @@
       "observed_assertions": "Allocator/replay/exhaustion and rollback semantics are asserted at the owner boundary.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T003",
@@ -101,8 +101,8 @@
       "observed_assertions": "Exact whole-value SR uniqueness/validation is asserted.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T004",
@@ -128,8 +128,8 @@
       "observed_assertions": "Exact RFC identity and branch-artifact separation are asserted.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T005",
@@ -155,8 +155,8 @@
       "observed_assertions": "RFC roles are derived from active hierarchy state and recomputed after mutation.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T006",
@@ -183,8 +183,8 @@
       "observed_assertions": "Two-level forest constraints are enforced at application/schema boundaries.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T007",
@@ -214,8 +214,8 @@
       "observed_assertions": "Large branches are bounded/paged without a business child cap and replay exact committed results.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T008",
@@ -245,7 +245,7 @@
         "LLD-08"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-T009",
@@ -275,8 +275,8 @@
       "observed_assertions": "Reparent preserves edge history and binds review freshness to LLD-05 history authority.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T010",
@@ -299,8 +299,8 @@
       "observed_assertions": "Only governing roots receive direct SR links; subordinate-origin provenance survives.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T011",
@@ -330,7 +330,7 @@
         "LLD-09"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-T012",
@@ -353,8 +353,8 @@
       "observed_assertions": "Duplicate link/absent unlink and lost-response replay are exact.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T013",
@@ -377,8 +377,8 @@
       "observed_assertions": "Inherited SR context is derived through root without fabricating subordinate links.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T014",
@@ -409,7 +409,7 @@
         "LLD-10"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-T015",
@@ -438,7 +438,7 @@
         "LLD-08"
       ],
       "status": "deferred_lld08",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-T016",
@@ -461,8 +461,8 @@
       "observed_assertions": "Equal names remain distinct identities and never authorize merge.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T017",
@@ -491,7 +491,7 @@
         "LLD-09"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-T018",
@@ -518,8 +518,8 @@
       "observed_assertions": "Working-note creator/edit/removal provenance is immutable/history-preserving.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T019",
@@ -548,8 +548,8 @@
       "observed_assertions": "Writer revalidates review authority in-UoW and stale/indeterminate/failure paths are non-authorizing.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T020",
@@ -577,8 +577,8 @@
       "observed_assertions": "STRICT/guard/FK-index release-schema invariants are verified.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T021",
@@ -612,8 +612,8 @@
       "observed_assertions": "Projection structural guards and exact field-set freshness are asserted.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T037",
@@ -649,8 +649,8 @@
       "observed_assertions": "Reviewed disappearance/reappearance is append-only, freshness-bound and replay-safe with migration-7 prefix protection.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T022",
@@ -677,8 +677,8 @@
       "observed_assertions": "Enhanced RFC source authority remains current over provisional WFM evidence.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T023",
@@ -705,8 +705,8 @@
       "observed_assertions": "Terminal projection and pending cascade capture are atomic.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T024",
@@ -732,8 +732,8 @@
       "observed_assertions": "Captured scope is deterministic and separates root branch from subordinate-only scope.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T025",
@@ -763,8 +763,8 @@
       "observed_assertions": "Immutable capture is distinct from live state; drift stales and explicit refresh replaces.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T026",
@@ -809,7 +809,7 @@
         "LLD-12"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-T027",
@@ -835,8 +835,8 @@
       "observed_assertions": "Reviewed reversal clears terminal authority and supersedes only pending proposal history.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T028",
@@ -861,8 +861,8 @@
       "observed_assertions": "Archive operation membership records only actual changes; all-prearchived is NO_CHANGE.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T029",
@@ -886,8 +886,8 @@
       "observed_assertions": "Operation-scoped restore cannot overwrite later independent archive provenance.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T030",
@@ -924,7 +924,7 @@
         "LLD-12"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-T031",
@@ -948,8 +948,8 @@
       "observed_assertions": "Terminal repeat/correction preserves one epoch and one pending consequence proposal.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T032",
@@ -975,8 +975,8 @@
       "observed_assertions": "Implement eligibility is source classification only; Enhanced RFC authority dominates provisional WFM.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T033",
@@ -1010,7 +1010,7 @@
         "LLD-09"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-T034",
@@ -1037,8 +1037,8 @@
       "observed_assertions": "Refresh supersedes old proposal on material same-epoch correction and preserves exact NO_CHANGE replay.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T035",
@@ -1068,8 +1068,8 @@
       "observed_assertions": "Archive fingerprint/audit remain bounded at high cardinality.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-T036",
@@ -1104,8 +1104,8 @@
       "observed_assertions": "Restore mutates complete eligible set but returns bounded projection pages bound to exact resulting authority.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC001",
@@ -1126,8 +1126,8 @@
       "observed_assertions": "Canonical SR Customer relationship is identity-based and history-preserving.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC002",
@@ -1151,8 +1151,8 @@
       "cross_packet_responsibility": [
         "LLD-06"
       ],
-      "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC003",
@@ -1176,8 +1176,8 @@
       "cross_packet_responsibility": [
         "LLD-06"
       ],
-      "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC004",
@@ -1199,8 +1199,8 @@
       "observed_assertions": "Source facts can advance without inventing canonical Customer authority.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC005",
@@ -1222,8 +1222,8 @@
       "observed_assertions": "Organization-at-use snapshot survives later affiliation change and point warning reflects current mismatch.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC006",
@@ -1244,8 +1244,8 @@
       "observed_assertions": "Mismatch without fresh review is rejected without master/reference mutation.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC007",
@@ -1267,8 +1267,8 @@
       "observed_assertions": "Reviewed mismatch preserves master affiliation while recording relationship context.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC008",
@@ -1290,8 +1290,8 @@
       "observed_assertions": "Handler reference binds the exact accepted source observation, not a local assignment fact.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC009",
@@ -1314,8 +1314,8 @@
       "observed_assertions": "Stale handler support becomes historical and current query does not present it as current authority.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC010",
@@ -1337,8 +1337,8 @@
       "observed_assertions": "Explicit handler clear advances source pointer while leaving Contact/history untouched.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC011",
@@ -1360,8 +1360,8 @@
       "observed_assertions": "Wrong/unpublished/cross-SR evidence is rejected atomically.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC012",
@@ -1381,8 +1381,8 @@
       "observed_assertions": "Noncomparable chronology is rejected unless explicit reviewed correction applies.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRC013",
@@ -1405,8 +1405,8 @@
       "observed_assertions": "Same Contact may be rebound to newer exact handler support while exact replay is NO_CHANGE.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRF001",
@@ -1426,8 +1426,8 @@
       "observed_assertions": "Single UoW preserves old relationship when replacement path fails.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRF002",
@@ -1450,8 +1450,8 @@
       "cross_packet_responsibility": [
         "LLD-06"
       ],
-      "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRF003",
@@ -1472,8 +1472,8 @@
       "observed_assertions": "Writer recomputes Contact review/mismatch authority and fails stale closed.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRF004",
@@ -1494,8 +1494,8 @@
       "observed_assertions": "Current Handler pointer/support drift cannot authorize stale relationship commit.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRF005",
@@ -1515,8 +1515,8 @@
       "observed_assertions": "Unpublished/indeterminate owner evidence cannot become LLD-03 source authority.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "SRF006",
@@ -1536,8 +1536,8 @@
       "observed_assertions": "Post-receipt owner failure rolls command/reference effects back atomically.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-FI001",
@@ -1557,8 +1557,8 @@
       "observed_assertions": "Injected failure after terminal projection becomes visible inside UoW but before proposal insert rolls projection/receipt back.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-FI002",
@@ -1578,8 +1578,8 @@
       "observed_assertions": "Failure after proposal insert before membership rolls all terminal acceptance artifacts back.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-FI003",
@@ -1606,7 +1606,7 @@
         "LLD-12"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-FI004",
@@ -1633,7 +1633,7 @@
         "LLD-09"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-FI005",
@@ -1657,7 +1657,7 @@
         "LLD-12"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-FI006",
@@ -1676,8 +1676,8 @@
       "observed_assertions": "Failure on second archive event after partial member work rolls operation/member/event/receipt/audit and RFC states back.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-FI007",
@@ -1696,8 +1696,8 @@
       "observed_assertions": "Later independent rearchive wins; restoring older operation is NO_CHANGE for that member.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-FI008",
@@ -1717,8 +1717,8 @@
       "observed_assertions": "New dependency/state after preview is revalidated and blocks before proof/delete.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-FI009",
@@ -1737,8 +1737,8 @@
       "observed_assertions": "Unexpected FK failure rolls receipt/audit/delete work back and preserves dependency.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-FI010",
@@ -1758,8 +1758,8 @@
       "observed_assertions": "Injected failure after pending supersession but before projection commit restores both terminal projection and pending proposal.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-FI011",
@@ -1783,7 +1783,7 @@
         "LLD-09"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-FI012",
@@ -1806,8 +1806,8 @@
       "observed_assertions": "Committed replay returns stored exact results before mutable owner/proof/provider reads.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-HD001",
@@ -1838,8 +1838,8 @@
       "observed_assertions": "Preview uses one stable snapshot, exact closed guards/classifiers and published fingerprint.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-HD002",
@@ -1877,7 +1877,7 @@
         "LLD-12"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-HD003",
@@ -1912,7 +1912,7 @@
         "LLD-09"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-HDFI001",
@@ -1933,8 +1933,8 @@
       "observed_assertions": "Fingerprint/blocker drift fails before proof/receipt/delete.",
       "unproven_subclauses": [],
       "cross_packet_responsibility": [],
-      "status": "reviewed_pending_reconciled_ci",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "status": "reviewed_certified_supported_ci_946",
+      "certification_status": "pre_lld08_owned_scope_certified_supported_ci_946"
     },
     {
       "id": "LLD03-HDFI002",
@@ -1959,7 +1959,7 @@
         "LLD-09"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-HDFI003",
@@ -1985,7 +1985,7 @@
         "LLD-12"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     },
     {
       "id": "LLD03-HDFI004",
@@ -2010,7 +2010,7 @@
         "LLD-12"
       ],
       "status": "partial_cross_packet",
-      "certification_status": "pending_exact_reconciled_head_ci"
+      "certification_status": "deferred_to_declared_future_owner"
     }
   ]
 }

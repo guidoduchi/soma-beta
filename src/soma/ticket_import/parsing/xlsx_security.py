@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import os
 import posixpath
 import re
@@ -14,7 +13,7 @@ from typing import BinaryIO
 from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 
-from soma.foundation.errors import SomaError
+from soma.foundation.errors import SomaError, ValidationError
 
 
 MAX_COMPRESSED_FILE_BYTES = 104_857_600
@@ -69,6 +68,40 @@ _SUPPORTED_WORKBOOK_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
 )
 _ALLOWED_COMPRESSION = frozenset({zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED})
+
+
+@dataclass(frozen=True, slots=True)
+class XlsxResourceLimits:
+    compressed_file_bytes: int = MAX_COMPRESSED_FILE_BYTES
+    total_expanded_bytes: int = MAX_TOTAL_EXPANDED_BYTES
+    single_part_bytes: int = MAX_SINGLE_PART_BYTES
+    zip_entries: int = MAX_ZIP_ENTRIES
+    expansion_ratio: int = MAX_EXPANSION_RATIO
+    shared_strings: int = MAX_SHARED_STRINGS
+
+    def validate(self) -> None:
+        if any(type(value) is not int or value < 1 for value in (
+            self.compressed_file_bytes, self.total_expanded_bytes,
+            self.single_part_bytes, self.zip_entries, self.expansion_ratio,
+            self.shared_strings,
+        )):
+            raise ValidationError("XLSX resource limits must be positive exact integers")
+
+
+DEFAULT_XLSX_LIMITS = XlsxResourceLimits()
+
+
+def _current_default_limits() -> XlsxResourceLimits:
+    # Preserve the LLD-04 test seam that narrows module ceilings for hostile
+    # fixture construction without changing the production defaults.
+    return XlsxResourceLimits(
+        compressed_file_bytes=MAX_COMPRESSED_FILE_BYTES,
+        total_expanded_bytes=MAX_TOTAL_EXPANDED_BYTES,
+        single_part_bytes=MAX_SINGLE_PART_BYTES,
+        zip_entries=MAX_ZIP_ENTRIES,
+        expansion_ratio=MAX_EXPANSION_RATIO,
+        shared_strings=MAX_SHARED_STRINGS,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,33 +167,64 @@ def _normalize_part_name(raw: str) -> str:
     return normalized
 
 
-def _read_bounded(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
-    if info.file_size > MAX_SINGLE_PART_BYTES:
+def _read_bounded(zf: zipfile.ZipFile, info: zipfile.ZipInfo,
+                  limits: XlsxResourceLimits) -> bytes:
+    if info.file_size > limits.single_part_bytes:
         raise _resource("OOXML part exceeds the single-part expanded-byte ceiling")
     with zf.open(info, "r") as stream:
-        data = stream.read(MAX_SINGLE_PART_BYTES + 1)
-    if len(data) > MAX_SINGLE_PART_BYTES or len(data) != info.file_size:
+        data = stream.read(limits.single_part_bytes + 1)
+    if len(data) > limits.single_part_bytes or len(data) != info.file_size:
         raise _resource("OOXML part expansion exceeded its declared or allowed size")
     return data
+
+
+def _scan_xml_part(zf: zipfile.ZipFile, info: zipfile.ZipInfo,
+                   limits: XlsxResourceLimits) -> None:
+    """Check an ordinary XML part without retaining its expanded contents."""
+    if info.file_size > limits.single_part_bytes:
+        raise _resource("OOXML part exceeds the single-part expanded-byte ceiling")
+    read_bytes = 0
+    overlap = b""
+    with zf.open(info, "r") as stream:
+        while chunk := stream.read(_COPY_CHUNK_BYTES):
+            read_bytes += len(chunk)
+            if read_bytes > limits.single_part_bytes or read_bytes > info.file_size:
+                raise _resource("OOXML part expansion exceeded its declared or allowed size")
+            probe = (overlap + chunk).upper()
+            if b"<!DOCTYPE" in probe or b"<!ENTITY" in probe:
+                raise _unsafe("OOXML XML contains a forbidden DTD/entity declaration")
+            overlap = probe[-8:]
+    if read_bytes != info.file_size:
+        raise _resource("OOXML part expansion exceeded its declared or allowed size")
+
+
+def _scan_shared_strings(
+    zf: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+    limits: XlsxResourceLimits,
+) -> None:
+    """Validate and count shared strings without materializing the XML part."""
+
+    _scan_xml_part(zf, info, limits)
+    count = 0
+    try:
+        with zf.open(info, "r") as stream:
+            for _event, element in ElementTree.iterparse(stream, events=("end",)):
+                if element.tag.rsplit("}", 1)[-1] == "si":
+                    count += 1
+                    if count > limits.shared_strings:
+                        raise _resource(
+                            "XLSX shared-string table exceeds the configured ceiling"
+                        )
+                element.clear()
+    except ElementTree.ParseError as exc:
+        raise _unsafe("OOXML shared-string table is not well-formed XML") from exc
 
 
 def _reject_xml_declarations(data: bytes) -> None:
     upper = data.upper()
     if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
         raise _unsafe("OOXML XML contains a forbidden DTD/entity declaration")
-
-
-def _validate_shared_string_count(data: bytes) -> None:
-    count = 0
-    try:
-        for _event, element in ElementTree.iterparse(io.BytesIO(data), events=("end",)):
-            if element.tag.rsplit("}", 1)[-1] == "si":
-                count += 1
-                if count > MAX_SHARED_STRINGS:
-                    raise _resource("XLSX shared-string table exceeds the configured ceiling")
-            element.clear()
-    except ElementTree.ParseError as exc:
-        raise _unsafe("OOXML shared-string table is not well-formed XML") from exc
 
 
 def _parse_xml(data: bytes, *, label: str) -> ElementTree.Element:
@@ -279,7 +343,7 @@ def _is_symlink_entry(info: zipfile.ZipInfo) -> bool:
     return stat_module.S_IFMT(unix_mode) == stat_module.S_IFLNK
 
 
-def _snapshot_candidate(path: Path) -> tuple[BinaryIO, int, str]:
+def _snapshot_candidate(path: Path, limits: XlsxResourceLimits) -> tuple[BinaryIO, int, str]:
     stream = tempfile.SpooledTemporaryFile(
         max_size=_SPOOL_MEMORY_BYTES,
         mode="w+b",
@@ -292,7 +356,7 @@ def _snapshot_candidate(path: Path) -> tuple[BinaryIO, int, str]:
                     raise _unsafe(
                         "selected workbook is not a nonempty regular ZIP-based XLSX file"
                     )
-                if before.st_size > MAX_COMPRESSED_FILE_BYTES:
+                if before.st_size > limits.compressed_file_bytes:
                     raise _resource(
                         "XLSX compressed file exceeds the configured ceiling"
                     )
@@ -304,7 +368,7 @@ def _snapshot_candidate(path: Path) -> tuple[BinaryIO, int, str]:
                     if not chunk:
                         break
                     copied += len(chunk)
-                    if copied > MAX_COMPRESSED_FILE_BYTES:
+                    if copied > limits.compressed_file_bytes:
                         raise _resource(
                             "XLSX compressed file exceeds the configured ceiling"
                         )
@@ -343,21 +407,25 @@ def _snapshot_candidate(path: Path) -> tuple[BinaryIO, int, str]:
         raise
 
 
-def preflight_xlsx(path: str | os.PathLike[str]) -> XlsxPreflightResult:
+def preflight_xlsx(path: str | os.PathLike[str], *,
+                   limits: XlsxResourceLimits | None = None) -> XlsxPreflightResult:
     """Validate one immutable XLSX byte source without extracting it.
 
     The filesystem path is provenance only after acquisition. ZIP/OOXML preflight and
     the later semantic parser consume the exact same bounded seekable byte stream.
     """
 
+    if limits is None:
+        limits = _current_default_limits()
+    limits.validate()
     candidate = Path(path)
-    validated_stream, compressed_file_bytes, content_sha256 = _snapshot_candidate(candidate)
+    validated_stream, compressed_file_bytes, content_sha256 = _snapshot_candidate(candidate, limits)
 
     try:
         validated_stream.seek(0)
         with zipfile.ZipFile(validated_stream, "r") as zf:
             infos = zf.infolist()
-            if len(infos) > MAX_ZIP_ENTRIES:
+            if len(infos) > limits.zip_entries:
                 raise _resource("XLSX ZIP entry count exceeds the configured ceiling")
 
             normalized: dict[str, zipfile.ZipInfo] = {}
@@ -382,15 +450,15 @@ def preflight_xlsx(path: str | os.PathLike[str]) -> XlsxPreflightResult:
                     raise _unsafe("XLSX uses an unsupported ZIP compression method")
                 if info.file_size < 0 or info.compress_size < 0:
                     raise _unsafe("XLSX ZIP metadata contains invalid part sizes")
-                if info.file_size > MAX_SINGLE_PART_BYTES:
+                if info.file_size > limits.single_part_bytes:
                     raise _resource("XLSX part exceeds the single-part expanded-byte ceiling")
                 total_expanded += info.file_size
-                if total_expanded > MAX_TOTAL_EXPANDED_BYTES:
+                if total_expanded > limits.total_expanded_bytes:
                     raise _resource("XLSX expanded content exceeds the configured ceiling")
                 if info.file_size:
                     if (
                         info.compress_size == 0
-                        or info.file_size > info.compress_size * MAX_EXPANSION_RATIO
+                        or info.file_size > info.compress_size * limits.expansion_ratio
                     ):
                         raise _resource("XLSX part exceeds the expansion-ratio ceiling")
                 lowered = name.lower()
@@ -410,18 +478,21 @@ def preflight_xlsx(path: str | os.PathLike[str]) -> XlsxPreflightResult:
             for name, info in normalized.items():
                 lowered = name.lower()
                 if lowered.endswith(_XML_SUFFIXES):
-                    data = _read_bounded(zf, info)
-                    _reject_xml_declarations(data)
-                    if name == "[Content_Types].xml":
-                        _validate_content_types(data)
                     if lowered == "xl/sharedstrings.xml":
-                        _validate_shared_string_count(data)
-                    if lowered.endswith(".rels"):
-                        relationship_sets[name] = _validate_relationships(
-                            data,
-                            relationship_part_name=name,
-                            known_parts=known_parts,
-                        )
+                        _scan_shared_strings(zf, info, limits)
+                    elif name == "[Content_Types].xml" or lowered.endswith(".rels"):
+                        data = _read_bounded(zf, info, limits)
+                        _reject_xml_declarations(data)
+                        if name == "[Content_Types].xml":
+                            _validate_content_types(data)
+                        if lowered.endswith(".rels"):
+                            relationship_sets[name] = _validate_relationships(
+                                data,
+                                relationship_part_name=name,
+                                known_parts=known_parts,
+                            )
+                    else:
+                        _scan_xml_part(zf, info, limits)
 
             _validate_required_relationship_graph(relationship_sets)
             validated_stream.seek(0)

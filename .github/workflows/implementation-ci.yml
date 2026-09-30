@@ -61,7 +61,7 @@ jobs:
         run: python tools/generate_schema_manifest.py --check src/soma/schema_manifest.json
       - name: Emit pre-LLD-08 acceptance marker coverage
         run: |
-          git fetch --no-tags --depth=1 origin design/beta-1.0-hld-lld
+          git fetch --no-tags --depth=1 origin 46c836ca949cebcf52ff05be4eb4799e0c74eed1
           test "$(git rev-parse FETCH_HEAD)" = "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
           python tools/acceptance_marker_coverage.py --design-ref FETCH_HEAD --json
       - name: Compile package
