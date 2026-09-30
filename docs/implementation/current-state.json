@@ -2,24 +2,24 @@
   "schema": "SOMA_IMPLEMENTATION_STATE_V1",
   "repository": "guidoduchi/soma-beta",
   "observed_at": "2026-09-29 (UTC)",
-  "mission": "Continue the authorized SOMA implementation task using accepted normative owners. Protect the promoted pre-LLD-08 baseline; the active Infrastructure branch is incomplete and must earn its own certification.",
+  "mission": "LLD-08 Infrastructure is semantically certified. Preserve the certified pre-LLD-08 baseline and the exact LLD-08 semantic candidate; next perform the separate promotion checkpoint before beginning LLD-09.",
   "active_branch": "feat/lld-08-infrastructure",
-  "next_task": "infra-ci",
+  "next_task": "infra-promotion",
   "checkpoints": {
     "baseline": {
       "implementation": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
       "design": "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
     },
     "active": {
-      "implementation": "9937c9c9464eb55128665c158af6ef8d0a965e09",
-      "design": "13efc6979bd6f021b1a0fdbb1074f3a3746e8ce8"
+      "implementation": "20a914fd6eae9403b5289b488518cdc943ad1738",
+      "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     }
   },
   "observed_heads": {
     "main": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
     "feat/beta-1.0-implementation": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
-    "feat/lld-08-infrastructure": "9937c9c9464eb55128665c158af6ef8d0a965e09",
-    "design/beta-1.0-hld-lld": "81205c88353e9d22050f21377156b74e0ed7f3c6"
+    "feat/lld-08-infrastructure": "cfd5277a1a5855b33beae10317d0d21eefcbcff0",
+    "design/beta-1.0-hld-lld": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
   },
   "shared_paths": {
     "implementation": [
@@ -192,7 +192,7 @@
         "objectives",
         "inventory"
       ],
-      "summary": "Enqueue, export/stage workers, proposal classification and reviewed acceptance exist at the checkpoint; full packet certification is pending."
+      "summary": "LLD-08 is semantically certified at implementation 20a914fd6eae9403b5289b488518cdc943ad1738 against accepted design 9a0e891127a771251afccca1a281b7ef7dde9e5f. Certificate: docs/implementation/lld08_infrastructure_traceability.json. Promotion is a separate branch-management action."
     }
   },
   "evidence": {
@@ -286,6 +286,12 @@
       "source": "design",
       "path": "spec/lld/infrastructure/commands/v2/accept-workbook-run.json",
       "purpose": "Reviewed acceptance owner and transaction semantics."
+    },
+    "infra-certificate": {
+      "checkpoint": "active",
+      "source": "implementation",
+      "path": "docs/implementation/lld08_infrastructure_traceability.json",
+      "purpose": "Exact LLD-08 semantic certificate binding all 167 normative acceptance/failure/security cases to production owners and proof."
     }
   },
   "ci": {
@@ -299,23 +305,23 @@
       "detail": "Windows 3.13/3.14 each 1468 passed plus wheel/resources; Ubuntu 1466 passed, 2 skipped; schema manifest 920 objects."
     },
     "active": {
-      "name": "Beta implementation CI #985",
+      "name": "Beta implementation CI",
       "checkpoint": "active",
       "source": "implementation",
-      "sha": "9937c9c9464eb55128665c158af6ef8d0a965e09",
-      "run_id": 36519386811,
-      "conclusion": "failure",
-      "detail": "Ubuntu passed (1588 passed, 10 skipped). Both Windows lanes failed. Windows 3.13: 1597 passed, one export-discovery assertion failure comparing JSON property order. Investigate current authority before changing the test."
+      "sha": "20a914fd6eae9403b5289b488518cdc943ad1738",
+      "run_id": 36645561097,
+      "conclusion": "success",
+      "detail": "Windows Python 3.13: 1644 passed plus wheel/resources; Windows Python 3.14: 1644 passed plus wheel/resources; Ubuntu Python 3.14 compatibility: 1628 passed, 16 skipped. Continuation integrity run 36645561011 SUCCESS."
     }
   },
   "tasks": {
     "infra-ci": {
       "title": "Repair and verify the current Infrastructure Windows CI failure",
-      "status": "pending",
+      "status": "complete",
       "scope": "infrastructure",
       "depends_on": [],
-      "reason": "Exact active-head CI #985 is red on Windows; Ubuntu green does not certify the branch.",
-      "resume": "Fetch newest head/run. At recorded head, test_export_worker_discovery_streams_current_infrastructure_rows compares serialized ExportScopeJson key order. Check canonical artifact authority and writer behavior before deciding whether fixture or production code is wrong.",
+      "reason": "Closed: exact supported CI is green at the certified semantic candidate.",
+      "resume": "No implementation work remains for this task; use the LLD-08 certificate and exact CI evidence.",
       "read_first": [
         "export-contract",
         "export-test",
@@ -332,11 +338,11 @@
     },
     "design-pin": {
       "title": "Verify and reconcile the newer Task/Site design authority",
-      "status": "pending",
+      "status": "complete",
       "scope": "infrastructure",
       "depends_on": [],
-      "reason": "Observed design advanced beyond the Infrastructure registry pin; do not silently claim the newer interface is integrated.",
-      "resume": "Inspect design commits 1189ed094, 1f5abdb68 and 81205c883 after active pin 13efc6979. Fetch exact latest Spec Integrity result; no success for 81205c883 was observed at capture.",
+      "reason": "Closed: runtime registry pins accepted design 9a0e891127a771251afccca1a281b7ef7dde9e5f and Spec Integrity run 36600862004 is green at that exact SHA.",
+      "resume": "No reconciliation remains at this checkpoint.",
       "read_first": [
         "infra-index",
         "infra-registry"
@@ -373,14 +379,14 @@
     },
     "infra-certification": {
       "title": "Audit remaining Infrastructure behavior and close the packet",
-      "status": "pending",
+      "status": "complete",
       "scope": "infrastructure",
       "depends_on": [
         "infra-ci",
         "design-pin"
       ],
-      "reason": "Workers and acceptance have advanced substantially; no full Infrastructure semantic certificate exists.",
-      "resume": "Map current operations to accepted requirements before implementing gaps. Audit workbook recovery/cleanup, acceptance atomicity, route/host assembly, Site dependency consumers and query/resource bounds.",
+      "reason": "Closed: all 167 normative cases are bound exactly once in docs/implementation/lld08_infrastructure_traceability.json and exact supported CI is green.",
+      "resume": "Certification is complete; do not reopen broad LLD-08 auditing without a semantic change.",
       "read_first": [
         "infra-index",
         "infra-map",
@@ -396,6 +402,30 @@
         "Run focused adversarial owner tests, schema/resource gates and full supported CI.",
         "Review large-file memory/work bounds and cross-packet transactions; green tests alone are insufficient."
       ]
+    },
+    "infra-promotion": {
+      "title": "Promote the certified LLD-08 checkpoint",
+      "status": "pending",
+      "scope": "infrastructure",
+      "depends_on": [
+        "infra-certification"
+      ],
+      "reason": "Certification is complete, but PR #78 remains a draft and the protected feat/beta-1.0-implementation baseline still points to the pre-LLD-08 checkpoint.",
+      "resume": "Verify the certificate commit is nonsemantic relative to semantic candidate 20a914fd6eae9403b5289b488518cdc943ad1738, ensure continuation/CI remain green, then promote through the repository's normal non-force PR path. Do not begin LLD-09 until promotion is recorded.",
+      "read_first": [
+        "infra-certificate",
+        "infra-registry",
+        "infra-index"
+      ],
+      "acceptance": [
+        "PR #78 contains the certified semantic candidate plus only reviewed nonsemantic certification metadata after it.",
+        "Promotion is non-force, preserves history, and updates the active implementation baseline without rewriting the protected pre-LLD-08 checkpoint.",
+        "Post-promotion branch/CI state is recorded before LLD-09 begins."
+      ],
+      "verification": [
+        "Confirm PR #78 mergeability and exact head/base.",
+        "Record the promoted implementation SHA and supported CI/checkpoint evidence."
+      ]
     }
   },
   "constraints": [
@@ -409,10 +439,12 @@
   ],
   "known_limits": [
     "Active PR #78 is a draft validation harness into feat/beta-1.0-implementation; the promoted baseline is already incorporated in the active lane.",
-    "Infrastructure registry pins 13efc6979bd6f021b1a0fdbb1074f3a3746e8ce8. Newer design 81205c88353e9d22050f21377156b74e0ed7f3c6 includes Task/Site interface changes; exact-head integrity success was not observed.",
     "Existing chronological Infrastructure notes lag later worker/acceptance commits; they are historical context, not a current missing-feature list.",
     "Central pre-LLD-08 closure is recorded complete, but some leaf ledger fields remain pending/false. Preserve genuine later-owner exclusions while reconciling evidence.",
     "LLD-12 security/session/key-provider composition and future artifact-consumer clauses remain outside this checkpoint.",
-    "Scope patterns are conservative maintenance metadata, not a proven complete dependency graph. Unknown changes require expanded review."
+    "Scope patterns are conservative maintenance metadata, not a proven complete dependency graph. Unknown changes require expanded review.",
+    "LLD-08 certification is semantic at 20a914fd6eae9403b5289b488518cdc943ad1738; later docs-only certificate/state commits do not change the certified runtime.",
+    "PR #78 remains the promotion vehicle until the branch-management checkpoint is completed.",
+    "LLD-11 Overview composition and LLD-12 security/session/key-provider composition remain future-owned."
   ]
 }
