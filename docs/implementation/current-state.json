@@ -2,7 +2,7 @@
   "schema": "SOMA_IMPLEMENTATION_STATE_V1",
   "repository": "guidoduchi/soma-beta",
   "observed_at": "2026-10-01 07:07:09 UTC",
-  "mission": "LLD-09 ordinary implementation is complete and locally verified in the working tree on feat/beta-1.0-implementation at design pin 9a0e891127a771251afccca1a281b7ef7dde9e5f. Preserve the promoted LLD-08 evidence and immutable runtime migrations 1-16. Native release certification remains blocked by the two owner-deferred release gates; do not start later LLDs without user direction.",
+  "mission": "LLD-09 ordinary implementation is complete, locally certified and committed on feat/beta-1.0-implementation at design pin 9a0e891127a771251afccca1a281b7ef7dde9e5f. Preserve the promoted LLD-08 evidence and immutable runtime migrations 1-16. Native release certification remains blocked by the two owner-deferred release gates; do not start later LLDs without user direction.",
   "active_branch": "feat/beta-1.0-implementation",
   "next_task": "lld09-native-release",
   "checkpoints": {
@@ -16,6 +16,10 @@
     },
     "promotion": {
       "implementation": "337baa3334709d023a2f292b32ab3262b6e34896",
+      "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
+    },
+    "lld09-local": {
+      "implementation": "6cf3d742f1c933087ede982f7b107576b90415af",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     }
   },
@@ -199,7 +203,7 @@
       "summary": "LLD-08 is semantically certified and promoted. Semantic runtime: 20a914fd6eae9403b5289b488518cdc943ad1738; certificate-bearing checkpoint: cfd5277a1a5855b33beae10317d0d21eefcbcff0; promotion merge: 337baa3334709d023a2f292b32ab3262b6e34896."
     },
     "communications": {
-      "checkpoint": "active",
+      "checkpoint": "lld09-local",
       "paths": {
         "implementation": [
           "src/soma/communications/*",
@@ -219,7 +223,7 @@
         "objectives",
         "inventory"
       ],
-      "summary": "Ordinary LLD-09 implementation is complete in the working tree: source configuration/settings, owned identities and collision/content review, ordinary/targeted/Deep Scan processing and historical coverage/reconstruction, typed proposal/owner integration, SR/RFC terminal/reversal, orphan retention and independent housekeeping, verified MSG publication, bounded queries and summaries, static transport/runtime composition, schedule/coalescing/per-source reader serialization, runtime migration 16 and all 100 scenario bindings. Ordinary implementation received a byte-bound local certificate after second review and an adapter privacy fix. Complete local suite passed 1955 tests; schema/compile/wheel/privacy checks pass. PFF adapter architecture is implemented with typed deterministic doubles and an explicit UNSUPPORTED state without a release bridge. Native physical C001-C012 certification is deferred under the accepted LLD09-PFF-RELEASE-PIN and LLD09-GOLDEN-CORPUS-FREEZE gates. Working-tree evidence is not committed or remote CI-certified."
+      "summary": "Ordinary LLD-09 implementation is complete in the working tree: source configuration/settings, owned identities and collision/content review, ordinary/targeted/Deep Scan processing and historical coverage/reconstruction, typed proposal/owner integration, SR/RFC terminal/reversal, orphan retention and independent housekeeping, verified MSG publication, bounded queries and summaries, static transport/runtime composition, schedule/coalescing/per-source reader serialization, runtime migration 16 and all 100 scenario bindings. Ordinary implementation received a byte-bound local certificate after second review and an adapter privacy fix. Complete local suite passed 1955 tests; schema/compile/wheel/privacy checks pass. PFF adapter architecture is implemented with typed deterministic doubles and an explicit UNSUPPORTED state without a release bridge. Native physical C001-C012 certification is deferred under the accepted LLD09-PFF-RELEASE-PIN and LLD09-GOLDEN-CORPUS-FREEZE gates. Implementation and local evidence are committed at 6cf3d742f1c933087ede982f7b107576b90415af; supported-matrix remote CI promotion remains pending."
     }
   },
   "evidence": {
@@ -337,6 +341,24 @@
       "source": "design",
       "path": "spec/lld/communications/tests/traceability.json",
       "purpose": "Canonical LLD-09 requirement/command/query/cross-packet traceability contract."
+    },
+    "comm-local-certificate": {
+      "checkpoint": "lld09-local",
+      "source": "implementation",
+      "path": "docs/implementation/lld09_implementation_certificate.json",
+      "purpose": "Byte-bound local ordinary implementation certificate; native release and supported-matrix CI excluded."
+    },
+    "comm-local-review": {
+      "checkpoint": "lld09-local",
+      "source": "implementation",
+      "path": "docs/implementation/lld09_implementation_review.md",
+      "purpose": "Second semantic review, adapter privacy fix and complete local verification evidence."
+    },
+    "comm-local-bindings": {
+      "checkpoint": "lld09-local",
+      "source": "implementation",
+      "path": "docs/implementation/lld09_traceability.json",
+      "purpose": "Exact 100-case structural bindings with explicit physical/native release deferrals."
     }
   },
   "ci": {
@@ -486,19 +508,22 @@
       ]
     },
     "lld09-preflight": {
-      "title": "Record the completed LLD-09 working-tree implementation checkpoint",
-      "status": "in_progress",
+      "title": "Record the completed LLD-09 implementation checkpoint",
+      "status": "done",
       "scope": "communications",
       "depends_on": [
         "infra-promotion"
       ],
-      "reason": "Ordinary LLD-09 now has a byte-bound local implementation certificate after a second semantic review, adapter privacy fix and 1955-test verification. Immutable commit checkpoint/remote CI recording remains pending; native release is separately deferred by accepted authority.",
-      "resume": "Read docs/implementation/lld09_implementation_certificate.json and lld09_implementation_review.md. Ordinary implementation is locally certified for exact recorded bytes, not the old implementation commit. Verify hashes before reuse. Commit-bound evidence and supported-matrix CI promotion are pending. Native release gates remain LLD09-PFF-RELEASE-PIN and LLD09-GOLDEN-CORPUS-FREEZE; do not pin arbitrary libpff/pypff or substitute COM/MAPI. Preserve accepted migrations 1-16 and all unrelated changes.",
+      "reason": "Implementation and local certificate recorded at immutable commit 6cf3d742f1c933087ede982f7b107576b90415af; 1955 tests pass. Native release and supported-matrix CI certification remain excluded.",
+      "resume": "Ordinary implementation and local evidence are committed. Preserve the pinned design and migrations 1-16. Supported-matrix CI promotion requires exact-commit results. The two accepted native release gates remain deferred; do not invent a native dependency pin or corpus.",
       "read_first": [
         "comm-index",
         "comm-map",
         "comm-traceability",
-        "infra-certificate"
+        "infra-certificate",
+        "comm-local-certificate",
+        "comm-local-review",
+        "comm-local-bindings"
       ],
       "acceptance": [
         "All required LLD-09 production owners and cross-packet consumers are implemented against the pinned authority plus accepted clarifications.",
@@ -511,7 +536,12 @@
         "Run compileall, the complete implementation test suite, wheel/resource verification and applicable migration/schema/traceability tooling before completion.",
         "Refresh heads and exact-head CI; do not assign older CI results to the uncommitted implementation."
       ],
-      "implementation_status": "locally_certified_working_tree"
+      "implementation_status": "committed_locally_certified",
+      "completion_evidence": [
+        "comm-local-certificate",
+        "comm-local-review",
+        "comm-local-bindings"
+      ]
     },
     "lld09-native-release": {
       "title": "Resolve the two deferred LLD-09 native release certification gates",
@@ -552,7 +582,7 @@
     "Scope patterns are conservative maintenance metadata, not a proven complete dependency graph. Unknown changes require expanded review.",
     "LLD-08 certification is semantic at 20a914fd6eae9403b5289b488518cdc943ad1738; later docs-only certificate/state commits do not change the certified runtime.",
     "LLD-11 Overview composition and LLD-12 security/session/key-provider composition remain future-owned.",
-    "LLD-09 ordinary implementation has a byte-bound local working-tree certificate after second review. Commit-bound supported-matrix promotion and exact-current-byte remote CI remain pending. Native certification remains blocked by the two accepted deferred release gates; real LLD-12 host/security composition is outside this certificate."
+    "LLD-09 implementation/local certificate are committed at 6cf3d742f1c933087ede982f7b107576b90415af. Supported-matrix remote CI promotion remains pending. Native certification is blocked by the two accepted deferred release gates; real LLD-12 host/security composition is excluded."
   ],
   "working_tree_verification": {
     "scope": "communications",
@@ -561,7 +591,7 @@
     "implementation_base_sha": "47947c5066b600694ef70a828a46269fb658ea7a",
     "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
     "observed_at_utc": "2026-10-01 14:05:59 UTC",
-    "committed_checkpoint_pending": true,
+    "committed_checkpoint_pending": false,
     "review": "docs/implementation/lld09_implementation_review.md",
     "bindings": "docs/implementation/lld09_traceability.json",
     "native_release_authority": "docs/reconciliation/LLD09_NATIVE_RELEASE_CLARIFICATION.md",
@@ -585,7 +615,7 @@
     "verification_snapshot_sha256": "247e9d1d6808a76dbd36574aab856fb211738b51ffcf9e2c546f68136fb06d13",
     "verification_snapshot_scope": "778 src/soma, tests and tools .py/.json/.sql files; full sorted hashes and canonical aggregate are preserved in the local implementation certificate. Build/authority/binding inputs are additionally hashed. No immutable Git or remote-CI certification.",
     "build_mode": "installed build tools; editable test install and wheel use --no-deps --no-build-isolation; pip check passed",
-    "remote_ci": "not_run_for_uncommitted_bytes; connector returned no statuses or first-page PR-triggered runs at HEAD",
+    "remote_ci": "Pending publication/observation for the new implementation; no supported-matrix success claimed.",
     "other_supported_lanes": "Windows Python 3.13 and Ubuntu were not executed locally",
     "release_gates": [
       "LLD09-PFF-RELEASE-PIN",
@@ -596,6 +626,9 @@
       "passed": 36,
       "failed": 0,
       "scope": "Updated implementation state, Communications bindings/contracts and private sample publication guard"
-    }
-  }
+    },
+    "implementation_commit": "6cf3d742f1c933087ede982f7b107576b90415af",
+    "git_source_binding": "All 778 certified source/test/tool files and supplemental inputs match committed content after Git text newline normalization; raw working-tree hashes still match the local certificate."
+  },
+  "checkpoint_recorded_at_utc": "2026-10-01 14:30:36 UTC"
 }
