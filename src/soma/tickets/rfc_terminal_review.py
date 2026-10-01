@@ -63,6 +63,7 @@ class RfcTerminalCascadeExecutionCommandContext:
     actor_kind: str
     actor_id: str | None
     reviewed_preview_fingerprint: str
+    accepted_execution_utc: int | None = None
 
     def __post_init__(self) -> None:
         try:
@@ -80,6 +81,10 @@ class RfcTerminalCascadeExecutionCommandContext:
             self.reviewed_preview_fingerprint,
             field="terminal cascade execution command context preview fingerprint",
         )
+        if self.accepted_execution_utc is not None and (
+            type(self.accepted_execution_utc) is not int or not 0 <= self.accepted_execution_utc <= 2**63 - 1
+        ):
+            raise ValidationError("terminal cascade accepted execution time must be UTC seconds")
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,0 +1,325 @@
+{
+  "schema": "SOMA_LLD09_PROPOSAL_CONTRACT_CANDIDATE_V1",
+  "status": "ACCEPTED_OWNER_CLARIFICATION",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "implementation_parent": "47947c50",
+  "authority": [
+    "docs/COMMUNICATIONS_CONTRACT.md#7",
+    "spec/lld/communications/interfaces.json",
+    "spec/lld/communications/types/proposal.json",
+    "spec/lld/communications/commands/v2/decide-link.json",
+    "spec/lld/inventory/schema/proposals-projections.json#proposal_target_payload_contract_v1"
+  ],
+  "validation": {
+    "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+    "encoding": "LLD-01 StrictVersionedJson canonical UTF-8",
+    "max_utf8_bytes": 4096,
+    "max_depth": 4,
+    "max_collection_items": 32,
+    "unknown_fields": "reject",
+    "reason_code_utf8_bytes": 384,
+    "identity_validation": "Exact accepted owner identity and registered match-rule validation are required in addition to JSON Schema."
+  },
+  "contracts": [
+    {
+      "id": "COMM_LINK_V1",
+      "version": 1,
+      "owner": "LLD-09",
+      "target_types": [
+        "SERVICE_REQUEST",
+        "SPARE_REQUEST",
+        "RMA",
+        "RFC",
+        "WFM_TASK",
+        "OBJECTIVE",
+        "FAULT_TAG"
+      ],
+      "payload_definition": "Link",
+      "is_link_contract": true,
+      "owner_command": "DecideCommunicationLink",
+      "explicit_confirmation": "Reviewed acceptance; terminal reassociation also needs current governed reversal/correction eligibility."
+    },
+    {
+      "id": "COMM_INVENTORY_SUBMISSION_V1",
+      "version": 1,
+      "owner": "LLD-07",
+      "target_types": [
+        "SPARE_REQUEST"
+      ],
+      "payload_definition": "Submission",
+      "is_link_contract": false,
+      "owner_command": "AcceptSpareRequestSubmission",
+      "evidence_kind": "indexed_sent",
+      "owner_proposal_kind": "spare_request_submission",
+      "owner_target_kind": "spare_request",
+      "explicit_confirmation": false
+    },
+    {
+      "id": "COMM_INVENTORY_WAREHOUSE_RECEIPT_V1",
+      "version": 1,
+      "owner": "LLD-07",
+      "target_types": [
+        "FAULT_TAG"
+      ],
+      "payload_definition": "WarehouseReceipt",
+      "is_link_contract": false,
+      "owner_command": "RecordWarehouseReceipt",
+      "owner_proposal_kind": "warehouse_received",
+      "owner_target_kind": "fault_tag_membership",
+      "explicit_confirmation": false
+    },
+    {
+      "id": "COMM_INVENTORY_WAREHOUSE_DECISION_V1",
+      "version": 1,
+      "owner": "LLD-07",
+      "target_types": [
+        "FAULT_TAG"
+      ],
+      "payload_definition": "WarehouseDecision",
+      "is_link_contract": false,
+      "owner_command": "RecordWarehouseFinalDecision",
+      "owner_proposal_kind": "warehouse_final_decision",
+      "owner_target_kind": "fault_tag_membership",
+      "explicit_confirmation": true,
+      "risk_tier": "material_final"
+    }
+  ],
+  "payload_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$defs": {
+      "Link": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "matched_identity_kind",
+          "matched_identity_value",
+          "match_rule_id",
+          "match_rule_version",
+          "confidence_basis"
+        ],
+        "properties": {
+          "schema": {
+            "const": "COMM_LINK_V1"
+          },
+          "matched_identity_kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "matched_identity_value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "match_rule_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "match_rule_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "confidence_basis": {
+            "enum": [
+              "EXACT_IDENTIFIER",
+              "EXACT_ALIAS",
+              "REVIEWED_MANUAL"
+            ]
+          }
+        }
+      },
+      "SubmissionFacts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "expected_draft_fingerprint",
+          "effective_submission_at_utc"
+        ],
+        "properties": {
+          "schema": {
+            "const": "INVENTORY_PROPOSAL_TARGET_V1"
+          },
+          "expected_draft_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "effective_submission_at_utc": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          }
+        }
+      },
+      "WarehouseReceiptFacts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "effective_at_utc"
+        ],
+        "properties": {
+          "schema": {
+            "const": "INVENTORY_PROPOSAL_TARGET_V1"
+          },
+          "effective_at_utc": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          }
+        }
+      },
+      "WarehouseDecisionFacts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "decision",
+          "reason_code",
+          "effective_at_utc"
+        ],
+        "properties": {
+          "schema": {
+            "const": "INVENTORY_PROPOSAL_TARGET_V1"
+          },
+          "decision": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ]
+          },
+          "reason_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 384
+          },
+          "effective_at_utc": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "decision": {
+                  "const": "rejected"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "reason_code": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Submission": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "facts"
+        ],
+        "properties": {
+          "schema": {
+            "const": "COMM_INVENTORY_SUBMISSION_V1"
+          },
+          "facts": {
+            "$ref": "#/$defs/SubmissionFacts"
+          }
+        }
+      },
+      "WarehouseReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "membership_id",
+          "membership_revision",
+          "facts"
+        ],
+        "properties": {
+          "schema": {
+            "const": "COMM_INVENTORY_WAREHOUSE_RECEIPT_V1"
+          },
+          "membership_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "membership_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "facts": {
+            "$ref": "#/$defs/WarehouseReceiptFacts"
+          }
+        }
+      },
+      "WarehouseDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "membership_id",
+          "membership_revision",
+          "facts"
+        ],
+        "properties": {
+          "schema": {
+            "const": "COMM_INVENTORY_WAREHOUSE_DECISION_V1"
+          },
+          "membership_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "membership_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "facts": {
+            "$ref": "#/$defs/WarehouseDecisionFacts"
+          }
+        }
+      }
+    }
+  },
+  "rules": [
+    "Static release allowlist only; an unknown id, version or target combination is INVALID.",
+    "Target identity, target revision, communication id and source scope remain in CommunicationProposalEvidenceV1; they are not duplicated into the typed facts.",
+    "Membership proposals target the governing FAULT_TAG in the envelope and carry one exact membership identity/revision; LLD-07 verifies current parent-tag membership plus obligation/unit authority.",
+    "facts is passed without modification to the exact Inventory owner payload validator. Rejected decision reason must already be normalized, be nonempty, have no NUL/CR/LF and occupy at most 384 UTF-8 bytes.",
+    "Source messages, subjects, bodies, participants, attachment names/bytes, opaque parser handles, filesystem paths and proof/session material are forbidden in proposal payloads and diagnostic/audit copies.",
+    "Extraction never invents a lifecycle fact from the presence of an identifier or a keyword. Missing or ambiguous facts stay unresolved and no actionable domain-fact proposal is generated.",
+    "Submission evidence requires a retained canonical SENT communication; a draft, MSG export, UNKNOWN/RECEIVED direction or filename cannot satisfy indexed_sent.",
+    "Domain-fact acceptance creates no communication link by implication; pending/deferred proposals have active PROPOSAL protection holds.",
+    "One owning command boundary/receipt and caller UnitOfWork; validate Communication evidence and all owner freshness first, perform the owner mutation, record accepted Communication disposition and close its hold, evaluate retention, persist audits/exact replay result, commit atomically.",
+    "Any provider, owner, disposition, audit or result failure rolls back all database effects. Replay returns the immutable original result before current-state/provider reads.",
+    "Warehouse final decision retains the owning explicit_confirmation=true requirement; proposal evidence never supplies that confirmation.",
+    "Every Communications membership proposal has one proposed membership fact. One message can produce independent proposals; any owning Inventory proposal/batch remains all-target atomic under its existing acceptance contract.",
+    "No new LLD-03 or LLD-05 domain-fact mutation contract is created by this candidate. Their targets support link proposals; evidence/disposition interfaces remain available for a future separately accepted owner mapping.",
+    "The other LLD-07 proposal kinds retain the pinned unsupported-acceptance rule until an exact new typed owner mapping is accepted.",
+    "Fingerprint authority and semantic extraction rules require the accompanying reconciliation text before runtime registration."
+  ],
+  "accepted_at": "2026-09-30",
+  "acceptance_evidence": "Owner accepted the four-contract registry and requested continuation in the implementation branch in this session."
+}

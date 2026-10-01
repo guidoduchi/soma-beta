@@ -139,12 +139,16 @@ def test_forward_infrastructure_migrations_preserve_prefix(tmp_path, migration_d
     from test_foundation_durable_job_migration import _runner, _stage_prefix
     prefix = tmp_path / "prefix"
     _stage_prefix(migration_directory, prefix, 13)
+    # This packet's forward history ends at 15. Later packet allocations must
+    # not change the exact Infrastructure upgrade being verified here.
+    infrastructure = tmp_path / "infrastructure-prefix-fifteen"
+    _stage_prefix(migration_directory, infrastructure, 15)
     database = tmp_path / "upgrade.db"
     assert _runner(database, prefix, security_provider).initialize_or_migrate() == 13
     with sqlite3.connect(database) as connection:
         before = connection.execute("SELECT * FROM schema_migrations ORDER BY sequence").fetchall()
         instance = connection.execute("SELECT * FROM instance_metadata").fetchall()
-    assert _runner(database, migration_directory, security_provider).initialize_or_migrate() == 15
+    assert _runner(database, infrastructure, security_provider).initialize_or_migrate() == 15
     with sqlite3.connect(database) as connection:
         assert connection.execute("SELECT * FROM schema_migrations WHERE sequence<=13 ORDER BY sequence").fetchall() == before
         assert connection.execute("SELECT * FROM instance_metadata").fetchall() == instance

@@ -202,14 +202,19 @@ class DurableJobCoordinator:
             raise IntegrityFailure("durable job enqueue violated persistence invariants") from exc
         return job_id
 
-    def claim_next(self, run_id: str, now: int) -> DurableJobClaim | None:
+    def claim_next(self, run_id: str, now: int, *, eligible=None) -> DurableJobClaim | None:
         require_uuid4(run_id)
         _validate_time(now, "now")
+        if eligible is not None and not callable(eligible):
+            raise ValidationError("durable job eligibility must be a read-only policy")
         with UnitOfWork(self._factory) as uow:
-            row = uow.connection.execute(
-                """
-                SELECT job_id,job_type,contract_version,state,created_at_utc,updated_at_utc,
-                       attempt_count,next_attempt_at_utc,payload_json,checkpoint_json,dedupe_sha256
+            fields = "job_id,job_type,contract_version,state,created_at_utc,updated_at_utc,attempt_count,next_attempt_at_utc,payload_json,checkpoint_json,dedupe_sha256"
+            # A provider may skip due jobs belonging to another owner or a busy
+            # source. Do not sort/copy their potentially large immutable payloads
+            # and checkpoints merely to evaluate a three-field eligibility rule.
+            selection = fields if eligible is None else "job_id,job_type,contract_version"
+            candidates = uow.connection.execute(
+                "SELECT " + selection + """
                 FROM durable_jobs
                 WHERE state='queued'
                    OR (state='retry_wait' AND next_attempt_at_utc IS NOT NULL AND next_attempt_at_utc<=?)
@@ -218,10 +223,21 @@ class DurableJobCoordinator:
                     next_attempt_at_utc,
                     created_at_utc,
                     job_id
-                LIMIT 1
-                """,
+                """ + (" LIMIT 1" if eligible is None else ""),
                 (now,),
-            ).fetchone()
+            )
+            row = None
+            for candidate in candidates:
+                if eligible is not None:
+                    changes = uow.connection.total_changes
+                    allowed = eligible(uow, str(candidate[0]), str(candidate[1]), int(candidate[2]))
+                    if type(allowed) is not bool or uow.connection.total_changes != changes:
+                        raise IntegrityFailure("durable job eligibility policy must be exact and read-only")
+                    if not allowed:
+                        continue
+                row = candidate if eligible is None else uow.connection.execute(
+                    "SELECT " + fields + " FROM durable_jobs WHERE job_id=?", (candidate[0],)).fetchone()
+                break
             if row is None:
                 return None
             (

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from soma.foundation.application.command_boundary import CommandBoundary, CommandEnvelope, PreparedMutation
@@ -336,6 +336,7 @@ class RfcTerminalCascadeExecutionService:
 
             audit_event_id = new_uuid4()
             executed_at_utc = utc_epoch_seconds()
+            command_context = replace(command_context, accepted_execution_utc=executed_at_utc)
             resulting_revision = state.proposal_revision + 1
             response = _state_response(
                 proposal_id=canonical_proposal_id,

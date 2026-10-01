@@ -50,3 +50,13 @@ def initialized_database(tmp_path: Path, migration_directory: Path, security_pro
     )
     runner.initialize_or_migrate()
     return database_path, factory_for_path
+
+
+@pytest.fixture
+def communication_database(initialized_database):
+    """Use Communications through the real, immutable runtime migration chain."""
+    from soma.foundation.migrations.verification import verify_foreign_key_index_coverage
+    path, factory = initialized_database
+    with sqlite3.connect(path) as connection:
+        verify_foreign_key_index_coverage(connection)
+    return path, factory(path)

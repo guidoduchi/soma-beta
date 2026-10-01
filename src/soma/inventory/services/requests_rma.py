@@ -36,6 +36,7 @@ from ..contracts.inventory import (
     InventoryMutationResult,
     inventory_mutation_result_from_execution,
 )
+from .communication_proposals import InventoryCommunicationProposalBridge, normalize_communication_proposal
 
 
 def _requester_context(
@@ -60,11 +61,13 @@ def _requester_context(
 
 
 class InventoryRequestsRmaService:
-    def __init__(self, connection_factory: ConnectionFactory) -> None:
+    def __init__(self, connection_factory: ConnectionFactory, *, communication_evidence_provider=None,
+                 communication_disposition_participant=None) -> None:
         self._factory = connection_factory
         self._repository = InventoryRequestsRepository()
         self._rmas = InventoryRmasRepository()
         self._projections = InventoryProjectionsRepository()
+        self._communications = InventoryCommunicationProposalBridge(communication_evidence_provider, communication_disposition_participant)
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_inventory_audit_registry()),
@@ -650,6 +653,7 @@ class InventoryRequestsRmaService:
         effective_submission_at_utc: int | None = None,
         evidence_kind: str = "manual",
         evidence_id: str | None = None,
+        communication_proposal: dict | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
     ) -> dict[str, object]:
@@ -676,6 +680,7 @@ class InventoryRequestsRmaService:
         if evidence_kind == "manual" and evidence_id is not None:
             raise ValidationError("manual submission cannot carry indexed evidence_id")
         normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
+        communication_ref = normalize_communication_proposal(communication_proposal)
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="AcceptSpareRequestSubmission",
@@ -690,7 +695,16 @@ class InventoryRequestsRmaService:
             authorizing_fingerprints={"draft": expected_fingerprint},
         )
 
+        if communication_ref is not None:
+            envelope.semantic_payload["communication_proposal"] = communication_ref
+
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            communication_evidence = self._communications.validate(
+                uow, communication_ref, contract_id="COMM_INVENTORY_SUBMISSION_V1", target_type="SPARE_REQUEST", target_id=request_id,
+                facts={"schema": "INVENTORY_PROPOSAL_TARGET_V1", "expected_draft_fingerprint": expected_fingerprint,
+                       "effective_submission_at_utc": effective_submission_at_utc},
+                evidence_kind=evidence_kind, evidence_id=normalized_evidence_id,
+            )
             row = self._repository.current_detail(uow.connection, request_id)
             if row is None or str(row[9]) != expected_fingerprint:
                 raise SomaError("INV_STALE", "Spare Request draft fingerprint changed")
@@ -725,6 +739,9 @@ class InventoryRequestsRmaService:
                 apply.revision = resulting_revision
                 apply.allocation_count = allocation_count
                 apply.snapshot_hash = snapshot_hash
+                self._communications.record_accepted(inner, communication_evidence,
+                    ({"type": "spare_request_submission_event", "id": event_id},
+                     {"type": "spare_request_submission_snapshot", "id": snapshot_id}), command_id, actor_kind, actor_id)
                 return AuditEventInput(
                     audit_event_id=new_uuid4(),
                     action_type="inventory.spare_request.submitted",

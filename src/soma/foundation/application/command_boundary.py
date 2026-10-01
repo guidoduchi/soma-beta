@@ -16,7 +16,7 @@ from soma.foundation.errors import (
 )
 from soma.foundation.identifiers import require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
-from soma.foundation.persistence.uow import UnitOfWork
+from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 from soma.foundation.strict_json import (
     canonical_json_bytes_bounded,
     loads_canonical_json,
@@ -350,4 +350,26 @@ class CommandBoundary:
                 response_schema=prepared.response_schema,
                 response_version=prepared.response_version,
                 response=normalized_response,
+            )
+
+    def lookup_replay(self, envelope: CommandEnvelope) -> CommandExecutionResult | None:
+        """Resolve immutable replay before expensive, non-authoritative preparation.
+
+        A miss grants no mutation authority. execute() must still recheck replay
+        and current state inside its writer UoW, including a racing first commit.
+        """
+        request_hash = envelope.request_hash()
+        with ReadSnapshot(self._connection_factory) as snapshot:
+            receipt = self._receipt_store.get(snapshot, envelope.command_id)
+            if receipt is None:
+                return None
+            self._assert_replay_match(receipt, envelope, request_hash)
+            result = self._receipt_store.get_exact_result(snapshot, envelope.command_id)
+            if result is None:
+                raise IdempotencyResultUnavailable()
+            return CommandExecutionResult(
+                result_type=receipt.result_type, result_id=receipt.result_id,
+                replayed=True, no_change=receipt.result_type == "NO_CHANGE",
+                response_schema=result.response_schema, response_version=result.response_version,
+                response=self._decode_stored_response(result),
             )

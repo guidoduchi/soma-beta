@@ -7,3 +7,6 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+
+# Sensitive local examples; never stage this directory.
+/tmp/

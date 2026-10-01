@@ -100,6 +100,8 @@ class ServiceRequestSourceProjectionMutation:
     service_request_id: str
     base_state_token: str
     accepted_delta_set: AcceptedSrFieldDeltaSet
+    actor_kind: str = "local_user"
+    actor_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,8 +257,9 @@ class ServiceRequestImportMutationService:
         contact_proposal_provider: AcceptedSrContactProposalProvider | None = None,
         classification_participant: ServiceRequestCustomerClassificationParticipant | None = None,
         source_presence_evidence_provider: SrSourcePresenceEvidenceProvider | None = None,
+        terminal_communication_participant=None,
     ) -> None:
-        self._projection_service = SrSourceProjectionService(evidence_provider)
+        self._projection_service = SrSourceProjectionService(evidence_provider, terminal_communication_participant=terminal_communication_participant)
         self._customer_proposal_provider = customer_proposal_provider
         self._contact_proposal_provider = contact_proposal_provider
         self._classification_participant = classification_participant
@@ -576,6 +579,8 @@ class ServiceRequestImportMutationService:
             uow,
             mutation.service_request_id,
             mutation.accepted_delta_set,
+            command_context={"command_id": mutation.accepted_delta_set.accepted_command_id,
+                "actor_kind": mutation.actor_kind, "actor_id": mutation.actor_id},
         )
         if projection_result.no_change:
             raise SomaError(
@@ -585,7 +590,7 @@ class ServiceRequestImportMutationService:
         refs = tuple(
             ("sr_source_field_observation", observation_id)
             for observation_id in projection_result.inserted_observation_ids
-        )
+        ) + projection_result.communication_result_refs
         return ServiceRequestImportMutationResult(
             result_refs=refs,
             projection_result=projection_result,

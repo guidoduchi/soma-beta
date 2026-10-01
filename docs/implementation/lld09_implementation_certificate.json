@@ -1,0 +1,3249 @@
+{
+  "schema": "SOMA_LLD09_LOCAL_IMPLEMENTATION_CERTIFICATE_V1",
+  "certificate_id": "LLD09-LOCAL-IMPLEMENTATION-20261001",
+  "status": "PASS_LOCAL_ORDINARY_IMPLEMENTATION",
+  "issued_at_utc": "2026-10-01 14:05:59 UTC",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "implementation_base_sha": "47947c5066b600694ef70a828a46269fb658ea7a",
+  "binding": "Exact working-tree bytes below. Base commit is context only and is not the certified source.",
+  "scope": "Parser-independent ordinary LLD-09 implementation, declared provider/participant consumers, static adapter architecture, runtime migration 16 and local packaged resources.",
+  "review": "docs/implementation/lld09_implementation_review.md",
+  "semantic_review": [
+    "Governed identity and ambiguity; retained-only content/search; stale scope/target/claim validation",
+    "One outer UoW/receipt, immutable replay, action-specific atomic audit and owning-domain proposal disposition",
+    "Historical coverage versus forward high-water, checkpoint/cancellation recovery and governed reconstruction",
+    "Terminal summaries, independent link closure/reversal, protected dependencies and atomic due purge",
+    "Bounded keyset queries, streamed matching, indexed selected-target checks and source serialization",
+    "Verified unsent MSG publication/reconciliation and distinct observed sent identity",
+    "Native handle isolation, attachment bounds and sanitized inspection/cleanup failures"
+  ],
+  "audit_fix": {
+    "files": [
+      "src/soma/communications/adapters/pff_reader.py",
+      "tests/test_communications_pff_reader.py"
+    ],
+    "finding": "Cleanup failure during inspection unwind could replace the inspection error and retain its exception context; native stream read attribute lookup was outside sanitization.",
+    "resolution": "Preserve inspection failure during cleanup; sanitize native read lookup and invocation; two regression cases pass in the complete suite."
+  },
+  "verification": {
+    "full_suite": {
+      "passed": 1955,
+      "failed": 0,
+      "seconds": 567.61,
+      "python": "3.14.7",
+      "platform": "Windows x64",
+      "command": ".venv/Scripts/python.exe -m pytest --basetemp tmp/lld09-cert-full",
+      "log_sha256": "8f5be6ed6bb54d5de82cf6d94da411b37025cf8192cda855d6e030c708f74149"
+    },
+    "compileall": "PASS",
+    "schema_manifest": {
+      "status": "PASS",
+      "objects": 1309
+    },
+    "accepted_migrations_1_15": "Exact entries and bytes unchanged against the implementation base SHA",
+    "migration_16_sha256": "8e467684b9de0c2842d389da72877619e1fc460ab67b4a9c87b79f2cfc78ea8e",
+    "scenario_bindings": {
+      "count": 100,
+      "status": "PASS_STRUCTURAL_BINDINGS_ONLY",
+      "physical_native_cases": "C001-C012 deferred"
+    },
+    "wheel": {
+      "path": "dist/lld09-certification/soma_beta-1.0.0.dev0-py3-none-any.whl",
+      "sha256": "d59e315bb44cef19a100e5b5d04ec9a01af14b9571fa56ca3a1a4865fb8f03ae",
+      "packaged_migrations": 16,
+      "exact_python_module_matches": 433,
+      "build_mode": "--no-deps --no-build-isolation using installed build tools",
+      "resource_verification": "PASS"
+    },
+    "pip_check": "PASS",
+    "private_sample_publication_exclusion": "PASS",
+    "implementation_state_validation": "PASS",
+    "post_certificate_metadata_tests": {
+      "passed": 36,
+      "failed": 0
+    }
+  },
+  "source_snapshot": {
+    "algorithm": "SHA256 of UTF-8 json.dumps(files, sort_keys=True, separators=(comma,colon))",
+    "sha256": "247e9d1d6808a76dbd36574aab856fb211738b51ffcf9e2c546f68136fb06d13",
+    "files": [
+      {
+        "path": "src/soma/__init__.py",
+        "sha256": "2479ed74a20dc8f899397189623abefac7242d856fb5346a20bfa4dcaca25755"
+      },
+      {
+        "path": "src/soma/communications/__init__.py",
+        "sha256": "da9ffa4a75d6cdd972433f71771a692fc356e924508085b2b3ac491c3f08e848"
+      },
+      {
+        "path": "src/soma/communications/adapters/__init__.py",
+        "sha256": "edde329a594022a0760a30853131d315c85e10f4cd7a8f64151792dc2ee589a4"
+      },
+      {
+        "path": "src/soma/communications/adapters/msg_publication.py",
+        "sha256": "a2c77f33b1bac3b656d6222886e42d7ac9dc2750b7a9f22f2316542d83afb9a1"
+      },
+      {
+        "path": "src/soma/communications/adapters/msg_writer.py",
+        "sha256": "dac6d0e134f3e3f01d1cc3d2a759bb3ee5f412af52f0b97ad182cfc1ef9ebaee"
+      },
+      {
+        "path": "src/soma/communications/adapters/pff_reader.py",
+        "sha256": "d6df06cd43dc57adff2c02ba666d76fd8e0b425bdbd5a1b8c844ca946c1a4abe"
+      },
+      {
+        "path": "src/soma/communications/api/__init__.py",
+        "sha256": "cb73f06652044e95f7c41dedf57f43df3a4223fb0c70aeca3eabe15de9899a86"
+      },
+      {
+        "path": "src/soma/communications/api/routes_communications.py",
+        "sha256": "c8cbcda0ec4d04b9a09c2a35bfc3756bb62a76775643b7431af69c7d5b839b6e"
+      },
+      {
+        "path": "src/soma/communications/audit_registry.py",
+        "sha256": "67459132bbdf3370d5729388899a01c7d5052e9a77495c1a68dfefb4dc842196"
+      },
+      {
+        "path": "src/soma/communications/composition.py",
+        "sha256": "e34b839104dcafec87ee8056a2e2116adb88836ef4fbce5d1032cc713d0a46d3"
+      },
+      {
+        "path": "src/soma/communications/contracts/__init__.py",
+        "sha256": "046764b33daed64a980d3cecbaced7054f9bc31be599fc73aa72e9a42f04216a"
+      },
+      {
+        "path": "src/soma/communications/contracts/common.py",
+        "sha256": "35985d83cfcbc5de2cb1544d5dd78a5d01e3ff7a796fa46207b74742c78d1a27"
+      },
+      {
+        "path": "src/soma/communications/contracts/drafts.py",
+        "sha256": "4c6dceca9f158e3dede43fd927060c19a114186cea677da6e69618918ce1f2eb"
+      },
+      {
+        "path": "src/soma/communications/contracts/identity_review.py",
+        "sha256": "e8c9b62a98d1a202aff51d64701e499e6caca5bdf057a32b0a50f247e27e03e6"
+      },
+      {
+        "path": "src/soma/communications/contracts/jobs.py",
+        "sha256": "bdc2cf21548725dcc61c3138409bd3a513ddf948f02a88f79187d4f92bec7fe2"
+      },
+      {
+        "path": "src/soma/communications/contracts/matching.py",
+        "sha256": "e32ffc973a12d85e95cabf4b9ba7ecc3370a40138bc66bbd8e00172020ec88bf"
+      },
+      {
+        "path": "src/soma/communications/contracts/message.py",
+        "sha256": "59a4d050886b547e64f3630192d99382437120aaab6094ec0fe16f5b58c13c99"
+      },
+      {
+        "path": "src/soma/communications/contracts/proposal.py",
+        "sha256": "532b5fc4b23f86f6fad8058343cadf4d8c93c3c25d30c0cffa9d7370a7b93d01"
+      },
+      {
+        "path": "src/soma/communications/contracts/queries.py",
+        "sha256": "1765bec6cca7cf2a4a499d1c9dda448bb9dbef65dd7424ec148dafb6ae8c1bc3"
+      },
+      {
+        "path": "src/soma/communications/contracts/registry.json",
+        "sha256": "6f5442a538702de6d17025eb7e98c2cdcbafbaaa9869fe03d2032d890323df3e"
+      },
+      {
+        "path": "src/soma/communications/contracts/source.py",
+        "sha256": "822aa83200a9ec43a733bce21da5ee5848f90e1e726be6799e9bb3105cd9b08c"
+      },
+      {
+        "path": "src/soma/communications/domain/__init__.py",
+        "sha256": "75f12f036a2e61295a4b8acbb8e127dce1dae70655e83ca1bcff453515ea8923"
+      },
+      {
+        "path": "src/soma/communications/domain/attachments.py",
+        "sha256": "ec928d51065b490f9ff31166e23b64ea33e204fd05529456774a53a91103cd47"
+      },
+      {
+        "path": "src/soma/communications/domain/communication.py",
+        "sha256": "a597237cae00d816e5ad63732c00a83b7ebb5aeb8c2dac83d7ac2da703ac168e"
+      },
+      {
+        "path": "src/soma/communications/domain/initial_boundary.py",
+        "sha256": "dd9f24c46b7192daa9c0c8ce2c6fd17f38186729f4e82c7bf1a4478a723fa287"
+      },
+      {
+        "path": "src/soma/communications/domain/matching.py",
+        "sha256": "8957a5560c8bfad3f5246edea4e32536a5fc255ab00e51801817d6d804410431"
+      },
+      {
+        "path": "src/soma/communications/domain/proposals.py",
+        "sha256": "8e132a470004f60984c17e52ac329ebb93b6f279c8d73699dbcf117437330911"
+      },
+      {
+        "path": "src/soma/communications/domain/summaries.py",
+        "sha256": "3792c69fa95cfee1186383665d619aad1e4bf8cdfbad361d4715d80bfeabcbac"
+      },
+      {
+        "path": "src/soma/communications/domain/warehouse_evidence.py",
+        "sha256": "ad264f40eb2c095342b4edcf6f26d76f03ae49d8945082583a53f8577a99d9fe"
+      },
+      {
+        "path": "src/soma/communications/jobs/__init__.py",
+        "sha256": "54dcdce995b92dd77e56e956dfeb700ad857f508c113e46489fbdb4e05af5ddf"
+      },
+      {
+        "path": "src/soma/communications/jobs/communications.py",
+        "sha256": "728db4f04a251c2e33bfb8acb329311a9a5d94c806652cb3c27bcf75b6af69cd"
+      },
+      {
+        "path": "src/soma/communications/jobs/execution.py",
+        "sha256": "83f36e915f48472852293520bd74ffda2e9a5159c8da7f4ea7ec5b0a87fe3b5b"
+      },
+      {
+        "path": "src/soma/communications/jobs/housekeeping.py",
+        "sha256": "0bb94c7fa7a8ce7e3cf17ad51ee606888ce2874e299fb521f7b698ad43951edb"
+      },
+      {
+        "path": "src/soma/communications/jobs/identity_reconciliation.py",
+        "sha256": "be8fe222f93280eba1fcd8d8935ecf3f1d0f46754ff5420decbfbab6e6cefa36"
+      },
+      {
+        "path": "src/soma/communications/jobs/processing.py",
+        "sha256": "7da9e0b585eaa7e9abe3f55135294de522573ef66edfa0145d2de612a8693f18"
+      },
+      {
+        "path": "src/soma/communications/jobs/scheduling.py",
+        "sha256": "982494d072de9215da54810aa88d4e0db902f93d34dfaf933c669f539bf88bf2"
+      },
+      {
+        "path": "src/soma/communications/queries/__init__.py",
+        "sha256": "f0a0d7038fef8c6da3cabff5ff79b5722fa6cb10c9887582f03c2313971f9bd1"
+      },
+      {
+        "path": "src/soma/communications/queries/communications.py",
+        "sha256": "c0b225e1fb7132a3eb4174f79b8a072f985e308169cc4183f214be214d292a6f"
+      },
+      {
+        "path": "src/soma/communications/queries/coverage.py",
+        "sha256": "049140097b656f5d004015e3c94ef472dad0eb9d1aa421017ffeaab6e13516e3"
+      },
+      {
+        "path": "src/soma/communications/queries/housekeeping.py",
+        "sha256": "f768e5173de3e683af8f1433069257a413183e84f330a031bcff0e45af9325bf"
+      },
+      {
+        "path": "src/soma/communications/queries/jobs.py",
+        "sha256": "291c7e9833d9628496c04d363872194165104549c39e0dc0a9311ae71e5b70db"
+      },
+      {
+        "path": "src/soma/communications/queries/previews.py",
+        "sha256": "1a0ff32eacd8f08e368ec4f091faeb891043133e9d42cb3ab7b6fcf570d75f44"
+      },
+      {
+        "path": "src/soma/communications/queries/proposals.py",
+        "sha256": "45528d318549608b32263bb151a51a6e118d2bd4d82c5b9f8c1405d2e117efbd"
+      },
+      {
+        "path": "src/soma/communications/queries/sources.py",
+        "sha256": "dc0af19212c5b335614eb03355e614b53800133b39237814031885ec37def422"
+      },
+      {
+        "path": "src/soma/communications/queries/summaries.py",
+        "sha256": "7aa5de13f2a2b28074f39784ab92440abd4e941f04faff6ee46eae0bd339c37a"
+      },
+      {
+        "path": "src/soma/communications/repositories/__init__.py",
+        "sha256": "6e16cfb91eed7b569fac91558203dc5e2b299cc817aedb9decde1bd6ed8cdd3f"
+      },
+      {
+        "path": "src/soma/communications/repositories/cascade.py",
+        "sha256": "afed2423a50b0ff364dd3112c5cea6719dfb62b13a066dec5053183bee82ad88"
+      },
+      {
+        "path": "src/soma/communications/repositories/communications.py",
+        "sha256": "91e67fee2d872f6ec64a9afbe9e815b860ea5f1c2c1b7469abe55aa73827f50e"
+      },
+      {
+        "path": "src/soma/communications/repositories/identity.py",
+        "sha256": "7af9cf601ccaff4974d79f2ba65dce656f1c03024aba592a2c394d85d23c60b3"
+      },
+      {
+        "path": "src/soma/communications/repositories/identity_review.py",
+        "sha256": "2a350ed59fcc15a116a0dcd5946b7e78bde079635977ecb5f744fa0d2d49b73d"
+      },
+      {
+        "path": "src/soma/communications/repositories/links.py",
+        "sha256": "d7678006e501622e4dfb7cb9f1fdc3897a13c6b727fd4333d3a5a441f7626f45"
+      },
+      {
+        "path": "src/soma/communications/repositories/proposals.py",
+        "sha256": "8a5d8dbe1bca771a784219a25b8d44d5e35ff3bb6c12a5232f80ce852323dcd8"
+      },
+      {
+        "path": "src/soma/communications/repositories/sources.py",
+        "sha256": "cef7855d54942ceccf97bdea62032216b293988062f404aff8518b49ed86b17d"
+      },
+      {
+        "path": "src/soma/communications/repositories/summaries.py",
+        "sha256": "25bb45f4c4a68019a822fb58e6e1343816c49560a3ecd9d07771ce076960dda5"
+      },
+      {
+        "path": "src/soma/communications/repositories/terminal_work.py",
+        "sha256": "b447559b05bf8167489c151921820fb072a0a78e6cf6ea29dcc43f2118428ae5"
+      },
+      {
+        "path": "src/soma/communications/services/__init__.py",
+        "sha256": "c542b50e03bdc62a74ef0377a5e90d4eb4d988394ad32f8357e17ad46a16a722"
+      },
+      {
+        "path": "src/soma/communications/services/dependencies.py",
+        "sha256": "5fac55fa2ae861e0206e32d3d4f85a4b93f2aac3b8e534443ccc99bbb053ffff"
+      },
+      {
+        "path": "src/soma/communications/services/drafts.py",
+        "sha256": "96c2a47dc4f61817ad052a60c8f30eb4ea669769d300ecaad489940170617219"
+      },
+      {
+        "path": "src/soma/communications/services/historical_coverage.py",
+        "sha256": "6fd44b426feab7c8914b17fa0e8e78bfe0fe2ba8b027701aa4598a8b6626ea00"
+      },
+      {
+        "path": "src/soma/communications/services/housekeeping.py",
+        "sha256": "4cde0499e6c8a2e1c4573f05ee91f24363f94bf88be9fce245e36ba2b4574e37"
+      },
+      {
+        "path": "src/soma/communications/services/identity_providers.py",
+        "sha256": "cde4711f1871d54f85d3a07d2e5abc7d704a18447ae0142fc649e9ec7670b771"
+      },
+      {
+        "path": "src/soma/communications/services/identity_reconciliation.py",
+        "sha256": "9542f8c10027c2974ce67ca85543bf4de2a92ceaa2770a592edc229eb1ec0635"
+      },
+      {
+        "path": "src/soma/communications/services/identity_review.py",
+        "sha256": "dd8dacd75cd1a10abe2aa58a93509249643547d01099cad29ae8dc1b367d700c"
+      },
+      {
+        "path": "src/soma/communications/services/job_control.py",
+        "sha256": "132686a8d23c35ba0499da64b8b19e7ae2ae2d0c5da150fb09391c0cbdb548b8"
+      },
+      {
+        "path": "src/soma/communications/services/matching.py",
+        "sha256": "2ff677f57589e0cee3290795ecf7fb7623b7ae4c81d2e8c3f883c79f5748b3d2"
+      },
+      {
+        "path": "src/soma/communications/services/processing.py",
+        "sha256": "671417bade1475fd2584d91229476d82b4e36ec0e5c5141a8094b9b09f1214e1"
+      },
+      {
+        "path": "src/soma/communications/services/processing_batches.py",
+        "sha256": "9b216bf1645619f20197fb4009bb10ce8c41c2857224d1b2aedac33923262ea1"
+      },
+      {
+        "path": "src/soma/communications/services/proposal_disposition.py",
+        "sha256": "3dbaa969e65996252b93030a8288d5a7ead676f9f9be75f62f367c5b5623cabb"
+      },
+      {
+        "path": "src/soma/communications/services/proposal_evidence.py",
+        "sha256": "634ae36188ea670bba068e24b52894851065cdb27b0027751e1902864c623435"
+      },
+      {
+        "path": "src/soma/communications/services/proposals.py",
+        "sha256": "fb18079fd97a9dfb7ec91f96677f33d1955b925119f6287af22664b6a6a690ca"
+      },
+      {
+        "path": "src/soma/communications/services/retention.py",
+        "sha256": "a8f95b4453f86f9dd8648b2d09fcdd8bd1832b876717f8f222d31752f4d5b538"
+      },
+      {
+        "path": "src/soma/communications/services/rfc_terminal.py",
+        "sha256": "8512c0826556879205c2d9aa66f009814a3326a524dc2e33b46ef109a24dc835"
+      },
+      {
+        "path": "src/soma/communications/services/scan_scope.py",
+        "sha256": "d77ee47ecb1396322844d306327a44bceac5a49b94f50ceb200ee6559fabfba3"
+      },
+      {
+        "path": "src/soma/communications/services/settings.py",
+        "sha256": "5fdd808b74302fa8f29e638a1873c9c27de71b369b809427c2cd547a662bf74a"
+      },
+      {
+        "path": "src/soma/communications/services/source_config.py",
+        "sha256": "b8b4eddbb74652c3299ec53e7a3d85ad2a96799987b6b4ce49a63746a4c6ac44"
+      },
+      {
+        "path": "src/soma/communications/services/terminal.py",
+        "sha256": "6a75016f770e35c27c7e1e371bf4c56e05baa3fc64c77e7dada487020cc34211"
+      },
+      {
+        "path": "src/soma/communications/settings.py",
+        "sha256": "27cb76c5c7cdc3065cbc2aae57b50ca9e14ea71b4a29118731a6af368d7f1d0a"
+      },
+      {
+        "path": "src/soma/composition.py",
+        "sha256": "fd564c6a5541509a3ada85850d1ffc10e315062bc36606cb69bc45f6e9f9ac49"
+      },
+      {
+        "path": "src/soma/fk_index_exceptions.json",
+        "sha256": "b720ca26a9143ed1defebccd922e89464324bc606ffc4cdf75244a3a66c1bff9"
+      },
+      {
+        "path": "src/soma/foundation/__init__.py",
+        "sha256": "fffe71b8d51ae9dc02246c6b2dc2061f9dc042b9ac41cef642f3575855d22b94"
+      },
+      {
+        "path": "src/soma/foundation/api/__init__.py",
+        "sha256": "2598d641b31ca29f74dcc2f49cdcdb4f85a4b360f44bd72663967ed7b2ff3c47"
+      },
+      {
+        "path": "src/soma/foundation/api/routes_foundation.py",
+        "sha256": "510915e4df2ffd6e4281e0b01f978656e717a349bc0aa661cc412e69287ff2ac"
+      },
+      {
+        "path": "src/soma/foundation/application/__init__.py",
+        "sha256": "2f24c9e80867aae8879c242247ad0c2f739f32d57f0786fab029ce58d7a1908d"
+      },
+      {
+        "path": "src/soma/foundation/application/command_boundary.py",
+        "sha256": "2d9207833764959a4a27836c6058eaebccadb50a9f05704643a77cff6eecf505"
+      },
+      {
+        "path": "src/soma/foundation/application/command_receipts.py",
+        "sha256": "4f51a29f9a1349fba7a07f0cbe943585400efd757e769f53e364d535da45fbc9"
+      },
+      {
+        "path": "src/soma/foundation/audit/__init__.py",
+        "sha256": "f02209166e3f7033ff41c1eb2f344ff46686059a32e496f3c13e5fd8c900dee0"
+      },
+      {
+        "path": "src/soma/foundation/audit/registry.py",
+        "sha256": "469bef17cd2b9c9c76c97c9f5092aa2ae0527200ebd1ac0610eee7fed3436a1d"
+      },
+      {
+        "path": "src/soma/foundation/audit/writer.py",
+        "sha256": "efda694c9a030c6135490839b93f3e75355c1b97d6483e9a56779d23ae592b8c"
+      },
+      {
+        "path": "src/soma/foundation/contracts/__init__.py",
+        "sha256": "e3bc904fac62c73b754da1795fbaacdc9559f136b370b648b8b1f99beb1971c8"
+      },
+      {
+        "path": "src/soma/foundation/contracts/foundation.py",
+        "sha256": "5b64b36fe12fe87735c61910f540a17938c733b518c8036de73f1f601a5760fd"
+      },
+      {
+        "path": "src/soma/foundation/errors.py",
+        "sha256": "823c7e2ecadadab64869cfd49b042dfa220cc406a03636d62fd45c53da6a8bc9"
+      },
+      {
+        "path": "src/soma/foundation/identifiers.py",
+        "sha256": "08578323294fe35e294fdfc7fbd3e264a8b1992950e7f1c0e4a85c49a21db268"
+      },
+      {
+        "path": "src/soma/foundation/jobs/__init__.py",
+        "sha256": "96b87eb0193daf7a4a7f610736caecc2bf9ed0b4d18a3c6cca5b8d368837ae22"
+      },
+      {
+        "path": "src/soma/foundation/jobs/coordinator.py",
+        "sha256": "796af48465d4d31bb1c74b4da2ec5731a78f6b5301e95519b3324cf7047ae6eb"
+      },
+      {
+        "path": "src/soma/foundation/migrations/__init__.py",
+        "sha256": "852d274f4d69e5ae50b11fb7c2c5a7aac67cb3b16be81180c96d1a12a8173c7a"
+      },
+      {
+        "path": "src/soma/foundation/migrations/manifest.py",
+        "sha256": "d138a9949bd879a2423c5fbc1c51e09e1e1b9e2470492bfd5b262eb7620ad2d9"
+      },
+      {
+        "path": "src/soma/foundation/migrations/runner.py",
+        "sha256": "4fd98146da27dad10b0a60fb233c164b4cf7b8ba301f439fa358bacf5d5ccd1d"
+      },
+      {
+        "path": "src/soma/foundation/migrations/verification.py",
+        "sha256": "ddfd41abd57a629bf3f5b7dafa71395e4d3c9936f2de4898a28675383670dd29"
+      },
+      {
+        "path": "src/soma/foundation/persistence/__init__.py",
+        "sha256": "3952253f1878feb135bff8a3e0fb7aa94caa895a0dd037ebdf2118cbf20093ce"
+      },
+      {
+        "path": "src/soma/foundation/persistence/backup_snapshot.py",
+        "sha256": "61bdcf42a44fe1650ec3c3d43600fb5f0a22cda208590543559d8d09c60eb69f"
+      },
+      {
+        "path": "src/soma/foundation/persistence/connections.py",
+        "sha256": "b287a640d2191bf0645cd61f1783eb3eb3612b130da1ac0dd11103380e1f3d2d"
+      },
+      {
+        "path": "src/soma/foundation/persistence/uow.py",
+        "sha256": "3ce020d8c68f789f415f5d49e00e3f344743b784a971493deac1799867d0235b"
+      },
+      {
+        "path": "src/soma/foundation/queries/__init__.py",
+        "sha256": "0076741197a42e7ee28dfa942bc45a60ed5c430433a0af5c3ad40d7b1750c431"
+      },
+      {
+        "path": "src/soma/foundation/queries/data_instance_identity.py",
+        "sha256": "3791b15c828c21f3973ab5fec106e4c101bfa10b2f0e87032cdd0c026db738d0"
+      },
+      {
+        "path": "src/soma/foundation/queries/jobs.py",
+        "sha256": "10c3dc47c32e30d424e6b0d3a06a8ef85762622bd2f5eefc8f1bca76b9295bf1"
+      },
+      {
+        "path": "src/soma/foundation/queries/status.py",
+        "sha256": "1743f6c25ad571e5dc19cdcbb2a8e0f7b7f64d8193925624113603c916258e6e"
+      },
+      {
+        "path": "src/soma/foundation/runtime/__init__.py",
+        "sha256": "7226affe55ec3f2ecdf53ddf424906a7704a1acf406da7145f6d791e9e641127"
+      },
+      {
+        "path": "src/soma/foundation/runtime/host.py",
+        "sha256": "7482525b4023bf0387183730b47de4d3e3af004ed0279763c70aca2cbb623f5d"
+      },
+      {
+        "path": "src/soma/foundation/runtime/instance_lock.py",
+        "sha256": "590885208c7b7e27978b29f82be0554a4b89cdbd0d8abfa7be7fb2daa3bbcbc9"
+      },
+      {
+        "path": "src/soma/foundation/runtime/loopback.py",
+        "sha256": "db70a9f4e8f99cb9d2d4dbce0e7608340a4173cfe91fe4ebeb99b8bdeb1600da"
+      },
+      {
+        "path": "src/soma/foundation/runtime/paths.py",
+        "sha256": "759261b961267d7e12b8395056d74ce2b163d835d8b13ac57000ef421c255d49"
+      },
+      {
+        "path": "src/soma/foundation/runtime/registry.py",
+        "sha256": "94faced301310d96fd70d0ea33edb62665e0778f952bce59b6e114ef713cc138"
+      },
+      {
+        "path": "src/soma/foundation/runtime/server.py",
+        "sha256": "2921c6c984e6623ad519afacd33d98a67e4100afed738380b01e496ce247fe66"
+      },
+      {
+        "path": "src/soma/foundation/strict_json.py",
+        "sha256": "f0b144cc0212f15dfc858b56c4b52a720727845e5b713a713d11758b1c3a0155"
+      },
+      {
+        "path": "src/soma/infrastructure/__init__.py",
+        "sha256": "85e994e751caf1903435c533c75c2dc094d0c3d2131c81ea8d04c3175ace7f99"
+      },
+      {
+        "path": "src/soma/infrastructure/api/__init__.py",
+        "sha256": "e6df31a0514569c26c01def5eef7a6142d196bb6ca74231e237352e06c0c2ae1"
+      },
+      {
+        "path": "src/soma/infrastructure/api/routes_infrastructure.py",
+        "sha256": "936b6ddf8e20b78ce59f21bd35690ea7f963ff67124ea4b3673b9c2d5c0372be"
+      },
+      {
+        "path": "src/soma/infrastructure/audit_registry.py",
+        "sha256": "a4700ac46cf044283ed9f50f21fea9aeb4ca68458bc226a81720658beb402a6f"
+      },
+      {
+        "path": "src/soma/infrastructure/contracts/__init__.py",
+        "sha256": "765f8f8e4e5f899ccd73cea2a711619577797062aefe17c0d09c8caacae944c7"
+      },
+      {
+        "path": "src/soma/infrastructure/contracts/infrastructure.py",
+        "sha256": "acc7007476773d774b523c8aea0778e2f351dacb517038ab91c41d5326ae11bf"
+      },
+      {
+        "path": "src/soma/infrastructure/contracts/registry.json",
+        "sha256": "682d28725ab2d9531d4cf12cb70859e487b33d4c8fc79e751edacb9b63c3c092"
+      },
+      {
+        "path": "src/soma/infrastructure/domain/__init__.py",
+        "sha256": "dde7a3ad1f9d1e09c0eb30e9c88257002897195ab8b1ee18aea922527d7e7fe4"
+      },
+      {
+        "path": "src/soma/infrastructure/domain/placement.py",
+        "sha256": "0b5b8dff88b2186848721af3c818f6a796c2c3b04165635295eb5186bffe712e"
+      },
+      {
+        "path": "src/soma/infrastructure/domain/relationships.py",
+        "sha256": "607764717de0cd6fb35ea35e46921a1cc37c438700f748083b579ce7e894d453"
+      },
+      {
+        "path": "src/soma/infrastructure/domain/sites.py",
+        "sha256": "73784e1b2634237aaaae8e02beaac2cad4f24180f44ef358a0436329c56a496a"
+      },
+      {
+        "path": "src/soma/infrastructure/domain/workbook_normalization.py",
+        "sha256": "04a7eac56815094aa3d1e543da2d557b26010bc247f0518c22d8b68c4bdc6bbf"
+      },
+      {
+        "path": "src/soma/infrastructure/domain/workbooks.py",
+        "sha256": "5274f5a4ddcba96bab16034f60c2fac5d8aa7f2a9158330685d71c75a9e55e85"
+      },
+      {
+        "path": "src/soma/infrastructure/jobs/__init__.py",
+        "sha256": "5dc4cab9118708d5da782b178135b2990aa448bc6d6fb28dde595d9d3995954b"
+      },
+      {
+        "path": "src/soma/infrastructure/jobs/infrastructure_workbooks.py",
+        "sha256": "1ad5064bccba693a6a0e2b507dc5011aba22ce5c56b15cf04f154430c6a24f8e"
+      },
+      {
+        "path": "src/soma/infrastructure/jobs/workbook_proposals.py",
+        "sha256": "e9b083bdbfd5f8c4d1ca46aceb0b31170f8444c61838256ff8293251edd40f90"
+      },
+      {
+        "path": "src/soma/infrastructure/jobs/workbook_stage.py",
+        "sha256": "3ba177b8cfb7bcde6493d98b1430fb5197d79d2ae9d6e8b2ed8748722f971e0a"
+      },
+      {
+        "path": "src/soma/infrastructure/queries/__init__.py",
+        "sha256": "645ba2b928a101f329b1983ad75f5181f1e101f638d9802b3a8b34684b0459ac"
+      },
+      {
+        "path": "src/soma/infrastructure/queries/candidates.py",
+        "sha256": "dabafa6a400c82fb72ac52d8fee718b611c9485a585226b1ccead8d3f8df8997"
+      },
+      {
+        "path": "src/soma/infrastructure/queries/core.py",
+        "sha256": "6fa62483c8507f9772140e03cac4dc3bb876bde1ae68d6702cbc4138c33bce5c"
+      },
+      {
+        "path": "src/soma/infrastructure/queries/details.py",
+        "sha256": "511cc67f9921a30dd038c14d736515ca900e561226305de2ab261559df112f7d"
+      },
+      {
+        "path": "src/soma/infrastructure/queries/explorer.py",
+        "sha256": "6b5553bebea1a42ce3df400261d4207c1d8080e5dfdb763dbc97c4d7a2b3edc0"
+      },
+      {
+        "path": "src/soma/infrastructure/queries/history.py",
+        "sha256": "96c2d43ee8d7df749a6673ccf286612d1625a0f7db3114e2838220d32815aeaa"
+      },
+      {
+        "path": "src/soma/infrastructure/queries/workbooks.py",
+        "sha256": "3b7a51c372bc6d53b0b5b366c9450c87840ad3341938f336fe66f375e641e0c6"
+      },
+      {
+        "path": "src/soma/infrastructure/repositories/__init__.py",
+        "sha256": "8187c1e281f75ba870953a9022df3c4dc4da335d0f1ac2e8f2ee43e26281f9c5"
+      },
+      {
+        "path": "src/soma/infrastructure/repositories/core.py",
+        "sha256": "a4a0113e5bcd8192702b2c19d185a5a2bc368db39231faea76b8cefc46d97b79"
+      },
+      {
+        "path": "src/soma/infrastructure/repositories/workbooks.py",
+        "sha256": "837106a71766dae78210ae429aece691283699a6e64f1f8d05eefc9383b90785"
+      },
+      {
+        "path": "src/soma/infrastructure/services/__init__.py",
+        "sha256": "b73cfbc929a3bf8167a9f85e12fbe2a6c300e8d0102870d72b1b68b16b826357"
+      },
+      {
+        "path": "src/soma/infrastructure/services/components.py",
+        "sha256": "a74bbb3a20ea837a10623b5e5925bb0991f662a3c5d71658c0e50b063d214a4c"
+      },
+      {
+        "path": "src/soma/infrastructure/services/core.py",
+        "sha256": "23a646b17e1fd2fe1b5140e544115739f9de507d82f65166fdaee31b5859cf2e"
+      },
+      {
+        "path": "src/soma/infrastructure/services/network_elements.py",
+        "sha256": "dda3377a130062789b4e294978a4049035ae40e4e42d70d05d672d1db71d33fe"
+      },
+      {
+        "path": "src/soma/infrastructure/services/participants.py",
+        "sha256": "2cce0cfeba5eaafa6c6ee4a6a4a9583a88fbbed597e29417cfe571624f0c0238"
+      },
+      {
+        "path": "src/soma/infrastructure/services/placement.py",
+        "sha256": "4c973756c40f05d2b6e879f37830e86fde1efa7a7fdf4049a42c1c5d7f40a89e"
+      },
+      {
+        "path": "src/soma/infrastructure/services/regularization.py",
+        "sha256": "bee6f231faef48c9827a03371435f5e6fdd5a6e1de25a873841f4808755def09"
+      },
+      {
+        "path": "src/soma/infrastructure/services/relationships.py",
+        "sha256": "4385a3092e2b781722723e909294dde0248153574f1180c9c855e729fcf8a92e"
+      },
+      {
+        "path": "src/soma/infrastructure/services/sites.py",
+        "sha256": "4b161b73746f9d1b4ba95d90a1b789e6159b85647c5c1ed72480e3e6e1a31548"
+      },
+      {
+        "path": "src/soma/infrastructure/services/workbook_acceptance.py",
+        "sha256": "0c3c2cae7a646576d8419b98bc6f4c6abac8a5307874366591ca54caa15a15a3"
+      },
+      {
+        "path": "src/soma/infrastructure/services/workbook_acceptance_plan.py",
+        "sha256": "f07fad6a5ba3c26752a8141e15a42018d35d6e9212a10c0e21a4cd62623ff1d5"
+      },
+      {
+        "path": "src/soma/infrastructure/services/workbooks.py",
+        "sha256": "1faf34382a1ec734b042b3e6190421bc4615ed338f037982ea9ee04da3159adc"
+      },
+      {
+        "path": "src/soma/infrastructure/settings.py",
+        "sha256": "f22a98fd217ff9377a67a91b0a4bf94584e0e6777e832cd01c3f84f2b6cb3f08"
+      },
+      {
+        "path": "src/soma/inventory/__init__.py",
+        "sha256": "dc83ca36868044ea798c7c9f3efb2111618c0c6108d35447b4c5c0690e42057c"
+      },
+      {
+        "path": "src/soma/inventory/api/__init__.py",
+        "sha256": "503f4f96a3a8d57594a42ad2c0592aa53d8ea718e43cbb2384a1db650014e7e8"
+      },
+      {
+        "path": "src/soma/inventory/api/_common.py",
+        "sha256": "a049994a799bf21147e72f12c8db08b60ee09fd4e1b0e3b7f2250737bd5334ab"
+      },
+      {
+        "path": "src/soma/inventory/api/routes_fault_tags.py",
+        "sha256": "8c6d69fb284e0b01d99bb0fff190538c1ec22b5d1462d53be34b02cdd84abdd4"
+      },
+      {
+        "path": "src/soma/inventory/api/routes_inventory.py",
+        "sha256": "2dc6465c4d6988953cf6f8eecc21d61958310e4fd8b9647eaf903ecfff992daf"
+      },
+      {
+        "path": "src/soma/inventory/audit_registry.py",
+        "sha256": "d015a535d65ea9c3e8d46d57ea47e26c6ad9a0b6c7bc657e746122850bded325"
+      },
+      {
+        "path": "src/soma/inventory/contracts/__init__.py",
+        "sha256": "ea64320b7fc313842ffa2ff4c7983063765d69e8155f6554dc69140d123fe72b"
+      },
+      {
+        "path": "src/soma/inventory/contracts/inventory.py",
+        "sha256": "ac0111b96538f855f853cf1e177b2fd99e26108a941ce547c04829048f93c1f3"
+      },
+      {
+        "path": "src/soma/inventory/domain/__init__.py",
+        "sha256": "7a033da2cc73d5b07f30a79b99b549fab454514eb1460230e623bf8ce75487af"
+      },
+      {
+        "path": "src/soma/inventory/domain/consequences.py",
+        "sha256": "d0110eb63f4390534bbf1d35e26e39a1c7483795940589d212c5c2c026c4bdfc"
+      },
+      {
+        "path": "src/soma/inventory/domain/fault_tags.py",
+        "sha256": "a7d932fcc214b443e5c199665aee8b34938d8f4014c93699b8f16f0edf34c80d"
+      },
+      {
+        "path": "src/soma/inventory/domain/logistics.py",
+        "sha256": "2d04346ab837dbca2f34c55ff5ae267edbca35bd3fdb6318e5d1e41dc2fa0d19"
+      },
+      {
+        "path": "src/soma/inventory/domain/needs.py",
+        "sha256": "d117b39cc9596a704d56c3b5607220d48808bb4256fe94d55acc0abafc274bb9"
+      },
+      {
+        "path": "src/soma/inventory/domain/proposals.py",
+        "sha256": "e1ab6bac32b61affb09d1a22a88e84f5e38e8ab1afd6908996760289e5100cba"
+      },
+      {
+        "path": "src/soma/inventory/domain/requests.py",
+        "sha256": "d9dbe1394fc5125dd389528f6566051897f5839c13a3f58929ac7761b4e2d80c"
+      },
+      {
+        "path": "src/soma/inventory/domain/rmas.py",
+        "sha256": "3bbf279dbf55630a45191fd1329527f58a3898c3dae2a84305ebd5977db190da"
+      },
+      {
+        "path": "src/soma/inventory/domain/units.py",
+        "sha256": "cfbd06b6887645de1a6b3d5babf52145f50baf7d6721d44ecb9ce8aadbc0f17f"
+      },
+      {
+        "path": "src/soma/inventory/queries/__init__.py",
+        "sha256": "c0ea05be41b7acb17c040158a56d93e19312a92cc7a1993f1a3f95fb2d59f4e2"
+      },
+      {
+        "path": "src/soma/inventory/queries/attention_history.py",
+        "sha256": "bbe7db4c44a813a8c3e4a32d87476d151f7f9f380a8fd454164f06fd6eb98de0"
+      },
+      {
+        "path": "src/soma/inventory/queries/fault_tags.py",
+        "sha256": "13abdb3a562ef38b5cd3f05a80084af51031891b3ae4b702e877e6401414a5f3"
+      },
+      {
+        "path": "src/soma/inventory/queries/previews.py",
+        "sha256": "d36dce74cf0ceca1c6921c34aca88c3b151ef755e8b6bf7ef6bb7f9580b5d3e1"
+      },
+      {
+        "path": "src/soma/inventory/queries/requests_rma.py",
+        "sha256": "c391b81c4c0d9ca077c9ea84f29d5ae41b433dacb25bbc07969374d24ec7c5bf"
+      },
+      {
+        "path": "src/soma/inventory/queries/stock_needs.py",
+        "sha256": "a8afb39192b6770c81164b491a3352f58f33770ba4b3f8bf415fade8345eb342"
+      },
+      {
+        "path": "src/soma/inventory/queries/task_context.py",
+        "sha256": "64e5008e1aaa0068a4e04f65179f99c309f10358fd138ede5a935f264ba9a7ca"
+      },
+      {
+        "path": "src/soma/inventory/repositories/__init__.py",
+        "sha256": "d32a1f41fe07de128275ed33250cfd1fa2b97a05f6a5f253eb32278434dfdf70"
+      },
+      {
+        "path": "src/soma/inventory/repositories/fault_tags.py",
+        "sha256": "17acd1f793e5c8a00e9e3c1eb1bb17e7b6969ed3dd982b5cdda75b4c8f6c4b70"
+      },
+      {
+        "path": "src/soma/inventory/repositories/logistics.py",
+        "sha256": "c18d67ca550b5fb6eaa7d19b58e622a10522f8bdc98d36b7c34be31665422bd4"
+      },
+      {
+        "path": "src/soma/inventory/repositories/needs.py",
+        "sha256": "a4a84e071913a6631d02a19602488e4ae904379d7b18c369f499b8f9bffa1625"
+      },
+      {
+        "path": "src/soma/inventory/repositories/projections.py",
+        "sha256": "cdd9f7dcdbbbdaaaa9c8142ec06ec9a9260feedd37f9a3086d7d21393a7091c5"
+      },
+      {
+        "path": "src/soma/inventory/repositories/requests.py",
+        "sha256": "cde93b78baa629b27ff81c02af7c7925ee9388f48b2fc18fd8e366d0833d2d3a"
+      },
+      {
+        "path": "src/soma/inventory/repositories/rmas.py",
+        "sha256": "1c8f7207602a42a75d0b624243bf8cab522c6ae4d2f297bd2092ad909e24ad25"
+      },
+      {
+        "path": "src/soma/inventory/repositories/units.py",
+        "sha256": "5f518b95c19e4e18c9cec4310e138c5bd64c114171519fde68e7677d0f762d0e"
+      },
+      {
+        "path": "src/soma/inventory/services/__init__.py",
+        "sha256": "12f1321eadd9bb8b44c1d84a837bfe168b59f3b88df33c259bdd77b7b3b16876"
+      },
+      {
+        "path": "src/soma/inventory/services/communication_proposals.py",
+        "sha256": "e2aa0ec906d42f7452379309cd867b0a2a4cc3657e9baa04517d275e8a739654"
+      },
+      {
+        "path": "src/soma/inventory/services/consequences_logistics.py",
+        "sha256": "838211072f02c49909d58f2d0f89e7759ec10bae45e4c4bcecd350f3c232cb47"
+      },
+      {
+        "path": "src/soma/inventory/services/corrections_bulk.py",
+        "sha256": "b1b6baa53516b092c5235e5c9e57ff8317689f026cc0887874c6162af3af8114"
+      },
+      {
+        "path": "src/soma/inventory/services/fault_tags.py",
+        "sha256": "bdf5f3b4fa1a5885df734448d884c479d1ab170536d33f1b277909a19c1f37e0"
+      },
+      {
+        "path": "src/soma/inventory/services/hard_delete.py",
+        "sha256": "0c0357221b26be8023abed01f2a0f42c4d79a1a6084bd00ffb42f258228fc27b"
+      },
+      {
+        "path": "src/soma/inventory/services/needs_stock.py",
+        "sha256": "c3752b84723d9f34dc27adfd36373fc2c28f06c3fee9a126b13f43df1795b042"
+      },
+      {
+        "path": "src/soma/inventory/services/participants.py",
+        "sha256": "69170415c1a68dc1700be633817661f2a27cdc17913799b943e8f1566f6185a2"
+      },
+      {
+        "path": "src/soma/inventory/services/requests_rma.py",
+        "sha256": "cca5fa92cc4aeb790ebe0d2ee2f4dfad53009f3ba92e74ea543b822a0816f6f0"
+      },
+      {
+        "path": "src/soma/migrations/0001_foundation.sql",
+        "sha256": "55fb2128a91fdb9e6851b43f88dd807a6f8050b78fe4f37d50069889b0c512b2"
+      },
+      {
+        "path": "src/soma/migrations/0002_identity_reference.sql",
+        "sha256": "8fc0216adf7602b208e456f8c8996dcba1a65d1db8cac89c9a19afe308797e41"
+      },
+      {
+        "path": "src/soma/migrations/0003_tickets_core.sql",
+        "sha256": "2ea24d491daa3ce564e8ee9f92d9e5a4d522c1941758d9646c505aeaaa875e56"
+      },
+      {
+        "path": "src/soma/migrations/0004_ticket_import.sql",
+        "sha256": "50c73b844cf2cfeb6e7273ca1d4886cfd6992653dec3d1c7ca03d98cced607dd"
+      },
+      {
+        "path": "src/soma/migrations/0005_command_replay_results.sql",
+        "sha256": "2aa0b287431d72c47af0e89d5ad28b00e4f21667c40e407fea87390caf826ba7"
+      },
+      {
+        "path": "src/soma/migrations/0006_objectives_tasks.sql",
+        "sha256": "af73f2551a5022e91a5b37f9cdb4b41e6ac79a85dde9c99480b1eff506cd361d"
+      },
+      {
+        "path": "src/soma/migrations/0007_sr_source_presence.sql",
+        "sha256": "f1e3723eaeee67936c0b7f531b42d0d6e4e690c4e297078b07e2f63bbfd8097b"
+      },
+      {
+        "path": "src/soma/migrations/0008_durable_job_coalescing.sql",
+        "sha256": "aab4126fbc9b1e29af3e6246798f837bfe681d3bde8fbe7b26962bd06b12c3e4"
+      },
+      {
+        "path": "src/soma/migrations/0009_product_line_sla.sql",
+        "sha256": "2ea6c47e1f3ffc1b8894a41e7b2b9f73481396703b543c10b0a7d06473811059"
+      },
+      {
+        "path": "src/soma/migrations/0010_inventory.sql",
+        "sha256": "101465714bf01f5a458dc040e0f8c93d7e4450ee82aafdfd30e93a38bbb46628"
+      },
+      {
+        "path": "src/soma/migrations/0011_inventory_draft_delete.sql",
+        "sha256": "fc147866937fc7433516035579596e420f415c17d53d5b12f802fe7400afb53a"
+      },
+      {
+        "path": "src/soma/migrations/0012_inventory_query_indexes.sql",
+        "sha256": "670b19598841f1fb131aa5768f193e4e46de7eaf8af0560cf171cebb48f569c3"
+      },
+      {
+        "path": "src/soma/migrations/0013_fk_index_coverage.sql",
+        "sha256": "5135e6ca649020a633d8169c111e25476bafdc2f4255997866618cff6ca23b81"
+      },
+      {
+        "path": "src/soma/migrations/0014_infrastructure.sql",
+        "sha256": "b4144d9fbfe2d16dca1887801925e275c241964f603c44a3f5519ec90f017f36"
+      },
+      {
+        "path": "src/soma/migrations/0015_infrastructure_workbook_candidates.sql",
+        "sha256": "8ed8b3d4451a3be39fd024132e602dd93c2b0ac56711cdd7664b7800fc2eee45"
+      },
+      {
+        "path": "src/soma/migrations/0016_communications.sql",
+        "sha256": "8e467684b9de0c2842d389da72877619e1fc460ab67b4a9c87b79f2cfc78ea8e"
+      },
+      {
+        "path": "src/soma/migrations/__init__.py",
+        "sha256": "272decd45c6d880665cc37ea00fa55fa15f81d4af8cbc2acab4ac604faa0c68a"
+      },
+      {
+        "path": "src/soma/migrations/manifest.json",
+        "sha256": "48702d29fa80de03efa6d58abc4a2ebdd6657301442e29641dac81156c3910cb"
+      },
+      {
+        "path": "src/soma/objectives_tasks/__init__.py",
+        "sha256": "876362cbd4b77095084553d3d18b6841ee5ce357a078e9aac0df25e48b1b8362"
+      },
+      {
+        "path": "src/soma/objectives_tasks/api/__init__.py",
+        "sha256": "3c6599173df58d08673c0a655093bd9a79e13630419572ba817eb38c63b4a5a0"
+      },
+      {
+        "path": "src/soma/objectives_tasks/api/routes_objectives_tasks.py",
+        "sha256": "91d8101bf39040350f498273e0cb6f260b5d06d0c666960d596c523d762e6f72"
+      },
+      {
+        "path": "src/soma/objectives_tasks/audit_registry.py",
+        "sha256": "9f012c544997d2a8b2b4746ba7d48c6619f90754676dc5a72fc1493b1201c8e1"
+      },
+      {
+        "path": "src/soma/objectives_tasks/contracts/__init__.py",
+        "sha256": "fee7a905b6ed90848999602764e83d7114be4f5ec6b5f89de432f03540a4ee14"
+      },
+      {
+        "path": "src/soma/objectives_tasks/contracts/objectives_tasks.py",
+        "sha256": "f8d48a148e0ee939df32c8228c6d98d56ad0c5933063cb9982968bfd150fac95"
+      },
+      {
+        "path": "src/soma/objectives_tasks/domain/__init__.py",
+        "sha256": "918b2aca334779c1f2ee4fd70fb00810a9ada43b312b84e5168e268005cd0012"
+      },
+      {
+        "path": "src/soma/objectives_tasks/domain/grouping.py",
+        "sha256": "c2ee9f9a91dd2a82fd8c34ac97de2844cf728c374ea81f19badc30600be1729e"
+      },
+      {
+        "path": "src/soma/objectives_tasks/domain/objectives.py",
+        "sha256": "318be2c88d750ed3c06f21034acb969eada483b0bf4b7dcb9903dc72e8709d93"
+      },
+      {
+        "path": "src/soma/objectives_tasks/domain/retries.py",
+        "sha256": "6d4f92a99cdfecedf93df07396d9cd9ec7fc130082e483dd112929505b55baa7"
+      },
+      {
+        "path": "src/soma/objectives_tasks/domain/reviews.py",
+        "sha256": "b4d2588366eb4deca617e3d35086de03e4bf7e90e91a53489bb61df04d444c35"
+      },
+      {
+        "path": "src/soma/objectives_tasks/domain/tasks.py",
+        "sha256": "fe4fa05fc4132c30174f917cee3b8c8dc458d395250a8ed08438da19aedebc0b"
+      },
+      {
+        "path": "src/soma/objectives_tasks/jobs/__init__.py",
+        "sha256": "2b3ac961476b5bbff038ba7228e7d589ce2286338ca75447ef6d9c4a3404ec61"
+      },
+      {
+        "path": "src/soma/objectives_tasks/jobs/grouping_recompute.py",
+        "sha256": "9733ea72b88cf7a42ebbcd2984c59589499f5ad813971af84fe29861c78e13d4"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/__init__.py",
+        "sha256": "86e9b09e33b6f5314e54527522be1224d9bd988c4c94c87c13612a9aa37c42ee"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/cascade.py",
+        "sha256": "e1d04ef0603ef99ef98313df1a5ab315b9ac2b76cd983f53cbec133de857e20b"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/execution_review.py",
+        "sha256": "3490eddca8262d2f98717340afe8f4a28ebf36707f9957b780f40f39d76b7980"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/grouping.py",
+        "sha256": "f9bee95c30cbfe707199d9f37c5a1d29059e0f8f0f33c86a47eb8fec003f3c2f"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/hard_delete.py",
+        "sha256": "57a669a56bf39a5f2df287bf52b823ecd5386b3fda0444cf8f1fe29d017d1603"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/objectives.py",
+        "sha256": "c664ccf3198c643bb1c0709cd66ce8a7f2b05d6395b8fab4c586f7c56435ac07"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/reviews.py",
+        "sha256": "c8edc6bc61ca72510f6cf8d489d495fc020e48a81c59ed1fdbddee0a98141cad"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/task_activity_review.py",
+        "sha256": "27c897247ce552d4e24103fcf5b386a5e38ad87053ee30c4ce82b09fa8892631"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/task_plan_correction.py",
+        "sha256": "ab8bc46b0f387ddbb6cdd1e0b8129aa9196cbe434e84204286dda1bb93c86a73"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/tasks.py",
+        "sha256": "85fd5722078831a8d5350ab9c8d3f87f4c2ea666a912b2b03c192f7c04c1cd92"
+      },
+      {
+        "path": "src/soma/objectives_tasks/queries/timezone.py",
+        "sha256": "462ceffe7cafc307d1c09cf6bcf28552d8a074f0a4921799f9e01df0af30e9ba"
+      },
+      {
+        "path": "src/soma/objectives_tasks/repositories/__init__.py",
+        "sha256": "33364271e0d43a973317a368ae7f15ee8287ff7d69dcc47dd52ecae120cf045e"
+      },
+      {
+        "path": "src/soma/objectives_tasks/repositories/grouping.py",
+        "sha256": "4a7508762a82211cb849301565f765778140529a19779110e12912bd20725f16"
+      },
+      {
+        "path": "src/soma/objectives_tasks/repositories/objectives.py",
+        "sha256": "e3a3e56ec18f288461f62681b03f89f5edcbc8d546b40cf30bde628984f4250f"
+      },
+      {
+        "path": "src/soma/objectives_tasks/repositories/reviews.py",
+        "sha256": "4c442b1385f32e1b0af6fde96818dc444a1f4e4a8f9910958aa51e069a25dc29"
+      },
+      {
+        "path": "src/soma/objectives_tasks/repositories/tasks.py",
+        "sha256": "38e02835aa67f8726fea4b7d0f974c50f0b5834aeffd9f6b165886737410c0c7"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/__init__.py",
+        "sha256": "ce655d65123018f778c95862e5c2a3b6965d03f95beb76821151abfc7c56ccc1"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/communication_identity.py",
+        "sha256": "f192e42517c0073dc93126dca990438a02394a547445b65ed938180ccceb567b"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/grouping.py",
+        "sha256": "223b344bc31fe9bb5f124c02e4dae4410b962584e0e2e0e231460c1e4e8673f6"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/hard_delete.py",
+        "sha256": "13a67d6c7117595f5c312afa2ad65a370d1d74f663fbd632969f670d23a05197"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/historical.py",
+        "sha256": "417681acb8ac9e1fa02c686517b870302f0eab0830effa3f4e18588de859de19"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/objectives.py",
+        "sha256": "c90ef5d4c710e42c1f4f5ab54ac1469252a3c307c4b7e589ba5d343d7a2267ce"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/participants.py",
+        "sha256": "ae907d96c1a326689482baeb273436d07d246994613f2b2a2f66bdbcbfeb9f80"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/retries.py",
+        "sha256": "460f080629a48408ca948d9429283931c5ff5b0f0ba07a9f18ce44597ca73a59"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/source_terminal.py",
+        "sha256": "38566a0b437ea83b08fea248dca58d040a7a62be04d4ff67072f4dac05c9ecf6"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/task_activity_review.py",
+        "sha256": "3df38d3cdf156872a72c66143879a22c919a2fd44a5029a01c2b9d632f3d5cf3"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/task_execution.py",
+        "sha256": "7e15744a1bdfca6a6ea612b9df02f3d59ac47018d4fbd9819fdc48971e18c07b"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/task_explicit_lock.py",
+        "sha256": "3556a3e4ddf77e3f4aebda4e70a1b30f935394debba9a10df26d9f5aafb2dfbd"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/task_plan_correction.py",
+        "sha256": "24e6d0eb116bda5fb972f66f5e71a40719c71fafebc75a5c7b8494e6e6a63c3f"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/task_planning.py",
+        "sha256": "e3609fabc2a5560afba43b8b4ae25df47b70bae198b7b711293986f34f04c0c8"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/task_relationships.py",
+        "sha256": "d91116d6723a4109f6f8238c49e2eec4a4f81646cbef6f12bef2a9001a0b5c9c"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/task_review.py",
+        "sha256": "8d7f117714668f1d060e9b59b3b1236e9082354166788db7b6645af1c608b43b"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/timezone.py",
+        "sha256": "ed58a0e34f68e07f1e955e3b6cb37e43ac1c9f429744a8f06d2b9f562c121897"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/wfm_import.py",
+        "sha256": "8c5a5cd2abf58c6aec405af59995292ba045e23757497ef701e0b2b317651eeb"
+      },
+      {
+        "path": "src/soma/objectives_tasks/services/wfm_import_reassignment.py",
+        "sha256": "3f9373d33160529a5d60ad099a5da3045ed4ea0455a57d5841fc85b7c0bcfb69"
+      },
+      {
+        "path": "src/soma/objectives_tasks/settings.py",
+        "sha256": "e897b16bef99518dec4f6ea2aafe3c7f19fee749ee472851378acb839e8064b6"
+      },
+      {
+        "path": "src/soma/objectives_tasks/source_terminal_authority.py",
+        "sha256": "6dd0c625a2792f3d7c9817c613f3747a9aa034103fabb5887db0580b53d278f3"
+      },
+      {
+        "path": "src/soma/objectives_tasks/startup_integrity.py",
+        "sha256": "121f9922287c5b38464d2b104b58d09c16789cce03a76aeb9edbe07c11261e98"
+      },
+      {
+        "path": "src/soma/product_line_sla/__init__.py",
+        "sha256": "9bdf8ba8b613a58fcd1b265883deff49dd99545151bbffd5321a1947d1e64b74"
+      },
+      {
+        "path": "src/soma/product_line_sla/algorithms/__init__.py",
+        "sha256": "33ddeb5415adaf8a0a3f34447fd8440c2b7d85222f5de2bec81a3e28c53e6f48"
+      },
+      {
+        "path": "src/soma/product_line_sla/algorithms/cohort_state.py",
+        "sha256": "5a2bbc90d4bb91c3a04099f650912b39cafea8a367c3800736ce4bbb6796402c"
+      },
+      {
+        "path": "src/soma/product_line_sla/algorithms/individual_sla.py",
+        "sha256": "ecef7212b189116461a5c1dd13f749a7dcabc19e2a9b47a70c94e9c9ad02630f"
+      },
+      {
+        "path": "src/soma/product_line_sla/algorithms/policy_validation.py",
+        "sha256": "f5c3ff287d0334d5a163f59b379ed5bb595aeaa5c2699d3de2feac123921db8c"
+      },
+      {
+        "path": "src/soma/product_line_sla/algorithms/report_snapshot.py",
+        "sha256": "b6b8741d2d7bd2ee54c5ff516d52149f8380ec53282f6c839f0249c219bb220d"
+      },
+      {
+        "path": "src/soma/product_line_sla/algorithms/warnings.py",
+        "sha256": "a6f420e2bf5747dc806124ce73662c8938e0ef469ace286f992aaed8d285d6c8"
+      },
+      {
+        "path": "src/soma/product_line_sla/api/__init__.py",
+        "sha256": "b8ad22923ea092a4d8b552df703953842b4f522c6f79502f3393f28b65524617"
+      },
+      {
+        "path": "src/soma/product_line_sla/api/routes_product_line_sla.py",
+        "sha256": "0d61d2b388f7645832cf5066c5f333eccd0b53562cf9ac27dce60e477c7c873f"
+      },
+      {
+        "path": "src/soma/product_line_sla/artifacts/__init__.py",
+        "sha256": "b08bf0e733cc992e4f16d8329fd2fc11f8d709c7089f16930609b51922254203"
+      },
+      {
+        "path": "src/soma/product_line_sla/artifacts/xlsx_report.py",
+        "sha256": "f2da4a64d808d0078fd65618872ce3fe168a82e3cba32ea285b9b60975cda69f"
+      },
+      {
+        "path": "src/soma/product_line_sla/audit_registry.py",
+        "sha256": "87341dbc46678d24e1e986325d2e1939e30d01691583adb808c0c34d287f3daf"
+      },
+      {
+        "path": "src/soma/product_line_sla/contracts/__init__.py",
+        "sha256": "6d8b5b63ef99ad7d6fe574dcb305ea81643299596923fc4baf210a2125744be4"
+      },
+      {
+        "path": "src/soma/product_line_sla/contracts/product_line_sla.py",
+        "sha256": "f8bbf0ba71f56adf0d36718648964d8f3364d910472148fa5b97353c4e708478"
+      },
+      {
+        "path": "src/soma/product_line_sla/domain/__init__.py",
+        "sha256": "c3335783b9ac2b1d3d4a12062bb68b68d396ccb444d9e6bf6e39d399b516373f"
+      },
+      {
+        "path": "src/soma/product_line_sla/domain/catalog.py",
+        "sha256": "954a0d8fb7b2abac4f38dd4a5ab9cab1571866453d119cdf991c37a3b4c22631"
+      },
+      {
+        "path": "src/soma/product_line_sla/domain/classification.py",
+        "sha256": "a0ecbaa5656c919f77cd00c29e5cd041b159bde411da7171405d59b77e15b043"
+      },
+      {
+        "path": "src/soma/product_line_sla/domain/policy.py",
+        "sha256": "7692499b5d88235ffb2f9c140403d5b460e71bd27a03ea06873c2b99ed593df6"
+      },
+      {
+        "path": "src/soma/product_line_sla/domain/reports.py",
+        "sha256": "54f9e5bf141ff1a55ad49d9feb9b0cf220e8c96840ef5caecdd5a2ba03d87a1f"
+      },
+      {
+        "path": "src/soma/product_line_sla/jobs/__init__.py",
+        "sha256": "af932d01a7a5b5b34dcf2b200bcd1274be664eedcd0a08ea67f86f0bae02d26c"
+      },
+      {
+        "path": "src/soma/product_line_sla/jobs/report_generation.py",
+        "sha256": "8b2bee6f65e970e6769d4d111d5a5fd615dacff641286c08fdb180bdfa7b0f70"
+      },
+      {
+        "path": "src/soma/product_line_sla/queries/__init__.py",
+        "sha256": "ad1fed633626a03dd31ae5694d3af69513c311af60fef66c16ca3af0fb3525bf"
+      },
+      {
+        "path": "src/soma/product_line_sla/queries/_cursor.py",
+        "sha256": "d53df38a81d305cea4ad3ae30dbf1e062de2b81b20379b2bd0360f52bb423659"
+      },
+      {
+        "path": "src/soma/product_line_sla/queries/catalog.py",
+        "sha256": "78b5fb972a16c155b1d5ec793edd16597be77bfc4d3e8a30ae5ddf085769fe53"
+      },
+      {
+        "path": "src/soma/product_line_sla/queries/classification.py",
+        "sha256": "c26e9702163a23c343debec26a9a8cae19047797b742c5b519322734f3bcb18a"
+      },
+      {
+        "path": "src/soma/product_line_sla/queries/cohorts.py",
+        "sha256": "174099cf736721e0b01e39bffe7594c6d7d08f7b7e64cc97b1851ec90e15667e"
+      },
+      {
+        "path": "src/soma/product_line_sla/queries/reports.py",
+        "sha256": "637bada6c9494ce0e8f2293de50a6cd2cfb0ee63c13b1056900eb87fe0e5098a"
+      },
+      {
+        "path": "src/soma/product_line_sla/queries/sla.py",
+        "sha256": "a962cc39ada057318be88fcdb4a1c0d6bd2d6f53c67cd6c34f2d5a4c00f87498"
+      },
+      {
+        "path": "src/soma/product_line_sla/report_projection.py",
+        "sha256": "fc60468cb4ae30f1d5fd7b2b88202b032e732da99b2d8bfdb2c6e9f58490ac5e"
+      },
+      {
+        "path": "src/soma/product_line_sla/report_sections.py",
+        "sha256": "70cbf6a999d2c57a0f7decba6e4bf1ab272520e948a7e52badd612ec94a72a38"
+      },
+      {
+        "path": "src/soma/product_line_sla/repositories/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "src/soma/product_line_sla/repositories/catalog.py",
+        "sha256": "0458ae67f106dbd3e5e47c39587d5170aee64539c9742a46a1364014b80d90c6"
+      },
+      {
+        "path": "src/soma/product_line_sla/repositories/classification.py",
+        "sha256": "1e02c65ad297541356539aab658620ca24060d3fbeded685493d2998f9567af6"
+      },
+      {
+        "path": "src/soma/product_line_sla/repositories/policy.py",
+        "sha256": "88fe24cf104b3238a8e52178f800cddca43b25b2a18861d52a428374b912dcc8"
+      },
+      {
+        "path": "src/soma/product_line_sla/repositories/reports.py",
+        "sha256": "6867e01eb087200e9cdcf92bf54b161cfef9a1dc7515d3d585b1704e4e2699a7"
+      },
+      {
+        "path": "src/soma/product_line_sla/services/__init__.py",
+        "sha256": "f59f9720d19579693220dde5dcc51f4bbe1775bcd032809e556ce4b239abaa2d"
+      },
+      {
+        "path": "src/soma/product_line_sla/services/batch_classification.py",
+        "sha256": "357d56fd11b5f874885f8ebf2fb014b1492891fe0d5a3aa05b5f0475dc603fc3"
+      },
+      {
+        "path": "src/soma/product_line_sla/services/catalog.py",
+        "sha256": "f990908264664a9c535791864b499577eeed603466e62281f49ec4b62fcbc8dc"
+      },
+      {
+        "path": "src/soma/product_line_sla/services/classification.py",
+        "sha256": "2b2d520a20933593bda2f93f62b7038d2776540b7abb373fc516931df55c300c"
+      },
+      {
+        "path": "src/soma/product_line_sla/services/policy.py",
+        "sha256": "2ffc4899b35d92e340d126ec66af036b1651a568b17b1831f7a6f50a803f0cd9"
+      },
+      {
+        "path": "src/soma/product_line_sla/services/report_orchestration.py",
+        "sha256": "0cff8bbcd8d2a56ec68fe82dabee9544132aa1da03e3ce52333ad2a126452d69"
+      },
+      {
+        "path": "src/soma/product_line_sla/services/report_worker.py",
+        "sha256": "613bc95d1561daec917bcf262776c9eb1ac705cb32779c01ec933b9808174784"
+      },
+      {
+        "path": "src/soma/product_line_sla/validation.py",
+        "sha256": "f1db5c33985926aab0fbb0926c317a49ef5aedb19aafa10a033ca04ade158826"
+      },
+      {
+        "path": "src/soma/reference/__init__.py",
+        "sha256": "e39be08fd960c0bee793b55677472f400f0302d866d4901ecc72656033855ca8"
+      },
+      {
+        "path": "src/soma/reference/api/__init__.py",
+        "sha256": "8f607bfd421cae9c6234d4b461bf9bb14e55b88524a301072f092ed1c775f0c4"
+      },
+      {
+        "path": "src/soma/reference/api/routes_reference.py",
+        "sha256": "b31c17806c2a5f902b8d2feb54135ae9e67fa9f2c9a09e25179c7084e777f6f6"
+      },
+      {
+        "path": "src/soma/reference/application/__init__.py",
+        "sha256": "c84f48342830a2390ffb4bcdf4328945013d5feecaafdb2704a08a11286a5e7b"
+      },
+      {
+        "path": "src/soma/reference/application/contact_service.py",
+        "sha256": "e65847da467fdd91e7290c2997d6da2e9c631bc8e269d17db2d886f1e2b130b6"
+      },
+      {
+        "path": "src/soma/reference/application/customer_service.py",
+        "sha256": "3ffa838f31a2e65863e9d4e866d23802a33c90f7419e022c02457ac7192ea707"
+      },
+      {
+        "path": "src/soma/reference/application/dispatch_service.py",
+        "sha256": "16bbc16ebd63d02f9717e82f3574863c8c4d36f2f2ee3e392c8fca8398d4853f"
+      },
+      {
+        "path": "src/soma/reference/application/lifecycle_service.py",
+        "sha256": "691b46b6e91c9bc4d696cda5695281cb3f2a457238e8b46a06923c3788221588"
+      },
+      {
+        "path": "src/soma/reference/application/profile_service.py",
+        "sha256": "1da68bf0e3fbd3a5cef4ca78f1611f579b5aa80c56d4da33be54359249ca149b"
+      },
+      {
+        "path": "src/soma/reference/application/settings_service.py",
+        "sha256": "1f201f05cd07e24d0dab050f805be382c4f32011bfa372f385532b1a30cf3046"
+      },
+      {
+        "path": "src/soma/reference/assets/__init__.py",
+        "sha256": "b906806f80b01f471777c7c27a182e661662d663baf497898f5b6cf3690c794d"
+      },
+      {
+        "path": "src/soma/reference/assets/unicode_match_v1.json",
+        "sha256": "ec78bcbdf7afa6621dfe342790227e052a55f5913395bc69d92b1bf910a76aca"
+      },
+      {
+        "path": "src/soma/reference/audit_registry.py",
+        "sha256": "ff51910b16199978fdac1be72e85e82911db06c295947f9a7af98117a3f4520f"
+      },
+      {
+        "path": "src/soma/reference/domain/__init__.py",
+        "sha256": "08e8ba63686f2507e185d63339fad173c33f026b524d35071c79b7fe403b0391"
+      },
+      {
+        "path": "src/soma/reference/domain/account_code_review.py",
+        "sha256": "2b12409a6f9b5be393ee2f40508befd7f56624198e7aa780d7ad7d71410757ac"
+      },
+      {
+        "path": "src/soma/reference/domain/dependencies.py",
+        "sha256": "cb0fbe9ed928f0b2606ee52a940e0fe942254b83ea97d68bc67bd58efee190f4"
+      },
+      {
+        "path": "src/soma/reference/domain/matching.py",
+        "sha256": "6c050221946534f26798f8ddcf2098effb42e99a6733c872342f42584a4410b1"
+      },
+      {
+        "path": "src/soma/reference/domain/settings.py",
+        "sha256": "ca92ffece213f0a056561779070771d804d94f6b2750acdb1e7f3886142c5890"
+      },
+      {
+        "path": "src/soma/reference/domain/validation.py",
+        "sha256": "36a0a824085b43497273ba02d2c4794fed15aa51886d552728b5bb8ccb36d2a7"
+      },
+      {
+        "path": "src/soma/reference/queries/__init__.py",
+        "sha256": "bbd24271891334a267718a1ad2f1addb3ddf744f1e36b91d9772719719388643"
+      },
+      {
+        "path": "src/soma/reference/queries/_cursor.py",
+        "sha256": "2ba449067b654fd9fcdaf034ec71fae094f33b33633bfeaedfee7c47e638f443"
+      },
+      {
+        "path": "src/soma/reference/queries/channels.py",
+        "sha256": "32e88adf33a7d208774ccf7eb04d826bb4e128d7a289f694446f0397b2cfa2da"
+      },
+      {
+        "path": "src/soma/reference/queries/history.py",
+        "sha256": "5c5bfab4b63f641f6631351b7eb95c5902b87d9a88201c1efa4c00efcb74a171"
+      },
+      {
+        "path": "src/soma/reference/queries/matching.py",
+        "sha256": "953581e4da55df82e6623c268305d8d6589c21857c3535a6d375f7604f6a8d8c"
+      },
+      {
+        "path": "src/soma/reference/queries/references.py",
+        "sha256": "0a12000ea0b4dbecd9405d65eb018811b1893363e0280b531ce89ff66c7ea13f"
+      },
+      {
+        "path": "src/soma/reference/results.py",
+        "sha256": "8fe02fc9b002d209dd1eb0888851634ae612f86d3ddcdac56b89cd3b5f01d155"
+      },
+      {
+        "path": "src/soma/schema_manifest.json",
+        "sha256": "a4209935e4c79ec53fe5279fd9de5b8c570a3baa76cc50b39ca1f0022fc058c6"
+      },
+      {
+        "path": "src/soma/ticket_import/__init__.py",
+        "sha256": "df8722faac448ac0da409feab613639ec1e996ad651a783cf77d0afcd654563e"
+      },
+      {
+        "path": "src/soma/ticket_import/audit_registry.py",
+        "sha256": "f171e50e6d8dc1bc71034ebbd9a5b533ec582b1a9600f64e4d80e7b6f77d1902"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/__init__.py",
+        "sha256": "ac51b00986d23d6bb46bf2290993a9473e37c2848e6fea7bd6f8bc5d5f2e8169"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/_proposal_decision_core.py",
+        "sha256": "9889ab9abf63dc9b25befbca9222d7a035f1234c7f1e401405eb000ffeaf5d2f"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/_proposal_decision_public_core.py",
+        "sha256": "94f543f207ac0825ef04df3e872e44128171f43bb6907b8331616c1facd30e10"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/_proposal_decision_rfc_sr.py",
+        "sha256": "31cc3353c025fbf9f77834b08e5f915435d94d64122329492b96dc7e2d0f5096"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/_proposal_writes.py",
+        "sha256": "2419f39b8bab87a7376ddd3ce3941493a93a3623c0389f8dcd2de390a0eb6cf1"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/_wfm_create_or_adopt_acceptance.py",
+        "sha256": "50777b1decc6631e76a7898717dd4a9abd3abc662b6fed2f4ce44b0105fde5da"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/_wfm_proposal_acceptance.py",
+        "sha256": "ebbe8a9843fd140d929a9adce7877b729ccd74673be08d49e9aa91d1a59aae82"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/_wfm_provisional_eligibility_acceptance.py",
+        "sha256": "b4d0535b8725434458f8fcdc5608043434178f9f9fe6ad070e6eb3d2745c3425"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/decide_proposal.py",
+        "sha256": "5136a4dfcdb4abcdf29b33c151459881fd74adc9252343420f9a506394b52a81"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/finalize_run.py",
+        "sha256": "361f2453a65d3ea6a9905481b50659edf4cc8283c40a049c36a7b1ac86a2c059"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/publish_staged_run.py",
+        "sha256": "0ccb4b986c1ed4bd3f4d3502f46f1f1de492f72f5cc58ae43c047e795c221eed"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/recovery.py",
+        "sha256": "a30fe2c2c627f4ad2dbf2acc2328eae8f0e41b597f0ff7537d0a88e7d4553ade"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/review_competing_attempt.py",
+        "sha256": "0e12f857a20855d48fe5a850fbb43613fa7c6d5570e1c2ef16ad2d892d3b6fa9"
+      },
+      {
+        "path": "src/soma/ticket_import/commands/start_source_check.py",
+        "sha256": "a7975faad7dd3112dfc0a440bf91837fafc48e55ee49a1e2f7eb76078bfbcc66"
+      },
+      {
+        "path": "src/soma/ticket_import/http/__init__.py",
+        "sha256": "69bd19db957f287a370d29f09896aaeab427332b5db9d865926c3e2f5a458f10"
+      },
+      {
+        "path": "src/soma/ticket_import/http/mutations.py",
+        "sha256": "2d052d240290f1dcfab3867dc54d3d78fd1eb6d94421912dae03c3b30a57b08d"
+      },
+      {
+        "path": "src/soma/ticket_import/http/routes.py",
+        "sha256": "2726084f3437e8997c46950c4c2fd976f8484ae01c8e546eec564297401b5dc2"
+      },
+      {
+        "path": "src/soma/ticket_import/jobs/__init__.py",
+        "sha256": "d0280e204a4c0dd9e5220f827ee427eb813510d8c2759c4418cf9f3b337da1b1"
+      },
+      {
+        "path": "src/soma/ticket_import/jobs/_json.py",
+        "sha256": "7939a25febb2f62086686436322118fb280d4327761d79dfbcf21849f404ea35"
+      },
+      {
+        "path": "src/soma/ticket_import/jobs/source_check.py",
+        "sha256": "7119c6e4456cde10dc4f6cd1d4a187e18734d82baaeae37ca4face6b3092c842"
+      },
+      {
+        "path": "src/soma/ticket_import/jobs/sr_reappearance.py",
+        "sha256": "b5516d9986fb00eabd611aa30acdba118a78d4ed7a4af624589051fb47e9c7a5"
+      },
+      {
+        "path": "src/soma/ticket_import/parsing/__init__.py",
+        "sha256": "945081a31ea415c8346b9ed9c14b3a036bd866c516e19b8da24de788cc06a1b4"
+      },
+      {
+        "path": "src/soma/ticket_import/parsing/advanced_search.py",
+        "sha256": "8ce6419e5f3be2a2b25958086476fa1947210322c5d4c9d67eb8b4c3ce9b3f0a"
+      },
+      {
+        "path": "src/soma/ticket_import/parsing/discovery.py",
+        "sha256": "f407ee8f440a0eb7c5788e7e9e133abe0faa37cc7fb8993d02c8e84e16bcf4f4"
+      },
+      {
+        "path": "src/soma/ticket_import/parsing/rfc.py",
+        "sha256": "a640fe5f36c24ba26fcef264e68215059c1cfabf294d581a54b5c1158ed29a69"
+      },
+      {
+        "path": "src/soma/ticket_import/parsing/sr_candidates.py",
+        "sha256": "88a0c32fda85a4ea95d6cfef358705a13cf6f249ee199be4368ac58b7cde9d2e"
+      },
+      {
+        "path": "src/soma/ticket_import/parsing/staging.py",
+        "sha256": "ab3f53039a00a0624bf8078b6cdddeff28e2a15bc7a001882a1ec610f2c7bda1"
+      },
+      {
+        "path": "src/soma/ticket_import/parsing/wfm.py",
+        "sha256": "6e8cfaa47b388f06e4836e27c54b1dbc183ce8f5bb03bf6536f9dd92359b98e0"
+      },
+      {
+        "path": "src/soma/ticket_import/parsing/xlsx_security.py",
+        "sha256": "acfd6ed76350c68c350f4d90e3a650c9568272c5bf4e22330bd01c37223ece53"
+      },
+      {
+        "path": "src/soma/ticket_import/profiles/__init__.py",
+        "sha256": "1e6864dbb6bc786ee0803d4fa5906d13d062f910420db93e77e3d6c1a4df0256"
+      },
+      {
+        "path": "src/soma/ticket_import/profiles/registry.py",
+        "sha256": "4777b5f5b73afbf6fb75a5b5501be86182bd6ca8776201032c20898a34f33c2a"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/__init__.py",
+        "sha256": "4263b9e48103a805baaee515c8da9757d57565e974dfdf090d73e0eaa4bd8077"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/rfc_identity_evidence.py",
+        "sha256": "b356c157f02ac0e748692c259e62c47864a7a1c52a056a462d4b1a5c9861f9b6"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/rfc_review_evidence.py",
+        "sha256": "68d23ce1badebd3255c65685707baa696f6e44eca6421b7b1c8ed5aaf35ebc8e"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/rfc_source_evidence.py",
+        "sha256": "2b1ecdded57701a6c5ca47821e5d45e51774c489d076ad5c6a1d30994e3a6728"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/sr_contact_reconciliation.py",
+        "sha256": "f5b76f734b4008cd21f4d1dbded13f83a46c3d7266ad4e41ab86d15f8daddac6"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/sr_customer_reconciliation.py",
+        "sha256": "2bfe313fe2493eb5863affecf38bf083766e7bcde870e9a81826997958597ccb"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/sr_identity_evidence.py",
+        "sha256": "a468de6954ff2dcb0723220b3f1049583a9d3526ebed2209a1e48e07409f1bf7"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/sr_source_evidence.py",
+        "sha256": "4be880d30104ce26f96e905f6b8d842caba73107deae3a6b2d65b6d60c8e62d4"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/sr_source_presence.py",
+        "sha256": "03d34e1245b4dd5ccd3ff54654f824c05e9d9c92fca53b239123e75384bebe10"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/wfm_competing_attempt_evidence.py",
+        "sha256": "bd03def56c663fa3135d87fdd8310fa7745f9df945264982b81b768e59815aa5"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/wfm_provisional_eligibility_evidence.py",
+        "sha256": "d77a8aa924c8d8a2a6525492976e358d1b04c96dc14ad5ef3c04cb96617f79c1"
+      },
+      {
+        "path": "src/soma/ticket_import/providers/wfm_review_evidence.py",
+        "sha256": "0216a5201ebc7855c5f00c8f895cdcd6f810e27da72abd968532d4eb7db705fe"
+      },
+      {
+        "path": "src/soma/ticket_import/queries/__init__.py",
+        "sha256": "b26160068511331d1ac39fd85acc6a2ace2a6203f3708dba9198e1e414a037ed"
+      },
+      {
+        "path": "src/soma/ticket_import/queries/proposals.py",
+        "sha256": "7f0475c21578b96dc06cb7d17af36a15105628f5c0ff1a7d37b376a3af4b414f"
+      },
+      {
+        "path": "src/soma/ticket_import/queries/runs.py",
+        "sha256": "6baee9cf09c76a491097abc8537857e5d28888e927774c216be80706711af105"
+      },
+      {
+        "path": "src/soma/ticket_import/queries/source_status.py",
+        "sha256": "c87be5847efa2ffb40a71597f48038052e1f5fd4193eafeef2243b8b58ac6f27"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/__init__.py",
+        "sha256": "fa9d5bcc8a8aae3391c7578db87dd72ef3809801300a20fa1abeda16a1f90551"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/advanced_search.py",
+        "sha256": "12dfabe16f88ca8b5d16001dadfba11d053754ba2b10ed368f5565ccf0dcecd2"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/advanced_search_contact.py",
+        "sha256": "10ccfa28c8aebc27dfc24d7e23ce1d29b012ae15060c9d17855c7cd7d389de8f"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/advanced_search_current_handler.py",
+        "sha256": "ae55494970e1c2122df2e611df4d7c38d39ba49acacc4b67c918907805684dc7"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/advanced_search_customer.py",
+        "sha256": "3d11e0c090d4e5aeaeb1692d9b31358ca785d8ba90c3946f6af05e5feca58013"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/advanced_search_disappearance.py",
+        "sha256": "64d97c071598999e30bd83d75bca339879d45fe9d9cbe4db5813899e7a6d3fca"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/advanced_search_identity.py",
+        "sha256": "c4f0dcd79cc238d8367cf6210de3f0cc494c8811af761375c78337545bb590d7"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/engine.py",
+        "sha256": "0fb1b066aa47a0dbec1d2275ab3cd64382f88a3d6cabf16d8534950c272a9653"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/rfc_enhanced.py",
+        "sha256": "7985b8237b7262db1202e609bbf344409bab6b624cd4907ac618315e45f36d57"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/rfc_enhanced_customer.py",
+        "sha256": "5bde605269b2cf5a8a430637f61bc9905afd39ed0aad0b17c170877899343949"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/rfc_enhanced_identity.py",
+        "sha256": "65d8e959f5fe6ee4bad80c7d0ba267faffee340116c05c17328be4ae20b92940"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/rfc_enhanced_sr_link.py",
+        "sha256": "0407d3f656f3d27420789709e365c6013d35e1156ebfbbff571d6798aad97481"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/rfc_follow_on.py",
+        "sha256": "dc8e6e132e94bbcaf80b7430e44d194aa5f4a1bfefccf35baf5ce5a27744607c"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/staged.py",
+        "sha256": "af4cffb1951ef62f8e0911d044237e782795cf394aeff75a7492a66b429601df"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/wfm_follow_on.py",
+        "sha256": "ae4e1f67a8cf464b605386a0cd7e59abbe252207d7c361ca226aa55e792d318f"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/wfm_provisional_eligibility.py",
+        "sha256": "554384e8bca0c22eea55ccce753f1c7898ba05fd30cec91ed29fcefe810cec32"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/wfm_service_provider.py",
+        "sha256": "6702a38c26c4ad4de711c159a0239b7b45f101e683c60c56d8a9700d533f168c"
+      },
+      {
+        "path": "src/soma/ticket_import/reconciliation/wfm_sr_link.py",
+        "sha256": "ee97ad58ab038dc4a8070b6169bf7eceac42cecf98e65711c09782edc4fb9953"
+      },
+      {
+        "path": "src/soma/ticket_import/repositories/__init__.py",
+        "sha256": "8d029f63dc7cb54cb261d2de58192a4c35826b1a62a713dc463d13600dad4cd4"
+      },
+      {
+        "path": "src/soma/ticket_import/repositories/findings.py",
+        "sha256": "52fa85c98f27d0447e1b9215b813ac07a2f430549898b1b6a55dfcc4b538cecb"
+      },
+      {
+        "path": "src/soma/ticket_import/repositories/observations.py",
+        "sha256": "7eec635e803d82fa50e3879142d7f7c664dab33db47d1d0c4ce7015f24620b33"
+      },
+      {
+        "path": "src/soma/ticket_import/repositories/proposals.py",
+        "sha256": "7a9a243c56634636e473c74f3cd925bf2d45711840cde740061fb72df2fb64a9"
+      },
+      {
+        "path": "src/soma/ticket_import/repositories/runs.py",
+        "sha256": "a21f75a0907438dfaa00505f3d50d669cf3da06dfcb88a47af3115b218b48287"
+      },
+      {
+        "path": "src/soma/tickets/__init__.py",
+        "sha256": "c8d5569e929de1afd82597f0876c208f1733932af47929fe02a8551f99dc7d8a"
+      },
+      {
+        "path": "src/soma/tickets/_import_mutations_core.py",
+        "sha256": "b10931a06dd27bafedd0f1f0eb37b0b58acf553530e9ca181acf6b9ee81c1adf"
+      },
+      {
+        "path": "src/soma/tickets/_rfc_terminal_cascade_execution.py",
+        "sha256": "538c317135e105f08ebbb0fafb50140a88aeca23f464666f27a65e18f218c735"
+      },
+      {
+        "path": "src/soma/tickets/_rfc_terminal_cascade_state.py",
+        "sha256": "ae496466e2b17d5b81d3bc95886f15848561365c6d80fb2a963af4497b40e4ad"
+      },
+      {
+        "path": "src/soma/tickets/audit_registry.py",
+        "sha256": "a2a67ae60b787fc1d586ecc2fe75a7536fa30b2e89186423fc7d6323db11c06d"
+      },
+      {
+        "path": "src/soma/tickets/communication_identity.py",
+        "sha256": "81fa59be48c14a0d39e883fe35213d61421ebf349a53fe315182e9d2d89c1a74"
+      },
+      {
+        "path": "src/soma/tickets/device_references.py",
+        "sha256": "f6736b224545a728ffd8bf46e63f3aaaca1dc22b64b10fe411c132d06cd69113"
+      },
+      {
+        "path": "src/soma/tickets/import_mutations.py",
+        "sha256": "adcab2d71d3d121ac4e3ffc0fac4fc79d3a3f05930ede1bf54731554e49e7eb3"
+      },
+      {
+        "path": "src/soma/tickets/infrastructure_participants.py",
+        "sha256": "619e2a6e560a1886c631e32d9371ba45ae8263b78d843becb3f356744cf1497c"
+      },
+      {
+        "path": "src/soma/tickets/queries/__init__.py",
+        "sha256": "4b24b626d3e52eb8607b8a5c30d3a9e913488742f80411d50e998c3c325d0ce6"
+      },
+      {
+        "path": "src/soma/tickets/queries/communication_cascade.py",
+        "sha256": "cdf8bb486724419c06ef6584ca602b0b29bf76f1a85a41f4aeeafcdf52616d41"
+      },
+      {
+        "path": "src/soma/tickets/queries/device_references.py",
+        "sha256": "958e35b401ac6c3502fe4034add98bb99ff50d958a82176785ffb3a010d7933c"
+      },
+      {
+        "path": "src/soma/tickets/queries/relationship_previews.py",
+        "sha256": "2bb4f45629f6a34a5f12ae8ebe25f8ddc0672e7f1c9bf175a89861a6b2ecb418"
+      },
+      {
+        "path": "src/soma/tickets/queries/relationships.py",
+        "sha256": "86681b795564a91b308090e983f6b12fcaa7cd7fc4af440c55ee258ebc9031da"
+      },
+      {
+        "path": "src/soma/tickets/queries/rfc_archive.py",
+        "sha256": "a2adf918693729e0d358d50ec95245fd572633b978d1f879d6a125e01cf85deb"
+      },
+      {
+        "path": "src/soma/tickets/queries/rfc_branches.py",
+        "sha256": "0c7f7969ed4ff103a7131977e2958d9aad03b75885e3116cb5a3aa642f3c3295"
+      },
+      {
+        "path": "src/soma/tickets/queries/rfc_hard_delete.py",
+        "sha256": "0660658986e5350fb6c81200865729eea29a0519ec9e1fd1b58142e100927a71"
+      },
+      {
+        "path": "src/soma/tickets/queries/rfc_lifecycle.py",
+        "sha256": "317931a7593b758fb17b2cf798e6b2741242953ccab4582f2a4cfefb465157f3"
+      },
+      {
+        "path": "src/soma/tickets/queries/rfc_terminal_cascade.py",
+        "sha256": "d6ee17132e4ef6e4f5619e85d69e80af4fc27515211af43b2d8de8aef1c61e56"
+      },
+      {
+        "path": "src/soma/tickets/queries/rfcs.py",
+        "sha256": "2a7db1922339f2cd76637896fbdc533fd90168a0da6f0a5a4e82183fa3e67f68"
+      },
+      {
+        "path": "src/soma/tickets/queries/service_requests.py",
+        "sha256": "2ee037615496e3090c95cf3f3245a60c60f0593dc4f9befd3ccd4b539294017d"
+      },
+      {
+        "path": "src/soma/tickets/queries/sr_references.py",
+        "sha256": "0038d781218ce4dc0cf89eb1d02c6554f481dc9840450d6e1d9a3fa7f64a77aa"
+      },
+      {
+        "path": "src/soma/tickets/queries/working_notes.py",
+        "sha256": "6d453b9a151f6c4700777b262acc67ea7a5c63382a8cdc77224b542d8d4f1664"
+      },
+      {
+        "path": "src/soma/tickets/relationships.py",
+        "sha256": "54246132b7e2e0c63fafad67ea72cb2340855e0480456eb8b62308b63d40c848"
+      },
+      {
+        "path": "src/soma/tickets/repositories/__init__.py",
+        "sha256": "9c835b3d8c6b2537458ac674b87447597866f3ee7528840ff97c466e954d55fc"
+      },
+      {
+        "path": "src/soma/tickets/repositories/sr_references.py",
+        "sha256": "8c04f6807bc5db55e9438574b06d937b959b32362c23eaa71a058384024ee9bb"
+      },
+      {
+        "path": "src/soma/tickets/repositories/working_notes.py",
+        "sha256": "df4b1e669ec88eadf24aa2dd44b83f910453fec1ed30aaecbf6bcfd739a3bab3"
+      },
+      {
+        "path": "src/soma/tickets/results.py",
+        "sha256": "33ffcbf67af203bd87019e67bf148fa524df21c65168c8e269041630b7300d69"
+      },
+      {
+        "path": "src/soma/tickets/rfc_archive.py",
+        "sha256": "df542d122c13ace6fe9ad1515ddaf40477d416c88a787b5fe48dfb02c975c9b8"
+      },
+      {
+        "path": "src/soma/tickets/rfc_hard_delete.py",
+        "sha256": "538ee10bae69d5419295663d48142784c0a5e268c70c4394d819e7bcc3884c7e"
+      },
+      {
+        "path": "src/soma/tickets/rfc_hierarchy.py",
+        "sha256": "ac21a5c6e01076dee1dde2223028c4248877c152cbe213f670e693c045252125"
+      },
+      {
+        "path": "src/soma/tickets/rfc_import_mutations.py",
+        "sha256": "5625a5232f93e9646f901241c359ad87e46e40696222a3bda9afda4146319abe"
+      },
+      {
+        "path": "src/soma/tickets/rfc_import_reader.py",
+        "sha256": "456f14720d212b1495ba9d61fdc2607d4f2975b8e42d9c07f9ffa9bf68e8e1f0"
+      },
+      {
+        "path": "src/soma/tickets/rfc_source_projection.py",
+        "sha256": "fb5daf86adb6b5de17a64f30ecf4b26ae3f1cd0c7d1ec572f03db1652289b81c"
+      },
+      {
+        "path": "src/soma/tickets/rfc_terminal_cascade.py",
+        "sha256": "767c74a689f80aaf59d4e08340efa172d781548b452f493f20312e167d646277"
+      },
+      {
+        "path": "src/soma/tickets/rfc_terminal_cascade_execute.py",
+        "sha256": "5878e8cb38e94643dcc981bb8c54827e3258837c81605e9d382936f797e5cb3c"
+      },
+      {
+        "path": "src/soma/tickets/rfc_terminal_review.py",
+        "sha256": "bdb43b7f004aed18c099a2c9681297103a4f30fb4d6b1fa7429d17f18044d329"
+      },
+      {
+        "path": "src/soma/tickets/rfc_terminal_scope.py",
+        "sha256": "ea14668478167033d6f742e3dcb7d39d073346dbc305f3c0c96bca05ff0a206b"
+      },
+      {
+        "path": "src/soma/tickets/rfc_wfm_provisional.py",
+        "sha256": "b69d3608fa397f91886bf2cc1a736041fa0f5922471592501aac6581a5597164"
+      },
+      {
+        "path": "src/soma/tickets/rfcs.py",
+        "sha256": "23b2e65bc77ea6a1ca8f828e74b65f4c0b878a14853dfdfde381a7af4e4f5122"
+      },
+      {
+        "path": "src/soma/tickets/service_request_import_reader.py",
+        "sha256": "02dee0d11a19f68ab12b978d2be383cb8708beec53a66fc39ab508fb16c16ba8"
+      },
+      {
+        "path": "src/soma/tickets/service_request_sla_input.py",
+        "sha256": "2792f614d8934274e33eb29d351a62084ef8252ec299d1e738f8129ac34f321e"
+      },
+      {
+        "path": "src/soma/tickets/service_requests.py",
+        "sha256": "6929e186b1e296c1e7ece6b2f94b9f4559ed42b6d7d2ef26adfc2d7aa8c0fa8c"
+      },
+      {
+        "path": "src/soma/tickets/sr_references.py",
+        "sha256": "933e102334634b91b64e6cbb86e7be1254316d919b299dc8a581cf75e6580924"
+      },
+      {
+        "path": "src/soma/tickets/sr_source_presence.py",
+        "sha256": "d8159e0107aad5116dd6824aaf3141183a553a3976251c55fbda7d65fa815457"
+      },
+      {
+        "path": "src/soma/tickets/sr_source_projection.py",
+        "sha256": "cac9fb68f76cbbf2b1a15dc485735c38909728c6374a3771ff97f067026aab5d"
+      },
+      {
+        "path": "src/soma/tickets/validation.py",
+        "sha256": "fc92e621ee025c038c8d4056c1a037266825625dd8384a1bb7b95c033a232b6b"
+      },
+      {
+        "path": "src/soma/tickets/working_notes.py",
+        "sha256": "5466eb8125ae53368d948715cfbf8113bf0fa74ead26c20bc7aae1f032ee53af"
+      },
+      {
+        "path": "tests/conftest.py",
+        "sha256": "50da2260a21621499616c9efbf0a8cd5d2c0f3328e88e5d75efe1ccc01ca9fb2"
+      },
+      {
+        "path": "tests/test_application_composition.py",
+        "sha256": "588ff35ca48e24ac469c78c2fe729e4b7f881f50bf75ab184f5b203465a6c817"
+      },
+      {
+        "path": "tests/test_communications_attachments.py",
+        "sha256": "3139f50c6a7ee7c72dd56734f1b8a9c79a31b3afd2446ff1d7bb0383bf7a4c12"
+      },
+      {
+        "path": "tests/test_communications_content_repository.py",
+        "sha256": "e235d0c3047d82d9b19e9a5234cb548c43879faadb8e8fa962b73030095911f3"
+      },
+      {
+        "path": "tests/test_communications_contracts.py",
+        "sha256": "9c6782c94d7c4a4388432655ba457c19f40749f2824f0117b99bf4c5b9a96fe0"
+      },
+      {
+        "path": "tests/test_communications_dependencies.py",
+        "sha256": "241e2d85bb9e1da14a374ece4625efef98dbf28a4fa2b2893e0f7301fcffa340"
+      },
+      {
+        "path": "tests/test_communications_drafts.py",
+        "sha256": "823de9afacbd557a465c79e7c654c9e681a3eab6fb86b9f5be1bd5afc1201801"
+      },
+      {
+        "path": "tests/test_communications_historical_processing.py",
+        "sha256": "4d1181336477a20cd57dbb8b3688af89977cf1896269ae44492f2f56d2c7ab25"
+      },
+      {
+        "path": "tests/test_communications_housekeeping.py",
+        "sha256": "b1f0005b401d2ed39d27dd148fa95ce33fcdf25e9f374423fb9bbfb0c4dc1158"
+      },
+      {
+        "path": "tests/test_communications_housekeeping_queries.py",
+        "sha256": "78402e4a8e23826a8666d06ceb845ff3e2ce08182f711ab7ccb5427cf815684d"
+      },
+      {
+        "path": "tests/test_communications_housekeeping_worker.py",
+        "sha256": "8f6d0bf76ee6e2865293e4ab1d438c69cda654f335fcfb4730e20885a3313682"
+      },
+      {
+        "path": "tests/test_communications_identity.py",
+        "sha256": "af907170202c346ca2632c4d3db921cf077cc6eb61f068bc512083c389d8b8ab"
+      },
+      {
+        "path": "tests/test_communications_identity_providers.py",
+        "sha256": "c501ef3d307fd63b2e0bafadbdbd56c7a423cae6aef8417476fd22899cc5d777"
+      },
+      {
+        "path": "tests/test_communications_identity_reconciliation.py",
+        "sha256": "a00822dcb21780351081fc1ff0fc16cc34febd6a0180fa4bfba29e1661115603"
+      },
+      {
+        "path": "tests/test_communications_identity_review.py",
+        "sha256": "8fd0c4b464212928b8ad5482796265e071a84876acf200df57c5d120ef43e0c6"
+      },
+      {
+        "path": "tests/test_communications_initial_boundary.py",
+        "sha256": "acd0a5d2332989cf85bd3daa9c4a39810f72ded3839a83b14e22399968ada7e1"
+      },
+      {
+        "path": "tests/test_communications_inventory_acceptance.py",
+        "sha256": "35dea336211460c7ea329052634d447b3e463c90601de6a09dda7800c41d563d"
+      },
+      {
+        "path": "tests/test_communications_job_contracts.py",
+        "sha256": "e6456c7d963dceece30b25c55a01a61294b3bc177e4fa427e5300fc14af2d7d0"
+      },
+      {
+        "path": "tests/test_communications_job_control.py",
+        "sha256": "1fe06a3061cf8f66597b144bf9b39e22e5382146d7332e958b9ffc962536945e"
+      },
+      {
+        "path": "tests/test_communications_job_queries.py",
+        "sha256": "b83f0a246708b60f61e8968755e9d12733cc816fb5a5e5a3b405c3a6b3c376dd"
+      },
+      {
+        "path": "tests/test_communications_link_decisions.py",
+        "sha256": "e041a34cce85ff1e1e6c6c2fe725c17e7512fce81ddcb68eaa77214f549000a8"
+      },
+      {
+        "path": "tests/test_communications_matching.py",
+        "sha256": "e07a5cdbd74f87409114a72563cba8c59fe76fe0a133a1da619e7c86ce21e7e8"
+      },
+      {
+        "path": "tests/test_communications_matching_run.py",
+        "sha256": "90624e3ad8dbd7de30690738893b43628889e883c6aadd9e53694937fc331f53"
+      },
+      {
+        "path": "tests/test_communications_migration.py",
+        "sha256": "040bc1123426882e0b2ef8eec63036f97003baf9ac9e20e9bef690e2339c1ae7"
+      },
+      {
+        "path": "tests/test_communications_msg_writer.py",
+        "sha256": "61fcbef7445fd5dd223875d2eba58fde90e1193808a74695e43472bd93ec571a"
+      },
+      {
+        "path": "tests/test_communications_pff_reader.py",
+        "sha256": "5c9811496f2fbb5ee459a8634f03b72c9cf3697c610b66850d7d899435ddf862"
+      },
+      {
+        "path": "tests/test_communications_processing_batches.py",
+        "sha256": "0e67955baed391994dfe5fbc7654447f779cc492305329e66aac4aaacb8a2c24"
+      },
+      {
+        "path": "tests/test_communications_processing_requests.py",
+        "sha256": "af47d7dc515db49290bcc8ad48f52b9632bfa9c79195bdff5390936948706147"
+      },
+      {
+        "path": "tests/test_communications_processing_worker.py",
+        "sha256": "df64e36dc68526d51e41ff8f4ec55880207551697201622c203bb12f18f37a8f"
+      },
+      {
+        "path": "tests/test_communications_proposal_evidence.py",
+        "sha256": "2f5f0627a26a10c8ef38ef2bddfa22dd210af649e30ea52a7ad43b2d9035d2b8"
+      },
+      {
+        "path": "tests/test_communications_proposal_queries.py",
+        "sha256": "ee610d0b2d3d25e36aceb68344468133c36d357d78b8b30a3e92f00341d4d2d7"
+      },
+      {
+        "path": "tests/test_communications_proposal_repository.py",
+        "sha256": "57eccc6fae2527f684fe7c524541bf70564b9bad104ba4a19700b14c467de052"
+      },
+      {
+        "path": "tests/test_communications_proposals.py",
+        "sha256": "eed9e99a502475d592a583abd960fada89c2030e54031281559ef40cccbe442b"
+      },
+      {
+        "path": "tests/test_communications_queries.py",
+        "sha256": "9efc7737f3468fc0eb3fd9b7dfe788800df74b312706341f7c479d236bba49b4"
+      },
+      {
+        "path": "tests/test_communications_rfc_terminal.py",
+        "sha256": "0437eefa507f3424f38479407c1588cad1e7158d18956e10c1863af39acb443a"
+      },
+      {
+        "path": "tests/test_communications_scheduling.py",
+        "sha256": "8142cc317e8611ee75fc7e4d1c868bb3e460a5b9d220067bfc677721b6c72053"
+      },
+      {
+        "path": "tests/test_communications_settings.py",
+        "sha256": "38257468923d10c6c173013ea541808ea92a85fdf547172be6fb2573a0b3dfe0"
+      },
+      {
+        "path": "tests/test_communications_source_config.py",
+        "sha256": "2d67e81fc513275d09aa7f4d744b91ae488e7aec740b61a91407f34fa035fcdb"
+      },
+      {
+        "path": "tests/test_communications_sr_terminal.py",
+        "sha256": "b6e5585c2febd6cdb4ddf20e8f6ffc2539d3c5d465c01cf1bbff88fe1a3b92fc"
+      },
+      {
+        "path": "tests/test_communications_summaries.py",
+        "sha256": "134e89f10a6b63e1338d76068c198b41af710c67ccfe8912881534316ddbb61d"
+      },
+      {
+        "path": "tests/test_communications_traceability.py",
+        "sha256": "ba0c58675c69db793310a0c2c47ce4453f42ae914b41c549f1d5447663969c14"
+      },
+      {
+        "path": "tests/test_communications_transport_composition.py",
+        "sha256": "4eed00096af92b6d6051193e885bda3d726d711114f186a38529253c41884008"
+      },
+      {
+        "path": "tests/test_communications_warehouse_evidence.py",
+        "sha256": "34c89ebfc985d50f2a022d3f477a158940abf9145fc10b12f8992825b1b4b187"
+      },
+      {
+        "path": "tests/test_foundation_audit_allocations.py",
+        "sha256": "96383cb34bd49f251c869a36549bb2c18e4308508ff3bd0b8ff490f7ab61a67a"
+      },
+      {
+        "path": "tests/test_foundation_backup_snapshot.py",
+        "sha256": "6d360909607486ade6ba94af5b093ac3e3ed175ed0a4ab53d86bbdda31fb5433"
+      },
+      {
+        "path": "tests/test_foundation_connection_safety.py",
+        "sha256": "f3323483decf27fe0439f520cdfd1183b45d31970d4b2c44cd0150a92d0aaf0c"
+      },
+      {
+        "path": "tests/test_foundation_data_instance_identity.py",
+        "sha256": "41cf791dba8e916cdb0f16b32ae4ed4bb320183e07bd21f16862212816d71915"
+      },
+      {
+        "path": "tests/test_foundation_durable_job_claim_guard.py",
+        "sha256": "e65f5719dbc236c6f54e0c930db8096a45457459b44d5bfc436eef27053ad516"
+      },
+      {
+        "path": "tests/test_foundation_durable_job_migration.py",
+        "sha256": "99581e04ad3e8408be6b648e5dcc949753b49fb67be188bd3a8541a1467d9b5d"
+      },
+      {
+        "path": "tests/test_foundation_durable_job_terminal_cancel.py",
+        "sha256": "ddc97ac73423558473134e7c93dc92fae63a95186b0efb33f59995a556eca8cd"
+      },
+      {
+        "path": "tests/test_foundation_durable_jobs.py",
+        "sha256": "f05b685a3ec6bab280945772c92e6fb2029f0206c23a99be4da0778abe6929bd"
+      },
+      {
+        "path": "tests/test_foundation_exact_response_guard.py",
+        "sha256": "07a7a86af2b7cd9f2eec01d51f07a675ff758290efc8c55769b0d05c8fb2e497"
+      },
+      {
+        "path": "tests/test_foundation_failed_start_ownership.py",
+        "sha256": "a1cd4d00a570202a6789e57b5be109c343759d56a205ec4a7d6013a7d4698966"
+      },
+      {
+        "path": "tests/test_foundation_fk_index_coverage.py",
+        "sha256": "8ff57a31c35a039d0335afeb90bd7ee4e4140197a065f2a6def1e28b930551e4"
+      },
+      {
+        "path": "tests/test_foundation_json.py",
+        "sha256": "2f91a3aa8d7abbe182ec7ec0e4a232150719babcf6666977918b27cd38501f25"
+      },
+      {
+        "path": "tests/test_foundation_multi_audit.py",
+        "sha256": "340d9371e8c4909f37238c1197a8511bdda8b96dc8eb2c341aad20e6786c82a5"
+      },
+      {
+        "path": "tests/test_foundation_persistence.py",
+        "sha256": "59cf33d6d86cd966618bcca864325cc4f6d2ebc49a4ff93e0cc72f945f1c655e"
+      },
+      {
+        "path": "tests/test_foundation_regressions.py",
+        "sha256": "c2e42eaf51c107df39bd83059509cabebc17a20862fdb80440af313bba7736ed"
+      },
+      {
+        "path": "tests/test_foundation_replay_results.py",
+        "sha256": "f3cc50ba8e244d4d2e3f4db65033634933be0172cabcf8a478111a55dfd9f9e9"
+      },
+      {
+        "path": "tests/test_foundation_response_factory.py",
+        "sha256": "9263122ed5a42385f201e14ce1268778a8c55083de4d27d59c4e8a5941cb22ab"
+      },
+      {
+        "path": "tests/test_foundation_runtime_host.py",
+        "sha256": "87760b4e3fe7ea35de1b5028863c742b68b954d87da0c3ad641c7c1f37ee8fe2"
+      },
+      {
+        "path": "tests/test_foundation_runtime_instance_lock.py",
+        "sha256": "01438f2044cbb9dae60666fccce5471055f8aa46cd7b78186253cbc5f34c9bce"
+      },
+      {
+        "path": "tests/test_foundation_runtime_primitives.py",
+        "sha256": "e3e94150fd73b5e576e7145154f2ac0958cabc089d31dacfd0c248dd4d014499"
+      },
+      {
+        "path": "tests/test_foundation_runtime_routes.py",
+        "sha256": "5fda7e5d6ffddf17f088886e3346bed485817bca2d061d8b074e5f51923249d4"
+      },
+      {
+        "path": "tests/test_foundation_runtime_status.py",
+        "sha256": "71081553e5dd1c9591d4195cfa972f91892edff81d17748a1d7bf115e21a1f63"
+      },
+      {
+        "path": "tests/test_foundation_schema_verification.py",
+        "sha256": "fc0029892e39b5f154bfc58b0223fdd74b05ac6ceebc3af266e7fbc7a240ccee"
+      },
+      {
+        "path": "tests/test_foundation_starlette_smoke.py",
+        "sha256": "ab7a4eae9410d2641fa8f8f83af7ea194913028155ffc069a4936aa1b3225899"
+      },
+      {
+        "path": "tests/test_foundation_uvicorn_adapter.py",
+        "sha256": "4f346747edb718dd7d01cf025f8435b01ec8f0ecd716e4ed5694194461cfc5a6"
+      },
+      {
+        "path": "tests/test_implementation_state.py",
+        "sha256": "3226b16f2b8e21a672fc99adf9201e98c4a4e66db4db822f4a7c0af25b96ac27"
+      },
+      {
+        "path": "tests/test_infrastructure_component_consequence_contract.py",
+        "sha256": "06903b063cc4816e52cbe46a1a9ec61af807872f05570e7f55c749ad7bf25606"
+      },
+      {
+        "path": "tests/test_infrastructure_core_certification.py",
+        "sha256": "e1a8e134a1caae2c7a3ccc3248f59b8efcd0b6142bfafb54fcb2d500261e70f2"
+      },
+      {
+        "path": "tests/test_infrastructure_dispatch_address_contract.py",
+        "sha256": "48c8b6d90fb6e1800d578bbee44eac6ebc7d576298b59516815b690c04516cb9"
+      },
+      {
+        "path": "tests/test_infrastructure_domain.py",
+        "sha256": "7157531a367fdfce9df4adbc09f981c5f7cded131ed5d52d36dd773b8e593f49"
+      },
+      {
+        "path": "tests/test_infrastructure_history_certification.py",
+        "sha256": "9d52786c908e88027acfcafd6352f54e9eb75d765c9886f21b40a7e06d2cb254"
+      },
+      {
+        "path": "tests/test_infrastructure_job_response_contract.py",
+        "sha256": "f42cb3be1b0eb2a5d1958a3cd38baa637a0b5ef559d156b676e5a1d39ad9d056"
+      },
+      {
+        "path": "tests/test_infrastructure_query_certification.py",
+        "sha256": "2285904ed12b791c2cfb4bbb3d8aa91a7d4fff43fb5ccf5e68ea8f2e9fca2320"
+      },
+      {
+        "path": "tests/test_infrastructure_regularization_contract.py",
+        "sha256": "981669ba54f371ddf4697f5a21ed0341bd3cb9776ffe3bc056592b47c39a5041"
+      },
+      {
+        "path": "tests/test_infrastructure_relationships.py",
+        "sha256": "ac7b11c55b0cb51ccf50355b1890e5543b7dbd80d7b67afe4ffe5fc3907b6663"
+      },
+      {
+        "path": "tests/test_infrastructure_routes.py",
+        "sha256": "e8075c9e7380e2fc3cba184daa6a653d978d9dee06c16d1f734349592f81f977"
+      },
+      {
+        "path": "tests/test_infrastructure_services.py",
+        "sha256": "76805c761bd454c14855961c2d29f8187f73a4776e9778525f928017fd444dad"
+      },
+      {
+        "path": "tests/test_infrastructure_settings.py",
+        "sha256": "864591cdd7444867e7e974025bdae204aea13b698f9d4046a6cc7a2c0920475e"
+      },
+      {
+        "path": "tests/test_infrastructure_site_blockers.py",
+        "sha256": "043f804901e6f2c53c9806430b6febfd207d1fb3984843b7b0327cf7193bc752"
+      },
+      {
+        "path": "tests/test_infrastructure_site_certification.py",
+        "sha256": "df0fe622a1d9a430b49da7744e061fcbb690b203a661652676ae6ba70e344ead"
+      },
+      {
+        "path": "tests/test_infrastructure_site_dependency_participants.py",
+        "sha256": "23640ad79701f75abbb61929014663ba5eb08cb691fa265fb8be3569840f5185"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_acceptance.py",
+        "sha256": "24688f012bac766672f58336f9c7912c27e60c31f129a127491031a08ce6c704"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_acceptance_guards.py",
+        "sha256": "63ccd572a27114e60f5be0f6800352568f599f6f1f9fe0cd1f6ba074c0c7cf38"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_acceptance_identity_guards.py",
+        "sha256": "2a0a6513d2bfc90e1fbd067585e96631fe722458512f8de3017f1a51cc4191b5"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_acceptance_provenance.py",
+        "sha256": "0702b70bcb4e113f963faa465ef0cabd0b60b6f044306ad495c9c68741fd923d"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_export_cancellation.py",
+        "sha256": "c7275e4b0527296c582d25d9f7410a6fe915433d64efba8d4bfe4e39afecb60b"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_export_recovery.py",
+        "sha256": "0889d2881de9792c7dba92043832558e753fa45194d6bb745d6ae6d41722b1a7"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_export_worker.py",
+        "sha256": "772003a14830fdf95491019b95eb9ec1299dd64def27ef51f7bda9dbf810401f"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_jobs.py",
+        "sha256": "fc649fa924dac8447a15663085589fe1fbadb703b1f93534aa6ba1a3f07424d9"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_normalization.py",
+        "sha256": "e4f69828c30e010ab815386090aaa8d3c003a76028dd7f104345125ee4f8e8c7"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_profile.py",
+        "sha256": "96928a91100c3e056753e38aa1a9c715d28750e0e1d06fda779a08f4594ae255"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_queries.py",
+        "sha256": "f6712702a70e8a55f02e8cf5257fdce11614a8e0a69f7a9b968ecb52df829692"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_stage_cancellation.py",
+        "sha256": "46204c868c9c6920e843abd504ee324d52efaa22b6b25c577c2341935c1830fa"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_stage_recovery.py",
+        "sha256": "ef7cb412962e9e9dc3c82f1eb2bdeb045fd3389fbc933d192a9ae52579161263"
+      },
+      {
+        "path": "tests/test_infrastructure_workbook_stage_worker.py",
+        "sha256": "cc2b118d671626f7548216c6e31f9c162dbcc9e94d1fe797909f7105836e053d"
+      },
+      {
+        "path": "tests/test_inventory_api_routes.py",
+        "sha256": "1cb2e7e0a25bbab9b67b834d55819722350160c121cee4fb7b6aa89283346671"
+      },
+      {
+        "path": "tests/test_inventory_attention_cache.py",
+        "sha256": "c0876a069eeb7c4304c258a6643ef1f233d5c12c9b94459bace322f7d75de842"
+      },
+      {
+        "path": "tests/test_inventory_attention_query.py",
+        "sha256": "530f13b394887d4dedbb112c834935e51032745840e2b7622feae35ed1ffcc69"
+      },
+      {
+        "path": "tests/test_inventory_bulk_scaling.py",
+        "sha256": "4e589977f5e9cbeb83956d9f007ebd0d10f77e88ce082b61a7351ac8590dfbd6"
+      },
+      {
+        "path": "tests/test_inventory_consequence_replay.py",
+        "sha256": "e95cecac6299c809c93925f376ee8510e6800e342d25eb397db696be8d725df2"
+      },
+      {
+        "path": "tests/test_inventory_cross_packet_acceptance.py",
+        "sha256": "1a506573284559efef044b1658cbacf6aa498a53101b24da1ee8e653e10c5d79"
+      },
+      {
+        "path": "tests/test_inventory_external_request_despite_stock.py",
+        "sha256": "6ea52b753675ae4fdca0d2e760627692f8d95d6acdf86b5c37d7e10fc21567fc"
+      },
+      {
+        "path": "tests/test_inventory_extracted_units.py",
+        "sha256": "484000a8225c00317e847c45eb9edd77c2a9f048b5a4873c9b55dc385dc132fc"
+      },
+      {
+        "path": "tests/test_inventory_fault_tag_acceptance_tail.py",
+        "sha256": "ec1c90a64cbd7b721b5057c7c311d75ffd4a45462dbe97fa35e7470d8fec96e0"
+      },
+      {
+        "path": "tests/test_inventory_fault_tag_hard_delete.py",
+        "sha256": "90157dd112b83fe8630c2e40163717aa8c67c0b26e9c72f4dbb9885689a6633a"
+      },
+      {
+        "path": "tests/test_inventory_fault_tag_lineage_replay.py",
+        "sha256": "56b9e24e7bbd07980d87564ab7d1eb00bd03a16bcca275fc21fec913536d2163"
+      },
+      {
+        "path": "tests/test_inventory_fault_tags.py",
+        "sha256": "7714155fdbe2c063e4bcdc5065f8e62715b9c564955c490112b3db049cfcf259"
+      },
+      {
+        "path": "tests/test_inventory_history_query.py",
+        "sha256": "99afae7d3451d99efeff8c96293644f547949ad390657aabd48741a143c7db1d"
+      },
+      {
+        "path": "tests/test_inventory_manual_need_hard_delete.py",
+        "sha256": "acc5572df6ef7c0069e95aa56dac6b5910f6d70d9816cdad18e7038b9c537328"
+      },
+      {
+        "path": "tests/test_inventory_migration.py",
+        "sha256": "fd56999896d5caf3921d221a634825a6b366e5be0d702055631658d1a8b50486"
+      },
+      {
+        "path": "tests/test_inventory_msg_non_authority.py",
+        "sha256": "a34751a2c4863981a15023463ced9227a83cdc55674810f644cf36d8e26fc5bb"
+      },
+      {
+        "path": "tests/test_inventory_needs_stock.py",
+        "sha256": "ed205038960c70a55403fc57ab8b633ae1b118daecd353af23ad6ef46ccb4dbd"
+      },
+      {
+        "path": "tests/test_inventory_physical_consequence_acceptance.py",
+        "sha256": "be06d775edcabea98041293fe32e458ef260f2d39756609e8e939d7059432927"
+      },
+      {
+        "path": "tests/test_inventory_proposal_rejection.py",
+        "sha256": "5f652ae2d5e79883e1ccd57a836837d93c5f7cf375b2144b6194982d3b0acc8a"
+      },
+      {
+        "path": "tests/test_inventory_proposal_spare_request_submission.py",
+        "sha256": "81a174697aa34b31ac1d82d8978440e3750a4caffa11bcbde31e82ac0c9d2650"
+      },
+      {
+        "path": "tests/test_inventory_proposal_target_participant.py",
+        "sha256": "c56c5561890282135bed7de8f179f54882c352cce33550acf50049fc52573a33"
+      },
+      {
+        "path": "tests/test_inventory_provenance_reconciliation.py",
+        "sha256": "806974d67b80e58cf67db4443ef0d597f6af86e86137de84aa8cf24d65e92fab"
+      },
+      {
+        "path": "tests/test_inventory_report_contributor.py",
+        "sha256": "52529ea0b13e56afd7296ab7e8d57a3885f14bcd2e94092276934099f767d5e3"
+      },
+      {
+        "path": "tests/test_inventory_request_creation_replay.py",
+        "sha256": "6492fb61cb41a7f45a09682e791424d2a234ec890a0d1f13910f7f9d89853833"
+      },
+      {
+        "path": "tests/test_inventory_requester_support_acceptance.py",
+        "sha256": "b908c805b19601af43ca4c138c8a2e9062f043ee856bd03009a5a96817ed9bf4"
+      },
+      {
+        "path": "tests/test_inventory_requests_rma.py",
+        "sha256": "fb7d180f83717b38935f0da1c231ad8a24d6e26b0d3fe197d450cac4582e4f47"
+      },
+      {
+        "path": "tests/test_inventory_rma_pre_receipt.py",
+        "sha256": "faa289023c1553f9cc3050cb71603fabb7f35329d89c86eb92f27ef51095a628"
+      },
+      {
+        "path": "tests/test_inventory_warehouse_replay.py",
+        "sha256": "901c2253f7697d1fe4eaae8a58118048f7e3e03bb10f869b0cdcc3140aff0bb1"
+      },
+      {
+        "path": "tests/test_local_only_publication.py",
+        "sha256": "395fa61eafa8027a65d06f66b2b24c4c8251a5a5060fe476a3f47d1858224caf"
+      },
+      {
+        "path": "tests/test_objectives_tasks_api_routes.py",
+        "sha256": "d13e39e21638282a3d44ed28112bb9417984b2d8c056b30ba9165956cf90a258"
+      },
+      {
+        "path": "tests/test_objectives_tasks_change_task_relationship.py",
+        "sha256": "40ac908797951de377aae08df23a7ae7a7f08533c82cf19d071c2cf12f79a9f4"
+      },
+      {
+        "path": "tests/test_objectives_tasks_context.py",
+        "sha256": "8c74cae9acd73127d6ab7dfec3db9ff68f41eb60312f9cb57706b194ed7717de"
+      },
+      {
+        "path": "tests/test_objectives_tasks_execution_correction.py",
+        "sha256": "d3da7343da4b4bfc042def46546051fef4737c0c8e3b5d849889dfd2b5fb1426"
+      },
+      {
+        "path": "tests/test_objectives_tasks_execution_correction_blockers.py",
+        "sha256": "dffb43da1c6b28129e3622163e1ab02c53435cd578aa97b74c9b06e7643e562a"
+      },
+      {
+        "path": "tests/test_objectives_tasks_execution_review_previews.py",
+        "sha256": "6104c0e9239dda28cd05663af50f46653f1b772e303326bdcf79ce784a104aec"
+      },
+      {
+        "path": "tests/test_objectives_tasks_explicit_locks.py",
+        "sha256": "743eb5b91065ce4f21d22ecd0fe4ee5b8665c0ad878b71c4be2dc80d5d894e78"
+      },
+      {
+        "path": "tests/test_objectives_tasks_grouping.py",
+        "sha256": "d8df4854c6c09a8e1e4603d3ce237b96501d3644cd69742bfabd01cd2de090d5"
+      },
+      {
+        "path": "tests/test_objectives_tasks_grouping_durable.py",
+        "sha256": "016ab722aaf197d6713244d3fdb1e4c9d86665bac68884195012788c3ce09259"
+      },
+      {
+        "path": "tests/test_objectives_tasks_hard_delete_creation_refs.py",
+        "sha256": "e87a316672ae6e4a4d97e97e1cfe4a39eb68f1be3c3b03bd79578364541587fe"
+      },
+      {
+        "path": "tests/test_objectives_tasks_historical.py",
+        "sha256": "663bd2f966e2ff9bc8c80c3aee3f13f138bb61f466be32d00b7fa4a70288070a"
+      },
+      {
+        "path": "tests/test_objectives_tasks_local_creation.py",
+        "sha256": "fe1a05826b7c76f066b9bf030c436af0383a2abc8624b5acdd40649ebb190841"
+      },
+      {
+        "path": "tests/test_objectives_tasks_local_subordinate_rfc.py",
+        "sha256": "db8280367861b4e4574a27e6a0c9c70805ebb9c741e153267b53e7dd942b0120"
+      },
+      {
+        "path": "tests/test_objectives_tasks_objective_aggregate_integrity.py",
+        "sha256": "d8dad7e8cbbb4b822b0fd6edc08b7b21c02986c4e2f17afe49d5ac3a7bdb8a7e"
+      },
+      {
+        "path": "tests/test_objectives_tasks_objectives.py",
+        "sha256": "a0716b823678ef04379017de890d16a08f2a44ccb38677f802086b7ec43fc7e4"
+      },
+      {
+        "path": "tests/test_objectives_tasks_operational_evidence_reader.py",
+        "sha256": "dd7c26c05a8b7dad6fda1c84d0af86248d0eeaac60348c4f7b8c4b50369b615d"
+      },
+      {
+        "path": "tests/test_objectives_tasks_outcome_review_preview.py",
+        "sha256": "1b10ceb70d96244f38eb7636e68f240beea82e265d803f64928f960a6df7f602"
+      },
+      {
+        "path": "tests/test_objectives_tasks_schema.py",
+        "sha256": "34b90ae9fcbad370134a534c70cdcd2936430479ebd626e2d3c25ad84ad6e2bc"
+      },
+      {
+        "path": "tests/test_objectives_tasks_selected_execution.py",
+        "sha256": "d17c4b18575c7756353d4fc9473cdfc731fe48ddae5f9b8f5f02117d18efa925"
+      },
+      {
+        "path": "tests/test_objectives_tasks_set_task_plan.py",
+        "sha256": "f7078f2575334f81409ceae2e5655f384a8168adc01ab91929a49cb6414caeef"
+      },
+      {
+        "path": "tests/test_objectives_tasks_source_terminal_authority.py",
+        "sha256": "affb9816511301dff531fb5af2a5ee26e1282f72a06e7e39662d5e01ae3f03d1"
+      },
+      {
+        "path": "tests/test_objectives_tasks_source_terminal_resolver.py",
+        "sha256": "9803a2effd917e70be584ed92864e6544a83bbf7a7a3214385fb3d11ae630f97"
+      },
+      {
+        "path": "tests/test_objectives_tasks_task_cancellation.py",
+        "sha256": "d31bacf4b52929058a1cd81d55288ebdfc60191caead81c324cb43e3703ce04a"
+      },
+      {
+        "path": "tests/test_objectives_tasks_task_execution.py",
+        "sha256": "6df9aa02a94d79df689ce1172447a0d90d2799afd961d3ee3586cdd3817ea178"
+      },
+      {
+        "path": "tests/test_objectives_tasks_task_execution_end.py",
+        "sha256": "0e34a9f30cf5b705d131eeef104ba4b9e99131ae4c4bf9b6c85d57a141dd239d"
+      },
+      {
+        "path": "tests/test_objectives_tasks_task_execution_end_preflight.py",
+        "sha256": "8678fbb117874d100ee856eabbd98d513f4d77f6e8691f02783f21a854e2da2d"
+      },
+      {
+        "path": "tests/test_objectives_tasks_task_hard_delete.py",
+        "sha256": "d6b9379f626534066242c2b320952ac6ee6e7005ee304b5cf268ca080fe3d3c2"
+      },
+      {
+        "path": "tests/test_objectives_tasks_task_plan_correction.py",
+        "sha256": "82f9ebf161114dcd781a25883b5e067c667315d940c4796dec97fb196d8e2b18"
+      },
+      {
+        "path": "tests/test_objectives_tasks_task_plan_correction_objective.py",
+        "sha256": "e8ee5b1b9e76bec60a33e8581e725d4fb25d1085a195bcf636a7decd7e1c4af5"
+      },
+      {
+        "path": "tests/test_objectives_tasks_task_review.py",
+        "sha256": "9874e5c0b733c01ebe591542d5f165d13885589b26104bb94fe1e11a30bac137"
+      },
+      {
+        "path": "tests/test_objectives_tasks_timezone.py",
+        "sha256": "cee7cfcf9d5ed69e04dbb0f313402668ce91d1ce319054f6b71f5dee18be29a4"
+      },
+      {
+        "path": "tests/test_objectives_tasks_wfm_activity_review.py",
+        "sha256": "4a5472724910f07e240b1926e20e4443e4d7520e8df6da3b6894f44cda2d6d0a"
+      },
+      {
+        "path": "tests/test_objectives_tasks_wfm_competing_attempt_conflict_authority.py",
+        "sha256": "601024375f4b4d23525d59378d474e1a85b01523f6db80be6738b2c24ab8cc05"
+      },
+      {
+        "path": "tests/test_objectives_tasks_wfm_competing_attempt_owner.py",
+        "sha256": "8e42581860dae64f96278a5acefb90e366c28bf5de3584eb2701bd24f49ba53a"
+      },
+      {
+        "path": "tests/test_objectives_tasks_wfm_import_owner.py",
+        "sha256": "a61ca31f2167a5fa9208c565d16126c28e3a625241bb4d5dab75139f072a8db3"
+      },
+      {
+        "path": "tests/test_objectives_tasks_wfm_reassignment.py",
+        "sha256": "6f3e478ff44ac7bce1264b10a6e7761b162d0569fa5d5f8cc44b1606661015e3"
+      },
+      {
+        "path": "tests/test_objectives_tasks_wfm_registration.py",
+        "sha256": "307577f6f8a46ec6aea619a97c60433d014a7a244b3f9f82900b476522942b6c"
+      },
+      {
+        "path": "tests/test_objectives_tasks_wfm_retry.py",
+        "sha256": "a203c3a2d3fcfd20e412377ce634aed182b46468dd29699a717000c6dbc1fa87"
+      },
+      {
+        "path": "tests/test_product_line_sla_acceptance_catalog_classification.py",
+        "sha256": "f1b9afefa9575981c72e9f3a94e6daf6d7a84ceed56ee2e532ba7e8de763c4a6"
+      },
+      {
+        "path": "tests/test_product_line_sla_api_routes.py",
+        "sha256": "0f35cd0a1f80889d784d1e4e87c351648dd253e7ee51b7950ba435a5b1ccae2c"
+      },
+      {
+        "path": "tests/test_product_line_sla_batch_classification.py",
+        "sha256": "123cbde6037684870bbb186215a41a1c36c3173e4c9ff1333914af7b6f02f71d"
+      },
+      {
+        "path": "tests/test_product_line_sla_catalog_policy.py",
+        "sha256": "7667e0675de9ebe7d815d87e0a6d976468a1ad4a832ad90bcb07b6dedad5bfc7"
+      },
+      {
+        "path": "tests/test_product_line_sla_classification.py",
+        "sha256": "2384c71ad3b7ccee73ee8de9893eeaf0a50de31da7d5460986518147e1333722"
+      },
+      {
+        "path": "tests/test_product_line_sla_cohorts.py",
+        "sha256": "aa9e91750693d073d769a0f122cd1e547e149873f876ed3ac92eb464859a4403"
+      },
+      {
+        "path": "tests/test_product_line_sla_domain_boundaries.py",
+        "sha256": "543dcf8f9d2ca1288733ac58d49e0614403a05c4ab319534066ff54cd9c92aaa"
+      },
+      {
+        "path": "tests/test_product_line_sla_failure_injection_core.py",
+        "sha256": "45c97c8956602454788f19895518a5e95b77341c914e9e5d4baf16109809bd45"
+      },
+      {
+        "path": "tests/test_product_line_sla_individual.py",
+        "sha256": "7cf3b5fe48453dbec7f69970bd727c85d98295c8480c3f3d5984db4fc7a3a1de"
+      },
+      {
+        "path": "tests/test_product_line_sla_migration.py",
+        "sha256": "d390d2e639aa28e4dc8eef83ef5fede612bd972488de9b8aff765b06c43914c1"
+      },
+      {
+        "path": "tests/test_product_line_sla_objective_timezone_isolation.py",
+        "sha256": "732e372655207b09397f894a5293dc9f45deb450d8f1c87fefe67ec3ab0718aa"
+      },
+      {
+        "path": "tests/test_product_line_sla_policy_validation.py",
+        "sha256": "d8e137d551e89efebbfc407dc98cbf02e12f76547e095cc6cc3d39a0241df270"
+      },
+      {
+        "path": "tests/test_product_line_sla_report_policy_immutability.py",
+        "sha256": "3f0ea8e4f2a5d10f211837ff71deeb9a4934136633a5f71a6977907b6de75546"
+      },
+      {
+        "path": "tests/test_product_line_sla_report_projection.py",
+        "sha256": "9ce10a4ee56ff3a11d861d8d8c4e19e0883ab0febd4dceb952401f1654c0df89"
+      },
+      {
+        "path": "tests/test_product_line_sla_report_sections.py",
+        "sha256": "038fd7539434114747fdcafa1c6f7b61ba4b44e909d531ad5b53cf90e8bf4ddd"
+      },
+      {
+        "path": "tests/test_product_line_sla_report_snapshot_consistency.py",
+        "sha256": "abdbd9654cc8b64766b515e3c989f067f22a7affbc891b7969cc6bfc37c8edfe"
+      },
+      {
+        "path": "tests/test_product_line_sla_reporting.py",
+        "sha256": "e0687177ec66ea739f5fdbd2011030b40a1941d5172403429c2cb9b233ee0ed7"
+      },
+      {
+        "path": "tests/test_product_line_sla_reporting_acceptance.py",
+        "sha256": "28f2c45e597829c375641f40fe07f329759ed9a3319859034a93860a1e519553"
+      },
+      {
+        "path": "tests/test_product_line_sla_xlsx_artifact.py",
+        "sha256": "c9ec5259f05db4793cb8f3c5ceab9fd11aee2ac50f76fc57d8942869cb405221"
+      },
+      {
+        "path": "tests/test_reference_acceptance_closure.py",
+        "sha256": "2c5070e3ec69f90165329f90376809597c251455a3562b30bd62a9bce36dfff8"
+      },
+      {
+        "path": "tests/test_reference_api_routes.py",
+        "sha256": "a84b137ed1b525e2ff69c2e709de339192d58091562adf81da8ffb6cceefbfd9"
+      },
+      {
+        "path": "tests/test_reference_bounds.py",
+        "sha256": "51029facb0f40dd6a446ccd5100387aaa4698e881ba4316eea9badced27e477c"
+      },
+      {
+        "path": "tests/test_reference_contact_replay_results.py",
+        "sha256": "0ae235ae66a44b26bf3191b909b20b869ef14000399ad7e80bd6cf2be1ae6450"
+      },
+      {
+        "path": "tests/test_reference_contacts.py",
+        "sha256": "38545b31c3750fee0c7012b73aee07138a20d34346b694881a6f860d73fc4d48"
+      },
+      {
+        "path": "tests/test_reference_customer_replay_results.py",
+        "sha256": "6fa6b0958a863b2c4f5d19562d805d1451e14eb42ef2c912304379bae6cdc8e1"
+      },
+      {
+        "path": "tests/test_reference_customers.py",
+        "sha256": "9809c222d5a9d341fe0896e3c5cfeaf693d86d827074f99db02172fa51c3abe3"
+      },
+      {
+        "path": "tests/test_reference_final_authorities.py",
+        "sha256": "80b10de1e8ed16ec3cac0d6d766f0191fceb33f9b0d270f60f8c5baf93d3c902"
+      },
+      {
+        "path": "tests/test_reference_inventory_dependencies.py",
+        "sha256": "ede495c1a791c37a640432aae171ef48f877d9ee5aa1feb2854f3f3f823d7e91"
+      },
+      {
+        "path": "tests/test_reference_lifecycle_replay_results.py",
+        "sha256": "d59a14c3ac9b79b336aff7232a8c2ec9b167e18f372c79f9f53d1fb31f150c52"
+      },
+      {
+        "path": "tests/test_reference_matching.py",
+        "sha256": "456af68df68af11b5c4a2a4ca79d17e88b0c5692bcbdda213a85bfce73acc4a4"
+      },
+      {
+        "path": "tests/test_reference_matching_profile_guard.py",
+        "sha256": "242992beaf8c110aa7d0b9eb346737bba836e3be3f91427568218b81fea74a46"
+      },
+      {
+        "path": "tests/test_reference_no_change_acceptance.py",
+        "sha256": "018e39bc725826ed281cd0e61bc82b5f5896592a04b96c193e90741ca8911e12"
+      },
+      {
+        "path": "tests/test_reference_owner_queries.py",
+        "sha256": "74dbbbcbd0efcce3cbe917c13ce5ac1ca0b5821b2f9eb58b5da2a72eb1602a40"
+      },
+      {
+        "path": "tests/test_reference_queries.py",
+        "sha256": "2de62a99a1c9b972649aff4b2be2d8d8c01c075d8ab21b0811f66a903148950e"
+      },
+      {
+        "path": "tests/test_reference_query_cost_acceptance.py",
+        "sha256": "87da78578f4ec62eb01e9e48cab1ffaedb34770cd7fb3aec5f3035d3a6841bdf"
+      },
+      {
+        "path": "tests/test_reference_replay_results.py",
+        "sha256": "693e4633bc340fd78d922ff2270aa07642729418b01ce46ca6c8c0a03656b1c0"
+      },
+      {
+        "path": "tests/test_reference_schema_contract.py",
+        "sha256": "a658073e7640511c15ff8ef431786472c6b8bee63622f62168e0045078666179"
+      },
+      {
+        "path": "tests/test_rfc_import_mutations.py",
+        "sha256": "8e917f9de4517dfdfd740a9a927195f0311b16af261bbe3d99191f2752d87951"
+      },
+      {
+        "path": "tests/test_sr_reference_mutations.py",
+        "sha256": "4f190d800f6d92c241891ba33bc11808aecef091c01320a800a86ff28d24177e"
+      },
+      {
+        "path": "tests/test_sr_rfc_relationships.py",
+        "sha256": "37c456d5d593c548bc7792adc3ace4e5d832bb75a9250f5799addcdf69cd253b"
+      },
+      {
+        "path": "tests/test_sr_source_presence.py",
+        "sha256": "bf699d9999d383abe37c58a758e5f8f2cc93512ab0aebcaf606d8afb3a290608"
+      },
+      {
+        "path": "tests/test_sr_source_presence_migration.py",
+        "sha256": "213487c3e8a7e7a552f3c6b50eb79dbd65625bda4f4d94527b64e9016070cfff"
+      },
+      {
+        "path": "tests/test_sr_source_projection.py",
+        "sha256": "6a7a47859de9011a206649cb315eb475f21f9643248fd3adfa450801473aea9f"
+      },
+      {
+        "path": "tests/test_ticket_identity_services.py",
+        "sha256": "9d2f6c448639aaa49f5d3eb37363ad729a1e56602037c9bc29a30d052e5d108c"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_contact_reconciliation_builder.py",
+        "sha256": "8a99c81a2841253d376e0cc84de493819f65a57f85f100f00ee142147067390d"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_contact_reconciliation_risk.py",
+        "sha256": "fd73ec0307b8efd24084707e706537255bc5e28d4973fde3d66141e4de572aa3"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_current_handler_reconciliation.py",
+        "sha256": "69a1bf22d9e0238f3fca830f827b749e035bd3f70ae9640073d062f2c9e9b328"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_customer_reconciliation.py",
+        "sha256": "b4128b85f31696e95a11f2254cb5be0ff8a3ea7d8c4b669771153ed900de3ea2"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_disappearance.py",
+        "sha256": "5304fbb3114f5c08462801290879bf8a0ecb6908cc0543a272b31b0114c2d475"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_discovery.py",
+        "sha256": "44616664b2c2ba1ad99ee2919c51026d262a01b04dba5252978456c739db559c"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_identity_reconciliation.py",
+        "sha256": "24d2533809dba1ec92cfd75cab406fb94c648d4e364bf2f91b4aaebd719b8b76"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_invalid_duplicates.py",
+        "sha256": "1e593eb4825417bc450869f7ad8f1c943600ba7c614519f8c87cf3546770da0a"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_parser.py",
+        "sha256": "dbda9a8d5056c9be82d10e552582075d82e3dbc2c59fe88a19fafc4218d3a265"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_reconciliation.py",
+        "sha256": "e7afdf56796e0c8a744748e9e97ea27171c763a9421c921d17128e1a799996c3"
+      },
+      {
+        "path": "tests/test_ticket_import_advanced_search_staging.py",
+        "sha256": "38a8fc562763dc5984aeb1240e6f317ca17ab46c80d9d6ecb77df19264496bc9"
+      },
+      {
+        "path": "tests/test_ticket_import_checkpoint_replay_results.py",
+        "sha256": "e3976e6730b976a0f8b225e67979d121260b6e84c41763b10f6b836f4aa7149b"
+      },
+      {
+        "path": "tests/test_ticket_import_customer_accept_order.py",
+        "sha256": "17b89e566ba7077c782dd626f99adce9b22ac90042e3bf17002c47a2ec251a9e"
+      },
+      {
+        "path": "tests/test_ticket_import_discovery_path_portability.py",
+        "sha256": "a4b4fc78559d4d8c9211ccd0d193bb43b5f85e471d35a2666cdeca590172fecd"
+      },
+      {
+        "path": "tests/test_ticket_import_finalize_backbone.py",
+        "sha256": "2c07581b4245b6dab4f91e0793df75929fd1ada07f0a0c2988697a8dd2008f34"
+      },
+      {
+        "path": "tests/test_ticket_import_http_mutation_adapter.py",
+        "sha256": "68adbeb4aede900577699e5a6a35712cf65f2c48f8570905300b53c6dd37f0ad"
+      },
+      {
+        "path": "tests/test_ticket_import_http_query_adapter.py",
+        "sha256": "eefb12cb98bad315f18b719e5e2afc56f54d5c2c0ca504a0cc4bd1251b717496"
+      },
+      {
+        "path": "tests/test_ticket_import_http_routes.py",
+        "sha256": "67b63acedbb16315a5740c5835897e5cef6fa1a2fb25f22ba365a4f59cdc658e"
+      },
+      {
+        "path": "tests/test_ticket_import_job_cancellation_semantics.py",
+        "sha256": "4051016fa64df2e9423eb63cb20da4e3f4609ae7bc6f02265619231c076d3d00"
+      },
+      {
+        "path": "tests/test_ticket_import_job_contracts.py",
+        "sha256": "a97d1592f7993630b1f618e98742e3265aeb494b6a28ac7863dbcb285daef9f3"
+      },
+      {
+        "path": "tests/test_ticket_import_job_json.py",
+        "sha256": "0f2a1dd096de62e1df22aa51281f3ad0dc02cd6cb9616c3201c100c95f3a69b3"
+      },
+      {
+        "path": "tests/test_ticket_import_logical_fingerprint.py",
+        "sha256": "d21b8cb1765e625889b42dda0fa96f591cac72c2bca372f4ef8ec3aa0af5d5ec"
+      },
+      {
+        "path": "tests/test_ticket_import_newer_identical.py",
+        "sha256": "faac0bae75323f2a10bb110133b3980eed8ccfacbb4972014838911d4f7ad84d"
+      },
+      {
+        "path": "tests/test_ticket_import_observation_staging.py",
+        "sha256": "989e518d11b7523be5438b194332cc80d92573c7cd58ea6d55c9776494428f40"
+      },
+      {
+        "path": "tests/test_ticket_import_profile_registry.py",
+        "sha256": "03eee1eaef0b21f6e0a2e59d2c9b787fe48590de44b35b5c0667cd90472bcece"
+      },
+      {
+        "path": "tests/test_ticket_import_proposal_decisions.py",
+        "sha256": "8fc3a65ee0e963a0507fe8e0a2a4cb3e2f6679ad68272957655956782ceb5e89"
+      },
+      {
+        "path": "tests/test_ticket_import_proposal_persistence.py",
+        "sha256": "7b903dc5a5fdc2b982df94d7828339d065125a64a5e0dfc88e2e65f9b033baeb"
+      },
+      {
+        "path": "tests/test_ticket_import_proposal_replay_results.py",
+        "sha256": "e48362ae3711990bae3b51db0969943b25eb5b1d2252edbece2c2f94880ce7b8"
+      },
+      {
+        "path": "tests/test_ticket_import_proposal_review_freshness.py",
+        "sha256": "49f0d596688bc9bceada95ff9249a0bc2bece9813ddf16b9e429869ff9623806"
+      },
+      {
+        "path": "tests/test_ticket_import_proposal_review_owner_integration.py",
+        "sha256": "e1c814d1e397e9e6d76c4e3278eb46d5ab9294f5361e88ee363733b0c2d9043c"
+      },
+      {
+        "path": "tests/test_ticket_import_proposal_write_projection.py",
+        "sha256": "36166c85f4807e607793bb302d49fcc17d67b5b360db4c03fbd363152bfb6442"
+      },
+      {
+        "path": "tests/test_ticket_import_publish_chronology_safety.py",
+        "sha256": "260fb0c10a0aaeee26ca2ad98c1db04fa5bb3638ce94e5e0bfc8ca2e5341167d"
+      },
+      {
+        "path": "tests/test_ticket_import_publish_staged_run.py",
+        "sha256": "a4ef95eae32858467e9046a7fb94ef3cfa78ae2cfbe91445108d8dbbbfec9f61"
+      },
+      {
+        "path": "tests/test_ticket_import_publish_transaction_boundary.py",
+        "sha256": "617450866b928277b7f633b94afe7ac6b007cba32e149eb0d4896c1f75295ba9"
+      },
+      {
+        "path": "tests/test_ticket_import_query_backbone.py",
+        "sha256": "65d8e922f5e28c9879e05af4e7aa26d655ddb85244e5d3b2c1ddeb7d944b0e56"
+      },
+      {
+        "path": "tests/test_ticket_import_query_surfaces.py",
+        "sha256": "bfc1a877dae886fb8ae62661c4e504f94d848ebea9fc3879f705de2b42611303"
+      },
+      {
+        "path": "tests/test_ticket_import_recovery_preview_actions.py",
+        "sha256": "f87f9c926b05862564395892a3d8dc921a318dd68d65b596d4dbba3af7e7d811"
+      },
+      {
+        "path": "tests/test_ticket_import_recovery_transport_replay.py",
+        "sha256": "df0270721837610b56d129c41b2a47294c2ae29e503620c61da533442497e822"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_enhanced_customer_reconciliation.py",
+        "sha256": "051a288c3fe6f03bb9000be7d0d2dcd4cf8cf87d00504df3cc6b4fce8fd49887"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_enhanced_identity_reconciliation.py",
+        "sha256": "64b9349ee90ae97e20c856a27f262550d93ac51756ead01da031964bee8cbd0b"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_enhanced_reconciliation.py",
+        "sha256": "453db51377bb8d1b69553d1e6b98a0176dd0a6ca923e3b6f545e81ef457f1394"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_enhanced_sr_link_candidates.py",
+        "sha256": "f1efdd954544d9e0c6538c2db950cfa540ab8b7379691a3148e9d4cff813eea3"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_parser.py",
+        "sha256": "751ae2488cb2c12c7cb05b734bae90da80efc144fb7f73c867f8dec4186e7adc"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_proposal_acceptance.py",
+        "sha256": "969fa9a7ec4fce5336e65c70920fb5f9d77873370db73bfd0d9ab7ed2392cd9a"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_review_evidence.py",
+        "sha256": "f59afd17ad182eb960786b7023ba9e8016ba6d0e2baa010beeb801d1146851db"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_source_evidence.py",
+        "sha256": "709cf0b3bac94dfa18e21568c45a519fd61faf36fe081540a46e713041cd6b26"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_wfm_discovery.py",
+        "sha256": "bebb355531a21ff5a991e341ca10594712d0e223add86b9e716f2bf380f27af5"
+      },
+      {
+        "path": "tests/test_ticket_import_rfc_wfm_source_check_worker.py",
+        "sha256": "fdf777d3d53fe75a564f87cecb1112c3e1d1085271e559e7d0350f550b72c13f"
+      },
+      {
+        "path": "tests/test_ticket_import_run_publication_transition.py",
+        "sha256": "adcb776e12de1567f411f28eb7f9fda1528c8aa9f8db2fdcf3c7f31fe1460eec"
+      },
+      {
+        "path": "tests/test_ticket_import_schema.py",
+        "sha256": "8e72574d1acd9e856225698b152e9f655511df1e04aa797c68c801843c28637d"
+      },
+      {
+        "path": "tests/test_ticket_import_source_check_backbone.py",
+        "sha256": "e0a901a3465f1785588149de2dc23feabca5ea6978a4a787e308dbffcf3f4fd2"
+      },
+      {
+        "path": "tests/test_ticket_import_source_check_failure_injection.py",
+        "sha256": "44a6cc3b9726ddca973f5a8d981df46c17765ac33be86236001e1b3dd1d20d67"
+      },
+      {
+        "path": "tests/test_ticket_import_source_family_binding.py",
+        "sha256": "a26e48596b27026ee6c8869b50f7971b6548b0f9b1a115f8e40d47889f7d9fee"
+      },
+      {
+        "path": "tests/test_ticket_import_sr_contact_acceptance.py",
+        "sha256": "80d332a6117f289aabf39fbb7e2077c753e51e9fc9ffe72141bbd5c13708b8ef"
+      },
+      {
+        "path": "tests/test_ticket_import_sr_customer_acceptance.py",
+        "sha256": "1082f5313d7466400aaad9f70ab6ee0f06995bb0f45666b3367e5adf854669a0"
+      },
+      {
+        "path": "tests/test_ticket_import_sr_customer_classification_refs.py",
+        "sha256": "2b12e3b4d363d9e063c617775f9bb5a2f3ab7c3a60381617e55763465f4e9482"
+      },
+      {
+        "path": "tests/test_ticket_import_sr_identity_acceptance.py",
+        "sha256": "2250e5e17db83b5ff8b74987b1f017e99a123c491c64156fb4bc73250f22c588"
+      },
+      {
+        "path": "tests/test_ticket_import_sr_reappearance_worker.py",
+        "sha256": "5d3e5fe4b9a878dcd38352febf073172f9f74b1d46af00a2f2fad48f2ac12edb"
+      },
+      {
+        "path": "tests/test_ticket_import_sr_reviewed_corrections.py",
+        "sha256": "0c5db90368dfbd9339d770e54464e20372e496674cb3af5aaeec7d8aedd4a9b7"
+      },
+      {
+        "path": "tests/test_ticket_import_sr_source_acceptance.py",
+        "sha256": "d3b2e984d0010119c713ea4161d763a1570e02a206e160b800f69383cd70a7db"
+      },
+      {
+        "path": "tests/test_ticket_import_sr_source_presence_chronology.py",
+        "sha256": "071e9a8e85ce1b8c6f09a6400dd45913dd6948914a39fc20cacfd68ad30e57f7"
+      },
+      {
+        "path": "tests/test_ticket_import_staged_checkpoint_corruption.py",
+        "sha256": "5da3f0ddd5828c120c8238fe409e1fb561953cc7fd2a0c104ff88e7564d73879"
+      },
+      {
+        "path": "tests/test_ticket_import_staged_evidence_reader.py",
+        "sha256": "eae91d1dabd8a2bc5f6ba450558e3dd85260614f77feb4c18b949444bd195dee"
+      },
+      {
+        "path": "tests/test_ticket_import_staged_fingerprint_verification.py",
+        "sha256": "6b7767544870fce1f6480dbae147f7c9f762a952d24fa1f6d1a11905de70dc27"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_competing_attempt_proposal_builder.py",
+        "sha256": "5bf173d11aaf44ebea9772c0c04c785376c53827818a9ba118f0c1cccef79912"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_competing_attempt_proposal_builder_sql.py",
+        "sha256": "68c86ff8021436adff2b0a7728f31ad6af2a638c4a030eb2b04db6378933a50e"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_competing_attempt_resolution.py",
+        "sha256": "af5780d732f269f44f1d94fcfafc7b10d8dee4df3f59a413cc7f7381c7d728dd"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_competing_attempt_stale_mapping.py",
+        "sha256": "f2a8bd760947cd5fdd81f2a84d76be9f4f6c49a938819adbc88ac76c42d303f9"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_parser.py",
+        "sha256": "b1f358b821402643924527936fa3c24395035ab5098546088715429a31e924e1"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_plan_proposal_builder.py",
+        "sha256": "f8d4014a24aee1e38b31e7bb0c6e18673835dfcf5c7b4b9e783ce00570be7956"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_plan_review_query.py",
+        "sha256": "380d96bb46c0fc3d370246a2b965b1b34b338b02cbfb7b57302d3dbff5b476d2"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_proposal_acceptance.py",
+        "sha256": "990c9885d42f353b2e7bc31735bd043f9b33510481efde546dbb8a0f397078fb"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_provisional_eligibility_acceptance.py",
+        "sha256": "64495ca0221547f9b06a4e0d71c4f18adfc3a9a7b7722de94fd7c633b74ce081"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_provisional_eligibility_proposals.py",
+        "sha256": "3fa21a193be28b1a3cf81f46e113dca6236d800b9760ed9915ca756fddbab6c5"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_review_evidence.py",
+        "sha256": "6fe7a3cf20848b3abaa903a1753becaf4a1eb9295963341a834d23f1a767cd82"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_service_provider_proposals.py",
+        "sha256": "1a32e1979d2d6dc3b68092b63ef60fe8f192ab01da3d07dca82e5430476c606d"
+      },
+      {
+        "path": "tests/test_ticket_import_wfm_sr_link_fallback.py",
+        "sha256": "8c836260e3f89c3e61214c203575f98d37f0349bf6341ba528fa40feaf51e6bc"
+      },
+      {
+        "path": "tests/test_ticket_import_xlsx_security.py",
+        "sha256": "fdafdb01bd1f072a472d25385e6a6a2e96f62cd46fac41bfd48e24d1f31a4b40"
+      },
+      {
+        "path": "tests/test_ticket_import_xlsx_security_openpyxl.py",
+        "sha256": "ce85d4583de8598838c1c813d972958c5c463299071c30e86a41392f2f8ea788"
+      },
+      {
+        "path": "tests/test_ticket_point_queries.py",
+        "sha256": "9a1362ee3094cd616dc5794de008b7d7b46b9e5a0d12ed11b9759c1bf8ff9bd2"
+      },
+      {
+        "path": "tests/test_ticket_read_model_closure.py",
+        "sha256": "20ee78227adb92736fb46881aee58b6ee2ed0b0ac405b73700c5437ab292d1cb"
+      },
+      {
+        "path": "tests/test_ticket_read_model_owner_map.py",
+        "sha256": "b95a0bf36381285dc590824f96872fd8c34fac39acd86af4768c4e65da4f3fb4"
+      },
+      {
+        "path": "tests/test_ticket_reference_lifecycle_queries.py",
+        "sha256": "7edc206c5e71e9ef2f3769d921c5e3fbc27068439e73226e6a560f645e8ed1fa"
+      },
+      {
+        "path": "tests/test_ticket_relationship_services.py",
+        "sha256": "7ae013ade6ba8e209a985005915256f7615ffd2c40109cc40290c33575d5d5e9"
+      },
+      {
+        "path": "tests/test_ticket_rfc_archive.py",
+        "sha256": "d75591be659e0e2b5fa0f919719e565366f26a41e048dd30e8cf49bb6dd5a17a"
+      },
+      {
+        "path": "tests/test_ticket_rfc_archive_contract.py",
+        "sha256": "5d5bb12402f6d3a861f9f9d18d22ec19c0ed14722f1d0528c1a43400d429ee0d"
+      },
+      {
+        "path": "tests/test_ticket_rfc_archive_projection_paging.py",
+        "sha256": "4ffb835451c46b0ff508a68a6e10860970b936cc29754e18662a7ff299d57dfc"
+      },
+      {
+        "path": "tests/test_ticket_rfc_hard_delete.py",
+        "sha256": "59b4ecef165b00f171c8a1a18f2330b8c37839a1db231fcf08fda4431e32ea70"
+      },
+      {
+        "path": "tests/test_ticket_rfc_hierarchy_mutations.py",
+        "sha256": "8057efc3c2595d45c07a95b506c36eaa8c8d88296ae54a04f8ba8241e29ba2d1"
+      },
+      {
+        "path": "tests/test_ticket_rfc_hierarchy_replay.py",
+        "sha256": "7678a162e25e38a29392e8f3094858ec174a7494e8c6b5419f0a0113457d6902"
+      },
+      {
+        "path": "tests/test_ticket_rfc_import_reader.py",
+        "sha256": "100bab661e55fb3fa688a726ea3420530b781c1e3b30648a5d3732fd6c8c8c7e"
+      },
+      {
+        "path": "tests/test_ticket_rfc_published_evidence_projection.py",
+        "sha256": "20835381f03fee45c0bc3d6f3909c309134538ce925cda4e6b1e5b376d5766ab"
+      },
+      {
+        "path": "tests/test_ticket_rfc_source_projection.py",
+        "sha256": "7b69eb4f8dd1a4b78b52ec4fc2c3d0f17315195d918757e348889e44c8874474"
+      },
+      {
+        "path": "tests/test_ticket_rfc_source_projection_failure_injection.py",
+        "sha256": "c057f53130c86c8bb888d7ec2483b9e2186e8249ce2ba2607addd38fcf7e687a"
+      },
+      {
+        "path": "tests/test_ticket_rfc_terminal_cascade_capture.py",
+        "sha256": "7dca4bdc2190324c52addbe2a7a14d51202f97a3643b143bbe023897d89657f5"
+      },
+      {
+        "path": "tests/test_ticket_rfc_terminal_cascade_execute.py",
+        "sha256": "ffb0b60e56b1deae6c224fac5fc8efa178b695c46def269c73ab264bda5b08d7"
+      },
+      {
+        "path": "tests/test_ticket_rfc_terminal_cascade_execute_contract.py",
+        "sha256": "0fc1c4f2f888f6c24365d8b558eb297ca6dd53810241aa0741e63b717aac7e00"
+      },
+      {
+        "path": "tests/test_ticket_rfc_terminal_cascade_owner.py",
+        "sha256": "59ffef240a529b167d3f80cf872607f0c5c82409cc895046af345539f8475bb1"
+      },
+      {
+        "path": "tests/test_ticket_rfc_terminal_cascade_preview.py",
+        "sha256": "3ada6e68198033e1552dd8354efef4b77a7e2486f37b0b94d558689f6f6d178c"
+      },
+      {
+        "path": "tests/test_ticket_rfc_terminal_cascade_query.py",
+        "sha256": "4406e33fb5e7d59b3dee4abc69ef3debbfa4322c6f7f7c5590724fcfcf3e8630"
+      },
+      {
+        "path": "tests/test_ticket_rfc_terminal_cascade_refresh.py",
+        "sha256": "9877ac0b53791e23749b55aebb455454fe7a133497267fa268b556daf27197ec"
+      },
+      {
+        "path": "tests/test_ticket_working_notes.py",
+        "sha256": "0b64a40f8ef19735f6f18f6257b5bed767c5af9eca6af73624f424893b721bb2"
+      },
+      {
+        "path": "tests/test_tickets_rfc_import_sr_link_owner.py",
+        "sha256": "7886da61fe55883aaebf52d145f7d25937f4e7df843d3ca4ac029c4d2a65af3f"
+      },
+      {
+        "path": "tests/test_tickets_rfc_wfm_provisional.py",
+        "sha256": "02bfdfa678cb2c6c7635138385dd8c83a2042e00d7b8bcbb068e9624d398d63d"
+      },
+      {
+        "path": "tests/test_tickets_schema.py",
+        "sha256": "69548309ce468d2e61c6a587fd60942e896a6c89b0f43436e8d25a9ebe7bbf23"
+      },
+      {
+        "path": "tools/acceptance_marker_coverage.py",
+        "sha256": "1e9120a0b94ddb1066faa072c3d8d242fe1513e0cf36012e5335019abe0d4707"
+      },
+      {
+        "path": "tools/build_communications_migration_candidate.py",
+        "sha256": "b438a563dab905bd0ffe4ca8b31b526338d7b17eb605c738ac8fdd7d190623a9"
+      },
+      {
+        "path": "tools/check_communications_traceability.py",
+        "sha256": "edd5ca0816d4d000437dfefe176690de03389c029eea2cb167523be5c5bd6e36"
+      },
+      {
+        "path": "tools/check_local_only.py",
+        "sha256": "58b175610cf21e3977508a19a543bc4b9045437ae28c4c95aeb1a493cee6079f"
+      },
+      {
+        "path": "tools/generate_communications_contracts.py",
+        "sha256": "9f051336282ad182d55e0c77897e5acd9b9238f5f64d97b87f665554a401cc81"
+      },
+      {
+        "path": "tools/generate_schema_manifest.py",
+        "sha256": "9f02364ebbe55b308628edf952df6ada13aebfc9b5576516a4a130a3f6e1074c"
+      },
+      {
+        "path": "tools/generate_unicode_match_v1.py",
+        "sha256": "2a80191558dbad7f0d56e9bcf34c2be199277f5ade1fe69a780d19c5261d868e"
+      },
+      {
+        "path": "tools/implementation_state.py",
+        "sha256": "44b6c0e3ae7d19d44e439d5a0a7555fc8e20266bfc630a8197a5e85888beb502"
+      },
+      {
+        "path": "tools/verify_wheel_resources.py",
+        "sha256": "7a484cd5cf4dcb94071d9c2dfb2c22c292bca75cab3d5eefd29d070dce56dcb4"
+      }
+    ]
+  },
+  "supplemental_inputs": [
+    {
+      "path": "pyproject.toml",
+      "sha256": "6357395d9a1d037a0da7a2679491d50698a1115e02d27b2b5aecf6dd9e81cc23"
+    },
+    {
+      "path": "MANIFEST.in",
+      "sha256": "eee1010dd3a67cf0f33d0135580e808940b98b2fca76fd54b48b079f975dd926"
+    },
+    {
+      "path": ".gitattributes",
+      "sha256": "ac643810cedf9008ad27c8afa392495f7ff14191b18346d9d462cbc0ef143dbe"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "90171259dc1a26fa0c0b8b51cc3cb63ae528a4807ddf64486da5044770fdcc39"
+    },
+    {
+      "path": ".github/workflows/implementation-ci.yml",
+      "sha256": "59f98fd4e7fb45249fed35ea951b68c193affc1c50489ae6a79e8cc99f7a4f73"
+    },
+    {
+      "path": "docs/reconciliation/LLD09_NATIVE_RELEASE_CLARIFICATION.md",
+      "sha256": "99da877ce08375517d607e105d228f02e246f215f5b6825479c287077408ba6d"
+    },
+    {
+      "path": "docs/reconciliation/LLD09_PROPOSAL_CONTRACT_CANDIDATE.md",
+      "sha256": "0d8f54760deea3f9e092f153132eef5c452f0650a4bd8eeacec9de1f9ef339ed"
+    },
+    {
+      "path": "docs/reconciliation/LLD09_PROPOSAL_CONTRACT_CANDIDATE.json",
+      "sha256": "8f594286b186ac54ecab37db8ba42cca2f74c387a523ae563ed55957d9dfbc3a"
+    },
+    {
+      "path": "docs/reconciliation/LLD09_QUERY_JOB_CONTRACT_CANDIDATE.md",
+      "sha256": "8c44d5dcae81c5339e92ec6a3babbbdc5bf18cb178a13b837b9a39e744d82ecc"
+    },
+    {
+      "path": "docs/implementation/lld09_traceability.json",
+      "sha256": "a62505bae4f8cca93c01ccc62d0bcba66f66b62cff1441a1ad3f961bac2c81e0"
+    }
+  ],
+  "validity": "Recompute every source/supplemental file hash and the canonical snapshot hash before reuse. Changed source or inputs invalidate this certificate for the changed bytes. Documentation updates do not certify new source.",
+  "source_commit_certificate": false,
+  "supported_matrix_certified": false,
+  "native_certified": false,
+  "remote_ci": "Uncommitted bytes have no remote CI result. Refreshed branch heads unchanged; connector returned no statuses and no first-page PR-triggered runs at the base SHA.",
+  "excluded": [
+    "Native property normalization, allocation/read-only proof and physical PST/OST/Outlook compatibility",
+    "Windows Python 3.13 and Ubuntu lanes, not executed locally",
+    "LLD-12 real authentication/CSRF, session/run-bound proof issuance, SQLCipher/key and release composition",
+    "Commit-bound or remote-CI promotion and final native release certification"
+  ],
+  "release_gates": [
+    {
+      "id": "LLD09-PFF-RELEASE-PIN",
+      "status": "deferred",
+      "authority": "docs/reconciliation/LLD09_NATIVE_RELEASE_CLARIFICATION.md"
+    },
+    {
+      "id": "LLD09-GOLDEN-CORPUS-FREEZE",
+      "status": "deferred",
+      "authority": "docs/reconciliation/LLD09_NATIVE_RELEASE_CLARIFICATION.md"
+    }
+  ]
+}

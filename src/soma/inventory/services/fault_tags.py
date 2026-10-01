@@ -22,12 +22,15 @@ from ..domain.fault_tags import (
     validate_warehouse_memberships,
 )
 from ..repositories.fault_tags import InventoryFaultTagsRepository
+from .communication_proposals import InventoryCommunicationProposalBridge, normalize_communication_proposal
 
 
 class InventoryFaultTagsService:
-    def __init__(self, connection_factory: ConnectionFactory) -> None:
+    def __init__(self, connection_factory: ConnectionFactory, *, communication_evidence_provider=None,
+                 communication_disposition_participant=None) -> None:
         self._factory = connection_factory
         self._repository = InventoryFaultTagsRepository()
+        self._communications = InventoryCommunicationProposalBridge(communication_evidence_provider, communication_disposition_participant)
         self._boundary = CommandBoundary(
             connection_factory,
             AuditWriter(build_inventory_audit_registry()),
@@ -603,6 +606,7 @@ class InventoryFaultTagsService:
         effective_at_utc: int | None = None,
         evidence_kind: str | None = None,
         evidence_id: str | None = None,
+        communication_proposal: dict | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
     ):
@@ -616,6 +620,9 @@ class InventoryFaultTagsService:
         if evidence_kind is None and evidence_id is not None:
             raise ValidationError("evidence_id requires evidence_kind")
         normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
+        communication_ref = normalize_communication_proposal(communication_proposal)
+        if communication_ref is not None and len(targets) != 1:
+            raise ValidationError("Owner targets differ from the single reviewed Communication proposal")
         is_batch = len(targets) > 1
         result_type = "inventory_batch" if is_batch else "fault_tag_membership"
         envelope = CommandEnvelope(
@@ -634,7 +641,15 @@ class InventoryFaultTagsService:
             },
         )
 
+        if communication_ref is not None:
+            envelope.semantic_payload["communication_proposal"] = communication_ref
+
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            communication_evidence = self._communications.validate(
+                uow, communication_ref, contract_id="COMM_INVENTORY_WAREHOUSE_RECEIPT_V1", target_type="FAULT_TAG",
+                facts={"schema": "INVENTORY_PROPOSAL_TARGET_V1", "effective_at_utc": effective_at_utc}, membership=targets[0] if communication_ref is not None else None,
+                evidence_kind=evidence_kind, evidence_id=normalized_evidence_id,
+            )
             batch_id = new_uuid4() if is_batch else None
             result_id = batch_id if is_batch else targets[0][0]
             for identity, revision in targets:
@@ -655,6 +670,9 @@ class InventoryFaultTagsService:
                     batch_id=batch_id,
                     command_id=command_id,
                 )
+                self._communications.record_accepted(inner, communication_evidence,
+                    tuple({"type": "fault_tag_membership_event", "id": str(item["membership_event_id"])} for item in results),
+                    command_id, actor_kind, actor_id)
                 apply.results = results
                 apply.tag_revisions = tag_revisions
                 audits = []
@@ -740,6 +758,7 @@ class InventoryFaultTagsService:
         effective_at_utc: int | None = None,
         evidence_kind: str | None = None,
         evidence_id: str | None = None,
+        communication_proposal: dict | None = None,
         actor_kind: str = "local_user",
         actor_id: str | None = None,
     ):
@@ -769,6 +788,9 @@ class InventoryFaultTagsService:
         if evidence_kind is None and evidence_id is not None:
             raise ValidationError("evidence_id requires evidence_kind")
         normalized_evidence_id = None if evidence_id is None else evidence_id.strip()
+        communication_ref = normalize_communication_proposal(communication_proposal)
+        if communication_ref is not None and len(targets) != 1:
+            raise ValidationError("Owner targets differ from the single reviewed Communication proposal")
         is_batch = len(targets) > 1
         result_type = "inventory_batch" if is_batch else "fault_tag_membership"
         envelope = CommandEnvelope(
@@ -790,7 +812,15 @@ class InventoryFaultTagsService:
             },
         )
 
+        if communication_ref is not None:
+            envelope.semantic_payload["communication_proposal"] = communication_ref
+
         def prepare(uow: UnitOfWork) -> PreparedMutation:
+            communication_evidence = self._communications.validate(
+                uow, communication_ref, contract_id="COMM_INVENTORY_WAREHOUSE_DECISION_V1", target_type="FAULT_TAG",
+                facts={"schema": "INVENTORY_PROPOSAL_TARGET_V1", "effective_at_utc": effective_at_utc, "decision": decision, "reason_code": reason}, membership=targets[0] if communication_ref is not None else None,
+                evidence_kind=evidence_kind, evidence_id=normalized_evidence_id,
+            )
             batch_id = new_uuid4() if is_batch else None
             result_id = batch_id if is_batch else targets[0][0]
             for identity, revision in targets:
@@ -813,6 +843,9 @@ class InventoryFaultTagsService:
                     batch_id=batch_id,
                     command_id=command_id,
                 )
+                self._communications.record_accepted(inner, communication_evidence,
+                    tuple({"type": "fault_tag_membership_event", "id": str(item["membership_event_id"])} for item in results),
+                    command_id, actor_kind, actor_id)
                 apply.results = results
                 apply.tag_revisions = tag_revisions
                 event_kind = "ACCEPTED" if decision == "accepted" else "REJECTED"

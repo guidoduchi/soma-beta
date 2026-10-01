@@ -633,7 +633,89 @@ class InventorySiteDependencyValidator:
 
 class InventoryCommunicationIdentityProvider:
     @staticmethod
-    def snapshot_trackable_inventory(reader: Reader) -> Iterator[dict[str, object]]:
+    def resolve_warehouse_receipt_target(reader: Reader, exact_sr7: str, exact_c10: str) -> dict | None:
+        """Read-only exact pair -> current, physically resolved receipt target.
+
+        Governed former aliases retain their exact owner identity, but this is
+        proposal preparation only. No descriptive value or batch number grants
+        identity or lifecycle authority. Acceptance revalidates in its own UoW.
+        """
+        from soma.inventory.domain.requests import normalize_sr7
+        from soma.inventory.domain.rmas import normalize_c10
+        if normalize_sr7(exact_sr7) != exact_sr7 or normalize_c10(exact_c10) != exact_c10:
+            raise ValidationError("Warehouse identifiers must be exact registered values")
+        connection = reader.connection
+        row = connection.execute(
+            "SELECT r.rma_id,p.active_fault_tag_membership_id FROM rma_identifier_aliases a "
+            "JOIN rmas r ON r.rma_id=a.rma_id "
+            "JOIN spare_request_identifier_aliases s ON s.spare_request_id=r.spare_request_id "
+            "JOIN rma_lifecycle_projection p ON p.rma_id=r.rma_id WHERE a.c10=? AND s.sr7=?",
+            (exact_c10, exact_sr7),
+        ).fetchone()
+        if row is None or row[1] is None:
+            return None
+        # Validate exact submitted membership, selected physical unit and open
+        # obligation with the same owner predicate used by receipt acceptance.
+        pair = InventoryFaultTagsRepository.warehouse_membership_authority_set(connection, (str(row[1]),)).get(str(row[1]))
+        if pair is None or pair[0][2] != row[0]:
+            return None
+        membership, obligation = pair
+        try:
+            InventoryFaultTagsRepository._validate_warehouse_target_authority(
+                row=membership, obligation=obligation, expected_revision=membership[7],
+                required_state="submitted_awaiting_receipt")
+        except SomaError as exc:
+            if exc.code not in {"INV_STALE", "BULK_INCOMPATIBLE"}:
+                raise
+            return None
+        tag = connection.execute("SELECT revision FROM fault_tag_current_projection WHERE fault_tag_id=?", (membership[1],)).fetchone()
+        if tag is None:
+            return None
+        return {"fault_tag_id": str(membership[1]), "fault_tag_revision": int(tag[0]),
+                "membership_id": str(membership[0]), "membership_revision": int(membership[7])}
+
+    @staticmethod
+    def msg_draft_origin_fingerprint(reader: Reader, target_type: str, target_id: str, origin_command_id: str) -> str | None:
+        """New local request drafts remain Inventory-owned; this never submits."""
+        from soma.foundation.application.command_receipts import CommandReceiptStore
+        require_uuid4(target_id)
+        require_uuid4(origin_command_id)
+        if target_type != "SPARE_REQUEST":
+            return None
+        receipt = CommandReceiptStore().get(reader, origin_command_id)
+        if receipt is None or receipt.command_type != "CreateSpareRequestDraft" or receipt.result_id != target_id:
+            return None
+        row = reader.connection.execute(
+            "SELECT r.created_command_id,r.creation_origin,p.lifecycle_state,p.revision,p.input_fingerprint "
+            "FROM spare_requests r JOIN spare_request_current_projection p ON p.spare_request_id=r.spare_request_id "
+            "WHERE r.spare_request_id=?", (target_id,),
+        ).fetchone()
+        if row is None or row[0] != origin_command_id or row[1] != "soma_draft" or row[2] != "draft":
+            return None
+        return sha256_canonical_json({"schema": "SPARE_REQUEST_MSG_ORIGIN_V1", "spare_request_id": target_id,
+            "origin_command_id": origin_command_id, "revision": row[3], "input_fingerprint": row[4]})
+
+    @staticmethod
+    def validate_target_revision(reader: Reader, target_type: str, target_id: str, revision: int) -> str:
+        try:
+            identity = require_uuid4(target_id)
+            if type(revision) is not int or revision < 1 or not isinstance(target_type, str):
+                return "INVALID"
+            owned = {
+                "SPARE_REQUEST": ("spare_request_current_projection", "spare_request_id"),
+                "RMA": ("rma_lifecycle_projection", "rma_id"),
+                "FAULT_TAG": ("fault_tag_current_projection", "fault_tag_id"),
+            }
+            if target_type not in owned:
+                return "INVALID"
+            table, key = owned[target_type]
+            row = reader.connection.execute(f"SELECT revision FROM {table} WHERE {key}=?", (identity,)).fetchone()
+            return "VALID" if row is not None and row[0] == revision else "INVALID"
+        except ValidationError:
+            return "INVALID"
+
+    @staticmethod
+    def _snapshot_target_summaries(reader: Reader) -> Iterator[dict[str, object]]:
         connection = reader.connection
         for row in connection.execute(
             "SELECT r.spare_request_id,r.tracking_id,p.current_sr7,p.revision "
@@ -673,15 +755,110 @@ class InventoryCommunicationIdentityProvider:
             }
 
     @staticmethod
+    def snapshot_trackable_inventory(reader: Reader) -> Iterator[dict[str, object]]:
+        return InventoryCommunicationIdentityProvider._iter_trackable(reader)
+
+    @classmethod
+    def lookup_trackable_identifier(cls, reader, exact_value):
+        if not isinstance(exact_value, str) or not 1 <= len(exact_value) <= 512:
+            raise ValidationError("Inventory Communication identifier is invalid")
+        return cls._iter_trackable(reader, exact_value)
+
+    @staticmethod
+    def current_target_revision(reader, target_type, target_id):
+        identity = require_uuid4(target_id)
+        owned = {"SPARE_REQUEST": ("spare_request_current_projection", "spare_request_id"),
+                 "RMA": ("rma_lifecycle_projection", "rma_id"), "FAULT_TAG": ("fault_tag_current_projection", "fault_tag_id")}
+        if target_type not in owned:
+            raise ValidationError("Inventory Communication target type is invalid")
+        table, key = owned[target_type]
+        row = reader.connection.execute(f"SELECT revision FROM {table} WHERE {key}=?", (identity,)).fetchone()
+        return None if row is None else row[0]
+
+    @staticmethod
+    def iter_target_identities(reader, target_type, target_id):
+        require_uuid4(target_id)
+        if target_type not in {"SPARE_REQUEST", "RMA", "FAULT_TAG"}:
+            raise ValidationError("Inventory Communication target type is invalid")
+        return InventoryCommunicationIdentityProvider._iter_trackable(reader, target_type=target_type, target_id=target_id)
+
+    @staticmethod
+    def _iter_trackable(reader: Reader, exact_value=None, *, target_type=None, target_id=None) -> Iterator[dict[str, object]]:
+        """Export exact TrackableIdentityV1 rows, including governed former aliases.
+
+        The Overview summary representation is preserved separately. No local
+        registration time substitutes for unknown external submission chronology.
+        """
+        def export(kind, identity, revision, identity_kind, value, instant):
+            return {"target_type": kind, "target_id": str(identity), "target_revision": int(revision),
+                    "identity_kind": identity_kind, "normalized_value": str(value),
+                    "effective_from": {"known": instant is not None, "utc_epoch_seconds": instant,
+                                       "source_kind": "UNKNOWN" if instant is None else "OTHER_PROVIDER_TIME"}}
+
+        def selection(kind, identity_column, value_column):
+            clauses, parameters = [], ()
+            if exact_value is not None:
+                clauses.append(value_column + "=?")
+                parameters += (exact_value,)
+            if target_type is not None:
+                clauses.append(identity_column + "=?" if target_type == kind else "0")
+                parameters += (target_id,) if target_type == kind else ()
+            return ("WHERE " + " AND ".join(clauses) + " " if clauses else ""), parameters
+
+        tracking_filter, tracking_values = selection("SPARE_REQUEST", "r.spare_request_id", "r.tracking_id")
+        spare_filter, spare_values = selection("SPARE_REQUEST", "r.spare_request_id", "a.sr7")
+        rma_filter, rma_values = selection("RMA", "r.rma_id", "a.c10")
+        fault_filter, fault_values = selection("FAULT_TAG", "t.fault_tag_id", "t.tracking_id")
+
+        # A locally created draft has a known registration boundary. For a
+        # submitted or externally registered request, the accepted submission
+        # snapshot supplies its effective time; an absent time stays unknown.
+        boundary = ("CASE WHEN p.current_submission_snapshot_id IS NOT NULL THEN "
+                    "CASE WHEN s.effective_submission_at_utc IS NOT NULL AND r.creation_origin='soma_draft' "
+                    "THEN min(r.created_at_utc,s.effective_submission_at_utc) ELSE s.effective_submission_at_utc END "
+                    "WHEN r.creation_origin='soma_draft' THEN r.created_at_utc ELSE NULL END")
+        common = (" FROM spare_requests r JOIN spare_request_current_projection p ON p.spare_request_id=r.spare_request_id "
+                  "LEFT JOIN spare_request_submission_snapshots s ON s.submission_snapshot_id=p.current_submission_snapshot_id ")
+        for identity, value, revision, instant in reader.connection.execute(
+            "SELECT r.spare_request_id,r.tracking_id,p.revision," + boundary + common +
+            tracking_filter + "ORDER BY r.spare_request_id", tracking_values,
+        ):
+            yield export("SPARE_REQUEST", identity, revision, "SPARE_REQUEST_TRACKING", value, instant)
+        for identity, value, alias_kind, revision, instant in reader.connection.execute(
+            "SELECT r.spare_request_id,a.sr7,a.alias_kind,p.revision," + boundary + common +
+            "JOIN spare_request_identifier_aliases a ON a.spare_request_id=r.spare_request_id " +
+            spare_filter + "ORDER BY r.spare_request_id,a.sr7", spare_values,
+        ):
+            yield export("SPARE_REQUEST", identity, revision, "SPARE_REQUEST_OFFICIAL" if alias_kind == "current" else "SPARE_REQUEST_ALIAS", value, instant)
+        for identity, value, alias_kind, revision, instant in reader.connection.execute(
+            "SELECT r.rma_id,a.c10,a.alias_kind,p.revision,b.accepted_at_utc FROM rmas r "
+            "JOIN rma_identifier_aliases a ON a.rma_id=r.rma_id JOIN rma_lifecycle_projection p ON p.rma_id=r.rma_id "
+            "JOIN rma_authorization_batches b ON b.authorization_batch_id=r.authorization_batch_id " +
+            rma_filter + "ORDER BY r.rma_id,a.c10", rma_values,
+        ):
+            yield export("RMA", identity, revision, "RMA_CURRENT" if alias_kind == "current" else "RMA_ALIAS", value, instant)
+        for identity, value, revision, instant in reader.connection.execute(
+            "SELECT t.fault_tag_id,t.tracking_id,p.revision,t.created_at_utc FROM fault_tags t "
+            "JOIN fault_tag_current_projection p ON p.fault_tag_id=t.fault_tag_id " +
+            fault_filter + "ORDER BY t.fault_tag_id", fault_values,
+        ):
+            yield export("FAULT_TAG", identity, revision, "FAULT_TAG_TRACKING", value, instant)
+
+    @staticmethod
     def validate_trackable_target(
         uow: UnitOfWork,
         target_type: str,
         target_id: str,
         target_revision: int,
         matched_identity: str,
+        *,
+        identity_kind: str | None = None,
     ) -> str:
         try:
             identity = require_uuid4(target_id)
+            if type(target_revision) is not int or target_revision < 1:
+                return "INVALID"
+            target_type = {"SPARE_REQUEST": "spare_request", "RMA": "rma", "FAULT_TAG": "fault_tag"}.get(target_type, target_type)
             if target_type == "spare_request":
                 row = uow.connection.execute(
                     "SELECT r.tracking_id,p.current_sr7,p.revision FROM spare_requests r "
@@ -694,18 +871,29 @@ class InventoryCommunicationIdentityProvider:
                 identities = {str(row[0])}
                 if row[1] is not None:
                     identities.add(str(row[1]))
+                alias = uow.connection.execute("SELECT alias_kind FROM spare_request_identifier_aliases WHERE spare_request_id=? AND sr7=?", (identity, matched_identity)).fetchone()
+                if alias is not None and identity_kind is not None:
+                    identities.add(matched_identity)
                 revision = int(row[2])
+                if identity_kind is not None:
+                    expected = ("SPARE_REQUEST_TRACKING" if matched_identity == row[0] else
+                                "SPARE_REQUEST_OFFICIAL" if alias is not None and alias[0] == "current" else
+                                "SPARE_REQUEST_ALIAS" if alias is not None else None)
+                    if identity_kind != expected:
+                        return "INVALID"
             elif target_type == "rma":
                 row = uow.connection.execute(
-                    "SELECT a.c10,p.revision FROM rma_identifier_aliases a "
+                    "SELECT a.c10,p.revision,a.alias_kind FROM rma_identifier_aliases a "
                     "JOIN rma_lifecycle_projection p ON p.rma_id=a.rma_id "
-                    "WHERE a.rma_id=? AND a.alias_kind='current'",
-                    (identity,),
+                    "WHERE a.rma_id=? AND a.c10=?" + (" AND a.alias_kind='current'" if identity_kind is None else ""),
+                    (identity, matched_identity),
                 ).fetchone()
                 if row is None:
                     return "INVALID"
                 identities = {str(row[0])}
                 revision = int(row[1])
+                if identity_kind is not None and identity_kind != ("RMA_CURRENT" if row[2] == "current" else "RMA_ALIAS"):
+                    return "INVALID"
             elif target_type == "fault_tag":
                 row = uow.connection.execute(
                     "SELECT t.tracking_id,p.revision FROM fault_tags t "
@@ -717,6 +905,8 @@ class InventoryCommunicationIdentityProvider:
                     return "INVALID"
                 identities = {str(row[0])}
                 revision = int(row[1])
+                if identity_kind is not None and identity_kind != "FAULT_TAG_TRACKING":
+                    return "INVALID"
             else:
                 return "INVALID"
             if revision != target_revision:
@@ -842,6 +1032,7 @@ class InventoryProposalTargetService:
             "proposal_target_id": target.proposal_target_id,
             "target_kind": "fault_tag_membership",
             "target_id": target.membership_id,
+            "fault_tag_id": str(row[1]),
             "state": str(row[5]),
             "active_submitted": int(row[6]),
             "revision": int(row[7]),
@@ -1165,7 +1356,7 @@ class InventoryOverviewProjectionProvider:
         window: object,
         customer_scope: object,
     ) -> Iterator[dict[str, object]]:
-        yield from InventoryCommunicationIdentityProvider.snapshot_trackable_inventory(
+        yield from InventoryCommunicationIdentityProvider._snapshot_target_summaries(
             snapshot
         )
 

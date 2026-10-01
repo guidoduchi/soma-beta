@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from soma.foundation.errors import SomaError
-from soma.foundation.identifiers import new_uuid4, utc_epoch_seconds
+from soma.foundation.errors import IntegrityFailure, SomaError
+from soma.foundation.identifiers import new_uuid4, require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.uow import UnitOfWork
 
 
@@ -72,6 +72,7 @@ class SrSourceProjectionApplyResult:
     changed_field_keys: tuple[str, ...]
     inserted_observation_ids: tuple[str, ...]
     no_change: bool
+    communication_result_refs: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,8 +192,9 @@ def _validate_precedence(current: _CurrentObservation | None, delta: AcceptedSrF
 class SrSourceProjectionService:
     """LLD-03 owner of accepted, compact Advanced Search SR source projection state."""
 
-    def __init__(self, evidence_provider: SrSourceEvidenceProvider) -> None:
+    def __init__(self, evidence_provider: SrSourceEvidenceProvider, *, terminal_communication_participant=None) -> None:
         self._evidence_provider = evidence_provider
+        self._communications = terminal_communication_participant
 
     @staticmethod
     def current(reader: Any, service_request_id: str) -> dict[str, object] | None:
@@ -217,9 +219,11 @@ class SrSourceProjectionService:
         uow: UnitOfWork,
         service_request_id: str,
         accepted_delta_set: AcceptedSrFieldDeltaSet,
+        *,
+        command_context: dict[str, object] | None = None,
     ) -> SrSourceProjectionApplyResult:
         sr_row = uow.connection.execute(
-            "SELECT official_sr_no FROM service_requests WHERE service_request_id=?",
+            "SELECT official_sr_no,revision FROM service_requests WHERE service_request_id=?",
             (service_request_id,),
         ).fetchone()
         if sr_row is None:
@@ -232,6 +236,7 @@ class SrSourceProjectionService:
         ).fetchone()
         if receipt is None:
             raise SomaError("PERSISTENCE_FAILURE", "accepted source projection requires the outer command receipt")
+        previous_status = None
 
         seen: set[str] = set()
         planned: list[_PlannedChange] = []
@@ -250,6 +255,8 @@ class SrSourceProjectionService:
             if provider_state != "VALID":
                 raise _invalid("accepted source field does not resolve to exact published LLD-04 evidence")
             current = _current_observation(uow.connection, service_request_id, projection_column)
+            if delta.field_key == "status":
+                previous_status = current
             if current is not None and _same_value(current, delta):
                 continue
             _validate_precedence(current, delta)
@@ -319,10 +326,35 @@ class SrSourceProjectionService:
                 raise _invalid("Service Request source projection changed before accepted deltas were applied")
             resulting_revision = int(current_revision) + 1
 
+        communication_refs = ()
+        status_change = next((change for change in planned if change.delta.field_key == "status"), None)
+        if self._communications is not None and status_change is not None:
+            previously_terminal = previous_status is not None and previous_status.value in _TERMINAL_SR_STATUSES
+            now_terminal = status_change.delta.value in _TERMINAL_SR_STATUSES
+            if previously_terminal != now_terminal:
+                if (not isinstance(command_context, dict) or set(command_context) != {"command_id", "actor_kind", "actor_id"}
+                        or command_context["command_id"] != accepted_delta_set.accepted_command_id):
+                    raise IntegrityFailure("SR terminal consequences require exact outer command context")
+                method = "apply_terminal_transition" if now_terminal else "apply_terminal_reversal"
+                apply_participant = getattr(self._communications, method, None)
+                if not callable(apply_participant):
+                    raise IntegrityFailure("SR terminal Communication participant is unavailable")
+                raw_refs = apply_participant(uow, service_request_id, sr_row[1], status_change.observation_id, command_context)
+                # The accepted handoff is one minimized summary reference; all
+                # detailed consequences stay relational in the caller UoW.
+                if not isinstance(raw_refs, tuple) or len(raw_refs) > 1:
+                    raise IntegrityFailure("SR Communication participant returned an invalid bounded result")
+                for ref in raw_refs:
+                    if not isinstance(ref, dict) or set(ref) != {"type", "id"} or ref["type"] != "communication_terminal_summary":
+                        raise IntegrityFailure("SR Communication participant returned invalid evidence")
+                    require_uuid4(ref["id"])
+                communication_refs = tuple((ref["type"], ref["id"]) for ref in raw_refs)
+
         return SrSourceProjectionApplyResult(
             service_request_id=service_request_id,
             projection_revision=resulting_revision,
             changed_field_keys=tuple(sorted(change.delta.field_key for change in planned)),
             inserted_observation_ids=tuple(change.observation_id for change in planned),
             no_change=False,
+            communication_result_refs=communication_refs,
         )

@@ -203,6 +203,8 @@ class ProposalDecisionService(_CoreProposalDecisionService):
                 accepted_command_id=command_id,
                 deltas=tuple(deltas),
             ),
+            actor_kind=actor_kind,
+            actor_id=actor_id,
         )
 
         def apply(inner: UnitOfWork):

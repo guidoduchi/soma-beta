@@ -38,9 +38,13 @@ def verify(wheel_path: Path) -> None:
             shipped = wheel.read(f"soma/{resource}")
             if shipped != (soma_source / resource).read_bytes():
                 raise ValueError(f"wheel {resource} differs from accepted source bytes")
+        for packet in ("infrastructure", "communications"):
+            registry = f"{packet}/contracts/registry.json"
+            if wheel.read(f"soma/{registry}") != (soma_source / registry).read_bytes():
+                raise ValueError(f"wheel {packet} registry differs from pinned source authority")
     print(
         f"Verified {len(expected)} migration files, manifest, schema authority, "
-        f"FK exceptions, and pinned Unicode asset in {wheel_path.name}"
+        f"FK exceptions, packet registries, and pinned Unicode asset in {wheel_path.name}"
     )
 
 

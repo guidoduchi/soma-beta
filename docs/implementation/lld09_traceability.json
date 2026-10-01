@@ -1,0 +1,1259 @@
+{
+  "schema": "SOMA_LLD09_IMPLEMENTATION_BINDINGS_V1",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "status": "implementation_bindings_native_release_uncertified",
+  "meaning": "Executable references bind the 100 normative scenarios to implementation evidence. Binding validation is structural; passing tests alone is not packet or native certification.",
+  "native_certified": false,
+  "release_gates": [
+    {
+      "id": "LLD09-PFF-RELEASE-PIN",
+      "status": "deferred",
+      "authority": "docs/reconciliation/LLD09_NATIVE_RELEASE_CLARIFICATION.md"
+    },
+    {
+      "id": "LLD09-GOLDEN-CORPUS-FREEZE",
+      "status": "deferred",
+      "authority": "docs/reconciliation/LLD09_NATIVE_RELEASE_CLARIFICATION.md"
+    }
+  ],
+  "module_map_divergences": [
+    {
+      "design": "services/backfill.py + services/deep_scan.py",
+      "implementation": "src/soma/communications/services/processing.py",
+      "reason": "Shared start-command scope/proof/coalescing authority; three registered worker kinds reuse one bounded batch engine."
+    },
+    {
+      "design": "services/processing.py schedule + services/housekeeping.py grace",
+      "implementation": "src/soma/communications/services/settings.py",
+      "reason": "Both reuse the existing LLD-02 SettingService participant and audit authority."
+    },
+    {
+      "design": "adapters/fts_projection.py",
+      "implementation": "src/soma/migrations/0016_communications.sql",
+      "reason": "Owned SQLite FTS triggers atomically maintain the retained-content projection, including reconstruction and purge; no empty wrapper."
+    }
+  ],
+  "proposal_boundary": "Only complete registered typed facts may enter repositories/proposals.py in the caller receipt/UoW. Accepted owner clarification does not authorize a natural-language lifecycle extractor. RT context and missing-reference warning are advisory process-local typed values; CLOSED never supplies a final decision. LLD-10 owns workbench presentation.",
+  "cases": [
+    {
+      "case_id": "LLD09-A001",
+      "scenario": "Source Scope creation assigns immutable local identity independent of filesystem path.",
+      "implementation_owners": [
+        "src/soma/communications/services/source_config.py",
+        "src/soma/communications/queries/previews.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_source_config.py::test_lld09_a001_a002_scope_relocation_preserves_identity_and_replay"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A002",
+      "scenario": "Moving or renaming the same accepted PST/OST location preserves Source Scope identity after reviewed relocation.",
+      "implementation_owners": [
+        "src/soma/communications/services/source_config.py",
+        "src/soma/communications/queries/previews.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_source_config.py::test_lld09_a001_a002_scope_relocation_preserves_identity_and_replay"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A003",
+      "scenario": "A genuinely different mailbox/account requires a distinct Source Scope even when filenames match.",
+      "implementation_owners": [
+        "src/soma/communications/services/source_config.py",
+        "src/soma/communications/queries/previews.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_source_config.py::test_lld09_a003_different_mailbox_cannot_reuse_existing_scope"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A004",
+      "scenario": "Automatic processing is blocked when no governed trackable operational identity exists.",
+      "implementation_owners": [
+        "src/soma/communications/domain/initial_boundary.py",
+        "src/soma/communications/services/processing.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_initial_boundary.py::test_lld09_a004_no_targets_stops_without_source_io"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A005",
+      "scenario": "Creating descriptive/master data alone does not satisfy the processing eligibility gate.",
+      "implementation_owners": [
+        "src/soma/communications/services/identity_providers.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity_providers.py::test_master_data_and_local_task_without_external_identifier_do_not_enable_mail_processing"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A006",
+      "scenario": "Accepted SR/RFC/WFM/Objective/Spare Request/RMA/Fault Tag identities enter the versioned trackable registry according to owner rules.",
+      "implementation_owners": [
+        "src/soma/communications/services/identity_providers.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity_providers.py::test_owner_providers_export_closed_identities_and_do_not_infer_source_creation",
+        "tests/test_communications_warehouse_evidence.py::test_exact_warehouse_pair_resolves_only_current_selected_physical_membership"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A007",
+      "scenario": "Local Task without an accepted external communication identifier remains non-trackable automatically.",
+      "implementation_owners": [
+        "src/soma/communications/services/identity_providers.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity_providers.py::test_master_data_and_local_task_without_external_identifier_do_not_enable_mail_processing"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A008",
+      "scenario": "Initial processing chooses the earliest independently supported relevant target chronology.",
+      "implementation_owners": [
+        "src/soma/communications/domain/initial_boundary.py",
+        "src/soma/communications/services/processing.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_initial_boundary.py::test_lld09_a008_known_initial_boundary_uses_oldest_supported_time"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A009",
+      "scenario": "Unknown earliest relevant chronology remains unknown and requires operator lower bound or Deep Scan.",
+      "implementation_owners": [
+        "src/soma/communications/domain/initial_boundary.py",
+        "src/soma/communications/services/processing.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_initial_boundary.py::test_lld09_a009_a010_unknown_boundary_remains_unknown"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A010",
+      "scenario": "Import/discovery/index/current time never substitutes for missing business chronology.",
+      "implementation_owners": [
+        "src/soma/communications/domain/initial_boundary.py",
+        "src/soma/communications/services/processing.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_initial_boundary.py::test_lld09_a009_a010_unknown_boundary_remains_unknown"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A011",
+      "scenario": "Ordinary processing opens PST/OST read-only and never mutates external stores.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/processing.py",
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_worker.py::test_worker_inspects_read_only_and_commits_only_matches_and_actual_exhaustion"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A012",
+      "scenario": "High-water advances only through the last durably committed provider checkpoint.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_batch_retains_one_canonical_message_and_independent_links_with_atomic_progress"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A013",
+      "scenario": "Bounded overlap replay is idempotent and does not duplicate retained communications or links.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_overlap_preserves_links_content_revisions_and_high_water_without_retention_count_inflation"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A014",
+      "scenario": "Targeted backfill affects only selected Source Scope/folders/identities/range and leaves unrelated high-water unchanged.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/processing.py",
+        "src/soma/communications/services/historical_coverage.py",
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_historical_processing.py::test_historical_processing_commits_separate_coverage_and_preserves_ordinary_checkpoint"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A015",
+      "scenario": "Deep Scan always presents explicit scope/range/impact/coverage preview before start.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing.py",
+        "src/soma/communications/services/scan_scope.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_requests.py::test_deep_scan_persists_exact_reviewed_fingerprint_without_proof_and_replay_does_not_consume_again"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A016",
+      "scenario": "Deep Scan requires valid deliberate-action proof and cannot be started by timer/startup/failure fallback.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing.py",
+        "src/soma/communications/services/scan_scope.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_requests.py::test_deep_scan_stale_coverage_precedes_proof_and_audit_failure_rolls_consumption_and_job_back"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A017",
+      "scenario": "Provider-stable origin identity yields one canonical Communication within one accepted Source Scope.",
+      "implementation_owners": [
+        "src/soma/communications/domain/communication.py",
+        "src/soma/communications/repositories/identity.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity.py::test_lld09_a017_a019_provider_binary_and_fallback_are_separate_identity_facts"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A018",
+      "scenario": "Equal provider identities in different unconfirmed Source Scopes do not silently merge.",
+      "implementation_owners": [
+        "src/soma/communications/domain/communication.py",
+        "src/soma/communications/repositories/identity.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity.py::test_provider_identity_scope_isolation_and_fallback_version_changes_are_explicit"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A019",
+      "scenario": "Fallback identity canonicalization is versioned, deterministic, path-independent and scope-bound.",
+      "implementation_owners": [
+        "src/soma/communications/domain/communication.py",
+        "src/soma/communications/repositories/identity.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity.py::test_lld09_a017_a019_provider_binary_and_fallback_are_separate_identity_facts"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A020",
+      "scenario": "Fallback collisions preserve separate immutable Communication candidates pending review.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_independently_distinct_fallback_creates_protected_collision_without_auto_links"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A021",
+      "scenario": "A later stronger provider identity attaches as alias/reconciliation evidence without replacing internal communication_id.",
+      "implementation_owners": [
+        "src/soma/communications/services/identity_reconciliation.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity_reconciliation.py::test_reconciliation_reassigns_alias_without_mutating_old_rows_and_orders_same_second_decisions"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A022",
+      "scenario": "Folder movement/duplication within one Source Scope does not create another canonical Communication.",
+      "implementation_owners": [
+        "src/soma/communications/domain/communication.py",
+        "src/soma/communications/repositories/identity.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity.py::test_lld09_a017_a019_provider_binary_and_fallback_are_separate_identity_facts"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A023",
+      "scenario": "Participants persist as ordered typed role-bearing values with unknown/malformed evidence preserved explicitly.",
+      "implementation_owners": [
+        "src/soma/communications/repositories/communications.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_content_repository.py::test_owned_content_write_uses_captured_bytes_normalization_and_exact_identity"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A024",
+      "scenario": "Participant names/addresses do not automatically create or prove Contact identity.",
+      "implementation_owners": [
+        "src/soma/communications/repositories/communications.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_content_repository.py::test_owned_content_write_uses_captured_bytes_normalization_and_exact_identity"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A025",
+      "scenario": "Direction is derived from source scope/folder role/participants and remains UNKNOWN when conflicting or unsupported.",
+      "implementation_owners": [
+        "src/soma/communications/domain/communication.py",
+        "src/soma/communications/repositories/identity.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity.py::test_lld09_a017_a019_provider_binary_and_fallback_are_separate_identity_facts"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A026",
+      "scenario": "Unmatched inspected messages leave no persisted subject/body/participants/attachments/searchable or opaque reconstructable equivalent.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_unmatched_leaves_no_content_children_identity_search_or_diagnostic_evidence"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A027",
+      "scenario": "Only bounded scan/job progress, counts, coverage and redacted diagnostics survive unmatched inspection.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_unmatched_leaves_no_content_children_identity_search_or_diagnostic_evidence"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A028",
+      "scenario": "An accepted or approved-safe governed entity link makes matched content eligible for retention.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_batch_retains_one_canonical_message_and_independent_links_with_atomic_progress"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A029",
+      "scenario": "One canonical Communication may hold independent accepted links to multiple governed entities.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_batch_retains_one_canonical_message_and_independent_links_with_atomic_progress"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A030",
+      "scenario": "Correcting/removing one link leaves the canonical message and other links unchanged.",
+      "implementation_owners": [
+        "src/soma/communications/services/proposals.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_link_decisions.py::test_retarget_preserves_original_link_chronology_and_canonical_content"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A031",
+      "scenario": "Rejected or corrected-away final links start orphan-grace evaluation rather than immediate content deletion.",
+      "implementation_owners": [
+        "src/soma/communications/services/proposals.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_link_decisions.py::test_closing_sibling_links_keeps_content_and_starts_grace_only_for_final_dependency"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A032",
+      "scenario": "Communication-derived lifecycle facts are persisted only as proposals and do not mutate owner domains.",
+      "implementation_owners": [
+        "src/soma/communications/repositories/proposals.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_proposal_repository.py::test_different_item_memberships_have_independent_proposals_on_one_canonical_message"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A033",
+      "scenario": "Accepted proposal evidence is consumed by the owning domain with fresh validation; LLD-09 records disposition only.",
+      "implementation_owners": [
+        "src/soma/communications/services/proposal_evidence.py",
+        "src/soma/communications/services/proposal_disposition.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_inventory_acceptance.py::test_lld09_a033_owner_acceptance_disposition_and_exact_result_share_one_receipt"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A034",
+      "scenario": "Rejected/deferred proposal produces no owner-domain mutation.",
+      "implementation_owners": [
+        "src/soma/communications/services/proposals.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_proposals.py::test_lld09_a034_defer_and_reject_preserve_sibling_holds_and_exact_replay"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A035",
+      "scenario": "RFC provider terminal evidence/pending cascade alone does not unlink direct RFC Communication links.",
+      "implementation_owners": [
+        "src/soma/communications/services/identity_providers.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity_providers.py::test_rfc_provider_terminal_and_pending_cascade_do_not_establish_applied_local_communication_terminal_state"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A036",
+      "scenario": "Confirmed local RFC terminal cascade first revalidates inside the caller LLD-03 writer UnitOfWork that the complete current Communications impact exact_count/provider_fingerprint exactly equals the reviewed READY preview authority; a determinate mismatch is STALE and INDETERMINATE fails closed before deliberate proof consumption/apply. Only after READY revalidation may apply freeze the RFC terminal summary, remove only RFC direct links and evaluate orphan grace in that same caller UoW without a nested receipt/commit.",
+      "implementation_owners": [
+        "src/soma/communications/services/rfc_terminal.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_rfc_terminal.py::test_rfc_apply_exact_time_fingerprint_and_owner_replay"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A037",
+      "scenario": "Accepted SR terminal transition freezes SR terminal summary and removes only SR direct links.",
+      "implementation_owners": [
+        "src/soma/communications/services/terminal.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_sr_terminal.py::test_sr_terminal_freezes_before_unlink_and_starts_grace_at_local_acceptance"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A038",
+      "scenario": "Terminal summary preserves counts/direction/chronology/coverage/unlink time without reconstructable content or body navigation.",
+      "implementation_owners": [
+        "src/soma/communications/queries/summaries.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_summaries.py::test_freeze_sequence_same_second_is_transactional_immutable_and_bodyless"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A039",
+      "scenario": "Final protected dependency removal enters ORPHAN_PENDING_PURGE with exact grace due time.",
+      "implementation_owners": [
+        "src/soma/communications/services/proposals.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_link_decisions.py::test_closing_sibling_links_keeps_content_and_starts_grace_only_for_final_dependency"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A040",
+      "scenario": "Default orphan grace is seven exact elapsed days from accepted last-dependency removal.",
+      "implementation_owners": [
+        "src/soma/communications/services/housekeeping.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_housekeeping.py::test_elapsed_grace_preserves_pending_due_and_records_each_cancelled_interval"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A041",
+      "scenario": "Restored protected dependency during grace cancels pending purge and preserves cancellation audit history.",
+      "implementation_owners": [
+        "src/soma/communications/services/proposals.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_link_decisions.py::test_reviewed_links_share_canonical_content_and_preserve_chronology_provenance"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A042",
+      "scenario": "Due purge transaction revalidates every protected link/proposal/correction/collision/export hold before content deletion.",
+      "implementation_owners": [
+        "src/soma/communications/services/housekeeping.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_housekeeping.py::test_lld09_a042_a044_a045_p005_due_purge_removes_content_and_preserves_identity"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A043",
+      "scenario": "Due purge with a restored dependency cancels purge and preserves retained content.",
+      "implementation_owners": [
+        "src/soma/communications/services/housekeeping.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_housekeeping.py::test_lld09_a043_restored_hold_cancels_pending_purge_with_truthful_audit"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A044",
+      "scenario": "Eligible purge removes body/subject/participants/attachments/content-derived search material but preserves minimized non-reconstructable identity/history evidence.",
+      "implementation_owners": [
+        "src/soma/communications/services/housekeeping.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_housekeeping.py::test_lld09_a042_a044_a045_p005_due_purge_removes_content_and_preserves_identity"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A045",
+      "scenario": "Purge never modifies PST/OST, existing MSG exports, portable exports, protected backups or operational domain history.",
+      "implementation_owners": [
+        "src/soma/communications/services/housekeeping.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_housekeeping.py::test_lld09_a042_a044_a045_p005_due_purge_removes_content_and_preserves_identity"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A046",
+      "scenario": "Terminal reversal during grace restores governed relationship and cancels purge.",
+      "implementation_owners": [
+        "src/soma/communications/services/terminal.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_sr_terminal.py::test_reviewed_sr_reversal_restores_same_links_cancels_grace_and_refreezes_sequence"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A047",
+      "scenario": "Terminal reversal after purge queues bounded targeted source backfill when source is available.",
+      "implementation_owners": [
+        "src/soma/communications/services/terminal.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_sr_terminal.py::test_post_purge_reversal_preserves_summary_and_enqueues_only_provable_exact_scope"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A048",
+      "scenario": "Post-purge reversal with unavailable/incomplete source keeps frozen summary and explicit coverage warning without fabricated body.",
+      "implementation_owners": [
+        "src/soma/communications/services/terminal.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_sr_terminal.py::test_post_purge_reversal_preserves_summary_and_enqueues_only_provable_exact_scope"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A049",
+      "scenario": "Processing schedule defaults to 60 whole minutes and may be changed to another allowed positive whole-minute interval or disabled.",
+      "implementation_owners": [
+        "src/soma/communications/services/settings.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_settings.py::test_lld09_a049_a050_schedule_reuses_setting_owner_and_exact_replay"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A050",
+      "scenario": "Disabling scheduled processing preserves source configuration, coverage, high-water, retained communications and housekeeping.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/scheduling.py",
+        "src/soma/communications/composition.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_scheduling.py::test_disabled_fetch_still_schedules_housekeeping_and_rechecks_disabled_in_writer"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A051",
+      "scenario": "Check now coalesces with an already active per-scope ordinary processing job rather than creating overlap.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/scheduling.py",
+        "src/soma/communications/composition.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_scheduling.py::test_current_interval_changes_and_manual_trigger_coalesce_without_implicit_history"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A052",
+      "scenario": "At most one startup catch-up remains pending per Source Scope.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/scheduling.py",
+        "src/soma/communications/composition.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_scheduling.py::test_current_interval_changes_and_manual_trigger_coalesce_without_implicit_history"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A053",
+      "scenario": "Orphan housekeeping runs independently from Communication Processing schedule.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/scheduling.py",
+        "src/soma/communications/composition.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_scheduling.py::test_disabled_fetch_still_schedules_housekeeping_and_rechecks_disabled_in_writer"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A054",
+      "scenario": "Long ordinary/backfill/Deep Scan/reconciliation/housekeeping work exposes durable job identity/state/phase/times/counts/checkpoint.",
+      "implementation_owners": [
+        "src/soma/communications/queries/jobs.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_job_queries.py::test_job_summary_uses_recorded_state_and_attempt_chronology"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A055",
+      "scenario": "Unknown job totals never yield fabricated progress percentage.",
+      "implementation_owners": [
+        "src/soma/communications/queries/jobs.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_job_queries.py::test_job_summary_uses_recorded_state_and_attempt_chronology"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A056",
+      "scenario": "Cooperative cancellation preserves completed commits and never advances coverage past durable work.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/processing.py",
+        "src/soma/communications/services/historical_coverage.py",
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_historical_processing.py::test_cancelled_historical_run_keeps_last_partial_segment"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A057",
+      "scenario": "Restart recovery resumes from safe checkpoint or records explicit partial/failure state; it never marks success by crash.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/processing.py",
+        "src/soma/communications/services/historical_coverage.py",
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_historical_processing.py::test_historical_crash_recovery_uses_owned_segment_position_not_forward_high_water"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A058",
+      "scenario": "Retry is transient-only, bounded, backed off and idempotent.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/communications.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_job_contracts.py::test_retry_rules_enforce_exact_backoff_and_total_attempt_limit"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A059",
+      "scenario": "Diagnostics expose stable codes/safe counts/redacted scope/remediation without reconstructable mail or secrets.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/processing.py",
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_worker.py::test_transient_source_failure_preserves_prior_batch_and_uses_registered_retry"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A060",
+      "scenario": "MSG draft generation creates immutable draft identity distinct from canonical Communication identity.",
+      "implementation_owners": [
+        "src/soma/communications/services/drafts.py",
+        "src/soma/communications/adapters/msg_publication.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_drafts.py::test_msg_local_flows_publish_immutable_provenance_without_sending"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A061",
+      "scenario": "MSG draft generation builds/verifies/publishes artifact before one short DB UoW records/reuses draft/export evidence.",
+      "implementation_owners": [
+        "src/soma/communications/services/drafts.py",
+        "src/soma/communications/adapters/msg_publication.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_drafts.py::test_msg_local_flows_publish_immutable_provenance_without_sending"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A062",
+      "scenario": "Successful MSG export does not mark sent, change communication counts, or advance source coverage/high-water.",
+      "implementation_owners": [
+        "src/soma/communications/services/drafts.py",
+        "src/soma/communications/adapters/msg_publication.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_drafts.py::test_msg_local_flows_publish_immutable_provenance_without_sending"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A063",
+      "scenario": "DB failure after matching artifact publication is safely reconciled by idempotent retry using semantic key and artifact hash.",
+      "implementation_owners": [
+        "src/soma/communications/services/drafts.py",
+        "src/soma/communications/adapters/msg_publication.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_drafts.py::test_db_failure_keeps_artifact_and_retry_reconciles_hash"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A064",
+      "scenario": "Later PST/OST discovery of a sent item creates normal canonical Communication and may link draft provenance without identity merge.",
+      "implementation_owners": [
+        "src/soma/communications/services/drafts.py",
+        "src/soma/communications/adapters/msg_publication.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_drafts.py::test_later_observed_sent_message_has_new_canonical_identity_without_merging_draft"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A065",
+      "scenario": "Entity communication summary counts one canonical message once per entity despite multiple aliases/links to the same entity.",
+      "implementation_owners": [
+        "src/soma/communications/queries/summaries.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_summaries.py::test_summary_counts_canonical_messages_once_and_uses_latest_known_ties"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A066",
+      "scenario": "Current summaries exclude rejected/corrected links and MSG drafts, show last independently known interaction time/age, proposals and coverage warnings.",
+      "implementation_owners": [
+        "src/soma/communications/queries/summaries.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_summaries.py::test_summary_counts_canonical_messages_once_and_uses_latest_known_ties"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-A067",
+      "scenario": "LLD-10/11 read summaries through CommunicationSummaryProvider and never store a competing body/count authority.",
+      "implementation_owners": [
+        "src/soma/communications/queries/summaries.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_summaries.py::test_summary_and_panel_bounds_and_indexed_range_order"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F001",
+      "scenario": "Crash before retained-message/link batch commit rolls back content/link/proposal writes and leaves high-water unchanged.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_audit_failure_rolls_back_content_fts_links_receipt_counters_and_checkpoint"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F002",
+      "scenario": "Crash after committed batch but before job heartbeat recovers from durable checkpoint without duplicate messages or links.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/processing.py",
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_worker.py::test_worker_crash_recovery_reuses_committed_messages_and_resumes_recorded_provider_position"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F003",
+      "scenario": "Source becomes missing/locked/corrupt mid-run: committed prior work remains, coverage becomes partial/warned, no external mutation occurs.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/processing.py",
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_worker.py::test_transient_source_failure_preserves_prior_batch_and_uses_registered_retry"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F004",
+      "scenario": "Concurrent source-scope reconfiguration makes an in-flight start/checkpoint stale and prevents checkpoint advancement under old scope revision.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_stale_preparation_rolls_back_all_authoritative_work"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F005",
+      "scenario": "Concurrent target terminal/correction change invalidates a proposed link before commit and fails closed without retention by that stale target.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_batch_consumes_production_objective_identity_owner_and_rejects_real_revision_drift"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F006",
+      "scenario": "Failure in owning-domain proposal command rolls back LLD-09 disposition participant changes in the shared UoW.",
+      "implementation_owners": [
+        "src/soma/communications/services/proposal_evidence.py",
+        "src/soma/communications/services/proposal_disposition.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_inventory_acceptance.py::test_lld09_f006_each_required_audit_failure_rolls_back_both_owners"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F007",
+      "scenario": "Failure in RfcTerminalCommunicationParticipant aborts the caller RFC cascade transaction rather than partially unlinking Communications.",
+      "implementation_owners": [
+        "src/soma/communications/services/rfc_terminal.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_rfc_terminal.py::test_rfc_audit_failure_rolls_back_cascade_and_all_consequences"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F008",
+      "scenario": "Failure after terminal summary creation but before direct-link closure rolls back both summary and link changes.",
+      "implementation_owners": [
+        "src/soma/communications/services/terminal.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_sr_terminal.py::test_terminal_audit_failure_rolls_back_owner_projection_receipt_and_all_communication_changes"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F009",
+      "scenario": "Failure during due purge after dependency revalidation rolls back content/search deletion and keeps communication retained/pending for retry.",
+      "implementation_owners": [
+        "src/soma/communications/services/housekeeping.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_housekeeping.py::test_lld09_f009_purge_audit_failure_rolls_back_all_content_and_fts"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F010",
+      "scenario": "MSG artifact publication failure creates no authoritative draft/export DB mutation and no sent evidence.",
+      "implementation_owners": [
+        "src/soma/communications/services/drafts.py",
+        "src/soma/communications/adapters/msg_publication.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_drafts.py::test_publication_failure_is_sanitized_and_does_not_record_provenance"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F011",
+      "scenario": "DB failure after MSG artifact publication leaves operator artifact non-authoritative; retry reconciles identical artifact hash without duplicate draft identity.",
+      "implementation_owners": [
+        "src/soma/communications/services/drafts.py",
+        "src/soma/communications/adapters/msg_publication.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_drafts.py::test_db_failure_keeps_artifact_and_retry_reconciles_hash"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F012",
+      "scenario": "Cancellation during large scan occurs only at safe checkpoint and cannot split one atomic persistence batch.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/processing.py",
+        "src/soma/communications/services/historical_coverage.py",
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_historical_processing.py::test_cancelled_historical_run_keeps_last_partial_segment"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-F013",
+      "scenario": "Transient retry exhaustion records failed/partial job with last durable coverage; no tight retry loop or fabricated success.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/communications.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_job_contracts.py::test_retry_rules_enforce_exact_backoff_and_total_attempt_limit"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-P001",
+      "scenario": "Unmatched message subject/body/participants/attachments are absent from all persistent tables, FTS, audit, diagnostics and job checkpoint payloads.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_unmatched_leaves_no_content_children_identity_search_or_diagnostic_evidence"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-P002",
+      "scenario": "Audit payloads never contain message body, attachment bytes, participant email addresses, raw PST/OST path, source credentials or MSG body.",
+      "implementation_owners": [
+        "src/soma/communications/services/drafts.py",
+        "src/soma/communications/adapters/msg_publication.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_drafts.py::test_msg_local_flows_publish_immutable_provenance_without_sending"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-P003",
+      "scenario": "Diagnostics and support surfaces use stable codes/safe counts/redacted scope and never reconstruct a retained or unmatched message.",
+      "implementation_owners": [
+        "src/soma/communications/adapters/pff_reader.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_pff_reader.py::test_native_exception_content_and_parser_objects_never_cross_boundary",
+        "tests/test_communications_pff_reader.py::test_cleanup_failure_preserves_sanitized_inspection_error_without_exception_context",
+        "tests/test_communications_pff_reader.py::test_native_stream_read_lookup_failure_is_sanitized_at_attachment_boundary"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-P004",
+      "scenario": "Search indexes contain retained content only and are deleted transactionally with eligible content purge.",
+      "implementation_owners": [
+        "src/soma/communications/services/housekeeping.py",
+        "src/soma/communications/services/retention.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_housekeeping.py::test_lld09_a042_a044_a045_p005_due_purge_removes_content_and_preserves_identity"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-P005",
+      "scenario": "Purge evidence and frozen terminal summaries cannot reconstruct subject/body/participants/attachments.",
+      "implementation_owners": [
+        "src/soma/communications/queries/summaries.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_summaries.py::test_freeze_sequence_same_second_is_transactional_immutable_and_bodyless"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-P006",
+      "scenario": "HTTP URLs/query strings never carry PST/OST path, message body, recipient lists, attachment bytes or MSG destination path.",
+      "implementation_owners": [
+        "src/soma/communications/api/routes_communications.py",
+        "src/soma/communications/composition.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_transport_composition.py::test_routes_allow_sensitive_content_only_in_decoded_body_and_require_authenticated_context"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-P007",
+      "scenario": "Source adapter opens external stores read-only; no command exposes delete/move/mark/read-state mutation capability.",
+      "implementation_owners": [
+        "src/soma/communications/adapters/pff_reader.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_pff_reader.py::test_typed_boundary_preserves_provider_identity_and_independent_chronology_and_wraps_streams"
+      ],
+      "evidence_scope": "parser_independent_implementation"
+    },
+    {
+      "case_id": "LLD09-P008",
+      "scenario": "Deep Scan requires authenticated mutation + CSRF + valid single-use LLD-12 deliberate-action proof bound to exact preview/target revision.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing.py",
+        "src/soma/communications/services/scan_scope.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_requests.py::test_deep_scan_stale_coverage_precedes_proof_and_audit_failure_rolls_consumption_and_job_back"
+      ],
+      "evidence_scope": "parser_independent_implementation",
+      "host_dependency": "LLD-12 authentication/CSRF and real session/run-bound deliberate proof; LLD-09 consumer verified with injected proof provider"
+    },
+    {
+      "case_id": "LLD09-C001",
+      "scenario": "Golden PST fixture on supported Windows/Python exposes the same provider-stable identity, chronology, folder role and participants through the pinned libpff adapter.",
+      "implementation_owners": [
+        "src/soma/communications/adapters/pff_reader.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_pff_reader.py::test_unconfigured_native_dependency_is_explicitly_unsupported_and_not_a_pin"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C002",
+      "scenario": "Golden OST fixture on supported Windows/Python is opened read-only and yields bounded deterministic TransientMessageV1 values.",
+      "implementation_owners": [
+        "src/soma/communications/adapters/pff_reader.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_pff_reader.py::test_unconfigured_native_dependency_is_explicitly_unsupported_and_not_a_pin"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C003",
+      "scenario": "Provider RecordKey/stable-origin binary evidence is preserved byte-exact before versioned encoding and scoped to the accepted Source Scope.",
+      "implementation_owners": [
+        "src/soma/communications/adapters/pff_reader.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_pff_reader.py::test_typed_boundary_preserves_provider_identity_and_independent_chronology_and_wraps_streams"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C004",
+      "scenario": "Messages lacking stable origin identity produce identical fallback canonical bytes/digest across restart on the same adapter/canonicalization version.",
+      "implementation_owners": [
+        "src/soma/communications/domain/communication.py",
+        "src/soma/communications/repositories/identity.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity.py::test_lld09_a017_a019_provider_binary_and_fallback_are_separate_identity_facts"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C005",
+      "scenario": "Fallback canonicalization changes require an explicit version change and preserve existing aliases/reconciliation history.",
+      "implementation_owners": [
+        "src/soma/communications/domain/communication.py",
+        "src/soma/communications/repositories/identity.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity.py::test_provider_identity_scope_isolation_and_fallback_version_changes_are_explicit"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C006",
+      "scenario": "Malformed/corrupt messages produce stable adapter warnings/errors without leaking raw content or crashing the whole source run.",
+      "implementation_owners": [
+        "src/soma/communications/adapters/pff_reader.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_pff_reader.py::test_native_exception_content_and_parser_objects_never_cross_boundary"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C007",
+      "scenario": "Unsupported or partially parseable stores return bounded source-health/capability states and do not advance unreadable coverage.",
+      "implementation_owners": [
+        "src/soma/communications/jobs/processing.py",
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_worker.py::test_partial_adapter_never_claims_complete_coverage"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C008",
+      "scenario": "Folder movement within the same store does not change canonical identity when provider-stable identity remains available.",
+      "implementation_owners": [
+        "src/soma/communications/domain/communication.py",
+        "src/soma/communications/repositories/identity.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_identity.py::test_lld09_a017_a019_provider_binary_and_fallback_are_separate_identity_facts"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C009",
+      "scenario": "Duplicate copies with same provider identity within one accepted Source Scope reconcile idempotently rather than creating duplicate canonical messages.",
+      "implementation_owners": [
+        "src/soma/communications/services/processing_batches.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_processing_batches.py::test_overlap_preserves_links_content_revisions_and_high_water_without_retention_count_inflation"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C010",
+      "scenario": "Generated MSG fixture passes independent Compound File/OXMSG verification and reopens with exact normalized subject/body/recipient snapshot.",
+      "implementation_owners": [
+        "src/soma/communications/adapters/msg_writer.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_msg_writer.py::test_pinned_writer_is_deterministic_and_independent_reader_verifies_unsent_exact_authored_content"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C011",
+      "scenario": "Generated MSG fixture opens in supported Outlook/Windows compatibility fixture while remaining unsent and without delivery/read-receipt proof.",
+      "implementation_owners": [
+        "src/soma/communications/adapters/msg_writer.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_msg_writer.py::test_pinned_writer_is_deterministic_and_independent_reader_verifies_unsent_exact_authored_content"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    },
+    {
+      "case_id": "LLD09-C012",
+      "scenario": "Parser/writer dependency upgrade is blocked unless the full LLD-09 golden corpus, privacy canaries and identity/MSG compatibility fixtures pass.",
+      "implementation_owners": [
+        "src/soma/communications/adapters/pff_reader.py"
+      ],
+      "executable_evidence": [
+        "tests/test_communications_pff_reader.py::test_unconfigured_native_dependency_is_explicitly_unsupported_and_not_a_pin"
+      ],
+      "evidence_scope": "synthetic_boundary_only_native_release_deferred",
+      "release_gates": [
+        "LLD09-PFF-RELEASE-PIN",
+        "LLD09-GOLDEN-CORPUS-FREEZE"
+      ]
+    }
+  ],
+  "ordinary_implementation_status": "locally_certified_working_tree",
+  "verification": {
+    "full_suite_passed": 1955,
+    "full_suite_failed": 0,
+    "python": "3.14.7",
+    "platform": "Windows x64",
+    "snapshot_sha256": "247e9d1d6808a76dbd36574aab856fb211738b51ffcf9e2c546f68136fb06d13",
+    "source_commit_certificate": false,
+    "local_implementation_certificate": true
+  },
+  "implementation_certificate": "docs/implementation/lld09_implementation_certificate.json"
+}

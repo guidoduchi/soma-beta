@@ -11,6 +11,8 @@ on:
       - "tools/**"
       - "pyproject.toml"
       - ".gitattributes"
+      - ".gitignore"
+      - "MANIFEST.in"
       - ".github/workflows/implementation-ci.yml"
 
 permissions:
@@ -26,6 +28,8 @@ jobs:
         python-version: ["3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -33,9 +37,15 @@ jobs:
       - name: Install test environment
         shell: pwsh
         run: python -m pip install -e ".[test]"
+      - name: Verify private local sample exclusion
+        shell: pwsh
+        run: python tools/check_local_only.py
       - name: Compile package
         shell: pwsh
         run: python -m compileall -q src tests
+      - name: Verify Communications scenario bindings
+        shell: pwsh
+        run: python tools/check_communications_traceability.py
       - name: Run complete implementation test suite
         shell: pwsh
         run: python -m pytest
@@ -51,14 +61,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
           cache: pip
       - name: Install test environment
         run: python -m pip install -e ".[test]"
+      - name: Verify private local sample exclusion
+        run: python tools/check_local_only.py
       - name: Verify release schema manifest
         run: python tools/generate_schema_manifest.py --check src/soma/schema_manifest.json
+      - name: Verify Communications scenario bindings
+        run: python tools/check_communications_traceability.py
       - name: Emit pre-LLD-08 acceptance marker coverage
         run: |
           git fetch --no-tags --depth=1 origin 46c836ca949cebcf52ff05be4eb4799e0c74eed1
