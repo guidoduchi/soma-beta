@@ -40,12 +40,14 @@
     "Accepted LLD09 CommunicationPanelQueryV1 HTTP binding dispatches to the sole panel provider under one ReadSnapshot; SR/RFC workbenches consume that route directly and canonical message text remains inert",
     "Infrastructure return navigation preserves opened immutable Network Element, active tab, selected/active/order intent, complete explorer/component/history/workbook/run cursors, proposal identity and bounded candidate page in the existing session-only 50-entry registry. Current owner facts are fetched again; no DTO/body/draft is retained. Independent pane offsets and logical focus restore after async owner reads; unavailable rows/controls/candidate pages use explicit deterministic fallbacks.",
     "Inventory/Objective/Infrastructure fallback notice commits before final scroll offsets are applied, preventing browser scroll anchoring from changing restored context. Inventory scroll test now uses a short supported viewport with explicit overflow in Edge and Chromium.",
-    "Generic recovery conflict is retained across new edits after stale/missing/indeterminate restore or generation rejection; edits remain in memory without resubmitting stale authority. Disposed and synchronously cancelled checkpoints cannot notify or submit into an abandoned flow. Recovery acknowledgement is scoped to exact copy/generation/current owner revision/dirty paths, and late discard errors cannot label a freshly queried copy. No production recovery contracts are registered."
+    "Generic recovery conflict is retained across new edits after stale/missing/indeterminate restore or generation rejection; edits remain in memory without resubmitting stale authority. Disposed and synchronously cancelled checkpoints cannot notify or submit into an abandoned flow. Recovery acknowledgement is scoped to exact copy/generation/current owner revision/dirty paths, and late discard errors cannot label a freshly queried copy. No production recovery contracts are registered.",
+    "Settings return context preserves independent closed bounded LLD02 directory/channel/history and LLD06 catalog cursors, opened reference identities, archived-channel filter and Account Code disclosure, plus LLD09 source coverage/job/housekeeping queries. Current owner facts are fetched on return; focus and independent pane/main scroll are restored after asynchronous reads with explicit missing-control fallback. Appearance return refetches accepted axes. Browser history stays token-only; nested intent is frozen and malformed/foreign/incomplete cursor intent fails closed.",
+    "User-accepted partial LLD07 Fault Tag core list reconciliation: list/detail split, exact filtered total under one snapshot, ascending immutable identity, complete filter-fenced CURSOR_V1, bounded core counts without membership reads. Raw after_id and unclosed filters reject. Full list context/obligation/diversity/lineage/blocker projections and remaining filter semantics stay unclosed; detail is unchanged."
   ],
   "remaining_implementation": [
     "Complete production domain composition/actions beyond current read slices: Inventory Needs/requests/RMAs/Fault Tags and activity, reference/SLA editors and policy/history/report settings, communications workspace/actions and Settings writes/source configuration, ticket relationship tabs, Objective scheduling/grouping/history and Infrastructure workbook/other entity surfaces remain incomplete",
     "Production appearance write/authenticated owner command composition and production recovery edit registrations; owner security/session implementation remains LLD12-owned",
-    "Complete Return-state restoration across remaining workspaces; ticket and Objective collection query/selection/focus/scroll restoration and shared live collection refresh are implemented",
+    "Complete return restoration for subsequently implemented domain/edit surfaces; existing ticket, Objective, Inventory, Infrastructure and Settings read surfaces now preserve their implemented bounded query/focus/scroll context.",
     "Complete all 80 acceptance/failure evidence bindings and second semantic review; fixture semantic/pixel approval remains pending",
     "Execute frontend CI and exact-commit supported matrix; local Edge is not WebView2 release evidence"
   ],
@@ -79,37 +81,48 @@
       "id": "LLD10-LLD05-GROUPING-LIST-TRANSPORT",
       "state": "accepted_refinement_implemented_semantic_closure_pending",
       "rule": "Accepted LLD05_GROUPING_LIST_TRANSPORT_V1.json closes risk/origin filters, dedicated live list DTO and full CURSOR_V1. Preserve separate immutable recompute response and exact historical replay; semantic closure review remains pending."
+    },
+    {
+      "id": "LLD10-LLD07-FAULT-TAG-LIST-TRANSPORT",
+      "state": "accepted_core_partial_reconciliation_not_complete",
+      "authority": "docs/reconciliation/LLD07_FAULT_TAG_LIST_CORE_V1.json",
+      "rule": "Core query/count/cursor infrastructure is accepted. Full filters, obligation/diversity/lineage/blocker shapes remain owner-reconciled; no complete canonical list claim."
     }
   ],
   "local_verification": {
     "python_full": {
-      "passed": 2032,
+      "passed": 2066,
       "failed": 0,
+      "skipped": 0,
       "exit_code": 0,
-      "note": "Complete collected suite passed for the Task warning refinement. Run began before the panel HTTP extension; that extension subsequently passed 25 focused query/transport/summary tests. No claim of one final-state complete-suite run. First attempt failed environment temp-directory permissions; successful rerun used fresh workspace-local --basetemp."
+      "seconds": 631.882,
+      "junit": "tmp/lld10-settings-ftcore-full.xml",
+      "note": "Complete local suite passed for this Settings/Fault Tag core checkpoint. Final frontend identity guards were subsequently verified by focused assets/fixture/state tests and both complete browser suites; no native release certification."
     },
     "python_focused_latest": {
       "panel_http_owner_passed": 25,
       "contracts_assets_continuation_passed": 31,
       "task_owner_passed": 92,
       "failed": 0,
-      "recovery_fixtures_assets_state_passed": 52
+      "recovery_fixtures_assets_state_passed": 52,
+      "fault_tag_core_and_lifecycle_passed": 30,
+      "assets_fixtures_state_passed": 37
     },
     "typescript_strict": "pass",
-    "node_tests": 28,
-    "edge_browser_tests": 88,
+    "node_tests": 29,
+    "edge_browser_tests": 96,
     "schema_objects": 1315,
     "runtime_migrations": 17,
     "compileall": "pass",
     "wheel": {
       "status": "pass",
-      "path": "dist/lld10-recovery-fencing/soma_beta-1.0.0.dev0-py3-none-any.whl",
-      "sha256": "80194049f829010ea87b6e9c68e97a154322cbb132dac67fd92d3ec9789046c3",
-      "mode": "--no-deps --no-build-isolation; packaged resource checks passed"
+      "path": "dist/lld10-settings-ftcore-final/soma_beta-1.0.0.dev0-py3-none-any.whl",
+      "sha256": "fd6450f8b7220f48716f4c029026c7865b0ce7ab4ae227c4a952d97b96d82b53",
+      "mode": "--no-deps --no-build-isolation; obsolete known cached JS removed; wheel resources verified"
     },
-    "supported_matrix_ci": "fec4b013 run 37068407637: Windows browser completed/success; Windows 3.13/3.14 and Ubuntu Python lanes remain running at observation. Current generic recovery changes are not covered by that run.",
+    "supported_matrix_ci": "1b28fc1d run 37069650018: browser and Ubuntu compatibility lanes succeeded; both Windows Python lanes still running at observation. No exact-current-head remote CI claim.",
     "browser_host": "Local headless Edge and Playwright Chromium headless shell v1243 (Chrome 153.0.8010.12); not native WebView2 release evidence.",
-    "browser_teardown": "All 88 tests passed in Edge (27.7s) and Chromium (27.5s); both runs exited 0 and stopped the owned test hosts.",
+    "browser_teardown": "All 96 current browser scenarios passed Edge (31.6s) and Chromium (28.3s). Owned hosts exited cleanly.",
     "historical_migrations_1_16": "manifest entries and accepted runtime bytes remain hash-identical",
     "migration17_sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905",
     "visual_fixtures": {
@@ -119,7 +132,7 @@
       "pixel_baselines": "unapproved",
       "rendered_images": "tmp/lld10-browser-results (local test outputs, not release-certified)"
     },
-    "python_current_collected": 2042,
+    "python_current_collected": 2066,
     "task_collections": {
       "focused_passed": 83,
       "failed": 0,
@@ -208,7 +221,7 @@
       "frontend_change": "none",
       "semantic_closure": "pending owner leaf reconciliation and UI binding"
     },
-    "chromium_browser_tests": 88,
+    "chromium_browser_tests": 96,
     "infrastructure_return": {
       "node_passed": 24,
       "edge_passed": 88,
@@ -245,6 +258,34 @@
         "src/web/browser-tests/recovery.spec.mjs::late discard failure cannot label a freshly queried recovery generation as failed"
       ],
       "limits": "Generic infrastructure only. Production registry remains owner-deferred; no production recovery edit binding or native WebView2/pixel certification."
+    },
+    "settings_return_fault_tag_core": {
+      "observed_at_utc": "2026-10-02 22:23:00 UTC",
+      "typescript_strict": "passed",
+      "node_passed": 29,
+      "full_edge_passed": 96,
+      "full_chromium_passed": 96,
+      "latest_settings_chromium_passed": 6,
+      "inventory_owner_focused_passed": 30,
+      "full_python": {
+        "passed": 2066,
+        "failed": 0,
+        "skipped": 0,
+        "exit_code": 0,
+        "seconds": 631.882,
+        "junit": "tmp/lld10-settings-ftcore-full.xml",
+        "note": "Complete local suite passed for this Settings/Fault Tag core checkpoint. Final frontend identity guards were subsequently verified by focused assets/fixture/state tests and both complete browser suites; no native release certification."
+      },
+      "frozen_assets": "passed",
+      "schema_objects": 1315,
+      "fixture_contexts": 36,
+      "proof": [
+        "src/web/tests/interactions.test.mjs::Settings history contains only closed owner queries and frozen opened identity intent",
+        "src/web/browser-tests/settings-return.spec.mjs",
+        "tests/test_inventory_fault_tag_list_core.py"
+      ],
+      "limits": "Fault Tag core reconciliation remains partial. Production actions/registrations, owner closure, native WebView2 and pixel approval remain pending.",
+      "assets_fixtures_state_passed": 37
     }
   },
   "cases": [
@@ -1065,16 +1106,16 @@
       }
     }
   ],
-  "updated_at_utc": "2026-10-02 21:52:41 UTC",
+  "updated_at_utc": "2026-10-02 22:23:00 UTC",
   "publication": {
-    "implementation": "fec4b013b0224a344951071682b3cc481658bdbb",
+    "implementation": "1b28fc1da375723ae1e41fba0c473a08df55eb4f",
     "branch": "feat/beta-1.0-implementation",
     "remote_ref_verified": true,
-    "integrity_ci_run": 37068407624,
+    "integrity_ci_run": 37069650002,
     "integrity_ci_conclusion": "success",
-    "implementation_ci_run": 37068407637,
+    "implementation_ci_run": 37069650018,
     "implementation_ci_conclusion": "pending",
-    "detail": "Windows browser lane succeeded; Python lanes still running. Generic recovery slice is subsequent working-tree evidence, not covered by this CI."
+    "detail": "Browser and Ubuntu compatibility lanes succeeded; Windows Python lanes still running. Settings/Fault Tag checkpoint is subsequent local evidence."
   },
   "closure_dependencies": "docs/reconciliation/LLD10_CLOSURE_DEPENDENCIES_V1.json"
 }

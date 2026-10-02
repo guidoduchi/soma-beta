@@ -39,7 +39,12 @@
       "owner": "LLD-03/07",
       "dependency": "Inventory derived SR/Customer context and action-blocker transport",
       "state": "owner_reconciliation_pending",
-      "rule": "Exact downstream SR-context DTO and blocker/result schemas remain unclosed. Continue Inventory facts/pagination; derived fields fail closed."
+      "rule": "Exact downstream SR-context DTO and blocker/result schemas remain unclosed. Continue Inventory facts/pagination; derived fields fail closed.",
+      "related_partial_reconciliation": {
+        "authority": "docs/reconciliation/LLD07_FAULT_TAG_LIST_CORE_V1.json",
+        "state": "accepted_core_partial_not_complete",
+        "remaining": "Fault Tag list full state/archive/attention/SR/SR7/C10 filters, open/rejected obligation summary, SR/Spare Request diversity, lineage indicators and action-blocker shapes/codes. Core counts/cursor infrastructure do not close the full owner list."
+      }
     }
   ],
   "rules": [

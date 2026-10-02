@@ -12,8 +12,26 @@ import {boundedOptions} from '../.test-build/interactions/autocomplete.js';
 import {confirmationTier} from '../.test-build/components/ActionButton.js';
 import {AppearanceController} from '../.test-build/state/appearance.js';
 import {WorkingCopyClient} from '../.test-build/working-copy/client.js';
+import {settingsQuery,settingsIntent,nextSettingsQuery} from '../.test-build/app/settings-intent.js';
 
 const row = {id: 'row-A', eligible: true, route: {record_type: 'RFC', record_id: 'row-A', revision_token: '1'}};
+
+test('Settings history contains only closed owner queries and frozen opened identity intent',()=>{
+  const id='11111111-1111-4111-8111-111111111111';
+  const base='/api/v1/product-lines?limit=200';
+  const cursor={version:1,query_id:'ListProductLines',sort_registry_id:'PRODUCT_LINE_PRESENTATION_ASC_V1',last_key_tuple:['synthetic',id],filter_fingerprint:'a'.repeat(64),null_order:'none'};
+  const path=nextSettingsQuery(base,'products',cursor);assert.deepEqual(settingsQuery(path,'products').cursor,cursor);
+  const settings={queries:{products:path},opened:{customers:null,contacts:null,dispatch:null,source:null},accountHistory:false};
+  assert.ok(settingsIntent(settings,'/settings'));assert.equal(settingsIntent(settings,'/settings/communications'),null);
+  for(const bad of [{...cursor,last_key_tuple:['synthetic']},{...cursor,query_id:'ListContracts'},{...cursor,draft:'not permitted'}])assert.throws(()=>nextSettingsQuery(base,'products',bad));
+  assert.equal(settingsQuery(base+'&limit=200','products'),null);assert.equal(settingsQuery(base+'&draft=synthetic','products'),null);
+  assert.equal(settingsQuery(base+'&cursor='+encodeURIComponent(JSON.stringify({...cursor,last_key_tuple:['x'.repeat(4096),id]})),'products'),null);
+  const history=new NavigationHistory();const token=history.remember({route:'/settings',filterFingerprint:'a'.repeat(64),activeId:null,selectedId:null,memberIds:[],scrollAnchor:null,focusToken:null,settings});
+  settings.queries.products=base;settings.opened.customers=id;
+  assert.equal(history.restore(token).settings.queries.products,path);assert.equal(history.restore(token).settings.opened.customers,null);
+  assert.throws(()=>history.remember({...history.restore(token),route:'/tickets'}));
+  assert.equal(settingsIntent({...settings,queries:{channels:`/api/v1/reference/contacts/${id}/channels?limit=200&include_archived=true`}},'/settings'),null);
+});
 test('LLD10-T001-T004 selection, membership and explicit opening are independent', () => {
   const selected = selectionOpen(emptySelection, {kind: 'click', row, nestedControl: false});
   assert.equal(selected.selected_id, row.id); assert.equal(selected.opened_ref, null);

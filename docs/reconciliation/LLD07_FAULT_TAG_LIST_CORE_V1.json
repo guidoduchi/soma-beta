@@ -1,0 +1,17 @@
+{
+  "schema": "SOMA_OWNER_RECONCILIATION_V1",
+  "owner": "LLD-07",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "status": "accepted_core_partial_reconciliation_not_complete",
+  "acceptance": "Explicit user acceptance of list/detail separation, core projection facts, exact total, ascending immutable identity and full CURSOR_V1; full owner query conformance remains pending.",
+  "route": "GET /api/v1/inventory/fault-tags",
+  "request": "FaultTagListQueryV1",
+  "response": "FaultTagPageV1",
+  "items_type": "FaultTagListItemV1 core only; not the complete canonical item",
+  "core_fields": ["fault_tag_id", "tracking_handle", "state", "archived", "submitted_member_count", "awaiting_receipt_count", "awaiting_final_count", "accepted_count", "rejected_count", "revision"],
+  "page": {"items": "bounded core summary rows", "exact_total": "complete filtered count under the same snapshot", "continuation": "CURSOR_V1|null", "limit": "integer 1..500"},
+  "implemented_filters": ["state", "archived"],
+  "cursor": {"version": 1, "query_id": "FaultTagListQuery", "sort_registry_id": "INVENTORY_FAULT_TAG_ID_ASC_V1", "last_key_tuple": ["fault_tag_id:uuid"], "null_order": "not_applicable", "filter_fingerprint": "SHA256 canonical {schema:SOMA_FAULT_TAG_LIST_FILTER_V1,state,archived}; every supported active filter is bound"},
+  "unclosed": ["complete state/archive/attention/SR/SR7/C10 request filter transport and semantics", "open/rejected obligation summary", "derived SR/Spare Request diversity summary", "lineage indicators", "exact action-blocker shapes/codes"],
+  "rules": ["Unimplemented filters reject before reading; never silently ignore them.", "Unknown request fields and raw after_id reject.", "No empty placeholder summaries or blocker sets imply owner evaluation.", "No full memberships in list rows.", "GET /api/v1/inventory/fault-tags/{fault_tag_id} remains the detailed membership/history authority and is not enlarged.", "LLD-10 must not synthesize SR context or action eligibility.", "Canonical design incorporation and final owner conformance remain pending."]
+}

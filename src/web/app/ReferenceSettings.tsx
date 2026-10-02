@@ -1,4 +1,5 @@
-import {useState} from 'react';
+import {useSettingsNavigation,useSettingsQuery} from './SettingsWorkspace';
+import {nextSettingsQuery,settingsIdentity} from './settings-intent';
 import {OwnerProjection} from '../components/OwnerProjection';
 import {BoundedCollection} from '../components/BoundedCollection';
 
@@ -15,36 +16,35 @@ const directories=[['customer_organization','customer-organizations','Customer O
   ['dispatch_location','dispatch-locations','Dispatch Locations']] as const;
 
 function Channels({id}:{id:string}) {
-  const [cursor,setCursor]=useState<unknown|null>(null);const [archived,setArchived]=useState(false);
-  const path=`/api/v1/reference/contacts/${encodeURIComponent(id)}/channels?limit=200&include_archived=${archived}`
-    +(cursor===null?'':'&cursor='+encodeURIComponent(JSON.stringify(cursor)));
+  const [path,setPath]=useSettingsQuery('channels',`/api/v1/reference/contacts/${encodeURIComponent(id)}/channels?limit=200&include_archived=false`);
+  const archived=new URL(path,'http://127.0.0.1').searchParams.get('include_archived')==='true';
   return <section aria-label="Contact channels"><h4>Contact channels</h4>
-    <label><input type="checkbox" checked={archived} onChange={event=>{setCursor(null);setArchived(event.target.checked);}}/>Include archived channels</label>
+    <label><input type="checkbox" checked={archived} data-focus-token="settings:channels:archived" onChange={event=>setPath(`/api/v1/reference/contacts/${encodeURIComponent(id)}/channels?limit=200&include_archived=${event.target.checked}`)}/>Include archived channels</label>
     <OwnerProjection<Readonly<{items:readonly Channel[];continuation:unknown|null;exact_count?:number|null}>> path={path} render={page=>{
       if(!Object.hasOwn(page,'continuation')||!Array.isArray(page.items)||page.items.length>200||page.items.some(item=>typeof item.contact_channel_id!=='string'
         ||typeof item.value_text!=='string'||item.channel_kind!=='email'||!['active','archived'].includes(item.lifecycle_state)
         ||(!archived&&item.lifecycle_state!=='active')))throw new Error('Invalid owner channel page');
+      const next=nextSettingsQuery(path,'channels',page.continuation);
       return <><p>{page.items.length} channels on this page. A channel value alone does not select a recipient.</p>
         <BoundedCollection caption="Owner Contact channels" rows={page.items.map(item=>({id:item.contact_channel_id,cells:[
           item.channel_kind,item.value_text,`Lifecycle: ${item.lifecycle_state}`,`Revision: ${item.revision}`]}))}
-          next={page.continuation!==null} onNext={()=>setCursor(page.continuation)}/></>;
+          next={page.continuation!==null} returnScrollToken="channels" nextFocusToken="settings:channels:next" onNext={()=>setPath(next)}/></>;
     }}/></section>;
 }
 function AccountHistory({id}:{id:string}) {
-  const [cursor,setCursor]=useState<unknown|null>(null);
-  const path=`/api/v1/reference/customer-organizations/${encodeURIComponent(id)}/customer-account-code/history?limit=200`
-    +(cursor===null?'':'&cursor='+encodeURIComponent(JSON.stringify(cursor)));
+  const [path,setPath]=useSettingsQuery('accountHistory',`/api/v1/reference/customer-organizations/${encodeURIComponent(id)}/customer-account-code/history?limit=200`);
   type Claim=Readonly<{customer_org_identifier_id:string;value_text:string;lifecycle_state:string;created_at_utc:number;superseded_at_utc:number|null}>;
   return <OwnerProjection<Readonly<{items:readonly Claim[];continuation:unknown|null;exact_count:number}>> path={path} render={page=>{
     if(!Object.hasOwn(page,'continuation')||!Array.isArray(page.items)||page.items.length>200||!Number.isSafeInteger(page.exact_count)||page.exact_count<page.items.length)throw new Error('Invalid owner account history');
+    const next=nextSettingsQuery(path,'accountHistory',page.continuation);
     return <><h4>Account Code history</h4><p>{page.exact_count} historical claims; {page.items.length} on this page. Shared descriptive evidence does not merge Customer identities.</p>
       <BoundedCollection caption="Owner Account Code claims" rows={page.items.map(item=>({id:item.customer_org_identifier_id,cells:[
         item.value_text,item.lifecycle_state,`Created UTC epoch: ${item.created_at_utc}`,`Superseded UTC epoch: ${item.superseded_at_utc??'Current'}`]}))}
-        next={page.continuation!==null} onNext={()=>setCursor(page.continuation)}/></>;
+        next={page.continuation!==null} returnScrollToken="accountHistory" nextFocusToken="settings:accountHistory:next" onNext={()=>setPath(next)}/></>;
   }}/>;
 }
 function ReferenceDetail({kind,resource,id}:{kind:Kind;resource:string;id:string}) {
-  const [history,setHistory]=useState(false);
+  const navigation=useSettingsNavigation();const history=navigation.intent.accountHistory;
   return <OwnerProjection<Detail> path={`/api/v1/reference/${resource}/${encodeURIComponent(id)}`} render={value=>{
     if(value.reference_id!==id||value.reference_type!==kind||!Number.isSafeInteger(value.revision)||value.revision<1
       ||!['active','archived'].includes(value.lifecycle_state)||typeof value.projection?.name!=='string')throw new Error('Invalid owner reference detail');
@@ -62,7 +62,7 @@ function ReferenceDetail({kind,resource,id}:{kind:Kind;resource:string;id:string
       {value.lifecycle_state==='archived'&&<p>Historical reference. New-work eligibility requires explicit owner reactivation and validation.</p>}
       {kind==='customer_organization'&&<><p>Current Account Code claim: {projection.current_account_code?.value_text??'None'}.</p>
         <p>Account Code claims in owner history: {projection.account_code_history_count}.</p>
-        <button type="button" onClick={()=>setHistory(current=>!current)}>{history?'Hide':'Show'} Account Code history</button>
+        <button type="button" data-focus-token="settings:accountHistory:toggle" onClick={()=>navigation.history(!history)}>{history?'Hide':'Show'} Account Code history</button>
         {history&&<AccountHistory id={id}/>}</>}
       {kind==='contact'&&<><p>Current Customer affiliation: {projection.current_affiliation?.customer_org_id??'Unbound'}.</p>
         <p>Active channels in owner projection: {projection.active_channel_count}.</p><Channels id={id}/></>}
@@ -73,16 +73,18 @@ function ReferenceDetail({kind,resource,id}:{kind:Kind;resource:string;id:string
   }}/>;
 }
 function Directory({kind,resource,label}:{kind:Kind;resource:string;label:string}) {
-  const [cursor,setCursor]=useState<unknown|null>(null);const [opened,setOpened]=useState<string|null>(null);
-  const path=`/api/v1/reference/${resource}?limit=200`+(cursor===null?'':'&cursor='+encodeURIComponent(JSON.stringify(cursor)));
+  const slot=kind==='customer_organization'?'customers':kind==='contact'?'contacts':'dispatch';
+  const navigation=useSettingsNavigation();const opened=navigation.intent.opened[slot];
+  const [path,setPath]=useSettingsQuery(slot,`/api/v1/reference/${resource}?limit=200`);
   return <section aria-label={label}><h2>{label}</h2><p>Active owner references. Similar names do not establish identity.</p>
     <OwnerProjection<Page> path={path} render={page=>{
       if(!Object.hasOwn(page,'continuation')||!Array.isArray(page.items)||page.items.length>200||page.items.some(item=>item.reference_type!==kind||item.lifecycle_state!=='active'
-        ||typeof item.reference_id!=='string'||typeof item.display_name!=='string'||!Number.isSafeInteger(item.revision)||item.revision<1))throw new Error('Invalid owner reference page');
+        ||!settingsIdentity(item.reference_id)||typeof item.display_name!=='string'||!Number.isSafeInteger(item.revision)||item.revision<1))throw new Error('Invalid owner reference page');
+      const next=nextSettingsQuery(path,slot,page.continuation);
       return <><p>{page.items.length} active references on this page.</p>
         <BoundedCollection caption={`${label} owner identities`} rows={page.items.map(item=>({id:item.reference_id,cells:[
-          item.display_name,item.reference_id,`Revision: ${item.revision}`,<button type="button" onClick={()=>setOpened(item.reference_id)}>Open {item.display_name}</button>]}))}
-          next={page.continuation!==null} onNext={()=>setCursor(page.continuation)}/></>;
+          item.display_name,item.reference_id,`Revision: ${item.revision}`,<button type="button" data-focus-token={'settings:open:'+item.reference_id} onClick={()=>navigation.open(slot,item.reference_id)}>Open {item.display_name}</button>]}))}
+          next={page.continuation!==null} returnScrollToken={slot} nextFocusToken={'settings:'+slot+':next'} onNext={()=>setPath(next)}/></>;
     }}/>{opened&&<ReferenceDetail key={opened} kind={kind} resource={resource} id={opened}/>}</section>;
 }
 export function ReferenceSettings() {return <>{directories.map(([kind,resource,label])=><Directory key={kind} kind={kind} resource={resource} label={label}/>)}</>;}

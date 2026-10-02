@@ -1,3 +1,4 @@
+import {settingsIntent,type SettingsIntent} from './settings-intent.js';
 export type ClientRoute = Readonly<{path: string; surface: string; owner: string; recordId: string | null}>;
 const routes = [
   ['/overview','overview','LLD-11'], ['/tickets','ticket_list','LLD-03/04'], ['/tickets/history','ticket_history','LLD-03/04'],
@@ -27,7 +28,7 @@ export function defaultOpen(recordType: string, id: string): ClientRoute | null 
 export type ReturnState = Readonly<{route: string; filterFingerprint: string; activeId: string | null; selectedId: string | null;
   memberIds: readonly string[]; scrollAnchor: string | null; focusToken: string | null; tab?: string; pane?: 'work' | 'communications';
   collectionQuery?:string;collectionOrder?:readonly string[];groupingQuery?:string|null;
-  inventoryQueries?:Readonly<{stock:string;attention:string}>;infrastructure?:InfrastructureIntent}>;
+  inventoryQueries?:Readonly<{stock:string;attention:string}>;infrastructure?:InfrastructureIntent;settings?:SettingsIntent}>;
 export const infrastructureTabs=['Summary','Placement','Components','IP Addresses','Relationships','History','Workbook Activity'] as const;
 export type WorkbookIntent=Readonly<{history:string;run:string|null;proposalId:string|null;candidatePage:number}>;
 export type InfrastructureIntent=Readonly<{explorer:string;openedId:string|null;tab:typeof infrastructureTabs[number];
@@ -132,6 +133,7 @@ export class NavigationHistory {
   private readonly entries = new Map<string, ReturnState>();
   remember(state: ReturnState): string {
     if (!resolveRoute(state.route) || state.memberIds.length > 200
+      ||(state.settings!==undefined&&settingsIntent(state.settings,state.route)===null)
       ||(state.infrastructure!==undefined&&(state.route!=='/infrastructure'||infrastructureIntent(state.infrastructure)===null))
       ||(state.inventoryQueries!==undefined&&(state.route!=='/inventory'||inventoryCollectionQueries(state.inventoryQueries)===null))
       ||(state.groupingQuery!==undefined&&(state.route!=='/objectives'
@@ -140,6 +142,7 @@ export class NavigationHistory {
       ||(state.collectionOrder!==undefined&&(state.collectionOrder.length>200||new Set(state.collectionOrder).size!==state.collectionOrder.length
         ||state.collectionOrder.some(id=>typeof id!=='string'||id.length===0))))throw new Error('Invalid bounded return context');
     const token = crypto.randomUUID(); this.entries.set(token, Object.freeze({...state, memberIds: Object.freeze([...state.memberIds]),
+      ...(state.settings===undefined?{}:{settings:Object.freeze({...state.settings,queries:Object.freeze({...state.settings.queries}),opened:Object.freeze({...state.settings.opened})})}),
       ...(state.inventoryQueries===undefined?{}:{inventoryQueries:Object.freeze({...state.inventoryQueries})}),
       ...(state.infrastructure===undefined?{}:{infrastructure:Object.freeze({...state.infrastructure,
         workbook:state.infrastructure.workbook===null?null:Object.freeze({...state.infrastructure.workbook})})}),

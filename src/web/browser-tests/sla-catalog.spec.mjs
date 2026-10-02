@@ -11,7 +11,7 @@ test('Settings preserves reusable Product Line versus customer Contract and curr
     if(url.pathname==='/api/v1/contract-product-lines')items=[{...state,contract_product_line_id:cpl,contract_id:contract,product_line_id:product,
       customer_org_id:'synthetic-customer',contract_reference:'SYNTHETIC-CT',product_line_name:'Synthetic Reusable Product',current_policy_revision_id:'synthetic-policy-2',
       policy_name:'Synthetic Current Policy',policy_revision_ordinal:2}];
-    return route.fulfill({json:{items,continuation:url.pathname==='/api/v1/product-lines'&&!url.searchParams.has('cursor')?{synthetic:['name',product]}:null}});
+    return route.fulfill({json:{items,continuation:url.pathname==='/api/v1/product-lines'&&!url.searchParams.has('cursor')?{version:1,query_id:'ListProductLines',sort_registry_id:'PRODUCT_LINE_PRESENTATION_ASC_V1',last_key_tuple:['name',product],filter_fingerprint:'a'.repeat(64),null_order:'none'}:null}});
   });
   await page.setViewportSize({width:480,height:900});await page.goto('http://127.0.0.1:4174/settings');
   const products=page.getByRole('region',{name:'Product Lines',exact:true});const cpls=page.getByRole('region',{name:'Contract Product Lines',exact:true});
@@ -19,7 +19,7 @@ test('Settings preserves reusable Product Line versus customer Contract and curr
   await expect(cpls.getByText('Current policy:',{exact:false})).toContainText('Synthetic Current Policy / synthetic-policy-2; ordinal 2');
   await expect(products.getByText('Current policy:',{exact:false})).toHaveCount(0);
   await products.getByRole('button',{name:'Next page'}).click();
-  await expect.poll(()=>requests.at(-1).url.searchParams.get('cursor')).toBe(JSON.stringify({synthetic:['name',product]}));
+  await expect.poll(()=>requests.at(-1).url.searchParams.get('cursor')).toBe(JSON.stringify({version:1,query_id:'ListProductLines',sort_registry_id:'PRODUCT_LINE_PRESENTATION_ASC_V1',last_key_tuple:['name',product],filter_fingerprint:'a'.repeat(64),null_order:'none'}));
   expect(requests.every(request=>request.method==='GET')).toBe(true);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

@@ -46,7 +46,7 @@ export function AppearanceSettings({writeSetting = null}: {writeSetting?: Appear
   };
   return <section aria-label="Appearance preferences"><h2>Appearance</h2>
     {error && <p role="alert">{error}</p>}{!accepted && !error && <p role="status">Loading accepted appearance.</p>}
-    <button type="button" disabled={pending} onClick={() => setRetry(retry + 1)}>Refresh appearance</button>
+    <button type="button" data-focus-token="settings:appearance:refresh" disabled={pending} onClick={() => setRetry(retry + 1)}>Refresh appearance</button>
     {!writeSetting && <p role="status">Saving preferences requires the authenticated owner-command binding.</p>}
     {accepted && <><label>Color mode<select value={accepted['ui.appearance_mode'].value} disabled={pending || needsRefresh || !writeSetting} onChange={event => {void change('ui.appearance_mode', event.target.value);}}>
       {modes.map(mode => <option key={mode} value={mode}>{mode === 'system' ? 'System' : mode === 'light' ? 'Light' : 'Dark'}</option>)}</select></label>

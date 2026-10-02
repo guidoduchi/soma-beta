@@ -16,7 +16,7 @@ test('Settings uses bounded owner reference pages and explicit detail; channel t
     if(parts.length===5){expect(url.searchParams.get('limit')).toBe('200');return route.fulfill({json:list(resource)});}
     if(url.pathname.endsWith('/channels'))return route.fulfill({json:{items:[{contact_channel_id:'synthetic-channel',channel_kind:'email',
       value_text:'<img src=x onerror="window.syntheticInjected=true">',lifecycle_state:url.searchParams.get('include_archived')==='true'?'archived':'active',revision:1}],
-      continuation:{synthetic:'next-channel'},exact_count:2}});
+      continuation:{version:1,query_id:'GetContactChannels',sort_registry_id:'CONTACT_CHANNEL_KIND_CREATED_ID_ASC_V1',last_key_tuple:['email',1,contact],filter_fingerprint:'a'.repeat(64),null_order:'not_applicable'},exact_count:2}});
     return route.fulfill({json:{reference_type:'contact',reference_id:contact,revision:1,lifecycle_state:'active',
       projection:{name:'Synthetic Contact',current_affiliation:null,active_channel_count:2}}});
   });
@@ -29,7 +29,7 @@ test('Settings uses bounded owner reference pages and explicit detail; channel t
   const channels=page.getByRole('region',{name:'Contact channels'});
   await channels.getByRole('checkbox',{name:'Include archived channels'}).check();await expect(channels.getByText('Lifecycle: archived')).toBeAttached();
   await channels.getByRole('button',{name:'Next page'}).click();
-  await expect.poll(()=>requests.at(-1).url.searchParams.get('cursor')).toBe(JSON.stringify({synthetic:'next-channel'}));
+  await expect.poll(()=>requests.at(-1).url.searchParams.get('cursor')).toBe(JSON.stringify({version:1,query_id:'GetContactChannels',sort_registry_id:'CONTACT_CHANNEL_KIND_CREATED_ID_ASC_V1',last_key_tuple:['email',1,contact],filter_fingerprint:'a'.repeat(64),null_order:'not_applicable'}));
   expect(requests.every(request=>request.method==='GET')).toBe(true);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

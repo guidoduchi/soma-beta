@@ -4,24 +4,50 @@ from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
-from soma.foundation.strict_json import loads_canonical_json
+from soma.foundation.strict_json import loads_canonical_json, sha256_canonical_json
+
+_LIST_QUERY = 'FaultTagListQuery'
+_LIST_SORT = 'INVENTORY_FAULT_TAG_ID_ASC_V1'
+_CURSOR_FIELDS = {'version', 'query_id', 'sort_registry_id', 'last_key_tuple', 'filter_fingerprint', 'null_order'}
 
 
 class InventoryFaultTagQueryService:
     def __init__(self, connection_factory: ConnectionFactory) -> None:
         self._factory = connection_factory
 
+    def list_query(self, request: dict) -> dict[str, object]:
+        """Accepted core only; unclosed filters are rejected, never silently ignored."""
+        if not isinstance(request, dict) or set(request) - {'state', 'archived', 'cursor', 'limit'}:
+            raise ValidationError('Fault Tag list filter is unavailable or unknown')
+        return self.list_tags(**request)
+
     def list_tags(
         self,
         *,
         state: str | None = None,
         archived: bool | None = None,
-        after_id: str | None = None,
+        cursor: dict | None = None,
         limit: int = 100,
     ) -> dict[str, object]:
         if type(limit) is not int or not 1 <= limit <= 500:
             raise ValidationError("limit must be in 1..500")
-        after = None if after_id is None else require_uuid4(after_id)
+        if state is not None and (not isinstance(state, str) or not 1 <= len(state) <= 64 or '\x00' in state):
+            raise ValidationError('Fault Tag state filter is invalid')
+        if archived is not None and type(archived) is not bool:
+            raise ValidationError('Fault Tag archive filter must be boolean')
+        fingerprint = sha256_canonical_json({'schema': 'SOMA_FAULT_TAG_LIST_FILTER_V1', 'state': state, 'archived': archived})
+        after = None
+        if cursor is not None:
+            if not isinstance(cursor, dict) or set(cursor) != _CURSOR_FIELDS:
+                raise ValidationError('Fault Tag cursor shape is invalid')
+            if (type(cursor['version']) is not int or cursor['version'] != 1 or cursor['query_id'] != _LIST_QUERY
+                    or cursor['sort_registry_id'] != _LIST_SORT or cursor['null_order'] != 'not_applicable'
+                    or cursor['filter_fingerprint'] != fingerprint):
+                raise ValidationError('Fault Tag cursor does not match its owner query and filters')
+            key = cursor['last_key_tuple']
+            if not isinstance(key, list) or len(key) != 1:
+                raise ValidationError('Fault Tag cursor ordering key is incomplete')
+            after = require_uuid4(key[0])
         clauses: list[str] = []
         params: list[object] = []
         if state is not None:
@@ -67,7 +93,9 @@ class InventoryFaultTagQueryService:
                     }
                     for x in page
                 ],
-                "continuation": str(page[-1][0]) if len(rows)>limit and page else None,
+                "continuation": ({'version': 1, 'query_id': _LIST_QUERY, 'sort_registry_id': _LIST_SORT,
+                    'last_key_tuple': [str(page[-1][0])], 'filter_fingerprint': fingerprint, 'null_order': 'not_applicable'}
+                    if len(rows)>limit and page else None),
                 "exact_total": total,
             }
 

@@ -1,4 +1,6 @@
-import {useState,type ReactNode} from 'react';
+import type {ReactNode} from 'react';
+import {useSettingsNavigation,useSettingsQuery} from './SettingsWorkspace';
+import {nextSettingsQuery,settingsIdentity,type SettingsSlot} from './settings-intent';
 import {OwnerProjection} from '../components/OwnerProjection';
 import {BoundedCollection} from '../components/BoundedCollection';
 
@@ -14,13 +16,13 @@ type Job=Readonly<{job_id:string;source_scope_id:string;job_kind:string;state:st
 type Orphan=Readonly<{communication_id:string;state:'ORPHAN_PENDING_PURGE'|'PURGED';purge_due_utc:number|null;reason_code:string;protected_dependency_count:number}>;
 function count(value:number):number {if(!Number.isSafeInteger(value)||value<0)throw new Error('Invalid owner count');return value;}
 function instant(value:number|null):string {if(value===null)return 'Unknown';return new Date(count(value)*1000).toISOString();}
-function Paged<T>({label,path,limit=100,row}:{label:string;path:string;limit?:number;row:(item:T)=>Readonly<{id:string;cells:readonly ReactNode[]}>}) {
-  const [cursor,setCursor]=useState<unknown|null>(null);
-  const query=path+`?limit=${limit}`+(cursor===null?'':'&cursor='+encodeURIComponent(JSON.stringify(cursor)));
+function Paged<T>({label,path,slot,limit=100,row}:{label:string;path:string;slot:SettingsSlot;limit?:number;row:(item:T)=>Readonly<{id:string;cells:readonly ReactNode[]}>}) {
+  const [query,setQuery]=useSettingsQuery(slot,path+`?limit=${limit}`);
   return <section aria-label={label}><h2>{label}</h2><OwnerProjection<Page<T>> path={query} render={page=>{
     if(!Array.isArray(page.items)||page.items.length>limit||!Object.hasOwn(page,'next_cursor'))throw new Error('Invalid owner Communication page');
+    const next=nextSettingsQuery(query,slot,page.next_cursor);
     return <><p>{page.items.length} owner records on this page.</p><BoundedCollection caption={`${label} owner projection`} rows={page.items.map(row)}
-      next={page.next_cursor!==null} onNext={()=>setCursor(page.next_cursor)}/></>;
+      next={page.next_cursor!==null} returnScrollToken={slot} nextFocusToken={'settings:'+slot+':next'} onNext={()=>setQuery(next)}/></>;
   }}/></section>;
 }
 function SourceCoverage({id}:{id:string}) {
@@ -52,7 +54,7 @@ const settings=[
 ] as const;
 type Setting=Readonly<{setting_key:string;value:number|boolean;revision:number|null;source:'DEFAULT'|'PERSISTED';contract_name:string;contract_version:number;semantic_owner:string}>;
 export function CommunicationSettings() {
-  const [source,setSource]=useState<string|null>(null);
+  const navigation=useSettingsNavigation();const source=navigation.intent.opened.source;
   return <><h2>Processing schedule and retention</h2><p>Disabling processing does not suspend orphan housekeeping. Schedule changes govern future triggers; existing job configuration snapshots and pending purge due times remain owner evidence.</p>
     {settings.map(([key,contract,label,minimum,maximum])=><OwnerProjection<Setting> key={key} path={'/api/v1/settings/'+key} render={value=>{
       if(value.setting_key!==key||value.semantic_owner!=='LLD-09'||value.contract_name!==contract||value.contract_version!==1
@@ -62,17 +64,17 @@ export function CommunicationSettings() {
     }}/>)}
     {/* Eight maximum-size 64-folder summaries fit the existing 4 MiB transport,
         including worst-case JSON escaping of folder keys and display names. */}
-    <Paged<Source> label="Communication Source Scopes" path="/api/v1/communications/source-scopes" limit={8} row={item=>{
-      if(!Array.isArray(item.selected_folders)||item.selected_folders.length>64||typeof item.processing_enabled!=='boolean'
+    <Paged<Source> label="Communication Source Scopes" slot="sources" path="/api/v1/communications/source-scopes" limit={8} row={item=>{
+      if(!settingsIdentity(item.source_scope_id)||!Array.isArray(item.selected_folders)||item.selected_folders.length>64||typeof item.processing_enabled!=='boolean'
         ||typeof item.display_name!=='string'||count(item.revision)<1||new Set(item.selected_folders.map(folder=>folder.folder_key)).size!==item.selected_folders.length
         ||item.selected_folders.some(folder=>typeof folder.folder_key!=='string'||typeof folder.display_name!=='string'||!['INBOX','SENT','OTHER'].includes(folder.role))
         ||!['READY','MISSING','LOCKED','CORRUPT','UNSUPPORTED','PARTIAL','UNPROBED'].includes(item.health_state))throw new Error('Invalid owner Source Scope');
       return {id:item.source_scope_id,cells:[item.display_name,`Source Scope identity: ${item.source_scope_id}`,`Revision: ${count(item.revision)}`,
         `Health: ${item.health_state}`,`Processing enabled: ${String(item.processing_enabled)}`,
         <ul>{item.selected_folders.map(folder=><li key={folder.folder_key}>{folder.display_name}; role {folder.role}; identity {folder.folder_key}</li>)}</ul>,
-        <button type="button" onClick={()=>setSource(item.source_scope_id)}>View coverage for {item.display_name}</button>]};
+        <button type="button" data-focus-token={'settings:source:'+item.source_scope_id} onClick={()=>navigation.open('source',item.source_scope_id)}>View coverage for {item.display_name}</button>]};
     }}/>{source&&<SourceCoverage key={source} id={source}/>}
-    <Paged<Job> label="Communication Jobs" path="/api/v1/communications/jobs" row={job=>{
+    <Paged<Job> label="Communication Jobs" slot="jobs" path="/api/v1/communications/jobs" row={job=>{
       if(!job.counters||!Object.hasOwn(job.counters,'estimated_total')||!Object.hasOwn(job,'percentage')||!Object.hasOwn(job,'phase')
         ||(job.phase!==null&&typeof job.phase!=='string'))throw new Error('Missing owner job counters');
       counters.forEach(key=>count(job.counters[key]));if(job.counters.estimated_total!==null)count(job.counters.estimated_total);
@@ -81,7 +83,7 @@ export function CommunicationSettings() {
         <ul>{counters.map(key=><li key={key}>{key}: {job.counters[key]}</li>)}</ul>,`Estimated total: ${job.counters.estimated_total??'Unknown'}`,
         job.percentage===null?'Percentage unavailable; progress uses exact counts':`Owner percentage: ${job.percentage}%`,job.diagnostic_code??'No diagnostic code']};
     }}/>
-    <Paged<Orphan> label="Communication Housekeeping" path="/api/v1/communications/housekeeping" row={item=>{
+    <Paged<Orphan> label="Communication Housekeeping" slot="housekeeping" path="/api/v1/communications/housekeeping" row={item=>{
       if(!['ORPHAN_PENDING_PURGE','PURGED'].includes(item.state)||typeof item.reason_code!=='string'||!item.reason_code)throw new Error('Invalid owner retention state');
       return {id:item.communication_id,cells:[item.communication_id,`Retention state: ${item.state}`,`Purge due (UTC): ${instant(item.purge_due_utc)}`,
         `Reason: ${item.reason_code}`,`Observed protected dependencies: ${count(item.protected_dependency_count)}`,

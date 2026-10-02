@@ -12,6 +12,7 @@ import {ReferenceSettings} from './ReferenceSettings';
 import {SlaCatalogSettings} from './SlaCatalogSettings';
 import {CommunicationSettings} from './CommunicationSettings';
 import {ObjectiveSettings} from './ObjectiveSettings';
+import {SettingsWorkspace} from './SettingsWorkspace';
 import '../styles/soma.css';
 
 function Application() {
@@ -41,11 +42,10 @@ function Application() {
       route?.surface === 'infrastructure' ? <InfrastructureWorkspace restored={restored} onReturnState={captureReturnState}/> :
       route?.surface === 'inventory' ? <InventoryWorkspace restored={restored} onReturnState={captureReturnState}/> :
       route?.surface === 'objective_detail' && route.recordId ? <ObjectiveDetail key={path} id={route.recordId}/> :
-      route?.surface === 'appearance_settings' ? <AppearanceSettings/> :
-      route?.surface === 'communication_settings' ? <CommunicationSettings/> :
-      route?.surface === 'settings' ? <><h2>Presentation preferences</h2><a href="/settings/appearance" onClick={event => {if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {event.preventDefault(); navigate('/settings/appearance');}}}>Appearance preferences</a>
+      route && ['settings','appearance_settings','communication_settings'].includes(route.surface) ? <SettingsWorkspace key={path} path={path} restored={restored} onReturnState={captureReturnState}>
+        {route.surface==='appearance_settings'?<AppearanceSettings/>:route.surface==='communication_settings'?<CommunicationSettings/>:<><h2>Presentation preferences</h2><a data-focus-token="settings:appearance" href="/settings/appearance" onClick={event => {if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {event.preventDefault(); navigate('/settings/appearance');}}}>Appearance preferences</a>
         <p><a href="/settings/communications" onClick={event=>{if(!event.ctrlKey&&!event.metaKey&&!event.shiftKey){event.preventDefault();navigate('/settings/communications');}}}>Communication processing and housekeeping</a></p>
-        <ObjectiveSettings/><ReferenceSettings/><SlaCatalogSettings/></> :
+        <ObjectiveSettings/><ReferenceSettings/><SlaCatalogSettings/></>}</SettingsWorkspace> :
       <p role="status">{route ? 'This workspace binding is under implementation.' : 'Page not found.'}</p>}
   </SomaShell></div>{pendingPath && <Modal title="Leave unsaved changes?" application={application} fallback={fallback} close={() => navigation.current?.cancel()}>
     <p>This edit flow has unsaved UI values. A recovery checkpoint does not save accepted operational state.</p>

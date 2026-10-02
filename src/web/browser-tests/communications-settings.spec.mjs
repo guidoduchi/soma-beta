@@ -18,7 +18,7 @@ test('Communications Settings consumes bounded scopes, coverage, exact jobs and 
       source_scope_id:scope,folder_key:'synthetic-inbox',forward_state:'UNKNOWN',historical_state:'BOUNDED_COMPLETE',high_water:null,warnings:['COMM_COVERAGE_INCOMPLETE']}]}});
     expect(url.searchParams.get('limit')).toBe('100');
     if(url.pathname.endsWith('/jobs')){jobPages.push(url);return route.fulfill({json:{items:[{job_id:'synthetic-job',source_scope_id:scope,job_kind:'ORDINARY',
-      state:'RUNNING',phase:null,counters,percentage:null,diagnostic_code:null}],next_cursor:jobPages.length===1?{synthetic:'job-next'}:null}});}
+      state:'RUNNING',phase:null,counters,percentage:null,diagnostic_code:null}],next_cursor:jobPages.length===1?{version:1,query_id:'ListCommunicationJobs',sort_registry_id:'ListCommunicationJobs_ORDER_V1',last_key_tuple:[0,scope],filter_fingerprint:'a'.repeat(64),null_order:'none'}:null}});}
     return route.fulfill({json:{items:[{communication_id:'synthetic-purged',state:'PURGED',purge_due_utc:null,reason_code:'SYNTHETIC_PURGE',protected_dependency_count:0}],next_cursor:null}});
   });
   await page.setViewportSize({width:480,height:900});await page.goto('http://127.0.0.1:4174/settings/communications');
@@ -31,7 +31,7 @@ test('Communications Settings consumes bounded scopes, coverage, exact jobs and 
   await expect(coverage.getByText('Historical coverage: BOUNDED_COMPLETE')).toBeAttached();
   await expect(page.getByText('Message content is unavailable')).toBeAttached();await expect(page.getByText('Purge due (UTC): Unknown')).toBeAttached();
   await jobs.getByRole('button',{name:'Next page'}).click();await expect.poll(()=>jobPages.length).toBe(2);
-  expect(jobPages[1].searchParams.get('cursor')).toBe(JSON.stringify({synthetic:'job-next'}));expect(requests.every(request=>request.method==='GET')).toBe(true);
+  expect(jobPages[1].searchParams.get('cursor')).toBe(JSON.stringify({version:1,query_id:'ListCommunicationJobs',sort_registry_id:'ListCommunicationJobs_ORDER_V1',last_key_tuple:[0,scope],filter_fingerprint:'a'.repeat(64),null_order:'none'}));expect(requests.every(request=>request.method==='GET')).toBe(true);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 test('Communications Settings rejects unsupported progress percentage with unknown estimated total',async({page})=>{
