@@ -1,11 +1,26 @@
 {
   "schema": "SOMA_IMPLEMENTATION_STATE_V1",
+  "source_launcher_slice": {
+    "title": "LLD-12 Source Launcher / Trusted Runtime Control — partial enabling slice",
+    "branch": "feat/lld12-source-launchers",
+    "implementation_base": "1b28fc1da375723ae1e41fba0c473a08df55eb4f",
+    "design_pin": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+    "status": "partial_dependency_pending",
+    "LLD12-P008": "PARTIAL",
+    "overall_lld12_certified": false,
+    "active_campaign": "LLD-10 in_progress_not_certified",
+    "note": "Intentionally early, isolated development scaffold. Setup is usable; run/console/stop fail closed with exit 20. No Foundation runtime authority changed. See docs/implementation/lld12_source_launchers.md for exact contracts and untouched scope. No merge into the active implementation lane is authorized."
+  },
   "repository": "guidoduchi/soma-beta",
   "observed_at": "2026-10-02 21:52:41 UTC",
   "mission": "Implement LLD-10 on the accepted design pin, applying the user-approved metadata-only checkpoint result and RFC preview-plus-hold refinements. Preserve historical LLD-09 certification and migrations 1-16; append centrally allocated migration 17. Do not invent production draft registrations or undeclared HTTP contracts.",
   "active_branch": "feat/beta-1.0-implementation",
   "next_task": "lld10-implementation",
   "checkpoints": {
+    "source-launcher-base": {
+      "implementation": "1b28fc1da375723ae1e41fba0c473a08df55eb4f",
+      "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
+    },
     "baseline": {
       "implementation": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
       "design": "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
@@ -81,6 +96,15 @@
     ]
   },
   "scopes": {
+    "source-launchers": {
+      "checkpoint": "source-launcher-base",
+      "paths": {
+        "implementation": ["soma_*.bat", "tools/source_launcher.py", "src/soma/security/runtime/*", "src/soma/security/__init__.py", "tests/test_source_launchers.py", "docs/implementation/lld12_source_launchers.md"],
+        "design": ["spec/lld/security-packaging/*", "spec/lld/foundation-runtime/*"]
+      },
+      "depends_on": ["foundation"],
+      "summary": "Isolated early source-development scaffold only. P008 partial/dependency-pending; no LLD-12 overall implementation or certification. Setup prepares a local environment; runtime actions fail closed without external authority. LLD-10 remains active independently."
+    },
     "foundation": {
       "checkpoint": "baseline",
       "paths": {
@@ -278,6 +302,18 @@
     }
   },
   "evidence": {
+    "source-launcher-index": {
+      "checkpoint": "source-launcher-base",
+      "source": "design",
+      "path": "spec/lld/security-packaging/_index.json",
+      "purpose": "Owning accepted LLD-12 packet; source launchers do not authorize the rest of this packet."
+    },
+    "source-launcher-trust": {
+      "checkpoint": "source-launcher-base",
+      "source": "design",
+      "path": "spec/lld/security-packaging/algorithms/trusted-instance.json",
+      "purpose": "Exact trusted-control protocol. No PID/port/V1 registry heuristic substitutes for this contract."
+    },
     "foundation-ledger": {
       "checkpoint": "baseline",
       "source": "implementation",
@@ -729,6 +765,17 @@
         "Keep native certification fail-closed until both owner-deferred gates have real freeze/execution evidence."
       ]
     },
+    "lld12-source-launchers": {
+      "title": "LLD-12 Source Launcher / Trusted Runtime Control — partial enabling slice",
+      "status": "blocked",
+      "scope": "source-launchers",
+      "depends_on": [],
+      "reason": "Only the user-permitted safe development scaffold is possible within this slice: accepted Foundation V1/LLD-12 V2 registry and health reconciliation is absent; real application/SQLCipher/live-key composition is absent and out of scope. Windows trusted-control providers are not implemented. P008 is PARTIAL, never PASS.",
+      "resume": "Read docs/implementation/lld12_source_launchers.md. Preserve all current LLD-10 work and its in_progress_not_certified status. Setup can prepare the checkout; runtime adapters return dependency_pending without starting/opening/stopping or deleting registry state. Resolve LLD12-SOURCE-REGISTRY-RECONCILIATION through owning authority and await LLD12-SOURCE-APPLICATION-COMPOSITION before implementing live launch. Do not import unrelated LLD-12 work or test/plaintext providers. Future trusted control must reuse existing Foundation host/routes/lock/socket/UoW seams.",
+      "read_first": ["source-launcher-index", "source-launcher-trust"],
+      "acceptance": ["Prove exact LLD12-P008 protocol with real runtime and supported matrix before PASS; retain partial/dependency-pending until then.", "Do not alter certified Foundation semantics without accepted reconciliation or broaden into the untouched LLD-12 work listed in the slice document."],
+      "verification": ["Run focused source-launcher and Foundation runtime/composition tests; test real Windows BAT quoting, setup reuse and exit propagation.", "Run complete implementation, compile, schema, Communications and wheel checks plus Windows 3.13/3.14, Ubuntu 3.14 and frontend/browser CI. Do not inherit baseline CI for this slice."]
+    },
     "lld10-implementation": {
       "title": "Implement and verify LLD-10 shared UI/workbenches",
       "status": "in_progress",
@@ -766,6 +813,7 @@
     "Preserve accepted runtime migrations 1-16; no arbitrary pypff/libpff pin or Outlook COM/MAPI substitution. The two accepted native release gates do not block ordinary LLD-09 implementation readiness."
   ],
   "known_limits": [
+    "LLD-12 early source-launcher scaffold is isolated on feat/lld12-source-launchers: setup works, runtime actions fail closed, P008 PARTIAL/dependency-pending. Exact conflicts/providers/untouched work are recorded in docs/implementation/lld12_source_launchers.md; LLD-10 remains the active campaign.",
     "Existing chronological Infrastructure notes lag later worker/acceptance commits; they are historical context, not a current missing-feature list.",
     "Central pre-LLD-08 closure is recorded complete, but some leaf ledger fields remain pending/false. Preserve genuine later-owner exclusions while reconciling evidence.",
     "LLD-12 security/session/key-provider composition and future artifact-consumer clauses remain outside this checkpoint.",
