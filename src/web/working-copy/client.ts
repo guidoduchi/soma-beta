@@ -9,9 +9,15 @@ export class WorkingCopyClient<T> {
   private changedAt = 0;
   constructor(private readonly transport: RecoveryTransport<T>, private readonly changed: () => void,
     private readonly now: () => number = () => performance.now()) {}
-  edit(draft: T): void {this.draft = structuredClone(draft); this.editSequence++; this.changedAt = this.now(); this.status = 'memory_only'; this.schedule(); this.changed();}
+  edit(draft: T): void {
+    if (this.disposed) return;
+    this.draft = structuredClone(draft); this.editSequence++; this.changedAt = this.now();
+    // Editing preserves intent; it does not resolve stale owner or generation authority.
+    if (this.status !== 'conflict') {this.status = 'memory_only'; this.schedule();}
+    this.changed();
+  }
   restore(draft: T, checkpoint: RecoveryCheckpoint, freshness: 'CURRENT' | 'STALE' | 'TARGET_MISSING' | 'INDETERMINATE'): void {
-    if (this.abort || this.draft !== null) throw new Error('Recovery restore requires an explicit clean edit flow');
+    if (this.disposed || this.abort || this.draft !== null) throw new Error('Recovery restore requires an explicit clean edit flow');
     this.validateCheckpoint(checkpoint);
     this.draft = structuredClone(draft); this.generation = checkpoint.generation; this.workingCopyId = checkpoint.workingCopyId; this.editSequence++;
     this.status = freshness === 'CURRENT' ? 'checkpointed' : 'conflict'; this.changed();
@@ -24,7 +30,7 @@ export class WorkingCopyClient<T> {
   }
   private schedule(): void {
     if (this.timer !== null) clearTimeout(this.timer);
-    if (this.disposed || this.abort) return;
+    if (this.disposed || this.abort || this.status === 'conflict') return;
     const delay = Math.max(this.changedAt + 5000, this.lastSuccess + 30000) - this.now();
     this.timer = setTimeout(() => {this.timer = null; void this.checkpoint();}, Math.max(0, delay));
   }
@@ -34,6 +40,7 @@ export class WorkingCopyClient<T> {
     const sequence = this.editSequence; const draft = structuredClone(this.draft); const abort = new AbortController();
     this.abort = abort; this.status = 'pending'; this.changed();
     try {
+      if (this.disposed || abort.signal.aborted) return;
       const result = await this.transport(draft, this.generation, crypto.randomUUID(), abort.signal);
       if (this.disposed || abort.signal.aborted) return;
       this.validateCheckpoint(result);
@@ -45,10 +52,10 @@ export class WorkingCopyClient<T> {
       if (!this.disposed && !abort.signal.aborted) this.status = error instanceof Error && error.message === 'UI_WORKING_COPY_CONFLICT' ? 'conflict' : 'error';
     } finally {
       if (this.abort !== abort) return;
-      this.abort = null; this.changed();
+      this.abort = null; if (!this.disposed) this.changed();
       if (!this.disposed && this.status === 'memory_only') this.schedule();
     }
   }
-  acceptedSave(): void {this.abort?.abort(); this.abort = null; this.draft = null; this.editSequence++; this.status = 'memory_only'; if (this.timer !== null) clearTimeout(this.timer); this.timer = null; this.changed();}
+  acceptedSave(): void {if (this.disposed) return; this.abort?.abort(); this.abort = null; this.draft = null; this.editSequence++; this.status = 'memory_only'; if (this.timer !== null) clearTimeout(this.timer); this.timer = null; this.changed();}
   dispose(): void {this.disposed = true; this.abort?.abort(); if (this.timer !== null) clearTimeout(this.timer); this.timer = null;}
 }

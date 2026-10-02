@@ -3,7 +3,7 @@
   "class": "visual_acceptance_fixture",
   "source_sha256": {
     "governed.html": "97b1519cd519b9162566a63ec849d7220f90506e35ada58a208fbacccc0c5f8a",
-    "governed.tsx": "3bff2bdba443eb799cd087a92deb8bcff0879c05fcb884aac54b5eec92085b02"
+    "governed.tsx": "7031af994d2771d5d959b95cbcde785fe0d90eee10b00dc1f5331222137fdb03"
   },
   "fixtures": [
     {
@@ -326,7 +326,7 @@
     },
     {
       "fixture_id": "lld10-stale-480",
-      "version": 1,
+      "version": 2,
       "mapped_requirement_or_test_ids": [
         "LLD10-T020",
         "LLD10-T052"
@@ -354,7 +354,7 @@
     },
     {
       "fixture_id": "lld10-stale-900",
-      "version": 1,
+      "version": 2,
       "mapped_requirement_or_test_ids": [
         "LLD10-T020",
         "LLD10-T052"
@@ -382,7 +382,7 @@
     },
     {
       "fixture_id": "lld10-stale-1440",
-      "version": 1,
+      "version": 2,
       "mapped_requirement_or_test_ids": [
         "LLD10-T020",
         "LLD10-T052"
@@ -572,7 +572,7 @@
     },
     {
       "fixture_id": "lld10-working-copy-recovery-480",
-      "version": 1,
+      "version": 2,
       "mapped_requirement_or_test_ids": [
         "LLD10-T019",
         "LLD10-T052"
@@ -601,7 +601,7 @@
     },
     {
       "fixture_id": "lld10-working-copy-recovery-900",
-      "version": 1,
+      "version": 2,
       "mapped_requirement_or_test_ids": [
         "LLD10-T019",
         "LLD10-T052"
@@ -630,7 +630,7 @@
     },
     {
       "fixture_id": "lld10-working-copy-recovery-1440",
-      "version": 1,
+      "version": 2,
       "mapped_requirement_or_test_ids": [
         "LLD10-T019",
         "LLD10-T052"

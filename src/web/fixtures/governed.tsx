@@ -39,7 +39,7 @@ function Fixture() {
     {(state === 'loading' || state === 'error') && <OwnerProjection path="/api/v1/tickets/service-requests/11111111-1111-4111-8111-111111111111" render={() => null}/>}
     {state === 'warning' && <ActionButton label="Synthetic blocked action" actionKind="inventory.bulk.accept"
       availability={{state: 'BLOCKED', reason: 'Synthetic dependency exists.', remediation: 'Review the owner dependency.'}} invoke={() => setSubmitted(value => value + 1)}/>}
-    {recovery && <RecoveryReview freshness={state === 'stale' ? 'STALE' : 'CURRENT'} accepted={<p>Synthetic accepted note</p>}
+    {recovery && <RecoveryReview identity={{workingCopyId:'11111111-1111-4111-8111-111111111111',generation:1,currentRevisionToken:'synthetic-current-1'}} freshness={state === 'stale' ? 'STALE' : 'CURRENT'} accepted={<p>Synthetic accepted note</p>}
       workingCopy={<p>Synthetic unsaved note</p>} dirtyPaths={['/note']} restore={() => setRestored(true)}
       reapplyReviewed={() => setRestored(true)} discard={async () => {}}/>}
     {state === 'destructive-preview' && <BulkPreview selected={['synthetic-1','synthetic-2','synthetic-3','synthetic-4','synthetic-5']}

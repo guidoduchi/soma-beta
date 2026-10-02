@@ -39,7 +39,8 @@
     "Infrastructure workbook history/run/proposal owner read views with complete cursor paging, retained tab context, prominent foreign-installation scope and at most 200 candidate rows in DOM",
     "Accepted LLD09 CommunicationPanelQueryV1 HTTP binding dispatches to the sole panel provider under one ReadSnapshot; SR/RFC workbenches consume that route directly and canonical message text remains inert",
     "Infrastructure return navigation preserves opened immutable Network Element, active tab, selected/active/order intent, complete explorer/component/history/workbook/run cursors, proposal identity and bounded candidate page in the existing session-only 50-entry registry. Current owner facts are fetched again; no DTO/body/draft is retained. Independent pane offsets and logical focus restore after async owner reads; unavailable rows/controls/candidate pages use explicit deterministic fallbacks.",
-    "Inventory/Objective/Infrastructure fallback notice commits before final scroll offsets are applied, preventing browser scroll anchoring from changing restored context. Inventory scroll test now uses a short supported viewport with explicit overflow in Edge and Chromium."
+    "Inventory/Objective/Infrastructure fallback notice commits before final scroll offsets are applied, preventing browser scroll anchoring from changing restored context. Inventory scroll test now uses a short supported viewport with explicit overflow in Edge and Chromium.",
+    "Generic recovery conflict is retained across new edits after stale/missing/indeterminate restore or generation rejection; edits remain in memory without resubmitting stale authority. Disposed and synchronously cancelled checkpoints cannot notify or submit into an abandoned flow. Recovery acknowledgement is scoped to exact copy/generation/current owner revision/dirty paths, and late discard errors cannot label a freshly queried copy. No production recovery contracts are registered."
   ],
   "remaining_implementation": [
     "Complete production domain composition/actions beyond current read slices: Inventory Needs/requests/RMAs/Fault Tags and activity, reference/SLA editors and policy/history/report settings, communications workspace/actions and Settings writes/source configuration, ticket relationship tabs, Objective scheduling/grouping/history and Infrastructure workbook/other entity surfaces remain incomplete",
@@ -91,21 +92,22 @@
       "panel_http_owner_passed": 25,
       "contracts_assets_continuation_passed": 31,
       "task_owner_passed": 92,
-      "failed": 0
+      "failed": 0,
+      "recovery_fixtures_assets_state_passed": 52
     },
     "typescript_strict": "pass",
-    "node_tests": 24,
+    "node_tests": 28,
     "edge_browser_tests": 88,
     "schema_objects": 1315,
     "runtime_migrations": 17,
     "compileall": "pass",
     "wheel": {
       "status": "pass",
-      "path": "dist/lld10-infrastructure-return/soma_beta-1.0.0.dev0-py3-none-any.whl",
-      "sha256": "e72d62003f3650f7335d4f3e28a868f1a04cf123b2e4df1ef5dda6b28fceac57",
-      "mode": "--no-deps --no-build-isolation; obsolete known build asset removed; resource check passed"
+      "path": "dist/lld10-recovery-fencing/soma_beta-1.0.0.dev0-py3-none-any.whl",
+      "sha256": "80194049f829010ea87b6e9c68e97a154322cbb132dac67fd92d3ec9789046c3",
+      "mode": "--no-deps --no-build-isolation; packaged resource checks passed"
     },
-    "supported_matrix_ci": "8da615b6 run 37063742948 completed/success. 6a361111 run 37066400661 remains active; frontend job failed Inventory fixture overflow precondition (84 passed), Python lanes pending. Current frontend-only correction and return slice pass 88 local Edge + 88 Chromium; await their publication/exact-head CI.",
+    "supported_matrix_ci": "fec4b013 run 37068407637: Windows browser completed/success; Windows 3.13/3.14 and Ubuntu Python lanes remain running at observation. Current generic recovery changes are not covered by that run.",
     "browser_host": "Local headless Edge and Playwright Chromium headless shell v1243 (Chrome 153.0.8010.12); not native WebView2 release evidence.",
     "browser_teardown": "All 88 tests passed in Edge (27.7s) and Chromium (27.5s); both runs exited 0 and stopped the owned test hosts.",
     "historical_migrations_1_16": "manifest entries and accepted runtime bytes remain hash-identical",
@@ -225,6 +227,24 @@
         "Nested stored workbook intent frozen against later caller mutation",
         "Notice commits before final scroll offsets, exercised by short-viewport Inventory regression"
       ]
+    },
+    "generic_recovery": {
+      "observed_at_utc": "2026-10-02 21:52:41 UTC",
+      "node_passed": 28,
+      "focused_edge_browser_passed": 38,
+      "full_chromium_browser_passed": 90,
+      "full_chromium_seconds": 27.3,
+      "python_focused_passed": 52,
+      "fixture_contexts": 36,
+      "fixture_versions": "stale/recovery version 2; exact versions enforced, pixel approval remains pending",
+      "full_python": "Not rerun for frontend/tool-only slice; focused owner recovery/fixture/assets/state suite passed. Exact preceding-commit Python CI remains running.",
+      "proof": [
+        "src/web/tests/interactions.test.mjs::LLD10-T020-T021 editing a conflicted restore preserves intent without resubmitting stale authority",
+        "src/web/tests/interactions.test.mjs::checkpoint generation conflict remains blocked through subsequent edits",
+        "src/web/browser-tests/recovery.spec.mjs::LLD10-T020 stale review is fenced to the shown recovery generation and accepted owner revision",
+        "src/web/browser-tests/recovery.spec.mjs::late discard failure cannot label a freshly queried recovery generation as failed"
+      ],
+      "limits": "Generic infrastructure only. Production registry remains owner-deferred; no production recovery edit binding or native WebView2/pixel certification."
     }
   },
   "cases": [
@@ -411,20 +431,27 @@
     {
       "id": "LLD10-T020",
       "normative_leaf": "tests/acceptance.json",
-      "status": "closure_review_pending",
+      "status": "local_evidence_semantic_closure_review_pending",
       "contract": {
         "id": "LLD10-T020",
         "then": "stale recoverable copy opens reviewed conflict, never LWW"
-      }
+      },
+      "local_bindings": [
+        "src/web/tests/interactions.test.mjs::LLD10-T020-T021 editing a conflicted restore preserves intent without resubmitting stale authority",
+        "src/web/browser-tests/recovery.spec.mjs::LLD10-T020 stale review is fenced to the shown recovery generation and accepted owner revision"
+      ]
     },
     {
       "id": "LLD10-T021",
       "normative_leaf": "tests/acceptance.json",
-      "status": "closure_review_pending",
+      "status": "local_evidence_semantic_closure_review_pending",
       "contract": {
         "id": "LLD10-T021",
         "then": "missing target preserves copy but blocks save"
-      }
+      },
+      "local_bindings": [
+        "src/web/tests/interactions.test.mjs::LLD10-T020-T021 editing a conflicted restore preserves intent without resubmitting stale authority"
+      ]
     },
     {
       "id": "LLD10-T022",
@@ -1038,16 +1065,16 @@
       }
     }
   ],
-  "updated_at_utc": "2026-10-02 21:38:10 UTC",
+  "updated_at_utc": "2026-10-02 21:52:41 UTC",
   "publication": {
-    "implementation": "6a3611116f5645b0c7f329599bccc67f081e4e5e",
+    "implementation": "fec4b013b0224a344951071682b3cc481658bdbb",
     "branch": "feat/beta-1.0-implementation",
     "remote_ref_verified": true,
-    "integrity_ci_run": 37066400680,
+    "integrity_ci_run": 37068407624,
     "integrity_ci_conclusion": "success",
-    "implementation_ci_run": 37066400661,
-    "implementation_ci_conclusion": "pending_with_known_frontend_job_failure",
-    "detail": "Inventory one-row fixture fit at 900px Chromium height; current unpublished slice fixes explicit test overflow and actual fallback-notice scroll anchoring."
+    "implementation_ci_run": 37068407637,
+    "implementation_ci_conclusion": "pending",
+    "detail": "Windows browser lane succeeded; Python lanes still running. Generic recovery slice is subsequent working-tree evidence, not covered by this CI."
   },
   "closure_dependencies": "docs/reconciliation/LLD10_CLOSURE_DEPENDENCIES_V1.json"
 }

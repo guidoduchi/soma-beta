@@ -207,6 +207,51 @@ test('successful recovery checkpoint enforces 30 seconds and rejects changed ide
   client.dispose();
 });
 
+test('LLD10-T020-T021 editing a conflicted restore preserves intent without resubmitting stale authority', async () => {
+  for (const freshness of ['STALE','TARGET_MISSING','INDETERMINATE']) {
+    let time=0, calls=0;
+    const client=new WorkingCopyClient(async()=>{calls++; throw new Error('unexpected checkpoint');},()=>{},()=>time);
+    try {
+      client.restore({note:'restored'}, {workingCopyId:'11111111-1111-4111-8111-111111111111',generation:2,contentHash:'a'.repeat(64)},freshness);
+      client.edit({note:'operator correction'}); time=100000; await client.checkpoint();
+      assert.equal(calls,0); assert.equal(client.status,'conflict');
+      assert.deepEqual(client.memory(),{note:'operator correction'}); assert.equal(client.hasUnsavedIntent(),true);
+      assert.throws(()=>client.restore({note:'implicit rebase'},{workingCopyId:'11111111-1111-4111-8111-111111111111',generation:3,contentHash:'b'.repeat(64)},'CURRENT'));
+    } finally {client.dispose();}
+  }
+});
+
+test('checkpoint generation conflict remains blocked through subsequent edits', async () => {
+  let time=0, calls=0, reject;
+  const client=new WorkingCopyClient(()=>{calls++; return new Promise((_, failure)=>{reject=failure;});},()=>{},()=>time);
+  try {
+    client.edit({note:'first'}); time=5000; const pending=client.checkpoint();
+    client.edit({note:'edited during pending checkpoint'});
+    reject(new Error('UI_WORKING_COPY_CONFLICT')); await pending;
+    client.edit({note:'edited after conflict'}); time=100000; await client.checkpoint();
+    assert.equal(calls,1); assert.equal(client.status,'conflict'); assert.deepEqual(client.memory(),{note:'edited after conflict'});
+  } finally {client.dispose();}
+});
+
+test('disposed recovery clients ignore edits and late failures without notifying an unmounted flow', async () => {
+  let time=0, notifications=0, reject;
+  const client=new WorkingCopyClient(()=>new Promise((_, failure)=>{reject=failure;}),()=>{notifications++;},()=>time);
+  client.edit({note:'retained'}); time=5000; const pending=client.checkpoint();
+  client.dispose(); const before=notifications;
+  client.edit({note:'late edit'}); client.acceptedSave(); reject(new Error('offline')); await pending;
+  assert.equal(notifications,before); assert.deepEqual(client.memory(),{note:'retained'});
+  assert.throws(()=>client.restore({note:'late restore'},{workingCopyId:'11111111-1111-4111-8111-111111111111',generation:1,contentHash:'a'.repeat(64)},'CURRENT'));
+});
+
+test('recovery cancellation from the pending notification submits no transport request', async () => {
+  let time=0, calls=0;
+  const client=new WorkingCopyClient(async()=>{calls++; throw new Error('unexpected request');},()=>{if(client.status === 'pending')client.acceptedSave();},()=>time);
+  try {
+    client.edit({note:'accepted elsewhere'}); time=5000; await client.checkpoint();
+    assert.equal(calls,0); assert.equal(client.hasUnsavedIntent(),false); assert.equal(client.status,'memory_only');
+  } finally {client.dispose();}
+});
+
 test('LLD10-T015 F013 late or rejected proofs and owner rejection never report accepted action', async () => {
   for (const point of ['proof','owner','cancelled-proof']) {
     let time=0, calls=0, resolveProof;

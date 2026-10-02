@@ -36,7 +36,7 @@
     "components/CommunicationPanel.tsx": "17f3a495e8c098f8c73596daad21d1392acbc2fdfc39fba5d57c3bae5696fa5e",
     "components/Modal.tsx": "874c609eb00b40fbabd75f7bc028d3f7aba9e7913d57affadf7ec753b1e99e3c",
     "components/OwnerProjection.tsx": "ada69e97dc78dbe1f3eff79e0bcfba367d04f0e122385a910d7f2ead854c1625",
-    "components/RecoveryReview.tsx": "f7d0ce67e730f35ffe41628e8ed76ca7cc57074b2b19c0274d749531fb49b2e1",
+    "components/RecoveryReview.tsx": "65db82dce903e71bc85206ceb2ab776fcca6e2c465ccc564135230871accf25a",
     "components/SelectableCollection.tsx": "7222c846273f16bd980fcd6bcfcc458b5ae09041f14cadfb87cdb592f3cf8ec2",
     "components/SomaShell.tsx": "d6f5942208ff3955670c0f349bfc1e4ce744df6c973cd52564c034bc203655b4",
     "components/TaskAuthorityFacts.tsx": "6ed62f07c0e93e5895597bbc63c5e4fb4e08e8191d7f14ee115fe87257ed6400",
@@ -61,6 +61,6 @@
     "styles/soma.css": "20cac27aa3e6aecdfbff4c55b9d05eb1af4ce3d5a197791d8c87a4eb84827310",
     "tsconfig.json": "3dd02e0633049ebb6630a5bd25e9af0769392a595641ec1768efbfc92d5a0b50",
     "vite.config.mjs": "7a6ed5d66720c8c4b416d604bb3e7615fe2a8b978de3729111b7b7e4e30ea091",
-    "working-copy/client.ts": "11e75fc0fae26bd17b9718c48562d3a921ca51def6215dbddef457487363f070"
+    "working-copy/client.ts": "95b98c223b48a6b9d7e9bda80cabf0e892797e07d0db3f2aab59d495a6ef1089"
   }
 }

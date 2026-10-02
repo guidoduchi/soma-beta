@@ -6,6 +6,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'src/web/fixtures/manifest.json'
+# Recovery review now binds acknowledgement to generation and owner revision.
+# These exact versions remain unapproved for pixel comparison.
+FIXTURE_VERSIONS = {'stale': 2, 'working-copy-recovery': 2}
 
 
 def source_hash(path):
@@ -29,7 +32,7 @@ def validate(manifest):
         if pair not in wanted or pair in seen or item['fixture_id'] in identities:
             raise ValueError('Missing, duplicate or unknown responsive fixture')
         seen.add(pair); identities.add(item['fixture_id'])
-        if item['version'] != 1 or item['synthetic_or_irreversibly_sanitized_data_id'] != 'lld10-wholly-synthetic-v1':
+        if type(item['version']) is not int or item['version'] != FIXTURE_VERSIONS.get(item['surface/state'], 1) or item['synthetic_or_irreversibly_sanitized_data_id'] != 'lld10-wholly-synthetic-v1':
             raise ValueError('Only the registered synthetic fixture set is permitted')
         if item['approval_state'] != 'semantic_review_pending_no_pixel_baseline':
             raise ValueError('No reviewed pixel baseline approval exists for this fixture version')

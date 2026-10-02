@@ -20,6 +20,14 @@ def test_all_required_states_have_separately_rendered_exact_contexts():
     assert module.validate(fixture_manifest()) == 36
 
 
+@pytest.mark.parametrize('version', [True, False, 0, 1, 3, 2.0, '2'])
+def test_recovery_fixture_version_requires_exact_registered_integer(version):
+    value = fixture_manifest()
+    next(item for item in value['fixtures'] if item['surface/state'] == 'stale')['version'] = version
+    with pytest.raises(ValueError, match='registered synthetic fixture'):
+        module.validate(value)
+
+
 @pytest.mark.parametrize('canary', ['private.person@example.com', 'password=synthetic-canary',
     'api_key=synthetic-canary', 'Bearer: synthetic-canary', '-----BEGIN RSA PRIVATE KEY-----', '10.20.30.40'])
 def test_sensitive_fixture_metadata_is_rejected(canary):
