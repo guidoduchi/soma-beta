@@ -43,7 +43,8 @@
     "Generic recovery conflict is retained across new edits after stale/missing/indeterminate restore or generation rejection; edits remain in memory without resubmitting stale authority. Disposed and synchronously cancelled checkpoints cannot notify or submit into an abandoned flow. Recovery acknowledgement is scoped to exact copy/generation/current owner revision/dirty paths, and late discard errors cannot label a freshly queried copy. No production recovery contracts are registered.",
     "Settings return context preserves independent closed bounded LLD02 directory/channel/history and LLD06 catalog cursors, opened reference identities, archived-channel filter and Account Code disclosure, plus LLD09 source coverage/job/housekeeping queries. Current owner facts are fetched on return; focus and independent pane/main scroll are restored after asynchronous reads with explicit missing-control fallback. Appearance return refetches accepted axes. Browser history stays token-only; nested intent is frozen and malformed/foreign/incomplete cursor intent fails closed.",
     "User-accepted partial LLD07 Fault Tag core list reconciliation: list/detail split, exact filtered total under one snapshot, ascending immutable identity, complete filter-fenced CURSOR_V1, bounded core counts without membership reads. Raw after_id and unclosed filters reject. Full list context/obligation/diversity/lineage/blocker projections and remaining filter semantics stay unclosed; detail is unchanged.",
-    "RFC Overview binds existing LLD03 GetRfcLifecycleProjection HTTP route. Closed source fields render in owner registry order with exact evidence, UTC/source revision, accepted Status classification/authority and current terminal epoch; local archive and canonical Customer identity remain separate. Invalid field/provenance/status/epoch/revision projections fail closed. Accepted terminal reversal is freshly queried on Back and source status never implies executed downstream cascade consequences."
+    "RFC Overview binds existing LLD03 GetRfcLifecycleProjection HTTP route. Closed source fields render in owner registry order with exact evidence, UTC/source revision, accepted Status classification/authority and current terminal epoch; local archive and canonical Customer identity remain separate. Invalid field/provenance/status/epoch/revision projections fail closed. Accepted terminal reversal is freshly queried on Back and source status never implies executed downstream cascade consequences.",
+    "Working Notes now retain exact bounded owner page queries through tab changes and Back/Forward for SR/RFC. Full six-field CURSOR_V1 and complete created_at/id key are validated against the exact ticket-scoped owner fingerprint before paging or restore reads. Current body/revision/creator/timestamps are refetched, UTF8/identity/chronology/unique row bounds fail closed, and focus/scroll restore waits for asynchronous owner reads with deterministic missing-control fallback. Browser history remains token-only; no edit commands or production recovery registrations are introduced."
   ],
   "remaining_implementation": [
     "Complete production domain composition/actions beyond current read slices: Inventory Needs/requests/RMAs/Fault Tags and activity, reference/SLA editors and policy/history/report settings, communications workspace/actions and Settings writes/source configuration, ticket relationship tabs, Objective scheduling/grouping/history and Infrastructure workbook/other entity surfaces remain incomplete",
@@ -110,20 +111,21 @@
       "assets_fixtures_state_passed": 37
     },
     "typescript_strict": "pass",
-    "node_tests": 29,
-    "edge_browser_tests": 107,
+    "node_tests": 30,
+    "edge_browser_tests": 117,
     "schema_objects": 1315,
     "runtime_migrations": 17,
     "compileall": "pass",
     "wheel": {
       "status": "pass",
-      "path": "dist/lld10-rfc-lifecycle-final/soma_beta-1.0.0.dev0-py3-none-any.whl",
-      "sha256": "4d1b83b6221ba8c98c5aa74c3eab3bc6e6ab6e5390fccb765213b5f1fb71ad74",
-      "mode": "--no-deps --no-build-isolation; obsolete known cached JS removed; exact resources verified"
+      "path": "dist/lld10-notes-return-verified/soma_beta-1.0.0.dev0-py3-none-any.whl",
+      "sha256": "91c91671b77c6850c37d3e15af41e3e3d91d62390ce08b2ee08630886c847c91",
+      "mode": "Isolated tracked HEAD plus explicit LLD10 overlay and exact checked-out resource bytes; excludes unrelated untracked LLD12 files. --no-deps --no-build-isolation; resources verified.",
+      "initial_archive_attempt": "Git archive LF-normalized schema resource differed from checked-out accepted bytes; verifier rejected it. Exact tracked-byte overlay fixed the packaging input; no accepted schema bytes changed."
     },
-    "supported_matrix_ci": "59caa7a1 run 37072279419: browser succeeded; Python lanes still live at observation. Current RFC view is subsequent working-tree evidence.",
+    "supported_matrix_ci": "6ddc3fc3 run 37073227395: browser succeeded, Python lanes live at observation. Current Notes changes are subsequent local evidence.",
     "browser_host": "Local headless Edge and Playwright Chromium headless shell v1243 (Chrome 153.0.8010.12); not native WebView2 release evidence.",
-    "browser_teardown": "All 107 current scenarios passed Edge (31.8s) and Chromium (28.7s); owned test hosts exited cleanly.",
+    "browser_teardown": "All 117 current scenarios passed Edge (34.0s) and Chromium (31.3s); owned test hosts exited cleanly.",
     "historical_migrations_1_16": "manifest entries and accepted runtime bytes remain hash-identical",
     "migration17_sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905",
     "visual_fixtures": {
@@ -222,7 +224,7 @@
       "frontend_change": "none",
       "semantic_closure": "pending owner leaf reconciliation and UI binding"
     },
-    "chromium_browser_tests": 107,
+    "chromium_browser_tests": 117,
     "infrastructure_return": {
       "node_passed": 24,
       "edge_passed": 88,
@@ -314,6 +316,33 @@
       "edge_passed": 107,
       "chromium_passed": 107,
       "rfc_browser_cases": 11
+    },
+    "notes_return": {
+      "observed_at_utc": "2026-10-02 22:43:56 UTC",
+      "typescript_strict": "passed",
+      "node_passed": 30,
+      "owner_python_passed": 5,
+      "assets_fixtures_python_passed": 21,
+      "edge_passed": 117,
+      "frozen_assets": "passed",
+      "wheel_resources": "passed",
+      "authority": [
+        "spec/lld/tickets-core/routes/lifecycle-and-context.json#ListWorkingNotes",
+        "spec/lld/tickets-core/queries/tickets.json#ListWorkingNotes",
+        "spec/lld/tickets-core/types/transport.json#WorkingNoteV1",
+        "spec/lld/tickets-core/algorithms/working-note-bounds.json"
+      ],
+      "proof": [
+        "src/web/tests/interactions.test.mjs::Working Note return preserves only bounded exact owner page intent and rejects foreign or incomplete cursors",
+        "src/web/browser-tests/ticket-notes-return.spec.mjs",
+        "src/web/browser-tests/navigation.spec.mjs",
+        "tests/test_ticket_working_notes.py"
+      ],
+      "full_python": "Not rerun for this frontend-only slice. Prior 2066-test complete run remains historical evidence; owner and resource checks rerun locally.",
+      "limits": "Note writes and other ticket tabs remain incomplete; production security and recovery registry remain owner-gated. Local browsers do not certify native WebView2 or pixels.",
+      "chromium_passed": 117,
+      "browser_cases": 10,
+      "state_tooling_python_passed": 16
     }
   },
   "cases": [
@@ -1134,16 +1163,16 @@
       }
     }
   ],
-  "updated_at_utc": "2026-10-02 22:32:09 UTC",
+  "updated_at_utc": "2026-10-02 22:43:56 UTC",
   "publication": {
-    "implementation": "59caa7a105b7168aab9b7337d0917284ade2deae",
+    "implementation": "6ddc3fc3e564743a75a23799bc75b97e7583b1ad",
     "branch": "feat/beta-1.0-implementation",
     "remote_ref_verified": true,
-    "integrity_ci_run": 37072279295,
+    "integrity_ci_run": 37073227389,
     "integrity_ci_conclusion": "success",
-    "implementation_ci_run": 37072279419,
+    "implementation_ci_run": 37073227395,
     "implementation_ci_conclusion": "pending",
-    "detail": "Browser lane succeeded; Python matrix live. Current RFC read slice is subsequent working-tree evidence."
+    "detail": "Browser lane succeeded; Python lanes live. Notes slice is subsequent local evidence; unrelated local files excluded."
   },
   "closure_dependencies": "docs/reconciliation/LLD10_CLOSURE_DEPENDENCIES_V1.json"
 }

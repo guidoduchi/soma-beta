@@ -13,6 +13,19 @@ import {confirmationTier} from '../.test-build/components/ActionButton.js';
 import {AppearanceController} from '../.test-build/state/appearance.js';
 import {WorkingCopyClient} from '../.test-build/working-copy/client.js';
 import {settingsQuery,settingsIntent,nextSettingsQuery} from '../.test-build/app/settings-intent.js';
+import {ticketNotesQuery,nextTicketNotesQuery} from '../.test-build/app/ticket-notes-intent.js';
+
+test('Working Note return preserves only bounded exact owner page intent and rejects foreign or incomplete cursors',()=>{
+  const id='11111111-1111-4111-8111-111111111111',note='22222222-2222-4222-8222-222222222222';
+  const route='/tickets/sr/'+id,base='/api/v1/tickets/service_request/'+id+'/notes?limit=10';
+  const hash=createHash('sha256').update(JSON.stringify({schema:'SOMA_WORKING_NOTE_FILTER_V1',ticket_id:id,ticket_type:'service_request'})).digest('hex');
+  const cursor={version:1,query_id:'ListWorkingNotes',sort_registry_id:'WORKING_NOTE_CREATED_ID_ASC_V1',last_key_tuple:[1,note],filter_fingerprint:hash,null_order:'not_applicable'};
+  const path=nextTicketNotesQuery(base,route,cursor,hash);assert.deepEqual(ticketNotesQuery(path,route).cursor,cursor);
+  for(const bad of [{...cursor,last_key_tuple:[1]},{...cursor,last_key_tuple:[true,note]},{...cursor,version:true},{...cursor,body:'synthetic'},{...cursor,filter_fingerprint:'a'.repeat(64)}])assert.throws(()=>nextTicketNotesQuery(base,route,bad,hash));
+  assert.equal(ticketNotesQuery(path,'/tickets/rfc/'+id),null);assert.equal(ticketNotesQuery(base+'&limit=10',route),null);
+  const history=new NavigationHistory(),token=history.remember({route,filterFingerprint:hash,activeId:null,selectedId:null,memberIds:[],scrollAnchor:null,focusToken:null,ticketNotesQuery:path});
+  assert.equal(history.restore(token).ticketNotesQuery,path);assert.throws(()=>history.remember({...history.restore(token),route:'/settings'}));
+});
 
 const row = {id: 'row-A', eligible: true, route: {record_type: 'RFC', record_id: 'row-A', revision_token: '1'}};
 

@@ -28,7 +28,7 @@ test('return restores pane scroll after asynchronous owner notes load without re
   await page.route('**/api/v1/tickets/service_request/'+id+'/notes?*',async route=>{
     await new Promise(resolve=>setTimeout(resolve,100));
     await route.fulfill({json:{items:[{working_note_id:'22222222-2222-4222-8222-222222222222',body_text:'SYNTHETIC_HISTORY_BODY_CANARY\n'.repeat(200),
-      created_at_utc:1000,updated_at_utc:1000,created_by_local_user_profile_id:id}],continuation:null}});
+      revision:1,created_at_utc:1000,updated_at_utc:1000,created_by_local_user_profile_id:id}],continuation:null}});
   });
   await page.goto('http://127.0.0.1:4174/tickets/sr/'+id);
   await page.getByRole('tab',{name:'Notes',exact:true}).click();await expect(page.getByText('Creator profile:')).toBeAttached();

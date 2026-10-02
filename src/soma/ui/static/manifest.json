@@ -4,13 +4,13 @@
       "bytes": 5825,
       "sha256": "cc795d5fa7139f975ea7a89edfd850221613bf8f3ca7788ed2eaabc2de6e3c78"
     },
-    "assets/index-DECCmyQy.js": {
-      "bytes": 311048,
-      "sha256": "245e8f7aeba79c4cc512751f4c0ecd75ce5150d90c0e105a8ce9840444c08024"
+    "assets/index-D8vV526u.js": {
+      "bytes": 314145,
+      "sha256": "ec666777012d3a2febcaaebd3ae894ca37465acb361b582e7c61a3bd1202d3d5"
     },
     "index.html": {
       "bytes": 369,
-      "sha256": "71f7698579fb8c127a1e097e2d6f4b889765ff70e817a6498bc909c889ee6d75"
+      "sha256": "d2f13731a665314b5ff8fa28dd08fa54d08f7042e3d43061cc10ad07c821a51b"
     }
   },
   "schema": "SOMA_UI_STATIC_ASSETS_V1",
@@ -28,10 +28,11 @@
     "app/SettingsWorkspace.tsx": "d8e17a6c958287e0f8547d13179502f098b54cb1681613ca74aaa71b64f6599e",
     "app/SlaCatalogSettings.tsx": "41406d9629fed58d3655890ca86e3b6ad970bc12b9b2a160809a8c4128fe43fd",
     "app/TicketCommunications.tsx": "79c34eddbd5f86333a3e3bd31ab981e18045cf38e4c18fbf7a4a71f79300cc58",
-    "app/TicketWorkbench.tsx": "faddfca71734812bd14e6e6d5a931e5ab87fc1d3193b971f1425b7dcf9e60e02",
+    "app/TicketWorkbench.tsx": "744530218707f05b63e18fdb1fd38d504911bb26b843e55edc5cd17d36c10462",
     "app/main.tsx": "43b23014c3c9587d4feba5dc0f3798350290f3744cbc4796fc19c92e9dd41721",
-    "app/router.ts": "30762e10dc4210f9f1db8312a92a5980cdec8ea2a3b0d39c7f23f71ac0792b5d",
+    "app/router.ts": "0174cef94334de4c8a8f618d7475ad65e96f65d684e1df49e5b84deea0aacb31",
     "app/settings-intent.ts": "a40187f8f188593d4f6dd036020b2b1a9ad2bd48ea03f0a487feb1509b011e37",
+    "app/ticket-notes-intent.ts": "ea3346601f620f82a50ddc061faf73aa9ee20ebf3112da44511e45c65ee5ec78",
     "components/ActionButton.tsx": "411c0d0098370a2d8a783cd078fc09620e518b68b81b67e249a90977f5dd330f",
     "components/AppearanceSettings.tsx": "29723ee833ba4105bd01ed2827c037512e3c5a97d37fe0c3a06ed4d5ad277074",
     "components/BoundedCollection.tsx": "9b75629710fedf751a35d48b06a03ebf6bd57fc5483bd5a4f095258112d44244",
