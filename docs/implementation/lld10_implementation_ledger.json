@@ -37,7 +37,9 @@
     "Pinned production source HTML to LF for Windows clean-checkout build reproducibility; verified autocrlf=true checkout retains LF. Fixes exact frontend CI job manifest mismatch without weakening frozen asset checks.",
     "Accepted LLD05 Task warning enum derives exactly from the three same-snapshot pending counts. Task relationship summary uses flattened exact counts; WFM detail removes unbounded SR identity enumeration, leaving SR context with the declared bounded LLD03 projection. Immediate retry is null when no edge exists. All eight warning combinations and nonpending exclusion are covered.",
     "Infrastructure workbook history/run/proposal owner read views with complete cursor paging, retained tab context, prominent foreign-installation scope and at most 200 candidate rows in DOM",
-    "Accepted LLD09 CommunicationPanelQueryV1 HTTP binding dispatches to the sole panel provider under one ReadSnapshot; SR/RFC workbenches consume that route directly and canonical message text remains inert"
+    "Accepted LLD09 CommunicationPanelQueryV1 HTTP binding dispatches to the sole panel provider under one ReadSnapshot; SR/RFC workbenches consume that route directly and canonical message text remains inert",
+    "Infrastructure return navigation preserves opened immutable Network Element, active tab, selected/active/order intent, complete explorer/component/history/workbook/run cursors, proposal identity and bounded candidate page in the existing session-only 50-entry registry. Current owner facts are fetched again; no DTO/body/draft is retained. Independent pane offsets and logical focus restore after async owner reads; unavailable rows/controls/candidate pages use explicit deterministic fallbacks.",
+    "Inventory/Objective/Infrastructure fallback notice commits before final scroll offsets are applied, preventing browser scroll anchoring from changing restored context. Inventory scroll test now uses a short supported viewport with explicit overflow in Edge and Chromium."
   ],
   "remaining_implementation": [
     "Complete production domain composition/actions beyond current read slices: Inventory Needs/requests/RMAs/Fault Tags and activity, reference/SLA editors and policy/history/report settings, communications workspace/actions and Settings writes/source configuration, ticket relationship tabs, Objective scheduling/grouping/history and Infrastructure workbook/other entity surfaces remain incomplete",
@@ -92,20 +94,20 @@
       "failed": 0
     },
     "typescript_strict": "pass",
-    "node_tests": 23,
-    "edge_browser_tests": 85,
+    "node_tests": 24,
+    "edge_browser_tests": 88,
     "schema_objects": 1315,
     "runtime_migrations": 17,
     "compileall": "pass",
     "wheel": {
       "status": "pass",
-      "path": "dist/lld10-owner-read-refinements/soma_beta-1.0.0.dev0-py3-none-any.whl",
-      "sha256": "4c68a240e63e401cc52688fed837a368f0841c609e535d55a45e677935f3ec49",
-      "mode": "--no-deps --no-build-isolation; stale known generated build JS removed; wheel resource check passed"
+      "path": "dist/lld10-infrastructure-return/soma_beta-1.0.0.dev0-py3-none-any.whl",
+      "sha256": "e72d62003f3650f7335d4f3e28a868f1a04cf123b2e4df1ef5dda6b28fceac57",
+      "mode": "--no-deps --no-build-isolation; obsolete known build asset removed; resource check passed"
     },
-    "supported_matrix_ci": "Observed 8da615b6 run 37063742948: Windows browser and Ubuntu compatibility succeeded; Windows Python 3.13/3.14 still running. Does not cover this uncommitted owner/query/frontend refinement.",
-    "browser_host": "Headless local Edge; not WebView2 native release certification",
-    "browser_teardown": "All 85 local Edge browser tests passed in 27.5 seconds; runner stopped both hosts.",
+    "supported_matrix_ci": "8da615b6 run 37063742948 completed/success. 6a361111 run 37066400661 remains active; frontend job failed Inventory fixture overflow precondition (84 passed), Python lanes pending. Current frontend-only correction and return slice pass 88 local Edge + 88 Chromium; await their publication/exact-head CI.",
+    "browser_host": "Local headless Edge and Playwright Chromium headless shell v1243 (Chrome 153.0.8010.12); not native WebView2 release evidence.",
+    "browser_teardown": "All 88 tests passed in Edge (27.7s) and Chromium (27.5s); both runs exited 0 and stopped the owned test hosts.",
     "historical_migrations_1_16": "manifest entries and accepted runtime bytes remain hash-identical",
     "migration17_sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905",
     "visual_fixtures": {
@@ -203,6 +205,26 @@
       "migration_change": "none",
       "frontend_change": "none",
       "semantic_closure": "pending owner leaf reconciliation and UI binding"
+    },
+    "chromium_browser_tests": 88,
+    "infrastructure_return": {
+      "node_passed": 24,
+      "edge_passed": 88,
+      "chromium_passed": 88,
+      "focused_python_passed": 18,
+      "failed": 0,
+      "backend_source_changes": false,
+      "full_python_rerun": false,
+      "proof": [
+        "Exact explorer/component/history queries and nullable full keyset values persist across Back/Forward",
+        "Opened identity/tab/focus/independent scroll restored only after current owner reads",
+        "Removed row/control fallback does not open a replacement record",
+        "Workbook history/run/proposal/candidate page restored; changed warnings/candidate population are fetched afresh",
+        "No owner DTO/draft/body in browser history or navigation registry",
+        "Malformed, cross-owner, wrong-target, incomplete or oversized query intents fail closed",
+        "Nested stored workbook intent frozen against later caller mutation",
+        "Notice commits before final scroll offsets, exercised by short-viewport Inventory regression"
+      ]
     }
   },
   "cases": [
@@ -365,13 +387,16 @@
     {
       "id": "LLD10-T018",
       "normative_leaf": "tests/acceptance.json",
-      "status": "closure_review_pending",
+      "status": "local_evidence_semantic_closure_review_pending",
       "contract": {
         "id": "LLD10-T018",
         "then": "wide table owns horizontal scrolling without page overflow"
       },
       "local_bindings": [
-        "src/web/browser-tests/objectives.spec.mjs::Objective Back restores the exact page query and nearest surviving row; Forward keeps explicit detail navigation"
+        "src/web/browser-tests/objectives.spec.mjs::Objective Back restores the exact page query and nearest surviving row; Forward keeps explicit detail navigation",
+        "src/web/browser-tests/infrastructure-return.spec.mjs::Infrastructure Back refetches the exact explorer/component/history pages and restores opened identity, tab, focus and scroll",
+        "src/web/browser-tests/infrastructure-return.spec.mjs::Infrastructure return selects the nearest surviving row and focuses its deterministic fallback without opening it",
+        "src/web/browser-tests/infrastructure-workbooks.spec.mjs::Infrastructure Back restores workbook history/run/proposal intent and refetches changed candidate and warning facts"
       ]
     },
     {
@@ -1013,16 +1038,16 @@
       }
     }
   ],
-  "updated_at_utc": "2026-10-02 21:19:17 UTC",
+  "updated_at_utc": "2026-10-02 21:38:10 UTC",
   "publication": {
-    "implementation": "8da615b6be4b7af3b454a3cac5d6d9efa3144d2e",
+    "implementation": "6a3611116f5645b0c7f329599bccc67f081e4e5e",
     "branch": "feat/beta-1.0-implementation",
     "remote_ref_verified": true,
-    "integrity_ci_run": 37063742832,
+    "integrity_ci_run": 37066400680,
     "integrity_ci_conclusion": "success",
-    "implementation_ci_run": 37063742948,
-    "implementation_ci_conclusion": "pending",
-    "detail": "Windows browser and Ubuntu compatibility succeeded; Windows Python lanes still running. Current owner/read refinements await publication and exact-head CI."
+    "implementation_ci_run": 37066400661,
+    "implementation_ci_conclusion": "pending_with_known_frontend_job_failure",
+    "detail": "Inventory one-row fixture fit at 900px Chromium height; current unpublished slice fixes explicit test overflow and actual fallback-notice scroll anchoring."
   },
   "closure_dependencies": "docs/reconciliation/LLD10_CLOSURE_DEPENDENCIES_V1.json"
 }

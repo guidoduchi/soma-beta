@@ -84,7 +84,7 @@ export function ObjectiveWorkspace({navigate,restored=null,onReturnState}: {navi
       if(restored.scrollAnchor&&restored.scrollAnchor.length<=256){const parsed=JSON.parse(restored.scrollAnchor);
         if(parsed&&Object.keys(parsed).length===2&&['list','main'].every(key=>typeof parsed[key]==='number'&&Number.isFinite(parsed[key])&&parsed[key]>=0))positions=parsed;}
     }catch{/* Missing scroll intent keeps the visible current position. */}
-    let observer:MutationObserver|null=null;
+    let observer:MutationObserver|null=null;let fallbackExplained=false;
     const stop=()=>{observer?.disconnect();observer=null;};
     const apply=()=>{
       if(Array.from(node.querySelectorAll('[role="status"]')).some(element=>element.textContent?.startsWith('Loading accepted state.')))return;
@@ -92,7 +92,13 @@ export function ObjectiveWorkspace({navigate,restored=null,onReturnState}: {navi
       const controls=Array.from(node.querySelectorAll<HTMLElement>('[data-focus-token]'));
       const focus=controls.find(element=>element.dataset.focusToken===restored.focusToken&&element.getClientRects().length>0&&!element.matches(':disabled'));
       const fallback=controls.find(element=>element.dataset.rowId===store.getSnapshot().selection.active_id)??collection??document.getElementById('main-content');
-      if(restored.focusToken){(focus??fallback)?.focus({preventScroll:true});if(!focus)setNotice('The previous control is unavailable; focus returned to the nearest eligible row or collection.');}
+      if(restored.focusToken){
+        (focus??fallback)?.focus({preventScroll:true});
+        if(!focus&&!fallbackExplained) {
+          fallbackExplained=true;setNotice('The previous control is unavailable; focus returned to the nearest eligible row or collection.');
+          return; // Restore scroll after the new notice commits, before disconnecting.
+        }
+      }
       if(positions){if(collection)collection.scrollTop=positions.list;const main=document.getElementById('main-content');if(main)main.scrollTop=positions.main;}
       stop();
     };

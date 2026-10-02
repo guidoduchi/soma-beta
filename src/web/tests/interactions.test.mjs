@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {DeliberateHold} from '../.test-build/interactions/deliberate-hold.js';
 import {SafeUndo} from '../.test-build/interactions/safe-undo.js';
 import {classifyContainer} from '../.test-build/layout/responsive.js';
-import {resolveRoute, defaultOpen, NavigationHistory, RouteNavigation,objectiveCollectionQuery,groupingCollectionQuery,inventoryCollectionQueries} from '../.test-build/app/router.js';
+import {resolveRoute, defaultOpen, NavigationHistory, RouteNavigation,objectiveCollectionQuery,groupingCollectionQuery,inventoryCollectionQueries,infrastructureIntent,infrastructureQuery} from '../.test-build/app/router.js';
 import {boundedOptions} from '../.test-build/interactions/autocomplete.js';
 import {confirmationTier} from '../.test-build/components/ActionButton.js';
 import {AppearanceController} from '../.test-build/state/appearance.js';
@@ -260,4 +260,29 @@ test('Inventory return context retains only two bounded closed read intents with
   const history=new NavigationHistory();const state={route:'/inventory',filterFingerprint:'a'.repeat(64),activeId:null,selectedId:null,memberIds:[],scrollAnchor:null,focusToken:null,inventoryQueries:queries};
   const token=history.remember(state);queries.stock='changed';assert.notEqual(history.restore(token).inventoryQueries.stock,'changed');
   assert.throws(()=>history.remember({...history.restore(token),route:'/objectives'}));
+});
+
+test('Infrastructure return intent fences complete owner cursors, opened identities and nested bounded activity context',()=>{
+  const id='11111111-1111-4111-8111-111111111111';
+  const query='/api/v1/infrastructure/tree?limit=200';
+  const cursor={version:1,query_id:'InfrastructureExplorerQuery',sort_registry_id:'InfrastructureExplorerQuery_ORDER_V1',last_key_tuple:[null,id,4,id],filter_fingerprint:'a'.repeat(64),null_order:'NULLS_LAST'};
+  const explorer=query+'&cursor='+encodeURIComponent(JSON.stringify(cursor));
+  assert.deepEqual(infrastructureQuery(explorer,'explorer'),{cursor});
+  const intent={explorer,openedId:id,tab:'Workbook Activity',components:`/api/v1/infrastructure/network-elements/${id}/components?limit=200`,
+    history:`/api/v1/infrastructure/history?target_kind=network_element&target_id=${id}&limit=5`,
+    workbook:{history:'/api/v1/infrastructure/workbooks/history?limit=200',run:`/api/v1/infrastructure/workbooks/runs/${id}?limit=200`,proposalId:id,candidatePage:2}};
+  assert.equal(infrastructureIntent(intent),intent);
+  for(const invalid of [{...intent,body:'copied fact'},{...intent,openedId:'invalid'},{...intent,tab:'Unknown'},{...intent,history:intent.history+'&body=private'},
+    {...intent,components:intent.components.replace(id,'22222222-2222-4222-8222-222222222222')},
+    {...intent,workbook:{...intent.workbook,body:'private'}},{...intent,workbook:{...intent.workbook,candidatePage:3}},
+    {...intent,workbook:{...intent.workbook,run:null}},{...intent,workbook:{...intent.workbook,proposalId:null}},
+    {...intent,workbook:null}])assert.equal(infrastructureIntent(invalid),null);
+  for(const change of [{...cursor,body:'private'},{...cursor,version:2},{...cursor,query_id:'InstalledComponentQuery'},
+    {...cursor,null_order:'NOT_APPLICABLE'},{...cursor,last_key_tuple:[id,4,id]},
+    {...cursor,last_key_tuple:[null,id,6,id]},{...cursor,last_key_tuple:[null,'bad',4,id]}])assert.equal(infrastructureQuery(query+'&cursor='+encodeURIComponent(JSON.stringify(change)),'explorer'),null);
+  for(const invalid of [query+'&limit=200',query+'&draft=private',query+'#fragment',query+'&cursor=invalid',query+'&cursor='+encodeURIComponent(JSON.stringify('x'.repeat(4096)))])assert.equal(infrastructureQuery(invalid,'explorer'),null);
+  const history=new NavigationHistory();const state={route:'/infrastructure',filterFingerprint:'a'.repeat(64),activeId:null,selectedId:null,memberIds:[],focusToken:null,scrollAnchor:null,infrastructure:intent};
+  const token=history.remember(state);intent.explorer='changed';intent.workbook.run='changed';
+  assert.equal(history.restore(token).infrastructure.explorer,explorer);assert.notEqual(history.restore(token).infrastructure.workbook.run,'changed');
+  assert.throws(()=>history.remember({...history.restore(token),route:'/inventory'}));
 });

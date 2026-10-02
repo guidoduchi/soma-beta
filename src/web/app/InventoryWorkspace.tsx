@@ -81,13 +81,19 @@ export function InventoryWorkspace({restored=null,onReturnState}:{restored?:Retu
         if(value&&Object.keys(value).length===3&&valid(value.main)&&[value.stock,value.attention].every(pair=>Array.isArray(pair)&&pair.length===2&&pair.every(valid)))positions=value;
       }
     }catch{/* Invalid scroll intent uses the visible current positions. */}
-    let observer:MutationObserver|null=null;const stop=()=>{observer?.disconnect();observer=null;};
+    let observer:MutationObserver|null=null;let fallbackExplained=false;const stop=()=>{observer?.disconnect();observer=null;};
     const apply=()=>{
       if(Array.from(node.querySelectorAll('[role="status"]')).some(element=>element.textContent?.startsWith('Loading accepted state.')))return;
       if(restored.focusToken) {
         const control=Array.from(node.querySelectorAll<HTMLElement>('[data-focus-token]')).find(element=>element.dataset.focusToken===restored.focusToken&&element.getClientRects().length>0&&!element.matches(':disabled'));
         const fallback=node.querySelector<HTMLElement>('[data-focus-token="inventory:attention:refresh"]')??document.getElementById('main-content');
-        (control??fallback)?.focus({preventScroll:true});if(!control)setNotice('The previous Inventory control is unavailable; focus returned to Refresh Inventory attention.');
+        (control??fallback)?.focus({preventScroll:true});
+        if(!control&&!fallbackExplained) {
+          fallbackExplained=true;setNotice('The previous Inventory control is unavailable; focus returned to Refresh Inventory attention.');
+          // Restore offsets after the notice commits, so browser scroll anchoring
+          // cannot shift the saved position when the new status text is inserted.
+          return;
+        }
       }
       if(positions) {
         const main=document.getElementById('main-content');if(main)main.scrollTop=positions.main;

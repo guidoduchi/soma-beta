@@ -27,7 +27,62 @@ export function defaultOpen(recordType: string, id: string): ClientRoute | null 
 export type ReturnState = Readonly<{route: string; filterFingerprint: string; activeId: string | null; selectedId: string | null;
   memberIds: readonly string[]; scrollAnchor: string | null; focusToken: string | null; tab?: string; pane?: 'work' | 'communications';
   collectionQuery?:string;collectionOrder?:readonly string[];groupingQuery?:string|null;
-  inventoryQueries?:Readonly<{stock:string;attention:string}>}>;
+  inventoryQueries?:Readonly<{stock:string;attention:string}>;infrastructure?:InfrastructureIntent}>;
+export const infrastructureTabs=['Summary','Placement','Components','IP Addresses','Relationships','History','Workbook Activity'] as const;
+export type WorkbookIntent=Readonly<{history:string;run:string|null;proposalId:string|null;candidatePage:number}>;
+export type InfrastructureIntent=Readonly<{explorer:string;openedId:string|null;tab:typeof infrastructureTabs[number];
+  components:string|null;history:string|null;workbook:WorkbookIntent|null}>;
+type InfrastructureQuery='explorer'|'components'|'history'|'workbookHistory'|'workbookRun';
+const infraUuid=(value:unknown):value is string=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value);
+/** Only the implemented owner query intents, with the complete owner ordering tuple. */
+export function infrastructureQuery(path:string,kind:InfrastructureQuery,id:string|null=null):{cursor:unknown|null}|null {
+  if(typeof path!=='string'||new TextEncoder().encode(path).length>4096||!path.startsWith('/api/v1/infrastructure/')||path.includes('#'))return null;
+  if(['components','history','workbookRun'].includes(kind)&&!infraUuid(id))return null;
+  const expected=kind==='explorer'?'/api/v1/infrastructure/tree':kind==='components'?`/api/v1/infrastructure/network-elements/${id}/components`:
+    kind==='history'?'/api/v1/infrastructure/history':kind==='workbookHistory'?'/api/v1/infrastructure/workbooks/history':`/api/v1/infrastructure/workbooks/runs/${id}`;
+  try {
+    const url=new URL(path,'http://127.0.0.1');const keys=kind==='history'?['limit','cursor','target_kind','target_id']:['limit','cursor'];
+    if(url.pathname!==expected||url.searchParams.get('limit')!==(kind==='history'?'5':'200')
+      ||Array.from(url.searchParams.keys()).some(key=>!keys.includes(key))||keys.some(key=>url.searchParams.getAll(key).length>1)
+      ||(kind==='history'&&(url.searchParams.get('target_kind')!=='network_element'||url.searchParams.get('target_id')!==id)))return null;
+    const raw=url.searchParams.get('cursor');const cursor=raw===null?null:JSON.parse(raw);
+    if(cursor!==null) {
+      const query={explorer:'InfrastructureExplorerQuery',components:'InstalledComponentQuery',history:'InfrastructureHistoryQuery',
+        workbookHistory:'InfrastructureWorkbookHistoryQuery',workbookRun:'InfrastructureWorkbookRunQuery'}[kind];
+      const nullOrder=kind==='explorer'||kind==='components'?'NULLS_LAST':'NOT_APPLICABLE';
+      if(typeof cursor!=='object'||Array.isArray(cursor)||Object.keys(cursor).length!==6
+        ||Object.keys(cursor).some(key=>!['version','query_id','sort_registry_id','last_key_tuple','filter_fingerprint','null_order'].includes(key))
+        ||cursor.version!==1||cursor.query_id!==query||cursor.sort_registry_id!==query+'_ORDER_V1'||cursor.null_order!==nullOrder
+        ||typeof cursor.filter_fingerprint!=='string'||!/^[0-9a-f]{64}$/u.test(cursor.filter_fingerprint)||!Array.isArray(cursor.last_key_tuple))return null;
+      const key=cursor.last_key_tuple;const count=(value:unknown)=>Number.isSafeInteger(value)&&Number(value)>=0;
+      if(kind==='explorer'?(key.length!==4||key.slice(0,2).some((item:unknown)=>item!==null&&!infraUuid(item))||!count(key[2])||key[2]>5||!infraUuid(key[3])):
+        kind==='components'?(key.length!==2||(key[0]!==null&&typeof key[0]!=='string')||!infraUuid(key[1])):
+        kind==='history'?(key.length!==2||!count(key[0])||!infraUuid(key[1])):
+        kind==='workbookHistory'?(key.length!==3||!count(key[0])||!['run','export'].includes(key[1])||!infraUuid(key[2])):
+        (key.length!==4||!count(key[0])||key[0]>6||!['network_elements','ip_addresses'].includes(key[1])||!count(key[2])||key[2]<2||!infraUuid(key[3])))return null;
+    }
+    return {cursor};
+  }catch{return null;}
+}
+export function infrastructureIntent(value:InfrastructureIntent|undefined):InfrastructureIntent|null {
+  if(!value||Object.keys(value).length!==6||!infrastructureQuery(value.explorer,'explorer')||!infrastructureTabs.includes(value.tab)
+    ||(value.openedId!==null&&!infraUuid(value.openedId)))return null;
+  if(value.openedId===null) return value.components===null&&value.history===null&&value.workbook===null&&value.tab==='Summary'?value:null;
+  if(typeof value.components!=='string'||!infrastructureQuery(value.components,'components',value.openedId)
+    ||typeof value.history!=='string'||!infrastructureQuery(value.history,'history',value.openedId))return null;
+  const work=value.workbook;
+  if(work!==null) {
+    if(!work||Object.keys(work).length!==4||!infrastructureQuery(work.history,'workbookHistory')
+      ||!Number.isInteger(work.candidatePage)||work.candidatePage<0||work.candidatePage>2
+      ||(work.proposalId!==null&&!infraUuid(work.proposalId)))return null;
+    if(work.run!==null) {
+      const runId=/^\/api\/v1\/infrastructure\/workbooks\/runs\/([^/?]+)\?/u.exec(work.run)?.[1];
+      if(!runId||!infrastructureQuery(work.run,'workbookRun',runId))return null;
+    }else if(work.proposalId!==null||work.candidatePage!==0)return null;
+    if(work.proposalId===null&&work.candidatePage!==0)return null;
+  }else if(value.tab==='Workbook Activity')return null;
+  return value;
+}
 /** Closed query intent for the implemented Objective collection, never a DTO. */
 export function objectiveCollectionQuery(value:string|undefined):{asOf:number;cursor:unknown|null}|null {
   if(!value||!value.startsWith('/api/v1/objectives?')||new TextEncoder().encode(value).length>4096)return null;
@@ -77,6 +132,7 @@ export class NavigationHistory {
   private readonly entries = new Map<string, ReturnState>();
   remember(state: ReturnState): string {
     if (!resolveRoute(state.route) || state.memberIds.length > 200
+      ||(state.infrastructure!==undefined&&(state.route!=='/infrastructure'||infrastructureIntent(state.infrastructure)===null))
       ||(state.inventoryQueries!==undefined&&(state.route!=='/inventory'||inventoryCollectionQueries(state.inventoryQueries)===null))
       ||(state.groupingQuery!==undefined&&(state.route!=='/objectives'
         ||(state.groupingQuery!==null&&groupingCollectionQuery(state.groupingQuery)===null)))
@@ -85,6 +141,8 @@ export class NavigationHistory {
         ||state.collectionOrder.some(id=>typeof id!=='string'||id.length===0))))throw new Error('Invalid bounded return context');
     const token = crypto.randomUUID(); this.entries.set(token, Object.freeze({...state, memberIds: Object.freeze([...state.memberIds]),
       ...(state.inventoryQueries===undefined?{}:{inventoryQueries:Object.freeze({...state.inventoryQueries})}),
+      ...(state.infrastructure===undefined?{}:{infrastructure:Object.freeze({...state.infrastructure,
+        workbook:state.infrastructure.workbook===null?null:Object.freeze({...state.infrastructure.workbook})})}),
       ...(state.collectionOrder===undefined?{}:{collectionOrder:Object.freeze([...state.collectionOrder])})}));
     while (this.entries.size > 50) { const oldest = this.entries.keys().next().value; if (oldest) this.entries.delete(oldest); }
     return token;

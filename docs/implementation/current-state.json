@@ -1,7 +1,7 @@
 {
   "schema": "SOMA_IMPLEMENTATION_STATE_V1",
   "repository": "guidoduchi/soma-beta",
-  "observed_at": "2026-10-02 21:19:17 UTC",
+  "observed_at": "2026-10-02 21:38:10 UTC",
   "mission": "Implement LLD-10 on the accepted design pin, applying the user-approved metadata-only checkpoint result and RFC preview-plus-hold refinements. Preserve historical LLD-09 certification and migrations 1-16; append centrally allocated migration 17. Do not invent production draft registrations or undeclared HTTP contracts.",
   "active_branch": "feat/beta-1.0-implementation",
   "next_task": "lld10-implementation",
@@ -11,7 +11,7 @@
       "design": "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
     },
     "active": {
-      "implementation": "8da615b6be4b7af3b454a3cac5d6d9efa3144d2e",
+      "implementation": "6a3611116f5645b0c7f329599bccc67f081e4e5e",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     },
     "promotion": {
@@ -33,11 +33,15 @@
     "lld10-return-navigation": {
       "implementation": "8da615b6be4b7af3b454a3cac5d6d9efa3144d2e",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
+    },
+    "lld10-owner-read-refinements": {
+      "implementation": "6a3611116f5645b0c7f329599bccc67f081e4e5e",
+      "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     }
   },
   "observed_heads": {
     "main": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
-    "feat/beta-1.0-implementation": "8da615b6be4b7af3b454a3cac5d6d9efa3144d2e",
+    "feat/beta-1.0-implementation": "6a3611116f5645b0c7f329599bccc67f081e4e5e",
     "feat/lld-08-infrastructure": "15b4310c68ed47de9226a5fa0fc25af233b1bb1a",
     "design/beta-1.0-hld-lld": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
   },
@@ -243,7 +247,7 @@
       "summary": "Ordinary LLD-09 implementation is complete in the working tree: source configuration/settings, owned identities and collision/content review, ordinary/targeted/Deep Scan processing and historical coverage/reconstruction, typed proposal/owner integration, SR/RFC terminal/reversal, orphan retention and independent housekeeping, verified MSG publication, bounded queries and summaries, static transport/runtime composition, schedule/coalescing/per-source reader serialization, runtime migration 16 and all 100 scenario bindings. Ordinary implementation received a byte-bound local certificate after second review and an adapter privacy fix. Complete local suite passed 1955 tests; schema/compile/wheel/privacy checks pass. PFF adapter architecture is implemented with typed deterministic doubles and an explicit UNSUPPORTED state without a release bridge. Native physical C001-C012 certification is deferred under the accepted LLD09-PFF-RELEASE-PIN and LLD09-GOLDEN-CORPUS-FREEZE gates. Implementation and local evidence are committed at 6cf3d742f1c933087ede982f7b107576b90415af; supported-matrix remote CI promotion remains pending."
     },
     "ui": {
-      "checkpoint": "lld10-return-navigation",
+      "checkpoint": "lld10-owner-read-refinements",
       "paths": {
         "implementation": [
           "src/soma/ui/*",
@@ -266,7 +270,7 @@
         "infrastructure",
         "communications"
       ],
-      "summary": "LLD10 remains in progress, not certified. Published Inventory/grouping return navigation and LF production HTML fix at 8da615b6. Current working tree adds accepted LLD05 warning/summary refinement, accepted sole-provider LLD09 panel HTTP binding and SR/RFC consumer, and bounded Infrastructure workbook owner read views. Production WorkingCopy entries remain disabled. Named dependencies are tracked in the LLD10 ledger; canonical design incorporation and semantic closure remain pending."
+      "summary": "LLD10 remains in progress, not certified. Owner Task warning/count refinement, accepted LLD09 panel HTTP binding with direct SR/RFC consumers and bounded Infrastructure workbook views are published at 6a361111. Current frontend-only working tree completes Infrastructure bounded return intent (explorer/entity/tab/component/history/workbook/proposal/candidate pages, focus/scroll/selection), fresh owner reads and deterministic fallbacks. Fixes scroll anchoring after fallback notices in Inventory/Objective/Infrastructure. Production WorkingCopy registrations remain disabled. Named closure dependencies and semantic review remain explicit."
     }
   },
   "evidence": {
@@ -414,6 +418,18 @@
       "source": "design",
       "path": "spec/lld/ui-workbenches/implementation/module-map.json",
       "purpose": "Pinned UI ownership/module map."
+    },
+    "ui-closure-dependencies": {
+      "checkpoint": "lld10-owner-read-refinements",
+      "source": "implementation",
+      "path": "docs/reconciliation/LLD10_CLOSURE_DEPENDENCIES_V1.json",
+      "purpose": "Five persistent named owner dependency records; panel route accepted/implemented, other owner contracts deferred. Do not rediscover or synthesize contracts."
+    },
+    "communication-panel-http": {
+      "checkpoint": "lld10-owner-read-refinements",
+      "source": "implementation",
+      "path": "docs/reconciliation/LLD09_COMMUNICATION_PANEL_HTTP_V1.json",
+      "purpose": "Accepted sole-owner HTTP binding, unchanged DTO and canonical message cursor authority."
     }
   },
   "ci": {
@@ -486,8 +502,26 @@
       "source": "implementation",
       "sha": "8da615b6be4b7af3b454a3cac5d6d9efa3144d2e",
       "run_id": 37063742948,
+      "conclusion": "success",
+      "detail": "Live GitHub run 37063742948 completed/success at 8da615b6. Covers that exact Inventory/grouping return/LF HTML checkpoint only; subsequent owner and Infrastructure return refinements are not covered."
+    },
+    "lld10-owner-read-integrity": {
+      "name": "Implementation continuation integrity",
+      "checkpoint": "lld10-owner-read-refinements",
+      "source": "implementation",
+      "sha": "6a3611116f5645b0c7f329599bccc67f081e4e5e",
+      "run_id": 37066400680,
+      "conclusion": "success",
+      "detail": "Verified GitHub completed/success at this exact source checkpoint."
+    },
+    "lld10-owner-read-implementation": {
+      "name": "Beta implementation CI",
+      "checkpoint": "lld10-owner-read-refinements",
+      "source": "implementation",
+      "sha": "6a3611116f5645b0c7f329599bccc67f081e4e5e",
+      "run_id": 37066400661,
       "conclusion": "pending",
-      "detail": "Windows browser and Ubuntu compatibility jobs succeeded; Windows Python 3.13/3.14 jobs still running. No current working-tree CI claim."
+      "detail": "Live run still active. Frontend job 111035125498 failed Inventory scroll fixture precondition: one-row content fit at height 900 in Chromium; 84 browser tests passed. Windows/Ubuntu Python jobs still running. Current working tree uses height 600 and fixes notice/scroll-anchoring ordering; all 88 Edge and 88 Chromium local browser tests pass. No future-commit CI claim."
     }
   },
   "tasks": {
@@ -681,7 +715,7 @@
         "lld09-preflight"
       ],
       "reason": "Continue user-authorized LLD10 on pinned authority with accepted owner refinements. Named dependencies persist in closure evidence; Task warnings and panel HTTP binding are implemented, while final Task transport, production recovery registry, ticket list/history and Inventory context/blocker schemas remain unresolved.",
-      "resume": "Continue the user-authorized LLD10 implementation to completion around the named owner dependencies in docs/reconciliation/LLD10_CLOSURE_DEPENDENCIES_V1.json. Do not rediscover WorkingCopy registrations, ticket list/history or Inventory context/blocker contracts. Task warnings/counts are accepted and implemented; final canonical Task transport still pending. Panel HTTP binding was accepted and implemented directly in LLD09, with SR/RFC consumers. Current verification: 2032 full Python before panel extension, 25 later panel-owner tests, 31 contract/asset/state tests, strict TS, 23 Node, 85 local Edge browser, schema/compile/traceability/fixtures/wheel pass. No final-state full-suite or semantic/native release certification claimed. Next: independently specified Infrastructure return context, generic recovery/lifecycle evidence and remaining case bindings; preserve production fail-closed behavior.",
+      "resume": "Continue LLD10 to completion around the named owner dependencies, without rediscovering production WorkingCopy registrations, ticket list/history or Inventory context/blocker schemas. Published 6a361111 includes accepted Task warning/count refinement and sole-owner panel HTTP binding plus workbook reads. Current frontend-only slice preserves full bounded Infrastructure return intent and fresh owner reads; fixes notice-induced scroll anchoring in Inventory/Objective/Infrastructure. Strict TS, 24 Node, 88 Edge and 88 Chromium browser, 18 Python asset/state checks, schema/compile/frozen assets/fixtures/wheel pass; full Python not rerun for this frontend-only slice. Previous 8da615b6 matrix is green; 6a361111 frontend failed the identified scroll precondition and Python lanes remain running. Next: remaining Settings return context and independently specified production domain surfaces/actions, plus generic working-copy/evidence/semantic review. Do not declare full closure.",
       "read_first": [
         "ui-index",
         "ui-map",

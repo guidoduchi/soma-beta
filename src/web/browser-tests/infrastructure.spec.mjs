@@ -1,16 +1,17 @@
 import {test,expect} from '@playwright/test';
 const id='33333333-3333-4333-8333-333333333333';
 const site='44444444-4444-4444-8444-444444444444';
+const cursor=(query,key,null_order)=>({version:1,query_id:query,sort_registry_id:query+'_ORDER_V1',last_key_tuple:key,filter_fingerprint:'a'.repeat(64),null_order});
 test('Infrastructure preserves contextual identity, explicit opening and physical/containment/cloud separation at narrow width',async({page})=>{
   let reads=0;
   await page.route('**/api/v1/infrastructure/**',route=>{
     reads++;const url=new URL(route.request().url());
     if(url.pathname.endsWith('/tree'))return route.fulfill({json:{nodes:[
       {kind:'network_element',id,label:'Synthetic NE Alpha',parent_context_id:null,lifecycle:'active',warning_codes:[]},
-      {kind:'containment',id,label:'Synthetic NE Alpha containment context',parent_context_id:site,lifecycle:'active',warning_codes:[]}],next_cursor:{synthetic:'next'}}});
+      {kind:'containment',id,label:'Synthetic NE Alpha containment context',parent_context_id:site,lifecycle:'active',warning_codes:[]}],next_cursor:cursor('InfrastructureExplorerQuery',[site,site,5,id],'NULLS_LAST')}});
     if(url.pathname.endsWith('/components')){
       expect(url.searchParams.get('limit')).toBe('200');return route.fulfill({json:{items:[{installed_component_id:site,state:'removed',bom_code:'SYNTHETIC-BOM',
-        manufacturer_serial:'SYNTHETIC-SERIAL',slot_label:'Synthetic slot 1',condition:'removed',device_part_unit_id:null,physical_consequence_id:null}],next_cursor:{synthetic:'components-next'}}});
+        manufacturer_serial:'SYNTHETIC-SERIAL',slot_label:'Synthetic slot 1',condition:'removed',device_part_unit_id:null,physical_consequence_id:null}],next_cursor:cursor('InstalledComponentQuery',[null,site],'NULLS_LAST')}});
     }
     if(url.pathname.endsWith('/history')){
       expect(url.searchParams.get('limit')).toBe('5');

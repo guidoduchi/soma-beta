@@ -1,6 +1,6 @@
-import {useState} from 'react';
 import {OwnerProjection} from '../components/OwnerProjection';
 import {BoundedCollection} from '../components/BoundedCollection';
+import type {WorkbookIntent} from './router';
 
 type Ref=Readonly<{kind:string;id:string}>;
 type Proposal=Readonly<{proposal_id:string;sheet_kind:'network_elements'|'ip_addresses';row_ordinal:number;
@@ -44,8 +44,7 @@ function continuation(value:unknown,kind:'history'|'run') {
   if(kind==='history'?(key.length!==3||!count(key[0])||!['run','export'].includes(key[1])||!uuid(key[2])):
     (key.length!==4||!count(key[0])||key[0]>6||!['network_elements','ip_addresses'].includes(key[1])||!count(key[2])||key[2]<2||!uuid(key[3])))throw new Error('Invalid workbook cursor key');
 }
-function ProposalDetail({id}:{id:string}) {
-  const [candidatePage,setCandidatePage]=useState(0);
+function ProposalDetail({id,candidatePage,onPage}:{id:string;candidatePage:number;onPage:(page:number)=>void}) {
   return <section aria-label="Workbook proposal detail"><OwnerProjection<Detail> path={'/api/v1/infrastructure/workbooks/proposals/'+encodeURIComponent(id)} render={value=>{
     proposal(value.proposal);
     const impact=value.impact;
@@ -56,7 +55,8 @@ function ProposalDetail({id}:{id:string}) {
       ||!Array.isArray(impact.relationship_changes)||impact.relationship_changes.length>64||impact.relationship_changes.some(item=>typeof item!=='string'||new TextEncoder().encode(item).length>256)
       ||typeof impact.destructive_change!=='boolean')throw new Error('Invalid workbook proposal detail');
     const warningText=warnings(impact.warning_codes);
-    const candidates=value.candidate_ids.slice(candidatePage*200,(candidatePage+1)*200);
+    const currentPage=candidatePage*200<value.candidate_ids.length?candidatePage:0;
+    const candidates=value.candidate_ids.slice(currentPage*200,(currentPage+1)*200);
     return <><h4>Proposal identity: {id}</h4><p>{groups[value.proposal.action]}. Owner state: {value.proposal.state}.</p>
       <p>Target Network Element: {value.proposal.target_network_element_id??'Unresolved'}. Expected revision: {value.proposal.expected_revision??'None'}.</p>
       <p>Destructive change: {impact.destructive_change?'Yes':'No'}. Warnings: {warningText}.</p>
@@ -64,13 +64,14 @@ function ProposalDetail({id}:{id:string}) {
       <h5>Updates</h5><ul>{impact.updates.map(ref=><li key={ref.kind+ref.id}>{ref.kind}: {ref.id}</li>)}</ul>
       <h5>Relationship changes</h5><ul>{impact.relationship_changes.map((text,index)=><li key={index}>{text}</li>)}</ul>
       <p>Candidate identities: {value.candidate_ids.length}. No candidate is automatically selected.</p>
+      {currentPage!==candidatePage&&<p role="status">The previous candidate page is unavailable; the first current candidate page is shown.</p>}
       <BoundedCollection caption="Workbook candidate identities" rows={candidates.map(identity=>({id:identity,cells:[identity]}))}
-        next={(candidatePage+1)*200<value.candidate_ids.length} onNext={()=>setCandidatePage(candidatePage+1)}/></>;
+        returnScrollToken="workbook-candidates" nextFocusToken="infrastructure:workbook:candidates:next"
+        next={(currentPage+1)*200<value.candidate_ids.length} onNext={()=>onPage(currentPage+1)}/></>;
   }}/></section>;
 }
-function WorkbookRun({id}:{id:string}) {
-  const [cursor,setCursor]=useState<unknown|null>(null);const [opened,setOpened]=useState<string|null>(null);
-  const path=`/api/v1/infrastructure/workbooks/runs/${encodeURIComponent(id)}?limit=200`+(cursor===null?'':'&cursor='+encodeURIComponent(JSON.stringify(cursor)));
+function WorkbookRun({intent,onIntent}:{intent:WorkbookIntent;onIntent:(intent:WorkbookIntent)=>void}) {
+  const path=intent.run!;const id=new URL(path,'http://127.0.0.1').pathname.split('/').at(-1)!;const opened=intent.proposalId;
   return <section aria-label="Workbook run"><OwnerProjection<Run> path={path} render={value=>{
     if(value.run_id!==id||!['validating','staged','reviewed','accepted','rejected','failed'].includes(value.state)
       ||!count(value.revision)||value.revision<1||!['registration_template','discovery','round_trip'].includes(value.mode)
@@ -87,14 +88,18 @@ function WorkbookRun({id}:{id:string}) {
       {value.proposals.length===0&&<p>No workbook proposals in this page.</p>}
       <BoundedCollection caption="Owner workbook proposals" rows={value.proposals.map(row=>({id:row.proposal_id,cells:[groups[row.action],row.sheet_kind,
         `Row ${row.row_ordinal}`,row.state,row.target_network_element_id??'Unresolved target',warnings(row.warning_codes),
-        <button type="button" onClick={()=>setOpened(row.proposal_id)}>Open proposal {row.proposal_id}</button>]}))}
-        next={value.next_cursor!==null} onNext={()=>{setOpened(null);setCursor(value.next_cursor);}}/>
-      {opened&&<ProposalDetail key={opened} id={opened}/>}</>;
+        <button type="button" data-focus-token={'infrastructure:proposal:'+row.proposal_id} onClick={()=>onIntent({...intent,proposalId:row.proposal_id,candidatePage:0})}>Open proposal {row.proposal_id}</button>]}))}
+        returnScrollToken="workbook-run" nextFocusToken="infrastructure:workbook:run:next"
+        next={value.next_cursor!==null} onNext={()=>onIntent({...intent,run:withCursor(path,value.next_cursor),proposalId:null,candidatePage:0})}/>
+      {opened&&<ProposalDetail key={opened} id={opened} candidatePage={intent.candidatePage} onPage={candidatePage=>onIntent({...intent,candidatePage})}/>}</>;
   }}/></section>;
 }
-export function InfrastructureWorkbookActivity() {
-  const [cursor,setCursor]=useState<unknown|null>(null);const [opened,setOpened]=useState<string|null>(null);
-  const path='/api/v1/infrastructure/workbooks/history?limit=200'+(cursor===null?'':'&cursor='+encodeURIComponent(JSON.stringify(cursor)));
+function withCursor(path:string,cursor:unknown|null) {
+  const url=new URL(path,'http://127.0.0.1');url.searchParams.delete('cursor');if(cursor!==null)url.searchParams.set('cursor',JSON.stringify(cursor));
+  return url.pathname+url.search;
+}
+export function InfrastructureWorkbookActivity({intent,onIntent}:{intent:WorkbookIntent;onIntent:(intent:WorkbookIntent)=>void}) {
+  const path=intent.history;
   return <section aria-label="Infrastructure workbook activity"><h3>Workbook Activity</h3>
     <p>Installation-wide workbook history. Source workbooks remain read-only and operator-managed during review.</p>
     <OwnerProjection<History> path={path} render={value=>{
@@ -104,8 +109,10 @@ export function InfrastructureWorkbookActivity() {
       return <>{value.items.length===0&&<p>No workbook activity in this page.</p>}
         <BoundedCollection caption="Workbook runs and exports (UTC)" rows={value.items.map(item=>({id:item.kind+':'+item.id,cells:[item.kind,item.filename,
           new Date(item.timestamp_utc*1000).toISOString(),item.state_or_mode,item.sha256,
-          item.kind==='run'?<button type="button" onClick={()=>setOpened(item.id)}>Open run {item.id}</button>:<span>Export identity: {item.id}</span>]}))}
-          next={value.next_cursor!==null} onNext={()=>{setOpened(null);setCursor(value.next_cursor);}}/>
-        {opened&&<WorkbookRun key={opened} id={opened}/>}</>;
+          item.kind==='run'?<button type="button" data-focus-token={'infrastructure:run:'+item.id} onClick={()=>onIntent({...intent,
+            run:`/api/v1/infrastructure/workbooks/runs/${item.id}?limit=200`,proposalId:null,candidatePage:0})}>Open run {item.id}</button>:<span>Export identity: {item.id}</span>]}))}
+          returnScrollToken="workbook-history" nextFocusToken="infrastructure:workbook:history:next"
+          next={value.next_cursor!==null} onNext={()=>onIntent({...intent,history:withCursor(path,value.next_cursor),run:null,proposalId:null,candidatePage:0})}/>
+        {intent.run&&<WorkbookRun key={new URL(intent.run,'http://127.0.0.1').pathname} intent={intent} onIntent={onIntent}/>}</>;
     }}/></section>;
 }

@@ -95,3 +95,47 @@ for(const invalid of ['oversized','missing continuation','wrong cursor'])test(`W
   await expect(activity.getByRole('alert')).toContainText('owner projection could not be rendered');
   await expect(activity.locator('tbody tr')).toHaveCount(0);await expect(activity.getByRole('button',{name:'Next page'})).toHaveCount(0);
 });
+
+test('Infrastructure Back restores workbook history/run/proposal intent and refetches changed candidate and warning facts',async({page})=>{
+  const secondProposal='66666666-6666-4666-8666-666666666666';
+  const historyNext=cursor('InfrastructureWorkbookHistoryQuery',[100,'export',ne]);
+  const ids=Array.from({length:500},(_,index)=>`${(index+1).toString(16).padStart(8,'0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`);
+  const reads={history:[],run:[],proposal:[]};let changed=false;
+  await page.route('**/api/v1/objectives?**',route=>route.fulfill({json:{items:[],continuation:null,exact_total:0,as_of_utc:Number(new URL(route.request().url()).searchParams.get('as_of_utc'))}}));
+  await setup(page,(route,url)=>{
+    if(url.pathname.endsWith('/history')) {
+      reads.history.push(url.search);
+      if(url.searchParams.has('cursor')) {
+        expect(JSON.parse(url.searchParams.get('cursor'))).toEqual(historyNext);
+        return route.fulfill({json:{items:[{kind:'run',id:runId,timestamp_utc:99,state_or_mode:'staged',filename:'SYNTHETIC-second-history-page.xlsx',sha256:hash}],next_cursor:null}});
+      }
+      return route.fulfill({json:{items:[{kind:'export',id:ne,timestamp_utc:100,state_or_mode:'discovery',filename:'SYNTHETIC-first-history-page.xlsx',sha256:hash}],next_cursor:historyNext}});
+    }
+    if(url.pathname.includes('/runs/')) {
+      reads.run.push(url.search);
+      if(url.searchParams.has('cursor')) {
+        expect(JSON.parse(url.searchParams.get('cursor'))).toEqual(runCursor);
+        return route.fulfill({json:{...run,proposals:[{...proposal,proposal_id:secondProposal,row_ordinal:3}],next_cursor:null}});
+      }
+      return route.fulfill({json:run});
+    }
+    reads.proposal.push(url.pathname);
+    return route.fulfill({json:{proposal:{...proposal,proposal_id:secondProposal,row_ordinal:3},
+      impact:{creates:[],updates:[],relationship_changes:[],warning_codes:changed?['SYNTHETIC_CURRENT_IMPACT_WARNING']:[],destructive_change:false},
+      candidate_ids:changed?ids.slice(0,120):ids}});
+  });
+  await page.getByRole('tab',{name:'Workbook Activity',exact:true}).click();
+  const activity=page.getByRole('region',{name:'Infrastructure workbook activity'});
+  await activity.getByRole('button',{name:'Next page',exact:true}).click();await activity.getByRole('button',{name:'Open run '+runId}).click();
+  const runView=page.getByRole('region',{name:'Workbook run',exact:true});await runView.getByRole('button',{name:'Next page',exact:true}).click();
+  await runView.getByRole('button',{name:'Open proposal '+secondProposal}).click();
+  const detail=page.getByRole('region',{name:'Workbook proposal detail'});
+  await detail.getByRole('button',{name:'Next page'}).click();await detail.getByRole('button',{name:'Next page'}).click();
+  await expect(detail.locator('tbody tr')).toHaveCount(100);
+  await page.getByRole('link',{name:'Objectives',exact:true}).click();changed=true;await page.goBack();
+  await expect(page.getByRole('tab',{name:'Workbook Activity',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(detail.locator('tbody tr')).toHaveCount(120);await expect(detail).toContainText('SYNTHETIC_CURRENT_IMPACT_WARNING');
+  await expect(detail).toContainText('The previous candidate page is unavailable; the first current candidate page is shown.');
+  expect(reads.history.at(-1)).toBe(reads.history[1]);expect(reads.run.at(-1)).toBe(reads.run[1]);expect(reads.proposal.at(-1)).toBe(reads.proposal[0]);
+  expect(JSON.stringify(await page.evaluate(()=>history.state))).not.toContain('SYNTHETIC');
+});

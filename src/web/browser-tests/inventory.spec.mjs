@@ -45,7 +45,9 @@ test('Inventory Back restores independent Stock and attention pages, as_of, focu
       attention_kind:'warehouse_rejected_resend_required',severity:'action_required',reason:'Synthetic open obligation',next_governed_action:'Review resend'}],
       continuation:url.searchParams.has('cursor')?null:attentionCursor,exact_total:2,as_of_utc:Number(url.searchParams.get('as_of_utc'))}});
   });
-  await page.setViewportSize({width:480,height:900});await page.goto('http://127.0.0.1:4174/inventory');
+  // A short supported viewport makes both scroll owners exercise overflow in
+  // Chromium and Edge; the one-row fixture can fit at 900px with different fonts.
+  await page.setViewportSize({width:480,height:600});await page.goto('http://127.0.0.1:4174/inventory');
   const stock=page.getByRole('region',{name:'Stock',exact:true});const attention=page.getByRole('region',{name:'Inventory Needs Attention',exact:true});
   await stock.getByRole('button',{name:'Next page'}).click();await expect.poll(()=>stockReads.length).toBe(2);
   await attention.getByRole('button',{name:'Next page'}).click();await expect.poll(()=>attentionReads.length).toBe(2);
