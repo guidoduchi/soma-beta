@@ -1,16 +1,16 @@
 {
   "files": {
+    "assets/index-C7deikTW.js": {
+      "bytes": 273849,
+      "sha256": "4839ea25710710bd0da6adb23c7cfb3cb7685b899510322c4123dd82a311622e"
+    },
     "assets/index-CoKe4wwi.css": {
       "bytes": 5825,
       "sha256": "cc795d5fa7139f975ea7a89edfd850221613bf8f3ca7788ed2eaabc2de6e3c78"
     },
-    "assets/index-DwYk8ZE-.js": {
-      "bytes": 268054,
-      "sha256": "5c002456eb9567480fd6e051fc92ef1d140349113ea164f85b8f1aba9df10905"
-    },
     "index.html": {
       "bytes": 369,
-      "sha256": "d8d78d127f83797136a37c045399258ce5ce7f53970ba54af077045625ba8605"
+      "sha256": "551c12cb854f8c07d436f03be17e0587bea7bea0aedd18142813273dc10e8f18"
     }
   },
   "schema": "SOMA_UI_STATIC_ASSETS_V1",
@@ -19,14 +19,14 @@
     "app/CommunicationSettings.tsx": "91ac50ef0f69caf4010f6238cd49d8639c4cb73f8ecbd429575dafb92e1f864b",
     "app/GroupingProposalList.tsx": "0dd374d7aaee70c1a7c7b24455a1d9b9b64cd1150abe5169d079025b2c48964d",
     "app/InfrastructureWorkspace.tsx": "52cc5dec3c331351151daa7f0a95066178a9c8c6f9bb5173f222d78b5f61a470",
-    "app/InventoryWorkspace.tsx": "5cbcad6b5ea454520304a327cacb6716c6e49f9a242800afce75d0ef034c1dde",
+    "app/InventoryWorkspace.tsx": "efa840bbc3810f7c22d6a8fd21bab0f86d25b74a3b00f4d72750f7a19e6da377",
     "app/ObjectiveSettings.tsx": "4d188a316c6b2958b08a860139d5d4094de12f76e94bad4a3e999370b6fb5d3c",
     "app/ObjectiveWorkspace.tsx": "99e7196f4334b1d5c3f2c23ecf359034c11d22c2c6d301e1095733c900da6c7c",
     "app/ReferenceSettings.tsx": "a02ecbbbae1d9d865841b7fee7c8c0bddf6db854b91bc8fc33720ad39a782a70",
     "app/SlaCatalogSettings.tsx": "4789295c0f6f3a1765d25b7bb1f04c55f80e8b445fdf5eb8153268e44328e1d3",
     "app/TicketWorkbench.tsx": "283ee6e769e61d65f67467feee975015713a7ed436e99d3b24c1082d04a09904",
-    "app/main.tsx": "a33b3a709dcee68a316278ac1c290289fdb751e4393f27251dd83990abb4dbe2",
-    "app/router.ts": "028c1e7b4776ff8789f2ebbdc2099ecb9a49d1794972722601ae5a25a9f305b3",
+    "app/main.tsx": "baff80b40ef54b5c2457b5a04ef11df4faadfd1fa782e79195950747759d9e1d",
+    "app/router.ts": "6ff090a3a45b3a7712819c094659127682e76884acdc4a0b9547556b7f6f7ed2",
     "components/ActionButton.tsx": "411c0d0098370a2d8a783cd078fc09620e518b68b81b67e249a90977f5dd330f",
     "components/AppearanceSettings.tsx": "85d53401605fe62feb91325411c7466dbcca9f6ba7fb861614bb00c2e3632010",
     "components/BoundedCollection.tsx": "4bf26eb066c5dd8aac524320a0846b1cf714c8563329654d24f03b312e1db640",

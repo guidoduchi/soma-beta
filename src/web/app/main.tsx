@@ -39,7 +39,7 @@ function Application() {
       route?.surface === 'rfc_workbench' && route.recordId ? <TicketWorkbench key={path} id={route.recordId} type="rfc" onDirtyChange={updateDirty} restored={restored} onReturnState={captureReturnState}/> :
       route?.surface === 'objectives' ? <ObjectiveWorkspace navigate={navigate} restored={restored} onReturnState={captureReturnState}/> :
       route?.surface === 'infrastructure' ? <InfrastructureWorkspace/> :
-      route?.surface === 'inventory' ? <InventoryWorkspace/> :
+      route?.surface === 'inventory' ? <InventoryWorkspace restored={restored} onReturnState={captureReturnState}/> :
       route?.surface === 'objective_detail' && route.recordId ? <ObjectiveDetail key={path} id={route.recordId}/> :
       route?.surface === 'appearance_settings' ? <AppearanceSettings/> :
       route?.surface === 'communication_settings' ? <CommunicationSettings/> :

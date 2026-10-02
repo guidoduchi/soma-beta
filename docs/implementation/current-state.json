@@ -1,7 +1,7 @@
 {
   "schema": "SOMA_IMPLEMENTATION_STATE_V1",
   "repository": "guidoduchi/soma-beta",
-  "observed_at": "2026-10-02 20:42:02 UTC",
+  "observed_at": "2026-10-02 20:53:37 UTC",
   "mission": "Implement LLD-10 on the accepted design pin, applying the user-approved metadata-only checkpoint result and RFC preview-plus-hold refinements. Preserve historical LLD-09 certification and migrations 1-16; append centrally allocated migration 17. Do not invent production draft registrations or undeclared HTTP contracts.",
   "active_branch": "feat/beta-1.0-implementation",
   "next_task": "lld10-implementation",
@@ -11,7 +11,7 @@
       "design": "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
     },
     "active": {
-      "implementation": "85d9515469f96ed5b272648ed6097401f9bb9ed5",
+      "implementation": "23a4586d81b25d01a0ebf24dc839309ffc080d6f",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     },
     "promotion": {
@@ -25,11 +25,15 @@
     "lld10-start": {
       "implementation": "85d9515469f96ed5b272648ed6097401f9bb9ed5",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
+    },
+    "lld10-published": {
+      "implementation": "23a4586d81b25d01a0ebf24dc839309ffc080d6f",
+      "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     }
   },
   "observed_heads": {
     "main": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
-    "feat/beta-1.0-implementation": "85d9515469f96ed5b272648ed6097401f9bb9ed5",
+    "feat/beta-1.0-implementation": "23a4586d81b25d01a0ebf24dc839309ffc080d6f",
     "feat/lld-08-infrastructure": "15b4310c68ed47de9226a5fa0fc25af233b1bb1a",
     "design/beta-1.0-hld-lld": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
   },
@@ -234,7 +238,7 @@
       "summary": "Ordinary LLD-09 implementation is complete in the working tree: source configuration/settings, owned identities and collision/content review, ordinary/targeted/Deep Scan processing and historical coverage/reconstruction, typed proposal/owner integration, SR/RFC terminal/reversal, orphan retention and independent housekeeping, verified MSG publication, bounded queries and summaries, static transport/runtime composition, schedule/coalescing/per-source reader serialization, runtime migration 16 and all 100 scenario bindings. Ordinary implementation received a byte-bound local certificate after second review and an adapter privacy fix. Complete local suite passed 1955 tests; schema/compile/wheel/privacy checks pass. PFF adapter architecture is implemented with typed deterministic doubles and an explicit UNSUPPORTED state without a release bridge. Native physical C001-C012 certification is deferred under the accepted LLD09-PFF-RELEASE-PIN and LLD09-GOLDEN-CORPUS-FREEZE gates. Implementation and local evidence are committed at 6cf3d742f1c933087ede982f7b107576b90415af; supported-matrix remote CI promotion remains pending."
     },
     "ui": {
-      "checkpoint": "lld10-start",
+      "checkpoint": "lld10-published",
       "paths": {
         "implementation": [
           "src/soma/ui/*",
@@ -257,7 +261,7 @@
         "infrastructure",
         "communications"
       ],
-      "summary": "LLD10 in progress, not certified. Existing recovery/shared/read slices and accepted LLD05 grouping and bounded Task collections are preserved. Grouping-panel disclosure/filter/page/focus return navigation is implemented. Latest frontend-only slice: strict TypeScript, 22 Node, 74 local Edge browser and 46 focused Python tests passed; schema/compile/frozen-assets/wheel passed. Prior complete Python suite 2023 passed; not rerun for this frontend-only slice. Task warning enum/full transport, production actions/draft registrations, other owner transports and semantic closure remain pending; see LLD10 ledger."
+      "summary": "LLD10 in progress, not certified. Existing recovery/shared/read slices and accepted LLD05 grouping and bounded Task collections are preserved. Grouping-panel disclosure/filter/page/focus return navigation is implemented. Latest frontend-only slice: strict TypeScript, 22 Node, 74 local Edge browser and 46 focused Python tests passed; schema/compile/frozen-assets/wheel passed. Prior complete Python suite 2023 passed; not rerun for this frontend-only slice. Task warning enum/full transport, production actions/draft registrations, other owner transports and semantic closure remain pending; see LLD10 ledger. Subsequent working tree adds independent Inventory Stock/attention page/as_of/focus/scroll return intent and LF production HTML input to fix the observed frontend CI mismatch."
     }
   },
   "evidence": {
@@ -443,6 +447,24 @@
       "run_id": 36876977352,
       "conclusion": "success",
       "detail": "Live GitHub run observed completed/success for committed checkpoint only."
+    },
+    "lld10-published-integrity": {
+      "name": "Implementation continuation integrity at first LLD10 checkpoint",
+      "checkpoint": "lld10-published",
+      "source": "implementation",
+      "sha": "23a4586d81b25d01a0ebf24dc839309ffc080d6f",
+      "run_id": 37062731974,
+      "conclusion": "success",
+      "detail": "GitHub CLI verified completed/success at 23a4586d. Does not cover subsequent Inventory return navigation or LF HTML input fix."
+    },
+    "lld10-published-implementation": {
+      "name": "Beta implementation CI at first LLD10 checkpoint",
+      "checkpoint": "lld10-published",
+      "source": "implementation",
+      "sha": "23a4586d81b25d01a0ebf24dc839309ffc080d6f",
+      "run_id": 37062732009,
+      "conclusion": "pending",
+      "detail": "Run still in progress at observation. Frontend job 111023004601 failed reproducible manifest comparison: source HTML was checked out CRLF, producing index.html 372 bytes instead of frozen 369. All 22 Node tests and strict build passed before the manifest failure. Python lanes were running. LF input fix is in the subsequent working tree, not this tested commit."
     }
   },
   "tasks": {
@@ -636,7 +658,7 @@
         "lld09-preflight"
       ],
       "reason": "Continue user-authorized LLD10 work on pinned authority. Accepted LLD05 grouping transport refinement is implemented. Task detail now has exact relationship/attention summaries and separate bounded Task-scoped collections; warning enum and remaining owner transport gaps stay pending.",
-      "resume": "Continue uncommitted LLD10 work using the implementation ledger and accepted clarification contracts. Preserve bounded Task summaries/owner collections and the completed grouping-panel query/disclosure/focus return navigation. Task warning-dependent UI binding remains pending until the owner warning enum and full Task transport close. Continue independently specified surfaces or evidence without inventing owner contracts; remaining workspace return-state coverage and 80-case semantic closure are still incomplete.",
+      "resume": "Continue LLD10 to completion under the current user goal. First checkpoint 23a4586d is committed and pushed; remote CI has a known frontend CRLF manifest failure. Working tree fixes LF source HTML and completes Inventory Stock/Needs Attention return restoration. Preserve accepted Task/grouping contracts. Owner questions are pending for Task warnings/full DTO, production working-copy registrations and ticket/panel HTTP bindings. Continue independent surfaces and evidence while awaiting those exact contracts. Remaining Infrastructure/Settings return state, production actions and semantic closure are incomplete.",
       "read_first": [
         "ui-index",
         "ui-map",

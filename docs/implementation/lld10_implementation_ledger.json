@@ -32,7 +32,9 @@
     "Accepted LLD09 whole-second chronology refinement consumed unchanged; communication panel SHA query identity, abort/late-response fence, terminal body denial, summary warning preservation and malformed projection rejection",
     "LLD05 Objective timezone Settings read binding preserves exact DEFAULT/PERSISTED revision and scheduling-only semantics; no global chronology or accepted UTC mutation",
     "LLD05 Task owner detail now replaces active direct relationship and pending source-terminal/regroup/historical ID arrays with exact summaries; separate Task-scoped owner GET collections have closed requests, full CURSOR_V1 identity, exact totals and pages up to 500. Both immediate retry edges and current lineage remain direct; warning enum/full Task UI closure remain pending.",
-    "Objective return navigation now preserves grouping-panel disclosure and exact applied owner state/risk/origin filters and full continuation query. Fresh owner warnings are fetched on return; bounded closed query intent stays in the existing 50-entry session registry. Grouping control focus restores after asynchronous loading, hidden panels stay hidden, and malformed/oversized continuation fails closed before navigation."
+    "Objective return navigation now preserves grouping-panel disclosure and exact applied owner state/risk/origin filters and full continuation query. Fresh owner warnings are fetched on return; bounded closed query intent stays in the existing 50-entry session registry. Grouping control focus restores after asynchronous loading, hidden panels stay hidden, and malformed/oversized continuation fails closed before navigation.",
+    "Inventory Stock and Needs Attention return navigation preserves independent closed page queries, complete owner cursors, attention as_of, main/table scroll and focus; removed controls use Refresh fallback. Return fetches current owner facts and browser history remains token-only. Malformed or cross-owner continuation fails closed.",
+    "Pinned production source HTML to LF for Windows clean-checkout build reproducibility; verified autocrlf=true checkout retains LF. Fixes exact frontend CI job manifest mismatch without weakening frozen asset checks."
   ],
   "remaining_implementation": [
     "Complete production domain composition/actions beyond current read slices: Inventory Needs/requests/RMAs/Fault Tags and activity, reference/SLA editors and policy/history/report settings, communications workspace/actions and Settings writes/source configuration, ticket relationship tabs, Objective scheduling/grouping/history and Infrastructure workbook/other entity surfaces remain incomplete",
@@ -86,20 +88,20 @@
       "scope": "Task summaries, collection transport, cursor scope, snapshot consistency, row-load/query-plan bounds and complete LLD05 route registry."
     },
     "typescript_strict": "pass",
-    "node_tests": 22,
-    "edge_browser_tests": 74,
+    "node_tests": 23,
+    "edge_browser_tests": 76,
     "schema_objects": 1315,
     "runtime_migrations": 17,
     "compileall": "pass",
     "wheel": {
       "status": "pass",
-      "path": "dist/lld10-grouping-return/soma_beta-1.0.0.dev0-py3-none-any.whl",
-      "sha256": "37899e1a49593d62e3c1b685b2ab526501ffbc8512908c8caab141ebb71d2500",
-      "mode": "--no-deps --no-build-isolation; frozen source/assets and wheel resources verified; removed one obsolete generated build/lib UI asset before rebuild"
+      "path": "dist/lld10-inventory-return/soma_beta-1.0.0.dev0-py3-none-any.whl",
+      "sha256": "ec8c3df5247de4f2a3d43e4cc3ab02b5439d143f0215ab7d2b005d8fec4aa6c3",
+      "mode": "--no-deps --no-build-isolation; wheel resource check passed after stale generated build asset removal"
     },
-    "supported_matrix_ci": "not_executed_for_uncommitted_work",
+    "supported_matrix_ci": "First LLD10 published checkpoint 23a4586d run 37062732009 in progress with frontend job failed on CRLF index.html hash; subsequent working-tree fix not yet remotely verified.",
     "browser_host": "Headless local Edge; not WebView2 native release certification",
-    "browser_teardown": "Final 74-case run passed in 25.0 seconds, exit 0; runner owned and tore down both local hosts.",
+    "browser_teardown": "Final 76-case local Edge run passed in 25.0 seconds, exit 0; runner tore down both local hosts.",
     "historical_migrations_1_16": "manifest entries and accepted runtime bytes remain hash-identical",
     "migration17_sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905",
     "visual_fixtures": {
@@ -164,6 +166,26 @@
         "src/web/browser-tests/grouping-list.spec.mjs::Grouping list rejects malformed or oversized continuation before exposing navigation"
       ],
       "limits": "Other workspace return restoration, production actions/draft registrations, owner reconciliation and all-case semantic closure remain incomplete. Local Edge is not WebView2 release evidence."
+    },
+    "inventory_return": {
+      "observed_at_utc": "2026-10-02 20:53:37 UTC",
+      "typescript_strict": "passed",
+      "node_passed": 23,
+      "focused_browser_passed": 4,
+      "full_browser_seconds": 25.0,
+      "ui_assets_python_passed": 2,
+      "schema_objects": 1315,
+      "fixtures_contexts": 36,
+      "frozen_assets": "passed",
+      "wheel_resources": "passed",
+      "clean_checkout_lf": "Verified git checkout-index with core.autocrlf=true produces LF production HTML input.",
+      "full_python": "Not rerun for frontend-only slice; remote Python lanes for prior checkpoint remain in progress.",
+      "proof": [
+        "src/web/browser-tests/inventory.spec.mjs::Inventory Back restores independent Stock and attention pages, as_of, focus and scroll with fresh owner reads",
+        "src/web/browser-tests/inventory.spec.mjs::Inventory rejects unclosed owner continuation rather than retaining copied data as return intent",
+        "src/web/tests/interactions.test.mjs::Inventory return context retains only two bounded closed read intents with complete owner cursors"
+      ],
+      "full_browser_passed": 76
     }
   },
   "cases": [
@@ -967,5 +989,15 @@
       }
     }
   ],
-  "updated_at_utc": "2026-10-02 20:42:02 UTC"
+  "updated_at_utc": "2026-10-02 20:53:37 UTC",
+  "publication": {
+    "implementation": "23a4586d81b25d01a0ebf24dc839309ffc080d6f",
+    "branch": "feat/beta-1.0-implementation",
+    "remote_ref_verified": true,
+    "integrity_ci_run": 37062731974,
+    "integrity_ci_conclusion": "success",
+    "implementation_ci_run": 37062732009,
+    "implementation_ci_conclusion": "pending_with_known_frontend_job_failure",
+    "frontend_failure": "CRLF production input HTML changed frozen output bytes; subsequent LF input fix is not yet pushed."
+  }
 }

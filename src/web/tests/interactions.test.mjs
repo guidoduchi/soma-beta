@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {DeliberateHold} from '../.test-build/interactions/deliberate-hold.js';
 import {SafeUndo} from '../.test-build/interactions/safe-undo.js';
 import {classifyContainer} from '../.test-build/layout/responsive.js';
-import {resolveRoute, defaultOpen, NavigationHistory, RouteNavigation,objectiveCollectionQuery,groupingCollectionQuery} from '../.test-build/app/router.js';
+import {resolveRoute, defaultOpen, NavigationHistory, RouteNavigation,objectiveCollectionQuery,groupingCollectionQuery,inventoryCollectionQueries} from '../.test-build/app/router.js';
 import {boundedOptions} from '../.test-build/interactions/autocomplete.js';
 import {confirmationTier} from '../.test-build/components/ActionButton.js';
 import {AppearanceController} from '../.test-build/state/appearance.js';
@@ -242,4 +242,22 @@ test('grouping return intent is closed, bounded and kept out of unrelated route 
   assert.throws(()=>history.remember({...state,route:'/inventory',groupingQuery:query}));
   assert.throws(()=>history.remember({...state,groupingQuery:query+'&body=private'}));
   assert.equal(history.restore(history.remember(state)).groupingQuery,null);
+});
+
+test('Inventory return context retains only two bounded closed read intents with complete owner cursors',()=>{
+  const stockCursor={version:1,query_id:'StockEligibilityQuery',sort_registry_id:'INVENTORY_STOCK_COMPAT_LSU_ID_ASC_V1',
+    last_key_tuple:[3,'LSU-SYNTHETIC','55555555-5555-4555-8555-555555555555'],filter_fingerprint:'a'.repeat(64),null_order:'empty_before_text'};
+  const attentionCursor={version:1,query_id:'InventoryAttentionQuery',sort_registry_id:'INVENTORY_ATTENTION_CANONICAL_V1',
+    last_key_tuple:[2,'warehouse_rejected_resend_required','rma','55555555-5555-4555-8555-555555555555'],filter_fingerprint:'b'.repeat(64),null_order:'not applicable'};
+  const queries={stock:'/api/v1/inventory/stock?limit=200&cursor='+encodeURIComponent(JSON.stringify(stockCursor)),
+    attention:'/api/v1/inventory/attention?limit=200&as_of_utc=123&cursor='+encodeURIComponent(JSON.stringify(attentionCursor))};
+  assert.deepEqual(inventoryCollectionQueries(queries),{stockCursor,attentionCursor,asOf:123});
+  for(const invalid of [{...queries,body:'private'},{...queries,stock:queries.stock+'&limit=200'},
+    {...queries,stock:queries.stock+'&draft=private'},{...queries,attention:queries.attention.replace('as_of_utc=123','as_of_utc=-1')},
+    {...queries,attention:queries.attention+'&as_of_utc=124'},
+    {...queries,stock:'/api/v1/inventory/stock?limit=200&cursor='+encodeURIComponent(JSON.stringify({...stockCursor,body:'private'}))},
+    {...queries,attention:'/api/v1/inventory/attention?limit=200&as_of_utc=123&cursor='+encodeURIComponent(JSON.stringify(stockCursor))}])assert.equal(inventoryCollectionQueries(invalid),null);
+  const history=new NavigationHistory();const state={route:'/inventory',filterFingerprint:'a'.repeat(64),activeId:null,selectedId:null,memberIds:[],scrollAnchor:null,focusToken:null,inventoryQueries:queries};
+  const token=history.remember(state);queries.stock='changed';assert.notEqual(history.restore(token).inventoryQueries.stock,'changed');
+  assert.throws(()=>history.remember({...history.restore(token),route:'/objectives'}));
 });

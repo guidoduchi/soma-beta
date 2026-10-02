@@ -26,7 +26,8 @@ export function defaultOpen(recordType: string, id: string): ClientRoute | null 
 }
 export type ReturnState = Readonly<{route: string; filterFingerprint: string; activeId: string | null; selectedId: string | null;
   memberIds: readonly string[]; scrollAnchor: string | null; focusToken: string | null; tab?: string; pane?: 'work' | 'communications';
-  collectionQuery?:string;collectionOrder?:readonly string[];groupingQuery?:string|null}>;
+  collectionQuery?:string;collectionOrder?:readonly string[];groupingQuery?:string|null;
+  inventoryQueries?:Readonly<{stock:string;attention:string}>}>;
 /** Closed query intent for the implemented Objective collection, never a DTO. */
 export function objectiveCollectionQuery(value:string|undefined):{asOf:number;cursor:unknown|null}|null {
   if(!value||!value.startsWith('/api/v1/objectives?')||new TextEncoder().encode(value).length>4096)return null;
@@ -76,17 +77,60 @@ export class NavigationHistory {
   private readonly entries = new Map<string, ReturnState>();
   remember(state: ReturnState): string {
     if (!resolveRoute(state.route) || state.memberIds.length > 200
+      ||(state.inventoryQueries!==undefined&&(state.route!=='/inventory'||inventoryCollectionQueries(state.inventoryQueries)===null))
       ||(state.groupingQuery!==undefined&&(state.route!=='/objectives'
         ||(state.groupingQuery!==null&&groupingCollectionQuery(state.groupingQuery)===null)))
       ||(state.collectionQuery!==undefined&&(state.route!=='/objectives'||objectiveCollectionQuery(state.collectionQuery)===null))
       ||(state.collectionOrder!==undefined&&(state.collectionOrder.length>200||new Set(state.collectionOrder).size!==state.collectionOrder.length
         ||state.collectionOrder.some(id=>typeof id!=='string'||id.length===0))))throw new Error('Invalid bounded return context');
     const token = crypto.randomUUID(); this.entries.set(token, Object.freeze({...state, memberIds: Object.freeze([...state.memberIds]),
+      ...(state.inventoryQueries===undefined?{}:{inventoryQueries:Object.freeze({...state.inventoryQueries})}),
       ...(state.collectionOrder===undefined?{}:{collectionOrder:Object.freeze([...state.collectionOrder])})}));
     while (this.entries.size > 50) { const oldest = this.entries.keys().next().value; if (oldest) this.entries.delete(oldest); }
     return token;
   }
   restore(token: string): ReturnState | null { return this.entries.get(token) ?? null; }
+}
+
+/** Current Inventory read slices: two independent bounded owner pages, no owner DTOs. */
+export function inventoryCollectionQueries(value:ReturnState['inventoryQueries']):{stockCursor:unknown|null;attentionCursor:unknown|null;asOf:number}|null {
+  if(!value||Object.keys(value).length!==2||!Object.hasOwn(value,'stock')||!Object.hasOwn(value,'attention'))return null;
+  const cursors:unknown[]=[];let asOf=0;
+  try {
+    for(const kind of ['stock','attention'] as const) {
+      const path=value[kind];const prefix='/api/v1/inventory/'+kind;
+      if(typeof path!=='string'||!path.startsWith(prefix+'?')||new TextEncoder().encode(path).length>4096)return null;
+      const url=new URL(path,'http://127.0.0.1');const keys=kind==='stock'?['limit','cursor']:['limit','cursor','as_of_utc'];
+      if(url.pathname!==prefix||url.hash||url.searchParams.get('limit')!=='200'
+        ||Array.from(url.searchParams.keys()).some(key=>!keys.includes(key))
+        ||keys.some(key=>url.searchParams.getAll(key).length>1))return null;
+      if(kind==='attention') {
+        const raw=url.searchParams.get('as_of_utc');if(!raw||!/^\d+$/u.test(raw))return null;
+        asOf=Number(raw);if(!Number.isSafeInteger(asOf)||asOf<0)return null;
+      }
+      const raw=url.searchParams.get('cursor');const cursor=raw===null?null:JSON.parse(raw);
+      if(cursor!==null) {
+        if(typeof cursor!=='object'||Array.isArray(cursor)||Object.keys(cursor).length!==6
+          ||Object.keys(cursor).some(key=>!['version','query_id','sort_registry_id','last_key_tuple','filter_fingerprint','null_order'].includes(key))
+          ||cursor.version!==1||typeof cursor.filter_fingerprint!=='string'||!/^[0-9a-f]{64}$/u.test(cursor.filter_fingerprint)
+          ||!Array.isArray(cursor.last_key_tuple))return null;
+        const tuple=cursor.last_key_tuple;
+        if(kind==='stock') {
+          if(cursor.query_id!=='StockEligibilityQuery'||cursor.sort_registry_id!=='INVENTORY_STOCK_COMPAT_LSU_ID_ASC_V1'
+            ||cursor.null_order!=='empty_before_text'||tuple.length!==3||!Number.isInteger(tuple[0])||tuple[0]<0||tuple[0]>3
+            ||typeof tuple[1]!=='string'||typeof tuple[2]!=='string'
+            ||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(tuple[2]))return null;
+        } else if(cursor.query_id!=='InventoryAttentionQuery'||cursor.sort_registry_id!=='INVENTORY_ATTENTION_CANONICAL_V1'
+          ||cursor.null_order!=='not applicable'||tuple.length!==4||!Number.isInteger(tuple[0])||tuple[0]<0||tuple[0]>3
+          ||tuple.slice(1).some((item:unknown)=>typeof item!=='string'||!item)
+          ||!['spare_request_response_overdue','partial_rma_authorization','rma_assignment_conflict','receipt_bom_mismatch',
+            'task_outcome_consequence_pending','return_obligation_open','warehouse_final_decision_pending',
+            'warehouse_rejected_resend_required','proposal_review_required','stock_conflict'].includes(tuple[1]))return null;
+      }
+      cursors.push(cursor);
+    }
+    return {stockCursor:cursors[0],attentionCursor:cursors[1],asOf};
+  }catch{return null;}
 }
 
 export type HistoryPort = Readonly<{replace: (state: unknown, path: string) => void; push: (state: unknown, path: string) => void; go: (delta: number) => void}>;
