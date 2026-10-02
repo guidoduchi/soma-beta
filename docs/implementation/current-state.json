@@ -1,7 +1,7 @@
 {
   "schema": "SOMA_IMPLEMENTATION_STATE_V1",
   "repository": "guidoduchi/soma-beta",
-  "observed_at": "2026-10-02 22:23:00 UTC",
+  "observed_at": "2026-10-02 22:32:09 UTC",
   "mission": "Implement LLD-10 on the accepted design pin, applying the user-approved metadata-only checkpoint result and RFC preview-plus-hold refinements. Preserve historical LLD-09 certification and migrations 1-16; append centrally allocated migration 17. Do not invent production draft registrations or undeclared HTTP contracts.",
   "active_branch": "feat/beta-1.0-implementation",
   "next_task": "lld10-implementation",
@@ -11,7 +11,7 @@
       "design": "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
     },
     "active": {
-      "implementation": "1b28fc1da375723ae1e41fba0c473a08df55eb4f",
+      "implementation": "59caa7a105b7168aab9b7337d0917284ade2deae",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     },
     "promotion": {
@@ -45,11 +45,15 @@
     "lld10-generic-recovery": {
       "implementation": "1b28fc1da375723ae1e41fba0c473a08df55eb4f",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
+    },
+    "lld10-settings-fault-tag-core": {
+      "implementation": "59caa7a105b7168aab9b7337d0917284ade2deae",
+      "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     }
   },
   "observed_heads": {
     "main": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
-    "feat/beta-1.0-implementation": "1b28fc1da375723ae1e41fba0c473a08df55eb4f",
+    "feat/beta-1.0-implementation": "59caa7a105b7168aab9b7337d0917284ade2deae",
     "feat/lld-08-infrastructure": "15b4310c68ed47de9226a5fa0fc25af233b1bb1a",
     "design/beta-1.0-hld-lld": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
   },
@@ -256,7 +260,7 @@
       "summary": "Ordinary LLD-09 implementation is complete in the working tree: source configuration/settings, owned identities and collision/content review, ordinary/targeted/Deep Scan processing and historical coverage/reconstruction, typed proposal/owner integration, SR/RFC terminal/reversal, orphan retention and independent housekeeping, verified MSG publication, bounded queries and summaries, static transport/runtime composition, schedule/coalescing/per-source reader serialization, runtime migration 16 and all 100 scenario bindings. Ordinary implementation received a byte-bound local certificate after second review and an adapter privacy fix. Complete local suite passed 1955 tests; schema/compile/wheel/privacy checks pass. PFF adapter architecture is implemented with typed deterministic doubles and an explicit UNSUPPORTED state without a release bridge. Native physical C001-C012 certification is deferred under the accepted LLD09-PFF-RELEASE-PIN and LLD09-GOLDEN-CORPUS-FREEZE gates. Implementation and local evidence are committed at 6cf3d742f1c933087ede982f7b107576b90415af; supported-matrix remote CI promotion remains pending."
     },
     "ui": {
-      "checkpoint": "lld10-generic-recovery",
+      "checkpoint": "lld10-settings-fault-tag-core",
       "paths": {
         "implementation": [
           "src/soma/ui/*",
@@ -279,7 +283,7 @@
         "infrastructure",
         "communications"
       ],
-      "summary": "LLD10 remains in progress, not certified. Generic recovery is published at 1b28fc1d. Current Settings return slice preserves closed bounded reference/catalog/communication page cursors, opened identities, Account Code history, source coverage and independent scroll/focus; fresh owner reads replace facts on return. Accepted Fault Tag core cursor/count query infrastructure is partial owner reconciliation; full filters/context/obligation/lineage/blockers remain unclosed. Production recovery remains disabled."
+      "summary": "LLD10 remains in progress, not certified. Settings return and partial Fault Tag core paging are published at 59caa7a1. Current RFC Overview consumes existing LLD03 lifecycle owner route with accepted source fields/evidence, source status/authority, terminal epoch and warnings separate from archive and canonical Customer identity. No downstream consequence is inferred. Persistent owner dependencies, production action/recovery composition and semantic/native/pixel gates remain pending."
     }
   },
   "evidence": {
@@ -567,6 +571,24 @@
       "run_id": 37069650018,
       "conclusion": "pending",
       "detail": "Windows browser and Ubuntu compatibility lanes completed/success; both Windows Python lanes remain running. Does not cover current Settings/Fault Tag changes."
+    },
+    "lld10-settings-core-integrity": {
+      "name": "Settings return and Fault Tag core integrity",
+      "checkpoint": "lld10-settings-fault-tag-core",
+      "source": "implementation",
+      "sha": "59caa7a105b7168aab9b7337d0917284ade2deae",
+      "run_id": 37072279295,
+      "conclusion": "success",
+      "detail": "Exact 59caa7a1 completed/success."
+    },
+    "lld10-settings-core-implementation": {
+      "name": "Settings return and Fault Tag core implementation",
+      "checkpoint": "lld10-settings-fault-tag-core",
+      "source": "implementation",
+      "sha": "59caa7a105b7168aab9b7337d0917284ade2deae",
+      "run_id": 37072279419,
+      "conclusion": "pending",
+      "detail": "Windows browser lane completed/success; all Python lanes remained live at observation. Does not cover current RFC lifecycle view."
     }
   },
   "tasks": {
@@ -760,7 +782,7 @@
         "lld09-preflight"
       ],
       "reason": "Continue user-authorized LLD10 on pinned authority with accepted owner refinements. Named dependencies persist in closure evidence; Task warnings and panel HTTP binding are implemented, while final Task transport, production recovery registry, ticket list/history and Inventory context/blocker schemas remain unresolved.",
-      "resume": "Continue independently specified LLD10 production domain composition/actions and semantic evidence around persisted owner blockers. Settings return context and accepted partial Fault Tag core exact-count/CURSOR_V1 infrastructure are implemented. Local verification: 2066 Python tests, 29 Node tests, 96 Edge and 96 Chromium browser tests, strict build/schema/compile/wheel checks passed. Fault Tag final owner list remains partially reconciled; no SR-context/blocker schema is invented. Production actions/recovery bindings remain gated on existing owner authority/composition. Verify actual HEAD and refreshed CI; recorded preceding checkpoint is 1b28fc1d and no future commit is assumed.",
+      "resume": "Continue independently specified LLD10 domain composition/actions around persisted owner blockers. Latest published Settings/Fault Tag checkpoint is 59caa7a1; browser CI succeeded, Python matrix remains live. RFC Overview source/lifecycle read slice is subsequent working-tree evidence: consume the existing owner route, keep source status/local archive/canonical Customer separate, reject malformed provenance and refetch reversal on Back. Ticket tabs/owner actions and other domain work remain incomplete; no production registry or provisional DTOs. Review exact HEAD and live CI before continuing.",
       "read_first": [
         "ui-index",
         "ui-map",

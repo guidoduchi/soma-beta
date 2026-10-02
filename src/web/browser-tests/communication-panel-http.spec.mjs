@@ -10,7 +10,7 @@ const projection=(type,terminal=false)=>({summary:{target_type:type,target_id:id
   terminal_frozen:terminal,warnings:terminal?['COMM_TERMINAL_FROZEN']:[]});
 async function owners(page) {
   await page.route('**/api/v1/tickets/**',route=>route.fulfill({json:route.request().url().includes('/rfcs/')?
-    {rfc_id:id,rfc_no:'NC00000000000001',revision:1,hierarchy_role:'root',local_archive_state:'active',direct_service_request_count:0,device_reference_count:0,subordinate_count:0,warnings:[]}:
+    {rfc_id:id,rfc_no:'NC00000000000001',revision:1,hierarchy_role:'root',customer_org_id:null,local_archive_state:'active',direct_service_request_count:0,device_reference_count:0,subordinate_count:0,warnings:[]}:
     {service_request_id:id,identity:{official_sr_no:'C0000001',local_sr_no:null},revision:1,linked_root_rfc_count:0,device_reference_count:0,warnings:[]}}));
 }
 for(const [routePart,type] of [['sr','SERVICE_REQUEST'],['rfc','RFC']])test(`${type} workbench consumes exact owner panel route and full cursor without client composition`,async({page})=>{
