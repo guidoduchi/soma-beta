@@ -1,0 +1,971 @@
+{
+  "schema": "SOMA_LLD10_IMPLEMENTATION_LEDGER_V1",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "implementation_base": "85d9515469f96ed5b272648ed6097401f9bb9ed5",
+  "status": "in_progress_not_certified",
+  "authority_refinements": "docs/reconciliation/LLD10_IMPLEMENTATION_CLARIFICATIONS.json",
+  "implemented_slices": [
+    "Closed immutable WorkingCopyContractRegistry mechanism with no invented production entries",
+    "Metadata-only checkpoint result and exact Foundation replay after changes/discard; draft remains solely in ui_working_copies",
+    "Generation, no-change expiry, installation capacity, discard and bounded trusted-clock prune with atomic receipts/audit",
+    "Stable snapshot recovery freshness, exact metadata integrity and complete filter-bound cursor",
+    "Centrally allocated migration 17, immutable 1-16 prefix and fresh/upgrade equality",
+    "LLD12 authenticated actor route binding and LLD02 presentation setting definitions",
+    "React shared shell/workbench, independent selection/open, bounded collections/autocomplete, latest query fence",
+    "Scroll ownership, continuous preview-bound hold and cancellation, owner-only safe Undo, modal focus isolation",
+    "Appearance preview rollback, recovery cadence/error retention, explicit recovery review and owner bulk partitions",
+    "Ticket detail/notes read-only owner bindings, compiled offline assets and closed SPA/resource handoff",
+    "History API dirty Back/Forward review, bounded session return context, ticket tab/pane/focus and asynchronous pane scroll restoration without draft-bearing history",
+    "LLD02 appearance reads and independent axes, injected owner-write preview rollback and System-mode listener across route changes; production write binding remains deferred",
+    "36 governed synthetic rendered contexts: 12 required states independently rendered at 480/900/1440, metadata/source-hash validation, privacy-canary rejection and explicit unapproved pixel baseline",
+    "Objective owner list/detail bindings with explicit as_of_utc, bounded pages, exact owner counts, due-unreviewed overlay and plan-pin mismatch disclosure",
+    "Infrastructure contextual explorer and Network Element summary/placement/relationship/IP summaries, bounded component/history pages and separate contextual identities",
+    "Checkpoint row/receipt/result rollback and cleanup BaseException interruption regressions; recovery identity/generation/cadence and rejected/late-proof regressions",
+    "Inventory Stock and Needs Attention owner HTTP read surfaces with literal blockers, physical identity, explicit as_of and bounded paging",
+    "LLD07 owner reconciliation: richer SpareRequestDetailV1 route name, non-Customer Need facts with indexed page aggregates, and Spare Request filter/as_of-bound continuation; complete context/blocker DTOs remain deferred",
+    "LLD02 Settings reference lists/detail, paged Contact channels with inert text and archived disclosure, lazy Account Code history, and explicit unavailable Site-derived address",
+    "LLD06 Settings read-only Product Lines, Customer Contracts, Contract Product Lines/current policy and classification mapping projections with bounded opaque continuation",
+    "Shared collection nearest surviving selection after refresh, bounded identity-only order retained across query remounts, focus preservation and explicit same-second owner refresh",
+    "Undo owner revision drift after inverse preview regression proves rejected execution without local rollback",
+    "Objective collection Back/Forward restores exact bounded page/as_of/cursor intent, nearest surviving selection, focus and asynchronous scroll without persisting owner data in browser history",
+    "Communication Settings owner read bindings: typed defaults, bounded Source Scope and explicit coverage, exact Job counters/unknown progress, and bodyless orphan housekeeping",
+    "Accepted LLD09 whole-second chronology refinement consumed unchanged; communication panel SHA query identity, abort/late-response fence, terminal body denial, summary warning preservation and malformed projection rejection",
+    "LLD05 Objective timezone Settings read binding preserves exact DEFAULT/PERSISTED revision and scheduling-only semantics; no global chronology or accepted UTC mutation",
+    "LLD05 Task owner detail now replaces active direct relationship and pending source-terminal/regroup/historical ID arrays with exact summaries; separate Task-scoped owner GET collections have closed requests, full CURSOR_V1 identity, exact totals and pages up to 500. Both immediate retry edges and current lineage remain direct; warning enum/full Task UI closure remain pending.",
+    "Objective return navigation now preserves grouping-panel disclosure and exact applied owner state/risk/origin filters and full continuation query. Fresh owner warnings are fetched on return; bounded closed query intent stays in the existing 50-entry session registry. Grouping control focus restores after asynchronous loading, hidden panels stay hidden, and malformed/oversized continuation fails closed before navigation."
+  ],
+  "remaining_implementation": [
+    "Complete production domain composition/actions beyond current read slices: Inventory Needs/requests/RMAs/Fault Tags and activity, reference/SLA editors and policy/history/report settings, communications workspace/actions and Settings writes/source configuration, ticket relationship tabs, Objective scheduling/grouping/history and Infrastructure workbook/other entity surfaces remain incomplete",
+    "Production appearance write/authenticated owner command composition and production recovery edit registrations; owner security/session implementation remains LLD12-owned",
+    "Complete Return-state restoration across remaining workspaces; ticket and Objective collection query/selection/focus/scroll restoration and shared live collection refresh are implemented",
+    "Complete all 80 acceptance/failure evidence bindings and second semantic review; fixture semantic/pixel approval remains pending",
+    "Execute frontend CI and exact-commit supported matrix; local Edge is not WebView2 release evidence"
+  ],
+  "owner_reconciliation": [
+    {
+      "id": "LLD10-WORKING-COPY-REGISTRATIONS",
+      "state": "owner_deferred",
+      "rule": "Do not invent production keys, versions, schemas or dirty paths."
+    },
+    {
+      "id": "LLD10-COMMUNICATION-PANEL-HTTP",
+      "state": "question_pending",
+      "rule": "No undeclared HTTP route or competing panel projection."
+    },
+    {
+      "id": "LLD10-TICKET-LIST-HISTORY-TRANSPORT",
+      "state": "question_pending",
+      "rule": "No invented owner list query/DTO/route."
+    },
+    {
+      "id": "LLD10-LLD05-TASK-DETAIL-TRANSPORT",
+      "state": "bounded_counts_and_task_collections_implemented_warning_enum_and_full_transport_pending",
+      "rule": "Consume only owner TaskDetailV1/TaskRelationshipPageV1/TaskAttentionPageV1. Exact summary counts and paged collections are implemented under LLD05_TASK_COLLECTIONS_TRANSPORT_V1.json. Warning literals/classification and remaining WFM/full detail closure remain pending; no authoritative empty warnings or UI private-table reconstruction."
+    },
+    {
+      "id": "LLD10-LLD07-INVENTORY-TRANSPORT",
+      "state": "owner_direction_accepted_exact_context_and_transport_leaves_pending",
+      "rule": "Separate list/detail/core DTOs. Close SpareNeedProjectionV1 and general LLD03 SR reference batch provider adapted by InventoryReferenceReader; LLD02 scope resolver does not own SR membership. Customer/context/action-blocker HTTP binding remains fail-closed."
+    },
+    {
+      "id": "LLD10-LLD05-GROUPING-LIST-TRANSPORT",
+      "state": "accepted_refinement_implemented_semantic_closure_pending",
+      "rule": "Accepted LLD05_GROUPING_LIST_TRANSPORT_V1.json closes risk/origin filters, dedicated live list DTO and full CURSOR_V1. Preserve separate immutable recompute response and exact historical replay; semantic closure review remains pending."
+    }
+  ],
+  "local_verification": {
+    "python_full": {
+      "passed": 2023,
+      "failed": 0,
+      "exit_code": 0,
+      "seconds": 726.03,
+      "note": "Complete collected Python suite passed after the accepted grouping transport and bounded Task collection refinements. Working-tree evidence only; no semantic packet or remote-CI certification."
+    },
+    "python_focused_latest": {
+      "passed": 83,
+      "scope": "Task summaries, collection transport, cursor scope, snapshot consistency, row-load/query-plan bounds and complete LLD05 route registry."
+    },
+    "typescript_strict": "pass",
+    "node_tests": 22,
+    "edge_browser_tests": 74,
+    "schema_objects": 1315,
+    "runtime_migrations": 17,
+    "compileall": "pass",
+    "wheel": {
+      "status": "pass",
+      "path": "dist/lld10-grouping-return/soma_beta-1.0.0.dev0-py3-none-any.whl",
+      "sha256": "37899e1a49593d62e3c1b685b2ab526501ffbc8512908c8caab141ebb71d2500",
+      "mode": "--no-deps --no-build-isolation; frozen source/assets and wheel resources verified; removed one obsolete generated build/lib UI asset before rebuild"
+    },
+    "supported_matrix_ci": "not_executed_for_uncommitted_work",
+    "browser_host": "Headless local Edge; not WebView2 native release certification",
+    "browser_teardown": "Final 74-case run passed in 25.0 seconds, exit 0; runner owned and tore down both local hosts.",
+    "historical_migrations_1_16": "manifest entries and accepted runtime bytes remain hash-identical",
+    "migration17_sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905",
+    "visual_fixtures": {
+      "contexts": 36,
+      "semantic_context_checks": "pass",
+      "privacy_canaries": "pass",
+      "pixel_baselines": "unapproved",
+      "rendered_images": "tmp/lld10-browser-results (local test outputs, not release-certified)"
+    },
+    "python_current_collected": 2023,
+    "task_collections": {
+      "focused_passed": 83,
+      "failed": 0,
+      "seconds": 9.77,
+      "scope": "tests/test_task_collections.py and tests/test_objectives_tasks_api_routes.py",
+      "proof": [
+        "66 relationships grown through real ChangeTaskRelationship commands",
+        "complete tied-key pagination across all three attention kinds",
+        "Task/kind/collection/version/order cursor binding and invalid request rejection",
+        "constant seven SELECTs per complete all-kind collection page and at most three*(limit+1) loaded rows",
+        "attention query plans use indexes without scans/temporary sorting",
+        "stable count/page snapshot during concurrent publication",
+        "both immediate retry edges retained"
+      ],
+      "schema_manifest": "passed, 1315 objects",
+      "compileall": "passed",
+      "wheel": {
+        "path": "dist/task-collections-validation/soma_beta-1.0.0.dev0-py3-none-any.whl",
+        "sha256": "1de2026565b17f59a0666a1274361ef6cfa15cace09ee8751cb6b064c08d07e7",
+        "resources": "passed, 17 migrations plus registries/schema/Unicode/frozen assets"
+      },
+      "runtime_migrations_1_16": "accepted bytes and manifest entries verified identical to HEAD",
+      "ui_binding": "pending owner warning enum and remaining full Task transport closure",
+      "observed_at_utc": "2026-10-02 13:36:51 UTC",
+      "frontend_checks": "No frontend source changes in this Task collection slice; browser/Node/TypeScript suites not rerun. Exact frozen browser source/output verification passed.",
+      "full_python": {
+        "passed": 2023,
+        "failed": 0,
+        "seconds": 726.03
+      },
+      "continuation_tooling": "State validate passed; 16 dedicated implementation-state tests passed after metadata changes; generated handover via implementation_state.py.",
+      "git_diff_check": "passed",
+      "remote_ci": "Observed successful runs 36876977329/36876977352 cover committed base 85d9515469f96ed5b272648ed6097401f9bb9ed5 only. Current implementation remains uncommitted."
+    },
+    "grouping_return": {
+      "observed_at_utc": "2026-10-02 20:42:02 UTC",
+      "typescript_strict": "passed",
+      "node_passed": 22,
+      "browser_passed": 74,
+      "browser_seconds": 25.0,
+      "focused_python_passed": 46,
+      "focused_python_seconds": 20.81,
+      "schema_objects": 1315,
+      "compileall": "passed",
+      "frozen_assets": "passed",
+      "wheel_resources": "passed",
+      "full_python": "Not rerun for this frontend-only slice; prior 2023-test full-suite result remains historical evidence.",
+      "remote_ci": "GitHub CLI reverified successful base runs 36876977329 and 36876977352 for 85d9515469f96ed5b272648ed6097401f9bb9ed5 only. Uncommitted LLD10 changes have no remote CI claim.",
+      "proof": [
+        "src/web/tests/interactions.test.mjs::grouping return intent is closed, bounded and kept out of unrelated route contexts",
+        "src/web/browser-tests/grouping-list.spec.mjs::Objective Back restores grouping disclosure and exact applied owner page, refetching changed warnings without browser-history DTOs",
+        "src/web/browser-tests/grouping-list.spec.mjs::Grouping list rejects malformed or oversized continuation before exposing navigation"
+      ],
+      "limits": "Other workspace return restoration, production actions/draft registrations, owner reconciliation and all-case semantic closure remain incomplete. Local Edge is not WebView2 release evidence."
+    }
+  },
+  "cases": [
+    {
+      "id": "LLD10-T001",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T001",
+        "then": "single click selects and does not open"
+      }
+    },
+    {
+      "id": "LLD10-T002",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T002",
+        "then": "double-click and Enter resolve identical default route"
+      }
+    },
+    {
+      "id": "LLD10-T003",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T003",
+        "then": "nested control action does not open row"
+      }
+    },
+    {
+      "id": "LLD10-T004",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T004",
+        "then": "multi-select Space changes membership without opening"
+      }
+    },
+    {
+      "id": "LLD10-T005",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T005",
+        "then": "pointer wheel scrolls nearest hovered owner only"
+      }
+    },
+    {
+      "id": "LLD10-T006",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T006",
+        "then": "scroll boundary does not chain into sibling pane"
+      }
+    },
+    {
+      "id": "LLD10-T007",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T007",
+        "then": "scroll never selects, opens, accepts or confirms hold"
+      }
+    },
+    {
+      "id": "LLD10-T008",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T008",
+        "then": "autocomplete waits for configured minimum deliberate input"
+      }
+    },
+    {
+      "id": "LLD10-T009",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T009",
+        "then": "stale autocomplete response cannot replace newest query"
+      }
+    },
+    {
+      "id": "LLD10-T010",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T010",
+        "then": "popup holds at most 50 loaded options and exposes more state"
+      }
+    },
+    {
+      "id": "LLD10-T011",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T011",
+        "then": "typed text never creates entity or relationship"
+      }
+    },
+    {
+      "id": "LLD10-T012",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T012",
+        "then": "Device Reference promotion requires its governed continuous exact 3000ms deliberate hold; RFC terminal-cascade execute uses impact_preview_plus_hold and may begin the same exact 3000ms hold only with a READY current execution_review.preview_fingerprint bound into the LLD-12 challenge"
+      }
+    },
+    {
+      "id": "LLD10-T013",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T013",
+        "then": "release or scroll classification cancels hold with zero command"
+      }
+    },
+    {
+      "id": "LLD10-T014",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T014",
+        "then": "completed hold requests at most one command"
+      }
+    },
+    {
+      "id": "LLD10-T015",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "local_evidence_semantic_closure_review_pending",
+      "contract": {
+        "id": "LLD10-T015",
+        "then": "domain may reject after valid proof; UI shows actual failure"
+      },
+      "local_evidence": [
+        "src/web/tests/interactions.test.mjs (late/rejected proof and owner rejection)"
+      ]
+    },
+    {
+      "id": "LLD10-T016",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T016",
+        "then": "wide/narrow reflow preserves capabilities and material warnings"
+      }
+    },
+    {
+      "id": "LLD10-T017",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T017",
+        "then": "pane switch preserves working-copy and communication context"
+      }
+    },
+    {
+      "id": "LLD10-T018",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T018",
+        "then": "wide table owns horizontal scrolling without page overflow"
+      },
+      "local_bindings": [
+        "src/web/browser-tests/objectives.spec.mjs::Objective Back restores the exact page query and nearest surviving row; Forward keeps explicit detail navigation"
+      ]
+    },
+    {
+      "id": "LLD10-T019",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T019",
+        "then": "fresh recoverable copy restores as unsaved UI state only"
+      }
+    },
+    {
+      "id": "LLD10-T020",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T020",
+        "then": "stale recoverable copy opens reviewed conflict, never LWW"
+      }
+    },
+    {
+      "id": "LLD10-T021",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T021",
+        "then": "missing target preserves copy but blocks save"
+      }
+    },
+    {
+      "id": "LLD10-T022",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T022",
+        "then": "discarding recovery copy never changes domain truth"
+      }
+    },
+    {
+      "id": "LLD10-T023",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T023",
+        "then": "checkpoint validates exact closed draft contract"
+      }
+    },
+    {
+      "id": "LLD10-T024",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T024",
+        "then": "changed checkpoint increments generation and resets 7-day expiry"
+      }
+    },
+    {
+      "id": "LLD10-T025",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T025",
+        "then": "identical checkpoint is NO_CHANGE and does not increment generation"
+      }
+    },
+    {
+      "id": "LLD10-T026",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T026",
+        "then": "discard requires exact generation"
+      }
+    },
+    {
+      "id": "LLD10-T027",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T027",
+        "then": "discard audit contains no draft body/field values"
+      }
+    },
+    {
+      "id": "LLD10-T028",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T028",
+        "then": "expiry cleanup deletes at most 100 due rows and no domain data"
+      }
+    },
+    {
+      "id": "LLD10-T029",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T029",
+        "then": "working-copy detail classifies current/stale/missing deterministically"
+      }
+    },
+    {
+      "id": "LLD10-T030",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T030",
+        "then": "restore-candidate cursor is deterministic and filter-bound"
+      }
+    },
+    {
+      "id": "LLD10-T031",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T031",
+        "then": "unsaved values do not alter authoritative counts/SLA/matching/reports"
+      }
+    },
+    {
+      "id": "LLD10-T032",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T032",
+        "then": "domain Draft badge remains distinct from dirty UI marker"
+      }
+    },
+    {
+      "id": "LLD10-T033",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T033",
+        "then": "appearance skin change preserves workflow/confirmation semantics"
+      }
+    },
+    {
+      "id": "LLD10-T034",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T034",
+        "then": "200% text zoom retains material actions and labels"
+      }
+    },
+    {
+      "id": "LLD10-T035",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T035",
+        "then": "forced-color/reduced-motion retain non-color state and hold meaning"
+      }
+    },
+    {
+      "id": "LLD10-T036",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T036",
+        "then": "known-blocked action exposes blocker/remediation and remains disabled"
+      }
+    },
+    {
+      "id": "LLD10-T037",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T037",
+        "then": "bulk preview explicitly partitions every selected target"
+      }
+    },
+    {
+      "id": "LLD10-T038",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T038",
+        "then": "Undo disappears when exact safe inverse is stale/unsafe"
+      }
+    },
+    {
+      "id": "LLD10-T039",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T039",
+        "then": "communication pane never duplicates canonical message body into ticket state"
+      }
+    },
+    {
+      "id": "LLD10-T040",
+      "normative_leaf": "tests/acceptance.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "id": "LLD10-T040",
+        "then": "terminal communication summary exposes no body navigation when content unavailable"
+      },
+      "local_bindings": [
+        "src/web/browser-tests/communication-panel.spec.mjs::terminal panel denies body navigation and preserves summary warnings"
+      ]
+    },
+    {
+      "id": "LLD10-T041",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "two independent owner-approved reversible actions",
+        "id": "LLD10-T041",
+        "then": "both retain separate Undo opportunities while each inverse remains valid"
+      }
+    },
+    {
+      "id": "LLD10-T042",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "owner reports inverse stale/blocked",
+        "id": "LLD10-T042",
+        "then": "Undo is disabled with reason and no generic rollback is attempted"
+      }
+    },
+    {
+      "id": "LLD10-T043",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "modal opens",
+        "id": "LLD10-T043",
+        "then": "background is inert and focus enters safe meaningful control"
+      }
+    },
+    {
+      "id": "LLD10-T044",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "dismissible modal",
+        "id": "LLD10-T044",
+        "then": "Escape closes without acceptance and restores invoker/fallback"
+      }
+    },
+    {
+      "id": "LLD10-T045",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "validation failure in modal",
+        "id": "LLD10-T045",
+        "then": "safe input remains and first actionable invalid field receives focus after summary"
+      }
+    },
+    {
+      "id": "LLD10-T046",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "skin changes",
+        "id": "LLD10-T046",
+        "then": "component dimensions/tab order/action/confirmation semantics are unchanged"
+      }
+    },
+    {
+      "id": "LLD10-T047",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "forced colors",
+        "id": "LLD10-T047",
+        "then": "selection/focus/warning/destructive states retain text/semantic differentiation"
+      }
+    },
+    {
+      "id": "LLD10-T048",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "SR workbench",
+        "id": "LLD10-T048",
+        "then": "tab order is Overview, Devices, Spare Parts, RFCs, Tasks, Notes"
+      }
+    },
+    {
+      "id": "LLD10-T049",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "RFC workbench",
+        "id": "LLD10-T049",
+        "then": "tab order is Overview, Service Requests and Devices, Related RFCs, Tasks, Notes"
+      }
+    },
+    {
+      "id": "LLD10-T050",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "Objective detail",
+        "id": "LLD10-T050",
+        "then": "source plan, operational plan, envelope and execution are separately labelled"
+      }
+    },
+    {
+      "id": "LLD10-T051",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "communication pane pending provider failure",
+        "id": "LLD10-T051",
+        "then": "operational work surface remains usable and no message data is locally fabricated"
+      }
+    },
+    {
+      "id": "LLD10-T052",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "local_evidence_semantic_closure_review_pending",
+      "contract": {
+        "given": "visual regression fixture",
+        "id": "LLD10-T052",
+        "then": "manifest contains synthetic/sanitized provenance and exact responsive/accessibility context"
+      },
+      "local_evidence": [
+        "tests/test_ui_fixtures.py::test_all_required_states_have_separately_rendered_exact_contexts",
+        "src/web/browser-tests/fixtures.spec.mjs"
+      ]
+    },
+    {
+      "id": "LLD10-T053",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "directional design reference",
+        "id": "LLD10-T053",
+        "then": "it cannot assert exact pixels/assets/business semantics"
+      }
+    },
+    {
+      "id": "LLD10-T054",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "unknown confirmation action kind",
+        "id": "LLD10-T054",
+        "then": "action is indeterminate/disabled rather than defaulting to lower friction"
+      }
+    },
+    {
+      "id": "LLD10-T055",
+      "normative_leaf": "tests/acceptance-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "given": "200 rows rendered and more exist",
+        "id": "LLD10-T055",
+        "then": "surface exposes continuation rather than silently appending beyond bound"
+      }
+    },
+    {
+      "id": "LLD10-F001",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "local_evidence_semantic_closure_review_pending",
+      "contract": {
+        "expected": "no partial row/false recovery success",
+        "id": "LLD10-F001",
+        "injection": "working-copy DB failure before commit"
+      },
+      "local_evidence": [
+        "tests/test_ui_working_copies.py::test_checkpoint_write_failures_leave_no_partial_authority_and_retry_succeeds[row]"
+      ]
+    },
+    {
+      "id": "LLD10-F002",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "local_evidence_semantic_closure_review_pending",
+      "contract": {
+        "expected": "no working-copy mutation",
+        "id": "LLD10-F002",
+        "injection": "receipt failure"
+      },
+      "local_evidence": [
+        "tests/test_ui_working_copies.py::test_checkpoint_write_failures_leave_no_partial_authority_and_retry_succeeds[receipt]"
+      ]
+    },
+    {
+      "id": "LLD10-F003",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "local_evidence_semantic_closure_review_pending",
+      "contract": {
+        "expected": "authoritative checkpoint UoW rolls back",
+        "id": "LLD10-F003",
+        "injection": "audit/result failure"
+      },
+      "local_evidence": [
+        "tests/test_ui_working_copies.py::test_checkpoint_write_failures_leave_no_partial_authority_and_retry_succeeds[result]",
+        "tests/test_ui_working_copies.py::test_failed_audit_rolls_back_checkpoint_receipt_and_discard"
+      ]
+    },
+    {
+      "id": "LLD10-F004",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "conflict; newer copy survives",
+        "id": "LLD10-F004",
+        "injection": "generation changes before discard"
+      }
+    },
+    {
+      "id": "LLD10-F005",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "local_evidence_semantic_closure_review_pending",
+      "contract": {
+        "expected": "transaction rolls back or committed bounded batch remains valid",
+        "id": "LLD10-F005",
+        "injection": "cleanup crash mid-batch"
+      },
+      "local_evidence": [
+        "tests/test_ui_working_copies.py::test_cleanup_interruption_after_partial_delete_rolls_back_whole_batch"
+      ]
+    },
+    {
+      "id": "LLD10-F006",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "fresh revalidation preserves refreshed copy",
+        "id": "LLD10-F006",
+        "injection": "copy refreshed before cleanup delete"
+      }
+    },
+    {
+      "id": "LLD10-F007",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "restore visible but save blocked",
+        "id": "LLD10-F007",
+        "injection": "domain revision reader indeterminate"
+      }
+    },
+    {
+      "id": "LLD10-F008",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "invalid/stale cursor, no mixed results",
+        "id": "LLD10-F008",
+        "injection": "cursor reused with changed filter"
+      }
+    },
+    {
+      "id": "LLD10-F009",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "no stale result/error replaces current query",
+        "id": "LLD10-F009",
+        "injection": "autocomplete request aborted"
+      },
+      "local_bindings": [
+        "src/web/browser-tests/communication-panel.spec.mjs::communication target switch aborts old reads and rejects their late response"
+      ]
+    },
+    {
+      "id": "LLD10-F010",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "only newest identity accepted",
+        "id": "LLD10-F010",
+        "injection": "autocomplete responses arrive out of order"
+      }
+    },
+    {
+      "id": "LLD10-F011",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "reflow preserves draft/errors/selection",
+        "id": "LLD10-F011",
+        "injection": "resize during dirty edit"
+      }
+    },
+    {
+      "id": "LLD10-F012",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "hold cancels and submits zero command",
+        "id": "LLD10-F012",
+        "injection": "scroll movement during hold"
+      }
+    },
+    {
+      "id": "LLD10-F013",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "local_evidence_semantic_closure_review_pending",
+      "contract": {
+        "expected": "zero owning-domain mutation",
+        "id": "LLD10-F013",
+        "injection": "LLD-12 proof rejected/expired"
+      },
+      "local_evidence": [
+        "src/web/tests/interactions.test.mjs (late/rejected proof and owner rejection)"
+      ]
+    },
+    {
+      "id": "LLD10-F014",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "hold cancels",
+        "id": "LLD10-F014",
+        "injection": "route or target revision changes during hold"
+      }
+    },
+    {
+      "id": "LLD10-F015",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "preview reverts to last accepted setting with error",
+        "id": "LLD10-F015",
+        "injection": "appearance setting save fails"
+      }
+    },
+    {
+      "id": "LLD10-F016",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "communication pane bounded error; operational work pane remains usable",
+        "id": "LLD10-F016",
+        "injection": "LLD-09 panel provider unavailable"
+      }
+    },
+    {
+      "id": "LLD10-F017",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "last safe accepted view retained where possible; actions do not fabricate availability",
+        "id": "LLD10-F017",
+        "injection": "owning-domain query fails"
+      }
+    },
+    {
+      "id": "LLD10-F018",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "affected capability blocked with UI_BROWSER_CAPABILITY_UNSUPPORTED",
+        "id": "LLD10-F018",
+        "injection": "required browser feature missing"
+      }
+    },
+    {
+      "id": "LLD10-F019",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "rendered as text; no executable raw HTML",
+        "id": "LLD10-F019",
+        "injection": "malicious source text contains markup/script"
+      }
+    },
+    {
+      "id": "LLD10-F020",
+      "normative_leaf": "tests/failure-injection.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "no false claim of recovery; abandonment warning reflects unsaved state",
+        "id": "LLD10-F020",
+        "injection": "client closes after changed memory state before 5s checkpoint"
+      }
+    },
+    {
+      "id": "LLD10-F021",
+      "normative_leaf": "tests/failure-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "owner command revalidation rejects or requires new preview; no stale inverse",
+        "id": "LLD10-F021",
+        "injection": "accepted state changes after Undo preview before execute"
+      },
+      "local_bindings": [
+        "src/web/tests/interactions.test.mjs::LLD10-F021 owner state changing after inverse preview rejects without local rollback"
+      ]
+    },
+    {
+      "id": "LLD10-F022",
+      "normative_leaf": "tests/failure-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "accepted domain state/history unchanged",
+        "id": "LLD10-F022",
+        "injection": "Undo UI opportunity evicted by 20-entry bound"
+      }
+    },
+    {
+      "id": "LLD10-F023",
+      "normative_leaf": "tests/failure-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "focus moves to deterministic logical fallback, never document body unpredictably",
+        "id": "LLD10-F023",
+        "injection": "modal invoker removed before close"
+      }
+    },
+    {
+      "id": "LLD10-F024",
+      "normative_leaf": "tests/failure-interaction.json",
+      "status": "local_evidence_semantic_closure_review_pending",
+      "contract": {
+        "expected": "fixture validation fails before baseline acceptance",
+        "id": "LLD10-F024",
+        "injection": "fixture contains forbidden production-like secret marker"
+      },
+      "local_evidence": [
+        "tests/test_ui_fixtures.py::test_sensitive_fixture_metadata_is_rejected",
+        "tests/test_ui_fixtures.py::test_context_and_baseline_governance_fail_closed"
+      ]
+    },
+    {
+      "id": "LLD10-F025",
+      "normative_leaf": "tests/failure-interaction.json",
+      "status": "closure_review_pending",
+      "contract": {
+        "expected": "UI disables material action and displays bounded unavailable/indeterminate state",
+        "id": "LLD10-F025",
+        "injection": "unknown domain action availability"
+      }
+    }
+  ],
+  "updated_at_utc": "2026-10-02 20:42:02 UTC"
+}

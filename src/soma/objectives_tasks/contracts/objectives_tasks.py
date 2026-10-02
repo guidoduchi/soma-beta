@@ -1,10 +1,171 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Mapping
+from typing import Literal, TypedDict
 
 from soma.foundation.application.command_boundary import CommandExecutionResult
 from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
+from soma.foundation.strict_json import canonical_json_bytes_bounded
+
+
+class TaskRelationshipListItemV1(TypedDict):
+    kind: Literal["sr", "rfc", "device"]
+    relationship_id: str
+    related_id: str
+
+
+class TaskRelationshipPageV1(TypedDict):
+    items: list[TaskRelationshipListItemV1]
+    continuation: dict[str, object] | None
+    exact_total: int
+
+
+class TaskAttentionListItemV1(TypedDict):
+    kind: Literal["source_terminal", "regroup", "historical"]
+    item_id: str
+    revision: int
+    created_at_utc: int
+    input_fingerprint: str
+
+
+class TaskAttentionPageV1(TypedDict):
+    items: list[TaskAttentionListItemV1]
+    continuation: dict[str, object] | None
+    exact_total: int
+
+
+@dataclass(frozen=True, slots=True)
+class TaskRelationshipListQueryV1:
+    cursor: dict[str, object] | None = None
+    limit: int = 100
+
+    @classmethod
+    def from_value(cls, value: Mapping[str, object]) -> "TaskRelationshipListQueryV1":
+        if not isinstance(value, Mapping) or set(value) - {"cursor", "limit"}:
+            raise ValidationError("Task relationship query has unknown fields")
+        canonical_json_bytes_bounded(dict(value), max_bytes=4096, max_depth=32, max_collection_items=64)
+        result = cls(**dict(value))
+        if type(result.limit) is not int or not 1 <= result.limit <= 500:
+            raise ValidationError("Task collection limit must be in 1..500")
+        return result
+
+
+@dataclass(frozen=True, slots=True)
+class TaskAttentionListQueryV1:
+    kind: str | None = None
+    cursor: dict[str, object] | None = None
+    limit: int = 100
+
+    @classmethod
+    def from_value(cls, value: Mapping[str, object]) -> "TaskAttentionListQueryV1":
+        if not isinstance(value, Mapping) or set(value) - {"kind", "cursor", "limit"}:
+            raise ValidationError("Task attention query has unknown fields")
+        TaskRelationshipListQueryV1.from_value({key: val for key, val in value.items() if key != "kind"})
+        result = cls(**dict(value))
+        if result.kind is not None and (not isinstance(result.kind, str) or result.kind not in {"source_terminal", "regroup", "historical"}):
+            raise ValidationError("Task attention kind is invalid")
+        return result
+
+
+@dataclass(frozen=True, slots=True)
+class GroupingProposalListQueryV1:
+    """Accepted owner list request; internal raw keyset fields are not public."""
+
+    state: str | None = None
+    risk: str | None = None
+    origin: str | None = None
+    cursor: dict[str, object] | None = None
+    limit: int = 100
+
+    @classmethod
+    def from_value(cls, value: Mapping[str, object]) -> "GroupingProposalListQueryV1":
+        if not isinstance(value, Mapping) or set(value) - {"state", "risk", "origin", "cursor", "limit"}:
+            raise ValidationError("grouping list request has unknown fields")
+        payload = dict(value)
+        canonical_json_bytes_bounded(payload, max_bytes=4096, max_depth=4096, max_collection_items=4096)
+        return cls(**payload)
+
+
+@dataclass(frozen=True, slots=True)
+class GroupingProposalListItemV1:
+    """Closed owner list facts, distinct from mutation GroupingProposalV1."""
+
+    proposal_id: str
+    revision: int
+    proposal_kind: str
+    risk_tier: str
+    origin: str
+    state: str
+    input_fingerprint: str
+    affected_task_exact_count: int
+    affected_objective_exact_count: int
+    owner_warnings: tuple[str, ...]
+    created_at_utc: int
+
+    def to_response(self) -> dict[str, object]:
+        require_uuid4(self.proposal_id)
+        if (type(self.revision) is not int or self.revision < 1
+                or any(type(value) is not int or value < 0 for value in (
+                    self.affected_task_exact_count, self.affected_objective_exact_count, self.created_at_utc))
+                or self.proposal_kind not in {"create", "join", "move", "repin", "consolidate", "manual_merge", "manual_split"}
+                or self.risk_tier not in {"normal", "high"}
+                or self.origin not in {"task_created", "task_plan_changed", "source_plan_adopted", "manual_request", "retry_created", "objective_edit"}
+                or self.state not in {"pending", "accepted", "rejected", "superseded"}
+                or len(self.input_fingerprint) != 64 or any(char not in "0123456789abcdef" for char in self.input_fingerprint)
+                or len(set(self.owner_warnings)) != len(self.owner_warnings)
+                or any(code not in {"GROUPING_PROPOSAL_STALE", "GROUPING_EQUIVALENT_REJECTION"} for code in self.owner_warnings)):
+            raise IntegrityFailure("Invalid owner grouping list projection")
+        return {
+            "proposal_id": self.proposal_id, "revision": self.revision, "proposal_kind": self.proposal_kind,
+            "risk_tier": self.risk_tier, "origin": self.origin, "state": self.state,
+            "input_fingerprint": self.input_fingerprint, "affected_task_exact_count": self.affected_task_exact_count,
+            "affected_objective_exact_count": self.affected_objective_exact_count, "owner_warnings": list(self.owner_warnings),
+            "created_at_utc": self.created_at_utc,
+            "diff": {"proposal_kind": self.proposal_kind, "origin": self.origin, "risk_tier": self.risk_tier,
+                     "task_change_count": self.affected_task_exact_count, "objective_change_count": self.affected_objective_exact_count},
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class GroupingRecomputeProposalV1:
+    """Immutable commit-time proposal facts; never contains live classification."""
+
+    proposal_id: str
+    revision: int
+    input_fingerprint: str
+    state: str
+    proposal_kind: str
+    origin: str
+    risk_tier: str
+    affected_task_exact_count: int
+    affected_objective_exact_count: int
+
+    def to_response(self) -> dict[str, object]:
+        require_uuid4(self.proposal_id)
+        if (type(self.revision) is not int or self.revision < 1
+                or any(type(value) is not int or value < 0 for value in (
+                    self.affected_task_exact_count, self.affected_objective_exact_count))
+                or self.proposal_kind not in {"create", "join", "move", "repin", "consolidate", "manual_merge", "manual_split"}
+                or self.risk_tier not in {"normal", "high"}
+                or self.origin not in {"task_created", "task_plan_changed", "source_plan_adopted", "manual_request", "retry_created", "objective_edit"}
+                or self.state not in {"pending", "accepted", "rejected", "superseded"}
+                or len(self.input_fingerprint) != 64 or any(char not in "0123456789abcdef" for char in self.input_fingerprint)):
+            raise IntegrityFailure("Invalid immutable grouping recompute projection")
+        return {key: getattr(self, key) for key in self.__dataclass_fields__}
+
+
+
+@dataclass(frozen=True, slots=True)
+class GroupingRecomputeProposalPageV1:
+    """Complete immediate recompute result, distinct from a live cursor page."""
+
+    items: tuple[GroupingRecomputeProposalV1, ...] = ()
+
+    def to_response(self) -> dict[str, object]:
+        return {"items": [item.to_response() for item in self.items],
+                "continuation": None, "exact_total": len(self.items)}
 
 
 @dataclass(frozen=True, slots=True)

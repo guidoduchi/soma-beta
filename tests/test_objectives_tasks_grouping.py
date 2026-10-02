@@ -281,7 +281,12 @@ def test_t008_manual_exact_touch_merge_uses_reviewed_scope_and_preserves_identit
     assert scoped["job_id"] is None
     assert scoped["proposals"]["exact_total"] == 1
     item = scoped["proposals"]["items"][0]
-    assert item["diff"]["proposal_kind"] == "manual_merge"
+    assert item == {
+        "proposal_id": item["proposal_id"], "revision": 1,
+        "input_fingerprint": item["input_fingerprint"], "state": "pending",
+        "proposal_kind": "manual_merge", "origin": "manual_request", "risk_tier": "normal",
+        "affected_task_exact_count": 2, "affected_objective_exact_count": 2,
+    }
 
     replay = service.recompute_grouping_proposals(
         command_id=command_id,
@@ -317,6 +322,15 @@ def test_t008_manual_exact_touch_merge_uses_reviewed_scope_and_preserves_identit
         input_fingerprint=str(item["input_fingerprint"]),
     )
     assert accepted["state"] == "accepted"
+
+    # Acceptance changes proposal state and membership authority. Recompute replay
+    # still returns the exact immutable pending commit-time result, not list facts.
+    assert service.recompute_grouping_proposals(
+        command_id=command_id, origin="manual_request",
+        trigger_scope={"kind": "manual_exact_touch_merge",
+                       "objective_ids": [left_objective, right_objective]},
+    ) == scoped
+    assert query.list_proposals(state="accepted")["items"][0]["state"] == "accepted"
 
     with ReadSnapshot(factory) as snapshot:
         memberships = snapshot.connection.execute(

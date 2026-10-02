@@ -86,6 +86,25 @@ def test_spare_request_response_warning_filter_uses_same_exact_boundary(
     assert boundary["items"][0]["response_warning_age_seconds"] == 86_400
 
 
+def test_request_list_cursor_binds_owner_age_filters_and_preserves_requester_creation_evidence(initialized_database):
+    factory = _factory(initialized_database)
+    expected = sorted((_submitted(factory, official_sr="97100901"), _submitted(factory, official_sr="97100902")))
+    query = InventoryRequestsRmaQueryService(factory)
+    instant = 2_000 + 86_400
+    first = query.list_requests(as_of_utc=instant, limit=1)
+    second = query.list_requests(as_of_utc=instant, limit=1, cursor=first["continuation"])
+    assert [item["spare_request_id"] for item in first["items"] + second["items"]] == expected
+    assert first["exact_total"] == second["exact_total"] == 2
+    assert second["continuation"] is None
+    assert all(item["response_warning_age_seconds"] == 86_400 for item in first["items"] + second["items"])
+    assert first["items"][0]["requester_context"]
+    for changed in ({"as_of_utc":instant+1}, {"as_of_utc":instant,"response_warning_only":True},
+                    {"as_of_utc":instant,"lifecycle_state":"submitted_awaiting_response"},
+                    {"as_of_utc":instant,"service_request_id":new_uuid4()}, {}):
+        with pytest.raises(ValidationError):
+            query.list_requests(cursor=first["continuation"], **changed)
+
+
 def test_attention_cursor_binds_exact_as_of_and_preserves_equal_kind_members(
     initialized_database,
 ) -> None:

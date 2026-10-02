@@ -19,6 +19,49 @@ permissions:
   contents: read
 
 jobs:
+  frontend:
+    name: UI contracts / Windows browser
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.21.0"
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+      - name: Install browser test and package environment
+        shell: pwsh
+        run: |
+          python -m pip install -e ".[test]"
+          npm --prefix src/web ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck, unit tests and reproducible offline build
+        shell: pwsh
+        working-directory: src/web
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code -- ../soma/ui/static
+      - name: Verify frozen browser resources
+        shell: pwsh
+        run: |
+          python tools/verify_ui_build.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/verify_ui_fixtures.py
+      - name: Execute semantic browser scenarios
+        shell: pwsh
+        run: |
+          Push-Location src/web
+          node node_modules/@playwright/test/cli.js install chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:SOMA_TEST_BROWSER = node --input-type=module -e "import {chromium} from 'playwright'; process.stdout.write(chromium.executablePath())"
+          Pop-Location
+          python tools/run_ui_browser_tests.py
+
   tests:
     name: Python ${{ matrix.python-version }} / Windows
     runs-on: windows-latest

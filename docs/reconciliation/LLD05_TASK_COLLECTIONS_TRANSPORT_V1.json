@@ -1,0 +1,179 @@
+{
+  "schema": "SOMA_LLD05_TASK_COLLECTIONS_ACCEPTED_REFINEMENT_V1",
+  "owner": "LLD-05",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "authority": "User-directed Task detail bounded-summary and Task-scoped collection reconciliation, 2026-10-02. Focused refinement; no design pin advance.",
+  "TaskIdQueryV1": {
+    "path_fields": [
+      "task_id:canonical UUIDv4"
+    ],
+    "query_fields": {},
+    "unknown_fields": "reject"
+  },
+  "TaskDetailV1_refinement": {
+    "preserved": [
+      "identity",
+      "WFM context",
+      "provider_source_projection",
+      "operational_plan including history_count",
+      "objective_membership",
+      "membership_pinned_plan",
+      "actual_execution",
+      "reviewed_outcome",
+      "locks",
+      "activity_lineage",
+      "operational_count"
+    ],
+    "relationship_summary": {
+      "exact_total": "integer >=0",
+      "counts_by_kind": {
+        "sr": "integer >=0",
+        "rfc": "integer >=0",
+        "device": "integer >=0"
+      },
+      "rule": "Exact active direct Task-owned links only. Sum of kind counts equals exact_total. WFM owning RFC is separate identity context."
+    },
+    "attention_summary": {
+      "source_terminal_reviews_exact_pending_count": "integer >=0",
+      "regroup_proposals_exact_pending_count": "integer >=0",
+      "historical_proposals_exact_pending_count": "integer >=0"
+    },
+    "removed": [
+      "relationships",
+      "warnings.pending_source_terminal_review_ids",
+      "warnings.pending_regroup_proposal_ids",
+      "warnings.pending_historical_proposal_ids"
+    ],
+    "retry": {
+      "predecessor": "immediate retry edge or null",
+      "successor": "immediate retry edge or null",
+      "edge": [
+        "retry_relation_id",
+        "predecessor_task_id",
+        "successor_task_id"
+      ],
+      "bound": "at most two immediate edges, schema unique predecessor/successor"
+    },
+    "warning_codes": "Deferred. Omitted from current attention summary; no authoritative empty warning array. Exact literals and complete classification remain owner reconciliation prerequisites for warning-dependent UI binding."
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/v1/tasks/{task_id}/relationships",
+      "handler": "TaskRelationshipList",
+      "request": "TaskRelationshipListQueryV1",
+      "response": "TaskRelationshipPageV1"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tasks/{task_id}/attention",
+      "handler": "TaskAttentionList",
+      "request": "TaskAttentionListQueryV1",
+      "response": "TaskAttentionPageV1"
+    }
+  ],
+  "route_policy": {
+    "auth_policy": "LLD12_BROWSER_QUERY_V1",
+    "max_request_bytes": 4096,
+    "success_status": 200,
+    "error_codes": [
+      "VALIDATION_FAILED",
+      "TASK_NOT_FOUND"
+    ]
+  },
+  "TaskRelationshipListQueryV1": {
+    "query_fields": {
+      "cursor": "CURSOR_V1|null",
+      "limit": "integer 1..500, default 100"
+    },
+    "unknown_fields": "reject"
+  },
+  "TaskAttentionListQueryV1": {
+    "query_fields": {
+      "kind": "source_terminal|regroup|historical|null (null selects all three)",
+      "cursor": "CURSOR_V1|null",
+      "limit": "integer 1..500, default 100"
+    },
+    "unknown_fields": "reject",
+    "scope": "pending owner evidence associated with exact Task; no stale/eligibility/warning inference"
+  },
+  "TaskRelationshipPageV1": {
+    "additionalProperties": false,
+    "fields": {
+      "items": "bounded array[TaskRelationshipListItemV1]",
+      "continuation": "CURSOR_V1|null",
+      "exact_total": "complete Task active relationship count, independent of cursor/page length"
+    }
+  },
+  "TaskRelationshipListItemV1": {
+    "additionalProperties": false,
+    "fields": {
+      "kind": "sr|rfc|device",
+      "relationship_id": "canonical UUIDv4",
+      "related_id": "canonical UUIDv4"
+    }
+  },
+  "TaskAttentionPageV1": {
+    "additionalProperties": false,
+    "fields": {
+      "items": "bounded array[TaskAttentionListItemV1]",
+      "continuation": "CURSOR_V1|null",
+      "exact_total": "complete Task pending count for selected kind(s), independent of cursor/page length"
+    }
+  },
+  "TaskAttentionListItemV1": {
+    "additionalProperties": false,
+    "fields": {
+      "kind": "source_terminal|regroup|historical",
+      "item_id": "canonical UUIDv4 identifying review/proposal in its owning kind",
+      "revision": "integer >=1",
+      "created_at_utc": "UTC whole seconds >=0",
+      "input_fingerprint": "lowercase SHA256"
+    },
+    "rule": "Owner persisted evidence identity only; not current classification or actionable eligibility."
+  },
+  "cursor": {
+    "fields": [
+      "version",
+      "query_id",
+      "sort_registry_id",
+      "last_key_tuple",
+      "filter_fingerprint",
+      "null_order"
+    ],
+    "version": 1,
+    "null_order": "not_applicable",
+    "unknown_fields": "reject",
+    "fingerprint": "canonical SHA256 over version/query_id/sort_registry_id/null_order/task_id/kind; exact Task and kind scope required; page limit excluded",
+    "relationship": {
+      "query_id": "TaskRelationshipList",
+      "sort_registry_id": "TASK_RELATIONSHIP_KIND_TARGET_ASC_V1",
+      "last_key_tuple": [
+        "kind",
+        "related_id"
+      ],
+      "ordering": "kind lexical ASC (device,rfc,sr), related_id ASC. Active exact pair is unique; no omitted tie breaker."
+    },
+    "attention": {
+      "query_id": "TaskAttentionList",
+      "sort_registry_id": "TASK_ATTENTION_KIND_ORDER_ID_ASC_V1",
+      "last_key_tuple": [
+        "kind",
+        "order_utc",
+        "item_id"
+      ],
+      "ordering": "kind lexical ASC (historical,regroup,source_terminal), order_utc ASC, item_id ASC. order_utc is created_at_utc for source_terminal and the literal 0 for historical/regroup; uses existing Task-scoped indexes."
+    }
+  },
+  "consistency": "Existence, exact totals and page rows share one LLD-01 ReadSnapshot per invocation. Continuation is live keyset paging, not a retained cross-request snapshot. No receipts/audit/revisions or owner mutations.",
+  "implementation": {
+    "owner": "src/soma/objectives_tasks/queries/tasks.py",
+    "types": "src/soma/objectives_tasks/contracts/objectives_tasks.py",
+    "routes": "src/soma/objectives_tasks/api/routes_objectives_tasks.py",
+    "tests": "tests/test_task_collections.py",
+    "bounds": "At most three*(limit+1) relationship/attention rows loaded. Constant number of SQL queries. Counts may traverse Task-scoped matching index entries; no global pending ID materialization or per-item owner detail calls.",
+    "schema": "No migration/index change. Immutable runtime history preserved.",
+    "http_binding": "src/soma/objectives_tasks/api/routes_objectives_tasks.py:task_collection_handlers"
+  },
+  "ui_binding": "Pending owner warning enum and remaining exact full Task-detail transport closure; LLD-10 consumes only public owner contracts, never private tables."
+}

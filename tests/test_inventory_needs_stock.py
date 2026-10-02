@@ -75,6 +75,39 @@ def _need_row(factory, sr_id: str, bom_key: str):
         ).fetchone()
 
 
+def test_needs_query_pages_filter_bound_inventory_facts_without_mutation(initialized_database):
+    factory = _factory(initialized_database)
+    sr = _sr(factory, "97990001")
+    service = InventoryNeedsStockService(factory)
+    for bom, quantity in (("BOM-A", 7), ("BOM-B", 2), ("BOM-C", 3)):
+        service.create_spare_need_draft(command_id=new_uuid4(),
+            service_request_id=sr.service_request_id, bom_code=bom, planned_quantity=quantity)
+    query = InventoryNeedsQueryService(factory)
+    def evidence_counts():
+        with ReadSnapshot(factory) as snapshot:
+            return tuple(snapshot.connection.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]
+                for table in ("command_receipts", "audit_events", "spare_need_lifecycle_events"))
+    before = evidence_counts()
+    first = query.list_needs(service_request_id=sr.service_request_id, limit=2)
+    second = query.list_needs(service_request_id=sr.service_request_id,
+        cursor=first["continuation"], limit=2)
+    assert first["exact_total"] == second["exact_total"] == 3
+    items = first["items"] + second["items"]
+    assert len({item["spare_need_id"] for item in items}) == 3
+    assert [item["spare_need_id"] for item in items] == sorted(item["spare_need_id"] for item in items)
+    assert {item["planned_quantity"] for item in items} == {7, 2, 3}
+    assert all(item["contributor_count"] == 0 for item in items)
+    assert all(item["request_allocation_summary"]["request_count"] == 0 for item in items)
+    assert second["continuation"] is None
+    filtered = query.list_needs(bom_code=" bom-a ", lifecycle_state="active")
+    assert filtered["exact_total"] == 1
+    assert filtered["items"][0]["planned_quantity"] == 7
+    for changed in ({"bom_code": "BOM-A"}, {"lifecycle_state": "active"}, {"service_request_id":new_uuid4()}):
+        with pytest.raises(SomaError):
+            query.list_needs(cursor=first["continuation"], **changed)
+    assert evidence_counts() == before
+
+
 def test_t001_sixty_faulty_same_sr_bom_aggregate_one_need(
     initialized_database,
 ) -> None:
@@ -98,6 +131,10 @@ def test_t001_sixty_faulty_same_sr_bom_aggregate_one_need(
         )
 
     assert len(need_ids) == 1
+    needs_page = InventoryNeedsQueryService(factory).list_needs(service_request_id=sr.service_request_id)
+    assert needs_page["exact_total"] == 1
+    assert needs_page["items"][0]["planned_quantity"] == 1
+    assert needs_page["items"][0]["contributor_count"] == 60
     with ReadSnapshot(factory) as snapshot:
         need_id = next(iter(need_ids))
         projection = snapshot.connection.execute(
@@ -827,6 +864,11 @@ def test_t004_local_selection_preserves_active_need_and_optional_reservation(
         task_revision=task.revision,
     )
     assert selected.outcome == "APPLIED"
+    need_page = InventoryNeedsQueryService(factory).list_needs(service_request_id=sr.service_request_id)
+    assert need_page["exact_total"] == 1
+    assert need_page["items"][0]["lifecycle_state"] == "active"
+    assert need_page["items"][0]["local_allocation_summary"]["local_selection_event_count"] == 1
+    assert need_page["items"][0]["local_allocation_summary"]["active_task_allocation_count"] == 1
 
     with ReadSnapshot(factory) as snapshot:
         need = snapshot.connection.execute(

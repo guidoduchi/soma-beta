@@ -18,6 +18,7 @@ from soma.foundation.jobs import DurableJobCoordinator, JobTypeRegistry
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot, UnitOfWork
 
+from ..contracts import GroupingRecomputeProposalV1, GroupingRecomputeProposalPageV1
 from ..audit_registry import build_objectives_tasks_audit_registry
 from ..jobs import (
     GROUPING_ORIGINS,
@@ -48,6 +49,16 @@ _GROUPING_WORKSET_SOFT_THRESHOLD = 100_000
 class _GroupingSnapshot:
     tasks: tuple[GroupingTaskAuthority, ...]
     objectives: dict[str, GroupingObjectiveAuthority]
+    competing_task_ids: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True, slots=True)
+class _ManualGroupingAuthority:
+    objective_rows: tuple[Any, ...]
+    neighbor: bool
+    count_rows: tuple[Any, ...]
+    member_rows: tuple[Any, ...]
+    competing_task_ids: frozenset[str]
 
 
 def _fingerprint(value: str) -> str:
@@ -242,7 +253,7 @@ class GroupingService:
                     objective_execution_state=None if objective is None else objective.execution_state,
                 )
             )
-        return _GroupingSnapshot(tuple(task_items), objectives)
+        return _GroupingSnapshot(tuple(task_items), objectives, competing_task_ids)
 
     @staticmethod
     def _normalize_trigger_scope(
@@ -286,13 +297,14 @@ class GroupingService:
         *,
         objective_ids: tuple[str, str],
         origin: str,
+        _authority: _ManualGroupingAuthority | None = None,
     ) -> RegroupCandidate:
         if origin != "manual_request":
             raise ValidationError(
                 "manual exact-touch merge requires origin=manual_request"
             )
         selected_ids = tuple(sorted(objective_ids))
-        rows = connection.execute(
+        rows = _authority.objective_rows if _authority is not None else connection.execute(
             "SELECT o.objective_id,o.tracking_sequence,o.revision,e.revision,"
             "e.start_utc,e.end_utc,a.execution_state,o.creation_origin "
             "FROM objectives o "
@@ -346,7 +358,7 @@ class GroupingService:
             )
         union_start = min(item.start_utc for item in objectives)
         union_end = max(item.end_utc for item in objectives)
-        neighbor = connection.execute(
+        neighbor = _authority.neighbor if _authority is not None else connection.execute(
             "SELECT 1 FROM objectives o "
             "JOIN objective_envelope_projection e ON e.objective_id=o.objective_id "
             "WHERE o.superseded_by_objective_id IS NULL "
@@ -354,13 +366,13 @@ class GroupingService:
             "AND e.start_utc < ? AND e.end_utc > ? LIMIT 1",
             (selected_ids[0], selected_ids[1], union_end, union_start),
         ).fetchone()
-        if neighbor is not None:
+        if (_authority is not None and neighbor) or (_authority is None and neighbor is not None):
             raise SomaError(
                 "GROUPING_INDETERMINATE",
                 "manual merge union overlaps a third current Objective",
             )
 
-        count_rows = connection.execute(
+        count_rows = _authority.count_rows if _authority is not None else connection.execute(
             "SELECT objective_id,COUNT(*) "
             "FROM objective_task_membership_current "
             "WHERE objective_id IN (?,?) GROUP BY objective_id",
@@ -370,7 +382,7 @@ class GroupingService:
         if set(counts) != set(selected_ids) or any(value <= 0 for value in counts.values()):
             raise IntegrityFailure("current Objective has no material membership")
 
-        member_rows = connection.execute(
+        member_rows = _authority.member_rows if _authority is not None else connection.execute(
             "SELECT t.task_id,t.revision,pc.plan_revision_id,pc.revision,"
             "p.start_utc,p.end_utc,m.objective_id,m.accepted_plan_revision_id,"
             "m.membership_revision,COALESCE(l.explicit_membership_lock,0),"
@@ -394,7 +406,7 @@ class GroupingService:
                 "GROUPING_INDETERMINATE",
                 "manual merge member plan authority is incomplete",
             )
-        competing = cls._competing_task_ids(connection)
+        competing = _authority.competing_task_ids if _authority is not None else cls._competing_task_ids(connection)
         objective_by_id = {item.objective_id: item for item in objectives}
         material_tasks: list[GroupingTaskAuthority] = []
         for row in member_rows:
@@ -506,8 +518,9 @@ class GroupingService:
         connection: Any,
         *,
         origin: str,
+        _snapshot: _GroupingSnapshot | None = None,
     ) -> tuple[RegroupCandidate, ...]:
-        snapshot = cls._load_snapshot(connection)
+        snapshot = _snapshot if _snapshot is not None else cls._load_snapshot(connection)
         components = strict_overlap_components(snapshot.tasks)
         split_objectives = cls._split_objectives(components)
         ordered_objectives = sorted(
@@ -730,16 +743,12 @@ class GroupingService:
         *,
         execution_mode: str,
         job_id: str | None,
-        items: list[dict[str, object]],
+        items: list[GroupingRecomputeProposalV1],
     ) -> dict[str, object]:
         return {
             "execution_mode": execution_mode,
             "job_id": job_id,
-            "proposals": {
-                "items": items,
-                "continuation": None,
-                "exact_total": len(items),
-            },
+            "proposals": GroupingRecomputeProposalPageV1(tuple(items)).to_response(),
         }
 
     def recompute_grouping_proposals(
@@ -915,7 +924,7 @@ class GroupingService:
 
             def apply_sync(inner: UnitOfWork):
                 audits: list[AuditEventInput] = []
-                items: list[dict[str, object]] = []
+                items: list[GroupingRecomputeProposalV1] = []
                 for proposal_id, candidate in zip(
                     proposal_ids,
                     material,
@@ -972,18 +981,14 @@ class GroupingService:
                                 change.expected_envelope_revision,
                             ),
                         )
-                    item = {
-                        "proposal_id": proposal_id,
-                        "revision": 1,
-                        "input_fingerprint": candidate.input_fingerprint,
-                        "state": "pending",
-                        "diff": {
-                            "proposal_kind": candidate.proposal_kind,
-                            "risk_tier": candidate.risk_tier,
-                            "task_change_count": len(candidate.task_changes),
-                            "objective_change_count": len(candidate.objective_changes),
-                        },
-                    }
+                    item = GroupingRecomputeProposalV1(
+                        proposal_id=proposal_id, revision=1,
+                        input_fingerprint=candidate.input_fingerprint, state="pending",
+                        proposal_kind=candidate.proposal_kind, origin=candidate.origin,
+                        risk_tier=candidate.risk_tier,
+                        affected_task_exact_count=len(candidate.task_changes),
+                        affected_objective_exact_count=len(candidate.objective_changes),
+                    )
                     items.append(item)
                     audits.append(
                         AuditEventInput(

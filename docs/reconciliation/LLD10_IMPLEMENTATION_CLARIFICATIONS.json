@@ -1,0 +1,94 @@
+{
+  "schema": "SOMA_LLD10_ACCEPTED_IMPLEMENTATION_REFINEMENTS_V1",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "accepted_by": "implementation_owner_user_clarification_2026-10-01",
+  "checkpoint_response": {
+    "type": "WorkingCopyCheckpointResultV1",
+    "version": 1,
+    "unknown_field_policy": "reject",
+    "fields": {
+      "working_copy_id": "uuid4",
+      "generation": "integer >=1",
+      "content_hash": "lowercase SHA256 hex",
+      "updated_at_utc": "integer >=0",
+      "expires_at_utc": "updated_at_utc +604800"
+    },
+    "rule": "Persist this exact metadata-only committed response. Never reconstruct replay from current ui_working_copies. Do not include payload, draft, dirty paths, key field values or base revision token. Full draft is available only through recovery queries while the row exists."
+  },
+  "confirmation_refinement": {
+    "action_kind": "tickets.rfc.hard_delete",
+    "tier": "impact_preview_plus_hold",
+    "required_elapsed_ms": 3000,
+    "allowlist": "impact_preview_plus_hold_allowlist",
+    "binding": "exact current eligible LLD-03 eligibility_fingerprint and target revision; single-use LLD-12 proof"
+  },
+  "production_working_copy_registrations": [],
+  "production_registration_status": "design_reconciliation_required_do_not_invent",
+  "task_detail_transport_reconciliation": {
+    "owner": "LLD-05",
+    "route": "GET /api/v1/tasks/{task_id}",
+    "response_type": "TaskDetailV1",
+    "state": "owner_direction_accepted_exact_transport_leaf_pending",
+    "preserve": [
+      "identity/kind/display/revision",
+      "WFM owning RFC/root/SR context",
+      "provider source projection/source plan",
+      "operational_plan/history",
+      "Objective membership",
+      "membership_pinned_plan",
+      "actual_execution",
+      "reviewed_outcome",
+      "explicit/effective locks",
+      "retry/activity lineage",
+      "direct Task relationships",
+      "operational-count inclusion",
+      "pending source-terminal/regroup/historical warnings"
+    ],
+    "rule": "Reconcile the complete LLD-05 TaskWorkbench transport leaf, retain semantically explicit existing field names, and consume that single DTO. No LLD-10 composition DTO or private-table joins. Keep HTTP binding pending until the owning transport leaf is reconciled."
+  },
+  "inventory_transport_reconciliation": {
+    "owner": "LLD-07",
+    "state": "owner_direction_accepted_complete_transport_leaves_pending",
+    "core_response": "SpareRequestV1 remains compact command/core DTO",
+    "list_response": "SpareRequestPageV1.items becomes SpareRequestListItemV1; preserve requester creation evidence, SR context, owner as_of age and action blockers",
+    "detail_response": "GET /api/v1/inventory/requests/{request_id} becomes SpareRequestDetailV1; richer owner detail, no core DTO enlargement",
+    "needs_response": "Close SpareNeedProjectionV1 and implement owner InventoryNeedsQuery; no UI-local DTO or Inventory private-table access from LLD10",
+    "implemented": "Inventory-owned Need facts and non-Customer filters with bounded filter-bound keyset pagination, one read snapshot and indexed page-restricted aggregate summaries; not yet the complete HTTP contract",
+    "customer_context": {
+      "state": "owner_contract_incomplete_binding_deferred",
+      "membership_owner": "LLD03 general read-only Service Request reference provider; immutable SR identity/revision and explicit current Customer relationship metadata/unresolved/unassigned state",
+      "scope_owner": "LLD02 CustomerScopeProvider for all/specific/unassigned and Customer display identity",
+      "consumer": "LLD07-local InventoryReferenceReader anti-corruption adapter; do not reuse import-specific ServiceRequestImportReader or join LLD03 private tables",
+      "batch_rule": "Add bounded set-based owner read for list pages up to 500; no N+1 point-read pattern",
+      "filter_rule": "specific matches current SR Customer relationship, unassigned its absence, all applies no Customer predicate; never infer from requester/receiver/Contact affiliation"
+    }
+  },
+  "communications_chronology_refinement": {
+    "owner": "LLD-09",
+    "type": "ChronologyV1",
+    "field": "utc_epoch_seconds",
+    "rule": "Canonical UTC whole-second application/message chronology. types/common.json utc_epoch_ms is stale. Consume the existing owner DTO unchanged; do not change ProviderCheckpointV1.provider_time_source_epoch_ms or convert owner timestamps.",
+    "accepted_by": "implementation_owner_user_clarification_2026-10-01",
+    "required": [
+      "known",
+      "utc_epoch_seconds",
+      "source_kind"
+    ],
+    "additionalProperties": false,
+    "fields": {
+      "known": "boolean",
+      "utc_epoch_seconds": "int64 >=0 | null",
+      "source_kind": "RECEIVED_TIME | SENT_TIME | OTHER_PROVIDER_TIME | UNKNOWN"
+    },
+    "invariants": [
+      "known=false requires null instant and UNKNOWN source",
+      "known=true requires whole-second instant and supported provider chronology source; scan/discovery/current time cannot substitute"
+    ]
+  },
+  "grouping_list_transport_reconciliation": {
+    "owner": "LLD-05",
+    "contract": "docs/reconciliation/LLD05_GROUPING_LIST_TRANSPORT_V1.json",
+    "state": "list_filters_cursor_projection_and_exact_batched_warnings_implemented",
+    "rule": "Dedicated live list item with complete filters/cursor and exact batched warnings. Separate immutable GroupingRecomputeProposalV1/GroupingRecomputeProposalPageV1 for recompute; no live classifications in command replay. Compact accept/reject/reconsider DTO unchanged."
+  }
+}

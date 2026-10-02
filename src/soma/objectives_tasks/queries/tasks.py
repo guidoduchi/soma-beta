@@ -10,6 +10,8 @@ from soma.foundation.errors import IntegrityFailure, SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4
 from soma.foundation.strict_json import sha256_canonical_json
 
+from ..contracts.objectives_tasks import TaskRelationshipListQueryV1, TaskAttentionListQueryV1, TaskRelationshipPageV1, TaskAttentionPageV1
+
 from .execution_review import _load_execution_authority, _load_outcome_authority
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
@@ -174,6 +176,65 @@ class TaskOperationalEvidenceReader:
                 "objective_context": cls.objective_context(connection, canonical),
             }
         )
+
+
+_RELATIONSHIPS = (
+    ("device", "task_device_links", "device_reference_id"),
+    ("rfc", "task_rfc_links", "rfc_id"),
+    ("sr", "task_sr_links", "service_request_id"),
+)
+_ATTENTION = (
+    ("historical", "historical_proposals", "historical_proposal_id", "historical_objective_proposals", "0"),
+    ("regroup", "regroup_proposals", "regroup_proposal_id", "regroup_proposals", "0"),
+    ("source_terminal", "source_terminal_reviews", "source_terminal_review_id", "wfm_source_terminal_reviews", "created_at_utc"),
+)
+_CURSOR_FIELDS = {"version", "query_id", "sort_registry_id", "last_key_tuple", "filter_fingerprint", "null_order"}
+
+
+def _require_task(connection, identity):
+    if connection.execute("SELECT 1 FROM tasks WHERE task_id=?", (identity,)).fetchone() is None:
+        raise SomaError("TASK_NOT_FOUND", "Task does not exist")
+
+
+def _attention_scope(kind):
+    if kind == "regroup":
+        return ("task_id=? AND EXISTS (SELECT 1 FROM regroup_proposals p "
+                "WHERE p.regroup_proposal_id=regroup_proposal_task_changes.regroup_proposal_id AND p.state='pending')")
+    return "task_id=? AND state='pending'"
+
+
+def _attention_summary(connection, identity):
+    result = {}
+    for kind, label, column, table, order in _ATTENTION:
+        if kind == "regroup":
+            table = "regroup_proposal_task_changes"
+        result[label + "_exact_pending_count"] = int(connection.execute(
+            "SELECT COUNT(*) FROM " + table + " WHERE " + _attention_scope(kind), (identity,)
+        ).fetchone()[0])
+    # No warning_codes field: classification authority is not closed yet.
+    return result
+
+
+def _collection_cursor(query_id, identity, kind, cursor, relationship=False):
+    sort = "TASK_RELATIONSHIP_KIND_TARGET_ASC_V1" if relationship else "TASK_ATTENTION_KIND_ORDER_ID_ASC_V1"
+    base = {"version": 1, "query_id": query_id, "sort_registry_id": sort, "null_order": "not_applicable"}
+    base["filter_fingerprint"] = sha256_canonical_json({**base, "task_id": identity, "kind": kind})
+    if cursor is None:
+        return base, None
+    if not isinstance(cursor, dict) or set(cursor) != _CURSOR_FIELDS:
+        raise ValidationError("Task collection cursor fields are invalid")
+    if type(cursor["version"]) is not int or any(cursor.get(key) != value for key, value in base.items()):
+        raise ValidationError("Task collection cursor identity is invalid")
+    key = cursor["last_key_tuple"]
+    if not isinstance(key, list) or len(key) != (2 if relationship else 3):
+        raise ValidationError("Task collection cursor key is invalid")
+    kinds = {item[0] for item in (_RELATIONSHIPS if relationship else _ATTENTION)}
+    if not isinstance(key[0], str) or key[0] not in kinds or (kind is not None and key[0] != kind):
+        raise ValidationError("Task collection cursor kind is invalid")
+    require_uuid4(key[-1])
+    if not relationship and (type(key[1]) is not int or key[1] < 0 or (key[0] != "source_terminal" and key[1] != 0)):
+        raise ValidationError("Task attention cursor ordering value is invalid")
+    return base, key
 
 
 class TaskQueryService:
@@ -383,6 +444,91 @@ class TaskQueryService:
                 }
             return {"items": items, "continuation": continuation, "exact_total": total}
 
+    def list_relationships(self, task_id: str, **decoded) -> TaskRelationshipPageV1:
+        request = TaskRelationshipListQueryV1.from_value(decoded)
+        identity = require_uuid4(task_id)
+        base, key = _collection_cursor("TaskRelationshipList", identity, None, request.cursor, True)
+        with ReadSnapshot(self._factory) as snapshot:
+            connection = snapshot.connection
+            _require_task(connection, identity)
+            total = 0
+            items = []
+            for kind, table, column in _RELATIONSHIPS:
+                total += int(connection.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE task_id=? AND active=1", (identity,)
+                ).fetchone()[0])
+                if key is not None and kind < key[0]:
+                    continue
+                seek = f" AND {column}>?" if key is not None and kind == key[0] else ""
+                params = (identity, key[1], request.limit + 1) if seek else (identity, request.limit + 1)
+                rows = connection.execute(
+                    f"SELECT link_id,{column} FROM {table} WHERE task_id=? AND active=1" + seek
+                    + f" ORDER BY {column} LIMIT ?", params
+                ).fetchall()
+                items.extend({"kind": kind, "relationship_id": str(row[0]), "related_id": str(row[1])} for row in rows)
+            page = items[:request.limit]
+            continuation = None
+            if len(items) > request.limit:
+                last = page[-1]
+                continuation = {**base, "last_key_tuple": [last["kind"], last["related_id"]]}
+            return {"items": page, "continuation": continuation, "exact_total": total}
+
+    def list_attention(self, task_id: str, **decoded) -> TaskAttentionPageV1:
+        request = TaskAttentionListQueryV1.from_value(decoded)
+        identity = require_uuid4(task_id)
+        base, key = _collection_cursor("TaskAttentionList", identity, request.kind, request.cursor)
+        with ReadSnapshot(self._factory) as snapshot:
+            connection = snapshot.connection
+            _require_task(connection, identity)
+            total = 0
+            candidates = []
+            for kind, label, column, table, order in _ATTENTION:
+                if request.kind is not None and kind != request.kind:
+                    continue
+                source_table = "regroup_proposal_task_changes" if kind == "regroup" else table
+                scope = _attention_scope(kind)
+                total += int(connection.execute(
+                    "SELECT COUNT(*) FROM " + source_table + " WHERE " + scope, (identity,)
+                ).fetchone()[0])
+                if key is not None and kind < key[0]:
+                    continue
+                seek = ""
+                params = [identity]
+                if key is not None and kind == key[0]:
+                    if kind == "source_terminal":
+                        seek = f" AND (created_at_utc,{column})>(?,?)"
+                        params.extend(key[1:])
+                    else:
+                        seek = f" AND {column}>?"
+                        params.append(key[2])
+                params.append(request.limit + 1)
+                if kind == "regroup":
+                    # One Task-indexed joined page; no per-item detail query or global pending set.
+                    joined_seek = " AND c.regroup_proposal_id>?" if seek else ""
+                    rows = connection.execute(
+                        "SELECT p.regroup_proposal_id,p.revision,p.created_at_utc,p.input_fingerprint "
+                        "FROM regroup_proposal_task_changes c JOIN regroup_proposals p "
+                        "ON p.regroup_proposal_id=c.regroup_proposal_id "
+                        "WHERE c.task_id=? AND p.state='pending'" + joined_seek
+                        + " ORDER BY c.regroup_proposal_id LIMIT ?", tuple(params)
+                    ).fetchall()
+                    for row in rows:
+                        candidates.append(([kind, 0, str(row[0])], {"kind": kind, "item_id": str(row[0]),
+                            "revision": int(row[1]), "created_at_utc": int(row[2]), "input_fingerprint": str(row[3])}))
+                else:
+                    ordering = f"created_at_utc,{column}" if kind == "source_terminal" else column
+                    rows = connection.execute(
+                        f"SELECT {column},revision,created_at_utc,input_fingerprint FROM {table} WHERE "
+                        + scope + seek + " ORDER BY " + ordering + " LIMIT ?", tuple(params)
+                    ).fetchall()
+                    for row in rows:
+                        candidates.append(([kind, int(row[2]) if kind == "source_terminal" else 0, str(row[0])],
+                            {"kind": kind, "item_id": str(row[0]), "revision": int(row[1]),
+                             "created_at_utc": int(row[2]), "input_fingerprint": str(row[3])}))
+            page = candidates[:request.limit]
+            continuation = {**base, "last_key_tuple": page[-1][0]} if len(candidates) > request.limit else None
+            return {"items": [item for key, item in page], "continuation": continuation, "exact_total": total}
+
     def workbench(self, task_id: str) -> dict[str, object]:
         identity = require_uuid4(task_id)
         with ReadSnapshot(self._factory) as snapshot:
@@ -429,11 +575,17 @@ class TaskQueryService:
                 "FROM task_lock_projection WHERE task_id=?",
                 (identity,),
             ).fetchone()
-            retry = snapshot.connection.execute(
+            retries = snapshot.connection.execute(
                 "SELECT predecessor_task_id,successor_task_id,retry_relation_id "
                 "FROM task_retry_relations WHERE predecessor_task_id=? OR successor_task_id=?",
                 (identity, identity),
-            ).fetchone()
+            ).fetchall()
+            retry = {
+                direction: next(({"retry_relation_id": str(edge[2]),
+                    "predecessor_task_id": str(edge[0]), "successor_task_id": str(edge[1])}
+                    for edge in retries if edge[index] == identity), None)
+                for direction, index in (("predecessor", 1), ("successor", 0))
+            }
             lineage = snapshot.connection.execute(
                 "SELECT activity_lineage_id,revision,last_event_id "
                 "FROM task_activity_lineage_current WHERE task_id=?",
@@ -443,35 +595,11 @@ class TaskQueryService:
                 "SELECT included,revision FROM task_operational_count_current WHERE task_id=?",
                 (identity,),
             ).fetchone()
-            relationships = []
-            for kind, table, column in (
-                ("sr", "task_sr_links", "service_request_id"),
-                ("rfc", "task_rfc_links", "rfc_id"),
-                ("device", "task_device_links", "device_reference_id"),
-            ):
-                for rel in snapshot.connection.execute(
-                    f"SELECT link_id,{column} FROM {table} WHERE task_id=? AND active=1 ORDER BY {column},link_id",
-                    (identity,),
-                ).fetchall():
-                    relationships.append(
-                        {"kind": kind, "relationship_id": str(rel[0]), "related_id": str(rel[1])}
-                    )
-            pending_source = snapshot.connection.execute(
-                "SELECT source_terminal_review_id FROM wfm_source_terminal_reviews "
-                "WHERE task_id=? AND state='pending' ORDER BY created_at_utc,source_terminal_review_id",
-                (identity,),
-            ).fetchall()
-            pending_group = snapshot.connection.execute(
-                "SELECT DISTINCT p.regroup_proposal_id FROM regroup_proposals p "
-                "JOIN regroup_proposal_task_changes c ON c.regroup_proposal_id=p.regroup_proposal_id "
-                "WHERE c.task_id=? AND p.state='pending' ORDER BY p.created_at_utc,p.regroup_proposal_id",
-                (identity,),
-            ).fetchall()
-            pending_historical = snapshot.connection.execute(
-                "SELECT historical_proposal_id FROM historical_objective_proposals "
-                "WHERE task_id=? AND state='pending' ORDER BY created_at_utc,historical_proposal_id",
-                (identity,),
-            ).fetchall()
+            relationship_counts = {kind: int(snapshot.connection.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE task_id=? AND active=1", (identity,)
+            ).fetchone()[0]) for kind, table, column in _RELATIONSHIPS}
+            relationship_summary = {"exact_total": sum(relationship_counts.values()), "counts_by_kind": relationship_counts}
+            attention_summary = _attention_summary(snapshot.connection, identity)
 
             wfm_context = None
             if row[7] is not None:
@@ -553,13 +681,7 @@ class TaskQueryService:
                     "effective_membership_lock": (False if lock is None else bool(lock[1]))
                     or execution["execution_state"] != "not_started",
                 },
-                "retry": None
-                if retry is None
-                else {
-                    "retry_relation_id": str(retry[2]),
-                    "predecessor_task_id": str(retry[0]),
-                    "successor_task_id": str(retry[1]),
-                },
+                "retry": retry,
                 "activity_lineage": None
                 if lineage is None
                 else {
@@ -567,16 +689,12 @@ class TaskQueryService:
                     "revision": int(lineage[1]),
                     "last_event_id": str(lineage[2]),
                 },
-                "relationships": relationships,
+                "relationship_summary": relationship_summary,
                 "operational_count": {
                     "included": True if count is None else bool(count[0]),
                     "revision": 0 if count is None else int(count[1]),
                 },
-                "warnings": {
-                    "pending_source_terminal_review_ids": [str(item[0]) for item in pending_source],
-                    "pending_regroup_proposal_ids": [str(item[0]) for item in pending_group],
-                    "pending_historical_proposal_ids": [str(item[0]) for item in pending_historical],
-                },
+                "attention_summary": attention_summary,
             }
 
 

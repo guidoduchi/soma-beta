@@ -37,6 +37,7 @@ where = ["src"]
 "soma.migrations" = ["*.sql", "manifest.json"]
 "soma.infrastructure.contracts" = ["registry.json"]
 "soma.communications.contracts" = ["registry.json"]
+"soma.ui" = ["registry.json", "static/*", "static/assets/*"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

@@ -1,0 +1,997 @@
+{
+  "schema": "SOMA_UI_SYNTHETIC_FIXTURES_V1",
+  "class": "visual_acceptance_fixture",
+  "source_sha256": {
+    "governed.html": "97b1519cd519b9162566a63ec849d7220f90506e35ada58a208fbacccc0c5f8a",
+    "governed.tsx": "3bff2bdba443eb799cd087a92deb8bcff0879c05fcb884aac54b5eec92085b02"
+  },
+  "fixtures": [
+    {
+      "fixture_id": "lld10-empty-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "empty",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-empty-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "empty",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-empty-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "empty",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-loading-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "loading",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-loading-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "loading",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-loading-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "loading",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-warning-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T036",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "warning",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Synthetic blocked action: disabled"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-warning-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T036",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "warning",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Synthetic blocked action: disabled"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-warning-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T036",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "warning",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Synthetic blocked action: disabled"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-error-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-F017",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "error",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Retry accepted state"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-error-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-F017",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "error",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Retry accepted state"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-error-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-F017",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "error",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Retry accepted state"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-stale-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T020",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "stale",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Reapply reviewed changes: disabled until review"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-stale-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T020",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "stale",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Reapply reviewed changes: disabled until review"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-stale-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T020",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "stale",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Reapply reviewed changes: disabled until review"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-destructive-preview-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T037",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "destructive-preview",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-destructive-preview-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T037",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "destructive-preview",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-destructive-preview-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T037",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "destructive-preview",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-historical-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T040",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "historical",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Communications",
+      "expected_material_actions": [
+        "Open canonical message: absent"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-historical-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T040",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "historical",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Communications",
+      "expected_material_actions": [
+        "Open canonical message: absent"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-historical-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T040",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "historical",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Open canonical message: absent"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-working-copy-recovery-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T019",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "working-copy-recovery",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Restore as unsaved changes",
+        "Discard recovery copy"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-working-copy-recovery-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T019",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "working-copy-recovery",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Restore as unsaved changes",
+        "Discard recovery copy"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-working-copy-recovery-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T019",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "working-copy-recovery",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "body",
+      "expected_material_actions": [
+        "Restore as unsaved changes",
+        "Discard recovery copy"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-keyboard-focus-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "keyboard-focus",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Synthetic keyboard target",
+      "expected_material_actions": [
+        "Synthetic keyboard target"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-keyboard-focus-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "keyboard-focus",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Synthetic keyboard target",
+      "expected_material_actions": [
+        "Synthetic keyboard target"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-keyboard-focus-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "keyboard-focus",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Synthetic keyboard target",
+      "expected_material_actions": [
+        "Synthetic keyboard target"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-autocomplete-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T010",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "autocomplete",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Synthetic reference",
+      "expected_material_actions": [
+        "More options: absent"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-autocomplete-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T010",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "autocomplete",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Synthetic reference",
+      "expected_material_actions": [
+        "More options: absent"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-autocomplete-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T010",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "autocomplete",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Synthetic reference",
+      "expected_material_actions": [
+        "More options: absent"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-dialog-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T043",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "dialog",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Cancel",
+      "expected_material_actions": [
+        "Synthetic primary action",
+        "Cancel"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-dialog-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T043",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "dialog",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Cancel",
+      "expected_material_actions": [
+        "Synthetic primary action",
+        "Cancel"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-dialog-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T043",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "dialog",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Cancel",
+      "expected_material_actions": [
+        "Synthetic primary action",
+        "Cancel"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-deliberate-hold-progress-480",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T013",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "deliberate-hold-progress",
+      "container_width_css_px": 480,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Hold synthetic destructive action",
+      "expected_material_actions": [
+        "Owner command count: 0"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-deliberate-hold-progress-900",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T013",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "deliberate-hold-progress",
+      "container_width_css_px": 900,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Hold synthetic destructive action",
+      "expected_material_actions": [
+        "Owner command count: 0"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    },
+    {
+      "fixture_id": "lld10-deliberate-hold-progress-1440",
+      "version": 1,
+      "mapped_requirement_or_test_ids": [
+        "LLD10-T013",
+        "LLD10-T052"
+      ],
+      "synthetic_or_irreversibly_sanitized_data_id": "lld10-wholly-synthetic-v1",
+      "surface/state": "deliberate-hold-progress",
+      "container_width_css_px": 1440,
+      "viewport_height_css_px": 900,
+      "platform/browser_host_profile": "desktop-headless-chromium-version-recorded-at-execution",
+      "skin_id": "soma_core",
+      "appearance_mode": "light",
+      "zoom_percent": 100,
+      "text_scale": 1,
+      "reduced_motion": true,
+      "forced_color_mode": "none",
+      "timezone": "UTC",
+      "deterministic_clock": "2026-10-01T00:00:00.000Z",
+      "expected_focus": "Hold synthetic destructive action",
+      "expected_material_actions": [
+        "Owner command count: 0"
+      ],
+      "tolerance_profile": "semantic-dom-primary-pixels-unapproved",
+      "provenance": "Test-only hand-authored synthetic values; no imported customer or mail data.",
+      "approval_state": "semantic_review_pending_no_pixel_baseline"
+    }
+  ]
+}

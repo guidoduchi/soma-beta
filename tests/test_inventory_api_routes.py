@@ -21,6 +21,10 @@ def test_route_registries_match_normative_surface_and_resolve_parameters() -> No
     request = resolve_inventory_route("GET", "/api/v1/inventory/requests/abc")
     assert request is not None
     assert request.spec.handler == "SpareRequestDetailQuery"
+    assert request.spec.response_type == "SpareRequestDetailV1"
+    create_request = resolve_inventory_route("POST", "/api/v1/inventory/requests")
+    assert create_request is not None
+    assert create_request.spec.response_type == "SpareRequestV1"
     assert dict(request.path_parameters) == {"request_id": "abc"}
     tag = resolve_fault_route("POST", "/api/v1/inventory/fault-tags/xyz/resend")
     assert tag is not None

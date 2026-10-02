@@ -1,0 +1,64 @@
+{
+  "files": {
+    "assets/index-CoKe4wwi.css": {
+      "bytes": 5825,
+      "sha256": "cc795d5fa7139f975ea7a89edfd850221613bf8f3ca7788ed2eaabc2de6e3c78"
+    },
+    "assets/index-DwYk8ZE-.js": {
+      "bytes": 268054,
+      "sha256": "5c002456eb9567480fd6e051fc92ef1d140349113ea164f85b8f1aba9df10905"
+    },
+    "index.html": {
+      "bytes": 369,
+      "sha256": "d8d78d127f83797136a37c045399258ce5ce7f53970ba54af077045625ba8605"
+    }
+  },
+  "schema": "SOMA_UI_STATIC_ASSETS_V1",
+  "source_input_format": "utf8-lf",
+  "source_sha256": {
+    "app/CommunicationSettings.tsx": "91ac50ef0f69caf4010f6238cd49d8639c4cb73f8ecbd429575dafb92e1f864b",
+    "app/GroupingProposalList.tsx": "0dd374d7aaee70c1a7c7b24455a1d9b9b64cd1150abe5169d079025b2c48964d",
+    "app/InfrastructureWorkspace.tsx": "52cc5dec3c331351151daa7f0a95066178a9c8c6f9bb5173f222d78b5f61a470",
+    "app/InventoryWorkspace.tsx": "5cbcad6b5ea454520304a327cacb6716c6e49f9a242800afce75d0ef034c1dde",
+    "app/ObjectiveSettings.tsx": "4d188a316c6b2958b08a860139d5d4094de12f76e94bad4a3e999370b6fb5d3c",
+    "app/ObjectiveWorkspace.tsx": "99e7196f4334b1d5c3f2c23ecf359034c11d22c2c6d301e1095733c900da6c7c",
+    "app/ReferenceSettings.tsx": "a02ecbbbae1d9d865841b7fee7c8c0bddf6db854b91bc8fc33720ad39a782a70",
+    "app/SlaCatalogSettings.tsx": "4789295c0f6f3a1765d25b7bb1f04c55f80e8b445fdf5eb8153268e44328e1d3",
+    "app/TicketWorkbench.tsx": "283ee6e769e61d65f67467feee975015713a7ed436e99d3b24c1082d04a09904",
+    "app/main.tsx": "a33b3a709dcee68a316278ac1c290289fdb751e4393f27251dd83990abb4dbe2",
+    "app/router.ts": "028c1e7b4776ff8789f2ebbdc2099ecb9a49d1794972722601ae5a25a9f305b3",
+    "components/ActionButton.tsx": "411c0d0098370a2d8a783cd078fc09620e518b68b81b67e249a90977f5dd330f",
+    "components/AppearanceSettings.tsx": "85d53401605fe62feb91325411c7466dbcca9f6ba7fb861614bb00c2e3632010",
+    "components/BoundedCollection.tsx": "4bf26eb066c5dd8aac524320a0846b1cf714c8563329654d24f03b312e1db640",
+    "components/BulkPreview.tsx": "0394241ab1e32f4a745bf166613c71d18b2c0c717d2d54747fa40512536c96be",
+    "components/CommunicationPanel.tsx": "17f3a495e8c098f8c73596daad21d1392acbc2fdfc39fba5d57c3bae5696fa5e",
+    "components/Modal.tsx": "874c609eb00b40fbabd75f7bc028d3f7aba9e7913d57affadf7ec753b1e99e3c",
+    "components/OwnerProjection.tsx": "ada69e97dc78dbe1f3eff79e0bcfba367d04f0e122385a910d7f2ead854c1625",
+    "components/RecoveryReview.tsx": "f7d0ce67e730f35ffe41628e8ed76ca7cc57074b2b19c0274d749531fb49b2e1",
+    "components/SelectableCollection.tsx": "7222c846273f16bd980fcd6bcfcc458b5ae09041f14cadfb87cdb592f3cf8ec2",
+    "components/SomaShell.tsx": "d6f5942208ff3955670c0f349bfc1e4ce744df6c973cd52564c034bc203655b4",
+    "components/TaskAuthorityFacts.tsx": "6ed62f07c0e93e5895597bbc63c5e4fb4e08e8191d7f14ee115fe87257ed6400",
+    "components/UndoOpportunity.tsx": "e17525d9772d1cb2a11dfce9c4c36d149ba22b23e26a59bb4e21ee2b62312e9f",
+    "components/WorkbenchShell.tsx": "a01179e3f6bc48ff07b4a098c5e9ceb20a6741094aa05081d9ac7f62ce584028",
+    "data/communications-contracts.ts": "6f1b7c33bf87852cfd8a8622b07d9d082580b7e8453bedb378403094a93a67c3",
+    "data/http.ts": "24e10cc09b9ebc323a0807a936772f33b6262d462035dece048974d9efe9037b",
+    "data/query-controller.ts": "973167c10dd935093c7865f53ee4e73d7a741e43fb4e0e559cd41e45962e0fee",
+    "env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
+    "index.html": "ce63127bf7b6d83f7be94b66a43e8a357023cfb9ac515284d093829241a19739",
+    "interactions/HoldButton.tsx": "182e288318b7f2eb9842c37d512100709b4c79fd9508b2ba2e04252503f9d437",
+    "interactions/autocomplete.tsx": "a4687c3e25b1918467c00d975ad64c9ddeb0062b96a183a12fcb5ae89375a457",
+    "interactions/deliberate-hold.ts": "b37dafbc81af1e86f837aab8d944af5f3e1cd6077b570b0a3e14ce7e314ab338",
+    "interactions/safe-undo.ts": "4578eee1bebd9c7f9fe0f9a9384e7e6137d11287253fc542f7dbfdaf1acea96a",
+    "interactions/scroll-owner.ts": "33a4c9eb86c2f43c025af7fa5fc5b5068986ce6059bf015229d762855ba77ae3",
+    "interactions/selection-open.ts": "22da804209803a2a6da71662adae2ad632bf0b2586189b94e657a0bf429eb6db",
+    "layout/responsive.ts": "7b7daa40172711393b35c8c171ab7448fec0a5f97f42cc6fc0e21c0b3bc8fc5f",
+    "package-lock.json": "4483afb2c20797a9e816a31baf67ce4612b2234103d69c30629b4d968bbc63b0",
+    "package.json": "fbb95c3b870b0ff6f331ba07acf2dfaaac1f73863d6492fd841ae92e0e4b6dae",
+    "state/appearance.ts": "1d202ba5b71d387260845286fc3353690d01d60ddfcb8c62f1b69d5924a47783",
+    "state/ui-store.ts": "f024ff594fa54c8e2565bc68f889c8c465a8907d61fae2eac686cf2f61cb3074",
+    "styles/soma.css": "20cac27aa3e6aecdfbff4c55b9d05eb1af4ce3d5a197791d8c87a4eb84827310",
+    "tsconfig.json": "3dd02e0633049ebb6630a5bd25e9af0769392a595641ec1768efbfc92d5a0b50",
+    "vite.config.mjs": "7a6ed5d66720c8c4b416d604bb3e7615fe2a8b978de3729111b7b7e4e30ea091",
+    "working-copy/client.ts": "11e75fc0fae26bd17b9718c48562d3a921ca51def6215dbddef457487363f070"
+  }
+}

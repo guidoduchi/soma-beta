@@ -96,6 +96,12 @@
       "migration_id": "beta_0016_communications",
       "filename": "0016_communications.sql",
       "sha256": "8e467684b9de0c2842d389da72877619e1fc460ab67b4a9c87b79f2cfc78ea8e"
+    },
+    {
+      "sequence": 17,
+      "migration_id": "beta_0017_ui_workbenches",
+      "filename": "0017_ui_workbenches.sql",
+      "sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905"
     }
   ]
 }

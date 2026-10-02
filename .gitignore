@@ -10,3 +10,7 @@ dist/
 
 # Sensitive local examples; never stage this directory.
 /tmp/
+
+# Frontend build dependencies are never production runtime resources.
+node_modules/
+.test-build/

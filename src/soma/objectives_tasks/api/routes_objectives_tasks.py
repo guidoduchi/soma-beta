@@ -7,6 +7,7 @@ from types import MappingProxyType
 
 from soma.foundation.errors import IntegrityFailure, ValidationError
 from soma.foundation.strict_json import canonical_json_bytes_bounded
+from ..contracts.objectives_tasks import TaskAttentionListQueryV1, TaskRelationshipListQueryV1
 
 _QUERY_AUTH = "LLD12_BROWSER_QUERY_V1"
 _MUTATION_AUTH = "LLD12_BROWSER_MUTATION_V1"
@@ -84,6 +85,8 @@ def _r(method, path, kind, handler, request, response, status, bound, errors):
 
 ROUTES: tuple[ObjectiveTaskRouteSpec, ...] = (
     _r("GET","/api/v1/tasks","query","TaskList","TaskListQueryV1","TaskPageV1",200,4096,["VALIDATION_FAILED"]),
+    _r("GET","/api/v1/tasks/{task_id}/relationships","query","TaskRelationshipList","TaskRelationshipListQueryV1","TaskRelationshipPageV1",200,4096,["VALIDATION_FAILED","TASK_NOT_FOUND"]),
+    _r("GET","/api/v1/tasks/{task_id}/attention","query","TaskAttentionList","TaskAttentionListQueryV1","TaskAttentionPageV1",200,4096,["VALIDATION_FAILED","TASK_NOT_FOUND"]),
     _r("GET","/api/v1/tasks/{task_id}","query","TaskWorkbench","TaskIdQueryV1","TaskDetailV1",200,2048,["TASK_NOT_FOUND"]),
     _r("POST","/api/v1/tasks/local","command","CreateLocalTask","CreateLocalTaskRequestV1","TaskMutationResultV1",201,16384,["TASK_NAME_REQUIRED","TASK_PLAN_INCOMPLETE","TASK_PLAN_INVALID_INTERVAL","TIMEZONE_UNKNOWN","TIMEZONE_AMBIGUOUS_LOCAL_TIME","TIMEZONE_NONEXISTENT_LOCAL_TIME","IDEMPOTENCY_CONFLICT"]),
     _r("POST","/api/v1/tasks/wfm/manual","command","RegisterManualWfmTask","RegisterManualWfmTaskRequestV1","TaskMutationResultV1",201,8192,["WFM_TASK_NO_INVALID","WFM_RFC_NOT_ELIGIBLE","WFM_PARENT_STALE","TASK_PLAN_INVALID_INTERVAL","IDEMPOTENCY_CONFLICT"]),
@@ -118,7 +121,7 @@ ROUTES: tuple[ObjectiveTaskRouteSpec, ...] = (
     _r("POST","/api/v1/objectives/{objective_id}/restore","command","RestoreObjective","RestoreObjectiveRequestV1","ObjectiveMutationResultV1",200,4096,["OBJECTIVE_NOT_FOUND","OBJECTIVE_STALE","OBJECTIVE_OVERLAP","IDEMPOTENCY_CONFLICT"]),
     _r("POST","/api/v1/objectives/{objective_id}/hard-delete-preview","query","ObjectiveHardDeletePreview","ObjectiveHardDeletePreviewQueryV1","HardDeletePreviewV1",200,4096,["OBJECTIVE_NOT_FOUND","HARD_DELETE_BLOCKED","HARD_DELETE_INDETERMINATE"]),
     _r("DELETE","/api/v1/objectives/{objective_id}","command","HardDeleteObjective","HardDeleteObjectiveRequestV1","ObjectiveMutationResultV1",200,8192,["OBJECTIVE_NOT_FOUND","OBJECTIVE_STALE","HARD_DELETE_BLOCKED","HARD_DELETE_INDETERMINATE","IDEMPOTENCY_CONFLICT"]),
-    _r("GET","/api/v1/grouping/proposals","query","GroupingProposalList","GroupingProposalListQueryV1","GroupingProposalPageV1",200,4096,["VALIDATION_FAILED"]),
+    _r("GET","/api/v1/grouping/proposals","query","GroupingProposalList","GroupingProposalListQueryV1","GroupingProposalPageV1",200,4096,["VALIDATION_FAILED","GROUPING_INDETERMINATE"]),
     _r("POST","/api/v1/grouping/recompute","command","RecomputeGroupingProposals","RecomputeGroupingProposalsRequestV1","GroupingRecomputeResultV1",200,8192,["GROUPING_INDETERMINATE","IDEMPOTENCY_CONFLICT"]),
     _r("POST","/api/v1/grouping/proposals/{proposal_id}/accept","command","AcceptRegroupProposal","AcceptRegroupProposalRequestV1","GroupingProposalV1",200,16384,["GROUPING_PROPOSAL_NOT_FOUND","GROUPING_PROPOSAL_STALE","GROUPING_INDETERMINATE","TASK_MEMBERSHIP_LOCKED","OBJECTIVE_TERMINAL_RESTRUCTURE","OBJECTIVE_IN_PROGRESS_RESTRUCTURE_LIMIT","OBJECTIVE_OVERLAP","IDEMPOTENCY_CONFLICT"]),
     _r("POST","/api/v1/grouping/proposals/{proposal_id}/reject","command","RejectRegroupProposal","RejectRegroupProposalRequestV1","GroupingProposalV1",200,8192,["GROUPING_PROPOSAL_NOT_FOUND","GROUPING_PROPOSAL_STALE","IDEMPOTENCY_CONFLICT"]),
@@ -167,6 +170,28 @@ def resolve_objectives_tasks_route(method: str, path: str) -> ResolvedObjectiveT
 
 
 OwnerHandler = Callable[[ResolvedObjectiveTaskRoute, Mapping[str, object]], Mapping[str, object]]
+
+
+def task_collection_handlers(task_queries) -> Mapping[str, OwnerHandler]:
+    """Bind the two reconciled collection routes to their single LLD-05 owner.
+
+    Validate query fields before applying the immutable path identity, so a
+    decoded task_id cannot override it or turn validation into a Python error.
+    """
+    def relationships(route, payload):
+        request = TaskRelationshipListQueryV1.from_value(payload)
+        return task_queries.list_relationships(
+            route.path_parameters["task_id"], cursor=request.cursor, limit=request.limit
+        )
+
+    def attention(route, payload):
+        request = TaskAttentionListQueryV1.from_value(payload)
+        return task_queries.list_attention(
+            route.path_parameters["task_id"], kind=request.kind,
+            cursor=request.cursor, limit=request.limit,
+        )
+
+    return MappingProxyType({"TaskRelationshipList": relationships, "TaskAttentionList": attention})
 
 
 class ObjectiveTaskRouteAdapter:
@@ -219,4 +244,5 @@ __all__ = [
     "ROUTES",
     "ResolvedObjectiveTaskRoute",
     "resolve_objectives_tasks_route",
+    "task_collection_handlers",
 ]

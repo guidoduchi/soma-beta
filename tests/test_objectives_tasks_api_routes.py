@@ -27,8 +27,15 @@ def test_lld05_route_registry_matches_normative_core_routes() -> None:
 
 def test_complete_route_metadata_matches_accepted_packet_and_both_fragments():
     # Accepted design dbcf681f: core Tasks, Objective/grouping, review previews.
-    assert len(ROUTES) == 48
-    assert sha256_canonical_json([asdict(route) for route in ROUTES]) == (
+    assert len(ROUTES) == 50
+    # User-accepted exact warning classification fails closed with this existing
+    # owner error. Preserve the original packet hash for every other fact.
+    refined = [route for route in ROUTES if route.handler == "GroupingProposalList"]
+    assert len(refined) == 1
+    assert refined[0].error_codes == ("VALIDATION_FAILED", "GROUPING_INDETERMINATE")
+    baseline = [replace(route, error_codes=("VALIDATION_FAILED",))
+                if route.handler == "GroupingProposalList" else route for route in ROUTES if route.handler not in {"TaskRelationshipList", "TaskAttentionList"}]
+    assert sha256_canonical_json([asdict(route) for route in baseline]) == (
         "838824f5ae9bc289b2120c92000a1fc2a5e9eb4c4253c053340e8f1c2a7917be"
     )
 

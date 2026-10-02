@@ -9,6 +9,8 @@ from zipfile import ZipFile
 
 
 def verify(wheel_path: Path) -> None:
+    from verify_ui_build import verify as verify_ui_build
+    verify_ui_build()
     from soma.foundation.migrations.manifest import MigrationManifest
     from soma.reference.domain.matching import EXPECTED_ASSET_SHA256
 
@@ -42,6 +44,20 @@ def verify(wheel_path: Path) -> None:
             registry = f"{packet}/contracts/registry.json"
             if wheel.read(f"soma/{registry}") != (soma_source / registry).read_bytes():
                 raise ValueError(f"wheel {packet} registry differs from pinned source authority")
+        ui_source = soma_source / 'ui'
+        if wheel.read('soma/ui/registry.json') != (ui_source / 'registry.json').read_bytes():
+            raise ValueError('wheel UI registry differs from pinned source authority')
+        ui_manifest = (ui_source / 'static/manifest.json').read_bytes()
+        if wheel.read('soma/ui/static/manifest.json') != ui_manifest:
+            raise ValueError('wheel UI asset manifest differs from frozen build output')
+        assets = json.loads(ui_manifest)['files']
+        expected_assets = {'soma/ui/static/manifest.json', *('soma/ui/static/' + name for name in assets)}
+        if {name for name in names if name.startswith('soma/ui/static/') and not name.endswith('/')} != expected_assets:
+            raise ValueError('wheel UI asset set differs from frozen manifest')
+        for name, entry in assets.items():
+            raw = wheel.read('soma/ui/static/' + name)
+            if len(raw) != entry['bytes'] or hashlib.sha256(raw).hexdigest() != entry['sha256']:
+                raise ValueError('wheel UI asset differs from frozen manifest')
     print(
         f"Verified {len(expected)} migration files, manifest, schema authority, "
         f"FK exceptions, packet registries, and pinned Unicode asset in {wheel_path.name}"

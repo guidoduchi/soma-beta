@@ -1,17 +1,17 @@
 {
   "schema": "SOMA_IMPLEMENTATION_STATE_V1",
   "repository": "guidoduchi/soma-beta",
-  "observed_at": "2026-10-01 07:07:09 UTC",
-  "mission": "LLD-09 ordinary implementation is complete, locally certified and committed on feat/beta-1.0-implementation at design pin 9a0e891127a771251afccca1a281b7ef7dde9e5f. Preserve the promoted LLD-08 evidence and immutable runtime migrations 1-16. Native release certification remains blocked by the two owner-deferred release gates; do not start later LLDs without user direction.",
+  "observed_at": "2026-10-02 20:42:02 UTC",
+  "mission": "Implement LLD-10 on the accepted design pin, applying the user-approved metadata-only checkpoint result and RFC preview-plus-hold refinements. Preserve historical LLD-09 certification and migrations 1-16; append centrally allocated migration 17. Do not invent production draft registrations or undeclared HTTP contracts.",
   "active_branch": "feat/beta-1.0-implementation",
-  "next_task": "lld09-native-release",
+  "next_task": "lld10-implementation",
   "checkpoints": {
     "baseline": {
       "implementation": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
       "design": "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
     },
     "active": {
-      "implementation": "47947c5066b600694ef70a828a46269fb658ea7a",
+      "implementation": "85d9515469f96ed5b272648ed6097401f9bb9ed5",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     },
     "promotion": {
@@ -21,11 +21,15 @@
     "lld09-local": {
       "implementation": "6cf3d742f1c933087ede982f7b107576b90415af",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
+    },
+    "lld10-start": {
+      "implementation": "85d9515469f96ed5b272648ed6097401f9bb9ed5",
+      "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     }
   },
   "observed_heads": {
     "main": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
-    "feat/beta-1.0-implementation": "47947c5066b600694ef70a828a46269fb658ea7a",
+    "feat/beta-1.0-implementation": "85d9515469f96ed5b272648ed6097401f9bb9ed5",
     "feat/lld-08-infrastructure": "15b4310c68ed47de9226a5fa0fc25af233b1bb1a",
     "design/beta-1.0-hld-lld": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
   },
@@ -133,7 +137,11 @@
         "implementation": [
           "src/soma/objectives_tasks/*",
           "tests/test_objectives_tasks*",
-          "docs/implementation/pre_lld08_objectives_tasks_traceability.json"
+          "docs/implementation/pre_lld08_objectives_tasks_traceability.json",
+          "tests/test_task_collections.py",
+          "tests/test_grouping_list_transport.py",
+          "docs/reconciliation/LLD05_TASK_COLLECTIONS_TRANSPORT_V1.json",
+          "docs/reconciliation/LLD05_GROUPING_LIST_TRANSPORT_V1.json"
         ],
         "design": [
           "spec/lld/objectives-tasks/*"
@@ -224,6 +232,32 @@
         "inventory"
       ],
       "summary": "Ordinary LLD-09 implementation is complete in the working tree: source configuration/settings, owned identities and collision/content review, ordinary/targeted/Deep Scan processing and historical coverage/reconstruction, typed proposal/owner integration, SR/RFC terminal/reversal, orphan retention and independent housekeeping, verified MSG publication, bounded queries and summaries, static transport/runtime composition, schedule/coalescing/per-source reader serialization, runtime migration 16 and all 100 scenario bindings. Ordinary implementation received a byte-bound local certificate after second review and an adapter privacy fix. Complete local suite passed 1955 tests; schema/compile/wheel/privacy checks pass. PFF adapter architecture is implemented with typed deterministic doubles and an explicit UNSUPPORTED state without a release bridge. Native physical C001-C012 certification is deferred under the accepted LLD09-PFF-RELEASE-PIN and LLD09-GOLDEN-CORPUS-FREEZE gates. Implementation and local evidence are committed at 6cf3d742f1c933087ede982f7b107576b90415af; supported-matrix remote CI promotion remains pending."
+    },
+    "ui": {
+      "checkpoint": "lld10-start",
+      "paths": {
+        "implementation": [
+          "src/soma/ui/*",
+          "src/web/*",
+          "tests/test_ui*",
+          "docs/implementation/lld10*",
+          "docs/reconciliation/LLD10*",
+          "tools/*ui*"
+        ],
+        "design": [
+          "spec/lld/ui-workbenches/*"
+        ]
+      },
+      "depends_on": [
+        "foundation",
+        "reference",
+        "tickets",
+        "objectives",
+        "inventory",
+        "infrastructure",
+        "communications"
+      ],
+      "summary": "LLD10 in progress, not certified. Existing recovery/shared/read slices and accepted LLD05 grouping and bounded Task collections are preserved. Grouping-panel disclosure/filter/page/focus return navigation is implemented. Latest frontend-only slice: strict TypeScript, 22 Node, 74 local Edge browser and 46 focused Python tests passed; schema/compile/frozen-assets/wheel passed. Prior complete Python suite 2023 passed; not rerun for this frontend-only slice. Task warning enum/full transport, production actions/draft registrations, other owner transports and semantic closure remain pending; see LLD10 ledger."
     }
   },
   "evidence": {
@@ -359,6 +393,18 @@
       "source": "implementation",
       "path": "docs/implementation/lld09_traceability.json",
       "purpose": "Exact 100-case structural bindings with explicit physical/native release deferrals."
+    },
+    "ui-index": {
+      "checkpoint": "lld10-start",
+      "source": "design",
+      "path": "spec/lld/ui-workbenches/_index.json",
+      "purpose": "Pinned accepted LLD-10 packet and normative paths."
+    },
+    "ui-map": {
+      "checkpoint": "lld10-start",
+      "source": "design",
+      "path": "spec/lld/ui-workbenches/implementation/module-map.json",
+      "purpose": "Pinned UI ownership/module map."
     }
   },
   "ci": {
@@ -379,6 +425,24 @@
       "run_id": 36665927714,
       "conclusion": "success",
       "detail": "Independently rechecked run 36665927714: Windows Python 3.13/3.14 and Ubuntu 3.14 jobs succeeded, including configured tests and resource/schema checks. This verifies promotion 337baa3334709d023a2f292b32ab3262b6e34896 only. The exact-head GitHub connector query returned an empty workflow_runs collection for 47947c5066b600694ef70a828a46269fb658ea7a; the connector filters PR-triggered runs, so this is not a universal no-CI assertion. Uncommitted LLD-09 changes have no CI claim."
+    },
+    "lld10-start-observed": {
+      "name": "Beta implementation CI #1039",
+      "checkpoint": "lld10-start",
+      "source": "implementation",
+      "sha": "85d9515469f96ed5b272648ed6097401f9bb9ed5",
+      "run_id": 36876977329,
+      "conclusion": "success",
+      "detail": "Live GitHub run observed completed/success; covers only committed LLD09 checkpoint, not uncommitted LLD10 or Task collection edits."
+    },
+    "lld10-start-integrity-observed": {
+      "name": "Implementation continuation integrity #58",
+      "checkpoint": "lld10-start",
+      "source": "implementation",
+      "sha": "85d9515469f96ed5b272648ed6097401f9bb9ed5",
+      "run_id": 36876977352,
+      "conclusion": "success",
+      "detail": "Live GitHub run observed completed/success for committed checkpoint only."
     }
   },
   "tasks": {
@@ -562,6 +626,31 @@
       "verification": [
         "Use the approved frozen release bridge/corpus and supported Windows/Python/Outlook matrix.",
         "Keep native certification fail-closed until both owner-deferred gates have real freeze/execution evidence."
+      ]
+    },
+    "lld10-implementation": {
+      "title": "Implement and verify LLD-10 shared UI/workbenches",
+      "status": "in_progress",
+      "scope": "ui",
+      "depends_on": [
+        "lld09-preflight"
+      ],
+      "reason": "Continue user-authorized LLD10 work on pinned authority. Accepted LLD05 grouping transport refinement is implemented. Task detail now has exact relationship/attention summaries and separate bounded Task-scoped collections; warning enum and remaining owner transport gaps stay pending.",
+      "resume": "Continue uncommitted LLD10 work using the implementation ledger and accepted clarification contracts. Preserve bounded Task summaries/owner collections and the completed grouping-panel query/disclosure/focus return navigation. Task warning-dependent UI binding remains pending until the owner warning enum and full Task transport close. Continue independently specified surfaces or evidence without inventing owner contracts; remaining workspace return-state coverage and 80-case semantic closure are still incomplete.",
+      "read_first": [
+        "ui-index",
+        "ui-map",
+        "comm-index",
+        "comm-map"
+      ],
+      "acceptance": [
+        "Complete independently specified LLD-10 behavior with truthful acceptance/failure evidence.",
+        "Keep metadata-only exact checkpoint replay and all accepted migrations 1-16 byte-identical.",
+        "Track production draft registrations and unresolved transport authority explicitly."
+      ],
+      "verification": [
+        "Run focused Python, strict TypeScript, Node and browser tests.",
+        "Run complete Python suite, compileall, schema and wheel resource checks; record actual results."
       ]
     }
   },

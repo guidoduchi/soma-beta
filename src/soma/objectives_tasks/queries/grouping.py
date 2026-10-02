@@ -9,13 +9,26 @@ from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
 from soma.foundation.strict_json import sha256_canonical_json
 
-from ..repositories.grouping import RegroupProposalRepository
+from ..repositories.grouping import RegroupProposalRepository, RegroupProposalRecord
+from .grouping_classification import classify_page
 from ..domain.grouping import strict_overlap_member_ids
 
 from ..domain.objectives import ObjectiveDraftLocalTaskIntent, ObjectiveExistingTaskIntent
+from ..contracts.objectives_tasks import GroupingProposalListQueryV1, GroupingProposalListItemV1
 
 
 _MAX_PREVIEW_MEMBERS = 99
+_GROUPING_CURSOR_FIELDS = frozenset({
+    "version", "query_id", "sort_registry_id", "last_key_tuple",
+    "filter_fingerprint", "null_order",
+})
+_GROUPING_SORT = "GROUPING_PROPOSAL_CREATED_ID_ASC_V1"
+_GROUPING_STATES = frozenset({"pending", "accepted", "rejected", "superseded"})
+_GROUPING_RISKS = frozenset({"normal", "high"})
+_GROUPING_ORIGINS = frozenset({
+    "task_created", "task_plan_changed", "source_plan_adopted",
+    "manual_request", "retry_created", "objective_edit",
+})
 
 
 class ObjectiveGroupingQueryService:
@@ -434,18 +447,53 @@ class ObjectiveGroupingQueryService:
             }
 
 
+    def list_transport(self, request: dict[str, object]) -> dict[str, object]:
+        """Closed public request mapping; never exposes the internal after keys."""
+        query = GroupingProposalListQueryV1.from_value(request)
+        return self.list_proposals(state=query.state, risk=query.risk, origin=query.origin,
+                                   cursor=query.cursor, limit=query.limit)
+
     def list_proposals(
         self,
         *,
         state: str | None = None,
         risk: str | None = None,
         origin: str | None = None,
+        cursor: dict[str, object] | None = None,
         after_created_at_utc: int | None = None,
         after_proposal_id: str | None = None,
         limit: int = 100,
     ) -> dict[str, object]:
         if type(limit) is not int or not 1 <= limit <= 500:
             raise ValidationError("grouping proposal limit must be in 1..500")
+        for name, value, allowed in (
+            ("state", state, _GROUPING_STATES), ("risk", risk, _GROUPING_RISKS),
+            ("origin", origin, _GROUPING_ORIGINS),
+        ):
+            if value is not None and (not isinstance(value, str) or value not in allowed):
+                raise ValidationError(f"grouping proposal {name} filter is invalid")
+        fingerprint = sha256_canonical_json({
+            "query_id": "GroupingProposalList", "version": 1,
+            "sort_registry_id": _GROUPING_SORT, "null_order": "not_applicable",
+            "state": state, "risk": risk, "origin": origin,
+        })
+        if cursor is not None:
+            if after_created_at_utc is not None or after_proposal_id is not None:
+                raise ValidationError("public grouping cursor cannot be combined with internal keys")
+            if not isinstance(cursor, dict) or set(cursor) != _GROUPING_CURSOR_FIELDS:
+                raise ValidationError("grouping cursor shape is invalid")
+            if (type(cursor["version"]) is not int or cursor["version"] != 1
+                    or cursor["query_id"] != "GroupingProposalList"
+                    or cursor["sort_registry_id"] != _GROUPING_SORT
+                    or cursor["null_order"] != "not_applicable"
+                    or cursor["filter_fingerprint"] != fingerprint):
+                raise ValidationError("grouping cursor identity is invalid")
+            key = cursor["last_key_tuple"]
+            if (not isinstance(key, list) or len(key) != 2
+                    or type(key[0]) is not int or key[0] < 0):
+                raise ValidationError("grouping cursor key is invalid")
+            after_created_at_utc = key[0]
+            after_proposal_id = require_uuid4(key[1])
         params: list[object] = []
         clauses: list[str] = []
         if state is not None:
@@ -465,8 +513,7 @@ class ObjectiveGroupingQueryService:
         if after_created_at_utc is not None:
             if type(after_created_at_utc) is not int or after_created_at_utc < 0:
                 raise ValidationError("grouping continuation timestamp is invalid")
-            from soma.foundation.identifiers import require_uuid4
-            after_id = require_uuid4(str(after_proposal_id))
+            after_id = require_uuid4(after_proposal_id)
             clauses.append("(created_at_utc>? OR (created_at_utc=? AND regroup_proposal_id>?))")
             params.extend([after_created_at_utc, after_created_at_utc, after_id])
         where = "" if not clauses else " WHERE " + " AND ".join(clauses)
@@ -481,40 +528,49 @@ class ObjectiveGroupingQueryService:
                     "grouping proposal exact total is unavailable",
                 )
             exact_total = int(count_row[0])
-            rows = snapshot.connection.execute(
+            select = (
                 "SELECT p.regroup_proposal_id,p.proposal_kind,p.origin,p.risk_tier,"
                 "p.input_fingerprint,p.state,p.revision,p.created_at_utc,"
                 "(SELECT COUNT(*) FROM regroup_proposal_task_changes t "
                 " WHERE t.regroup_proposal_id=p.regroup_proposal_id),"
                 "(SELECT COUNT(*) FROM regroup_proposal_objective_changes o "
-                " WHERE o.regroup_proposal_id=p.regroup_proposal_id) "
-                "FROM regroup_proposals p" + where +
-                " ORDER BY p.created_at_utc,p.regroup_proposal_id LIMIT ?",
-                (*params, limit + 1),
-            ).fetchall()
+                " WHERE o.regroup_proposal_id=p.regroup_proposal_id),p.survivor_objective_id "
+                "FROM regroup_proposals p"
+            )
+            ordering = " ORDER BY p.created_at_utc,p.regroup_proposal_id LIMIT ?"
+            if state is not None:
+                rows = snapshot.connection.execute(select + where + ordering, (*params, limit + 1)).fetchall()
+            else:
+                # The accepted index starts with state. Seek each of the four
+                # closed states, then merge at most 4*(limit+1) headers; this
+                # preserves global ordering without sorting the complete store
+                # or introducing an unallocated migration/index.
+                rows = []
+                for persisted_state in sorted(_GROUPING_STATES):
+                    branch_where = (where + " AND " if where else " WHERE ") + "p.state=?"
+                    rows.extend(snapshot.connection.execute(
+                        select + branch_where + ordering, (*params, persisted_state, limit + 1),
+                    ).fetchall())
+                rows.sort(key=lambda row: (int(row[7]), str(row[0])))
+                rows = rows[:limit + 1]
             page = rows[:limit]
-            items = [
-                {
-                    "proposal_id": str(row[0]),
-                    "revision": int(row[6]),
-                    "input_fingerprint": str(row[4]),
-                    "state": str(row[5]),
-                    "diff": {
-                        "proposal_kind": str(row[1]),
-                        "origin": str(row[2]),
-                        "risk_tier": str(row[3]),
-                        "task_change_count": int(row[8]),
-                        "objective_change_count": int(row[9]),
-                    },
-                    "created_at_utc": int(row[7]),
-                }
-                for row in page
-            ]
+            classifications = classify_page(snapshot.connection, tuple(
+                RegroupProposalRecord(str(row[0]),str(row[1]),str(row[2]),str(row[3]),str(row[4]),str(row[5]),
+                    None if row[10] is None else str(row[10]),int(row[6]),int(row[7])) for row in page
+            ))
+            items = [GroupingProposalListItemV1(
+                proposal_id=str(row[0]),revision=int(row[6]),input_fingerprint=str(row[4]),state=str(row[5]),
+                proposal_kind=str(row[1]),origin=str(row[2]),risk_tier=str(row[3]),
+                affected_task_exact_count=int(row[8]),affected_objective_exact_count=int(row[9]),
+                owner_warnings=classifications[str(row[0])].owner_warnings,created_at_utc=int(row[7]),
+            ).to_response() for row in page]
             continuation = None
             if len(rows) > limit and page:
                 continuation = {
-                    "created_at_utc": int(page[-1][7]),
-                    "proposal_id": str(page[-1][0]),
+                    "version": 1, "query_id": "GroupingProposalList",
+                    "sort_registry_id": _GROUPING_SORT,
+                    "last_key_tuple": [int(page[-1][7]), str(page[-1][0])],
+                    "filter_fingerprint": fingerprint, "null_order": "not_applicable",
                 }
             return {
                 "items": items,
@@ -554,61 +610,9 @@ class ObjectiveGroupingQueryService:
                 ]
             task_page = task_rows[: task_limit + 1]
             objective_page = objective_rows[: objective_limit + 1]
-            stale = False
-            for row in task_rows:
-                current = snapshot.connection.execute(
-                    "SELECT t.revision,pc.plan_revision_id,m.objective_id,m.membership_revision "
-                    "FROM tasks t JOIN task_plan_current pc ON pc.task_id=t.task_id "
-                    "LEFT JOIN objective_task_membership_current m ON m.task_id=t.task_id "
-                    "WHERE t.task_id=?",
-                    (str(row[1]),),
-                ).fetchone()
-                if current is None or int(current[0]) != int(row[4]) or str(current[1]) != str(row[5]):
-                    stale = True
-                    break
-                expected_objective = None if row[2] is None else str(row[2])
-                current_objective = None if current[2] is None else str(current[2])
-                expected_membership_revision = None if row[6] is None else int(row[6])
-                current_membership_revision = None if current[3] is None else int(current[3])
-                if (
-                    current_objective != expected_objective
-                    or current_membership_revision != expected_membership_revision
-                ):
-                    stale = True
-                    break
-
-            if not stale:
-                for row in objective_rows:
-                    if row[1] is None:
-                        continue
-                    current = snapshot.connection.execute(
-                        "SELECT o.revision,e.revision FROM objectives o "
-                        "JOIN objective_envelope_projection e ON e.objective_id=o.objective_id "
-                        "WHERE o.objective_id=? AND o.superseded_by_objective_id IS NULL",
-                        (str(row[1]),),
-                    ).fetchone()
-                    if (
-                        current is None
-                        or row[3] is None
-                        or row[4] is None
-                        or int(current[0]) != int(row[3])
-                        or int(current[1]) != int(row[4])
-                    ):
-                        stale = True
-                        break
-
-            current_candidate = None
-            if not stale:
-                from ..services.grouping import GroupingService
-
-                try:
-                    current_candidate = GroupingService._candidate_for_proposal(
-                        snapshot.connection,
-                        proposal,
-                    )
-                except SomaError:
-                    current_candidate = None
-                stale = current_candidate is None
+            classification = classify_page(snapshot.connection, (proposal,))[identity]
+            current_candidate = classification.candidate
+            stale = current_candidate is None
 
             context_task_ids = {str(row[1]) for row in task_rows}
             for row in objective_rows:
@@ -635,9 +639,7 @@ class ObjectiveGroupingQueryService:
                 "state": proposal.state,
                 "survivor_objective_id": proposal.survivor_objective_id,
                 "stale": stale,
-                "equivalent_rejection_suppressed": RegroupProposalRepository.rejection_suppressed(
-                    snapshot.connection, proposal.input_fingerprint
-                ),
+                "equivalent_rejection_suppressed": classification.rejection_suppressed,
                 "component_envelope": None
                 if current_candidate is None
                 else {

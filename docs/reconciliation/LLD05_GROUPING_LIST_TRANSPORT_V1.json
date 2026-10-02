@@ -1,0 +1,168 @@
+{
+  "schema": "SOMA_LLD05_GROUPING_LIST_ACCEPTED_REFINEMENT_V1",
+  "owner": "LLD-05",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "authority": "User-accepted grouping list transport and warning clarifications, 2026-10-01; focused refinement of the pinned transport leaves, not a changed design pin.",
+  "GroupingProposalListQueryV1": {
+    "unknown_fields": "reject",
+    "fields": {
+      "state": [
+        "pending",
+        "accepted",
+        "rejected",
+        "superseded",
+        null
+      ],
+      "risk": [
+        "normal",
+        "high",
+        null
+      ],
+      "origin": [
+        "task_created",
+        "task_plan_changed",
+        "source_plan_adopted",
+        "manual_request",
+        "retry_created",
+        "objective_edit",
+        null
+      ],
+      "cursor": "CURSOR_V1|null",
+      "limit": "integer 1..500, default 100"
+    }
+  },
+  "cursor": {
+    "version": 1,
+    "query_id": "GroupingProposalList",
+    "sort_registry_id": "GROUPING_PROPOSAL_CREATED_ID_ASC_V1",
+    "ordering": [
+      "created_at_utc ASC",
+      "regroup_proposal_id ASC"
+    ],
+    "null_order": "not_applicable",
+    "last_key_tuple": [
+      "created_at_utc integer >=0",
+      "proposal_id canonical UUIDv4"
+    ],
+    "filter_fingerprint": "canonical SHA256 over query_id,version,sort_registry_id,null_order,state,risk,origin; every filter and ordering/version change rejects continuation",
+    "unknown_fields": "reject",
+    "raw_keys": "after_created_at_utc and after_proposal_id remain internal only; public query rejects them"
+  },
+  "GroupingProposalPageV1": {
+    "required": [
+      "items",
+      "continuation",
+      "exact_total"
+    ],
+    "items": "bounded array[GroupingProposalListItemV1]",
+    "continuation": "CURSOR_V1|null",
+    "exact_total": "complete filtered result count, independent of page length"
+  },
+  "GroupingProposalListItemV1": {
+    "additionalProperties": false,
+    "fields": {
+      "proposal_id": "canonical UUIDv4",
+      "revision": "integer >=1",
+      "proposal_kind": [
+        "create",
+        "join",
+        "move",
+        "repin",
+        "consolidate",
+        "manual_merge",
+        "manual_split"
+      ],
+      "risk_tier": [
+        "normal",
+        "high"
+      ],
+      "origin": "same closed owner origin vocabulary as query",
+      "state": "same closed owner lifecycle vocabulary as query",
+      "input_fingerprint": "lowercase SHA256",
+      "affected_task_exact_count": "integer >=0",
+      "affected_objective_exact_count": "integer >=0",
+      "created_at_utc": "canonical UTC whole seconds >=0",
+      "diff": {
+        "additionalProperties": false,
+        "fields": {
+          "proposal_kind": "owner proposal kind",
+          "origin": "owner origin",
+          "risk_tier": "owner risk tier",
+          "task_change_count": "same owner affected Task exact count",
+          "objective_change_count": "same owner affected Objective exact count"
+        }
+      },
+      "owner_warnings": "unique closed array, length 0..2"
+    }
+  },
+  "owner_warnings": {
+    "GROUPING_PROPOSAL_STALE": "Exact shared GroupingProposalDetail stale semantics: complete expected Task/plan/membership/Objective/envelope material and reproduction as the same current grouping candidate. No list-only weaker predicate.",
+    "GROUPING_EQUIVALENT_REJECTION": "An unreconsidered regroup_rejection_events row exists for exact input_fingerprint, equivalent to RegroupProposalRepository.rejection_suppressed."
+  },
+  "classification_rules": [
+    "Same stable read snapshot as page and exact count. Batch supporting authority reads; never call proposal_detail per item.",
+    "No warning inferred from high risk, origin, lifecycle, generic lock/overlap/competing state.",
+    "Empty owner_warnings only after both predicates affirmatively false. Uncertain/integrity/resource classification fails closed."
+  ],
+  "implementation_trace": {
+    "request_projection": "src/soma/objectives_tasks/contracts/objectives_tasks.py",
+    "provider": "src/soma/objectives_tasks/queries/grouping.py",
+    "shared_classification": "src/soma/objectives_tasks/queries/grouping_classification.py",
+    "candidate_owner": "src/soma/objectives_tasks/services/grouping.py",
+    "consumer": "src/web/app/GroupingProposalList.tsx"
+  },
+  "implementation_bounds": {
+    "page": 500,
+    "all_state_seek_headers": "at most four*(limit+1), using existing state/created/id index",
+    "classification_capture": "snapshot-local and bounded by the existing 100000 synchronous grouping threshold; oversized supporting material or manual page candidate work returns GROUPING_INDETERMINATE, never an authoritative clear/stale guess",
+    "schema_change": "none; immutable migrations preserved"
+  },
+  "mutation_contract": {
+    "GroupingProposalV1": "Unchanged compact mutation/core DTO for accept/reject/reconsider; not expanded with list presentation.",
+    "GroupingRecomputeResultV1.proposals": "GroupingRecomputeProposalPageV1; immutable commit-time projection, distinct from the live list page.",
+    "GroupingRecomputeProposalV1": {
+      "additionalProperties": false,
+      "fields": {
+        "proposal_id": "canonical UUIDv4",
+        "revision": "integer >=1",
+        "input_fingerprint": "lowercase SHA256",
+        "state": "same closed owner lifecycle vocabulary as query",
+        "proposal_kind": [
+          "create",
+          "join",
+          "move",
+          "repin",
+          "consolidate",
+          "manual_merge",
+          "manual_split"
+        ],
+        "origin": "same closed owner origin vocabulary as query",
+        "risk_tier": [
+          "normal",
+          "high"
+        ],
+        "affected_task_exact_count": "integer >=0",
+        "affected_objective_exact_count": "integer >=0"
+      }
+    },
+    "GroupingRecomputeProposalPageV1": {
+      "items": "array[GroupingRecomputeProposalV1]",
+      "continuation": null,
+      "exact_total": "number of immediate committed items"
+    },
+    "rules": [
+      "No owner_warnings, stale, equivalent-rejection suppression or current read-time classifications in command results.",
+      "Durable recompute retains empty immediate page exact_total=0 and job_id.",
+      "Exact replay returns original stored immutable result without reclassification or transformation; historical results are not rewritten.",
+      "LLD10 refreshes the live owner list separately; command results are not refreshed list rows."
+    ]
+  },
+  "route_error_refinement": {
+    "route": "GET /api/v1/grouping/proposals",
+    "error_codes": [
+      "VALIDATION_FAILED",
+      "GROUPING_INDETERMINATE"
+    ],
+    "reason": "Accepted classification must fail closed when exact supporting authority cannot be established; reuse the existing owner error code."
+  }
+}

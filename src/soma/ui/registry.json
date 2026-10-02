@@ -1,0 +1,2777 @@
+{
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "leaves": {
+    "algorithms/autocomplete.json": {
+      "algorithm_id": "BOUNDED_AUTOCOMPLETE_V1",
+      "keyboard": {
+        "ArrowDown_ArrowUp": "move active option only",
+        "Enter": "accept one current eligible active option",
+        "Escape": "close without change",
+        "Tab": "ordinary form focus traversal; never accepts ambiguity"
+      },
+      "lld_id": "LLD-10",
+      "rules": [
+        "focus alone does not enumerate",
+        "typed text/highlight never creates entity/relationship",
+        "explicit disclosure may load one first bounded eligible page",
+        "ineligible/exceptional option remains labelled/non-color"
+      ],
+      "schema": "SOMA-LLD-ALGORITHM-V2",
+      "sequence": [
+        "normalize deliberate input and require registry threshold before search",
+        "after 150ms debounce allocate QueryIdentityV1 sequence and AbortController; abort older request for surface",
+        "request 25 keyset results from owning-domain query with filter fingerprint",
+        "accept response only when query_id, sequence, normalized input and filter fingerprint equal current controller state",
+        "render at most 50 loaded options; additional options require governed next-page request or further filtering"
+      ],
+      "states": [
+        "minimum_input",
+        "loading",
+        "results",
+        "no_match",
+        "empty",
+        "partial",
+        "more_available",
+        "stale",
+        "warning",
+        "error"
+      ],
+      "tests": [
+        "LLD10-T008",
+        "LLD10-T009",
+        "LLD10-T010",
+        "LLD10-T011"
+      ]
+    },
+    "algorithms/deliberate-hold.json": {
+      "accessibility": [
+        "visible text retains action/consequence",
+        "semantic progress value/remaining time announced without repetitive chatter",
+        "reduced motion uses static/textual progress rather than animation dependence"
+      ],
+      "algorithm_id": "DELIBERATE_HOLD_V1",
+      "allowlist": {
+        "infrastructure.device_reference.promote_new": {
+          "reason": "intentional regularization/new Infrastructure identity creation",
+          "required_elapsed_ms": 3000,
+          "tier": "deliberate_hold"
+        },
+        "tickets.rfc.hard_delete": {
+          "reason": "irreversible deletion of a provably untouched local RFC after exact eligible preview",
+          "required_elapsed_ms": 3000,
+          "tier": "impact_preview_plus_hold"
+        },
+        "tickets.rfc.terminal_cascade.execute": {
+          "reason": "confirmed cross-domain terminal cascade execution after exact impact preview",
+          "required_elapsed_ms": 3000,
+          "tier": "impact_preview_plus_hold"
+        }
+      },
+      "cancel_on": [
+        "pointer/key/touch release before completion",
+        "activation/focus loss",
+        "Escape/cancel",
+        "movement classified as scrolling",
+        "route identity change",
+        "target/revision/preview fingerprint change",
+        "visibility suspension that invalidates continuous activation",
+        "LLD-12 challenge expiry"
+      ],
+      "complete": [
+        "require performance.now()-start >=3000 continuously",
+        "freeze one-shot completed state",
+        "obtain LLD-12 session-bound proof for captured tuple",
+        "submit at most one owning-domain command carrying exact proof and reviewed preview binding",
+        "domain revalidates all authority and may still reject"
+      ],
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-ALGORITHM-V2",
+      "start": [
+        "require action allowlisted for deliberate_hold or impact_preview_plus_hold and current ActionAvailability=AVAILABLE",
+        "for impact_preview_plus_hold require the exact current reviewed preview_fingerprint before hold begins",
+        "capture action_kind,target_type,target_id,target_revision,preview_fingerprint and route identity",
+        "request/retain LLD-12 session challenge for that exact tuple",
+        "record start=performance.now() and enter holding"
+      ],
+      "tests": [
+        "LLD10-T012",
+        "LLD10-T013",
+        "LLD10-T014",
+        "LLD10-T015",
+        "LLD03-T026",
+        "LLD03-T030",
+        "LLD03-T033"
+      ]
+    },
+    "algorithms/responsive-composition.json": {
+      "algorithm_id": "RESPONSIVE_COMPOSITION_V1",
+      "classification": "ResizeObserver measures owning container; <720 narrow, 720..1199 standard, >=1200 wide",
+      "lld_id": "LLD-10",
+      "preserved_state": [
+        "active/open record",
+        "active tab/pane",
+        "filters/query identity",
+        "selection/membership",
+        "scroll anchor per pane",
+        "working copy",
+        "validation errors",
+        "communication selection/context",
+        "focus restoration token"
+      ],
+      "schema": "SOMA-LLD-ALGORITHM-V2",
+      "table_rule": "wide comparison tables remain semantically table/grid and get their own horizontal scroll owner; page itself does not horizontally overflow",
+      "tests": [
+        "LLD10-T016",
+        "LLD10-T017",
+        "LLD10-T018"
+      ],
+      "workbench_rule": "communication/working split is shown only when workbench content container >=1040 CSS px; below threshold a labelled pane switcher exposes both without unmounting logical state"
+    },
+    "algorithms/safe-undo.json": {
+      "algorithm_id": "SAFE_UNDO_V1",
+      "create": [
+        "only after an owning-domain command explicitly returns an undo-capable action_result_ref/inverse_kind",
+        "capture exact target and post-action revision token",
+        "ask owner inverse-preview adapter for current bounded inverse availability",
+        "store opportunity in browser-session UI registry; never persist business inverse payload"
+      ],
+      "execute": [
+        "operator invokes action-scoped Undo",
+        "obtain fresh owner preview fingerprint and exact owner-defined command DTO",
+        "submit the owning-domain inverse/correction command through its normal auth/confirmation/audit boundary",
+        "on success remove only this opportunity and refresh affected projections"
+      ],
+      "lld_id": "LLD-10",
+      "refresh": [
+        "before rendering enabled Undo and immediately before execution, refresh owner inverse preview against current accepted state",
+        "AVAILABLE requires exact action result still current enough, bounded inverse and no unsafe dependency",
+        "BLOCKED/STALE/INDETERMINATE disables Undo with owner reason/remediation"
+      ],
+      "rules": [
+        "there is no global database rollback or last-action reversal",
+        "accepted evidence/lifecycle that lacks an owner-approved safe inverse exposes correction/supersession/cancellation/replacement/resend/restoration instead",
+        "dropping UI opportunity never changes accepted state"
+      ],
+      "schema": "SOMA-LLD-ALGORITHM-V2",
+      "tests": [
+        "LLD10-T038",
+        "LLD10-T041",
+        "LLD10-T042",
+        "LLD10-F021",
+        "LLD10-F022"
+      ]
+    },
+    "algorithms/scroll-ownership.json": {
+      "algorithm_id": "SCROLL_OWNERSHIP_V1",
+      "forbidden_side_effects": [
+        "selection change",
+        "membership toggle",
+        "option acceptance",
+        "record open",
+        "hold completion",
+        "command submission"
+      ],
+      "keyboard": "owner is nearest focused scroll surface; otherwise current workbench primary surface",
+      "lld_id": "LLD-10",
+      "pointer_wheel": "owner is nearest ancestor under pointer marked data-scroll-owner for requested axis; CSS overscroll-behavior:contain prevents chaining at boundary",
+      "rules": [
+        "horizontal delta is offered only to horizontal-capable owner",
+        "modal/dialog surface prevents background scroll",
+        "autocomplete popup is a scroll owner while open/hovered/focused"
+      ],
+      "schema": "SOMA-LLD-ALGORITHM-V2",
+      "tests": [
+        "LLD10-T005",
+        "LLD10-T006",
+        "LLD10-T007"
+      ],
+      "touch": "owner is gesture-origin scroll surface after movement disambiguation; ownership does not transfer mid-gesture"
+    },
+    "algorithms/selection-open.json": {
+      "algorithm_id": "SELECTION_OPEN_V1",
+      "inputs": [
+        "current SelectionStateV1",
+        "input event",
+        "eligible record id/default route"
+      ],
+      "lld_id": "LLD-10",
+      "return_restore": "history entry records route, filter fingerprint, active/selected/member IDs, scroll anchor and focus token; on return restore surviving IDs else deterministic nearest-row then container fallback with explanation",
+      "rules": [
+        "primary single click sets active_id and selected_id only",
+        "ArrowUp/ArrowDown move active_id without opening; single-select may follow active according to surface registry, multi-select membership never follows arrows",
+        "Space toggles member_ids only on multi-select surfaces",
+        "double-click on row body or Enter on active eligible row opens the exact same default route",
+        "nested interactive control activation stops row-open behavior and performs only its own action",
+        "touch uses explicit labelled Open action; double-tap has no required meaning",
+        "blank/header/non-record/disabled row cannot open"
+      ],
+      "schema": "SOMA-LLD-ALGORITHM-V2",
+      "tests": [
+        "LLD10-T001",
+        "LLD10-T002",
+        "LLD10-T003",
+        "LLD10-T004"
+      ]
+    },
+    "algorithms/working-copy-conflict.json": {
+      "algorithm_id": "WORKING_COPY_CONFLICT_V1",
+      "conflict_review": [
+        "show accepted current values, working-copy values and dirty paths",
+        "derive safely reapplicable fields only through the edit-surface contract",
+        "operator chooses reapply/discard per permitted valid transaction scope",
+        "new save uses current accepted revision token"
+      ],
+      "lld_id": "LLD-10",
+      "restore": [
+        "load recoverable copy and validate its registered draft contract",
+        "query owning-domain current revision token through UiDomainRevisionReader",
+        "if equal: restore as unsaved UI state only",
+        "if target missing/indeterminate: preserve copy but block save and explain",
+        "if different: mark STALE and open conflict review; never submit old base token automatically"
+      ],
+      "rules": [
+        "working copy never influences authoritative counts/SLA/matching/availability/reports before successful owner command",
+        "discard deletes only UI recovery state",
+        "generic last-write-wins is forbidden"
+      ],
+      "schema": "SOMA-LLD-ALGORITHM-V2",
+      "tests": [
+        "LLD10-T019",
+        "LLD10-T020",
+        "LLD10-T021",
+        "LLD10-T022"
+      ]
+    },
+    "audit/actions.json": {
+      "actions": [
+        {
+          "action_type": "ui.working_copy.checkpointed",
+          "action_version": 1,
+          "allowed_results": [
+            "working_copy_id",
+            "generation",
+            "content_hash"
+          ],
+          "allowed_targets": [
+            "ui_working_copy"
+          ],
+          "forbidden": [
+            "payload_json",
+            "draft field values",
+            "dirty field values",
+            "communication bodies/participants",
+            "credentials",
+            "recovery material"
+          ],
+          "payload_fields": [
+            "scope_key",
+            "draft_contract_id",
+            "draft_contract_version",
+            "base_revision_fingerprint_sha256",
+            "generation",
+            "payload_byte_count",
+            "content_hash"
+          ],
+          "payload_schema": "UiWorkingCopyCheckpointAuditV1",
+          "payload_version": 1,
+          "sensitivity": "metadata_only"
+        },
+        {
+          "action_type": "ui.working_copy.discarded",
+          "action_version": 1,
+          "allowed_results": [
+            "working_copy_id",
+            "discarded_generation"
+          ],
+          "allowed_targets": [
+            "ui_working_copy"
+          ],
+          "forbidden": [
+            "payload_json",
+            "draft field values",
+            "dirty field values",
+            "communication bodies/participants",
+            "credentials",
+            "recovery material"
+          ],
+          "payload_fields": [
+            "scope_key",
+            "discarded_generation"
+          ],
+          "payload_schema": "UiWorkingCopyDiscardAuditV1",
+          "payload_version": 1,
+          "sensitivity": "metadata_only"
+        },
+        {
+          "action_type": "ui.working_copy.expired_pruned",
+          "action_version": 1,
+          "allowed_results": [
+            "deleted_count",
+            "more_due"
+          ],
+          "allowed_targets": [
+            "ui_working_copy_batch"
+          ],
+          "forbidden": [
+            "payload_json",
+            "draft field values",
+            "dirty field values",
+            "communication bodies/participants",
+            "credentials",
+            "recovery material"
+          ],
+          "payload_fields": [
+            "deleted_count",
+            "more_due"
+          ],
+          "payload_schema": "UiWorkingCopyPruneAuditV1",
+          "payload_version": 1,
+          "sensitivity": "metadata_only"
+        }
+      ],
+      "lld_id": "LLD-10",
+      "payload_rules": [
+        "each named payload_schema is defined inline by its action-local closed payload_fields plus forbidden list and rejects unknown fields",
+        "audit may contain only the action-local metadata fields declared above; target identity and result references remain canonical relational audit fields",
+        "audit must not contain payload_json, draft field values, dirty field values, communication bodies/participants, credentials or recovery material",
+        "discard/prune audit proves recovery-state removal, not deletion or modification of owning-domain truth"
+      ],
+      "schema": "SOMA-LLD-AUDIT-REGISTRY-V2"
+    },
+    "bounds.json": {
+      "accessibility": {
+        "minimum_pointer_target_css_px": 32,
+        "supported_text_zoom_percent": 200
+      },
+      "autocomplete": {
+        "allowed_minimum_input_range": [
+          1,
+          4
+        ],
+        "debounce_ms": 150,
+        "default_minimum_input_characters": 2,
+        "maximum_loaded_options": 50,
+        "page_size": 25,
+        "rule": "focus alone does not enumerate; explicit disclosure may request the first bounded eligible page"
+      },
+      "collections": {
+        "default_page_size": 100,
+        "maximum_dom_rows_per_collection_surface": 200,
+        "maximum_page_size": 200,
+        "rule": "collections use deterministic server keyset pages; Beta 1.0 does not accumulate unbounded infinite-scroll DOM"
+      },
+      "deliberate_hold": {
+        "clock": "performance.now monotonic",
+        "completion_requests_at_most_one_command": true,
+        "required_elapsed_ms": 3000
+      },
+      "lld_id": "LLD-10",
+      "navigation": {
+        "maximum_restorable_history_entries": 50
+      },
+      "no_silent_truncation_rule": "When a bound is reached, UI exposes partial/additional-results/capacity state; it never silently drops selected IDs, warnings, dirty fields or accepted result rows.",
+      "responsive": {
+        "minimum_supported_viewport_css_px": 360,
+        "rule": "breakpoints are based on owning container width; browser/device names are never semantic inputs",
+        "shell_container_classes": [
+          {
+            "id": "narrow",
+            "predicate": "width < 720 CSS px"
+          },
+          {
+            "id": "standard",
+            "predicate": "720 <= width < 1200 CSS px"
+          },
+          {
+            "id": "wide",
+            "predicate": "width >= 1200 CSS px"
+          }
+        ],
+        "workbench_split_threshold_css_px": 1040
+      },
+      "schema": "SOMA-LLD-BOUNDS-V2",
+      "working_copy": {
+        "checkpoint_idle_delay_ms": 5000,
+        "expiry_cleanup_batch_size": 100,
+        "expiry_elapsed_seconds": 604800,
+        "maximum_active_recoverable_copies_per_installation": 256,
+        "maximum_canonical_payload_bytes": 262144,
+        "minimum_interval_between_successful_checkpoints_ms": 30000
+      }
+    },
+    "commands/checkpoint-working-copy.json": {
+      "acceptance_test_ids": [
+        "LLD10-T023",
+        "LLD10-T024",
+        "LLD10-T025",
+        "LLD10-F001",
+        "LLD10-F002",
+        "LLD10-F003"
+      ],
+      "audit_action": "ui.working_copy.checkpointed.v1",
+      "authoritative_reads": [
+        "current ui_working_copies row for owner+key",
+        "nonexpired installation count when absent"
+      ],
+      "errors": [
+        "UI_WORKING_COPY_TOO_LARGE",
+        "UI_WORKING_COPY_CAPACITY",
+        "UI_WORKING_COPY_CONFLICT",
+        "UI_WORKING_COPY_CONTRACT_INVALID",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "guards": [
+        "authenticated singleton local user owns the row",
+        "expected_generation=0 requires absence; otherwise exact generation match",
+        "new row rejected at 256 nonexpired copies",
+        "draft contract remains registered/current enough to checkpoint"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1; semantic replay returns prior result; identical content against current generation is NO_CHANGE and does not increment generation",
+      "lld_id": "LLD-10",
+      "mutations": [
+        "insert new recoverable row generation=1 or replace validated payload/base token and increment generation",
+        "set updated_at and expires_at=updated_at+604800"
+      ],
+      "name": "CheckpointWorkingCopy",
+      "post_commit_work": [],
+      "pure_preflight": [
+        "validate WorkingCopyKey through closed edit-surface registry",
+        "validate draft_contract_id/version and dirty paths through WorkingCopyContractRegistry",
+        "canonicalize StrictVersionedJson and require <=262144 UTF-8 bytes",
+        "compute content_hash; count nonexpired copies only when creating a new key"
+      ],
+      "receipt_order": "revalidate/no-change -> insert command_receipt -> insert/update ui_working_copies -> metadata-only audit/result -> commit",
+      "request_type": "SaveWorkingCopyRequestV1",
+      "response_type": "WorkingCopyRecordV1",
+      "revision_effects": "working-copy generation increments only on changed checkpoint; no domain revision changes",
+      "schema": "SOMA-LLD-COMMAND-V2",
+      "transaction_boundary": "one short LLD-01 UnitOfWork; writes only ui_working_copies plus command/audit metadata",
+      "visibility": "public"
+    },
+    "commands/discard-working-copy.json": {
+      "acceptance_test_ids": [
+        "LLD10-T026",
+        "LLD10-T027",
+        "LLD10-F004"
+      ],
+      "audit_action": "ui.working_copy.discarded.v1",
+      "authoritative_reads": [
+        "ui_working_copies by working_copy_id"
+      ],
+      "errors": [
+        "UI_WORKING_COPY_NOT_FOUND",
+        "UI_WORKING_COPY_CONFLICT",
+        "IDEMPOTENCY_CONFLICT"
+      ],
+      "guards": [
+        "row belongs to authenticated local user",
+        "expected_generation exactly matches current row"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1; committed replay returns prior result; a new command against absent row returns UI_WORKING_COPY_NOT_FOUND",
+      "lld_id": "LLD-10",
+      "mutations": [
+        "delete exact ui_working_copies row"
+      ],
+      "name": "DiscardWorkingCopy",
+      "post_commit_work": [],
+      "pure_preflight": [],
+      "receipt_order": "revalidate -> insert command_receipt -> delete row -> metadata-only audit/result -> commit",
+      "request_type": "DiscardWorkingCopyRequestV1",
+      "response_type": "DiscardWorkingCopyResponseV1",
+      "revision_effects": "none outside deleted UI recovery row",
+      "schema": "SOMA-LLD-COMMAND-V2",
+      "transaction_boundary": "one short LLD-01 UnitOfWork; deletes only one recoverable UI row plus metadata-only command/audit evidence",
+      "visibility": "public"
+    },
+    "commands/prune-expired-working-copies.json": {
+      "acceptance_test_ids": [
+        "LLD10-T028",
+        "LLD10-F005",
+        "LLD10-F006"
+      ],
+      "audit_action": "ui.working_copy.expired_pruned.v1",
+      "authoritative_reads": [
+        "ui_working_copies where expires_at_utc <= server now ordered expires_at_utc,working_copy_id"
+      ],
+      "errors": [
+        "IDEMPOTENCY_CONFLICT",
+        "PERSISTENCE_BUSY"
+      ],
+      "guards": [
+        "batch_limit 1..100",
+        "server clock supplied by trusted runtime, never client body"
+      ],
+      "idempotency": "COMMAND_ENVELOPE_V1; absent/already-pruned rows are naturally skipped within the selected due batch",
+      "lld_id": "LLD-10",
+      "mutations": [
+        "delete only selected still-expired ui_working_copies rows"
+      ],
+      "name": "PruneExpiredWorkingCopies",
+      "post_commit_work": [
+        "if more_due, durable/housekeeping caller may enqueue another bounded invocation"
+      ],
+      "pure_preflight": [],
+      "receipt_order": "select/revalidate due rows -> insert receipt -> delete selected due rows -> metadata-only audit/result -> commit",
+      "request_type": "PruneExpiredWorkingCopiesRequestV1",
+      "response_type": "PruneExpiredWorkingCopiesResponseV1",
+      "revision_effects": "none",
+      "schema": "SOMA-LLD-COMMAND-V2",
+      "transaction_boundary": "one short LLD-01 UnitOfWork per maximum 100 rows",
+      "visibility": "internal"
+    },
+    "errors.json": {
+      "errors": [
+        {
+          "code": "UI_INVALID_ROUTE",
+          "http": 404,
+          "meaning": "client/server UI route is not registered"
+        },
+        {
+          "code": "UI_STALE_QUERY",
+          "http": 409,
+          "meaning": "query identity/filter fingerprint no longer matches current interaction"
+        },
+        {
+          "code": "UI_WORKING_COPY_NOT_FOUND",
+          "http": 404,
+          "meaning": "recoverable copy does not exist"
+        },
+        {
+          "code": "UI_WORKING_COPY_TOO_LARGE",
+          "http": 413,
+          "meaning": "canonical validated working-copy payload exceeds 262144 bytes"
+        },
+        {
+          "code": "UI_WORKING_COPY_CAPACITY",
+          "http": 409,
+          "meaning": "installation already has 256 non-expired recoverable copies and request would create another key"
+        },
+        {
+          "code": "UI_WORKING_COPY_CONFLICT",
+          "http": 409,
+          "meaning": "checkpoint generation/base key conflicts with a newer recoverable copy"
+        },
+        {
+          "code": "UI_WORKING_COPY_CONTRACT_INVALID",
+          "http": 422,
+          "meaning": "draft contract/version is unknown or payload fails its closed schema"
+        },
+        {
+          "code": "UI_ACCEPTED_REVISION_STALE",
+          "http": 409,
+          "meaning": "attempted domain save is based on older accepted truth; conflict review required"
+        },
+        {
+          "code": "UI_ACTION_BLOCKED",
+          "http": 409,
+          "meaning": "current owning-domain projection says action is unavailable"
+        },
+        {
+          "code": "UI_HOLD_CANCELLED",
+          "http": 409,
+          "meaning": "deliberate hold did not complete continuously against the same target/revision/scope"
+        },
+        {
+          "code": "UI_ACTION_PROOF_INVALID",
+          "http": 403,
+          "meaning": "LLD-12 session-bound deliberate-action proof is invalid/expired"
+        },
+        {
+          "code": "UI_UNDO_UNAVAILABLE",
+          "http": 409,
+          "meaning": "safe inverse is no longer valid/bounded"
+        },
+        {
+          "code": "UI_BROWSER_CAPABILITY_UNSUPPORTED",
+          "http": 412,
+          "meaning": "required web-platform capability is unavailable"
+        }
+      ],
+      "lld_id": "LLD-10",
+      "presentation_rule": "Transport/domain error codes remain owned by their packet. LLD-10 maps them to accessible presentation but never renames a domain failure into success.",
+      "schema": "SOMA-LLD-ERRORS-V2"
+    },
+    "implementation/module-map.json": {
+      "backend_modules": [
+        {
+          "owns": [
+            "WorkingCopyRepository"
+          ],
+          "path": "src/soma/ui/repository.py"
+        },
+        {
+          "owns": [
+            "WorkingCopyContractRegistry",
+            "DTO validation"
+          ],
+          "path": "src/soma/ui/contracts.py"
+        },
+        {
+          "owns": [
+            "CheckpointWorkingCopy",
+            "DiscardWorkingCopy",
+            "PruneExpiredWorkingCopies"
+          ],
+          "path": "src/soma/ui/commands.py"
+        },
+        {
+          "owns": [
+            "GetWorkingCopy",
+            "ListWorkingCopyRestoreCandidates"
+          ],
+          "path": "src/soma/ui/queries.py"
+        },
+        {
+          "owns": [
+            "/api/v1/ui/working-copies routes"
+          ],
+          "path": "src/soma/ui/routes.py"
+        }
+      ],
+      "commands": {
+        "CheckpointWorkingCopy": "src/soma/ui/commands.py",
+        "DiscardWorkingCopy": "src/soma/ui/commands.py",
+        "PruneExpiredWorkingCopies": "src/soma/ui/commands.py"
+      },
+      "dependency_direction": [
+        "src/web may call public /api/v1 contracts only and never access SQLite",
+        "src/soma/ui command/query handlers may depend on repository/contracts plus LLD-01 runtime and LLD-02 profile/settings interfaces",
+        "domain workbench adapters depend on owner query interfaces, never owner private tables",
+        "LLD-09/12 provider adapters are bound through exact cross-packet interfaces before review_ready"
+      ],
+      "forbidden": [
+        "domain lifecycle logic in React components",
+        "client-only authorization",
+        "direct SQLite from UI",
+        "remote CDN/runtime dependencies"
+      ],
+      "frontend_modules": [
+        {
+          "owns": [
+            "UiRouteRegistry",
+            "history/return restoration"
+          ],
+          "path": "src/web/app/router.ts"
+        },
+        {
+          "owns": [
+            "surface-scoped UiStore primitives"
+          ],
+          "path": "src/web/state/ui-store.ts"
+        },
+        {
+          "owns": [
+            "QueryIdentity/AbortController stale-response suppression"
+          ],
+          "path": "src/web/data/query-controller.ts"
+        },
+        {
+          "owns": [
+            "SELECTION_OPEN_V1"
+          ],
+          "path": "src/web/interactions/selection-open.ts"
+        },
+        {
+          "owns": [
+            "SCROLL_OWNERSHIP_V1"
+          ],
+          "path": "src/web/interactions/scroll-owner.ts"
+        },
+        {
+          "owns": [
+            "BOUNDED_AUTOCOMPLETE_V1"
+          ],
+          "path": "src/web/interactions/autocomplete.tsx"
+        },
+        {
+          "owns": [
+            "DELIBERATE_HOLD_V1"
+          ],
+          "path": "src/web/interactions/deliberate-hold.ts"
+        },
+        {
+          "owns": [
+            "RESPONSIVE_COMPOSITION_V1"
+          ],
+          "path": "src/web/layout/responsive.ts"
+        },
+        {
+          "owns": [
+            "checkpoint/discard/restore client"
+          ],
+          "path": "src/web/working-copy/client.ts"
+        },
+        {
+          "owns": [
+            "global shell projection"
+          ],
+          "path": "src/web/components/SomaShell.tsx"
+        },
+        {
+          "owns": [
+            "shared workbench composition"
+          ],
+          "path": "src/web/components/WorkbenchShell.tsx"
+        }
+      ],
+      "frontend_root": "src/web",
+      "lld_id": "LLD-10",
+      "operation_mapping_rule": "command/query entries are the exact backend application dispatch destinations; repository/contracts/routes modules remain supporting layers and may not independently implement operation authority",
+      "queries": {
+        "GetWorkingCopy": "src/soma/ui/queries.py",
+        "ListWorkingCopyRestoreCandidates": "src/soma/ui/queries.py"
+      },
+      "schema": "SOMA-LLD-IMPLEMENTATION-MAP-V2",
+      "status": "construction_seed"
+    },
+    "interfaces.json": {
+      "client_interfaces": [
+        {
+          "methods": [
+            "getSnapshot()",
+            "subscribe(listener)",
+            "dispatch(event)"
+          ],
+          "name": "UiStore",
+          "rule": "small surface-scoped stores implemented with standard React/useSyncExternalStore; server/domain truth is not duplicated as independently editable global state"
+        },
+        {
+          "methods": [
+            "start(query_identity,abort_signal)",
+            "accept_response(query_identity,response)",
+            "cancel(surface_id)"
+          ],
+          "name": "QueryController",
+          "rule": "only the newest matching sequence/filter fingerprint may replace options/results"
+        }
+      ],
+      "cross_packet_rules": [
+        "LLD-09 CommunicationPanelProjectionProvider is the sole Communication workbench projection; LLD-10 owns presentation only.",
+        "LLD-12 deliberate-action challenge/proof endpoints use mutation-grade anti-forgery and supply friction evidence only; owner commands still validate and consume proof where required.",
+        "Safe Undo is opt-in per exact owner inverse contract. No registered inverse means no accepted-state Undo button; no global rollback or UI-invented inverse exists.",
+        "LLD-10 owns only UI working-copy persistence and presentation state; all accepted operational mutation remains with the owner packet."
+      ],
+      "lld_id": "LLD-10",
+      "python_interfaces": [
+        {
+          "methods": [
+            "get_by_key(reader,owner_profile_id,key) -> WorkingCopyRecord|None",
+            "get(reader,working_copy_id) -> WorkingCopyRecord|None",
+            "count_nonexpired(reader,owner_profile_id,now_utc) -> int",
+            "insert(uow,row)",
+            "update_checkpoint(uow,row,expected_generation)",
+            "delete(uow,working_copy_id,expected_generation)",
+            "list_restore_candidates(reader,target_type,target_id,cursor,limit)",
+            "list_expired(reader,now_utc,cursor,limit)"
+          ],
+          "name": "WorkingCopyRepository",
+          "rule": "static SQL/bound values only; repository never validates arbitrary draft schema, commits, or reads owning-domain private tables"
+        },
+        {
+          "methods": [
+            "get(contract_id,version) -> WorkingCopyDraftContract|None",
+            "validate(contract_id,version,draft_json,dirty_paths) -> VALID|INVALID"
+          ],
+          "name": "WorkingCopyContractRegistry",
+          "rule": "closed composition-root registry; each registered edit surface supplies exact schema and allowed dirty paths; runtime plugin/dynamic schema injection is forbidden"
+        },
+        {
+          "methods": [
+            "resolve(location) -> ClientRoute|NOT_FOUND",
+            "default_open(record_type,record_id) -> ClientRoute|NOT_FOUND"
+          ],
+          "name": "UiRouteRegistry",
+          "rule": "closed compile-time route table; business IDs are encoded as route parameters and never used as executable module names"
+        },
+        {
+          "methods": [
+            "for_action(action_kind) -> ConfirmationTierV1",
+            "is_hold_allowlisted(action_kind) -> bool"
+          ],
+          "name": "ConfirmationTierRegistry",
+          "rule": "exact Beta 1.0 hold allowlist contains only infrastructure.device_reference.promote_new unless a later accepted owning contract adds another entry; default is never hold"
+        },
+        {
+          "implemented_by": "owning domain adapters",
+          "methods": [
+            "current_revision_token(snapshot,target_type,target_id,scope_key) -> token|MISSING|INDETERMINATE"
+          ],
+          "name": "UiDomainRevisionReader",
+          "rule": "read-only freshness check for restore/conflict presentation; LLD-10 receives no owning-domain writer"
+        },
+        {
+          "methods": [
+            "panel(snapshot,target_type,target_id,cursor|null,limit<=50) -> CommunicationPanelProjectionV1"
+          ],
+          "name": "CommunicationPanelProjectionProvider",
+          "owner": "LLD-09",
+          "rule": "exact read-only workbench projection; LLD-10 may render/paginate it but never persists message body/count state or derives a competing summary"
+        },
+        {
+          "browser_handshake": {
+            "auth_policy": "LLD12_BROWSER_MUTATION_V1 = current-run session + exact Host + exact Origin + CSRF",
+            "challenge_route": "POST /api/v1/security/deliberate-actions/challenge",
+            "complete_route": "POST /api/v1/security/deliberate-actions/{challenge_id}/complete"
+          },
+          "methods": [
+            "issue(session_id,action_code,target_type,target_id,base_revision,preview_fingerprint|null) -> DeliberateActionChallengeV1",
+            "complete(session_id,challenge_id,client_nonce) -> DeliberateActionProofV1",
+            "validate_and_consume(uow,proof,expected_action,target,base_revision,preview_fingerprint|null) -> ValidatedDeliberateActionV1"
+          ],
+          "name": "DeliberateActionProofProvider",
+          "owner": "LLD-12",
+          "rule": "LLD-10 owns continuous-input/visible-progress/cancel interaction only; server proof establishes minimum elapsed deliberate interaction but never business authorization"
+        },
+        {
+          "implemented_by": "owning domain adapters on explicit opt-in only",
+          "methods": [
+            "preview_inverse(snapshot,action_result_ref,target_ref,post_action_revision_token,inverse_kind) -> AVAILABLE(preview_fingerprint,owner_command_contract_id)|BLOCKED(reason)|STALE(reason)|INDETERMINATE",
+            "build_inverse_request(snapshot,action_result_ref,target_ref,post_action_revision_token,inverse_kind,preview_fingerprint) -> exact owner-command request DTO"
+          ],
+          "name": "UiSafeInverseProvider",
+          "rule": "provider has no generic rollback power; it may expose only an inverse/correction already authorized by its owning packet and must revalidate accepted current state on preview and execution"
+        },
+        {
+          "methods": [
+            "resolve(owner_packet,inverse_kind) -> provider + exact owner command contract id | NOT_REGISTERED"
+          ],
+          "name": "UiSafeInverseRegistry",
+          "rule": "closed compile-time registry; absence means Undo is unavailable and UI must show the owning domain's normal correction/cancellation/supersession/replacement/resend/restoration workflow instead"
+        }
+      ],
+      "schema": "SOMA-LLD-INTERFACES-V2"
+    },
+    "interfaces/cross-packet-v2.json": {
+      "authority": "canonical_cross_packet_callable_contract",
+      "consumed": [
+        {
+          "methods": [
+            "panel(snapshot,target_type,target_id,cursor|null,limit<=50) -> CommunicationPanelProjectionV1"
+          ],
+          "name": "CommunicationPanelProjectionProvider",
+          "provider": "LLD-09",
+          "transaction": "read-only"
+        },
+        {
+          "methods": [
+            "issue(session_id,action_code,target_type,target_id,base_revision,preview_fingerprint|null) -> DeliberateActionChallengeV1",
+            "complete(session_id,challenge_id,client_nonce) -> DeliberateActionProofV1"
+          ],
+          "name": "DeliberateActionProofProvider",
+          "provider": "LLD-12"
+        },
+        {
+          "methods": [
+            "get(key) -> SettingDefinition|None"
+          ],
+          "name": "SettingDefinitionRegistry",
+          "provider": "LLD-02"
+        }
+      ],
+      "lld_id": "LLD-10",
+      "provided": [],
+      "rules": [
+        "LLD-10 owns interaction/presentation only; accepted-state mutation always remains with the owning packet.",
+        "UI deliberate-action handling obtains challenge/proof but never consumes proof or treats friction evidence as business authorization.",
+        "Safe inverse/Undo remains an owner-defined opt-in composition contract rather than a multi-owner global callable provider."
+      ],
+      "schema": "SOMA-LLD-INTERFACE-REGISTRY-V2"
+    },
+    "migrations/0013-ui-workbenches.json": {
+      "dependencies": [
+        "beta_0001_foundation",
+        "beta_0002_identity_reference"
+      ],
+      "filename": "0016_ui_workbenches.sql",
+      "forward_only": true,
+      "lld_id": "LLD-10",
+      "migration_id": "beta_0016_ui_workbenches",
+      "object_allocation_rule": "objects is the canonical machine-readable allocation list; owned_objects is retained as a compatibility alias and must remain byte-for-byte equivalent in sequence and membership",
+      "objects": [
+        "ui_working_copies",
+        "uq_ui_working_copy_key",
+        "idx_ui_working_copy_expiry",
+        "idx_ui_working_copy_target"
+      ],
+      "owned_objects": [
+        "ui_working_copies",
+        "uq_ui_working_copy_key",
+        "idx_ui_working_copy_expiry",
+        "idx_ui_working_copy_target"
+      ],
+      "rule": "runtime SQL bytes/hash remain unaccepted until implementation review under LLD-01 migration runner; future design allocation remains provisional until runtime acceptance; after acceptance its sequence, ID, filename and bytes are immutable",
+      "schema": "SOMA-LLD-MIGRATION-DESIGN-V2",
+      "sequence": 16,
+      "verification": [
+        "STRICT table mode",
+        "all command_receipts/local_user_profile foreign keys effective",
+        "unique recovery key enforced",
+        "expiry and target indexes exist"
+      ]
+    },
+    "queries/get-working-copy.json": {
+      "acceptance_test_ids": [
+        "LLD10-T019",
+        "LLD10-T029",
+        "LLD10-F007"
+      ],
+      "errors": [
+        "UI_WORKING_COPY_NOT_FOUND"
+      ],
+      "input_type": "WorkingCopyIdPathV1",
+      "lld_id": "LLD-10",
+      "name": "GetWorkingCopy",
+      "ordering": "single row",
+      "pagination": "none",
+      "read_consistency": "stable Snapshot plus UiDomainRevisionReader for current target freshness",
+      "required_indexes": [
+        "PRIMARY KEY ui_working_copies(working_copy_id)"
+      ],
+      "response_type": "GetWorkingCopyResponseV1",
+      "schema": "SOMA-LLD-QUERY-V2"
+    },
+    "queries/list-restore-candidates.json": {
+      "acceptance_test_ids": [
+        "LLD10-T030",
+        "LLD10-F008"
+      ],
+      "errors": [
+        "INVALID_CURSOR",
+        "UI_STALE_QUERY"
+      ],
+      "input_type": "WorkingCopyCandidateQueryV1",
+      "lld_id": "LLD-10",
+      "name": "ListWorkingCopyRestoreCandidates",
+      "ordering": "updated_at_utc DESC, working_copy_id DESC",
+      "pagination": {
+        "kind": "CURSOR_V1 keyset",
+        "last_key_tuple": [
+          "updated_at_utc:int",
+          "working_copy_id:uuid"
+        ],
+        "limit_max": 50,
+        "null_order": "none",
+        "predicate": "updated_at_utc < last_updated OR (updated_at_utc = last_updated AND working_copy_id < last_id)"
+      },
+      "read_consistency": "stable Snapshot; each returned candidate receives read-only UiDomainRevisionReader freshness classification",
+      "required_indexes": [
+        "idx_ui_working_copy_target",
+        "uq_ui_working_copy_key"
+      ],
+      "response_type": "WorkingCopyCandidatePageV1",
+      "schema": "SOMA-LLD-QUERY-V2"
+    },
+    "routes.json": {
+      "auth_ownership": "LLD-12 supplies authenticated local-admin session and anti-forgery context; LLD-10 consumes it and never implements credential/session policy.",
+      "canonical_api_prefix": "/api/v1",
+      "lld_id": "LLD-10",
+      "normative_families": [
+        "routes/working-copies.json"
+      ],
+      "rules": [
+        "client navigation routes are defined separately in ui/client-routes.json and never enter /api/v1",
+        "route adapters bind/validate DTOs only; working-copy command/query handlers own persistence logic",
+        "domain edit saves use their owning packet routes rather than an LLD-10 proxy"
+      ],
+      "schema": "SOMA-LLD-ROUTES-INDEX-V2",
+      "transport_contract": "spec/lld/_packet-contract-v2.json#transport_contract"
+    },
+    "routes/working-copies.json": {
+      "binding": {
+        "checkpoint body": "SaveWorkingCopyRequestV1 JSON",
+        "discard body": "command_id + expected_generation JSON",
+        "list query": "target_type,target_id,cursor,limit",
+        "working_copy_id": "path UUID"
+      },
+      "lld_id": "LLD-10",
+      "routes": [
+        {
+          "auth_policy": "LLD-12 authenticated local admin + anti-forgery; command_id required",
+          "error_codes": [
+            "UI_WORKING_COPY_TOO_LARGE",
+            "UI_WORKING_COPY_CAPACITY",
+            "UI_WORKING_COPY_CONFLICT",
+            "UI_WORKING_COPY_CONTRACT_INVALID",
+            "IDEMPOTENCY_CONFLICT"
+          ],
+          "handler": "CheckpointWorkingCopy",
+          "handler_kind": "command",
+          "max_request_bytes": 270000,
+          "method": "POST",
+          "path": "/api/v1/ui/working-copies/checkpoint",
+          "request_type": "SaveWorkingCopyRequestV1",
+          "response_type": "WorkingCopyRecordV1",
+          "success_status": 200
+        },
+        {
+          "auth_policy": "LLD-12 authenticated local admin + anti-forgery; command_id required",
+          "error_codes": [
+            "UI_WORKING_COPY_NOT_FOUND",
+            "UI_WORKING_COPY_CONFLICT",
+            "IDEMPOTENCY_CONFLICT"
+          ],
+          "handler": "DiscardWorkingCopy",
+          "handler_kind": "command",
+          "max_request_bytes": 4096,
+          "method": "DELETE",
+          "path": "/api/v1/ui/working-copies/{working_copy_id}",
+          "request_type": "DiscardWorkingCopyRequestV1",
+          "response_type": "DiscardWorkingCopyResponseV1",
+          "success_status": 200
+        },
+        {
+          "auth_policy": "LLD-12 authenticated local admin",
+          "error_codes": [
+            "UI_WORKING_COPY_NOT_FOUND"
+          ],
+          "handler": "GetWorkingCopy",
+          "handler_kind": "query",
+          "max_request_bytes": 0,
+          "method": "GET",
+          "path": "/api/v1/ui/working-copies/{working_copy_id}",
+          "request_type": "WorkingCopyIdPathV1",
+          "response_type": "GetWorkingCopyResponseV1",
+          "success_status": 200
+        },
+        {
+          "auth_policy": "LLD-12 authenticated local admin",
+          "error_codes": [
+            "INVALID_CURSOR",
+            "UI_STALE_QUERY"
+          ],
+          "handler": "ListWorkingCopyRestoreCandidates",
+          "handler_kind": "query",
+          "max_request_bytes": 0,
+          "method": "GET",
+          "path": "/api/v1/ui/working-copies",
+          "request_type": "WorkingCopyCandidateQueryV1",
+          "response_type": "WorkingCopyCandidatePageV1",
+          "success_status": 200
+        }
+      ],
+      "schema": "SOMA-LLD-ROUTES-V2"
+    },
+    "schema/working-copy.json": {
+      "aggregate": "recoverable_working_copy",
+      "delete_policy": "explicit discard or expiry cleanup may delete the recoverable row; metadata-only audit/command receipts remain and never contain draft body",
+      "indexes": [
+        "CREATE UNIQUE INDEX uq_ui_working_copy_key ON ui_working_copies(owner_profile_id,target_type,target_id,scope_key)",
+        "CREATE INDEX idx_ui_working_copy_expiry ON ui_working_copies(expires_at_utc,working_copy_id)",
+        "CREATE INDEX idx_ui_working_copy_target ON ui_working_copies(target_type,target_id,updated_at_utc,working_copy_id)"
+      ],
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-SCHEMA-V2",
+      "table_mode": "SQLite STRICT",
+      "tables": [
+        {
+          "columns": [
+            "working_copy_id TEXT PRIMARY KEY",
+            "owner_profile_id TEXT NOT NULL REFERENCES local_user_profiles(local_user_profile_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+            "target_type TEXT NOT NULL CHECK(length(target_type) BETWEEN 1 AND 64)",
+            "target_id TEXT NOT NULL CHECK(length(target_id) BETWEEN 1 AND 128)",
+            "scope_key TEXT NOT NULL CHECK(length(scope_key) BETWEEN 1 AND 96)",
+            "draft_contract_id TEXT NOT NULL CHECK(length(draft_contract_id) BETWEEN 1 AND 96)",
+            "draft_contract_version INTEGER NOT NULL CHECK(draft_contract_version>0)",
+            "base_revision_token TEXT NOT NULL CHECK(length(base_revision_token) BETWEEN 1 AND 256)",
+            "payload_json TEXT NOT NULL CHECK(length(payload_json)>1)",
+            "dirty_paths_json TEXT NOT NULL CHECK(length(dirty_paths_json)>1)",
+            "content_hash TEXT NOT NULL CHECK(length(content_hash)=64)",
+            "generation INTEGER NOT NULL CHECK(generation>0)",
+            "created_at_utc INTEGER NOT NULL CHECK(created_at_utc>=0)",
+            "updated_at_utc INTEGER NOT NULL CHECK(updated_at_utc>=created_at_utc)",
+            "expires_at_utc INTEGER NOT NULL CHECK(expires_at_utc>updated_at_utc)",
+            "created_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT",
+            "last_checkpoint_command_id TEXT NOT NULL REFERENCES command_receipts(command_id) ON UPDATE RESTRICT ON DELETE RESTRICT"
+          ],
+          "name": "ui_working_copies",
+          "rules": [
+            "UNIQUE(owner_profile_id,target_type,target_id,scope_key)",
+            "payload_json and dirty_paths_json must pass LLD-01 StrictVersionedJson plus WorkingCopyContractRegistry validation before write",
+            "canonical UTF-8 payload bytes must be <=262144",
+            "expires_at_utc is exactly updated_at_utc+604800",
+            "rows are recoverable UI intent only and are excluded from every authoritative domain query/report/count"
+          ]
+        }
+      ]
+    },
+    "settings/presentation.json": {
+      "lld_id": "LLD-10",
+      "persistence_owner": "LLD-02 SettingDefinitionRegistry/SettingStore",
+      "rules": [
+        "skin and appearance are independent axes",
+        "unknown values fail validation and never become arbitrary CSS/theme identifiers",
+        "preferences alter presentation only and never layout, command availability, confirmation tier or domain semantics"
+      ],
+      "schema": "SOMA-LLD-SETTING-DEFINITIONS-V2",
+      "settings": [
+        {
+          "default": "system",
+          "key": "ui.appearance_mode",
+          "semantic_equality": "exact enum",
+          "storage_class": "ordinary local preference",
+          "value_contract": {
+            "type": "enum",
+            "values": [
+              "system",
+              "light",
+              "dark"
+            ]
+          }
+        },
+        {
+          "default": "soma_core",
+          "key": "ui.skin_id",
+          "semantic_equality": "exact enum",
+          "storage_class": "ordinary local preference",
+          "value_contract": {
+            "type": "enum",
+            "values": [
+              "soma_core",
+              "terminal_green",
+              "terminal_amber",
+              "terminal_violet"
+            ]
+          }
+        }
+      ]
+    },
+    "technology.json": {
+      "browser_host_rule": "LLD-12 packaging may choose the exact supported Windows browser/WebView host, but it must satisfy all required web-platform features; LLD-10 does not weaken interactions for a host missing them.",
+      "frontend": {
+        "build_tool": {
+          "package": "vite",
+          "role": "development/build only",
+          "version": "8.2.2"
+        },
+        "dependency_policy": {
+          "component_library": "none",
+          "css_in_js": "none; semantic CSS custom properties and ordinary stylesheets",
+          "global_state_library": "none; small SOMA stores use React primitives/useSyncExternalStore",
+          "router_library": "none; closed SOMA route registry over browser History API",
+          "virtualization_library": "none in Beta 1.0; bounded keyset pages prevent unbounded DOM lists"
+        },
+        "dom_renderer": {
+          "package": "react-dom",
+          "version": "19.2.8"
+        },
+        "framework": {
+          "package": "react",
+          "version": "19.2.8"
+        },
+        "language": {
+          "mode": "strict",
+          "package": "typescript",
+          "version": "7.0.2"
+        },
+        "prohibited_runtime_choices": [
+          "React Server Components",
+          "SSR",
+          "hydration",
+          "Node.js server runtime",
+          "Electron",
+          "external CDN modules"
+        ],
+        "runtime_model": "prebuilt static SPA assets served by the local Python application; installed SOMA requires no Node.js runtime",
+        "type_packages": [
+          {
+            "package": "@types/react",
+            "version": "19.2.18"
+          },
+          {
+            "package": "@types/react-dom",
+            "version": "19.2.7"
+          }
+        ]
+      },
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-TECHNOLOGY-V2",
+      "security_rules": [
+        "no eval or Function constructor",
+        "no remote script/style/font dependency",
+        "no raw unsanitized HTML injection",
+        "all API requests same-origin to loopback application boundary",
+        "Content-Security-Policy is finalized by LLD-12 but LLD-10 uses no design that requires unsafe-eval"
+      ],
+      "verified_at": "2026-09-06",
+      "web_platform_required_features": [
+        "CSS container queries",
+        "overscroll-behavior",
+        "PointerEvent",
+        "ResizeObserver",
+        "AbortController",
+        "History API",
+        "inert or equivalent modal isolation",
+        "prefers-reduced-motion",
+        "forced-colors"
+      ]
+    },
+    "tests/acceptance-interaction.json": {
+      "cases": [
+        {
+          "given": "two independent owner-approved reversible actions",
+          "id": "LLD10-T041",
+          "then": "both retain separate Undo opportunities while each inverse remains valid"
+        },
+        {
+          "given": "owner reports inverse stale/blocked",
+          "id": "LLD10-T042",
+          "then": "Undo is disabled with reason and no generic rollback is attempted"
+        },
+        {
+          "given": "modal opens",
+          "id": "LLD10-T043",
+          "then": "background is inert and focus enters safe meaningful control"
+        },
+        {
+          "given": "dismissible modal",
+          "id": "LLD10-T044",
+          "then": "Escape closes without acceptance and restores invoker/fallback"
+        },
+        {
+          "given": "validation failure in modal",
+          "id": "LLD10-T045",
+          "then": "safe input remains and first actionable invalid field receives focus after summary"
+        },
+        {
+          "given": "skin changes",
+          "id": "LLD10-T046",
+          "then": "component dimensions/tab order/action/confirmation semantics are unchanged"
+        },
+        {
+          "given": "forced colors",
+          "id": "LLD10-T047",
+          "then": "selection/focus/warning/destructive states retain text/semantic differentiation"
+        },
+        {
+          "given": "SR workbench",
+          "id": "LLD10-T048",
+          "then": "tab order is Overview, Devices, Spare Parts, RFCs, Tasks, Notes"
+        },
+        {
+          "given": "RFC workbench",
+          "id": "LLD10-T049",
+          "then": "tab order is Overview, Service Requests and Devices, Related RFCs, Tasks, Notes"
+        },
+        {
+          "given": "Objective detail",
+          "id": "LLD10-T050",
+          "then": "source plan, operational plan, envelope and execution are separately labelled"
+        },
+        {
+          "given": "communication pane pending provider failure",
+          "id": "LLD10-T051",
+          "then": "operational work surface remains usable and no message data is locally fabricated"
+        },
+        {
+          "given": "visual regression fixture",
+          "id": "LLD10-T052",
+          "then": "manifest contains synthetic/sanitized provenance and exact responsive/accessibility context"
+        },
+        {
+          "given": "directional design reference",
+          "id": "LLD10-T053",
+          "then": "it cannot assert exact pixels/assets/business semantics"
+        },
+        {
+          "given": "unknown confirmation action kind",
+          "id": "LLD10-T054",
+          "then": "action is indeterminate/disabled rather than defaulting to lower friction"
+        },
+        {
+          "given": "200 rows rendered and more exist",
+          "id": "LLD10-T055",
+          "then": "surface exposes continuation rather than silently appending beyond bound"
+        }
+      ],
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-TESTS-V2"
+    },
+    "tests/acceptance.json": {
+      "cases": [
+        {
+          "id": "LLD10-T001",
+          "then": "single click selects and does not open"
+        },
+        {
+          "id": "LLD10-T002",
+          "then": "double-click and Enter resolve identical default route"
+        },
+        {
+          "id": "LLD10-T003",
+          "then": "nested control action does not open row"
+        },
+        {
+          "id": "LLD10-T004",
+          "then": "multi-select Space changes membership without opening"
+        },
+        {
+          "id": "LLD10-T005",
+          "then": "pointer wheel scrolls nearest hovered owner only"
+        },
+        {
+          "id": "LLD10-T006",
+          "then": "scroll boundary does not chain into sibling pane"
+        },
+        {
+          "id": "LLD10-T007",
+          "then": "scroll never selects, opens, accepts or confirms hold"
+        },
+        {
+          "id": "LLD10-T008",
+          "then": "autocomplete waits for configured minimum deliberate input"
+        },
+        {
+          "id": "LLD10-T009",
+          "then": "stale autocomplete response cannot replace newest query"
+        },
+        {
+          "id": "LLD10-T010",
+          "then": "popup holds at most 50 loaded options and exposes more state"
+        },
+        {
+          "id": "LLD10-T011",
+          "then": "typed text never creates entity or relationship"
+        },
+        {
+          "id": "LLD10-T012",
+          "then": "Device Reference promotion requires its governed continuous exact 3000ms deliberate hold; RFC terminal-cascade execute uses impact_preview_plus_hold and may begin the same exact 3000ms hold only with a READY current execution_review.preview_fingerprint bound into the LLD-12 challenge"
+        },
+        {
+          "id": "LLD10-T013",
+          "then": "release or scroll classification cancels hold with zero command"
+        },
+        {
+          "id": "LLD10-T014",
+          "then": "completed hold requests at most one command"
+        },
+        {
+          "id": "LLD10-T015",
+          "then": "domain may reject after valid proof; UI shows actual failure"
+        },
+        {
+          "id": "LLD10-T016",
+          "then": "wide/narrow reflow preserves capabilities and material warnings"
+        },
+        {
+          "id": "LLD10-T017",
+          "then": "pane switch preserves working-copy and communication context"
+        },
+        {
+          "id": "LLD10-T018",
+          "then": "wide table owns horizontal scrolling without page overflow"
+        },
+        {
+          "id": "LLD10-T019",
+          "then": "fresh recoverable copy restores as unsaved UI state only"
+        },
+        {
+          "id": "LLD10-T020",
+          "then": "stale recoverable copy opens reviewed conflict, never LWW"
+        },
+        {
+          "id": "LLD10-T021",
+          "then": "missing target preserves copy but blocks save"
+        },
+        {
+          "id": "LLD10-T022",
+          "then": "discarding recovery copy never changes domain truth"
+        },
+        {
+          "id": "LLD10-T023",
+          "then": "checkpoint validates exact closed draft contract"
+        },
+        {
+          "id": "LLD10-T024",
+          "then": "changed checkpoint increments generation and resets 7-day expiry"
+        },
+        {
+          "id": "LLD10-T025",
+          "then": "identical checkpoint is NO_CHANGE and does not increment generation"
+        },
+        {
+          "id": "LLD10-T026",
+          "then": "discard requires exact generation"
+        },
+        {
+          "id": "LLD10-T027",
+          "then": "discard audit contains no draft body/field values"
+        },
+        {
+          "id": "LLD10-T028",
+          "then": "expiry cleanup deletes at most 100 due rows and no domain data"
+        },
+        {
+          "id": "LLD10-T029",
+          "then": "working-copy detail classifies current/stale/missing deterministically"
+        },
+        {
+          "id": "LLD10-T030",
+          "then": "restore-candidate cursor is deterministic and filter-bound"
+        },
+        {
+          "id": "LLD10-T031",
+          "then": "unsaved values do not alter authoritative counts/SLA/matching/reports"
+        },
+        {
+          "id": "LLD10-T032",
+          "then": "domain Draft badge remains distinct from dirty UI marker"
+        },
+        {
+          "id": "LLD10-T033",
+          "then": "appearance skin change preserves workflow/confirmation semantics"
+        },
+        {
+          "id": "LLD10-T034",
+          "then": "200% text zoom retains material actions and labels"
+        },
+        {
+          "id": "LLD10-T035",
+          "then": "forced-color/reduced-motion retain non-color state and hold meaning"
+        },
+        {
+          "id": "LLD10-T036",
+          "then": "known-blocked action exposes blocker/remediation and remains disabled"
+        },
+        {
+          "id": "LLD10-T037",
+          "then": "bulk preview explicitly partitions every selected target"
+        },
+        {
+          "id": "LLD10-T038",
+          "then": "Undo disappears when exact safe inverse is stale/unsafe"
+        },
+        {
+          "id": "LLD10-T039",
+          "then": "communication pane never duplicates canonical message body into ticket state"
+        },
+        {
+          "id": "LLD10-T040",
+          "then": "terminal communication summary exposes no body navigation when content unavailable"
+        }
+      ],
+      "fixture_rule": "fixtures use synthetic/sanitized content, representative wide/standard/narrow containers, keyboard/pointer/touch and non-color accessibility states; directional references are never pixel-authority",
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-TESTS-V2"
+    },
+    "tests/failure-injection.json": {
+      "cases": [
+        {
+          "expected": "no partial row/false recovery success",
+          "id": "LLD10-F001",
+          "injection": "working-copy DB failure before commit"
+        },
+        {
+          "expected": "no working-copy mutation",
+          "id": "LLD10-F002",
+          "injection": "receipt failure"
+        },
+        {
+          "expected": "authoritative checkpoint UoW rolls back",
+          "id": "LLD10-F003",
+          "injection": "audit/result failure"
+        },
+        {
+          "expected": "conflict; newer copy survives",
+          "id": "LLD10-F004",
+          "injection": "generation changes before discard"
+        },
+        {
+          "expected": "transaction rolls back or committed bounded batch remains valid",
+          "id": "LLD10-F005",
+          "injection": "cleanup crash mid-batch"
+        },
+        {
+          "expected": "fresh revalidation preserves refreshed copy",
+          "id": "LLD10-F006",
+          "injection": "copy refreshed before cleanup delete"
+        },
+        {
+          "expected": "restore visible but save blocked",
+          "id": "LLD10-F007",
+          "injection": "domain revision reader indeterminate"
+        },
+        {
+          "expected": "invalid/stale cursor, no mixed results",
+          "id": "LLD10-F008",
+          "injection": "cursor reused with changed filter"
+        },
+        {
+          "expected": "no stale result/error replaces current query",
+          "id": "LLD10-F009",
+          "injection": "autocomplete request aborted"
+        },
+        {
+          "expected": "only newest identity accepted",
+          "id": "LLD10-F010",
+          "injection": "autocomplete responses arrive out of order"
+        },
+        {
+          "expected": "reflow preserves draft/errors/selection",
+          "id": "LLD10-F011",
+          "injection": "resize during dirty edit"
+        },
+        {
+          "expected": "hold cancels and submits zero command",
+          "id": "LLD10-F012",
+          "injection": "scroll movement during hold"
+        },
+        {
+          "expected": "zero owning-domain mutation",
+          "id": "LLD10-F013",
+          "injection": "LLD-12 proof rejected/expired"
+        },
+        {
+          "expected": "hold cancels",
+          "id": "LLD10-F014",
+          "injection": "route or target revision changes during hold"
+        },
+        {
+          "expected": "preview reverts to last accepted setting with error",
+          "id": "LLD10-F015",
+          "injection": "appearance setting save fails"
+        },
+        {
+          "expected": "communication pane bounded error; operational work pane remains usable",
+          "id": "LLD10-F016",
+          "injection": "LLD-09 panel provider unavailable"
+        },
+        {
+          "expected": "last safe accepted view retained where possible; actions do not fabricate availability",
+          "id": "LLD10-F017",
+          "injection": "owning-domain query fails"
+        },
+        {
+          "expected": "affected capability blocked with UI_BROWSER_CAPABILITY_UNSUPPORTED",
+          "id": "LLD10-F018",
+          "injection": "required browser feature missing"
+        },
+        {
+          "expected": "rendered as text; no executable raw HTML",
+          "id": "LLD10-F019",
+          "injection": "malicious source text contains markup/script"
+        },
+        {
+          "expected": "no false claim of recovery; abandonment warning reflects unsaved state",
+          "id": "LLD10-F020",
+          "injection": "client closes after changed memory state before 5s checkpoint"
+        }
+      ],
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-FAILURE-TESTS-V2"
+    },
+    "tests/failure-interaction.json": {
+      "cases": [
+        {
+          "expected": "owner command revalidation rejects or requires new preview; no stale inverse",
+          "id": "LLD10-F021",
+          "injection": "accepted state changes after Undo preview before execute"
+        },
+        {
+          "expected": "accepted domain state/history unchanged",
+          "id": "LLD10-F022",
+          "injection": "Undo UI opportunity evicted by 20-entry bound"
+        },
+        {
+          "expected": "focus moves to deterministic logical fallback, never document body unpredictably",
+          "id": "LLD10-F023",
+          "injection": "modal invoker removed before close"
+        },
+        {
+          "expected": "fixture validation fails before baseline acceptance",
+          "id": "LLD10-F024",
+          "injection": "fixture contains forbidden production-like secret marker"
+        },
+        {
+          "expected": "UI disables material action and displays bounded unavailable/indeterminate state",
+          "id": "LLD10-F025",
+          "injection": "unknown domain action availability"
+        }
+      ],
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-FAILURE-TESTS-V2"
+    },
+    "tests/traceability.json": {
+      "command_edges": [
+        {
+          "audit": "ui.working_copy.checkpointed.v1",
+          "command": "CheckpointWorkingCopy",
+          "route": "POST /api/v1/ui/working-copies/checkpoint",
+          "schema_mutations": [
+            "ui_working_copies"
+          ],
+          "tests": [
+            "LLD10-T023",
+            "LLD10-T024",
+            "LLD10-T025",
+            "LLD10-F001",
+            "LLD10-F002",
+            "LLD10-F003"
+          ]
+        },
+        {
+          "audit": "ui.working_copy.discarded.v1",
+          "command": "DiscardWorkingCopy",
+          "route": "DELETE /api/v1/ui/working-copies/{working_copy_id}",
+          "schema_mutations": [
+            "ui_working_copies delete"
+          ],
+          "tests": [
+            "LLD10-T026",
+            "LLD10-T027",
+            "LLD10-F004"
+          ]
+        },
+        {
+          "audit": "ui.working_copy.expired_pruned.v1",
+          "command": "PruneExpiredWorkingCopies",
+          "internal_caller": "UI recovery housekeeping",
+          "schema_mutations": [
+            "ui_working_copies delete"
+          ],
+          "tests": [
+            "LLD10-T028",
+            "LLD10-F005",
+            "LLD10-F006"
+          ]
+        }
+      ],
+      "construction_state": "Native-V2 construction complete pending exact-head integrity execution; formal double review and owner acceptance remain deferred.",
+      "cross_packet": [
+        {
+          "interface": "LLD-02 SettingDefinitionRegistry/SettingStore",
+          "provider": "LLD-02",
+          "status": "existing typed settings provider; presentation values remain LLD-10 semantics"
+        },
+        {
+          "anti_forgery": "LLD12_BROWSER_MUTATION_V1",
+          "contract": "interfaces.json",
+          "interface": "DeliberateActionProofProvider",
+          "provider": "LLD-12",
+          "routes": [
+            "POST /api/v1/security/deliberate-actions/challenge",
+            "POST /api/v1/security/deliberate-actions/{challenge_id}/complete"
+          ],
+          "status": "exact"
+        },
+        {
+          "contract": "LLD-09 interfaces.json -> CommunicationPanelProjectionV1",
+          "interface": "CommunicationPanelProjectionProvider",
+          "provider": "LLD-09",
+          "status": "exact"
+        },
+        {
+          "interface": "UiSafeInverseProvider/Registry",
+          "provider": "owning LLD-02..09 adapters on explicit opt-in",
+          "rule": "no registration means no accepted-state Undo; UI never invents inverse",
+          "status": "exact fail-closed meta-contract"
+        }
+      ],
+      "lld_id": "LLD-10",
+      "migration": {
+        "objects": [
+          "ui_working_copies",
+          "uq_ui_working_copy_key",
+          "idx_ui_working_copy_expiry",
+          "idx_ui_working_copy_target"
+        ],
+        "path": "migrations/0013-ui-workbenches.json",
+        "sequence": 13
+      },
+      "query_edges": [
+        {
+          "indexes": [
+            "PK ui_working_copies"
+          ],
+          "query": "GetWorkingCopy",
+          "tests": [
+            "LLD10-T019",
+            "LLD10-T029",
+            "LLD10-F007"
+          ]
+        },
+        {
+          "indexes": [
+            "idx_ui_working_copy_target",
+            "uq_ui_working_copy_key"
+          ],
+          "query": "ListWorkingCopyRestoreCandidates",
+          "tests": [
+            "LLD10-T030",
+            "LLD10-F008"
+          ]
+        }
+      ],
+      "requirement_edges": {
+        "BETA-REQ-0123": [
+          "algorithms/selection-open.json",
+          "algorithms/scroll-ownership.json",
+          "tests/acceptance.json"
+        ],
+        "BETA-REQ-0124": [
+          "algorithms/autocomplete.json",
+          "tests/acceptance.json"
+        ],
+        "BETA-REQ-0125": [
+          "algorithms/responsive-composition.json",
+          "algorithms/deliberate-hold.json",
+          "ui/shell.json",
+          "ui/workbench-shell.json",
+          "ui/confirmation-registry.json",
+          "tests/acceptance.json",
+          "tests/failure-injection.json"
+        ],
+        "BETA-REQ-0126": [
+          "settings/presentation.json",
+          "ui/semantic-tokens.json",
+          "ui/dialog-focus.json",
+          "ui/shell.json",
+          "tests/acceptance.json",
+          "tests/failure-injection.json"
+        ],
+        "BETA-REQ-0127": [
+          "schema/working-copy.json",
+          "algorithms/working-copy-conflict.json",
+          "algorithms/safe-undo.json",
+          "types/undo.json",
+          "commands/checkpoint-working-copy.json",
+          "commands/discard-working-copy.json",
+          "tests/acceptance.json",
+          "tests/failure-injection.json"
+        ],
+        "BETA-REQ-0128": [
+          "ui/domain-surfaces.json",
+          "interfaces.json",
+          "tests/acceptance.json",
+          "tests/failure-injection.json"
+        ],
+        "BETA-REQ-0129": [
+          "ui/workbench-shell.json",
+          "ui/client-routes.json",
+          "ui/domain-surfaces.json",
+          "tests/acceptance.json"
+        ],
+        "BETA-REQ-0130": [
+          "ui/fixture-governance.json",
+          "tests/acceptance.json",
+          "ui/shell.json"
+        ],
+        "BETA-REQ-0139": [
+          "algorithms/scroll-ownership.json",
+          "algorithms/deliberate-hold.json",
+          "algorithms/responsive-composition.json",
+          "ui/dialog-focus.json",
+          "ui/semantic-tokens.json",
+          "ui/confirmation-registry.json",
+          "tests/acceptance.json",
+          "tests/failure-injection.json"
+        ],
+        "BETA-REQ-0164": [
+          "ui/workbench-shell.json",
+          "ui/confirmation-registry.json",
+          "tests/acceptance.json",
+          "tests/failure-injection.json"
+        ],
+        "BETA-REQ-0169": [
+          "algorithms/working-copy-conflict.json",
+          "ui/workbench-shell.json",
+          "tests/acceptance.json",
+          "tests/failure-injection.json"
+        ]
+      },
+      "requirement_test_ids": {
+        "BETA-REQ-0123": [
+          "LLD10-T001",
+          "LLD10-T002",
+          "LLD10-T003",
+          "LLD10-T004",
+          "LLD10-T005",
+          "LLD10-T006",
+          "LLD10-T007"
+        ],
+        "BETA-REQ-0124": [
+          "LLD10-T008",
+          "LLD10-T009",
+          "LLD10-T010",
+          "LLD10-T011"
+        ],
+        "BETA-REQ-0125": [
+          "LLD10-T012",
+          "LLD10-T013",
+          "LLD10-T014",
+          "LLD10-T015",
+          "LLD10-T016",
+          "LLD10-T017",
+          "LLD10-T018",
+          "LLD10-T036",
+          "LLD10-T037"
+        ],
+        "BETA-REQ-0126": [
+          "LLD10-T016",
+          "LLD10-T033",
+          "LLD10-T034",
+          "LLD10-T035"
+        ],
+        "BETA-REQ-0127": [
+          "LLD10-T019",
+          "LLD10-T020",
+          "LLD10-T021",
+          "LLD10-T022",
+          "LLD10-T023",
+          "LLD10-T024",
+          "LLD10-T025",
+          "LLD10-T026",
+          "LLD10-T027",
+          "LLD10-T028",
+          "LLD10-T029",
+          "LLD10-T030",
+          "LLD10-T031"
+        ],
+        "BETA-REQ-0128": [
+          "LLD10-T031",
+          "LLD10-T032",
+          "LLD10-T036",
+          "LLD10-T037",
+          "LLD10-T038",
+          "LLD10-T039",
+          "LLD10-T040"
+        ],
+        "BETA-REQ-0129": [
+          "LLD10-T002",
+          "LLD10-T017",
+          "LLD10-T039",
+          "LLD10-T040"
+        ],
+        "BETA-REQ-0130": [
+          "LLD10-T001",
+          "LLD10-T016",
+          "LLD10-T034",
+          "LLD10-T040"
+        ],
+        "BETA-REQ-0139": [
+          "LLD10-T005",
+          "LLD10-T006",
+          "LLD10-T007",
+          "LLD10-T012",
+          "LLD10-T013",
+          "LLD10-T014",
+          "LLD10-T015",
+          "LLD10-T016",
+          "LLD10-T018",
+          "LLD10-T033",
+          "LLD10-T034",
+          "LLD10-T035",
+          "LLD10-T036",
+          "LLD10-T037"
+        ],
+        "BETA-REQ-0164": [
+          "LLD10-T036",
+          "LLD10-T037",
+          "LLD10-T038"
+        ],
+        "BETA-REQ-0169": [
+          "LLD10-T020",
+          "LLD10-T021",
+          "LLD10-T038"
+        ]
+      },
+      "reverse_orphan_checks": [
+        "Every LLD-10 authoritative table is reachable only from working-copy commands/queries and migration.",
+        "Every public working-copy route resolves to a command/query leaf.",
+        "Every external Communication/deliberate-proof dependency resolves to an exact provider contract.",
+        "Safe Undo has no independent accepted-state writer and therefore creates no orphan business authority."
+      ],
+      "schema": "SOMA-LLD-TRACEABILITY-V2"
+    },
+    "types/common.json": {
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-TYPES-V2",
+      "type_contract_id": "UI_COMMON_TYPES_V1",
+      "types": {
+        "ActionAvailabilityV1": {
+          "fields": {
+            "reason_code": "string|null",
+            "remediation": "string|null",
+            "required_confirmation_tier": "ConfirmationTierV1",
+            "state": "AVAILABLE|BLOCKED|INDETERMINATE"
+          }
+        },
+        "ConfirmationTierV1": {
+          "enum": [
+            "ordinary",
+            "deliberate_hold",
+            "impact_preview",
+            "impact_preview_plus_hold",
+            "domain_specific"
+          ]
+        },
+        "QueryIdentityV1": {
+          "fields": {
+            "filter_fingerprint": "sha256",
+            "normalized_input": "string",
+            "query_id": "uuid",
+            "sequence": "integer>=1",
+            "surface_id": "string"
+          }
+        },
+        "ResponsiveClassV1": {
+          "enum": [
+            "narrow",
+            "standard",
+            "wide"
+          ]
+        },
+        "SelectionStateV1": {
+          "fields": {
+            "active_id": "string|null",
+            "focused_control_id": "string|null",
+            "member_ids": "ordered unique string[]",
+            "opened_ref": "UiRecordRefV1|null",
+            "selected_id": "string|null"
+          },
+          "rules": [
+            "member_ids never inferred from active/selected",
+            "opened_ref changes only by explicit open action"
+          ]
+        },
+        "UiRecordRefV1": {
+          "fields": {
+            "record_id": "non-empty immutable local/business route identity",
+            "record_type": "closed UI route registry key",
+            "revision_token": "string|null"
+          }
+        }
+      },
+      "unknown_field_policy": "reject at API/persistence boundaries; internal TypeScript discriminated unions are exhaustive"
+    },
+    "types/undo.json": {
+      "lld_id": "LLD-10",
+      "rules": [
+        "Undo opportunity contains no inverse business payload invented by LLD-10",
+        "opportunities are browser-session UI state and are never authoritative/persisted",
+        "at most 20 opportunities are retained; oldest nonactive presentation entries drop without affecting domain history"
+      ],
+      "schema": "SOMA-LLD-TYPES-V2",
+      "type_contract_id": "UI_UNDO_TYPES_V1",
+      "types": {
+        "UndoExecutionIntentV1": {
+          "fields": {
+            "current_preview_fingerprint": "sha256",
+            "opportunity_id": "uuid",
+            "owner_command_request": "owner-defined exact command DTO reference"
+          }
+        },
+        "UndoOpportunityV1": {
+          "fields": {
+            "action_result_ref": "opaque immutable owner result reference",
+            "availability": "AVAILABLE|BLOCKED|STALE|INDETERMINATE",
+            "created_monotonic_ms": "number",
+            "inverse_kind": "closed owner-provided inverse registry key",
+            "opportunity_id": "uuid client identity",
+            "owner_packet": "LLD-02|LLD-03|LLD-05|LLD-06|LLD-07|LLD-08|LLD-09",
+            "post_action_revision_token": "non-empty string",
+            "reason_code": "string|null",
+            "target_ref": "UiRecordRefV1"
+          }
+        }
+      }
+    },
+    "types/working-copy-actions.json": {
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-TYPES-V2",
+      "type_contract_id": "UI_WORKING_COPY_ACTION_TYPES_V1",
+      "types": {
+        "DiscardWorkingCopyRequestV1": {
+          "fields": {
+            "command_id": "uuid",
+            "expected_generation": "integer>=1",
+            "working_copy_id": "uuid"
+          }
+        },
+        "DiscardWorkingCopyResponseV1": {
+          "fields": {
+            "discarded": "boolean",
+            "discarded_generation": "integer>=1",
+            "working_copy_id": "uuid"
+          }
+        },
+        "GetWorkingCopyResponseV1": {
+          "fields": {
+            "restore": "WorkingCopyRestoreStateV1|null",
+            "state": "FOUND|NOT_FOUND"
+          }
+        },
+        "PruneExpiredWorkingCopiesRequestV1": {
+          "fields": {
+            "batch_limit": "integer 1..100",
+            "command_id": "uuid"
+          }
+        },
+        "PruneExpiredWorkingCopiesResponseV1": {
+          "fields": {
+            "deleted_count": "integer 0..100",
+            "more_due": "boolean"
+          }
+        },
+        "WorkingCopyCandidatePageV1": {
+          "fields": {
+            "items": "WorkingCopyRestoreStateV1[]",
+            "next_cursor": "CURSOR_V1|null"
+          }
+        },
+        "WorkingCopyCandidateQueryV1": {
+          "fields": {
+            "cursor": "CURSOR_V1|null",
+            "limit": "integer 1..50",
+            "target_id": "string|null",
+            "target_type": "closed registered target kind|null"
+          }
+        }
+      },
+      "unknown_field_policy": "reject"
+    },
+    "types/working-copy.json": {
+      "lld_id": "LLD-10",
+      "rules": [
+        "restoration never calls a domain save",
+        "dirty_paths are presentation/review aids and never authoritative field deltas",
+        "draft content is never written into audit payloads or diagnostics"
+      ],
+      "schema": "SOMA-LLD-TYPES-V2",
+      "type_contract_id": "UI_WORKING_COPY_TYPES_V1",
+      "types": {
+        "SaveWorkingCopyRequestV1": {
+          "fields": {
+            "command_id": "uuid",
+            "expected_generation": "integer>=0; 0 means absent",
+            "key": "WorkingCopyKeyV1",
+            "payload": "WorkingCopyPayloadV1"
+          }
+        },
+        "WorkingCopyKeyV1": {
+          "fields": {
+            "scope_key": "closed registered edit-surface key",
+            "target_id": "non-empty identity",
+            "target_type": "closed registered target kind"
+          }
+        },
+        "WorkingCopyPayloadV1": {
+          "fields": {
+            "base_revision_token": "non-empty accepted revision/fingerprint",
+            "dirty_paths": "sorted unique JSON-pointer string[]",
+            "draft": "StrictVersionedJson validated by selected draft contract",
+            "draft_contract_id": "closed WorkingCopyContractRegistry id",
+            "draft_contract_version": "positive integer"
+          }
+        },
+        "WorkingCopyRecordV1": {
+          "fields": {
+            "content_hash": "sha256",
+            "created_at_utc": "integer seconds",
+            "expires_at_utc": "integer seconds",
+            "generation": "integer>=1",
+            "key": "WorkingCopyKeyV1",
+            "owner_profile_id": "uuid",
+            "payload": "WorkingCopyPayloadV1",
+            "updated_at_utc": "integer seconds",
+            "working_copy_id": "uuid"
+          }
+        },
+        "WorkingCopyRestoreStateV1": {
+          "fields": {
+            "current_revision_token": "string|null",
+            "freshness": "CURRENT|STALE|TARGET_MISSING|INDETERMINATE",
+            "record": "WorkingCopyRecordV1",
+            "requires_conflict_review": "boolean",
+            "restore_allowed": "boolean"
+          }
+        }
+      }
+    },
+    "ui/client-routes.json": {
+      "lld_id": "LLD-10",
+      "registry_id": "UI_CLIENT_ROUTES_V1",
+      "routes": [
+        {
+          "path": "/",
+          "redirect": "/overview"
+        },
+        {
+          "owner": "LLD-11",
+          "path": "/overview",
+          "surface": "overview"
+        },
+        {
+          "owner": "LLD-03/04",
+          "path": "/tickets",
+          "surface": "ticket_list"
+        },
+        {
+          "owner": "LLD-03/04",
+          "path": "/tickets/history",
+          "surface": "ticket_history"
+        },
+        {
+          "owner": "LLD-03",
+          "path": "/tickets/sr/{service_request_id}",
+          "surface": "sr_workbench"
+        },
+        {
+          "owner": "LLD-03",
+          "path": "/tickets/rfc/{rfc_id}",
+          "surface": "rfc_workbench"
+        },
+        {
+          "owner": "LLD-05",
+          "path": "/objectives",
+          "surface": "objectives"
+        },
+        {
+          "owner": "LLD-05",
+          "path": "/objectives/{objective_id}",
+          "surface": "objective_detail"
+        },
+        {
+          "owner": "LLD-07",
+          "path": "/inventory",
+          "surface": "inventory"
+        },
+        {
+          "owner": "LLD-08",
+          "path": "/infrastructure",
+          "surface": "infrastructure"
+        },
+        {
+          "owner": "LLD-02/12",
+          "path": "/settings",
+          "surface": "settings"
+        },
+        {
+          "owner": "LLD-09",
+          "path": "/settings/communications",
+          "surface": "communication_settings"
+        },
+        {
+          "owner": "LLD-10 via LLD-02 settings",
+          "path": "/settings/appearance",
+          "surface": "appearance_settings"
+        }
+      ],
+      "rules": [
+        "/api/v1 and static assets are excluded from SPA fallback",
+        "route parameter decoding validates bounded syntax before owner query",
+        "dirty working copy warns on true abandonment but tab/pane changes inside same edit flow do not",
+        "return navigation restores bounded route-state token or deterministic fallback",
+        "unknown route renders accessible not-found surface without executing domain action"
+      ],
+      "schema": "SOMA-LLD-UI-V2"
+    },
+    "ui/confirmation-registry.json": {
+      "entries": [
+        {
+          "action_kind": "infrastructure.device_reference.promote_new",
+          "reason": "creates a new Infrastructure Network Element while preserving Device Reference identity",
+          "tier": "deliberate_hold"
+        },
+        {
+          "action_kind": "tickets.rfc.terminal_cascade.execute",
+          "reason": "cross-domain terminal effects require exact reviewed impact authority plus deliberate single-use proof",
+          "tier": "impact_preview_plus_hold"
+        },
+        {
+          "action_kind": "tickets.rfc.hard_delete",
+          "reason": "narrow destructive operation requires dependency proof",
+          "tier": "impact_preview"
+        },
+        {
+          "action_kind": "objectives.grouping.accept",
+          "reason": "may consolidate Objective membership/envelope",
+          "tier": "impact_preview"
+        },
+        {
+          "action_kind": "objectives.hard_delete",
+          "reason": "destructive only when owning eligibility allows",
+          "tier": "impact_preview"
+        },
+        {
+          "action_kind": "inventory.bulk.accept",
+          "reason": "multi-target explicit partitions/results",
+          "tier": "impact_preview"
+        },
+        {
+          "action_kind": "inventory.destructive.confirm",
+          "reason": "destructive Inventory operation",
+          "tier": "impact_preview"
+        },
+        {
+          "action_kind": "infrastructure.workbook.accept",
+          "reason": "reviewed atomic multi-entity workbook mutation",
+          "tier": "impact_preview"
+        },
+        {
+          "action_kind": "ui.working_copy.discard",
+          "reason": "removes only recoverable unsaved UI intent",
+          "tier": "ordinary"
+        }
+      ],
+      "hold_allowlist": [
+        "infrastructure.device_reference.promote_new"
+      ],
+      "impact_preview_plus_hold_allowlist": [
+        "tickets.rfc.terminal_cascade.execute"
+      ],
+      "lld_id": "LLD-10",
+      "registry_id": "CONFIRMATION_TIERS_BETA_1_0_V1",
+      "rule": "confirmation tier is presentation friction only and cannot make an invalid owning-domain command valid",
+      "schema": "SOMA-LLD-UI-V2",
+      "unknown_action_policy": "INDETERMINATE; disable command presentation until a governed registry entry/owning-domain tier exists"
+    },
+    "ui/dialog-focus.json": {
+      "dialog": {
+        "background": "application shell outside active modal is inert and unavailable to pointer/keyboard",
+        "close_restore": "restore invoker when still present/eligible, otherwise deterministic nearest logical fallback",
+        "escape": "closes dismissible dialog without acceptance; non-dismissible only while owning atomic stage explicitly reports noninterruptible",
+        "focus_loop": "Tab/Shift+Tab remain inside topmost modal; nested modal is prohibited except closed owned picker/popover patterns",
+        "initial_focus": "first safe meaningful control; destructive primary is never auto-focused when a cancel/neutral target exists",
+        "semantics": "role=dialog or alertdialog as consequence requires, aria-modal=true, programmatic labelled title and optional described consequence"
+      },
+      "errors": {
+        "server_failure": "keep dialog/input open unless accepted current truth makes requested edit obsolete",
+        "stale": "replace submit state with explicit comparison/review path; never silently retry against new revision",
+        "validation": "focus first invalid field after summary announcement; preserve entered safe values"
+      },
+      "lld_id": "LLD-10",
+      "schema": "SOMA-LLD-UI-V2",
+      "scroll": "long content has one bounded internal scroll owner; background/sibling panes never scroll through dialog boundary",
+      "surface_id": "dialog_focus_contract",
+      "tests": [
+        "LLD10-T043",
+        "LLD10-T044",
+        "LLD10-T045",
+        "LLD10-F023"
+      ]
+    },
+    "ui/domain-surfaces.json": {
+      "lld_id": "LLD-10",
+      "registry_id": "DOMAIN_SURFACES_BETA_1_0_V1",
+      "schema": "SOMA-LLD-UI-V2",
+      "shared_rules": [
+        "all domain facts come from owner query DTOs; LLD-10 never reproduces mutable domain state in its own tables",
+        "action availability is owner-projected and confirmation tier is then applied by LLD-10",
+        "communication message body exists only in LLD-09 projection",
+        "all collection surfaces obey 200-row DOM/page bound and expose continuation/partial state"
+      ],
+      "surfaces": [
+        {
+          "composition": [
+            "accepted period/history filters",
+            "Customer filter where applicable",
+            "bounded ticket rows",
+            "status/source/SLA/communication summary columns",
+            "processing/review warnings"
+          ],
+          "id": "tickets.list",
+          "owner": "LLD-03/04",
+          "rule": "terminal rows remain visible per owner period/history projection; UI never derives lifecycle from workbook absence"
+        },
+        {
+          "id": "tickets.sr.workbench",
+          "owner": "LLD-03 with LLD-04/05/06/07/09 projections",
+          "right_pane": "LLD-09 CommunicationPanelProjectionProvider",
+          "rule": "Objective context arrives through Tasks; no direct mutable SR-Objective relation",
+          "tabs": [
+            "Overview",
+            "Devices",
+            "Spare Parts",
+            "RFCs",
+            "Tasks",
+            "Notes"
+          ]
+        },
+        {
+          "id": "tickets.rfc.workbench",
+          "owner": "LLD-03 with LLD-04/05/09 projections",
+          "right_pane": "LLD-09 CommunicationPanelProjectionProvider",
+          "rule": "direct SR relation targets root RFC only; subordinate provenance remains visible",
+          "tabs": [
+            "Overview",
+            "Service Requests and Devices",
+            "Related RFCs",
+            "Tasks",
+            "Notes"
+          ]
+        },
+        {
+          "composition": [
+            "bounded Objective list/calendar-period projection",
+            "grouping proposals",
+            "unscheduled Tasks",
+            "historical/excluded context"
+          ],
+          "id": "objectives.workspace",
+          "owner": "LLD-05",
+          "rule": "source WFM plan, accepted operational Task plan, Objective envelope and actual execution are separate labelled facts"
+        },
+        {
+          "composition": [
+            "Objective interval/timezone/state",
+            "member Tasks",
+            "per-Task execution/outcome/review",
+            "grouping/history",
+            "safe actions/blockers"
+          ],
+          "id": "objectives.detail",
+          "owner": "LLD-05",
+          "rule": "starting Objective does not imply starting member Tasks"
+        },
+        {
+          "composition": [
+            "Stock",
+            "Spare Needs",
+            "Spare Requests",
+            "RMAs",
+            "Fault Tags",
+            "Needs Attention",
+            "proposal/bulk activity"
+          ],
+          "id": "inventory.workspace",
+          "owner": "LLD-07",
+          "rule": "requested logistics, actual logistics, Task outcome context and Inventory physical consequence remain visibly separate"
+        },
+        {
+          "composition_ref": "spec/lld/infrastructure/ui/workspace-state.json",
+          "id": "infrastructure.workspace",
+          "owner": "LLD-08",
+          "rule": "LLD-10 provides shared interaction shell only; Infrastructure owns physical model/workbook semantics"
+        },
+        {
+          "composition": [
+            "Customer Organizations",
+            "Contacts/channels",
+            "Dispatch Locations",
+            "ordinary settings"
+          ],
+          "id": "settings.reference",
+          "owner": "LLD-02"
+        },
+        {
+          "composition": [
+            "Product Lines",
+            "Customer Contracts",
+            "Contract Product Lines",
+            "classification mappings/report settings"
+          ],
+          "id": "settings.product_line_sla",
+          "owner": "LLD-06"
+        },
+        {
+          "composition": [
+            "Source Scopes",
+            "processing schedule",
+            "coverage/jobs",
+            "backfill/Deep Scan",
+            "orphan housekeeping"
+          ],
+          "id": "settings.communications",
+          "owner": "LLD-09"
+        },
+        {
+          "composition": [
+            "skin selector",
+            "System/Light/Dark selector",
+            "immediate reversible preview"
+          ],
+          "id": "settings.appearance",
+          "owner": "LLD-10 via LLD-02 settings"
+        }
+      ]
+    },
+    "ui/fixture-governance.json": {
+      "classes": {
+        "directional_design_reference": "non-normative hierarchy/composition inspiration only",
+        "export_golden_fixture": "owned artifact semantic/rendering evidence",
+        "historical_artifact": "non-normative unless explicitly reclassified",
+        "visual_acceptance_fixture": "versioned rendered-state regression evidence"
+      },
+      "comparison": {
+        "rendering": "pixel/image comparison may use bounded anti-alias tolerance but cannot mask missing/reordered semantic content",
+        "responsive": "wide/standard/narrow are separately rendered, never cropped/scaled from one baseline",
+        "structure": "DOM/accessibility semantic assertions are primary"
+      },
+      "lld_id": "LLD-10",
+      "representative_widths_css_px": [
+        480,
+        900,
+        1440
+      ],
+      "required_states": [
+        "empty",
+        "loading",
+        "warning",
+        "error",
+        "stale",
+        "destructive-preview",
+        "historical",
+        "working-copy-recovery",
+        "keyboard-focus",
+        "autocomplete",
+        "dialog",
+        "deliberate-hold-progress"
+      ],
+      "sanitization_rules": [
+        "no customer/production email, credentials, production IDs, private addresses or third-party proprietary visual assets",
+        "synthetic fixtures preferred",
+        "baseline replacement requires reviewed semantic reason; never update merely to make a failing regression green"
+      ],
+      "schema": "SOMA-LLD-UI-FIXTURES-V2",
+      "visual_fixture_manifest_required": [
+        "fixture_id",
+        "version",
+        "mapped_requirement_or_test_ids",
+        "synthetic_or_irreversibly_sanitized_data_id",
+        "surface/state",
+        "container_width_css_px",
+        "viewport_height_css_px",
+        "platform/browser_host_profile",
+        "skin_id",
+        "appearance_mode",
+        "zoom_percent",
+        "text_scale",
+        "reduced_motion",
+        "forced_color_mode",
+        "timezone",
+        "deterministic_clock",
+        "expected_focus",
+        "expected_material_actions",
+        "tolerance_profile",
+        "provenance",
+        "approval_state"
+      ]
+    },
+    "ui/semantic-tokens.json": {
+      "dark": {
+        "background": "#0b0f14",
+        "border": "#45505d",
+        "destructive": "#ff8a80",
+        "disabled_text": "#9aa4af",
+        "error": "#ff8a80",
+        "focus": "#76b7ff",
+        "historical": "#b5bdc7",
+        "info": "#7dd3fc",
+        "selected_bg": "#17385e",
+        "selected_text": "#f5f9ff",
+        "success": "#79d99a",
+        "surface": "#111820",
+        "surface_raised": "#17212b",
+        "text": "#f3f4f6",
+        "text_muted": "#c4c9d1",
+        "warning": "#f6c453"
+      },
+      "fonts": {
+        "body": "\"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+        "mono": "\"Cascadia Mono\", Consolas, ui-monospace, monospace",
+        "remote_fonts": false
+      },
+      "forced_color_mapping": {
+        "background": "Canvas",
+        "border": "CanvasText",
+        "disabled_text": "GrayText",
+        "focus": "Highlight",
+        "links_actions": "LinkText",
+        "selected_bg": "Highlight",
+        "selected_text": "HighlightText",
+        "surface": "Canvas",
+        "text": "CanvasText"
+      },
+      "light": {
+        "background": "#f6f8fa",
+        "border": "#cbd5e1",
+        "destructive": "#b42318",
+        "disabled_text": "#6b7280",
+        "error": "#b42318",
+        "focus": "#0b66d6",
+        "historical": "#5b6472",
+        "info": "#075985",
+        "selected_bg": "#dbeafe",
+        "selected_text": "#0f2742",
+        "success": "#176b39",
+        "surface": "#ffffff",
+        "surface_raised": "#ffffff",
+        "text": "#111827",
+        "text_muted": "#4b5563",
+        "warning": "#8a5a00"
+      },
+      "lld_id": "LLD-10",
+      "rules": [
+        "skin accent may change emphasis/focus/selected treatment but warning/error/success roles remain semantically labelled and non-color coded",
+        "identifiers/statuses/timestamps/metrics/short command cues may use mono; notes/messages/dialog prose use body font",
+        "no state depends on color alone",
+        "all built-in skins preserve identical dimensions, workflow, action names and confirmation tiers"
+      ],
+      "schema": "SOMA-LLD-UI-TOKENS-V2",
+      "shape": {
+        "focus_offset_px": 2,
+        "focus_outline_px": 2,
+        "radius_medium": 6,
+        "radius_small": 4
+      },
+      "skin_accents": {
+        "soma_core": {
+          "dark": "#76b7ff",
+          "light": "#0b66d6"
+        },
+        "terminal_amber": {
+          "dark": "#ffd166",
+          "light": "#9a6700"
+        },
+        "terminal_green": {
+          "dark": "#63e6be",
+          "light": "#087f5b"
+        },
+        "terminal_violet": {
+          "dark": "#d8b4fe",
+          "light": "#7c3aed"
+        }
+      },
+      "spacing_css_px": {
+        "1": 4,
+        "2": 8,
+        "3": 12,
+        "4": 16,
+        "5": 24,
+        "6": 32
+      },
+      "token_system_id": "SOMA_SEMANTIC_TOKENS_V1",
+      "typography_css_px": {
+        "body": 14,
+        "control": 14,
+        "entity_title": 20,
+        "line_height_body": 1.45,
+        "metadata": 13,
+        "section_title": 16,
+        "table": 14,
+        "workspace_title": 24
+      }
+    },
+    "ui/shell.json": {
+      "accessibility": [
+        "one visible h1/workspace heading",
+        "skip-to-content",
+        "visible focus",
+        "landmark semantics",
+        "status/warning text never color-only"
+      ],
+      "client_routing": "closed UiRouteRegistry over History API; API namespace /api/v1 is never captured by SPA fallback",
+      "composition": {
+        "narrow": "viewport-safe navigation drawer/switcher; no workspace/action removed",
+        "standard": "compact labelled navigation with same destinations; content actions may move to labelled overflow",
+        "wide": "persistent labelled workspace navigation + scoped alerts + content region + optional bounded activity surface"
+      },
+      "lld_id": "LLD-10",
+      "loading_error_rule": "shell retains last accepted render where safe; scoped loading/error/retry never claims accepted mutation success",
+      "schema": "SOMA-LLD-UI-V2",
+      "security": [
+        "no remote assets",
+        "no arbitrary HTML execution",
+        "no domain mutation from URL alone",
+        "route parameters are data and validated by owning query"
+      ],
+      "state_separation": [
+        "focus",
+        "active row/node",
+        "selection",
+        "multi-selection membership",
+        "expansion",
+        "opened route",
+        "UI working copy",
+        "persistent domain Draft"
+      ],
+      "surface_id": "global_shell",
+      "workspace_order": [
+        "Overview",
+        "Tickets",
+        "Objectives",
+        "Inventory",
+        "Infrastructure",
+        "Settings"
+      ]
+    },
+    "ui/workbench-shell.json": {
+      "action_rule": "availability/blocker/remediation derives from owning-domain projection; predictable invalid actions are not enabled merely to fail",
+      "communication_rule": "LLD-09 owns canonical message/link/coverage data; LLD-10 must not copy body/participant authority into ticket state; terminal summary has no body navigation after content unavailable",
+      "lld_id": "LLD-10",
+      "narrow_pattern": "labelled pane switcher preserves Work and Communications/evidence states; switching does not discard either context",
+      "objective_rule": "Objective/Task surfaces preserve source plan, accepted operational Task plan, derived Objective envelope and execution as visibly distinct facts",
+      "rfc_tabs": [
+        "Overview",
+        "Service Requests and Devices",
+        "Related RFCs",
+        "Tasks",
+        "Notes"
+      ],
+      "schema": "SOMA-LLD-UI-V2",
+      "scroll_surfaces": [
+        "record list/explorer",
+        "tab content",
+        "communication preview",
+        "table/grid",
+        "dialog/drawer",
+        "autocomplete/listbox",
+        "activity/review panel"
+      ],
+      "sr_tabs": [
+        "Overview",
+        "Devices",
+        "Spare Parts",
+        "RFCs",
+        "Tasks",
+        "Notes"
+      ],
+      "surface_id": "shared_workbench_shell",
+      "wide_pattern": "working/navigation pane plus canonical communication/evidence pane when content container >=1040px",
+      "working_copy_rule": "tab/pane changes preserve dirty UI copy; accepted save only through owning-domain command; domain Draft badges are accepted state and visually distinct from dirty markers"
+    }
+  },
+  "packet_index": {
+    "acceptance_tests": {
+      "domain": "tests/acceptance.json + tests/acceptance-interaction.json",
+      "execution_status": "design_explicit_integrity_clean",
+      "explicit_case_count": 80,
+      "failure_injection": "tests/failure-injection.json + tests/failure-interaction.json",
+      "traceability": "tests/traceability.json"
+    },
+    "ai_implementation_ready": true,
+    "design_principle": "The UI may preserve context, working intent and presentation state, but only owning-domain commands can change accepted operational truth.",
+    "failure_modes": [
+      "stale query response discarded",
+      "working-copy persistence failure preserves in-memory edit without false success",
+      "stale accepted revision enters conflict review, never LWW",
+      "hold cancellation/route/target/proof failure submits no owner command",
+      "responsive reflow preserves interaction state",
+      "missing required browser capability disables affected interaction",
+      "owner-indeterminate action or unregistered/stale/blocked safe inverse fails closed",
+      "Communication panel provider failure is visible and never replaced by copied/stale body authority"
+    ],
+    "hld_dependencies": [
+      "HLD-01",
+      "HLD-03",
+      "HLD-04",
+      "HLD-05",
+      "HLD-06",
+      "HLD-07",
+      "HLD-08",
+      "HLD-09",
+      "HLD-10",
+      "HLD-11",
+      "HLD-13",
+      "HLD-14"
+    ],
+    "id": "LLD-10",
+    "implementation_gate": {
+      "acceptance_tests_explicit": true,
+      "ai_implementation_ready": true,
+      "formal_double_review_deferred_until_full_beta_lld_set": false,
+      "global_owner_acceptance_required": true,
+      "hld_owner_accepted": true,
+      "owner_accepted": true,
+      "review_pass_1": "PASS",
+      "review_pass_2": "PASS",
+      "spec_integrity_execution_required": true,
+      "technical_review_evidence": "docs/reconciliation/LLD_PEER_REVIEW_PASS_1.md + docs/reconciliation/LLD_PEER_REVIEW_PASS_2.md",
+      "v2_structural_construction_complete": true
+    },
+    "implementation_module_map": "implementation/module-map.json",
+    "migration_allocation": "migrations/0013-ui-workbenches.json",
+    "name": "Navigation, Workbenches, Draft State, Undo, Responsive UI",
+    "normative_paths": [
+      "technology.json",
+      "bounds.json",
+      "errors.json",
+      "interfaces.json",
+      "interfaces/cross-packet-v2.json",
+      "types/common.json",
+      "types/working-copy.json",
+      "types/working-copy-actions.json",
+      "types/undo.json",
+      "schema/working-copy.json",
+      "settings/presentation.json",
+      "migrations/0013-ui-workbenches.json",
+      "algorithms/selection-open.json",
+      "algorithms/scroll-ownership.json",
+      "algorithms/autocomplete.json",
+      "algorithms/deliberate-hold.json",
+      "algorithms/responsive-composition.json",
+      "algorithms/working-copy-conflict.json",
+      "algorithms/safe-undo.json",
+      "commands/checkpoint-working-copy.json",
+      "commands/discard-working-copy.json",
+      "commands/prune-expired-working-copies.json",
+      "queries/get-working-copy.json",
+      "queries/list-restore-candidates.json",
+      "routes.json",
+      "routes/working-copies.json",
+      "audit/actions.json",
+      "ui/shell.json",
+      "ui/workbench-shell.json",
+      "ui/confirmation-registry.json",
+      "ui/client-routes.json",
+      "ui/dialog-focus.json",
+      "ui/semantic-tokens.json",
+      "ui/domain-surfaces.json",
+      "ui/fixture-governance.json",
+      "tests/acceptance.json",
+      "tests/acceptance-interaction.json",
+      "tests/failure-injection.json",
+      "tests/failure-interaction.json",
+      "tests/traceability.json",
+      "implementation/module-map.json"
+    ],
+    "owner_accepted": true,
+    "pending_native_v2_closure": [],
+    "requirement_ids": [
+      "BETA-REQ-0123",
+      "BETA-REQ-0124",
+      "BETA-REQ-0125",
+      "BETA-REQ-0126",
+      "BETA-REQ-0127",
+      "BETA-REQ-0128",
+      "BETA-REQ-0129",
+      "BETA-REQ-0130",
+      "BETA-REQ-0139",
+      "BETA-REQ-0164",
+      "BETA-REQ-0169"
+    ],
+    "review_evidence": [
+      "HLD-11 interaction-state, working-copy, responsive, confirmation/accessibility authority imported without domain-authority transfer.",
+      "Frontend framework/build stack selected at LLD layer.",
+      "Working-copy persistence has exact command/query/route/audit contracts with 5-second idle/30-second minimum checkpoint cadence.",
+      "Safe Undo is standardized as an explicit owner opt-in inverse-preview/exact-command contract; absent or indeterminate inverse registration fails closed and no global rollback exists.",
+      "Semantic token/typography/forced-color and dialog-focus behavior are pinned without remote assets.",
+      "Domain surfaces map SR/RFC/Objectives/Inventory/Infrastructure/Settings back to owner packets rather than copying truth.",
+      "LLD-09 CommunicationPanelProjectionProvider is exact and read-only; LLD-12 deliberate-action provider/routes and session+Host+Origin+CSRF handshake are exact.",
+      "Construction tests comprise 55 acceptance and 25 failure cases.",
+      "Formal Beta LLD Pass 1 and Pass 2 are both PASS; strengthened interface, route and contract-reference closure is clean on the corrected source."
+    ],
+    "schema": "SOMA-LLD-PACKET-V2",
+    "status": "review_ready",
+    "supporting_requirement_ids": [
+      "BETA-REQ-0038",
+      "BETA-REQ-0051",
+      "BETA-REQ-0074",
+      "BETA-REQ-0090",
+      "BETA-REQ-0100",
+      "BETA-REQ-0110",
+      "BETA-REQ-0122",
+      "BETA-REQ-0135",
+      "BETA-REQ-0140"
+    ],
+    "traceability_contract": "tests/traceability.json",
+    "transaction_boundaries": [
+      "UI interaction/navigation/query-cache/Undo state is non-authoritative client state.",
+      "Recoverable working-copy checkpoint/discard uses one short LLD-01 UnitOfWork/receipt and never calls owning-domain mutation.",
+      "Accepted domain changes always use owning packet command with current revision/fingerprint; LLD-10 writes no other domain tables.",
+      "Deliberate-hold completion uses LLD-12 session-bound challenge/proof endpoints with mutation-grade anti-forgery, but proof never authorizes an owner command by itself.",
+      "Safe Undo invokes only an owning packet's explicitly registered inverse/correction command after fresh owner preview; LLD-10 has no global rollback writer."
+    ]
+  },
+  "schema": "SOMA_LLD10_PINNED_CONTRACTS_V1"
+}

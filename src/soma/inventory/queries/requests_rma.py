@@ -6,7 +6,10 @@ from soma.foundation.errors import SomaError, ValidationError
 from soma.foundation.identifiers import require_uuid4, utc_epoch_seconds
 from soma.foundation.persistence.connections import ConnectionFactory
 from soma.foundation.persistence.uow import ReadSnapshot
-from soma.foundation.strict_json import loads_canonical_json
+from soma.foundation.strict_json import loads_canonical_json, sha256_canonical_json
+
+_REQUEST_CURSOR_FIELDS = frozenset({"version", "query_id", "sort_registry_id",
+    "last_key_tuple", "filter_fingerprint", "null_order"})
 
 
 def _limit(value: int) -> int:
@@ -35,12 +38,40 @@ class InventoryRequestsRmaQueryService:
         response_warning_only: bool = False,
         as_of_utc: int | None = None,
         after_id: str | None = None,
+        cursor: dict[str, object] | None = None,
         limit: int = 100,
     ) -> dict[str, object]:
         page_limit = _limit(limit)
         sr_id = None if service_request_id is None else require_uuid4(service_request_id)
         after = None if after_id is None else require_uuid4(after_id)
         effective_as_of = _as_of(as_of_utc)
+        if type(response_warning_only) is not bool:
+            raise ValidationError("response_warning_only must be boolean")
+        if lifecycle_state is not None and (not isinstance(lifecycle_state, str) or lifecycle_state not in {
+            "draft", "submitted_awaiting_response", "acknowledged", "partially_authorized",
+            "authorized", "cancelled", "rejected"
+        }):
+            raise ValidationError("Spare Request lifecycle filter is invalid")
+        fingerprint = sha256_canonical_json({
+            "schema": "SOMA_SPARE_REQUEST_LIST_FILTER_V1", "service_request_id": sr_id,
+            "lifecycle_state": lifecycle_state, "response_warning_only": response_warning_only,
+            "as_of_utc": effective_as_of,
+        })
+        if cursor is not None:
+            if after_id is not None or as_of_utc is None:
+                raise ValidationError("Request continuation requires exact as_of_utc and no after_id")
+            if not isinstance(cursor, dict) or set(cursor) != _REQUEST_CURSOR_FIELDS:
+                raise ValidationError("Request cursor shape is invalid")
+            if (type(cursor["version"]) is not int or cursor["version"] != 1
+                    or cursor["query_id"] != "SpareRequestListQuery"
+                    or cursor["sort_registry_id"] != "INVENTORY_REQUEST_ID_ASC_V1"
+                    or cursor["filter_fingerprint"] != fingerprint
+                    or cursor["null_order"] != "not_applicable"):
+                raise ValidationError("Request cursor contract is invalid")
+            key = cursor["last_key_tuple"]
+            if not isinstance(key, list) or len(key) != 1:
+                raise ValidationError("Request cursor key is invalid")
+            after = require_uuid4(key[0])
         params: list[object] = []
         clauses: list[str] = []
         if sr_id is not None:
@@ -119,7 +150,11 @@ class InventoryRequestsRmaQueryService:
             return {
                 "items": items,
                 "continuation": (
-                    str(page[-1][0]) if len(rows) > page_limit and page else None
+                    {"version": 1, "query_id": "SpareRequestListQuery",
+                     "sort_registry_id": "INVENTORY_REQUEST_ID_ASC_V1",
+                     "last_key_tuple": [str(page[-1][0])], "filter_fingerprint": fingerprint,
+                     "null_order": "not_applicable"}
+                    if len(rows) > page_limit and page else None
                 ),
                 "exact_total": total,
                 "as_of_utc": effective_as_of,

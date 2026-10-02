@@ -131,6 +131,114 @@ class InventoryNeedsQueryService:
         self._factory = connection_factory
         self._units = InventoryUnitsRepository()
 
+    def list_needs(
+        self,
+        *,
+        service_request_id: str | None = None,
+        lifecycle_state: str | None = None,
+        bom_code: str | None = None,
+        cursor: dict[str, object] | None = None,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        """Inventory-owned facts in one snapshot; context/eligibility binding is pending.
+
+        Counts summarize history without materializing operator-controlled histories.
+        Local selection is planning evidence, never fulfillment or installation proof.
+        This operation is not yet the complete reconciled InventoryNeedsQuery HTTP
+        contract: customer filtering and action blockers require owner context.
+        """
+        page_limit = _limit(limit)
+        sr_id = None if service_request_id is None else require_uuid4(service_request_id)
+        if lifecycle_state is not None and (not isinstance(lifecycle_state, str) or lifecycle_state not in {
+            "active", "resolved", "cancelled", "removed"
+        }):
+            raise ValidationError("Need lifecycle filter is invalid")
+        bom_key = None if bom_code is None else normalize_part_code(bom_code)[1]
+        fingerprint = sha256_canonical_json({
+            "schema": "SOMA_INVENTORY_NEEDS_FILTER_V1",
+            "service_request_id": sr_id, "lifecycle_state": lifecycle_state,
+            "bom_key": bom_key,
+        })
+        after = None
+        if cursor is not None:
+            if not isinstance(cursor, dict) or set(cursor) != _CURSOR_FIELDS:
+                raise ValidationError("Need cursor shape is invalid")
+            if (type(cursor["version"]) is not int or cursor["version"] != 1 or cursor["query_id"] != "InventoryNeedsQuery"
+                    or cursor["sort_registry_id"] != "INVENTORY_NEEDS_ID_ASC_V1"
+                    or cursor["filter_fingerprint"] != fingerprint
+                    or cursor["null_order"] != "not_applicable"):
+                raise ValidationError("Need cursor contract is invalid")
+            key = cursor["last_key_tuple"]
+            if not isinstance(key, list) or len(key) != 1:
+                raise ValidationError("Need cursor key is invalid")
+            after = require_uuid4(key[0])
+        clauses, params = [], []
+        for column, value in (("n.service_request_id", sr_id),
+                              ("p.lifecycle_state", lifecycle_state), ("n.bom_key", bom_key)):
+            if value is not None:
+                clauses.append(column + "=?")
+                params.append(value)
+        source = (" FROM spare_needs n JOIN spare_need_current_projection p "
+                  "ON p.spare_need_id=n.spare_need_id")
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        with ReadSnapshot(self._factory) as snapshot:
+            connection = snapshot.connection
+            total = int(connection.execute("SELECT COUNT(*)" + source + where, params).fetchone()[0])
+            page_clauses = [*clauses, *([] if after is None else ["n.spare_need_id>?"])]
+            page_params = [*params, *([] if after is None else [after])]
+            page_where = " WHERE " + " AND ".join(page_clauses) if page_clauses else ""
+            rows = connection.execute(
+                "SELECT n.spare_need_id,n.service_request_id,n.bom_code,p.lifecycle_state,"
+                "p.planned_quantity,p.revision" + source + page_where
+                + " ORDER BY n.spare_need_id LIMIT ?", (*page_params, page_limit + 1),
+            ).fetchall()
+            page = rows[:page_limit]
+            ids = tuple(str(row[0]) for row in page)
+            summaries: dict[str, dict[str, int]] = {identity: {} for identity in ids}
+            if ids:
+                placeholders = ",".join("?" for _ in ids)
+                # Each aggregate restricts to the bounded page using existing FK/
+                # relationship indexes; no per-row queries or global recomputation.
+                aggregates = (
+                    ("contributor_count", "spare_need_contributors", "COUNT(*)", " AND active=1"),
+                    ("active_task_allocation_count", "task_unit_allocation_current", "COUNT(*)", ""),
+                    ("local_selection_event_count", "local_need_fulfillment_events", "COUNT(*)", " AND event_kind='selected'"),
+                    ("local_release_event_count", "local_need_fulfillment_events", "COUNT(*)", " AND event_kind='released'"),
+                    ("local_superseded_event_count", "local_need_fulfillment_events", "COUNT(*)", " AND event_kind='superseded'"),
+                    ("request_count", "spare_request_need_allocations", "COUNT(DISTINCT spare_request_id)", ""),
+                    ("active_draft_request_quantity", "spare_request_need_allocations", "SUM(quantity)", " AND active_draft=1"),
+                    ("submitted_snapshot_quantity", "spare_request_submission_allocations", "SUM(quantity)", ""),
+                )
+                for name, table, aggregate, predicate in aggregates:
+                    for summary in connection.execute(
+                        f"SELECT spare_need_id,{aggregate} FROM {table} "
+                        f"WHERE spare_need_id IN ({placeholders}){predicate} GROUP BY spare_need_id", ids,
+                    ):
+                        summaries[str(summary[0])][name] = int(summary[1])
+            items = []
+            for row in page:
+                counts = summaries[str(row[0])]
+                items.append({
+                    "spare_need_id": str(row[0]), "service_request_id": str(row[1]),
+                    "bom_code": str(row[2]), "lifecycle_state": str(row[3]),
+                    "planned_quantity": int(row[4]), "revision": int(row[5]),
+                    "contributor_count": counts.get("contributor_count", 0),
+                    "local_allocation_summary": {
+                        key: counts.get(key, 0) for key in (
+                            "active_task_allocation_count", "local_selection_event_count",
+                            "local_release_event_count", "local_superseded_event_count")},
+                    "request_allocation_summary": {
+                        key: counts.get(key, 0) for key in (
+                            "request_count", "active_draft_request_quantity", "submitted_snapshot_quantity")},
+                })
+            continuation = None if len(rows) <= page_limit else {
+                "version": 1, "query_id": "InventoryNeedsQuery",
+                "sort_registry_id": "INVENTORY_NEEDS_ID_ASC_V1",
+                "last_key_tuple": [str(page[-1][0])], "filter_fingerprint": fingerprint,
+                "null_order": "not_applicable",
+            }
+            return {"items": items, "continuation": continuation, "exact_total": total}
+
     def preview_device_part_duplicates(
         self,
         *,

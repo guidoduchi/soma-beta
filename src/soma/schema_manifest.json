@@ -13232,6 +13232,98 @@
     {
       "keys": [
         {
+          "cid": 16,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "last_checkpoint_command_id",
+          "sequence": 0
+        }
+      ],
+      "name": "idx_ui_working_copy_checkpoint_command",
+      "origin": "c",
+      "partial": false,
+      "table_name": "ui_working_copies",
+      "unique": false
+    },
+    {
+      "keys": [
+        {
+          "cid": 15,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "created_command_id",
+          "sequence": 0
+        }
+      ],
+      "name": "idx_ui_working_copy_created_command",
+      "origin": "c",
+      "partial": false,
+      "table_name": "ui_working_copies",
+      "unique": false
+    },
+    {
+      "keys": [
+        {
+          "cid": 14,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "expires_at_utc",
+          "sequence": 0
+        },
+        {
+          "cid": 0,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "working_copy_id",
+          "sequence": 1
+        }
+      ],
+      "name": "idx_ui_working_copy_expiry",
+      "origin": "c",
+      "partial": false,
+      "table_name": "ui_working_copies",
+      "unique": false
+    },
+    {
+      "keys": [
+        {
+          "cid": 2,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "target_type",
+          "sequence": 0
+        },
+        {
+          "cid": 3,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "target_id",
+          "sequence": 1
+        },
+        {
+          "cid": 13,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "updated_at_utc",
+          "sequence": 2
+        },
+        {
+          "cid": 0,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "working_copy_id",
+          "sequence": 3
+        }
+      ],
+      "name": "idx_ui_working_copy_target",
+      "origin": "c",
+      "partial": false,
+      "table_name": "ui_working_copies",
+      "unique": false
+    },
+    {
+      "keys": [
+        {
           "cid": 7,
           "collation": "BINARY",
           "descending": false,
@@ -16260,6 +16352,43 @@
           "cid": 1,
           "collation": "BINARY",
           "descending": false,
+          "name": "owner_profile_id",
+          "sequence": 0
+        },
+        {
+          "cid": 2,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "target_type",
+          "sequence": 1
+        },
+        {
+          "cid": 3,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "target_id",
+          "sequence": 2
+        },
+        {
+          "cid": 4,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "scope_key",
+          "sequence": 3
+        }
+      ],
+      "name": "uq_ui_working_copy_key",
+      "origin": "c",
+      "partial": false,
+      "table_name": "ui_working_copies",
+      "unique": true
+    },
+    {
+      "keys": [
+        {
+          "cid": 1,
+          "collation": "BINARY",
+          "descending": false,
           "name": "communication_id",
           "sequence": 0
         },
@@ -16395,6 +16524,11 @@
       "migration_id": "beta_0016_communications",
       "sequence": 16,
       "sha256": "8e467684b9de0c2842d389da72877619e1fc460ab67b4a9c87b79f2cfc78ea8e"
+    },
+    {
+      "migration_id": "beta_0017_ui_workbenches",
+      "sequence": 17,
+      "sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905"
     }
   ],
   "objects": [
@@ -20071,6 +20205,30 @@
       "type": "index"
     },
     {
+      "name": "idx_ui_working_copy_checkpoint_command",
+      "sql_sha256": "05563bf045a731163d85ed14ff66a4650eef6b83b0a937dd4537ff92d37bf1b1",
+      "table_name": "ui_working_copies",
+      "type": "index"
+    },
+    {
+      "name": "idx_ui_working_copy_created_command",
+      "sql_sha256": "059a53a5802d5eb4e88ecada9f572af17020b8a9569996e8e852cea9f87e2eab",
+      "table_name": "ui_working_copies",
+      "type": "index"
+    },
+    {
+      "name": "idx_ui_working_copy_expiry",
+      "sql_sha256": "7b9d03107db1f3c7cd485e618f365ddb709bec10cc9f33c1cfbef360183dfab6",
+      "table_name": "ui_working_copies",
+      "type": "index"
+    },
+    {
+      "name": "idx_ui_working_copy_target",
+      "sql_sha256": "afff3f1f7449e9eeaf1ea8321b93a9932598fba719499eb503b613412533e5bc",
+      "table_name": "ui_working_copies",
+      "type": "index"
+    },
+    {
       "name": "idx_wfm_assignment_command_fk",
       "sql_sha256": "e2a9ea730f97a23a96743ee0ae53d8db4f02de8f566ea16bf3e1a4749fb25384",
       "table_name": "wfm_rfc_assignment_events",
@@ -20974,6 +21132,12 @@
       "name": "uq_task_sr_links_active",
       "sql_sha256": "e7327123f6f085c76f340c7f716e601691ee1716ee6b1914c0a3510f130dfc24",
       "table_name": "task_sr_links",
+      "type": "index"
+    },
+    {
+      "name": "uq_ui_working_copy_key",
+      "sql_sha256": "4a29ec4f46dcd5c4697f22518db3b6fa4baf216716e845bd1e321accb8e04a3a",
+      "table_name": "ui_working_copies",
       "type": "index"
     },
     {
@@ -22342,6 +22506,12 @@
       "name": "tasks",
       "sql_sha256": "d7d0fdb98cb1dd1e912d540e64b07729e77f5451458e3423615794077b37d5e3",
       "table_name": "tasks",
+      "type": "table"
+    },
+    {
+      "name": "ui_working_copies",
+      "sql_sha256": "258c2d8cd216fd279cb8f482c167d56cffc5560c9628c19eb24e888521a68732",
+      "table_name": "ui_working_copies",
       "type": "table"
     },
     {
@@ -49787,6 +49957,198 @@
         }
       ],
       "name": "tasks",
+      "strict": true,
+      "without_rowid": false
+    },
+    {
+      "columns": [
+        {
+          "cid": 0,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "working_copy_id",
+          "not_null": true,
+          "primary_key_ordinal": 1
+        },
+        {
+          "cid": 1,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "owner_profile_id",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 2,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "target_type",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 3,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "target_id",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 4,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "scope_key",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 5,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "draft_contract_id",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 6,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "draft_contract_version",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 7,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "base_revision_token",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 8,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "payload_json",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 9,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "dirty_paths_json",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 10,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "content_hash",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 11,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "generation",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 12,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "created_at_utc",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 13,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "updated_at_utc",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 14,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "expires_at_utc",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 15,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "created_command_id",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 16,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "last_checkpoint_command_id",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        }
+      ],
+      "foreign_keys": [
+        {
+          "child_column": "last_checkpoint_command_id",
+          "id": 0,
+          "match": "NONE",
+          "on_delete": "RESTRICT",
+          "on_update": "RESTRICT",
+          "parent_column": "command_id",
+          "parent_table": "command_receipts",
+          "sequence": 0
+        },
+        {
+          "child_column": "created_command_id",
+          "id": 1,
+          "match": "NONE",
+          "on_delete": "RESTRICT",
+          "on_update": "RESTRICT",
+          "parent_column": "command_id",
+          "parent_table": "command_receipts",
+          "sequence": 0
+        },
+        {
+          "child_column": "owner_profile_id",
+          "id": 2,
+          "match": "NONE",
+          "on_delete": "RESTRICT",
+          "on_update": "RESTRICT",
+          "parent_column": "local_user_profile_id",
+          "parent_table": "local_user_profiles",
+          "sequence": 0
+        }
+      ],
+      "name": "ui_working_copies",
       "strict": true,
       "without_rowid": false
     },
