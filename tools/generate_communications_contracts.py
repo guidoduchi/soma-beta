@@ -22,6 +22,14 @@ def leaf(path: str) -> dict:
 def main() -> None:
     packet = leaf("_index.json")
     captured = {path: leaf(path) for path in packet["normative_paths"]}
+    panel_path = "docs/reconciliation/LLD09_COMMUNICATION_PANEL_HTTP_V1.json"
+    panel = json.loads((ROOT / panel_path).read_text(encoding="utf-8"))
+    if panel["status"] != "ACCEPTED_OWNER_CLARIFICATION" or panel["design_sha"] != DESIGN_SHA:
+        raise ValueError("Communication panel HTTP requires pinned owner acceptance")
+    captured["routes.json"]["routes"].append(panel["route"])
+    captured["types/queries.json"]["types"].append(panel["request"])
+    captured["queries/v2/communication-panel.json"] = {**panel["query"], "owner_clarification": panel_path}
+    captured["implementation/module-map.json"]["queries"]["GetCommunicationPanel"] = panel["implementation_module"]
     captured["algorithms/matching-retention.json"]["accepted_warehouse_review_clarifications"] = [
         "RTYYMMDDxx is optional return-batch context, not an operational identity, item receipt, disposition or event chronology. Missing RT warns the operator without blocking an otherwise valid item-level receipt.",
         "A batch/thread may include items that were not accepted. Exact SR7/C10 and PartNumber/Bomcode context does not replace owner-governed Fault Tag membership and physical-unit validation.",
@@ -409,6 +417,7 @@ def main() -> None:
         "design_sha": DESIGN_SHA,
         "owner_clarification": "docs/reconciliation/LLD09_PROPOSAL_CONTRACT_CANDIDATE.md",
         "query_job_owner_clarification": "docs/reconciliation/LLD09_QUERY_JOB_CONTRACT_CANDIDATE.md",
+        "panel_http_owner_clarification": panel_path,
         "packet": packet,
         "leaves": captured,
         "proposal_contracts": accepted,

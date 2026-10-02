@@ -36,7 +36,7 @@ def task_owner(initialized_database):
     return factory, task.task_id, other.task_id, plan
 
 
-def _seed_attention(factory, task_id, plan, count=9):
+def _seed_attention(factory, task_id, plan, count=9, kinds=("historical", "regroup", "source_terminal")):
     # Synthetic owner evidence through the real schema. No classification/eligibility claim.
     expected = []
     with UnitOfWork(factory) as uow:
@@ -44,7 +44,7 @@ def _seed_attention(factory, task_id, plan, count=9):
         for index in range(count + 1):
             pending = index < count
             state = "pending" if pending else "superseded"
-            for kind in ("historical", "regroup", "source_terminal"):
+            for kind in kinds:
                 identity = new_uuid4()
                 created = 100 + index // 3  # tied timestamps exercise the complete source key.
                 if kind == "historical":
@@ -113,7 +113,7 @@ def test_relationships_grow_beyond_creation_limit_and_detail_stays_a_summary(tas
             task_revision=65 + offset, relationship_kind=kind, target_id=target, action="link")
     query = TaskQueryService(factory)
     before = query.workbench(task_id)
-    assert before["relationship_summary"] == {"exact_total": 66, "counts_by_kind": {"sr": 64, "rfc": 1, "device": 1}}
+    assert before["relationship_summary"] == {"exact_total": 66, "sr_exact_count": 64, "rfc_exact_count": 1, "device_exact_count": 1}
     assert "relationships" not in before and "warnings" not in before
     items = _all_pages(query.list_relationships, task_id)
     assert len(items) == len({item["relationship_id"] for item in items}) == 66
@@ -140,8 +140,9 @@ def test_attention_counts_complete_pending_collections_without_warning_guesses(t
         "source_terminal_reviews_exact_pending_count": 9,
         "regroup_proposals_exact_pending_count": 9,
         "historical_proposals_exact_pending_count": 9,
+        "warning_codes": ["SOURCE_TERMINAL_REVIEW_PENDING", "REGROUP_PROPOSAL_PENDING", "HISTORICAL_OBJECTIVE_PROPOSAL_PENDING"],
     }
-    assert "warnings" not in before and "warning_codes" not in before["attention_summary"]
+    assert "warnings" not in before
     items = _all_pages(query.list_attention, task_id)
     assert [(item["kind"], item["created_at_utc"] if item["kind"] == "source_terminal" else 0,
              item["item_id"]) for item in items] == expected
@@ -275,3 +276,32 @@ def test_attention_count_and_rows_use_one_snapshot_during_concurrent_publication
     page = TaskQueryService(observed).list_attention(task_id)
     assert page["exact_total"] == len(page["items"]) == 3
     assert TaskQueryService(factory).list_attention(task_id)["exact_total"] == 6
+
+
+@pytest.mark.parametrize('mask', range(8))
+def test_task_warning_enum_uses_only_exact_pending_owner_predicates(task_owner, mask):
+    factory, task_id, _, plan = task_owner
+    kinds = ('source_terminal', 'regroup', 'historical')
+    codes = ('SOURCE_TERMINAL_REVIEW_PENDING', 'REGROUP_PROPOSAL_PENDING', 'HISTORICAL_OBJECTIVE_PROPOSAL_PENDING')
+    selected = tuple(kind for index, kind in enumerate(kinds) if mask & (1 << index))
+    _seed_attention(factory, task_id, plan, count=1, kinds=selected)
+    detail = TaskQueryService(factory).workbench(task_id)
+    summary = detail['attention_summary']
+    assert summary['warning_codes'] == [code for index, code in enumerate(codes) if mask & (1 << index)]
+    for index, name in enumerate(('source_terminal_reviews', 'regroup_proposals', 'historical_proposals')):
+        assert summary[name + '_exact_pending_count'] == int(bool(mask & (1 << index)))
+    assert 'service_request_ids' not in detail['wfm_context']
+    assert detail['retry'] is None
+    assert detail['provider_source_projection'] is None
+    assert detail['actual_execution']['execution_state'] == 'not_started'
+
+
+def test_nonpending_owner_evidence_does_not_create_task_warnings(task_owner):
+    factory, task_id, _, plan = task_owner
+    _seed_attention(factory, task_id, plan, count=0)
+    assert TaskQueryService(factory).workbench(task_id)['attention_summary'] == {
+        'source_terminal_reviews_exact_pending_count': 0,
+        'regroup_proposals_exact_pending_count': 0,
+        'historical_proposals_exact_pending_count': 0,
+        'warning_codes': [],
+    }

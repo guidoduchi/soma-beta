@@ -34,7 +34,10 @@
     "LLD05 Task owner detail now replaces active direct relationship and pending source-terminal/regroup/historical ID arrays with exact summaries; separate Task-scoped owner GET collections have closed requests, full CURSOR_V1 identity, exact totals and pages up to 500. Both immediate retry edges and current lineage remain direct; warning enum/full Task UI closure remain pending.",
     "Objective return navigation now preserves grouping-panel disclosure and exact applied owner state/risk/origin filters and full continuation query. Fresh owner warnings are fetched on return; bounded closed query intent stays in the existing 50-entry session registry. Grouping control focus restores after asynchronous loading, hidden panels stay hidden, and malformed/oversized continuation fails closed before navigation.",
     "Inventory Stock and Needs Attention return navigation preserves independent closed page queries, complete owner cursors, attention as_of, main/table scroll and focus; removed controls use Refresh fallback. Return fetches current owner facts and browser history remains token-only. Malformed or cross-owner continuation fails closed.",
-    "Pinned production source HTML to LF for Windows clean-checkout build reproducibility; verified autocrlf=true checkout retains LF. Fixes exact frontend CI job manifest mismatch without weakening frozen asset checks."
+    "Pinned production source HTML to LF for Windows clean-checkout build reproducibility; verified autocrlf=true checkout retains LF. Fixes exact frontend CI job manifest mismatch without weakening frozen asset checks.",
+    "Accepted LLD05 Task warning enum derives exactly from the three same-snapshot pending counts. Task relationship summary uses flattened exact counts; WFM detail removes unbounded SR identity enumeration, leaving SR context with the declared bounded LLD03 projection. Immediate retry is null when no edge exists. All eight warning combinations and nonpending exclusion are covered.",
+    "Infrastructure workbook history/run/proposal owner read views with complete cursor paging, retained tab context, prominent foreign-installation scope and at most 200 candidate rows in DOM",
+    "Accepted LLD09 CommunicationPanelQueryV1 HTTP binding dispatches to the sole panel provider under one ReadSnapshot; SR/RFC workbenches consume that route directly and canonical message text remains inert"
   ],
   "remaining_implementation": [
     "Complete production domain composition/actions beyond current read slices: Inventory Needs/requests/RMAs/Fault Tags and activity, reference/SLA editors and policy/history/report settings, communications workspace/actions and Settings writes/source configuration, ticket relationship tabs, Objective scheduling/grouping/history and Infrastructure workbook/other entity surfaces remain incomplete",
@@ -51,21 +54,21 @@
     },
     {
       "id": "LLD10-COMMUNICATION-PANEL-HTTP",
-      "state": "question_pending",
-      "rule": "No undeclared HTTP route or competing panel projection."
+      "state": "accepted_owner_binding_implemented",
+      "rule": "LLD09_COMMUNICATION_PANEL_HTTP_V1.json is user-accepted. Exact owner DTO/provider and canonical keyset semantics preserved. Canonical design incorporation and semantic closure review remain pending."
     },
     {
       "id": "LLD10-TICKET-LIST-HISTORY-TRANSPORT",
-      "state": "question_pending",
+      "state": "owner_reconciliation_pending",
       "rule": "No invented owner list query/DTO/route."
     },
     {
-      "id": "LLD10-LLD05-TASK-DETAIL-TRANSPORT",
-      "state": "bounded_counts_and_task_collections_implemented_warning_enum_and_full_transport_pending",
-      "rule": "Consume only owner TaskDetailV1/TaskRelationshipPageV1/TaskAttentionPageV1. Exact summary counts and paged collections are implemented under LLD05_TASK_COLLECTIONS_TRANSPORT_V1.json. Warning literals/classification and remaining WFM/full detail closure remain pending; no authoritative empty warnings or UI private-table reconstruction."
+      "id": "LLD10-TASK-WORKBENCH-TRANSPORT",
+      "state": "accepted_warning_and_bounded_summary_refinement_implemented_canonical_owner_leaf_pending",
+      "rule": "Use the accepted Task warning enum and predicates in LLD05_TASK_WORKBENCH_RECONCILIATION_V1.json. Final canonical TaskDetailV1 leaf reconciliation and production UI closure remain pending; no provisional LLD10 DTO."
     },
     {
-      "id": "LLD10-LLD07-INVENTORY-TRANSPORT",
+      "id": "LLD10-INVENTORY-SR-CONTEXT-BLOCKERS",
       "state": "owner_direction_accepted_exact_context_and_transport_leaves_pending",
       "rule": "Separate list/detail/core DTOs. Close SpareNeedProjectionV1 and general LLD03 SR reference batch provider adapted by InventoryReferenceReader; LLD02 scope resolver does not own SR membership. Customer/context/action-blocker HTTP binding remains fail-closed."
     },
@@ -77,31 +80,32 @@
   ],
   "local_verification": {
     "python_full": {
-      "passed": 2023,
+      "passed": 2032,
       "failed": 0,
       "exit_code": 0,
-      "seconds": 726.03,
-      "note": "Complete collected Python suite passed after the accepted grouping transport and bounded Task collection refinements. Working-tree evidence only; no semantic packet or remote-CI certification."
+      "note": "Complete collected suite passed for the Task warning refinement. Run began before the panel HTTP extension; that extension subsequently passed 25 focused query/transport/summary tests. No claim of one final-state complete-suite run. First attempt failed environment temp-directory permissions; successful rerun used fresh workspace-local --basetemp."
     },
     "python_focused_latest": {
-      "passed": 83,
-      "scope": "Task summaries, collection transport, cursor scope, snapshot consistency, row-load/query-plan bounds and complete LLD05 route registry."
+      "panel_http_owner_passed": 25,
+      "contracts_assets_continuation_passed": 31,
+      "task_owner_passed": 92,
+      "failed": 0
     },
     "typescript_strict": "pass",
     "node_tests": 23,
-    "edge_browser_tests": 76,
+    "edge_browser_tests": 85,
     "schema_objects": 1315,
     "runtime_migrations": 17,
     "compileall": "pass",
     "wheel": {
       "status": "pass",
-      "path": "dist/lld10-inventory-return/soma_beta-1.0.0.dev0-py3-none-any.whl",
-      "sha256": "ec8c3df5247de4f2a3d43e4cc3ab02b5439d143f0215ab7d2b005d8fec4aa6c3",
-      "mode": "--no-deps --no-build-isolation; wheel resource check passed after stale generated build asset removal"
+      "path": "dist/lld10-owner-read-refinements/soma_beta-1.0.0.dev0-py3-none-any.whl",
+      "sha256": "4c68a240e63e401cc52688fed837a368f0841c609e535d55a45e677935f3ec49",
+      "mode": "--no-deps --no-build-isolation; stale known generated build JS removed; wheel resource check passed"
     },
-    "supported_matrix_ci": "First LLD10 published checkpoint 23a4586d run 37062732009 in progress with frontend job failed on CRLF index.html hash; subsequent working-tree fix not yet remotely verified.",
+    "supported_matrix_ci": "Observed 8da615b6 run 37063742948: Windows browser and Ubuntu compatibility succeeded; Windows Python 3.13/3.14 still running. Does not cover this uncommitted owner/query/frontend refinement.",
     "browser_host": "Headless local Edge; not WebView2 native release certification",
-    "browser_teardown": "Final 76-case local Edge run passed in 25.0 seconds, exit 0; runner tore down both local hosts.",
+    "browser_teardown": "All 85 local Edge browser tests passed in 27.5 seconds; runner stopped both hosts.",
     "historical_migrations_1_16": "manifest entries and accepted runtime bytes remain hash-identical",
     "migration17_sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905",
     "visual_fixtures": {
@@ -111,7 +115,7 @@
       "pixel_baselines": "unapproved",
       "rendered_images": "tmp/lld10-browser-results (local test outputs, not release-certified)"
     },
-    "python_current_collected": 2023,
+    "python_current_collected": 2042,
     "task_collections": {
       "focused_passed": 83,
       "failed": 0,
@@ -186,6 +190,19 @@
         "src/web/tests/interactions.test.mjs::Inventory return context retains only two bounded closed read intents with complete owner cursors"
       ],
       "full_browser_passed": 76
+    },
+    "task_warning_refinement": {
+      "focused_passed": 92,
+      "failed": 0,
+      "seconds": 11.89,
+      "suite": [
+        "tests/test_task_collections.py",
+        "tests/test_objectives_tasks_api_routes.py"
+      ],
+      "proof": "All 8 warning combinations, nonpending exclusion, flattened exact relationship counts, no WFM service_request_ids array, null empty retry and preserved two immediate retry edges.",
+      "migration_change": "none",
+      "frontend_change": "none",
+      "semantic_closure": "pending owner leaf reconciliation and UI binding"
     }
   },
   "cases": [
@@ -549,13 +566,14 @@
     {
       "id": "LLD10-T040",
       "normative_leaf": "tests/acceptance.json",
-      "status": "closure_review_pending",
+      "status": "local_evidence_semantic_closure_review_pending",
       "contract": {
         "id": "LLD10-T040",
         "then": "terminal communication summary exposes no body navigation when content unavailable"
       },
       "local_bindings": [
-        "src/web/browser-tests/communication-panel.spec.mjs::terminal panel denies body navigation and preserves summary warnings"
+        "src/web/browser-tests/communication-panel.spec.mjs::terminal panel denies body navigation and preserves summary warnings",
+        "src/web/browser-tests/communication-panel-http.spec.mjs::Terminal owner panel is readable at narrow width without body navigation"
       ]
     },
     {
@@ -884,12 +902,15 @@
     {
       "id": "LLD10-F016",
       "normative_leaf": "tests/failure-injection.json",
-      "status": "closure_review_pending",
+      "status": "local_evidence_semantic_closure_review_pending",
       "contract": {
         "expected": "communication pane bounded error; operational work pane remains usable",
         "id": "LLD10-F016",
         "injection": "LLD-09 panel provider unavailable"
-      }
+      },
+      "local_bindings": [
+        "src/web/browser-tests/communication-panel-http.spec.mjs::Panel transport failure keeps the independent operational owner workbench usable"
+      ]
     },
     {
       "id": "LLD10-F017",
@@ -914,12 +935,15 @@
     {
       "id": "LLD10-F019",
       "normative_leaf": "tests/failure-injection.json",
-      "status": "closure_review_pending",
+      "status": "local_evidence_semantic_closure_review_pending",
       "contract": {
         "expected": "rendered as text; no executable raw HTML",
         "id": "LLD10-F019",
         "injection": "malicious source text contains markup/script"
-      }
+      },
+      "local_bindings": [
+        "src/web/browser-tests/communication-panel-http.spec.mjs::SERVICE_REQUEST workbench consumes exact owner panel route and full cursor without client composition"
+      ]
     },
     {
       "id": "LLD10-F020",
@@ -989,15 +1013,16 @@
       }
     }
   ],
-  "updated_at_utc": "2026-10-02 20:53:37 UTC",
+  "updated_at_utc": "2026-10-02 21:19:17 UTC",
   "publication": {
-    "implementation": "23a4586d81b25d01a0ebf24dc839309ffc080d6f",
+    "implementation": "8da615b6be4b7af3b454a3cac5d6d9efa3144d2e",
     "branch": "feat/beta-1.0-implementation",
     "remote_ref_verified": true,
-    "integrity_ci_run": 37062731974,
+    "integrity_ci_run": 37063742832,
     "integrity_ci_conclusion": "success",
-    "implementation_ci_run": 37062732009,
-    "implementation_ci_conclusion": "pending_with_known_frontend_job_failure",
-    "frontend_failure": "CRLF production input HTML changed frozen output bytes; subsequent LF input fix is not yet pushed."
-  }
+    "implementation_ci_run": 37063742948,
+    "implementation_ci_conclusion": "pending",
+    "detail": "Windows browser and Ubuntu compatibility succeeded; Windows Python lanes still running. Current owner/read refinements await publication and exact-head CI."
+  },
+  "closure_dependencies": "docs/reconciliation/LLD10_CLOSURE_DEPENDENCIES_V1.json"
 }

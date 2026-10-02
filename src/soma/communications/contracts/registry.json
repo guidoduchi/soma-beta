@@ -3,6 +3,7 @@
   "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
   "owner_clarification": "docs/reconciliation/LLD09_PROPOSAL_CONTRACT_CANDIDATE.md",
   "query_job_owner_clarification": "docs/reconciliation/LLD09_QUERY_JOB_CONTRACT_CANDIDATE.md",
+  "panel_http_owner_clarification": "docs/reconciliation/LLD09_COMMUNICATION_PANEL_HTTP_V1.json",
   "packet": {
     "schema": "SOMA-LLD-PACKET-V2",
     "id": "LLD-09",
@@ -1059,6 +1060,32 @@
             "COMM_STALE",
             "IDEMPOTENCY_CONFLICT"
           ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/communications/entities/{target_type}/{target_id}/panel",
+          "handler_kind": "query",
+          "handler": "GetCommunicationPanel",
+          "request_type": "CommunicationPanelQueryV1",
+          "response_type": "CommunicationPanelProjectionV1",
+          "success_status": 200,
+          "max_request_bytes": 4096,
+          "auth_policy": "LLD12_BROWSER_QUERY_V1",
+          "error_codes": [
+            "VALIDATION_FAILED",
+            "INTEGRITY_FAILURE",
+            "AUTH_SESSION_INVALID"
+          ],
+          "input_ownership": {
+            "path_fields": [
+              "target_type",
+              "target_id"
+            ],
+            "query_fields": [
+              "cursor",
+              "limit"
+            ]
+          }
         },
         {
           "method": "POST",
@@ -2455,6 +2482,25 @@
           "properties": {
             "items": "array[HousekeepingItemV1]",
             "next_cursor": "CURSOR_V1|null"
+          }
+        },
+        {
+          "name": "CommunicationPanelQueryV1",
+          "kind": "object",
+          "additionalProperties": false,
+          "required": [
+            "target_type",
+            "target_id"
+          ],
+          "properties": {
+            "target_type": "CommunicationTargetTypeV1",
+            "target_id": "uuid",
+            "cursor": "CURSOR_V1|null",
+            "limit": "int 1..50"
+          },
+          "defaults": {
+            "cursor": null,
+            "limit": 50
           }
         },
         {
@@ -5449,6 +5495,7 @@
         "ListCommunicationJobs": "queries/jobs.py",
         "GetCommunicationEntitySummary": "queries/summaries.py",
         "ListCommunicationHousekeeping": "queries/housekeeping.py",
+        "GetCommunicationPanel": "queries/summaries.py",
         "PreviewCommunicationIdentityReconciliation": "services/identity_reconciliation.py",
         "PreviewKeepRetainedCommunicationContent": "services/identity_review.py"
       },
@@ -6546,6 +6593,23 @@
         "Deep Scan proof is consumed from LLD-12; proof/session material is not persisted by LLD-09.",
         "Inventory hard-delete consumes InventoryCommunicationDependencyProvider under one read-only predicate for preview/current-writer revalidation; generated/exported Communications evidence remains LLD-09 authority and cannot be cascaded by LLD-07."
       ]
+    },
+    "queries/v2/communication-panel.json": {
+      "schema": "SOMA-LLD-QUERY-V2",
+      "lld_id": "LLD-09",
+      "name": "GetCommunicationPanel",
+      "input_type": "CommunicationPanelQueryV1",
+      "response_type": "CommunicationPanelProjectionV1",
+      "read_consistency": "one LLD-01 ReadSnapshot",
+      "handler_authority": "CommunicationPanelProjectionProvider.panel(snapshot,target_type,target_id,cursor,limit)",
+      "pagination": "recent_messages retains ListCommunications canonical keyset, complete ordering tuple, filter fingerprint and CURSOR_V1 validation/fencing; limit 1..50",
+      "rules": [
+        "Return existing CommunicationPanelProjectionV1 unchanged.",
+        "Standard LLD-09 browser-query authentication boundary.",
+        "LLD-10 consumes this route directly; no client message/summary composition.",
+        "Read-only: no receipt, audit, revision or lifecycle mutation."
+      ],
+      "owner_clarification": "docs/reconciliation/LLD09_COMMUNICATION_PANEL_HTTP_V1.json"
     },
     "commands/v2/cancel-job.json": {
       "schema": "SOMA-LLD-COMMAND-V2",

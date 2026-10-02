@@ -98,6 +98,8 @@ def build_communications_runtime(connection_factory, adapter, *, proof_provider=
     previews = CommunicationPreviews(connection_factory, adapter, identities)
     messages = CommunicationQueries(connection_factory)
     summaries = CommunicationSummaryProvider(identities)
+    panel = CommunicationPanelProjectionProvider(summaries)
+    summary_queries = SummaryQueries(connection_factory, identities, panel_provider=panel)
     reconciliation = CommunicationIdentityReconciliationService(connection_factory, identities, coordinator, clock=clock)
     reconstruction = CommunicationReconstructionRequestParticipant(connection_factory, identities, coordinator)
     commands = {
@@ -124,7 +126,8 @@ def build_communications_runtime(connection_factory, adapter, *, proof_provider=
         "ListCommunicationProposals": ProposalQueries(connection_factory).list_proposals,
         "GetCommunicationCoverage": CoverageQueries(connection_factory).get_coverage,
         "ListCommunicationJobs": JobQueries(connection_factory).list_jobs,
-        "GetCommunicationEntitySummary": SummaryQueries(connection_factory, identities).get_entity_summary,
+        "GetCommunicationEntitySummary": summary_queries.get_entity_summary,
+        "GetCommunicationPanel": summary_queries.get_panel,
         "ListCommunicationHousekeeping": HousekeepingQueries(connection_factory).list_housekeeping,
     }
     processing_worker = CommunicationProcessingWorker(connection_factory, identities, coordinator, adapter, clock=clock)
@@ -133,7 +136,7 @@ def build_communications_runtime(connection_factory, adapter, *, proof_provider=
     workers[JOB_TYPES["IDENTITY_RECONCILIATION"]] = CommunicationIdentityReconciliationWorker(reconciliation, coordinator, clock=clock)
     providers = {"identities": identities, "settings": settings, "processing": processing, "proposal_evidence": evidence, "proposal_disposition": disposition,
         "inventory_dependencies": InventoryCommunicationDependencyProvider(), "summary": summaries,
-        "panel": CommunicationPanelProjectionProvider(summaries), "housekeeping": housekeeping, "identity_reconciliation": reconciliation,
+        "panel": panel, "housekeeping": housekeeping, "identity_reconciliation": reconciliation,
         "sr_terminal": ServiceRequestTerminalCommunicationParticipant(connection_factory, identities, reconstruction_request_participant=reconstruction),
         "rfc_terminal": RfcTerminalCommunicationParticipant(connection_factory, identities)}
     return CommunicationsRuntime(coordinator, MappingProxyType(commands), MappingProxyType(queries), MappingProxyType(providers), MappingProxyType(workers), connection_factory)

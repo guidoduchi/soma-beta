@@ -189,6 +189,11 @@ _ATTENTION = (
     ("source_terminal", "source_terminal_reviews", "source_terminal_review_id", "wfm_source_terminal_reviews", "created_at_utc"),
 )
 _CURSOR_FIELDS = {"version", "query_id", "sort_registry_id", "last_key_tuple", "filter_fingerprint", "null_order"}
+_TASK_WARNING_COUNTS = (
+    ("SOURCE_TERMINAL_REVIEW_PENDING", "source_terminal_reviews_exact_pending_count"),
+    ("REGROUP_PROPOSAL_PENDING", "regroup_proposals_exact_pending_count"),
+    ("HISTORICAL_OBJECTIVE_PROPOSAL_PENDING", "historical_proposals_exact_pending_count"),
+)
 
 
 def _require_task(connection, identity):
@@ -211,7 +216,9 @@ def _attention_summary(connection, identity):
         result[label + "_exact_pending_count"] = int(connection.execute(
             "SELECT COUNT(*) FROM " + table + " WHERE " + _attention_scope(kind), (identity,)
         ).fetchone()[0])
-    # No warning_codes field: classification authority is not closed yet.
+    # Accepted LLD-05 query-time classification. Counts and warnings share the
+    # same owner predicates and read snapshot; no lifecycle/risk inference.
+    result["warning_codes"] = [code for code, count in _TASK_WARNING_COUNTS if result[count] > 0]
     return result
 
 
@@ -598,7 +605,8 @@ class TaskQueryService:
             relationship_counts = {kind: int(snapshot.connection.execute(
                 f"SELECT COUNT(*) FROM {table} WHERE task_id=? AND active=1", (identity,)
             ).fetchone()[0]) for kind, table, column in _RELATIONSHIPS}
-            relationship_summary = {"exact_total": sum(relationship_counts.values()), "counts_by_kind": relationship_counts}
+            relationship_summary = {"exact_total": sum(relationship_counts.values()),
+                **{kind + "_exact_count": value for kind, value in relationship_counts.items()}}
             attention_summary = _attention_summary(snapshot.connection, identity)
 
             wfm_context = None
@@ -614,17 +622,11 @@ class TaskQueryService:
                     (owning_rfc_id,),
                 ).fetchone()
                 root_id = owning_rfc_id if parent is None else str(parent[0])
-                sr_rows = snapshot.connection.execute(
-                    "SELECT service_request_id FROM sr_rfc_links "
-                    "WHERE rfc_id=? AND link_state='active' ORDER BY service_request_id",
-                    (root_id,),
-                ).fetchall()
                 wfm_context = {
                     "owning_rfc_id": owning_rfc_id,
                     "rfc_no": None if rfc is None else str(rfc[1]),
                     "role": "root_or_standalone" if parent is None else "subordinate",
                     "governing_root_rfc_id": root_id,
-                    "service_request_ids": [str(item[0]) for item in sr_rows],
                     "customer_org_id": None if rfc is None or rfc[2] is None else str(rfc[2]),
                     "resolution_state": "resolved" if rfc is not None else "unresolved",
                 }
@@ -681,7 +683,7 @@ class TaskQueryService:
                     "effective_membership_lock": (False if lock is None else bool(lock[1]))
                     or execution["execution_state"] != "not_started",
                 },
-                "retry": retry,
+                "retry": retry if any(retry.values()) else None,
                 "activity_lineage": None
                 if lineage is None
                 else {

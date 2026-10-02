@@ -1,0 +1,71 @@
+{
+  "schema": "SOMA_LLD05_TASK_WORKBENCH_ACCEPTED_REFINEMENT_V1",
+  "owner": "LLD-05",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "authority": "User-accepted TaskDetail warning and bounded projection reconciliation, 2026-10-02. Refines the pinned owner transport without advancing the design pin.",
+  "canonical_reconciliation_target": "spec/lld/objectives-tasks/types/transport-models.json#TaskDetailV1",
+  "governing_query": "spec/lld/objectives-tasks/queries/objectives-tasks.json#TaskWorkbench",
+  "TaskDetailV1": {
+    "fields": [
+      "task_id",
+      "kind",
+      "display_name",
+      "creation_origin",
+      "revision",
+      "created_at_utc",
+      "wfm_context",
+      "provider_source_projection",
+      "operational_plan",
+      "objective_membership",
+      "membership_pinned_plan",
+      "actual_execution",
+      "reviewed_outcome",
+      "locks",
+      "retry",
+      "activity_lineage",
+      "relationship_summary",
+      "operational_count",
+      "attention_summary"
+    ],
+    "nullable": [
+      "wfm_context",
+      "provider_source_projection",
+      "operational_plan",
+      "objective_membership",
+      "membership_pinned_plan",
+      "reviewed_outcome",
+      "retry",
+      "activity_lineage"
+    ],
+    "relationship_summary": [
+      "exact_total",
+      "sr_exact_count",
+      "rfc_exact_count",
+      "device_exact_count"
+    ],
+    "attention_summary": [
+      "source_terminal_reviews_exact_pending_count",
+      "regroup_proposals_exact_pending_count",
+      "historical_proposals_exact_pending_count",
+      "warning_codes"
+    ],
+    "retry": "Immediate predecessor/successor edges only; null when neither exists.",
+    "wfm_context": "Owning RFC identity/current number when resolved, root_or_standalone|subordinate role, governing root RFC identity, Customer identity when owner-resolved, explicit resolution_state. No service_request_ids array. SR relationships remain on the bounded LLD03 GetEffectiveServiceRequestContextForRfc projection."
+  },
+  "warning_codes": {
+    "SOURCE_TERMINAL_REVIEW_PENDING": "At least one current wfm_source_terminal_reviews row for the Task has state='pending'.",
+    "REGROUP_PROPOSAL_PENDING": "At least one regroup_proposal_task_changes row for the Task belongs to a regroup proposal currently state='pending'.",
+    "HISTORICAL_OBJECTIVE_PROPOSAL_PENDING": "At least one historical_objective_proposals row for the Task has state='pending'."
+  },
+  "rules": [
+    "Exactly these three warning codes; unknown codes fail closed.",
+    "Counts and warnings share the same stable owner read snapshot and identical predicates.",
+    "An empty set means all three predicates were evaluated false.",
+    "Do not infer warnings from risk tier, origin, provider Complete/Plan Cancel, locks or ordinary lifecycle.",
+    "Source plan, current operational plan, membership-pinned plan and actual execution remain separate.",
+    "Complete relationships and attention identities remain on separately paged Task-scoped owner routes."
+  ],
+  "implementation": "src/soma/objectives_tasks/queries/tasks.py",
+  "proof": "tests/test_task_collections.py",
+  "closure_state": "Accepted warning/summary refinement implemented; complete canonical owner leaf reconciliation and production UI binding remain explicitly pending under LLD10-TASK-WORKBENCH-TRANSPORT."
+}

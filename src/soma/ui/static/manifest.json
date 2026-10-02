@@ -1,16 +1,16 @@
 {
   "files": {
-    "assets/index-C7deikTW.js": {
-      "bytes": 273849,
-      "sha256": "4839ea25710710bd0da6adb23c7cfb3cb7685b899510322c4123dd82a311622e"
-    },
     "assets/index-CoKe4wwi.css": {
       "bytes": 5825,
       "sha256": "cc795d5fa7139f975ea7a89edfd850221613bf8f3ca7788ed2eaabc2de6e3c78"
     },
+    "assets/index-x7440mMv.js": {
+      "bytes": 287957,
+      "sha256": "7e9ac40bf3369850d6eaa2de910f3627a5c6162f5dba3f82e276bfdbfffd5ec0"
+    },
     "index.html": {
       "bytes": 369,
-      "sha256": "551c12cb854f8c07d436f03be17e0587bea7bea0aedd18142813273dc10e8f18"
+      "sha256": "469b6e92f6fc7f789ad1f8cb548dae13408c3100701cca2ffa8a5d005a8cc8fc"
     }
   },
   "schema": "SOMA_UI_STATIC_ASSETS_V1",
@@ -18,13 +18,15 @@
   "source_sha256": {
     "app/CommunicationSettings.tsx": "91ac50ef0f69caf4010f6238cd49d8639c4cb73f8ecbd429575dafb92e1f864b",
     "app/GroupingProposalList.tsx": "0dd374d7aaee70c1a7c7b24455a1d9b9b64cd1150abe5169d079025b2c48964d",
-    "app/InfrastructureWorkspace.tsx": "52cc5dec3c331351151daa7f0a95066178a9c8c6f9bb5173f222d78b5f61a470",
+    "app/InfrastructureWorkbookActivity.tsx": "955374b8b129f71e9415e5e330624f39d20f387dac739b81578c60596279c202",
+    "app/InfrastructureWorkspace.tsx": "1b4e0bc771c4f98b8abae91d4bdbcc93ef138fab347d6b88cf80a60305fc59c9",
     "app/InventoryWorkspace.tsx": "efa840bbc3810f7c22d6a8fd21bab0f86d25b74a3b00f4d72750f7a19e6da377",
     "app/ObjectiveSettings.tsx": "4d188a316c6b2958b08a860139d5d4094de12f76e94bad4a3e999370b6fb5d3c",
     "app/ObjectiveWorkspace.tsx": "99e7196f4334b1d5c3f2c23ecf359034c11d22c2c6d301e1095733c900da6c7c",
     "app/ReferenceSettings.tsx": "a02ecbbbae1d9d865841b7fee7c8c0bddf6db854b91bc8fc33720ad39a782a70",
     "app/SlaCatalogSettings.tsx": "4789295c0f6f3a1765d25b7bb1f04c55f80e8b445fdf5eb8153268e44328e1d3",
-    "app/TicketWorkbench.tsx": "283ee6e769e61d65f67467feee975015713a7ed436e99d3b24c1082d04a09904",
+    "app/TicketCommunications.tsx": "79c34eddbd5f86333a3e3bd31ab981e18045cf38e4c18fbf7a4a71f79300cc58",
+    "app/TicketWorkbench.tsx": "d280ceb161e8a448205f575c29748ee4557f588dbc5f097d618bdb26e367d4f6",
     "app/main.tsx": "baff80b40ef54b5c2457b5a04ef11df4faadfd1fa782e79195950747759d9e1d",
     "app/router.ts": "6ff090a3a45b3a7712819c094659127682e76884acdc4a0b9547556b7f6f7ed2",
     "components/ActionButton.tsx": "411c0d0098370a2d8a783cd078fc09620e518b68b81b67e249a90977f5dd330f",

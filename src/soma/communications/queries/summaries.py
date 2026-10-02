@@ -218,9 +218,21 @@ class CommunicationPanelProjectionProvider:
 
 
 class SummaryQueries:
-    def __init__(self, connection_factory, identity_providers):
+    def __init__(self, connection_factory, identity_providers, *, panel_provider=None):
         self._factory = connection_factory
         self._provider = CommunicationSummaryProvider(identity_providers)
+        self._panel = panel_provider or CommunicationPanelProjectionProvider(self._provider)
+
+    def get_panel(self, request):
+        if (not isinstance(request, dict) or not {"target_type", "target_id"} <= set(request)
+                or set(request) - {"target_type", "target_id", "cursor", "limit"}):
+            raise ValidationError("Communication panel query has missing or unknown fields")
+        _target(request["target_type"], request["target_id"])
+        from soma.communications.contracts.common import integer
+        limit = integer(request.get("limit", 50), minimum=1, maximum=50)
+        with ReadSnapshot(self._factory) as reader:
+            return self._panel.panel(reader, request["target_type"], request["target_id"],
+                                     request.get("cursor"), limit)
 
     def get_entity_summary(self, request):
         item = closed(request, {"target_type", "target_id"})

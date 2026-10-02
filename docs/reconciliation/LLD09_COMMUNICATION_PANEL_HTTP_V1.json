@@ -1,0 +1,73 @@
+{
+  "schema": "SOMA_LLD09_COMMUNICATION_PANEL_HTTP_RECONCILIATION_V1",
+  "status": "ACCEPTED_OWNER_CLARIFICATION",
+  "owner": "LLD-09",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "authority": "User acceptance, 2026-10-02; supplements the pinned owner routes/types without advancing the design pin.",
+  "route": {
+    "method": "GET",
+    "path": "/api/v1/communications/entities/{target_type}/{target_id}/panel",
+    "handler_kind": "query",
+    "handler": "GetCommunicationPanel",
+    "request_type": "CommunicationPanelQueryV1",
+    "response_type": "CommunicationPanelProjectionV1",
+    "success_status": 200,
+    "max_request_bytes": 4096,
+    "auth_policy": "LLD12_BROWSER_QUERY_V1",
+    "error_codes": [
+      "VALIDATION_FAILED",
+      "INTEGRITY_FAILURE",
+      "AUTH_SESSION_INVALID"
+    ],
+    "input_ownership": {
+      "path_fields": [
+        "target_type",
+        "target_id"
+      ],
+      "query_fields": [
+        "cursor",
+        "limit"
+      ]
+    }
+  },
+  "request": {
+    "name": "CommunicationPanelQueryV1",
+    "kind": "object",
+    "additionalProperties": false,
+    "required": [
+      "target_type",
+      "target_id"
+    ],
+    "properties": {
+      "target_type": "CommunicationTargetTypeV1",
+      "target_id": "uuid",
+      "cursor": "CURSOR_V1|null",
+      "limit": "int 1..50"
+    },
+    "defaults": {
+      "cursor": null,
+      "limit": 50
+    }
+  },
+  "query": {
+    "schema": "SOMA-LLD-QUERY-V2",
+    "lld_id": "LLD-09",
+    "name": "GetCommunicationPanel",
+    "input_type": "CommunicationPanelQueryV1",
+    "response_type": "CommunicationPanelProjectionV1",
+    "read_consistency": "one LLD-01 ReadSnapshot",
+    "handler_authority": "CommunicationPanelProjectionProvider.panel(snapshot,target_type,target_id,cursor,limit)",
+    "pagination": "recent_messages retains ListCommunications canonical keyset, complete ordering tuple, filter fingerprint and CURSOR_V1 validation/fencing; limit 1..50",
+    "rules": [
+      "Return existing CommunicationPanelProjectionV1 unchanged.",
+      "Standard LLD-09 browser-query authentication boundary.",
+      "LLD-10 consumes this route directly; no client message/summary composition.",
+      "Read-only: no receipt, audit, revision or lifecycle mutation."
+    ]
+  },
+  "canonical_targets": [
+    "spec/lld/communications/routes.json",
+    "spec/lld/communications/types/queries.json"
+  ],
+  "implementation_module": "queries/summaries.py"
+}

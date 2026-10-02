@@ -3,6 +3,7 @@ import {OwnerProjection} from '../components/OwnerProjection';
 import {SelectableCollection} from '../components/SelectableCollection';
 import {BoundedCollection} from '../components/BoundedCollection';
 import {UiStore, emptySelection} from '../state/ui-store';
+import {InfrastructureWorkbookActivity} from './InfrastructureWorkbookActivity';
 type Ref = Readonly<{kind:string;id:string}>;
 type Node = Readonly<{kind:'site'|'room'|'rack'|'cloud_deployment'|'network_element'|'containment';id:string;label:string;parent_context_id:string|null;lifecycle:string|null;warning_codes:readonly string[]}>;
 type Explorer = Readonly<{nodes:readonly Node[];next_cursor:unknown|null}>;
@@ -56,6 +57,8 @@ function HistoryView({id}:{id:string}) {
 }
 function NetworkElement({id}:{id:string}) {
   const [tab,setTab]=useState<typeof tabs[number]>('Summary'); const prefix=useId();
+  const [workbookVisited,setWorkbookVisited]=useState(false);
+  function activate(name:typeof tabs[number]) {setTab(name);if(name==='Workbook Activity')setWorkbookVisited(true);}
   return <section aria-label="Opened Network Element" data-scroll-owner="y" className="infrastructure-detail">
     <OwnerProjection<Element> path={'/api/v1/infrastructure/network-elements/'+encodeURIComponent(id)} render={value=>{
       if (value.network_element_id!==id||!Array.isArray(value.warning_codes)||value.warning_codes.length>32) throw new Error('Invalid Network Element identity');
@@ -63,10 +66,10 @@ function NetworkElement({id}:{id:string}) {
         <p>Site identity: {value.site.id}. Customer Organization: {value.customer_org_id}.</p>
         {value.warning_codes.map(warning=><p className="warning" key={warning}>{warning}</p>)}
         <div role="tablist" aria-label="Network Element sections">{tabs.map((name,index)=><button type="button" role="tab" key={name} aria-selected={tab===name} tabIndex={tab===name?0:-1}
-          id={`${prefix}-tab-${index}`} aria-controls={`${prefix}-panel-${index}`} onClick={()=>setTab(name)} onKeyDown={event=>{
+          id={`${prefix}-tab-${index}`} aria-controls={`${prefix}-panel-${index}`} onClick={()=>activate(name)} onKeyDown={event=>{
             if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
             event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
-            setTab(tabs[next]!);document.getElementById(`${prefix}-tab-${next}`)?.focus();
+            activate(tabs[next]!);document.getElementById(`${prefix}-tab-${next}`)?.focus();
           }}>{name}</button>)}</div>
         {tabs.map((name,index)=><div role="tabpanel" key={name} hidden={tab!==name} id={`${prefix}-panel-${index}`} aria-labelledby={`${prefix}-tab-${index}`}>
           {name==='Summary'?<><h3>Identity and Model</h3><p>Model identity: {value.model?.id??'Unassigned'}</p>
@@ -80,7 +83,7 @@ function NetworkElement({id}:{id:string}) {
           name==='Relationships'?<><h3>Containment</h3><p>Parent Network Element: {value.containment_parent?.id??'None'}. Child count: {value.containment_child_count}.</p>
             <h3>Cloud assignment</h3><p>Cloud Deployment: {value.cloud_deployment?.id??'Unassigned'}. Cloud is separate from physical placement.</p>
             <h3>Model relation</h3><p>Model identity: {value.model?.id??'Unassigned'}.</p></>:
-          name==='History'?<HistoryView id={id}/>:<><h3>Workbook Activity</h3><p>Workbook operations are provided by the Infrastructure owner. Source workbooks remain operator-managed and read-only during review.</p></>}
+          name==='History'?<HistoryView id={id}/>:workbookVisited?<InfrastructureWorkbookActivity/>:null}
         </div>)}</>;
     }}/>
   </section>;

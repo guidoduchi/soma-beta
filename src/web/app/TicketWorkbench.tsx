@@ -3,6 +3,7 @@ import type {ReturnState} from './router';
 import {WorkbenchShell, srTabs, rfcTabs} from '../components/WorkbenchShell';
 import {OwnerProjection} from '../components/OwnerProjection';
 import {UiStore, emptySelection} from '../state/ui-store';
+import {TicketCommunications} from './TicketCommunications';
 type SrDetail = Readonly<{service_request_id: string; identity: {official_sr_no: string | null; local_sr_no: string | null}; revision: number;
   linked_root_rfc_count: number; device_reference_count: number; warnings: readonly string[]}>;
 type RfcDetail = Readonly<{rfc_id: string; rfc_no: string; revision: number; hierarchy_role: string; local_archive_state: string;
@@ -83,5 +84,5 @@ export function TicketWorkbench({id, type, onDirtyChange, restored, onReturnStat
         <h2>RFC {value.rfc_no}</h2><p>Accepted revision: {value.revision}. Hierarchy role: {value.hierarchy_role}. Archive state: {value.local_archive_state}.</p>
         <p>Direct Service Requests: {value.direct_service_request_count}. Device References: {value.device_reference_count}. Subordinates: {value.subordinate_count}.</p>
         {value.warnings.map(warning => <p className="warning" key={warning}>{warning}</p>)}</>}/>;
-  }} communications={<><h2>Communications</h2><p role="alert">Canonical panel HTTP binding awaits owner reconciliation. Operational work remains available.</p></>}/></div>;
+  }} communications={<TicketCommunications key={type+':'+id} targetType={type==='service_request'?'SERVICE_REQUEST':'RFC'} targetId={id}/>}/></div>;
 }

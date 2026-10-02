@@ -1,0 +1,51 @@
+{
+  "schema": "SOMA_LLD10_CLOSURE_DEPENDENCIES_V1",
+  "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+  "authority": "User-confirmed remaining owner-contract closure dependencies, 2026-10-02. Do not rediscover on each pass; use these named blockers until accepted design reconciliation closes them.",
+  "complete": false,
+  "dependencies": [
+    {
+      "id": "LLD10-WORKING-COPY-REGISTRATIONS",
+      "owner": "LLD-10/owning edit packets",
+      "dependency": "WorkingCopyContractRegistry production registrations",
+      "state": "owner_reconciliation_pending",
+      "rule": "Owner-deferred recoverable edit-surface set and exact target_type, scope_key, draft_contract_id, version, draft schema and allowed dirty_paths remain unclosed. Do not infer recoverability from DOMAIN_SURFACES_BETA_1_0_V1. Continue generic validation/restore/conflict/lifecycle/capacity/security infrastructure; production bindings disabled/unregistered and unknown contracts fail closed."
+    },
+    {
+      "id": "LLD10-TASK-WORKBENCH-TRANSPORT",
+      "owner": "LLD-05",
+      "dependency": "Complete canonical TaskDetailV1 owner transport",
+      "state": "owner_reconciliation_pending",
+      "rule": "Bounded collection contracts and warning enum/predicates are now accepted and implemented. Final canonical transport leaf reconciliation remains pending. No provisional LLD10 DTO or production warning-dependent binding."
+    },
+    {
+      "id": "LLD10-TICKET-LIST-HISTORY-TRANSPORT",
+      "owner": "LLD-03/04",
+      "dependency": "Canonical ticket list/history HTTP DTO family",
+      "state": "owner_reconciliation_pending",
+      "rule": "Required tickets.list surface has no single closed owner HTTP list/history DTO family. No lifecycle/history synthesis from point queries or source/import tables."
+    },
+    {
+      "id": "LLD10-COMMUNICATION-PANEL-HTTP",
+      "owner": "LLD-09",
+      "dependency": "Canonical panel browser/HTTP route and request DTO",
+      "state": "accepted_owner_binding_implemented",
+      "rule": "User accepted GET /api/v1/communications/entities/{target_type}/{target_id}/panel and CommunicationPanelQueryV1. Dispatch exactly to the sole owner panel provider in one snapshot; unchanged CommunicationPanelProjectionV1, ListCommunications cursor semantics and browser-query auth boundary. LLD10 consumes it directly.",
+      "authority": "docs/reconciliation/LLD09_COMMUNICATION_PANEL_HTTP_V1.json",
+      "canonical_design_incorporation": "pending; design pin unchanged"
+    },
+    {
+      "id": "LLD10-INVENTORY-SR-CONTEXT-BLOCKERS",
+      "owner": "LLD-03/07",
+      "dependency": "Inventory derived SR/Customer context and action-blocker transport",
+      "state": "owner_reconciliation_pending",
+      "rule": "Exact downstream SR-context DTO and blocker/result schemas remain unclosed. Continue Inventory facts/pagination; derived fields fail closed."
+    }
+  ],
+  "rules": [
+    "Do not declare LLD10 complete while unresolved owner dependencies or canonical/semantic closure remain. Preserve all five named dependency records; the panel binding is now accepted and implemented.",
+    "Do not substitute provisional LLD10 DTOs/registrations/contracts for accepted owner authority.",
+    "Continue independently specified implementation and executable evidence.",
+    "The Task warning/summary follow-up acceptance is recorded in LLD05_TASK_WORKBENCH_RECONCILIATION_V1.json; it does not silently advance the pinned design."
+  ]
+}
