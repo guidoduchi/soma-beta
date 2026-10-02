@@ -7,7 +7,8 @@ import {TicketCommunications} from './TicketCommunications';
 import {RfcLifecycle} from './RfcLifecycle';
 import {filterFingerprint} from '../data/query-controller';
 import {ticketNotesQuery,nextTicketNotesQuery,noteIdentity} from './ticket-notes-intent';
-type SrDetail = Readonly<{service_request_id: string; identity: {official_sr_no: string | null; local_sr_no: string | null}; revision: number;
+import {ServiceRequestContext,type ServiceRequestContextFacts} from './ServiceRequestContext';
+type SrDetail = ServiceRequestContextFacts&Readonly<{service_request_id: string; identity: {official_sr_no: string | null; local_sr_no: string | null}; revision: number;
   linked_root_rfc_count: number; device_reference_count: number; warnings: readonly string[]}>;
 type RfcDetail = Readonly<{rfc_id: string; rfc_no: string; revision: number; hierarchy_role: string; local_archive_state: string;
   customer_org_id:string|null;direct_service_request_count: number; device_reference_count: number; subordinate_count: number; warnings: readonly string[]}>;
@@ -93,7 +94,7 @@ export function TicketWorkbench({id, type, onDirtyChange, restored, onReturnStat
     return type === 'service_request' ? <OwnerProjection<SrDetail> path={'/api/v1/tickets/service-requests/' + encodeURIComponent(id)} render={value => <>
       <h2>Service Request {value.identity.official_sr_no ?? value.identity.local_sr_no}</h2><p>Accepted revision: {value.revision}</p>
       <p>Linked root RFCs: {value.linked_root_rfc_count}. Device References: {value.device_reference_count}.</p>
-      {value.warnings.map(warning => <p className="warning" key={warning}>{warning}</p>)}</>}/> :
+      {value.warnings.map(warning => <p className="warning" key={warning}>{warning}</p>)}<ServiceRequestContext value={value} id={id}/></>}/> :
       <><OwnerProjection<RfcDetail> path={'/api/v1/tickets/rfcs/' + encodeURIComponent(id)} render={value => {
         if(value.rfc_id!==id||!Object.hasOwn(value,'customer_org_id')||(value.customer_org_id!==null&&
           (typeof value.customer_org_id!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value.customer_org_id))))throw new Error('Invalid RFC Customer identity');

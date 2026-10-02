@@ -44,7 +44,8 @@
     "Settings return context preserves independent closed bounded LLD02 directory/channel/history and LLD06 catalog cursors, opened reference identities, archived-channel filter and Account Code disclosure, plus LLD09 source coverage/job/housekeeping queries. Current owner facts are fetched on return; focus and independent pane/main scroll are restored after asynchronous reads with explicit missing-control fallback. Appearance return refetches accepted axes. Browser history stays token-only; nested intent is frozen and malformed/foreign/incomplete cursor intent fails closed.",
     "User-accepted partial LLD07 Fault Tag core list reconciliation: list/detail split, exact filtered total under one snapshot, ascending immutable identity, complete filter-fenced CURSOR_V1, bounded core counts without membership reads. Raw after_id and unclosed filters reject. Full list context/obligation/diversity/lineage/blocker projections and remaining filter semantics stay unclosed; detail is unchanged.",
     "RFC Overview binds existing LLD03 GetRfcLifecycleProjection HTTP route. Closed source fields render in owner registry order with exact evidence, UTC/source revision, accepted Status classification/authority and current terminal epoch; local archive and canonical Customer identity remain separate. Invalid field/provenance/status/epoch/revision projections fail closed. Accepted terminal reversal is freshly queried on Back and source status never implies executed downstream cascade consequences.",
-    "Working Notes now retain exact bounded owner page queries through tab changes and Back/Forward for SR/RFC. Full six-field CURSOR_V1 and complete created_at/id key are validated against the exact ticket-scoped owner fingerprint before paging or restore reads. Current body/revision/creator/timestamps are refetched, UTF8/identity/chronology/unique row bounds fail closed, and focus/scroll restore waits for asynchronous owner reads with deterministic missing-control fallback. Browser history remains token-only; no edit commands or production recovery registrations are introduced."
+    "Working Notes now retain exact bounded owner page queries through tab changes and Back/Forward for SR/RFC. Full six-field CURSOR_V1 and complete created_at/id key are validated against the exact ticket-scoped owner fingerprint before paging or restore reads. Current body/revision/creator/timestamps are refetched, UTF8/identity/chronology/unique row bounds fail closed, and focus/scroll restore waits for asynchronous owner reads with deterministic missing-control fallback. Browser history remains token-only; no edit commands or production recovery registrations are introduced.",
+    "SR Overview consumes accepted source projection and canonical Customer/Contact reference context from the same GetServiceRequest snapshot; displays closed active source fields/provenance, explicit Handler clear, owner alignment/stale context, immutable organization-at-use and current affiliation separately; contradictory evidence fails closed within its region. No additional reference query or mutation."
   ],
   "remaining_implementation": [
     "Complete production domain composition/actions beyond current read slices: Inventory Needs/requests/RMAs/Fault Tags and activity, reference/SLA editors and policy/history/report settings, communications workspace/actions and Settings writes/source configuration, ticket relationship tabs, Objective scheduling/grouping/history and Infrastructure workbook/other entity surfaces remain incomplete",
@@ -112,20 +113,19 @@
     },
     "typescript_strict": "pass",
     "node_tests": 30,
-    "edge_browser_tests": 117,
+    "edge_browser_tests": 129,
     "schema_objects": 1315,
     "runtime_migrations": 17,
     "compileall": "pass",
     "wheel": {
       "status": "pass",
-      "path": "dist/lld10-notes-return-verified/soma_beta-1.0.0.dev0-py3-none-any.whl",
-      "sha256": "91c91671b77c6850c37d3e15af41e3e3d91d62390ce08b2ee08630886c847c91",
-      "mode": "Isolated tracked HEAD plus explicit LLD10 overlay and exact checked-out resource bytes; excludes unrelated untracked LLD12 files. --no-deps --no-build-isolation; resources verified.",
-      "initial_archive_attempt": "Git archive LF-normalized schema resource differed from checked-out accepted bytes; verifier rejected it. Exact tracked-byte overlay fixed the packaging input; no accepted schema bytes changed."
+      "path": "dist/lld10-sr-context/soma_beta-1.0.0.dev0-py3-none-any.whl",
+      "sha256": "7ecf7f7079565eac62bfd51e7fd9d8306de24289e5b7876c4af41118a6510fcb",
+      "mode": "Isolated tracked HEAD with exact checked-out tracked bytes plus explicit SR slice overlay, excluding unrelated untracked LLD12 files; --no-deps --no-build-isolation. All 17 migrations and resources verified."
     },
-    "supported_matrix_ci": "6ddc3fc3 run 37073227395: browser succeeded, Python lanes live at observation. Current Notes changes are subsequent local evidence.",
+    "supported_matrix_ci": "67e50fbc run 37074247338: browser succeeded; all three Python lanes live at observation. SR Overview is subsequent local evidence.",
     "browser_host": "Local headless Edge and Playwright Chromium headless shell v1243 (Chrome 153.0.8010.12); not native WebView2 release evidence.",
-    "browser_teardown": "All 117 current scenarios passed Edge (34.0s) and Chromium (31.3s); owned test hosts exited cleanly.",
+    "browser_teardown": "All 129 current scenarios passed Edge (36.2s) and Chromium (32.9s); owned test hosts exited cleanly.",
     "historical_migrations_1_16": "manifest entries and accepted runtime bytes remain hash-identical",
     "migration17_sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905",
     "visual_fixtures": {
@@ -224,7 +224,7 @@
       "frontend_change": "none",
       "semantic_closure": "pending owner leaf reconciliation and UI binding"
     },
-    "chromium_browser_tests": 117,
+    "chromium_browser_tests": 129,
     "infrastructure_return": {
       "node_passed": 24,
       "edge_passed": 88,
@@ -343,6 +343,30 @@
       "chromium_passed": 117,
       "browser_cases": 10,
       "state_tooling_python_passed": 16
+    },
+    "sr_source_reference": {
+      "authority": [
+        "spec/lld/tickets-core/queries/sr-reference.json",
+        "spec/lld/tickets-core/types/sr-reference-transport.json",
+        "spec/lld/tickets-core/schema/sr-reference-context.json",
+        "spec/lld/tickets-core/algorithms/sr-source-current.json",
+        "spec/lld/tickets-core/schema/sr-source-projection.json"
+      ],
+      "design_sha": "9a0e891127a771251afccca1a281b7ef7dde9e5f",
+      "proof": [
+        "src/web/app/ServiceRequestContext.tsx",
+        "src/web/browser-tests/sr-source-reference.spec.mjs",
+        "tests/test_sr_source_projection.py",
+        "tests/test_sr_reference_mutations.py"
+      ],
+      "focused_python_passed": 37,
+      "junit": "tmp/lld10-sr-context-focused.xml",
+      "browser_cases": 12,
+      "node_passed": 30,
+      "strict_build": "pass",
+      "schema_manifest": "pass, 1315 objects",
+      "frozen_assets": "pass",
+      "limits": "Read-only slice. Full Python suite not rerun for this frontend-only change; the 2066-test full suite above is historical Settings/Fault Tag core evidence. No native WebView2, pixel baseline or semantic closure certification."
     }
   },
   "cases": [
@@ -1163,16 +1187,16 @@
       }
     }
   ],
-  "updated_at_utc": "2026-10-02 22:43:56 UTC",
+  "updated_at_utc": "2026-10-02 22:57:14 UTC",
   "publication": {
-    "implementation": "6ddc3fc3e564743a75a23799bc75b97e7583b1ad",
+    "implementation": "67e50fbc2aa7ac38db0b091cbfa53658b4877b08",
     "branch": "feat/beta-1.0-implementation",
     "remote_ref_verified": true,
-    "integrity_ci_run": 37073227389,
+    "integrity_ci_run": 37074247388,
     "integrity_ci_conclusion": "success",
-    "implementation_ci_run": 37073227395,
+    "implementation_ci_run": 37074247338,
     "implementation_ci_conclusion": "pending",
-    "detail": "Browser lane succeeded; Python lanes live. Notes slice is subsequent local evidence; unrelated local files excluded."
+    "detail": "Browser lane succeeded; Python lanes live. SR Overview slice is subsequent local evidence; unrelated local files excluded."
   },
   "closure_dependencies": "docs/reconciliation/LLD10_CLOSURE_DEPENDENCIES_V1.json"
 }

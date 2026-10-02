@@ -1,16 +1,16 @@
 {
   "files": {
+    "assets/index-CC0C6mm0.js": {
+      "bytes": 320467,
+      "sha256": "fc9e6cff525a356b3d4c895971596c10ab60526880346d28f922fcf0018de647"
+    },
     "assets/index-CoKe4wwi.css": {
       "bytes": 5825,
       "sha256": "cc795d5fa7139f975ea7a89edfd850221613bf8f3ca7788ed2eaabc2de6e3c78"
     },
-    "assets/index-D8vV526u.js": {
-      "bytes": 314145,
-      "sha256": "ec666777012d3a2febcaaebd3ae894ca37465acb361b582e7c61a3bd1202d3d5"
-    },
     "index.html": {
       "bytes": 369,
-      "sha256": "d2f13731a665314b5ff8fa28dd08fa54d08f7042e3d43061cc10ad07c821a51b"
+      "sha256": "5c51bbaffde6f866e0477d14c839353fc8a6300830aa8a902e0c5c53b5800cd4"
     }
   },
   "schema": "SOMA_UI_STATIC_ASSETS_V1",
@@ -25,10 +25,11 @@
     "app/ObjectiveWorkspace.tsx": "d509f919058822b349bb014a6567fa827923fae8871513ef6617cfc1847e6b80",
     "app/ReferenceSettings.tsx": "6573dfce5ae34c9767b27650d497e6dbf5979bc1413d6ebf343415bdd5e5b9c7",
     "app/RfcLifecycle.tsx": "f3d3e206b8e9e4f8435bc6877df6091c9c86530a38db135e8db9fe863a05b4ba",
+    "app/ServiceRequestContext.tsx": "c880ca1f12cdcdd5483e3a2338b6e0636d540129f4636ae1d77ea28a2f3df050",
     "app/SettingsWorkspace.tsx": "d8e17a6c958287e0f8547d13179502f098b54cb1681613ca74aaa71b64f6599e",
     "app/SlaCatalogSettings.tsx": "41406d9629fed58d3655890ca86e3b6ad970bc12b9b2a160809a8c4128fe43fd",
     "app/TicketCommunications.tsx": "79c34eddbd5f86333a3e3bd31ab981e18045cf38e4c18fbf7a4a71f79300cc58",
-    "app/TicketWorkbench.tsx": "744530218707f05b63e18fdb1fd38d504911bb26b843e55edc5cd17d36c10462",
+    "app/TicketWorkbench.tsx": "aba76cb27e1d9735af46a13ad20241278082bdbd16a4162ffd33db06fdd9bf71",
     "app/main.tsx": "43b23014c3c9587d4feba5dc0f3798350290f3744cbc4796fc19c92e9dd41721",
     "app/router.ts": "0174cef94334de4c8a8f618d7475ad65e96f65d684e1df49e5b84deea0aacb31",
     "app/settings-intent.ts": "a40187f8f188593d4f6dd036020b2b1a9ad2bd48ea03f0a487feb1509b011e37",

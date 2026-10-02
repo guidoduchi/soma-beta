@@ -1,7 +1,7 @@
 {
   "schema": "SOMA_IMPLEMENTATION_STATE_V1",
   "repository": "guidoduchi/soma-beta",
-  "observed_at": "2026-10-02 22:43:56 UTC",
+  "observed_at": "2026-10-02 22:57:14 UTC",
   "mission": "Implement LLD-10 on the accepted design pin, applying the user-approved metadata-only checkpoint result and RFC preview-plus-hold refinements. Preserve historical LLD-09 certification and migrations 1-16; append centrally allocated migration 17. Do not invent production draft registrations or undeclared HTTP contracts.",
   "active_branch": "feat/beta-1.0-implementation",
   "next_task": "lld10-implementation",
@@ -11,7 +11,7 @@
       "design": "46c836ca949cebcf52ff05be4eb4799e0c74eed1"
     },
     "active": {
-      "implementation": "6ddc3fc3e564743a75a23799bc75b97e7583b1ad",
+      "implementation": "67e50fbc2aa7ac38db0b091cbfa53658b4877b08",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     },
     "promotion": {
@@ -53,11 +53,15 @@
     "lld10-rfc-lifecycle": {
       "implementation": "6ddc3fc3e564743a75a23799bc75b97e7583b1ad",
       "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
+    },
+    "lld10-notes-return": {
+      "implementation": "67e50fbc2aa7ac38db0b091cbfa53658b4877b08",
+      "design": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
     }
   },
   "observed_heads": {
     "main": "9d105fe23dff79efbb4ab10f92c5ac68b2191997",
-    "feat/beta-1.0-implementation": "6ddc3fc3e564743a75a23799bc75b97e7583b1ad",
+    "feat/beta-1.0-implementation": "67e50fbc2aa7ac38db0b091cbfa53658b4877b08",
     "feat/lld-08-infrastructure": "15b4310c68ed47de9226a5fa0fc25af233b1bb1a",
     "design/beta-1.0-hld-lld": "9a0e891127a771251afccca1a281b7ef7dde9e5f"
   },
@@ -264,7 +268,7 @@
       "summary": "Ordinary LLD-09 implementation is complete in the working tree: source configuration/settings, owned identities and collision/content review, ordinary/targeted/Deep Scan processing and historical coverage/reconstruction, typed proposal/owner integration, SR/RFC terminal/reversal, orphan retention and independent housekeeping, verified MSG publication, bounded queries and summaries, static transport/runtime composition, schedule/coalescing/per-source reader serialization, runtime migration 16 and all 100 scenario bindings. Ordinary implementation received a byte-bound local certificate after second review and an adapter privacy fix. Complete local suite passed 1955 tests; schema/compile/wheel/privacy checks pass. PFF adapter architecture is implemented with typed deterministic doubles and an explicit UNSUPPORTED state without a release bridge. Native physical C001-C012 certification is deferred under the accepted LLD09-PFF-RELEASE-PIN and LLD09-GOLDEN-CORPUS-FREEZE gates. Implementation and local evidence are committed at 6cf3d742f1c933087ede982f7b107576b90415af; supported-matrix remote CI promotion remains pending."
     },
     "ui": {
-      "checkpoint": "lld10-rfc-lifecycle",
+      "checkpoint": "lld10-notes-return",
       "paths": {
         "implementation": [
           "src/soma/ui/*",
@@ -287,7 +291,7 @@
         "infrastructure",
         "communications"
       ],
-      "summary": "LLD10 remains in progress, not certified. RFC Overview read is published at 6ddc3fc3. Current Notes slice retains full bounded ticket-scoped owner page queries through tab/Back navigation, refetches current note body/revision/provenance, validates full cursor/UTF8/identity/chronology and restores async focus/scroll. Unrelated local security/launcher work is preserved and excluded from this publication."
+      "summary": "LLD10 remains in progress, not certified. Notes return is published at 67e50fbc. Current SR Overview renders accepted source facts and canonical reference context from one GetServiceRequest owner snapshot, preserving explicit clears, stale Handler context and immutable organization-at-use. Unrelated local security/launcher work is preserved and excluded from publication."
     }
   },
   "evidence": {
@@ -611,6 +615,24 @@
       "run_id": 37073227395,
       "conclusion": "pending",
       "detail": "Browser lane succeeded; Python lanes live at observation. Current Notes slice is subsequent working-tree evidence."
+    },
+    "lld10-notes-integrity": {
+      "name": "Notes return integrity",
+      "checkpoint": "lld10-notes-return",
+      "source": "implementation",
+      "sha": "67e50fbc2aa7ac38db0b091cbfa53658b4877b08",
+      "run_id": 37074247388,
+      "conclusion": "success",
+      "detail": "Verified exact 67e50fbc completed/success."
+    },
+    "lld10-notes-implementation": {
+      "name": "Notes return implementation",
+      "checkpoint": "lld10-notes-return",
+      "source": "implementation",
+      "sha": "67e50fbc2aa7ac38db0b091cbfa53658b4877b08",
+      "run_id": 37074247338,
+      "conclusion": "pending",
+      "detail": "Browser lane succeeded; all three Python lanes live at observation. Current SR Overview is subsequent local evidence."
     }
   },
   "tasks": {
@@ -819,7 +841,8 @@
       "verification": [
         "Run focused Python, strict TypeScript, Node and browser tests.",
         "Run complete Python suite, compileall, schema and wheel resource checks; record actual results."
-      ]
+      ],
+      "resume_note": "Continue independently specified LLD10 behavior around the five recorded owner closure dependencies. Notes is published at 67e50fbc; its browser CI succeeded and Python lanes remain live at observation. Current SR Overview source/reference read consumes one accepted GetServiceRequest snapshot. Production writes/recovery remain gated. Preserve unrelated untracked LLD12 files and use explicit staging and isolated tracked-source package verification. Remaining domain tabs/actions and semantic/native/pixel closure remain incomplete. Inspect actual HEAD and live CI."
     }
   },
   "constraints": [
