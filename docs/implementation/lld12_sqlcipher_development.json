@@ -1,0 +1,49 @@
+{
+  "schema": "SOMA-LOCAL-SQLCIPHER-DEVELOPMENT-V1",
+  "release_certification": false,
+  "python": "CPython 3.14 Windows x64",
+  "compiler": "MSVC v143 19.44.35229",
+  "windows_sdk": "10.0.26100.0",
+  "sources": {
+    "sqlcipher3": {
+      "commit": "14fc2632676b20011e0bba64fdda49763a2dd2ec",
+      "git_archive_sha256": "e0b33ba3d7c83fccb1c37e38c2ba49885cc4c2b3cdb859ff1d9fbd402f2e502e"
+    },
+    "sqlcipher": {
+      "commit": "810db22f575ee7cf94ea96a3e91622b5fcece3dc",
+      "git_archive_sha256": "fdfc597386d5baf35aea97a9edffdd7c95f12ccff5cc6c3c15b4d1c33612ef09"
+    },
+    "openssl": {
+      "commit": "7b371d80d959ec9ab4139d09d78e83c090de9779",
+      "git_archive_sha256": "9c5a780f6dbc01a1936d588807f95f1d80af5ba524e61bd0951f7e7c4378bffb"
+    }
+  },
+  "openssl_recipe": {
+    "reference": "openssl/3.6.0#89e8af1d4a21afcac0557079d23d8890",
+    "package_id": "1d24ca8d2ba22ff20b84ad403ad2058fd19f23d6",
+    "package_revision": "fb541940c21b38eef4268133d7804d6a",
+    "source_tar_sha256": "b6a5f44b7eb69e3fa35dbf15524405b44837a481d43d81daddde3ff21fcbb8e9",
+    "libcrypto_sha256": "a6768bd1dd00c98a4c41042f4d6e18d0d51c5c569a1a5d5f2de4e218a21c195b",
+    "no_zlib": true,
+    "shared": false
+  },
+  "generated": {
+    "sqlite3.c": "6cefa3b1fa91b90bff07f3d7b1911d81b7c2616aa7d89e7092716a40a14e8545",
+    "sqlite3.h": "b43f231e215c77500c10a11e61eaef8d75629f4c51dd021e862136d9bcf95c26",
+    "sqlite3ext.h": "a3ca6e430c8e97edf8cbd66867ac178ab179a41d85c04cad48889a8b84806dcd"
+  },
+  "binding_setup_sha256": "a3225f406071b9c77d79a2319333ca18c2651d99eaf301193439121e1bbf3edb",
+  "build_adjustment": "Scratch setup.py reads the completed source-built Conan graph via SOMA_LOCAL_CONAN_GRAPH; all binding sources and compiler macros remain upstream. Vendored amalgamation/headers replaced by official SQLCipher generation.",
+  "wheel": {
+    "path": "dist/source-development/sqlcipher3-0.6.2-cp314-cp314-win_amd64.whl",
+    "sha256": "ae151e020ce45b60aac8be3fc8628ae4a7894b2c543fbfb5bc1f4047db22618f",
+    "bytes": 2567220
+  },
+  "verification": {
+    "cipher_version": "4.17.0 community",
+    "canonical_core": "4.17.0",
+    "encrypted_migration_sequence": 19,
+    "cipher_profile": "4096/HMAC_SHA512/use_hmac=1/plaintext_header=0/memory_security=1/foreign_keys=1",
+    "wrong_key_rejected": true
+  }
+}

@@ -98,14 +98,15 @@ def test_runtime_registry_is_atomic_exact_owned_and_contains_no_secret_fields(tm
     run_id = new_uuid4()
     data_instance_id = new_uuid4()
     record = RuntimeRegistryRecord(
-        registry_version=1,
-        origin="SOMA",
+        registry_version=2,
+        origin="http://127.0.0.1:12345",
         pid=os.getpid(),
-        process_birth_id="test-process-birth",
+        process_birth_id="134000000000000001",
         run_id=run_id,
         protocol_version="1",
         data_instance_id=data_instance_id,
-        readiness_locator="http://127.0.0.1:12345",
+        readiness_locator=f"run-{run_id}.dpapi",
+        published_at_utc=1,
     )
 
     RuntimeRegistry.publish(paths.registry, record)
@@ -152,13 +153,47 @@ def test_runtime_registry_rejects_nonloopback_locator(tmp_path, locator) -> None
         RuntimeRegistry.publish(
             paths.registry,
             RuntimeRegistryRecord(
-                registry_version=1,
-                origin="SOMA",
+                registry_version=2,
+                origin=locator,
                 pid=os.getpid(),
-                process_birth_id="birth",
+                process_birth_id="134000000000000001",
                 run_id=new_uuid4(),
                 protocol_version="1",
                 data_instance_id=new_uuid4(),
                 readiness_locator=locator,
+                published_at_utc=1,
             ),
         )
+
+
+def _publication_record():
+    run_id = new_uuid4()
+    return RuntimeRegistryRecord(2, "http://127.0.0.1:12345", os.getpid(),
+        "134000000000000001", run_id, "1", new_uuid4(), f"run-{run_id}.dpapi", 1)
+
+
+def test_registry_publication_never_overwrites_a_concurrent_foreign_file(tmp_path, monkeypatch):
+    target = tmp_path / "runtime.json"
+    operation = "rename" if os.name == "nt" else "link"
+    original = getattr(os, operation)
+
+    def race(source, destination):
+        target.write_bytes(b"foreign registry")
+        return original(source, destination)
+
+    monkeypatch.setattr(os, operation, race)
+    with pytest.raises(FileExistsError):
+        RuntimeRegistry.publish(target, _publication_record())
+    assert target.read_bytes() == b"foreign registry"
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_registry_publication_never_deletes_a_foreign_temporary_file(tmp_path, monkeypatch):
+    import soma.foundation.runtime.registry as registry_module
+    identifier = new_uuid4()
+    temporary = tmp_path / f".runtime.json.tmp-{identifier}"
+    temporary.write_bytes(b"foreign temporary")
+    monkeypatch.setattr(registry_module.uuid, "uuid4", lambda: identifier)
+    with pytest.raises(FileExistsError):
+        RuntimeRegistry.publish(tmp_path / "runtime.json", _publication_record())
+    assert temporary.read_bytes() == b"foreign temporary"

@@ -51,7 +51,7 @@ class RuntimeSecurityProvider(Protocol):
         run_id: str,
         data_instance_id: str,
         readiness_locator: str,
-    ) -> None: ...
+    ) -> str: ...
 
     def close_run(self, *, run_id: str, data_instance_id: str) -> None: ...
 
@@ -288,6 +288,8 @@ class HostRuntime:
             migration_id=self._migration_id,
             integrity_state=self._integrity_state,
             started_at_utc=self._started_at_utc,
+            pid=os.getpid(),
+            process_birth_id=self._process_birth_id,
         )
 
     def start(self) -> RuntimeHealth:
@@ -333,7 +335,7 @@ class HostRuntime:
             # cleanup ownership before entering the provider call so partial
             # preparation is always paired with close_run.
             self._security_started = True
-            self._run_security.prepare_run(
+            protected_locator = self._run_security.prepare_run(
                 run_id=self._run_id,
                 data_instance_id=self._data_instance_id,
                 readiness_locator=locator,
@@ -347,15 +349,17 @@ class HostRuntime:
             RuntimeRegistry.publish(
                 self._paths.registry,
                 RuntimeRegistryRecord(
-                    registry_version=1,
-                    origin="SOMA",
+                    registry_version=2,
+                    origin=locator,
                     pid=os.getpid(),
                     process_birth_id=self._process_birth_id,
                     run_id=self._run_id,
                     protocol_version=self._protocol_version,
                     data_instance_id=self._data_instance_id,
-                    readiness_locator=locator,
+                    readiness_locator=protected_locator,
+                    published_at_utc=utc_epoch_seconds(),
                 ),
+                file_security=getattr(self._run_security, "file_security", None),
             )
             self._registry_published = True
             expected_health = self._health_for_state("LISTENING_NOT_READY")
@@ -390,11 +394,6 @@ class HostRuntime:
         require_uuid4(data_instance_id)
         if run_id != self._run_id or data_instance_id != self._data_instance_id:
             raise SomaError("FORBIDDEN", "shutdown run/data identity does not match current host")
-        if self._state == "QUIESCING":
-            return ShutdownResult("ALREADY_QUIESCING", run_id, data_instance_id)
-        if self._state not in {"READY", "LISTENING_NOT_READY"}:
-            raise SomaError("HOST_NOT_READY", "runtime is not available for shutdown")
-
         envelope = CommandEnvelope(
             command_id=command_id,
             command_type="ShutdownHost",
@@ -405,6 +404,17 @@ class HostRuntime:
                 "data_instance_id": data_instance_id,
             },
         )
+        if self._state == "QUIESCING":
+            replay = self._shutdown_boundary.lookup_replay(envelope)
+            if replay is not None:
+                if replay.response_schema != "ShutdownHostAcceptedV1" or replay.response != {
+                    "shutdown_state": "QUIESCING", "run_id": run_id, "data_instance_id": data_instance_id,
+                }:
+                    raise IntegrityFailure("shutdown replay result contract is invalid")
+                return ShutdownResult(**replay.response)
+            return ShutdownResult("ALREADY_QUIESCING", run_id, data_instance_id)
+        if self._state not in {"READY", "LISTENING_NOT_READY"}:
+            raise SomaError("HOST_NOT_READY", "runtime is not available for shutdown")
 
         def prepare(uow) -> PreparedMutation:
             if self._state not in {"READY", "LISTENING_NOT_READY"}:
@@ -686,6 +696,9 @@ class HostRuntime:
                     self._paths.registry,
                     run_id=run_id,
                     data_instance_id=data_instance_id,
+                    pid=os.getpid(),
+                    process_birth_id=self._process_birth_id,
+                    file_security=getattr(self._run_security, "file_security", None),
                 )
             except BaseException as exc:
                 failures.append(("runtime_registry.remove_owned", exc))

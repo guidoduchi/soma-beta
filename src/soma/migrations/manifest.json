@@ -102,6 +102,18 @@
       "migration_id": "beta_0017_ui_workbenches",
       "filename": "0017_ui_workbenches.sql",
       "sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905"
+    },
+    {
+      "sequence": 18,
+      "migration_id": "beta_0018_overview",
+      "filename": "0018_overview.sql",
+      "sha256": "6b57e294c35226f867d07d1cbf6689d092f28acc11c6e692da76e29d1f53d675"
+    },
+    {
+      "sequence": 19,
+      "migration_id": "beta_0019_security_packaging",
+      "filename": "0019_security_packaging.sql",
+      "sha256": "45065d0e38ac6147f979c305325fd1af9ec5b2b9394e5c532b18f4e70729ed14"
     }
   ]
 }

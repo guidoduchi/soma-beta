@@ -47,6 +47,7 @@ class _RunSecurity:
 
     def prepare_run(self, **values) -> None:
         self.prepared.append(values)
+        return f"run-{values['run_id']}.dpapi"
 
     def close_run(self, **values) -> None:
         self.closed.append(values)
@@ -90,7 +91,7 @@ def _runtime(
         startup_reconciler=lambda run_id, now: reconciled.append((run_id, now)),
         app_version="test",
         protocol_version="1",
-        process_birth_id="runtime-test-process",
+        process_birth_id="134000000000000001",
     )
     return runtime, paths, adapter, security, reconciled
 
@@ -123,9 +124,11 @@ def test_host_reaches_ready_only_after_verified_migration_security_server_and_se
     assert registry is not None
     assert registry.run_id == health.run_id
     assert registry.data_instance_id == health.data_instance_id
-    assert registry.readiness_locator.endswith(
-        f":{int(registry.readiness_locator.rsplit(':',1)[1])}"
-    )
+    assert registry.registry_version == 2
+    assert registry.readiness_locator == f"run-{health.run_id}.dpapi"
+    assert registry.origin.startswith("http://127.0.0.1:")
+    assert health.pid == registry.pid
+    assert health.process_birth_id == registry.process_birth_id
 
     quiescing = runtime.quiesce()
     assert quiescing.shutdown_state == "QUIESCING"
@@ -275,7 +278,7 @@ def test_shutdown_request_commits_one_receipt_audit_then_closes_writer_admission
         run_id=health.run_id,
         data_instance_id=health.data_instance_id,
     )
-    assert repeated.shutdown_state == "ALREADY_QUIESCING"
+    assert repeated.shutdown_state == "QUIESCING"
     with ReadSnapshot(runtime.connection_factory) as snapshot:
         assert snapshot.connection.execute(
             "SELECT COUNT(*) FROM audit_events WHERE command_id=?",

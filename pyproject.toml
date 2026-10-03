@@ -8,6 +8,7 @@ version = "1.0.0.dev0"
 description = "SOMA Beta 1.0 local operations platform"
 requires-python = ">=3.13,<3.15"
 dependencies = [
+  "argon2-cffi==25.1.0",
   "starlette==1.6.0",
   "uvicorn==0.52.4",
   "openpyxl==3.1.5",

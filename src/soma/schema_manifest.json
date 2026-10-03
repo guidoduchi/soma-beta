@@ -8964,6 +8964,36 @@
     {
       "keys": [
         {
+          "cid": 2,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "state",
+          "sequence": 0
+        },
+        {
+          "cid": 1,
+          "collation": "BINARY",
+          "descending": true,
+          "name": "created_at_utc",
+          "sequence": 1
+        },
+        {
+          "cid": 0,
+          "collation": "BINARY",
+          "descending": false,
+          "name": "backup_id",
+          "sequence": 2
+        }
+      ],
+      "name": "idx_managed_backup_verified_created",
+      "origin": "c",
+      "partial": false,
+      "table_name": "managed_backup_catalog",
+      "unique": false
+    },
+    {
+      "keys": [
+        {
           "cid": 9,
           "collation": "BINARY",
           "descending": false,
@@ -16529,6 +16559,16 @@
       "migration_id": "beta_0017_ui_workbenches",
       "sequence": 17,
       "sha256": "26640d403df27eb1659abed7ffe5b0eaa4b50c00a1c94980c518dd5b2fb16905"
+    },
+    {
+      "migration_id": "beta_0018_overview",
+      "sequence": 18,
+      "sha256": "6b57e294c35226f867d07d1cbf6689d092f28acc11c6e692da76e29d1f53d675"
+    },
+    {
+      "migration_id": "beta_0019_security_packaging",
+      "sequence": 19,
+      "sha256": "45065d0e38ac6147f979c305325fd1af9ec5b2b9394e5c532b18f4e70729ed14"
     }
   ],
   "objects": [
@@ -19074,6 +19114,12 @@
       "name": "idx_jobs_type_state",
       "sql_sha256": "a501c19d0a31855e9220ce2967a1f2cca63b3ef9ceb3f2ce2ff051469e34d0c3",
       "table_name": "durable_jobs",
+      "type": "index"
+    },
+    {
+      "name": "idx_managed_backup_verified_created",
+      "sql_sha256": "49b03d438f9fbe9c422be76183e42636b3ccedf00e70e136b704b31bc5166766",
+      "table_name": "managed_backup_catalog",
       "type": "index"
     },
     {
@@ -21753,6 +21799,12 @@
       "type": "table"
     },
     {
+      "name": "managed_backup_catalog",
+      "sql_sha256": "91de85761dddc64d66cd7a2f16121d2265b255aba11e6acf33821d9778828b2a",
+      "table_name": "managed_backup_catalog",
+      "type": "table"
+    },
+    {
       "name": "model_bom_compatibility_current",
       "sql_sha256": "05948b509596b63e4ec8ac21722db49f90afd9a9192f0757b7671b580311a88e",
       "table_name": "model_bom_compatibility_current",
@@ -22128,6 +22180,18 @@
       "name": "schema_migrations",
       "sql_sha256": "b9f68b54268755580d501aa432f596d2be88da9bc677b14045401cf04c99699f",
       "table_name": "schema_migrations",
+      "type": "table"
+    },
+    {
+      "name": "security_auth_credentials",
+      "sql_sha256": "22daffbe6279b48f5c0b0fd086e47a07ac3b96ae12239b26a91acb85b6d86ecb",
+      "table_name": "security_auth_credentials",
+      "type": "table"
+    },
+    {
+      "name": "security_auto_login",
+      "sql_sha256": "a0b4ffca88ea1d38714060d703207d5b281df047224d32d689308d5344167d20",
+      "table_name": "security_auto_login",
       "type": "table"
     },
     {
@@ -23433,6 +23497,12 @@
       "type": "trigger"
     },
     {
+      "name": "managed_backup_catalog_identity_immutable",
+      "sql_sha256": "ec4acd063b00319e9ac6b3c103aa034aa619b18d5b5fe08da1c45040832a64bc",
+      "table_name": "managed_backup_catalog",
+      "type": "trigger"
+    },
+    {
       "name": "objective_aggregate_delete_guard",
       "sql_sha256": "4c359510cc2747516d857bf475b012e809389d485903d0bd7bb4c7cc0fe7d926",
       "table_name": "objective_aggregate_projection",
@@ -23832,6 +23902,12 @@
       "name": "rfc_working_note_update_guard",
       "sql_sha256": "34e7addafc96455e614566f730aaa4b23592eccb2c1ea856cd17ceec950b0a0c",
       "table_name": "rfc_working_notes",
+      "type": "trigger"
+    },
+    {
+      "name": "security_auth_credentials_no_delete",
+      "sql_sha256": "1c577c2a407b094d20e9e7c1f047b188781685087d855b005098afba229b9256",
+      "table_name": "security_auth_credentials",
       "type": "trigger"
     },
     {
@@ -35334,6 +35410,95 @@
           "declared_type": "TEXT",
           "default_sql": null,
           "hidden": 0,
+          "name": "backup_id",
+          "not_null": true,
+          "primary_key_ordinal": 1
+        },
+        {
+          "cid": 1,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "created_at_utc",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 2,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "state",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 3,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "relative_artifact_name",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 4,
+          "declared_type": "BLOB",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "artifact_sha256",
+          "not_null": false,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 5,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "source_schema_version",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 6,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "verified_at_utc",
+          "not_null": false,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 7,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "failure_code",
+          "not_null": false,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 8,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "revision",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        }
+      ],
+      "foreign_keys": [],
+      "name": "managed_backup_catalog",
+      "strict": true,
+      "without_rowid": false
+    },
+    {
+      "columns": [
+        {
+          "cid": 0,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
           "name": "compatibility_relation_id",
           "not_null": true,
           "primary_key_ordinal": 1
@@ -42481,6 +42646,159 @@
       ],
       "foreign_keys": [],
       "name": "schema_migrations",
+      "strict": true,
+      "without_rowid": false
+    },
+    {
+      "columns": [
+        {
+          "cid": 0,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "singleton_guard",
+          "not_null": false,
+          "primary_key_ordinal": 1
+        },
+        {
+          "cid": 1,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "local_user_profile_id",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 2,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "verifier_phc",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 3,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "verifier_profile",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 4,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "security_revision",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 5,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "configured_at_utc",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 6,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "updated_at_utc",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 7,
+          "declared_type": "BLOB",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "reset_verifier_sha256",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        }
+      ],
+      "foreign_keys": [
+        {
+          "child_column": "local_user_profile_id",
+          "id": 0,
+          "match": "NONE",
+          "on_delete": "RESTRICT",
+          "on_update": "RESTRICT",
+          "parent_column": "local_user_profile_id",
+          "parent_table": "local_user_profiles",
+          "sequence": 0
+        }
+      ],
+      "name": "security_auth_credentials",
+      "strict": true,
+      "without_rowid": false
+    },
+    {
+      "columns": [
+        {
+          "cid": 0,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "singleton_guard",
+          "not_null": false,
+          "primary_key_ordinal": 1
+        },
+        {
+          "cid": 1,
+          "declared_type": "TEXT",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "credential_id",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 2,
+          "declared_type": "BLOB",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "token_verifier_sha256",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 3,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "enabled",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 4,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "revision",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        },
+        {
+          "cid": 5,
+          "declared_type": "INTEGER",
+          "default_sql": null,
+          "hidden": 0,
+          "name": "updated_at_utc",
+          "not_null": true,
+          "primary_key_ordinal": 0
+        }
+      ],
+      "foreign_keys": [],
+      "name": "security_auto_login",
       "strict": true,
       "without_rowid": false
     },

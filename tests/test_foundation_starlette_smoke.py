@@ -44,6 +44,7 @@ class _SmokeRunSecurity:
         locator = values.get("readiness_locator")
         assert isinstance(locator, str)
         self.readiness_locator = locator
+        return f"run-{values['run_id']}.dpapi"
 
     def close_run(self, **values) -> None:
         self.closed.append(dict(values))
@@ -208,7 +209,7 @@ def test_real_starlette_uvicorn_foundation_flow_dispatches_through_host_and_rest
         tmp_path,
         migration_directory,
         security_provider,
-        process_birth_id="foundation-smoke-process-1",
+        process_birth_id="134000000000000001",
     )
 
     health = runtime.start()
@@ -258,7 +259,7 @@ def test_real_starlette_uvicorn_foundation_flow_dispatches_through_host_and_rest
             tmp_path,
             migration_directory,
             security_provider,
-            process_birth_id="foundation-smoke-process-2",
+            process_birth_id="134000000000000002",
         )
     )
     replacement_health = replacement.start()

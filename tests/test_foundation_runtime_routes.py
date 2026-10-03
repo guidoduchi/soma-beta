@@ -47,7 +47,7 @@ class _RouteServer:
 
 class _RouteRunSecurity:
     def prepare_run(self, **values) -> None:
-        return None
+        return f"run-{values['run_id']}.dpapi"
 
     def close_run(self, **values) -> None:
         return None
@@ -81,7 +81,7 @@ def _runtime(tmp_path, migration_directory, security_provider):
         startup_reconciler=lambda run_id, now: None,
         app_version="test",
         protocol_version="1",
-        process_birth_id="routes-test-process",
+        process_birth_id="134000000000000001",
     )
     return runtime, paths, None, None, []
 

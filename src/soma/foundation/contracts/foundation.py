@@ -69,6 +69,8 @@ class RuntimeHealth:
     migration_id: str | None
     integrity_state: str
     started_at_utc: int
+    pid: int
+    process_birth_id: str
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,0 +1,4 @@
+-- LLD-11, global forward allocation 18 (owner reconciliation).
+-- Explicit no-op: Overview is a pure read-projection packet and owns no
+-- authoritative tables, indexes, triggers, or persistent derived-state cache.
+-- Foundation records this allocated migration in its governed migration ledger.
